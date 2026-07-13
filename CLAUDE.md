@@ -38,9 +38,12 @@ Principes à respecter :
 - **Front-end** : React — web-app mobile-first, usage prévu **sur tablette uniquement** (pas d'usage mobile téléphone à prévoir dans les choix d'UI)
 - **Back-end** : Node.js
 - **Base de données** : serveur local (à héberger en interne — pas de cloud)
-- **Stockage documents** : serveur local (photos/PDF des pièces justificatives), pas de cloud tiers
+- **Stockage documents** : cloud, **spécifique à chaque entité** (voir section Modularité) :
+  - ACCECIT → Azure OneDrive
+  - Adaptel → OVH
+  - Le connecteur de stockage doit être un module interchangeable (interface commune upload/download/suppression), pas un appel direct codé en dur à une API de stockage donnée. On développe et teste d'abord avec ACCECIT (Azure OneDrive), mais l'abstraction doit permettre de brancher OVH pour Adaptel sans toucher au reste du code.
 - **Authentification** : sessions serveur (voir section dédiée)
-- **Notifications SMS/email** : prestataire à définir — vérifier en priorité le prestataire déjà utilisé sur un autre projet interne avant d'en choisir un nouveau ; critère de choix = coût le plus bas
+- **Notifications SMS/email** : **AllMySMS** (compte déjà existant) — à intégrer via ce prestataire
 - **Linter** : ESLint
 - **Versioning** : Git / GitHub — dépôt privé `tymoma01/InscriptionsDematerialisees`
 - **Éditeur** : VS Code
@@ -104,7 +107,8 @@ Cette machine à états est spécifique à ACCECIT et doit être définie en con
 ## Intégrations externes
 
 - **API SmartOF** : appelée à la validation du test pour créer le profil candidat côté formation. SmartOF reste le SI de référence pour la gestion des formations ; ce projet ne le remplace pas, il s'y articule. Module à isoler proprement (pas de dépendance dure dans le cœur du moteur de workflow, pour rester compatible avec une entité qui n'utiliserait pas SmartOF).
-- **SMS / Email** : prestataire à confirmer — vérifier celui déjà utilisé sur un autre projet interne avant d'en intégrer un nouveau. Critère : coût minimal. Cas d'usage : convocation, relance, confirmation de créneau, notification formateur, invitation signature de contrat.
+- **SMS / Email : AllMySMS** — compte déjà existant, à réutiliser plutôt que d'ouvrir un nouveau prestataire. Cas d'usage : convocation, relance, confirmation de créneau, notification formateur, invitation signature de contrat.
+- **Stockage documents** : module de connecteur par entité (Azure OneDrive pour ACCECIT, OVH pour Adaptel). Interface commune à définir (upload/download/suppression/liste), implémentations séparées par prestataire, sélection du connecteur pilotée par la configuration de l'entité.
 
 ## Contraintes RGPD (structurantes)
 
@@ -114,7 +118,8 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 - Consentement explicite du candidat à chaque étape sensible
 - Droit de modification et de suppression des données
 - Conservation limitée à 1 an pour les candidats non retenus
-- Hébergement et stockage **local** (DB + documents), accès différencié par rôle (accueil/coordination, recruteur, formateur, admin)
+- Base de données hébergée **localement** ; documents stockés en **cloud dédié à l'entité** (Azure OneDrive pour ACCECIT, OVH pour Adaptel) — vérifier les conditions de résidence des données et les garanties de sécurité de chaque prestataire pour ces catégories de données sensibles (NIR, pièce d'identité, RIB)
+- Accès différencié par rôle (accueil/coordination, recruteur, formateur, admin)
 - Traçabilité complète des actions effectuées sur un dossier (qui, quoi, quand)
 - HTTPS recommandé même sur réseau local, vu la nature des données transitant (NIR, RIB, pièces d'identité)
 
