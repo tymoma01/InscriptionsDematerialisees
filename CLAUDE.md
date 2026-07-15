@@ -37,6 +37,7 @@ Principes à respecter :
 ## Stack technique
 
 - **Front-end** : React — web-app mobile-first, usage prévu **sur tablette uniquement** (pas d'usage mobile téléphone à prévoir dans les choix d'UI)
+  - **Pas de PWA pour l'instant** : web-app classique servie dans le navigateur de la tablette (pas d'installation sur l'appareil). Manifest PWA et Service Worker sont **reportés à plus tard** — ne pas les ajouter tant que ce point n'est pas explicitement redemandé, pour éviter toute ambiguïté sur le périmètre actuel.
 - **Back-end** : Node.js
 - **Base de données** : **Azure Database for PostgreSQL** (service managé, décision validée avec le développeur senior — remplace le principe initial de DB locale). Vérifier la région d'hébergement Azure (résidence UE) et le DPA avec Microsoft pour les catégories de données sensibles (NIR, RIB, pièces d'identité)
 - **Stockage documents** : cloud, **spécifique à chaque entité** (voir section Modularité) :
