@@ -32,14 +32,12 @@ Principes à respecter :
 - Les intégrations externes (SmartOF, SMS/email) sont des modules optionnels, activables par entité
 - Le formulaire d'inscription est composé de blocs réutilisables (bloc "infos perso", bloc "coordonnées", etc.) qu'une entité peut activer/désactiver/réordonner
 - Avant d'implémenter une étape spécifique à ACCECIT, se demander : "est-ce générique (va dans le moteur) ou spécifique à cette entité (va dans sa config) ?"
-- La résolution de l'entité côté back se fait par **sous-domaine** (ex: `accecit.xxx.fr`, `adaptel.xxx.fr`), portée par un middleware dédié (`entiteContext`), décision validée avec le développeur senior
 
 ## Stack technique
 
 - **Front-end** : React — web-app mobile-first, usage prévu **sur tablette uniquement** (pas d'usage mobile téléphone à prévoir dans les choix d'UI)
-  - **Pas de PWA pour l'instant** : web-app classique servie dans le navigateur de la tablette (pas d'installation sur l'appareil). Manifest PWA et Service Worker sont **reportés à plus tard** — ne pas les ajouter tant que ce point n'est pas explicitement redemandé, pour éviter toute ambiguïté sur le périmètre actuel.
 - **Back-end** : Node.js
-- **Base de données** : **Azure Database for PostgreSQL** (service managé, décision validée avec le développeur senior — remplace le principe initial de DB locale). Vérifier la région d'hébergement Azure (résidence UE) et le DPA avec Microsoft pour les catégories de données sensibles (NIR, RIB, pièces d'identité)
+- **Base de données** : serveur local (à héberger en interne — pas de cloud)
 - **Stockage documents** : cloud, **spécifique à chaque entité** (voir section Modularité) :
   - ACCECIT → Azure OneDrive
   - Adaptel → OVH
@@ -53,7 +51,7 @@ Principes à respecter :
 ## Authentification et rôles
 
 Authentification par **session serveur** (pas de JWT) :
-- `express-session` + `connect-pg-simple` comme store persistant (Azure Database for PostgreSQL)
+- `express-session` + store persistant adapté à la DB locale (ex: `connect-pg-simple` si PostgreSQL)
 - Hash des mots de passe avec `argon2` (ou `bcrypt`)
 - Cookie `httpOnly`, `secure`, `sameSite=strict`
 - Session courte (ex: 2h d'inactivité) vu la sensibilité des données (NIR, RIB, pièces d'identité)
@@ -120,7 +118,7 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 - Consentement explicite du candidat à chaque étape sensible
 - Droit de modification et de suppression des données
 - Conservation limitée à 1 an pour les candidats non retenus
-- Base de données hébergée sur **Azure Database for PostgreSQL** (managé) ; documents stockés en **cloud dédié à l'entité** (Azure OneDrive pour ACCECIT, OVH pour Adaptel) — vérifier pour la DB comme pour le stockage documentaire la région d'hébergement (résidence UE), le DPA avec chaque prestataire, et les garanties de sécurité pour ces catégories de données sensibles (NIR, pièce d'identité, RIB)
+- Base de données hébergée **localement** ; documents stockés en **cloud dédié à l'entité** (Azure OneDrive pour ACCECIT, OVH pour Adaptel) — vérifier les conditions de résidence des données et les garanties de sécurité de chaque prestataire pour ces catégories de données sensibles (NIR, pièce d'identité, RIB)
 - Accès différencié par rôle (accueil/coordination, recruteur, formateur, admin)
 - Traçabilité complète des actions effectuées sur un dossier (qui, quoi, quand)
 - HTTPS recommandé même sur réseau local, vu la nature des données transitant (NIR, RIB, pièces d'identité)
