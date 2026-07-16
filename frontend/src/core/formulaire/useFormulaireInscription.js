@@ -49,6 +49,7 @@ export function useFormulaireInscription(configBlocs) {
     estPremiereEtape,
     estDerniereEtape,
     etapeCouranteValide,
+    formulaireValide,
     valeursParBloc,
     mettreAJourBloc,
     mettreAJourValidite,
