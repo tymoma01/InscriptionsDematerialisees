@@ -1,10 +1,10 @@
-require('dotenv').config();
+const { obtenirConnectionString } = require('./src/db/config');
 
-module.exports = {
+module.exports = async () => ({
   client: 'pg',
-  connection: process.env.DATABASE_URL,
+  connection: await obtenirConnectionString(),
   migrations: {
     directory: './src/db/migrations',
     tableName: 'knex_migrations',
   },
-};
+});

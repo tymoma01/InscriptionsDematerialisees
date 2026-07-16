@@ -1,13 +1,17 @@
-require('dotenv').config();
 const { Client } = require('pg');
+const { obtenirConnectionString } = require('../src/db/config');
 
 async function testerConnexion() {
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL manquant — vérifie backend/.env');
+  let connectionString;
+  try {
+    connectionString = await obtenirConnectionString();
+  } catch (erreur) {
+    console.error('Échec de récupération du secret depuis Azure Key Vault ✘');
+    console.error(erreur.message);
     process.exit(1);
   }
 
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const client = new Client({ connectionString });
 
   try {
     await client.connect();
