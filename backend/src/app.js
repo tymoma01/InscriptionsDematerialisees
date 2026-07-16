@@ -3,11 +3,14 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { entiteContext } = require('./api/middlewares/entiteContext.middleware');
 const candidatsRoutes = require('./api/routes/candidats.routes');
+const { FRONTEND_URL } = require('./config/env');
 
 const app = express();
 
 app.use(helmet());
-app.use(cors({ credentials: true }));
+// credentials: true impose une origine explicite (jamais "*") — voir FRONTEND_URL dans
+// config/env.js, cohérent avec la résolution d'entité par sous-domaine (entiteContext).
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json());
 
 app.use(entiteContext);
