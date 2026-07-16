@@ -21,6 +21,9 @@ export function useFormulaireInscription(configBlocs) {
   const estPremiereEtape = etapeCourante === 0;
   const estDerniereEtape = etapeCourante === blocsActifs.length - 1;
   const etapeCouranteValide = blocCourant ? Boolean(validiteParBloc[blocCourant.code]) : false;
+  // Validité globale : tous les blocs actifs doivent être valides, pas seulement le courant
+  // (un bloc précédent reste valide même une fois démonté, mais on le revérifie ici par sûreté).
+  const formulaireValide = blocsActifs.every((bloc) => Boolean(validiteParBloc[bloc.code]));
 
   const mettreAJourBloc = useCallback((code, valeurs) => {
     setValeursParBloc((precedent) => ({ ...precedent, [code]: valeurs }));

@@ -9,6 +9,9 @@ const TAILLE_TAG_OCTETS = 16; // taille fixe du tag d'authentification GCM produ
 
 let promesseCle;
 
+// Clé AES-256 récupérée depuis Azure Key Vault — jamais dans le code ni dans une variable
+// d'environnement en clair (voir CLAUDE.md, section RGPD, et architecture-technique.md §1.7).
+// Le secret est stocké encodé en base64 dans le Key Vault, décodé ici en Buffer 32 octets.
 async function obtenirCle() {
   if (!promesseCle) {
     promesseCle = obtenirSecret(NOM_SECRET_CLE).then((valeurBase64) => {
@@ -120,10 +123,24 @@ async function dechiffrerNirDepuisColonnes(colonneNir, colonneNirIv) {
   return dechiffrerNir(valeurChiffree);
 }
 
+// Alias conservés pour compatibilité avec dossierService.js (`const { chiffrer } = require('../securite/nirCipher')`) :
+// même opération que chiffrerNirPourColonnes/dechiffrerNirDepuisColonnes, avec les noms de champs
+// nirChiffre/iv déjà utilisés par ce consommateur plutôt que nir/nirIv.
+async function chiffrer(nirClair) {
+  const { nir, nirIv } = await chiffrerNirPourColonnes(nirClair);
+  return { nirChiffre: nir, iv: nirIv };
+}
+
+function dechiffrer(nirChiffre, iv) {
+  return dechiffrerNirDepuisColonnes(nirChiffre, iv);
+}
+
 module.exports = {
   chiffrerNir,
   dechiffrerNir,
   chiffrerNirPourColonnes,
   dechiffrerNirDepuisColonnes,
   invaliderCacheCle,
+  chiffrer,
+  dechiffrer,
 };
