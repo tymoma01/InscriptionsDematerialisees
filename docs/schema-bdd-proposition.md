@@ -347,8 +347,12 @@ adresse_ip     varchar
 ### 4. Chiffrement applicatif du NIR
 **Contexte** : déjà tranché en amont (chiffrement applicatif, colonnes `nir` + `nir_iv`), mais reste un point sensible RGPD qui mérite une dernière relecture architecture/sécurité avant la première migration.
 
-Points à figer avec le développeur senior :
-- Algorithme retenu (AES-256-GCM recommandé)
-- Emplacement et rotation de la clé de chiffrement (variable d'environnement simple, ou coffre-fort de secrets type Azure Key Vault vu que la DB est déjà chez Azure ?)
+Points figés avec le développeur senior le 2026-07-16 (voir `docs/architecture-technique.md` §1.7 pour le détail) :
+- **Algorithme retenu : AES-256-GCM**, appliqué côté application avant écriture en base — jamais de NIR en clair en DB.
+- **Emplacement et rotation de la clé** : Azure Key Vault (indépendamment de l'hébergeur DB, qui est désormais Neon) — accès Azure en attente côté équipe.
+- **Implémentation en couche réutilisable** : un service dédié (`backend/src/core/securite/nirCipher.js`), pas de chiffrement/déchiffrement ad hoc dupliqué à chaque endroit où le NIR est manipulé.
+- **Déchiffrement côté serveur uniquement**, à la volée, pour les usages qui le nécessitent explicitement (jamais côté client/frontend, jamais persisté en clair dans les logs/exports).
+
+Restent à trancher :
 - Quels rôles/endpoints ont accès au NIR déchiffré, et comment ça s'articule avec `journal_audit`
 - Sauvegardes de la base : s'assurer que la clé de chiffrement n'est jamais sauvegardée avec les données chiffrées (sinon le chiffrement devient inutile)

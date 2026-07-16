@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(echo \"exit:$?\")",
+      "WebSearch",
+      "WebFetch(domain:neon.com)"
+    ]
+  }
+}

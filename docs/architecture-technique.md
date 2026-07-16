@@ -69,6 +69,22 @@ Trois éléments restent communs à toutes les entités par décision déjà act
 - le chiffrement applicatif du NIR (colonnes `nir`/`nir_iv` sur `candidats`) : traitement universel, pas une variation métier,
 - le rattachement d'un candidat à une seule entité (pas de profil partagé entre ACCECIT et Adaptel).
 
+### 1.7 Architecture de stockage des données sensibles — décision figée (2026-07-16)
+
+Le NIR est un identifiant réglementé qui exige une protection renforcée ; les pièces justificatives (CNI, RIB, attestations) sont des fichiers déjà couverts par le DPA Microsoft 365 en place. Ces deux catégories de données sensibles suivent donc des chemins de stockage différents, chacun choisi pour sa raison propre plutôt que par défaut :
+
+**NIR — reste dans Neon, mais jamais en clair.**
+- Chiffrement symétrique **AES-256-GCM**, appliqué côté application (Node.js) avant toute écriture en base — jamais de NIR en clair transmis à Postgres.
+- La clé de chiffrement vit dans **Azure Key Vault** — jamais dans le code, jamais dans une variable d'environnement en clair (voir [[decision-nir-keyvault]]).
+- Colonnes `nir` (texte chiffré) + `nir_iv` (IV/nonce nécessaire au déchiffrement) sur `candidats` — aucune des deux ne permet de reconstituer le NIR sans passer par la clé Key Vault.
+- Le déchiffrement n'a lieu **qu'à la volée, côté serveur**, pour les usages qui le nécessitent explicitement (ex. transmission à SmartOF) — jamais côté client/frontend, jamais persisté en clair ailleurs (logs, cache, exports).
+- Implémentation en **couche réutilisable** : `backend/src/core/securite/nirCipher.js` (chiffrer/déchiffrer) — aucun module métier ne doit réimplémenter AES-256-GCM ad hoc ; tout accès au NIR passe par ce service.
+
+**Pièces justificatives — jamais dans Neon, uniquement une référence.**
+- Le fichier binaire (scan CNI, RIB, attestations) est stocké sur **OneDrive/SharePoint via Microsoft Graph API** (`azureOneDriveConnector.js`, §2), jamais en base.
+- Neon ne conserve qu'une **référence** (id de fichier / URL / métadonnée) dans `pieces_justificatives.reference_stockage` — cohérent avec l'interface `StorageConnector` déjà décrite en §2.
+- **Pourquoi pas Neon pour ces fichiers aussi** : Microsoft 365 (OneDrive/SharePoint) a un DPA déjà en place et vérifié pour ACCECIT, alors que le statut du DPA Neon (DPA GDPR existant, mais entité contractante Neon vs Databricks à clarifier, et protections contractuelles réservées au plan payant "Scale" — voir [[decision-neon-db]]) est encore en cours de clarification. Ne pas ajouter un nouveau sous-traitant non stabilisé pour des fichiers qui ont déjà une voie de stockage conforme.
+
 ---
 
 ## 2. Abstraction des connecteurs de stockage documentaire
@@ -153,9 +169,15 @@ Cette table est le résumé opérationnel de la contrainte de modularité de CLA
 
 ---
 
+## Prochaines étapes techniques (suite à la décision § 1.7)
+
+1. **Service de chiffrement NIR** : créer `backend/src/core/securite/nirCipher.js` (AES-256-GCM, fonctions `chiffrer(nirClair)` / `dechiffrer(nirChiffre, iv)`), remplaçant la logique ad hoc actuellement absente — aucun autre module ne doit accéder au NIR sans passer par ce service.
+2. **Clé de chiffrement dans Azure Key Vault** : créer le secret (nom à définir, ex. `nir-encryption-key`), configurer l'accès applicatif (Managed Identity en prod, `az login`/`DefaultAzureCredential` en local) — bloqué en attente des accès Azure (cf. [[decision-nir-keyvault]]).
+3. **Fondations de l'intégration Graph API** : compléter `backend/src/integrations/stockage/azureOneDriveConnector.js` (actuellement stub) pour l'upload/download/suppression réels via `@microsoft/microsoft-graph-client` + `@azure/identity` ; vérifier l'auth (app registration, permissions Graph `Files.ReadWrite` scopées au dossier ACCECIT).
+
 ## Points laissés ouverts (hors périmètre de ce document)
 
 - Mapping détaillé des champs SmartOF (endpoint, auth, structure du payload) — à documenter séparément comme prévu par CLAUDE.md.
 - Choix S3-compatible vs API native pour le connecteur OVH (`.env.example` note ce point comme non tranché).
-- Emplacement et rotation de la clé de chiffrement du NIR (variable d'environnement vs Azure Key Vault) — point ouvert n°4 de `docs/schema-bdd-proposition.md`, non repris ici.
+~~Emplacement et rotation de la clé de chiffrement du NIR~~ — **tranché le 2026-07-16** : Azure Key Vault retenu (accès en attente côté équipe, cf. point ouvert n°4 de `docs/schema-bdd-proposition.md`).
 - Job de purge RGPD (candidats non retenus, `duree_conservation_mois`) — non implémenté à ce stade.
