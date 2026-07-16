@@ -77,7 +77,7 @@ HTTPS recommandé même en usage intranet local (reverse proxy avec certificat, 
    - Coordonnées (adresse, téléphone, email, contact d'urgence)
    - Situation professionnelle (n° France Travail, disponibilités, langues, poste, CV)
    - Provenance et préférence (comment connu, poste souhaité : bureau ou hôtel)
-   - Consentements RGPD + **signature électronique** — c'est à cette étape précise que le candidat accepte explicitement le stockage du NIR et des autres données sensibles
+   - Consentements RGPD + **signature électronique** — c'est à cette étape précise que le candidat accepte explicitement le stockage du NIR et des autres données sensibles (voir section dédiée "Signature électronique de la charte" ci-dessous)
 3. **Prise de pièces justificatives par l'accueil** — après la signature, la personne de l'accueil prend en photo (via la tablette) : pièce d'identité, carte vitale/NIR, RIB, justificatif de domicile
 4. **Questions de vérification** — quelques questions posées par l'accueil pour valider l'expérience/le profil déclaré
 5. **Back-office recruteur** — filtres, indicateur de complétude, demande de complément, commentaires
@@ -107,6 +107,61 @@ Nouveau
 
 Cette machine à états est spécifique à ACCECIT et doit être définie en configuration, pas en dur (voir section Modularité) — une autre entité aura potentiellement moins ou plus d'étapes.
 
+## Signature électronique de la charte — décision technique (2026-07-16)
+
+Au bloc 5 du formulaire d'inscription (Consentements RGPD + signature), le candidat doit :
+1. Faire défiler l'intégralité du texte de la charte avant que le bouton de signature ne soit activable (scroll-gate)
+2. Signer au doigt sur la tablette (capture via canvas)
+
+**Scroll-gate (lecture forcée) :**
+- Le conteneur de texte de la charte écoute son scroll ; le bouton "Signer" reste désactivé tant que `scrollTop + clientHeight < scrollHeight` (avec une marge de tolérance de quelques px)
+- Cas à gérer : si la charte tient déjà entièrement dans la hauteur du conteneur (pas de scroll possible), le bouton doit être débloqué automatiquement (sinon blocage permanent)
+- À tester sur les dimensions réelles de la tablette de production, pas seulement en desktop
+
+**Capture de signature :**
+- Lib `signature_pad` (gère nativement le tactile, export en PNG base64 via `toDataURL()`)
+- Vérifier `pad.isEmpty()` avant validation pour éviter une signature vide
+
+**Preuve légale associée à la signature — ne jamais faire confiance au client :**
+- Le front envoie au back uniquement : `candidat_id`, `charte_hash` (SHA-256 du texte exact de la charte affichée), `signature_image` — **jamais de timestamp généré côté client**
+- Le back **recalcule le hash côté serveur** à partir du texte de la charte active et vérifie qu'il correspond à `charte_hash` reçu, avant d'insérer — empêche qu'un client signe un texte différent de celui réellement affiché
+- L'horodatage de preuve est celui du serveur au moment de l'insertion en base : colonne `created_at timestamptz NOT NULL DEFAULT now()` dans Neon — le back ignore volontairement tout champ timestamp qu'un client enverrait
+
+**Modèle de données — décision (2026-07-16) : tout dans Neon, avec versionnement de la charte**
+
+Le texte de la charte est versionné en base (table `chartes`), pour pouvoir retrouver le texte exact correspondant à un hash donné a posteriori. La signature référence la charte par FK, pas seulement par hash.
+
+```sql
+CREATE TABLE chartes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  version integer NOT NULL,
+  texte text NOT NULL,
+  hash text NOT NULL UNIQUE, -- SHA-256 précalculé à l'insertion
+  entite_id uuid NOT NULL REFERENCES entites(id), -- une charte par entité (modularité)
+  date_creation timestamptz NOT NULL DEFAULT now(),
+  actif boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE signatures_charte (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  candidat_id uuid NOT NULL REFERENCES candidats(id),
+  charte_id uuid NOT NULL REFERENCES chartes(id), -- FK directe vers la version signée
+  signature_image bytea NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+- **`signatures_charte` et `chartes` vivent dans Neon**, pas dans OneDrive/SharePoint : ce ne sont pas des pièces justificatives scannées par un tiers, mais des données structurées générées par l'app elle-même (hash + petite image de tracé), cohérentes avec le reste des données candidat déjà en base (dont le NIR chiffré)
+- Ne pas confondre avec le flux des pièces justificatives (CNI/RIB/attestations), qui reste inchangé : celui-ci continue de passer par OneDrive (ACCECIT) / OVH (Adaptel), Neon ne gardant qu'une référence
+- `charte_id` en FK plutôt qu'un simple hash stocké : jointure directe, plus robuste qu'un hash seul si l'algo de hash ou la normalisation du texte change un jour
+
+**Points ouverts restants (à trancher avant implémentation) :**
+- Qui peut désactiver/remplacer une charte active ? Pressenti : rôle **Admin** uniquement, cohérent avec le reste du modèle de permissions
+- Le changement de version de charte doit-il lui-même être tracé (qui a modifié, quand) ? Probablement oui, cohérent avec l'exigence de traçabilité RGPD déjà en place ailleurs dans le projet — à formaliser dans une table d'audit ou en réutilisant le mécanisme de logging déjà prévu pour les connexions
+
+**Hors périmètre pour l'instant (à ne pas implémenter sans redemande explicite) :**
+- Horodatage qualifié RFC 3161 (type Universign) — niveau de preuve renforcé mais disproportionné au volume actuel (~3 000 signatures/an)
+
 ## Intégrations externes
 
 - **API SmartOF** : appelée à la validation du test pour créer le profil candidat côté formation. SmartOF reste le SI de référence pour la gestion des formations ; ce projet ne le remplace pas, il s'y articule. Module à isoler proprement (pas de dépendance dure dans le cœur du moteur de workflow, pour rester compatible avec une entité qui n'utiliserait pas SmartOF).
@@ -125,6 +180,7 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 - **Architecture de stockage des données sensibles — figée le 2026-07-16** (détails techniques : `docs/architecture-technique.md` §1.7) :
   - **NIR** : reste dans Neon, mais jamais en clair — chiffrement applicatif **AES-256-GCM** avant écriture en base, clé dans **Azure Key Vault** (jamais dans le code ni en variable d'environnement en clair), déchiffrement à la volée côté serveur uniquement (jamais côté client), implémenté en couche réutilisable (`nirCipher.js`), pas ad hoc à chaque usage.
   - **Pièces justificatives** (scan CNI, RIB, attestations) : jamais dans Neon — stockées sur **OneDrive/SharePoint via Microsoft Graph API**, Neon ne garde qu'une référence (id/URL/métadonnée). Raison : le DPA Microsoft 365 est déjà en place et vérifié pour ACCECIT, contrairement au DPA Neon dont le statut (entité contractante Neon vs Databricks, plan payant requis) est encore en cours de clarification — pas de nouveau sous-traitant non stabilisé pour des fichiers qui ont déjà une voie conforme.
+  - **Signature électronique de la charte** (hash + image de tracé) : reste dans Neon également — voir section dédiée ci-dessus. Ce n'est pas une pièce justificative externe, donc pas soumise à la même logique de routage vers OneDrive/OVH.
 - Accès différencié par rôle (accueil/coordination, recruteur, formateur, admin)
 - Traçabilité complète des actions effectuées sur un dossier (qui, quoi, quand)
 - HTTPS recommandé même sur réseau local, vu la nature des données transitant (NIR, RIB, pièces d'identité)
