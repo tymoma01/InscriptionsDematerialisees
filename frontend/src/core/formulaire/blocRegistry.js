@@ -1,5 +1,6 @@
 import BlocInfosPerso from './blocs/BlocInfosPerso';
 import BlocCoordonnees from './blocs/BlocCoordonnees';
+import BlocDisponibilites from './blocs/BlocDisponibilites';
 
 // Catalogue générique code -> composant, équivalent front de la table `blocs_disponibles`.
 // Le moteur (FormulaireInscription / BlocRenderer) ne connaît que ce registre : ajouter un
@@ -8,4 +9,5 @@ import BlocCoordonnees from './blocs/BlocCoordonnees';
 export const blocRegistry = {
   infos_perso: BlocInfosPerso,
   coordonnees: BlocCoordonnees,
+  disponibilites: BlocDisponibilites,
 };

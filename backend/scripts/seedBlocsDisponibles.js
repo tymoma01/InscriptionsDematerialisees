@@ -10,6 +10,7 @@ const { obtenirKnex } = require('../src/db/knex');
 const BLOCS = [
   { code: 'infos_perso', libelle: 'Informations personnelles' },
   { code: 'coordonnees', libelle: 'Coordonnées' },
+  { code: 'disponibilites', libelle: 'Disponibilités' },
 ];
 
 async function seedBlocsDisponibles() {
