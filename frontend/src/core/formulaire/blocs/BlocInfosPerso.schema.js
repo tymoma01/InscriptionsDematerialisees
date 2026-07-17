@@ -8,11 +8,13 @@ const LETTRES_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 
 export const blocInfosPersoSchema = z.object({
   nom: z.string().trim().min(1, 'Le nom est obligatoire'),
+  // Facultatif : vide accepté, mais lettres uniquement si renseigné
   nomNaissance: z
     .string()
     .trim()
-    .min(1, 'Le nom de naissance est obligatoire')
-    .regex(LETTRES_REGEX, 'Le nom de naissance ne doit contenir que des lettres'),
+    .refine((valeur) => valeur === '' || LETTRES_REGEX.test(valeur), {
+      message: 'Le nom de naissance ne doit contenir que des lettres',
+    }),
   lieuNaissance: z.string().trim().min(1, 'Le lieu de naissance est obligatoire'),
   nationalite: z
     .string()

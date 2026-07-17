@@ -11,7 +11,15 @@ const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 // revalidé côté serveur — la validation front ne suffit jamais à sécuriser une écriture en base.
 const donneesInscriptionSchema = z.object({
   nom: z.string().trim().min(1),
-  nomNaissance: z.string().trim().min(1).regex(NOM_REGEX),
+  // Facultatif : vide/absent accepté, mais lettres uniquement si renseigné
+  nomNaissance: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((valeur) => valeur ?? '')
+    .refine((valeur) => valeur === '' || NOM_REGEX.test(valeur), {
+      message: 'Le nom de naissance ne doit contenir que des lettres',
+    }),
   lieuNaissance: z.string().trim().min(1),
   nationalite: z.string().trim().min(1).regex(NOM_REGEX),
   prenom: z.string().trim().min(1),
