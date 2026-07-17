@@ -2,6 +2,7 @@ import { useState } from 'react';
 import BlocRenderer from './BlocRenderer';
 import { useFormulaireInscription } from './useFormulaireInscription';
 import { creerCandidat } from '../../services/candidatService';
+import './FormulaireInscription.css';
 
 // Conteneur générique : orchestre la navigation entre blocs actifs d'une entité.
 // Ne référence aucun bloc par son code — uniquement via la config reçue en prop.
@@ -66,15 +67,25 @@ export default function FormulaireInscription({ configBlocs }) {
         Étape {etapeCourante + 1} / {etapes.length}
       </p>
 
-      {blocsEtapeCourante.map((bloc) => (
-        <BlocRenderer
-          key={bloc.code}
-          bloc={bloc}
-          valeurs={valeursParBloc[bloc.code]}
-          onChange={(valeurs) => mettreAJourBloc(bloc.code, valeurs)}
-          onValiditeChange={(estValide) => mettreAJourValidite(bloc.code, estValide)}
-        />
-      ))}
+      <div className="formulaire-inscription__etape">
+        {blocsEtapeCourante.map((bloc) => (
+          <div
+            key={bloc.code}
+            className={
+              bloc.largeur === 'moitie'
+                ? 'formulaire-inscription__bloc formulaire-inscription__bloc--moitie'
+                : 'formulaire-inscription__bloc'
+            }
+          >
+            <BlocRenderer
+              bloc={bloc}
+              valeurs={valeursParBloc[bloc.code]}
+              onChange={(valeurs) => mettreAJourBloc(bloc.code, valeurs)}
+              onValiditeChange={(estValide) => mettreAJourValidite(bloc.code, estValide)}
+            />
+          </div>
+        ))}
+      </div>
 
       {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 

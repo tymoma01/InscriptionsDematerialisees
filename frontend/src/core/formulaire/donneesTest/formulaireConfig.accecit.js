@@ -4,12 +4,15 @@
 // `etape` regroupe les blocs qui s'affichent ensemble sur une même page du parcours (les étapes
 // sont triées par cette valeur) ; `ordre` ne sert qu'à ordonner les blocs entre eux au sein
 // d'une même étape. Plusieurs blocs peuvent partager la même étape (ex. infos_perso + coordonnees).
+// `largeur` ('moitie' | absent = pleine largeur) pilote la mise en page dans l'étape : deux blocs
+// 'moitie' consécutifs s'affichent côte à côte, un bloc sans `largeur` occupe toute la ligne.
 export const formulaireConfigAccecitTest = [
-  { code: 'infos_perso', actif: true, etape: 1, ordre: 1, config: {} },
-  { code: 'coordonnees', actif: true, etape: 1, ordre: 2, config: {} },
+  { code: 'infos_perso', actif: true, etape: 1, ordre: 1, largeur: 'moitie', config: {} },
+  { code: 'coordonnees', actif: true, etape: 1, ordre: 2, largeur: 'moitie', config: {} },
   { code: 'disponibilites', actif: true, etape: 1, ordre: 3, config: {} },
   { code: 'consentement_rgpd', actif: true, etape: 2, ordre: 1, config: {} },
   { code: 'mutuelle', actif: true, etape: 3, ordre: 1, config: {} },
+  { code: 'charte', actif: true, etape: 3, ordre: 2, config: {} },
   { code: 'situation_pro', actif: false, etape: 4, ordre: 1, config: {} },
   { code: 'provenance', actif: false, etape: 5, ordre: 1, config: {} },
   { code: 'consentement', actif: false, etape: 6, ordre: 1, config: {} },

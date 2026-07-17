@@ -1,0 +1,17 @@
+/* Mise en page générique des blocs d'une étape : un bloc occupe toute la ligne par défaut,
+   deux blocs consécutifs marqués `largeur: 'moitie'` en config (voir formulaireConfig.*.js)
+   s'affichent côte à côte grâce au flex-wrap. Ne dépend d'aucun code de bloc précis. */
+.formulaire-inscription__etape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.formulaire-inscription__bloc {
+  flex: 1 1 100%;
+}
+
+.formulaire-inscription__bloc--moitie {
+  flex: 1 1 calc(50% - 0.75rem);
+  min-width: 20rem;
+}

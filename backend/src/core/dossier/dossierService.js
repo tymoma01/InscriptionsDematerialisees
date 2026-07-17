@@ -15,6 +15,7 @@ const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 const OUI_NON = ['oui', 'non'];
 const CHOIX_DIFFUSION = ['autorise', 'refuse'];
+const MENTION_CHARTE_ATTENDUE = 'lu et approuvé';
 
 // Même contrat que les schémas front (BlocInfosPerso.schema.js / BlocCoordonnees.schema.js /
 // BlocDisponibilites.schema.js), revalidé côté serveur — la validation front ne suffit jamais
@@ -61,6 +62,8 @@ const donneesInscriptionSchema = z
     certificationAucuneDispense: z.boolean().default(false),
     consentementDiffusion: z.enum(CHOIX_DIFFUSION),
     signatureImage: z.string().optional().default(''),
+    charteMention: z.string().trim(),
+    charteSignatureImage: z.string().min(1, 'La signature électronique est obligatoire'),
   })
   // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
@@ -110,6 +113,11 @@ const donneesInscriptionSchema = z
   .refine((donnees) => donnees.consentementDiffusion !== 'autorise' || donnees.signatureImage !== '', {
     message: 'La signature électronique est obligatoire',
     path: ['signatureImage'],
+  })
+  // La mention recopiée doit correspondre exactement à « Lu et Approuvé » (insensible à la casse)
+  .refine((donnees) => donnees.charteMention.toLowerCase() === MENTION_CHARTE_ATTENDUE, {
+    message: 'Merci de recopier exactement la mention « Lu et Approuvé »',
+    path: ['charteMention'],
   });
 
 // Assemble candidat (bloc infos_perso) + dossier + données du bloc coordonnées dans une
@@ -200,6 +208,27 @@ async function inscrireCandidat(entite, donneesBrutes) {
         signatureImage: donnees.consentementDiffusion === 'autorise' ? donnees.signatureImage : null,
         dateSignature: donnees.consentementDiffusion === 'autorise' ? new Date().toISOString() : null,
       },
+    });
+
+    // Signature de la charte : stockée dans chartes/signatures_charte, pas dans
+    // dossier_donnees_formulaire — ce n'est pas une donnée de bloc générique mais une preuve
+    // légale liée à une version précise de la charte (voir CLAUDE.md, section signature
+    // électronique). La mention recopiée n'est pas persistée : ce n'est qu'une confirmation de
+    // lecture (gate), la preuve légale repose sur le tracé et le lien vers la charte signée.
+    const charteActive = await dossierRepository.trouverCharteActive(trx, entite.id);
+    if (!charteActive) {
+      throw new Error(`Aucune charte active configurée pour l'entité « ${entite.code} ».`);
+    }
+
+    const charteSignatureBuffer = Buffer.from(
+      donnees.charteSignatureImage.replace(/^data:image\/\w+;base64,/, ''),
+      'base64',
+    );
+
+    await dossierRepository.enregistrerSignatureCharte(trx, {
+      candidatId,
+      charteId: charteActive.id,
+      signatureImage: charteSignatureBuffer,
     });
 
     return { candidatId, dossierId };

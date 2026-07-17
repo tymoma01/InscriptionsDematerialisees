@@ -41,4 +41,29 @@ function enregistrerDonneesBloc(trx, { dossierId, blocCode, donnees }) {
   });
 }
 
-module.exports = { insererCandidat, trouverStatutInitial, creerDossier, enregistrerDonneesBloc };
+// La charte (texte + hash) est propre à chaque entité — une seule ligne active à la fois
+// (contrainte d'unicité posée par la migration 024).
+function trouverCharteActive(trx, entiteId) {
+  return trx('chartes').where({ entite_id: entiteId, actif: true }).first();
+}
+
+// signature_image est un bytea : le tracé doit déjà être un Buffer à ce stade (voir
+// dossierService.js pour la conversion depuis le PNG base64 envoyé par le front).
+// created_at n'est jamais fourni ici — colonne à defaultTo(now()) côté DB, jamais un
+// timestamp client (voir CLAUDE.md, section signature électronique).
+function enregistrerSignatureCharte(trx, { candidatId, charteId, signatureImage }) {
+  return trx('signatures_charte').insert({
+    candidat_id: candidatId,
+    charte_id: charteId,
+    signature_image: signatureImage,
+  });
+}
+
+module.exports = {
+  insererCandidat,
+  trouverStatutInitial,
+  creerDossier,
+  enregistrerDonneesBloc,
+  trouverCharteActive,
+  enregistrerSignatureCharte,
+};
