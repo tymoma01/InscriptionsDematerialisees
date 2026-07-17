@@ -1,0 +1,6 @@
+/* Un canvas sans bordure est invisible à l'écran — nécessaire pour que le candidat voie
+   la zone où tracer sa signature. */
+.signature-electronique__canvas {
+  border: 1px solid #333;
+  touch-action: none;
+}

@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocConsentementRgpdSchema } from './BlocConsentementRGPD.schema';
+import SignatureElectronique from '../SignatureElectronique';
 import './BlocConsentementRGPD.css';
 
 // Bloc générique "consentement RGPD" : même contrat que les autres blocs (valeurs, onChange,
@@ -11,11 +12,13 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
     register,
     formState: { errors, isValid },
     watch,
+    setValue,
   } = useForm({
     mode: 'onChange',
     resolver: zodResolver(blocConsentementRgpdSchema),
     defaultValues: {
       consentementDiffusion: valeurs?.consentementDiffusion,
+      signatureImage: valeurs?.signatureImage ?? '',
     },
   });
 
@@ -28,6 +31,16 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
   useEffect(() => {
     onValiditeChange(isValid);
   }, [isValid]);
+
+  const autorise = valeursSaisies.consentementDiffusion === 'autorise';
+
+  // Si le candidat revient sur "Je n'autorise pas" après avoir signé, la signature n'a plus
+  // lieu d'être — on l'efface pour ne pas garder un tracé associé à un refus.
+  useEffect(() => {
+    if (!autorise && valeursSaisies.signatureImage) {
+      setValue('signatureImage', '', { shouldValidate: true });
+    }
+  }, [autorise]);
 
   return (
     <fieldset className="bloc-formulaire bloc-consentement-rgpd">
@@ -81,6 +94,17 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
         </label>
       </fieldset>
       {errors.consentementDiffusion && <p role="alert">{errors.consentementDiffusion.message}</p>}
+
+      {autorise && (
+        <div className="bloc-consentement-rgpd__signature">
+          <p>Merci de signer ci-dessous pour confirmer votre autorisation.</p>
+          <SignatureElectronique
+            valeur={valeursSaisies.signatureImage}
+            onChange={(image) => setValue('signatureImage', image, { shouldValidate: true })}
+          />
+          {errors.signatureImage && <p role="alert">{errors.signatureImage.message}</p>}
+        </div>
+      )}
     </fieldset>
   );
 }

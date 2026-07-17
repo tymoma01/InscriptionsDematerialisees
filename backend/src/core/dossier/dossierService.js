@@ -60,6 +60,7 @@ const donneesInscriptionSchema = z
     cas4MutuelleCollective: z.enum(OUI_NON),
     certificationAucuneDispense: z.boolean().default(false),
     consentementDiffusion: z.enum(CHOIX_DIFFUSION),
+    signatureImage: z.string().optional().default(''),
   })
   // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
@@ -104,7 +105,12 @@ const donneesInscriptionSchema = z
       message: "La certification n'est possible que si les 4 cas de dispense sont à « Non »",
       path: ['certificationAucuneDispense'],
     },
-  );
+  )
+  // La signature n'est demandée/obligatoire que si le candidat autorise la diffusion
+  .refine((donnees) => donnees.consentementDiffusion !== 'autorise' || donnees.signatureImage !== '', {
+    message: 'La signature électronique est obligatoire',
+    path: ['signatureImage'],
+  });
 
 // Assemble candidat (bloc infos_perso) + dossier + données du bloc coordonnées dans une
 // seule transaction : soit tout est enregistré, soit rien ne l'est (pas de candidat orphelin
@@ -183,11 +189,16 @@ async function inscrireCandidat(entite, donneesBrutes) {
       },
     });
 
+    // L'horodatage de la signature est celui du serveur au moment de l'enregistrement — jamais
+    // un timestamp envoyé par le client (même principe que les signatures de charte, voir
+    // architecture-technique.md §1.7).
     await dossierRepository.enregistrerDonneesBloc(trx, {
       dossierId,
       blocCode: 'consentement_rgpd',
       donnees: {
         consentementDiffusion: donnees.consentementDiffusion,
+        signatureImage: donnees.consentementDiffusion === 'autorise' ? donnees.signatureImage : null,
+        dateSignature: donnees.consentementDiffusion === 'autorise' ? new Date().toISOString() : null,
       },
     });
 
