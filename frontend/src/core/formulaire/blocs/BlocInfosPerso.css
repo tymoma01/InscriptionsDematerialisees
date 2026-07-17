@@ -1,15 +1,26 @@
-/* Nom et prénom côte à côte (deux colonnes), tous les champs suivants empilés un par ligne
-   (pleine largeur) — mise en page tablette, pas de media query téléphone à prévoir. */
-.bloc-infos-perso__ligne {
-  display: flex;
-  gap: 1rem;
-}
-
-.bloc-infos-perso__champ {
-  flex: 1;
-}
-
+/* Tous les champs du bloc suivent la même structure ligne par ligne : label à gauche (largeur
+   fixe, donc alignée verticalement sur toutes les lignes), champ de saisie juste après (largeur
+   fixe elle aussi, donc démarrant à la même position horizontale sur toutes les lignes). */
 .bloc-infos-perso__champ-pleine-largeur {
-  display: block;
-  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.bloc-infos-perso__champ-pleine-largeur label {
+  flex: 0 0 11rem;
+}
+
+.bloc-infos-perso__champ-pleine-largeur input,
+.bloc-infos-perso__champ-pleine-largeur select {
+  flex: 0 0 16rem;
+  width: 16rem;
+  box-sizing: border-box;
+}
+
+.bloc-infos-perso__champ-pleine-largeur p[role='alert'] {
+  flex-basis: 100%;
+  margin: 0.25rem 0 0 11.75rem;
 }

@@ -48,18 +48,16 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     <fieldset className="bloc-formulaire bloc-infos-perso">
       <legend>Informations personnelles</legend>
 
-      <div className="bloc-infos-perso__ligne">
-        <div className="bloc-infos-perso__champ">
-          <label htmlFor="nom">Nom</label>
-          <input id="nom" type="text" autoComplete="family-name" {...register('nom')} />
-          {errors.nom && <p role="alert">{errors.nom.message}</p>}
-        </div>
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="nom">Nom</label>
+        <input id="nom" type="text" autoComplete="family-name" {...register('nom')} />
+        {errors.nom && <p role="alert">{errors.nom.message}</p>}
+      </div>
 
-        <div className="bloc-infos-perso__champ">
-          <label htmlFor="prenom">Prénom</label>
-          <input id="prenom" type="text" autoComplete="given-name" {...register('prenom')} />
-          {errors.prenom && <p role="alert">{errors.prenom.message}</p>}
-        </div>
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="prenom">Prénom</label>
+        <input id="prenom" type="text" autoComplete="given-name" {...register('prenom')} />
+        {errors.prenom && <p role="alert">{errors.prenom.message}</p>}
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
