@@ -25,6 +25,26 @@ const LANGUES = [
   { code: 'autre', libelle: 'Autre' },
 ];
 
+const POSTES_BUREAU = [
+  { code: 'nettoyage', libelle: 'Nettoyage' },
+  { code: 'chef_equipe', libelle: "Chef d'équipe" },
+  { code: 'autres', libelle: 'Autres' },
+];
+
+const POSTES_HOTEL = [
+  { code: 'femme_valet_chambre', libelle: 'Femme/Valet de chambre' },
+  { code: 'cafetier', libelle: 'Cafétier(ère)' },
+  { code: 'equipier', libelle: 'Équipier(ère)' },
+  { code: 'gouvernant', libelle: 'Gouvernant(e)' },
+];
+
+const COMMENT_CONNU = [
+  { code: 'bouche_a_oreille', libelle: 'Bouche à oreille' },
+  { code: 'internet', libelle: 'Internet' },
+  { code: 'cooptation', libelle: 'Cooptation' },
+  { code: 'autre', libelle: 'Autre' },
+];
+
 // Bloc générique "disponibilités" : même contrat que BlocCoordonnees (valeurs, onChange,
 // onValiditeChange) — rendu par BlocRenderer via blocRegistry, aucune connaissance du parcours global.
 export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange }) {
@@ -43,6 +63,11 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       joursDisponibles: valeurs?.joursDisponibles ?? [],
       languesParlees: valeurs?.languesParlees ?? [],
       autreLanguePrecision: valeurs?.autreLanguePrecision ?? '',
+      typePoste: valeurs?.typePoste,
+      posteBureau: valeurs?.posteBureau ?? [],
+      posteHotel: valeurs?.posteHotel ?? [],
+      commentConnu: valeurs?.commentConnu,
+      commentConnuPrecision: valeurs?.commentConnuPrecision ?? '',
     },
   });
 
@@ -58,6 +83,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
 
   const disponibleImmediatement = valeursSaisies.disponibiliteImmediate;
   const autreLangueCochee = (valeursSaisies.languesParlees ?? []).includes('autre');
+  const typePosteSelectionne = valeursSaisies.typePoste;
+  const commentConnuSelectionne = valeursSaisies.commentConnu;
+  const commentConnuPrecisionVisible = ['internet', 'autre'].includes(commentConnuSelectionne);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
@@ -132,6 +160,83 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
           <label htmlFor="autreLanguePrecision">Précisez la langue</label>
           <input id="autreLanguePrecision" type="text" {...register('autreLanguePrecision')} />
           {errors.autreLanguePrecision && <p role="alert">{errors.autreLanguePrecision.message}</p>}
+        </>
+      )}
+
+      <fieldset>
+        <legend>Type de poste recherché</legend>
+        <label htmlFor="typePoste-bureau">
+          <input id="typePoste-bureau" type="radio" value="bureau" {...register('typePoste')} />
+          Bureau
+        </label>
+        <label htmlFor="typePoste-hotel">
+          <input id="typePoste-hotel" type="radio" value="hotel" {...register('typePoste')} />
+          Hôtel
+        </label>
+      </fieldset>
+      {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
+
+      {typePosteSelectionne === 'bureau' && (
+        <>
+          <fieldset>
+            <legend>Poste recherché (bureau)</legend>
+            {POSTES_BUREAU.map((poste) => (
+              <label key={poste.code} htmlFor={`posteBureau-${poste.code}`}>
+                <input
+                  id={`posteBureau-${poste.code}`}
+                  type="checkbox"
+                  value={poste.code}
+                  {...register('posteBureau')}
+                />
+                {poste.libelle}
+              </label>
+            ))}
+          </fieldset>
+          {errors.posteBureau && <p role="alert">{errors.posteBureau.message}</p>}
+        </>
+      )}
+
+      {typePosteSelectionne === 'hotel' && (
+        <>
+          <fieldset>
+            <legend>Poste recherché (hôtel)</legend>
+            {POSTES_HOTEL.map((poste) => (
+              <label key={poste.code} htmlFor={`posteHotel-${poste.code}`}>
+                <input
+                  id={`posteHotel-${poste.code}`}
+                  type="checkbox"
+                  value={poste.code}
+                  {...register('posteHotel')}
+                />
+                {poste.libelle}
+              </label>
+            ))}
+          </fieldset>
+          {errors.posteHotel && <p role="alert">{errors.posteHotel.message}</p>}
+        </>
+      )}
+
+      <fieldset>
+        <legend>Comment nous avez-vous connu ?</legend>
+        {COMMENT_CONNU.map((option) => (
+          <label key={option.code} htmlFor={`commentConnu-${option.code}`}>
+            <input
+              id={`commentConnu-${option.code}`}
+              type="radio"
+              value={option.code}
+              {...register('commentConnu')}
+            />
+            {option.libelle}
+          </label>
+        ))}
+      </fieldset>
+      {errors.commentConnu && <p role="alert">{errors.commentConnu.message}</p>}
+
+      {commentConnuPrecisionVisible && (
+        <>
+          <label htmlFor="commentConnuPrecision">Précisez</label>
+          <input id="commentConnuPrecision" type="text" {...register('commentConnuPrecision')} />
+          {errors.commentConnuPrecision && <p role="alert">{errors.commentConnuPrecision.message}</p>}
         </>
       )}
     </fieldset>

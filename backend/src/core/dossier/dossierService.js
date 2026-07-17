@@ -9,6 +9,10 @@ const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 const CRENEAUX = ['matin', 'midi', 'soir'];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
+const TYPES_POSTE = ['bureau', 'hotel'];
+const POSTES_BUREAU = ['nettoyage', 'chef_equipe', 'autres'];
+const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
+const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 
 // Même contrat que les schémas front (BlocInfosPerso.schema.js / BlocCoordonnees.schema.js /
 // BlocDisponibilites.schema.js), revalidé côté serveur — la validation front ne suffit jamais
@@ -43,6 +47,11 @@ const donneesInscriptionSchema = z
     joursDisponibles: z.array(z.enum(JOURS)).min(1),
     languesParlees: z.array(z.enum(LANGUES)).default([]),
     autreLanguePrecision: z.string().trim().optional().default(''),
+    typePoste: z.enum(TYPES_POSTE),
+    posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
+    posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
+    commentConnu: z.enum(COMMENT_CONNU),
+    commentConnuPrecision: z.string().trim().optional().default(''),
   })
   // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
@@ -57,7 +66,25 @@ const donneesInscriptionSchema = z
   .refine((donnees) => !donnees.languesParlees.includes('autre') || donnees.autreLanguePrecision !== '', {
     message: 'Veuillez préciser la langue',
     path: ['autreLanguePrecision'],
-  });
+  })
+  // Au moins un poste bureau requis si le type de poste recherché est "Bureau"
+  .refine((donnees) => donnees.typePoste !== 'bureau' || donnees.posteBureau.length > 0, {
+    message: 'Sélectionnez au moins un poste',
+    path: ['posteBureau'],
+  })
+  // Au moins un poste hôtel requis si le type de poste recherché est "Hôtel"
+  .refine((donnees) => donnees.typePoste !== 'hotel' || donnees.posteHotel.length > 0, {
+    message: 'Sélectionnez au moins un poste',
+    path: ['posteHotel'],
+  })
+  // Précision obligatoire uniquement si "Internet" ou "Autre" est sélectionné
+  .refine(
+    (donnees) => !['internet', 'autre'].includes(donnees.commentConnu) || donnees.commentConnuPrecision !== '',
+    {
+      message: 'Veuillez préciser',
+      path: ['commentConnuPrecision'],
+    },
+  );
 
 // Assemble candidat (bloc infos_perso) + dossier + données du bloc coordonnées dans une
 // seule transaction : soit tout est enregistré, soit rien ne l'est (pas de candidat orphelin
@@ -116,6 +143,11 @@ async function inscrireCandidat(entite, donneesBrutes) {
         joursDisponibles: donnees.joursDisponibles,
         languesParlees: donnees.languesParlees,
         autreLanguePrecision: donnees.autreLanguePrecision,
+        typePoste: donnees.typePoste,
+        posteBureau: donnees.posteBureau,
+        posteHotel: donnees.posteHotel,
+        commentConnu: donnees.commentConnu,
+        commentConnuPrecision: donnees.commentConnuPrecision,
       },
     });
 
