@@ -11,6 +11,9 @@ const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 // revalidé côté serveur — la validation front ne suffit jamais à sécuriser une écriture en base.
 const donneesInscriptionSchema = z.object({
   nom: z.string().trim().min(1),
+  nomNaissance: z.string().trim().min(1).regex(NOM_REGEX),
+  lieuNaissance: z.string().trim().min(1),
+  nationalite: z.string().trim().min(1).regex(NOM_REGEX),
   prenom: z.string().trim().min(1),
   dateNaissance: z.string().min(1),
   nir: z.string().trim().regex(NIR_REGEX),
@@ -35,6 +38,9 @@ async function inscrireCandidat(entite, donneesBrutes) {
     const candidatId = await dossierRepository.insererCandidat(trx, {
       entiteId: entite.id,
       nom: donnees.nom,
+      nomNaissance: donnees.nomNaissance,
+      lieuNaissance: donnees.lieuNaissance,
+      nationalite: donnees.nationalite,
       prenom: donnees.prenom,
       dateNaissance: donnees.dateNaissance,
       situationFamiliale: donnees.situationFamiliale,

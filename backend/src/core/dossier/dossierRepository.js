@@ -1,11 +1,17 @@
 // Accès données pour candidats/dossiers/données de bloc — uniquement des requêtes,
 // aucune règle métier ici (orchestrée par dossierService.js).
 
-async function insererCandidat(trx, { entiteId, nom, prenom, dateNaissance, situationFamiliale, nirChiffre, nirIv }) {
+async function insererCandidat(
+  trx,
+  { entiteId, nom, nomNaissance, lieuNaissance, nationalite, prenom, dateNaissance, situationFamiliale, nirChiffre, nirIv }
+) {
   const [candidat] = await trx('candidats')
     .insert({
       entite_id: entiteId,
       nom,
+      nom_naissance: nomNaissance,
+      lieu_naissance: lieuNaissance,
+      nationalite,
       prenom,
       date_naissance: dateNaissance,
       situation_familiale: situationFamiliale,

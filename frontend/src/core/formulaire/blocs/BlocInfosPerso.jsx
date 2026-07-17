@@ -23,6 +23,9 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     resolver: zodResolver(blocInfosPersoSchema),
     defaultValues: {
       nom: valeurs?.nom ?? '',
+      nomNaissance: valeurs?.nomNaissance ?? '',
+      lieuNaissance: valeurs?.lieuNaissance ?? '',
+      nationalite: valeurs?.nationalite ?? '',
       prenom: valeurs?.prenom ?? '',
       dateNaissance: valeurs?.dateNaissance ?? '',
       nir: valeurs?.nir ?? '',
@@ -47,6 +50,18 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       <label htmlFor="nom">Nom</label>
       <input id="nom" type="text" autoComplete="family-name" {...register('nom')} />
       {errors.nom && <p role="alert">{errors.nom.message}</p>}
+
+      <label htmlFor="nomNaissance">Nom de naissance</label>
+      <input id="nomNaissance" type="text" {...register('nomNaissance')} />
+      {errors.nomNaissance && <p role="alert">{errors.nomNaissance.message}</p>}
+
+      <label htmlFor="lieuNaissance">Lieu de naissance</label>
+      <input id="lieuNaissance" type="text" {...register('lieuNaissance')} />
+      {errors.lieuNaissance && <p role="alert">{errors.lieuNaissance.message}</p>}
+
+      <label htmlFor="nationalite">Nationalité</label>
+      <input id="nationalite" type="text" {...register('nationalite')} />
+      {errors.nationalite && <p role="alert">{errors.nationalite.message}</p>}
 
       <label htmlFor="prenom">Prénom</label>
       <input id="prenom" type="text" autoComplete="given-name" {...register('prenom')} />
