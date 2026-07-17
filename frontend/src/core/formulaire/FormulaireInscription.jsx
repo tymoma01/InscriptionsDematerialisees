@@ -7,8 +7,9 @@ import { creerCandidat } from '../../services/candidatService';
 // Ne référence aucun bloc par son code — uniquement via la config reçue en prop.
 export default function FormulaireInscription({ configBlocs }) {
   const {
+    etapes,
     blocsActifs,
-    blocCourant,
+    blocsEtapeCourante,
     etapeCourante,
     estPremiereEtape,
     estDerniereEtape,
@@ -25,7 +26,7 @@ export default function FormulaireInscription({ configBlocs }) {
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
   const [inscriptionReussie, setInscriptionReussie] = useState(false);
 
-  if (!blocCourant) {
+  if (etapes.length === 0) {
     return <p>Aucun bloc de formulaire actif pour cette entité.</p>;
   }
 
@@ -62,15 +63,18 @@ export default function FormulaireInscription({ configBlocs }) {
   return (
     <div className="formulaire-inscription">
       <p className="formulaire-inscription__etapes">
-        Étape {etapeCourante + 1} / {blocsActifs.length}
+        Étape {etapeCourante + 1} / {etapes.length}
       </p>
 
-      <BlocRenderer
-        bloc={blocCourant}
-        valeurs={valeursParBloc[blocCourant.code]}
-        onChange={(valeurs) => mettreAJourBloc(blocCourant.code, valeurs)}
-        onValiditeChange={(estValide) => mettreAJourValidite(blocCourant.code, estValide)}
-      />
+      {blocsEtapeCourante.map((bloc) => (
+        <BlocRenderer
+          key={bloc.code}
+          bloc={bloc}
+          valeurs={valeursParBloc[bloc.code]}
+          onChange={(valeurs) => mettreAJourBloc(bloc.code, valeurs)}
+          onValiditeChange={(estValide) => mettreAJourValidite(bloc.code, estValide)}
+        />
+      ))}
 
       {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
