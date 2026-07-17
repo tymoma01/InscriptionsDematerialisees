@@ -62,36 +62,48 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
         </div>
       </div>
 
-      <label htmlFor="nomNaissance">Nom de naissance</label>
-      <input id="nomNaissance" type="text" {...register('nomNaissance')} />
-      {errors.nomNaissance && <p role="alert">{errors.nomNaissance.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="nomNaissance">Nom de naissance</label>
+        <input id="nomNaissance" type="text" {...register('nomNaissance')} />
+        {errors.nomNaissance && <p role="alert">{errors.nomNaissance.message}</p>}
+      </div>
 
-      <label htmlFor="dateNaissance">Date de naissance</label>
-      <input id="dateNaissance" type="date" {...register('dateNaissance')} />
-      {errors.dateNaissance && <p role="alert">{errors.dateNaissance.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="dateNaissance">Date de naissance</label>
+        <input id="dateNaissance" type="date" {...register('dateNaissance')} />
+        {errors.dateNaissance && <p role="alert">{errors.dateNaissance.message}</p>}
+      </div>
 
-      <label htmlFor="lieuNaissance">Lieu de naissance</label>
-      <input id="lieuNaissance" type="text" {...register('lieuNaissance')} />
-      {errors.lieuNaissance && <p role="alert">{errors.lieuNaissance.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="lieuNaissance">Lieu de naissance</label>
+        <input id="lieuNaissance" type="text" {...register('lieuNaissance')} />
+        {errors.lieuNaissance && <p role="alert">{errors.lieuNaissance.message}</p>}
+      </div>
 
-      <label htmlFor="nationalite">Nationalité</label>
-      <input id="nationalite" type="text" {...register('nationalite')} />
-      {errors.nationalite && <p role="alert">{errors.nationalite.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="nationalite">Nationalité</label>
+        <input id="nationalite" type="text" {...register('nationalite')} />
+        {errors.nationalite && <p role="alert">{errors.nationalite.message}</p>}
+      </div>
 
-      <label htmlFor="situationFamiliale">Situation familiale</label>
-      <select id="situationFamiliale" {...register('situationFamiliale')}>
-        <option value="">Sélectionner...</option>
-        {SITUATIONS_FAMILIALES.map((situation) => (
-          <option key={situation.code} value={situation.code}>
-            {situation.libelle}
-          </option>
-        ))}
-      </select>
-      {errors.situationFamiliale && <p role="alert">{errors.situationFamiliale.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="situationFamiliale">Situation familiale</label>
+        <select id="situationFamiliale" {...register('situationFamiliale')}>
+          <option value="">Sélectionner...</option>
+          {SITUATIONS_FAMILIALES.map((situation) => (
+            <option key={situation.code} value={situation.code}>
+              {situation.libelle}
+            </option>
+          ))}
+        </select>
+        {errors.situationFamiliale && <p role="alert">{errors.situationFamiliale.message}</p>}
+      </div>
 
-      <label htmlFor="nir">N° de sécurité sociale</label>
-      <input id="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...register('nir')} />
-      {errors.nir && <p role="alert">{errors.nir.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        <label htmlFor="nir">N° de sécurité sociale</label>
+        <input id="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...register('nir')} />
+        {errors.nir && <p role="alert">{errors.nir.message}</p>}
+      </div>
     </fieldset>
   );
 }

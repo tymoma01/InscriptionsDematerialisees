@@ -1,5 +1,5 @@
-/* Nom et prénom côte à côte, tous les autres champs du bloc restent empilés (comportement
-   par défaut du fieldset) — mise en page tablette, pas de media query téléphone à prévoir. */
+/* Nom et prénom côte à côte (deux colonnes), tous les champs suivants empilés un par ligne
+   (pleine largeur) — mise en page tablette, pas de media query téléphone à prévoir. */
 .bloc-infos-perso__ligne {
   display: flex;
   gap: 1rem;
@@ -7,4 +7,9 @@
 
 .bloc-infos-perso__champ {
   flex: 1;
+}
+
+.bloc-infos-perso__champ-pleine-largeur {
+  display: block;
+  width: 100%;
 }
