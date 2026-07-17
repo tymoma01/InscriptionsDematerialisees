@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocInfosPersoSchema } from './BlocInfosPerso.schema';
+import './BlocInfosPerso.css';
 
 const SITUATIONS_FAMILIALES = [
   { code: 'celibataire', libelle: 'Célibataire' },
@@ -47,13 +48,27 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     <fieldset className="bloc-formulaire bloc-infos-perso">
       <legend>Informations personnelles</legend>
 
-      <label htmlFor="nom">Nom</label>
-      <input id="nom" type="text" autoComplete="family-name" {...register('nom')} />
-      {errors.nom && <p role="alert">{errors.nom.message}</p>}
+      <div className="bloc-infos-perso__ligne">
+        <div className="bloc-infos-perso__champ">
+          <label htmlFor="nom">Nom</label>
+          <input id="nom" type="text" autoComplete="family-name" {...register('nom')} />
+          {errors.nom && <p role="alert">{errors.nom.message}</p>}
+        </div>
+
+        <div className="bloc-infos-perso__champ">
+          <label htmlFor="prenom">Prénom</label>
+          <input id="prenom" type="text" autoComplete="given-name" {...register('prenom')} />
+          {errors.prenom && <p role="alert">{errors.prenom.message}</p>}
+        </div>
+      </div>
 
       <label htmlFor="nomNaissance">Nom de naissance</label>
       <input id="nomNaissance" type="text" {...register('nomNaissance')} />
       {errors.nomNaissance && <p role="alert">{errors.nomNaissance.message}</p>}
+
+      <label htmlFor="dateNaissance">Date de naissance</label>
+      <input id="dateNaissance" type="date" {...register('dateNaissance')} />
+      {errors.dateNaissance && <p role="alert">{errors.dateNaissance.message}</p>}
 
       <label htmlFor="lieuNaissance">Lieu de naissance</label>
       <input id="lieuNaissance" type="text" {...register('lieuNaissance')} />
@@ -62,18 +77,6 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       <label htmlFor="nationalite">Nationalité</label>
       <input id="nationalite" type="text" {...register('nationalite')} />
       {errors.nationalite && <p role="alert">{errors.nationalite.message}</p>}
-
-      <label htmlFor="prenom">Prénom</label>
-      <input id="prenom" type="text" autoComplete="given-name" {...register('prenom')} />
-      {errors.prenom && <p role="alert">{errors.prenom.message}</p>}
-
-      <label htmlFor="dateNaissance">Date de naissance</label>
-      <input id="dateNaissance" type="date" {...register('dateNaissance')} />
-      {errors.dateNaissance && <p role="alert">{errors.dateNaissance.message}</p>}
-
-      <label htmlFor="nir">N° de sécurité sociale</label>
-      <input id="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...register('nir')} />
-      {errors.nir && <p role="alert">{errors.nir.message}</p>}
 
       <label htmlFor="situationFamiliale">Situation familiale</label>
       <select id="situationFamiliale" {...register('situationFamiliale')}>
@@ -85,6 +88,10 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
         ))}
       </select>
       {errors.situationFamiliale && <p role="alert">{errors.situationFamiliale.message}</p>}
+
+      <label htmlFor="nir">N° de sécurité sociale</label>
+      <input id="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...register('nir')} />
+      {errors.nir && <p role="alert">{errors.nir.message}</p>}
     </fieldset>
   );
 }
