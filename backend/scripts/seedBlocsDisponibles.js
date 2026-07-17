@@ -12,6 +12,7 @@ const BLOCS = [
   { code: 'coordonnees', libelle: 'Coordonnées' },
   { code: 'disponibilites', libelle: 'Disponibilités' },
   { code: 'mutuelle', libelle: "Mutuelle d'entreprise" },
+  { code: 'consentement_rgpd', libelle: 'Consentement RGPD' },
 ];
 
 async function seedBlocsDisponibles() {

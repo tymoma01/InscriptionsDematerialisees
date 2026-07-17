@@ -8,8 +8,9 @@ export const formulaireConfigAccecitTest = [
   { code: 'infos_perso', actif: true, etape: 1, ordre: 1, config: {} },
   { code: 'coordonnees', actif: true, etape: 1, ordre: 2, config: {} },
   { code: 'disponibilites', actif: true, etape: 1, ordre: 3, config: {} },
-  { code: 'mutuelle', actif: true, etape: 2, ordre: 1, config: {} },
-  { code: 'situation_pro', actif: false, etape: 3, ordre: 1, config: {} },
-  { code: 'provenance', actif: false, etape: 4, ordre: 1, config: {} },
-  { code: 'consentement', actif: false, etape: 5, ordre: 1, config: {} },
+  { code: 'consentement_rgpd', actif: true, etape: 2, ordre: 1, config: {} },
+  { code: 'mutuelle', actif: true, etape: 3, ordre: 1, config: {} },
+  { code: 'situation_pro', actif: false, etape: 4, ordre: 1, config: {} },
+  { code: 'provenance', actif: false, etape: 5, ordre: 1, config: {} },
+  { code: 'consentement', actif: false, etape: 6, ordre: 1, config: {} },
 ];

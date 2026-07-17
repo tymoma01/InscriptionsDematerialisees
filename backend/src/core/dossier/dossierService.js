@@ -14,6 +14,7 @@ const POSTES_BUREAU = ['nettoyage', 'chef_equipe', 'autres'];
 const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 const OUI_NON = ['oui', 'non'];
+const CHOIX_DIFFUSION = ['autorise', 'refuse'];
 
 // Même contrat que les schémas front (BlocInfosPerso.schema.js / BlocCoordonnees.schema.js /
 // BlocDisponibilites.schema.js), revalidé côté serveur — la validation front ne suffit jamais
@@ -58,6 +59,7 @@ const donneesInscriptionSchema = z
     cas3MutuelleIndividuelle: z.enum(OUI_NON),
     cas4MutuelleCollective: z.enum(OUI_NON),
     certificationAucuneDispense: z.boolean().default(false),
+    consentementDiffusion: z.enum(CHOIX_DIFFUSION),
   })
   // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
@@ -178,6 +180,14 @@ async function inscrireCandidat(entite, donneesBrutes) {
         cas3MutuelleIndividuelle: donnees.cas3MutuelleIndividuelle,
         cas4MutuelleCollective: donnees.cas4MutuelleCollective,
         certificationAucuneDispense: donnees.certificationAucuneDispense,
+      },
+    });
+
+    await dossierRepository.enregistrerDonneesBloc(trx, {
+      dossierId,
+      blocCode: 'consentement_rgpd',
+      donnees: {
+        consentementDiffusion: donnees.consentementDiffusion,
       },
     });
 
