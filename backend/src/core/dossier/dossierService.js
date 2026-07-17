@@ -13,6 +13,7 @@ const TYPES_POSTE = ['bureau', 'hotel'];
 const POSTES_BUREAU = ['nettoyage', 'chef_equipe', 'autres'];
 const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
+const OUI_NON = ['oui', 'non'];
 
 // Même contrat que les schémas front (BlocInfosPerso.schema.js / BlocCoordonnees.schema.js /
 // BlocDisponibilites.schema.js), revalidé côté serveur — la validation front ne suffit jamais
@@ -52,6 +53,11 @@ const donneesInscriptionSchema = z
     posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
     commentConnu: z.enum(COMMENT_CONNU),
     commentConnuPrecision: z.string().trim().optional().default(''),
+    cas1CmuC: z.enum(OUI_NON),
+    cas2Acs: z.enum(OUI_NON),
+    cas3MutuelleIndividuelle: z.enum(OUI_NON),
+    cas4MutuelleCollective: z.enum(OUI_NON),
+    certificationAucuneDispense: z.boolean().default(false),
   })
   // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
@@ -83,6 +89,18 @@ const donneesInscriptionSchema = z
     {
       message: 'Veuillez préciser',
       path: ['commentConnuPrecision'],
+    },
+  )
+  // La certification n'est possible que si les 4 cas de dispense sont tous à "Non"
+  .refine(
+    (donnees) =>
+      !donnees.certificationAucuneDispense ||
+      [donnees.cas1CmuC, donnees.cas2Acs, donnees.cas3MutuelleIndividuelle, donnees.cas4MutuelleCollective].every(
+        (cas) => cas === 'non',
+      ),
+    {
+      message: "La certification n'est possible que si les 4 cas de dispense sont à « Non »",
+      path: ['certificationAucuneDispense'],
     },
   );
 
@@ -148,6 +166,18 @@ async function inscrireCandidat(entite, donneesBrutes) {
         posteHotel: donnees.posteHotel,
         commentConnu: donnees.commentConnu,
         commentConnuPrecision: donnees.commentConnuPrecision,
+      },
+    });
+
+    await dossierRepository.enregistrerDonneesBloc(trx, {
+      dossierId,
+      blocCode: 'mutuelle',
+      donnees: {
+        cas1CmuC: donnees.cas1CmuC,
+        cas2Acs: donnees.cas2Acs,
+        cas3MutuelleIndividuelle: donnees.cas3MutuelleIndividuelle,
+        cas4MutuelleCollective: donnees.cas4MutuelleCollective,
+        certificationAucuneDispense: donnees.certificationAucuneDispense,
       },
     });
 

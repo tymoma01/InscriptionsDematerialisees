@@ -11,6 +11,7 @@ const BLOCS = [
   { code: 'infos_perso', libelle: 'Informations personnelles' },
   { code: 'coordonnees', libelle: 'Coordonnées' },
   { code: 'disponibilites', libelle: 'Disponibilités' },
+  { code: 'mutuelle', libelle: "Mutuelle d'entreprise" },
 ];
 
 async function seedBlocsDisponibles() {

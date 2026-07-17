@@ -5,7 +5,8 @@ export const formulaireConfigAccecitTest = [
   { code: 'infos_perso', actif: true, ordre: 1, config: {} },
   { code: 'coordonnees', actif: true, ordre: 2, config: {} },
   { code: 'disponibilites', actif: true, ordre: 3, config: {} },
-  { code: 'situation_pro', actif: false, ordre: 4, config: {} },
-  { code: 'provenance', actif: false, ordre: 5, config: {} },
-  { code: 'consentement', actif: false, ordre: 6, config: {} },
+  { code: 'mutuelle', actif: true, ordre: 4, config: {} },
+  { code: 'situation_pro', actif: false, ordre: 5, config: {} },
+  { code: 'provenance', actif: false, ordre: 6, config: {} },
+  { code: 'consentement', actif: false, ordre: 7, config: {} },
 ];
