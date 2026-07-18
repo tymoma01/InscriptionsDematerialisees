@@ -19,7 +19,7 @@
 .formulaire-inscription__etapes {
   color: var(--couleur-texte-secondaire);
   font-size: 0.9rem;
-  margin-bottom: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
 }
 
 .formulaire-inscription__navigation {

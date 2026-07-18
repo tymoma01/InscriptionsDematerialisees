@@ -10,17 +10,17 @@
 }
 
 .bloc-infos-perso__champ-pleine-largeur label {
-  flex: 0 0 11rem;
+  flex: 0 0 var(--largeur-label-champ);
 }
 
 .bloc-infos-perso__champ-pleine-largeur input,
 .bloc-infos-perso__champ-pleine-largeur select {
-  flex: 0 0 16rem;
-  width: 16rem;
+  flex: 0 0 var(--largeur-champ-saisie);
+  width: var(--largeur-champ-saisie);
   box-sizing: border-box;
 }
 
 .bloc-infos-perso__champ-pleine-largeur p[role='alert'] {
   flex-basis: 100%;
-  margin: 0.25rem 0 0 11.75rem;
+  margin: 0.25rem 0 0 calc(var(--largeur-label-champ) + var(--espace-petit));
 }

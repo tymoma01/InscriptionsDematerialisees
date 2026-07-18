@@ -1,7 +1,21 @@
-/* En-tête de la page d'inscription : logo ACCECIT au-dessus du titre. */
+/* Conteneur de page : largeur maximale centrée, pour éviter que le formulaire ne s'étire
+   sur toute la largeur de l'écran (usage tablette). */
+.page-inscription-tablette {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-grand) var(--espace-moyen);
+}
+
+/* En-tête de la page d'inscription : logo ACCECIT au-dessus du titre, avec un rythme
+   vertical cohérent jusqu'au premier bloc du formulaire. */
 .page-inscription-tablette__logo {
   display: block;
   height: 3rem;
   width: auto;
+  margin: 0 0 var(--espace-grand);
+}
+
+.page-inscription-tablette h1 {
   margin: 0 0 var(--espace-moyen);
+  color: var(--couleur-texte);
 }

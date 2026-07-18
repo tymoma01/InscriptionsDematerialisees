@@ -40,4 +40,14 @@
 
   /* Rayon de bordure commun */
   --rayon-bordure: 6px;
+
+  /* Mise en page des blocs à disposition "label + champ" (InfosPerso, Coordonnées) :
+     une seule source pour la largeur de la colonne de labels, afin qu'elle reste
+     identique entre tous les blocs qui suivent ce patron. */
+  --largeur-label-champ: 11rem;
+  --largeur-champ-saisie: 16rem;
+
+  /* Largeur maximale du formulaire, pour éviter que le contenu ne s'étire sur toute
+     la largeur de l'écran (usage tablette). */
+  --largeur-max-formulaire: 1100px;
 }
