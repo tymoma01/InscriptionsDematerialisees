@@ -1,0 +1,7 @@
+/* En-tête de la page d'inscription : logo ACCECIT au-dessus du titre. */
+.page-inscription-tablette__logo {
+  display: block;
+  height: 3rem;
+  width: auto;
+  margin: 0 0 var(--espace-moyen);
+}

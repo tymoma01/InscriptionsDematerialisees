@@ -2,10 +2,11 @@
    la typographie et les espacements — toute entité future pourra surcharger ce fichier
    sans toucher aux composants (voir contrainte de modularité, CLAUDE.md). */
 :root {
-  /* Couleur principale */
-  --couleur-primaire: #1f4e9c;
-  --couleur-primaire-hover: #163a75;
-  --couleur-primaire-clair: #eaf0fa;
+  /* Couleur principale — extraite du logo officiel ACCECIT (échantillonnage direct des
+     pixels de logo-accecit-fonce@2x.png, cf. accecit.com) */
+  --couleur-primaire: #2d3c92;
+  --couleur-primaire-hover: #243074;
+  --couleur-primaire-clair: #eeeff6;
 
   /* Palette de gris */
   --gris-50: #f9fafb;
@@ -27,9 +28,10 @@
   --couleur-texte-secondaire: var(--gris-600);
   --couleur-erreur: #c0392b;
 
-  /* Typographie */
-  --police-base:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Typographie — Open Sans (police du site officiel accecit.com), chargée via Google Fonts
+     dans index.html ; repli sur la pile système si le chargement échoue. */
+  --police-base: 'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
 
   /* Espacements */
   --espace-petit: 0.5rem;
