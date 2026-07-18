@@ -1,0 +1,41 @@
+/* Variables de la charte graphique ACCECIT. Point d'entrée unique pour les couleurs,
+   la typographie et les espacements — toute entité future pourra surcharger ce fichier
+   sans toucher aux composants (voir contrainte de modularité, CLAUDE.md). */
+:root {
+  /* Couleur principale */
+  --couleur-primaire: #1f4e9c;
+  --couleur-primaire-hover: #163a75;
+  --couleur-primaire-clair: #eaf0fa;
+
+  /* Palette de gris */
+  --gris-50: #f9fafb;
+  --gris-100: #f3f4f6;
+  --gris-200: #e5e7eb;
+  --gris-300: #d1d5db;
+  --gris-400: #9ca3af;
+  --gris-500: #6b7280;
+  --gris-600: #4b5563;
+  --gris-700: #374151;
+  --gris-800: #1f2937;
+
+  /* Usages sémantiques dérivés de la palette */
+  --couleur-fond: #ffffff;
+  --couleur-fond-secondaire: var(--gris-50);
+  --couleur-bordure: var(--gris-300);
+  --couleur-bordure-legere: var(--gris-200);
+  --couleur-texte: var(--gris-800);
+  --couleur-texte-secondaire: var(--gris-600);
+  --couleur-erreur: #c0392b;
+
+  /* Typographie */
+  --police-base:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Espacements */
+  --espace-petit: 0.5rem;
+  --espace-moyen: 1rem;
+  --espace-grand: 1.5rem;
+
+  /* Rayon de bordure commun */
+  --rayon-bordure: 6px;
+}

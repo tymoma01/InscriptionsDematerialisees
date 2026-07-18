@@ -2,5 +2,5 @@
    dessous de l'autre — sans cette règle, les <label> (inline par défaut) s'enchaînent. */
 .bloc-consentement-rgpd__option {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--espace-petit);
 }

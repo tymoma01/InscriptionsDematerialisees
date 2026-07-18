@@ -4,7 +4,7 @@
 .formulaire-inscription__etape {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: var(--espace-grand);
 }
 
 .formulaire-inscription__bloc {
@@ -14,4 +14,39 @@
 .formulaire-inscription__bloc--moitie {
   flex: 1 1 calc(50% - 0.75rem);
   min-width: 20rem;
+}
+
+.formulaire-inscription__etapes {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  margin-bottom: var(--espace-petit);
+}
+
+.formulaire-inscription__navigation {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--espace-grand);
+}
+
+.formulaire-inscription__navigation button {
+  font-family: var(--police-base);
+  font-size: 1rem;
+  padding: 0.6rem 1.4rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-primaire);
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-fond);
+  cursor: pointer;
+}
+
+.formulaire-inscription__navigation button:hover:not(:disabled) {
+  background-color: var(--couleur-primaire-hover);
+  border-color: var(--couleur-primaire-hover);
+}
+
+.formulaire-inscription__navigation button:disabled {
+  background-color: var(--gris-200);
+  border-color: var(--gris-200);
+  color: var(--gris-500);
+  cursor: not-allowed;
 }

@@ -1,0 +1,73 @@
+/* Apparence commune à tous les blocs du formulaire d'inscription. Tous les blocs partagent
+   déjà la classe `.bloc-formulaire` sur leur <fieldset> (voir BlocRenderer/blocRegistry) :
+   ce fichier s'applique donc à chaque bloc sans dépendre de son code métier, conformément à
+   la contrainte de modularité (CLAUDE.md). */
+body {
+  font-family: var(--police-base);
+  color: var(--couleur-texte);
+}
+
+.bloc-formulaire {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  padding: var(--espace-moyen);
+  margin-bottom: var(--espace-grand);
+}
+
+.bloc-formulaire > legend {
+  padding: 0 var(--espace-petit);
+  color: var(--couleur-primaire);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Sous-groupes (ex : créneaux, jours disponibles, cas de dispense) : même structure
+   fieldset/legend, mais en retrait visuel par rapport au titre principal du bloc. */
+.bloc-formulaire fieldset {
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit) var(--espace-moyen);
+  margin: var(--espace-petit) 0;
+}
+
+.bloc-formulaire fieldset legend {
+  padding: 0 var(--espace-petit);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.bloc-formulaire label {
+  color: var(--couleur-texte);
+}
+
+.bloc-formulaire input[type='text'],
+.bloc-formulaire input[type='email'],
+.bloc-formulaire input[type='tel'],
+.bloc-formulaire input[type='date'],
+.bloc-formulaire input[type='number'],
+.bloc-formulaire select {
+  font-family: var(--police-base);
+  color: var(--couleur-texte);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.4rem 0.6rem;
+}
+
+.bloc-formulaire input[type='text']:focus,
+.bloc-formulaire input[type='email']:focus,
+.bloc-formulaire input[type='tel']:focus,
+.bloc-formulaire input[type='date']:focus,
+.bloc-formulaire input[type='number']:focus,
+.bloc-formulaire select:focus {
+  outline: none;
+  border-color: var(--couleur-primaire);
+  box-shadow: 0 0 0 3px var(--couleur-primaire-clair);
+}
+
+.bloc-formulaire p[role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}

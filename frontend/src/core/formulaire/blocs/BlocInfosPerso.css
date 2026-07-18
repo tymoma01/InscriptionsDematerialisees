@@ -5,8 +5,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  column-gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  column-gap: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
 }
 
 .bloc-infos-perso__champ-pleine-largeur label {
