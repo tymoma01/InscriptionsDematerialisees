@@ -15,7 +15,7 @@ const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 const OUI_NON = ['oui', 'non'];
 const CHOIX_DIFFUSION = ['autorise', 'refuse'];
-const MENTION_CHARTE_ATTENDUE = 'lu et approuvé';
+const MENTION_CHARTE_ATTENDUE = 'lu et approuvé'.normalize('NFC');
 
 // Même contrat que les schémas front (BlocInfosPerso.schema.js / BlocCoordonnees.schema.js /
 // BlocDisponibilites.schema.js), revalidé côté serveur — la validation front ne suffit jamais
@@ -114,8 +114,11 @@ const donneesInscriptionSchema = z
     message: 'La signature électronique est obligatoire',
     path: ['signatureImage'],
   })
-  // La mention recopiée doit correspondre exactement à « Lu et Approuvé » (insensible à la casse)
-  .refine((donnees) => donnees.charteMention.toLowerCase() === MENTION_CHARTE_ATTENDUE, {
+  // La mention recopiée doit correspondre exactement à « Lu et Approuvé » (insensible à la
+  // casse et aux espaces superflus). `.normalize('NFC')` évite qu'un accent saisi sous sa
+  // forme décomposée (clavier tactile/IME) ne soit à tort traité comme une faute de frappe —
+  // même correctif que BlocCharte.schema.js côté front.
+  .refine((donnees) => donnees.charteMention.normalize('NFC').toLowerCase() === MENTION_CHARTE_ATTENDUE, {
     message: 'Merci de recopier exactement la mention « Lu et Approuvé »',
     path: ['charteMention'],
   });
