@@ -1,19 +1,30 @@
 /* Mise en page générique des blocs d'une étape : un bloc occupe toute la ligne par défaut,
    deux blocs consécutifs marqués `largeur: 'moitie'` en config (voir formulaireConfig.*.js)
-   s'affichent côte à côte grâce au flex-wrap. Ne dépend d'aucun code de bloc précis. */
+   s'affichent côte à côte sur une grille à deux colonnes strictement égales. `align-items:
+   stretch` (comportement par défaut de la grille) étire les deux blocs d'une même ligne à
+   la même hauteur — même si l'un contient moins de champs que l'autre — pour un équilibre
+   visuel entre colonnes ; voir la règle ci-dessous qui propage cet étirement jusqu'au cadre
+   visible du bloc. Ne dépend d'aucun code de bloc précis. */
 .formulaire-inscription__etape {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--espace-grand);
 }
 
 .formulaire-inscription__bloc {
-  flex: 1 1 100%;
+  grid-column: 1 / -1;
 }
 
 .formulaire-inscription__bloc--moitie {
-  flex: 1 1 calc(50% - 0.75rem);
-  min-width: 20rem;
+  grid-column: span 1;
+}
+
+/* La grille étire le conteneur (`.formulaire-inscription__bloc`) mais pas automatiquement
+   le cadre visible à l'intérieur (le <fieldset class="bloc-formulaire"> du bloc) : on lui
+   fait donc explicitement remplir toute la hauteur disponible. */
+.formulaire-inscription__bloc > .bloc-formulaire {
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .formulaire-inscription__etapes {
