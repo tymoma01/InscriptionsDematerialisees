@@ -42,18 +42,13 @@
      pour une cohérence visuelle sur toute la page. */
   --rayon-bordure: 10px;
 
-  /* Bordure et ombre des blocs du formulaire : bordure bleue de la charte graphique (plus
-     marquée que le simple filet gris) + ombre discrète teintée de la même couleur
-     (équivalent rgb de --couleur-primaire, #2d3c92 = rgb(45,60,146) — la notation rgba()
-     n'accepte pas de var() dans ses canaux de couleur, d'où la valeur recopiée ici). */
-  --couleur-bordure-bloc: var(--couleur-primaire);
-  --ombre-bloc: 0 2px 10px rgba(45, 60, 146, 0.15);
-
-  /* Accent doré — échantillonné directement sur le tourbillon du logo "Accecit Hôtellerie"
-     (icone-accecit-hotellerie.png, pixel médian des tons dorés : rgb(199,170,118)). Utilisé en
-     liseré fin à l'intérieur de la bordure bleue des blocs, pour rappeler la déclinaison
-     dorée de la charte sans dominer le bleu principal. */
-  --couleur-accent-or: #c7aa76;
+  /* Ombre des blocs du formulaire : délimite chaque bloc par un ombrage doux et diffus
+     (effet « flottant » au-dessus du fond de page) plutôt que par un contour dessiné.
+     Essayé au préalable avec une bordure bleu/or marquée : abandonné, l'anneau de couleur
+     (implémenté en box-shadow `inset`) ne bénéficie pas de la découpe automatique que le
+     navigateur applique au `border` natif d'un fieldset sous son `legend`, ce qui laissait
+     un trait visible traversant le fond des titres de bloc. */
+  --ombre-bloc: 0 4px 12px rgba(0, 0, 0, 0.08);
 
   /* Mise en page des blocs à disposition "label + champ" (InfosPerso, Coordonnées) :
      une seule source pour la largeur de la colonne de labels, afin qu'elle reste
