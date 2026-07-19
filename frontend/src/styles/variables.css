@@ -38,8 +38,16 @@
   --espace-moyen: 1rem;
   --espace-grand: 1.5rem;
 
-  /* Rayon de bordure commun */
-  --rayon-bordure: 6px;
+  /* Rayon de bordure commun — aligné sur l'arrondi de l'en-tête (InscriptionTablette.css)
+     pour une cohérence visuelle sur toute la page. */
+  --rayon-bordure: 10px;
+
+  /* Bordure et ombre des blocs du formulaire : bordure bleue de la charte graphique (plus
+     marquée que le simple filet gris) + ombre discrète teintée de la même couleur
+     (équivalent rgb de --couleur-primaire, #2d3c92 = rgb(45,60,146) — la notation rgba()
+     n'accepte pas de var() dans ses canaux de couleur, d'où la valeur recopiée ici). */
+  --couleur-bordure-bloc: var(--couleur-primaire);
+  --ombre-bloc: 0 2px 10px rgba(45, 60, 146, 0.15);
 
   /* Mise en page des blocs à disposition "label + champ" (InfosPerso, Coordonnées) :
      une seule source pour la largeur de la colonne de labels, afin qu'elle reste

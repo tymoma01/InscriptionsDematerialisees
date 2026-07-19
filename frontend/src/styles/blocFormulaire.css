@@ -8,11 +8,12 @@ body {
 }
 
 .bloc-formulaire {
-  border: 1px solid var(--couleur-bordure);
+  border: 2px solid var(--couleur-bordure-bloc);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
   padding: var(--espace-moyen);
   margin-bottom: var(--espace-grand);
+  box-shadow: var(--ombre-bloc);
 }
 
 .bloc-formulaire > legend {
