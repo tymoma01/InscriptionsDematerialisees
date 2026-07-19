@@ -47,8 +47,14 @@
      Essayé au préalable avec une bordure bleu/or marquée : abandonné, l'anneau de couleur
      (implémenté en box-shadow `inset`) ne bénéficie pas de la découpe automatique que le
      navigateur applique au `border` natif d'un fieldset sous son `legend`, ce qui laissait
-     un trait visible traversant le fond des titres de bloc. */
-  --ombre-bloc: 0 4px 12px rgba(0, 0, 0, 0.08);
+     un trait visible traversant le fond des titres de bloc.
+     Ombre à deux couches, toutes deux en box-shadow (pas de bordure dessinée) :
+     - une ombre bleue diffuse tout autour (équivalent rgb de --couleur-primaire, #2d3c92 =
+       rgb(45,60,146) — rgba() n'accepte pas de var() dans ses canaux de couleur) ;
+     - un léger reflet doré concentré sous le bloc (spread négatif : visible seulement au bord
+       inférieur, pas un anneau complet), teinte échantillonnée sur le tourbillon du logo
+       "Accecit Hôtellerie" (rgb(199,170,118)). */
+  --ombre-bloc: 0 4px 14px rgba(45, 60, 146, 0.16), 0 8px 12px -8px rgba(199, 170, 118, 0.5);
 
   /* Mise en page des blocs à disposition "label + champ" (InfosPerso, Coordonnées) :
      une seule source pour la largeur de la colonne de labels, afin qu'elle reste
