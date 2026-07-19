@@ -1,20 +1,37 @@
 /* Conteneur de page : largeur maximale centrée, pour éviter que le formulaire ne s'étire
-   sur toute la largeur de l'écran (usage tablette). */
+   sur toute la largeur de l'écran (usage tablette). `--hauteur-entete` pilote à la fois la
+   hauteur réservée à l'en-tête fixe et le décalage du contenu qui défile en dessous — une
+   seule valeur à ajuster si l'en-tête change de taille. */
 .page-inscription-tablette {
+  --hauteur-entete: 4.5rem;
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto;
-  padding: var(--espace-grand) var(--espace-moyen);
+  padding: 0 var(--espace-moyen) var(--espace-grand);
 }
 
 /* En-tête de la page d'inscription : logo ACCECIT principal à gauche, logos des sous-marques
-   (Hôtellerie / Tertiaire) à droite, alignés verticalement au centre l'un par rapport à
-   l'autre. Rythme vertical cohérent jusqu'au titre puis au premier bloc du formulaire. */
+   (Hôtellerie / Tertiaire) empilés à droite, alignés verticalement au centre l'un par rapport
+   à l'autre. Fixe en haut de la page pour rester visible pendant le défilement du formulaire,
+   quelle que soit l'étape ; centré sur la même largeur que le contenu (`left/right: 0` +
+   `max-width` + `margin: 0 auto`, comme `.page-inscription-tablette`). */
 .page-inscription-tablette__entete {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--espace-grand);
-  margin: 0 0 var(--espace-grand);
+  min-height: var(--hauteur-entete);
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-petit) var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border-bottom: 1px solid var(--couleur-bordure);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .page-inscription-tablette__logo {
@@ -23,20 +40,24 @@
   width: auto;
 }
 
-/* `flex-wrap` : si l'espace horizontal vient à manquer, les deux logos passent l'un
-   au-dessus de l'autre plutôt que de déborder ou de rétrécir. */
+/* Logos des sous-marques empilés verticalement (plutôt que côte à côte), alignés à droite. */
 .page-inscription-tablette__logos-marques {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--espace-moyen);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--espace-petit);
 }
 
 .page-inscription-tablette__logo-marque {
   display: block;
-  height: 2.25rem;
+  height: 1.5rem;
   width: auto;
+}
+
+/* Contenu défilant sous l'en-tête fixe : décalé de la hauteur de l'en-tête (+ une respiration
+   supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape du formulaire. */
+.page-inscription-tablette__contenu {
+  padding-top: calc(var(--hauteur-entete) + var(--espace-grand));
 }
 
 .page-inscription-tablette h1 {

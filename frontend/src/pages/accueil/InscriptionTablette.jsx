@@ -11,7 +11,7 @@ import './InscriptionTablette.css';
 export default function InscriptionTablette() {
   return (
     <main className="page-inscription-tablette">
-      <div className="page-inscription-tablette__entete">
+      <header className="page-inscription-tablette__entete">
         <img
           className="page-inscription-tablette__logo"
           src={logoAccecit}
@@ -29,9 +29,11 @@ export default function InscriptionTablette() {
             alt="ACCECIT Tertiaire"
           />
         </div>
+      </header>
+      <div className="page-inscription-tablette__contenu">
+        <h1>Inscription candidat</h1>
+        <FormulaireInscription configBlocs={formulaireConfigAccecitTest} />
       </div>
-      <h1>Inscription candidat</h1>
-      <FormulaireInscription configBlocs={formulaireConfigAccecitTest} />
     </main>
   );
 }
