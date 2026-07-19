@@ -1,8 +1,8 @@
 import FormulaireInscription from '../../core/formulaire/FormulaireInscription';
 import { formulaireConfigAccecitTest } from '../../core/formulaire/donneesTest/formulaireConfig.accecit';
-import logoAccecit from '../../assets/logo-accecit-fonce.png';
-import logoAccecitHotellerie from '../../assets/logo-accecit-hotellerie.png';
-import logoAccecitTertiaire from '../../assets/logo-accecit-tertiaire.png';
+import logoAccecit from '../../assets/logo-accecit-blanc.png';
+import logoAccecitHotellerie from '../../assets/logo-accecit-hotellerie-blanc.png';
+import logoAccecitTertiaire from '../../assets/logo-accecit-tertiaire-blanc.png';
 import './InscriptionTablette.css';
 
 // Page accueil tablette : instancie le moteur de formulaire avec la config de l'entité.
