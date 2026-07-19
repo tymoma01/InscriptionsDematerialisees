@@ -44,11 +44,12 @@
   font-size: 0.9rem;
 }
 
-/* Ligne de copyright centrée, en pleine largeur, sous la rangée logo/coordonnées plutôt
-   qu'alignée avec l'une des deux colonnes. */
+/* Copyright sur la même ligne que le logo et le bloc contact plutôt qu'en dessous : élément
+   flex central, `flex: 1` absorbe l'espace restant entre logo et coordonnées, `text-align:
+   center` y centre le texte. */
 .pied-de-page__copyright {
+  flex: 1;
   margin: 0;
-  padding: 0 var(--espace-moyen) var(--espace-petit);
   text-align: center;
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.75rem;
