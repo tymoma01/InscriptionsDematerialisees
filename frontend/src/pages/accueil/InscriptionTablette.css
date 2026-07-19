@@ -3,27 +3,35 @@
    hauteur réservée à l'en-tête fixe et le décalage du contenu qui défile en dessous — une
    seule valeur à ajuster si l'en-tête change de taille. */
 .page-inscription-tablette {
-  --hauteur-entete: 6rem;
+  --hauteur-entete: 7.5rem;
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto;
   padding: 0 var(--espace-moyen) var(--espace-grand);
 }
 
-/* En-tête de la page d'inscription : logo ACCECIT principal à gauche, logos des sous-marques
-   (Hôtellerie / Tertiaire) empilés à droite, alignés verticalement au centre l'un par rapport
-   à l'autre. Fixe en haut de la page pour rester visible pendant le défilement du formulaire,
-   quelle que soit l'étape ; centré sur la même largeur que le contenu (`left/right: 0` +
-   `max-width` + `margin: 0 auto`, comme `.page-inscription-tablette`).
-   Fond en dégradé bleu foncé → bleu turquoise, repris de la bannière du site officiel
-   accecit.com (`.topsec`, échantillonné directement sur le site : rgb(50,45,134) →
-   rgb(12,139,180)) — d'où les logos en version blanche plutôt que la version foncée utilisée
-   ailleurs dans le formulaire, pour rester lisibles sur ce fond sombre. */
+/* En-tête de la page d'inscription, en deux couches :
+   - `__entete` porte le fond (dégradé bleu foncé → bleu turquoise, repris de la bannière du
+     site officiel accecit.com — `.topsec`, échantillonné directement sur le site :
+     rgb(50,45,134) → rgb(12,139,180)) sur toute la largeur de l'écran (`left/right: 0`, sans
+     `max-width`), pour un en-tête « plein bord » plutôt que limité à la largeur du formulaire ;
+   - `__entete-contenu` recentre les logos sur la même largeur que le contenu du formulaire
+     (`max-width` + `margin: 0 auto`, comme `.page-inscription-tablette`), logo ACCECIT
+     principal à gauche, logos des sous-marques (Hôtellerie / Tertiaire) empilés à droite.
+   Fixe en haut de la page pour rester visible pendant le défilement, quelle que soit l'étape.
+   Logos en version blanche (plutôt que la version foncée utilisée ailleurs dans le formulaire)
+   pour rester lisibles sur ce fond sombre. */
 .page-inscription-tablette__entete {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 10;
+  background: linear-gradient(90deg, #322d86, #0c8bb4);
+  border-bottom: 1px solid #241f5e;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.page-inscription-tablette__entete-contenu {
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -33,14 +41,11 @@
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto;
   padding: var(--espace-petit) var(--espace-moyen);
-  background: linear-gradient(90deg, #322d86, #0c8bb4);
-  border-bottom: 1px solid #241f5e;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 .page-inscription-tablette__logo {
   display: block;
-  height: 3.75rem;
+  height: 4.5rem;
   width: auto;
 }
 
@@ -54,7 +59,7 @@
 
 .page-inscription-tablette__logo-marque {
   display: block;
-  height: 2.25rem;
+  height: 2.75rem;
   width: auto;
 }
 

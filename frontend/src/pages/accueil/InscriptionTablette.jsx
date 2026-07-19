@@ -12,22 +12,24 @@ export default function InscriptionTablette() {
   return (
     <main className="page-inscription-tablette">
       <header className="page-inscription-tablette__entete">
-        <img
-          className="page-inscription-tablette__logo"
-          src={logoAccecit}
-          alt="ACCECIT — Nettoyage à visage humain"
-        />
-        <div className="page-inscription-tablette__logos-marques">
+        <div className="page-inscription-tablette__entete-contenu">
           <img
-            className="page-inscription-tablette__logo-marque"
-            src={logoAccecitHotellerie}
-            alt="ACCECIT Hôtellerie"
+            className="page-inscription-tablette__logo"
+            src={logoAccecit}
+            alt="ACCECIT — Nettoyage à visage humain"
           />
-          <img
-            className="page-inscription-tablette__logo-marque"
-            src={logoAccecitTertiaire}
-            alt="ACCECIT Tertiaire"
-          />
+          <div className="page-inscription-tablette__logos-marques">
+            <img
+              className="page-inscription-tablette__logo-marque"
+              src={logoAccecitHotellerie}
+              alt="ACCECIT Hôtellerie"
+            />
+            <img
+              className="page-inscription-tablette__logo-marque"
+              src={logoAccecitTertiaire}
+              alt="ACCECIT Tertiaire"
+            />
+          </div>
         </div>
       </header>
       <div className="page-inscription-tablette__contenu">
