@@ -49,6 +49,12 @@
   --couleur-bordure-bloc: var(--couleur-primaire);
   --ombre-bloc: 0 2px 10px rgba(45, 60, 146, 0.15);
 
+  /* Accent doré — échantillonné directement sur le tourbillon du logo "Accecit Hôtellerie"
+     (icone-accecit-hotellerie.png, pixel médian des tons dorés : rgb(199,170,118)). Utilisé en
+     liseré fin à l'intérieur de la bordure bleue des blocs, pour rappeler la déclinaison
+     dorée de la charte sans dominer le bleu principal. */
+  --couleur-accent-or: #c7aa76;
+
   /* Mise en page des blocs à disposition "label + champ" (InfosPerso, Coordonnées) :
      une seule source pour la largeur de la colonne de labels, afin qu'elle reste
      identique entre tous les blocs qui suivent ce patron. */

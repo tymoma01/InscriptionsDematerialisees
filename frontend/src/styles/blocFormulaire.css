@@ -7,13 +7,16 @@ body {
   color: var(--couleur-texte);
 }
 
+/* Bordure double bleu/or : filet bleu (bordure CSS) + liseré doré fin juste à l'intérieur
+   (anneau `inset` du box-shadow), pour rappeler la déclinaison dorée de la charte sans
+   dominer le bleu principal — cf. --couleur-accent-or dans variables.css. */
 .bloc-formulaire {
-  border: 2px solid var(--couleur-bordure-bloc);
+  border: 3px solid var(--couleur-bordure-bloc);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
   padding: var(--espace-moyen);
   margin-bottom: var(--espace-grand);
-  box-shadow: var(--ombre-bloc);
+  box-shadow: var(--ombre-bloc), inset 0 0 0 1px var(--couleur-accent-or);
 }
 
 .bloc-formulaire > legend {
