@@ -6,13 +6,37 @@
   padding: var(--espace-grand) var(--espace-moyen);
 }
 
-/* En-tête de la page d'inscription : logo ACCECIT au-dessus du titre, avec un rythme
-   vertical cohérent jusqu'au premier bloc du formulaire. */
+/* En-tête de la page d'inscription : logo ACCECIT principal à gauche, logos des sous-marques
+   (Hôtellerie / Tertiaire) à droite, alignés verticalement au centre l'un par rapport à
+   l'autre. Rythme vertical cohérent jusqu'au titre puis au premier bloc du formulaire. */
+.page-inscription-tablette__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-grand);
+  margin: 0 0 var(--espace-grand);
+}
+
 .page-inscription-tablette__logo {
   display: block;
   height: 3rem;
   width: auto;
-  margin: 0 0 var(--espace-grand);
+}
+
+/* `flex-wrap` : si l'espace horizontal vient à manquer, les deux logos passent l'un
+   au-dessus de l'autre plutôt que de déborder ou de rétrécir. */
+.page-inscription-tablette__logos-marques {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--espace-moyen);
+}
+
+.page-inscription-tablette__logo-marque {
+  display: block;
+  height: 2.25rem;
+  width: auto;
 }
 
 .page-inscription-tablette h1 {
