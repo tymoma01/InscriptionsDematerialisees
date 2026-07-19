@@ -3,7 +3,7 @@
    hauteur réservée à l'en-tête fixe et le décalage du contenu qui défile en dessous — une
    seule valeur à ajuster si l'en-tête change de taille. */
 .page-inscription-tablette {
-  --hauteur-entete: 7.5rem;
+  --hauteur-entete: 9rem;
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto;
   padding: 0 var(--espace-moyen) var(--espace-grand);
@@ -49,18 +49,53 @@
   width: auto;
 }
 
-/* Logos des sous-marques empilés verticalement (plutôt que côte à côte), alignés à droite. */
+/* Logos des sous-marques empilés verticalement (plutôt que côte à côte), alignés à droite,
+   avec un espacement généreux entre les deux pour ne pas les coller l'un à l'autre. */
 .page-inscription-tablette__logos-marques {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  gap: var(--espace-grand);
+}
+
+/* Reproduction de la disposition du logo officiel des sous-marques (icône à gauche, nom
+   "ACCECIT" en lettres espacées, séparateur fin, sous-nom en dessous) : icône = image,
+   texte = HTML, pour pouvoir choisir sa couleur (blanc) et rester lisible sur le fond dégradé
+   sombre de l'en-tête — le visuel couleur du site officiel utilise un texte bleu marine conçu
+   pour un fond clair, illisible ici tel quel. */
+.page-inscription-tablette__logo-marque {
+  display: flex;
+  align-items: center;
   gap: var(--espace-petit);
 }
 
-.page-inscription-tablette__logo-marque {
+.page-inscription-tablette__logo-marque-icone {
   display: block;
   height: 2.75rem;
   width: auto;
+}
+
+.page-inscription-tablette__logo-marque-texte {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-inscription-tablette__logo-marque-nom {
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  line-height: 1.3;
+}
+
+.page-inscription-tablette__logo-marque-sous-nom {
+  color: #d8e6f2;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  margin-top: 0.15rem;
+  padding-top: 0.15rem;
 }
 
 /* Contenu défilant sous l'en-tête fixe : décalé de la hauteur de l'en-tête (+ une respiration
