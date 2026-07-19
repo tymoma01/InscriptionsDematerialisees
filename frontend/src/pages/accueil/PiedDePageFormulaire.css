@@ -9,15 +9,19 @@
   border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
 }
 
+/* Deux colonnes : logo à gauche, coordonnées à droite (`justify-content: space-between`) —
+   plutôt que tout regrouper à gauche. Padding vertical réduit (--espace-petit) pour un pied de
+   page plus compact et discret. */
 .pied-de-page__contenu {
   box-sizing: border-box;
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto;
-  padding: var(--espace-grand) var(--espace-moyen) var(--espace-moyen);
+  padding: var(--espace-petit) var(--espace-moyen);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--espace-grand);
+  justify-content: space-between;
+  gap: var(--espace-moyen);
 }
 
 .pied-de-page__logo {
@@ -29,7 +33,9 @@
 .pied-de-page__coordonnees {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  align-items: flex-end;
+  text-align: right;
+  gap: 0.2rem;
 }
 
 .pied-de-page__contact {
@@ -39,9 +45,7 @@
 }
 
 .pied-de-page__copyright {
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: 0 var(--espace-moyen) var(--espace-moyen);
+  margin: 0.1rem 0 0;
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.75rem;
 }

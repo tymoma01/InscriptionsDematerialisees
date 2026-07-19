@@ -14,9 +14,9 @@ export default function PiedDePageFormulaire() {
         <div className="pied-de-page__coordonnees">
           <p className="pied-de-page__contact">01 56 56 69 56</p>
           <p className="pied-de-page__contact">47 avenue Paul Vaillant Couturier, 94250 Gentilly</p>
+          <p className="pied-de-page__copyright">© 2026 ACCECIT</p>
         </div>
       </div>
-      <p className="pied-de-page__copyright">© 2026 ACCECIT</p>
     </footer>
   );
 }
