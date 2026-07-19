@@ -1,12 +1,11 @@
-/* Conteneur de page : largeur maximale centrée, pour éviter que le formulaire ne s'étire
-   sur toute la largeur de l'écran (usage tablette). `--hauteur-entete` pilote à la fois la
-   hauteur réservée à l'en-tête fixe et le décalage du contenu qui défile en dessous — une
-   seule valeur à ajuster si l'en-tête change de taille. */
+/* Conteneur de page : pas de largeur maximale ici — l'en-tête, le contenu et le pied de page
+   gèrent chacun leur propre largeur (voir plus bas), pour que l'en-tête et le pied de page
+   puissent s'étendre en plein bord tandis que le contenu du formulaire reste centré sur une
+   largeur de lecture confortable. `--hauteur-entete` pilote à la fois la hauteur réservée à
+   l'en-tête fixe et le décalage du contenu qui défile en dessous — une seule valeur à ajuster
+   si l'en-tête change de taille. */
 .page-inscription-tablette {
   --hauteur-entete: 9rem;
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: 0 var(--espace-moyen) var(--espace-grand);
 }
 
 /* En-tête de la page d'inscription, en deux couches :
@@ -100,10 +99,17 @@
   padding-top: 0.15rem;
 }
 
-/* Contenu défilant sous l'en-tête fixe : décalé de la hauteur de l'en-tête (+ une respiration
-   supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape du formulaire. */
+/* Contenu défilant sous l'en-tête fixe : largeur maximale centrée (reprise ici, plus sur
+   `.page-inscription-tablette`, voir plus haut) + décalage du haut de la hauteur de l'en-tête
+   (+ une respiration supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape. */
 .page-inscription-tablette__contenu {
+  box-sizing: border-box;
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
   padding-top: calc(var(--hauteur-entete) + var(--espace-grand));
+  padding-right: var(--espace-moyen);
+  padding-bottom: var(--espace-grand);
+  padding-left: var(--espace-moyen);
 }
 
 .page-inscription-tablette h1 {

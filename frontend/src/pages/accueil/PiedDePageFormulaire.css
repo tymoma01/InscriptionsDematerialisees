@@ -1,0 +1,47 @@
+/* Pied de page : même logique à deux couches que l'en-tête (InscriptionTablette.css) — fond en
+   plein bord, contenu recentré sur la largeur du formulaire — mais en flux normal (pas de
+   `position: fixed`, il défile avec la page) et sur une seule teinte dégradée plus sobre que
+   l'en-tête (pas de turquoise), pour rester en arrière-plan visuel une fois le candidat arrivé
+   en bas du formulaire. Coins hauts arrondis pour écho avec l'en-tête ; coins bas carrés, rien
+   ne suit en dessous. */
+.pied-de-page {
+  background: linear-gradient(180deg, var(--couleur-primaire), var(--couleur-primaire-hover));
+  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
+}
+
+.pied-de-page__contenu {
+  box-sizing: border-box;
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-grand) var(--espace-moyen) var(--espace-moyen);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-grand);
+}
+
+.pied-de-page__logo {
+  display: block;
+  height: 2.75rem;
+  width: auto;
+}
+
+.pied-de-page__coordonnees {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pied-de-page__contact {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.pied-de-page__copyright {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: 0 var(--espace-moyen) var(--espace-moyen);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+}

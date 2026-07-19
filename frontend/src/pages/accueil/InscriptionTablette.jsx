@@ -3,6 +3,7 @@ import { formulaireConfigAccecitTest } from '../../core/formulaire/donneesTest/f
 import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
 import iconeAccecitTertiaire from '../../assets/icone-accecit-tertiaire.png';
+import PiedDePageFormulaire from './PiedDePageFormulaire';
 import './InscriptionTablette.css';
 
 // Logos des sous-marques : icône (image) + texte (HTML) plutôt qu'un unique visuel figé, pour
@@ -43,6 +44,7 @@ export default function InscriptionTablette() {
         <h1>Inscription candidat</h1>
         <FormulaireInscription configBlocs={formulaireConfigAccecitTest} />
       </div>
+      <PiedDePageFormulaire />
     </main>
   );
 }
