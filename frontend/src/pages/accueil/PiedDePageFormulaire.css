@@ -44,8 +44,12 @@
   font-size: 0.9rem;
 }
 
+/* Ligne de copyright centrée, en pleine largeur, sous la rangée logo/coordonnées plutôt
+   qu'alignée avec l'une des deux colonnes. */
 .pied-de-page__copyright {
-  margin: 0.1rem 0 0;
+  margin: 0;
+  padding: 0 var(--espace-moyen) var(--espace-petit);
+  text-align: center;
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.75rem;
 }
