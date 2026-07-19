@@ -9,3 +9,7 @@
   padding: var(--espace-petit);
   margin-bottom: var(--espace-petit);
 }
+
+.bloc-charte__confirmation input#charteMention {
+  margin-left: var(--espace-petit);
+}
