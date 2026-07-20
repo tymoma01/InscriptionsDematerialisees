@@ -122,3 +122,74 @@ test('supprimerPieceJustificative rejette si la pièce est introuvable en base',
     /Pièce justificative "999" introuvable/,
   );
 });
+
+test('listerPiecesJustificatives délègue au repository pour le dossier donné', async (t) => {
+  mockerKnex(t);
+  const listerMock = t.mock.method(pieceJustificativeRepository, 'listerPiecesParDossier', async () => [
+    { id: 1, dossier_id: 42, type_piece_code: 'CNI' },
+  ]);
+
+  const resultat = await service.listerPiecesJustificatives(ENTITE_ACCECIT, 42);
+
+  assert.deepEqual(resultat, [{ id: 1, dossier_id: 42, type_piece_code: 'CNI' }]);
+  assert.deepEqual(listerMock.mock.calls[0].arguments[1], 42);
+});
+
+test('obtenirUrlTemporairePieceJustificative rejette si la pièce est introuvable en base', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => undefined);
+
+  await assert.rejects(
+    () => service.obtenirUrlTemporairePieceJustificative(ENTITE_ACCECIT, 999),
+    /Pièce justificative "999" introuvable/,
+  );
+});
+
+test('obtenirUrlTemporairePieceJustificative délègue au connecteur de l\'entité', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({
+    id: 99,
+    reference_stockage: 'ref-stockage-123',
+  }));
+  t.mock.method(azureOneDriveConnector, 'obtenirUrlTemporaire', async () => 'https://exemple.test/signe');
+
+  const url = await service.obtenirUrlTemporairePieceJustificative(ENTITE_ACCECIT, 99);
+  assert.equal(url, 'https://exemple.test/signe');
+});
+
+test('mettreAJourStatutVerificationPieceJustificative rejette un statut hors valide/rejete', async () => {
+  await assert.rejects(
+    () => service.mettreAJourStatutVerificationPieceJustificative(ENTITE_ACCECIT, 99, 'en_attente'),
+    /Statut de vérification "en_attente" invalide/,
+  );
+});
+
+test('mettreAJourStatutVerificationPieceJustificative rejette si la pièce est introuvable en base', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => undefined);
+
+  await assert.rejects(
+    () => service.mettreAJourStatutVerificationPieceJustificative(ENTITE_ACCECIT, 999, 'valide'),
+    /Pièce justificative "999" introuvable/,
+  );
+});
+
+test('mettreAJourStatutVerificationPieceJustificative met à jour le statut et pose la date de vérification', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({ id: 99 }));
+  const mettreAJourMock = t.mock.method(
+    pieceJustificativeRepository,
+    'mettreAJourStatutVerification',
+    async () => ({ id: 99, statut_verification: 'valide' }),
+  );
+
+  const resultat = await service.mettreAJourStatutVerificationPieceJustificative(ENTITE_ACCECIT, 99, 'valide');
+
+  assert.deepEqual(resultat, { id: 99, statut_verification: 'valide' });
+  // arguments[0] = trx (bd mockée), voir mockerKnex — le repository suit toujours ce patron
+  // (trx en premier argument, comme enregistrerPieceJustificative/trouverPieceJustificativeParId).
+  const [, pieceIdAppel, donneesAppel] = mettreAJourMock.mock.calls[0].arguments;
+  assert.equal(pieceIdAppel, 99);
+  assert.equal(donneesAppel.statutVerification, 'valide');
+  assert.ok(donneesAppel.dateVerification instanceof Date);
+});

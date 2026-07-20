@@ -36,6 +36,17 @@ class StorageConnector {
   async lister(dossierId) {
     throw new Error('StorageConnector.lister doit être implémenté par la classe dérivée');
   }
+
+  /**
+   * URL de téléchargement temporaire et pré-authentifiée vers le fichier (jamais un lien public
+   * permanent) — à préférer à `download()` quand le fichier peut être servi directement au
+   * navigateur du candidat/recruteur sans transiter par le serveur applicatif.
+   * @param {string} referenceStockage
+   * @returns {Promise<string>} URL signée, à durée de vie limitée (dépend du prestataire)
+   */
+  async obtenirUrlTemporaire(referenceStockage) {
+    throw new Error('StorageConnector.obtenirUrlTemporaire doit être implémenté par la classe dérivée');
+  }
 }
 
 module.exports = StorageConnector;

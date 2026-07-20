@@ -69,4 +69,53 @@ async function supprimerPieceJustificative(entite, pieceId) {
   await pieceJustificativeRepository.supprimerPieceJustificativeParId(bd, pieceId);
 }
 
-module.exports = { uploaderPieceJustificative, telechargerPieceJustificative, supprimerPieceJustificative };
+function listerPiecesJustificatives(entite, dossierId) {
+  return db.obtenirKnex().then((bd) => pieceJustificativeRepository.listerPiecesParDossier(bd, dossierId));
+}
+
+// URL de téléchargement temporaire et pré-authentifiée (ex. `@microsoft.graph.downloadUrl` côté
+// OneDrive, valide ~1h) — jamais d'accès public direct et permanent au fichier chez le
+// prestataire de stockage.
+async function obtenirUrlTemporairePieceJustificative(entite, pieceId) {
+  const bd = await db.obtenirKnex();
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, pieceId);
+  if (!piece) {
+    throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+  }
+
+  const connecteur = storageFactory(entite.connecteur_stockage);
+  return connecteur.obtenirUrlTemporaire(piece.reference_stockage);
+}
+
+const STATUTS_VERIFICATION_AUTORISES = ['valide', 'rejete'];
+
+// L'horodatage de vérification est celui du serveur au moment de l'appel, jamais une date
+// envoyée par le client — même principe que les autres horodatages de preuve du projet
+// (signature de charte, signature RGPD, voir CLAUDE.md).
+async function mettreAJourStatutVerificationPieceJustificative(entite, pieceId, statutVerification) {
+  if (!STATUTS_VERIFICATION_AUTORISES.includes(statutVerification)) {
+    throw new Error(
+      `Statut de vérification "${statutVerification}" invalide (attendu : ${STATUTS_VERIFICATION_AUTORISES.join(' ou ')}).`,
+    );
+  }
+
+  const bd = await db.obtenirKnex();
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, pieceId);
+  if (!piece) {
+    throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+  }
+
+  return pieceJustificativeRepository.mettreAJourStatutVerification(bd, pieceId, {
+    statutVerification,
+    dateVerification: new Date(),
+  });
+}
+
+module.exports = {
+  uploaderPieceJustificative,
+  telechargerPieceJustificative,
+  supprimerPieceJustificative,
+  listerPiecesJustificatives,
+  obtenirUrlTemporairePieceJustificative,
+  mettreAJourStatutVerificationPieceJustificative,
+};

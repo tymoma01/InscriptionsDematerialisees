@@ -137,6 +137,40 @@ test('upload puis download effectuent un aller-retour correct (contenu identique
   assert.deepEqual(contenuTelecharge, contenuOriginal);
 });
 
+test('obtenirUrlTemporaire renvoie @microsoft.graph.downloadUrl', async (t) => {
+  const client = creerClientMock({
+    'GET /drives/drive-1/items/item-1': { valeur: { '@microsoft.graph.downloadUrl': 'https://exemple.test/signe' } },
+  });
+  const connecteurMocke = chargerConnecteurAvecClient(t, client);
+
+  const url = await connecteurMocke.obtenirUrlTemporaire(JSON.stringify({ driveId: 'drive-1', itemId: 'item-1' }));
+  assert.equal(url, 'https://exemple.test/signe');
+});
+
+test('obtenirUrlTemporaire échoue si Graph ne renvoie pas de downloadUrl (dossier, pas un fichier)', async (t) => {
+  const client = creerClientMock({
+    'GET /drives/drive-1/items/item-1': { valeur: {} },
+  });
+  const connecteurMocke = chargerConnecteurAvecClient(t, client);
+
+  await assert.rejects(
+    () => connecteurMocke.obtenirUrlTemporaire(JSON.stringify({ driveId: 'drive-1', itemId: 'item-1' })),
+    /Aucune URL de téléchargement disponible/,
+  );
+});
+
+test('obtenirUrlTemporaire traduit une erreur 404 (item introuvable) en message clair', async (t) => {
+  const client = creerClientMock({
+    'GET /drives/drive-1/items/item-1': { erreur: { statusCode: 404, code: 'itemNotFound' } },
+  });
+  const connecteurMocke = chargerConnecteurAvecClient(t, client);
+
+  await assert.rejects(
+    () => connecteurMocke.obtenirUrlTemporaire(JSON.stringify({ driveId: 'drive-1', itemId: 'item-1' })),
+    /introuvable sur SharePoint/,
+  );
+});
+
 test('download traduit une erreur 404 (item introuvable) en message clair', async (t) => {
   const client = creerClientMock({
     'GET /drives/drive-1/items/item-1/content': { erreur: { statusCode: 404, code: 'itemNotFound' } },

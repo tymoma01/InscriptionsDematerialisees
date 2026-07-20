@@ -152,6 +152,28 @@ class AzureOneDriveConnector extends StorageConnector {
     }
   }
 
+  // `@microsoft.graph.downloadUrl` : URL pré-authentifiée générée par Graph, valide ~1h, ne
+  // nécessitant aucun jeton pour être suivie — jamais de lien public permanent sur l'item lui-même
+  // (celui-ci reste privé, seule cette URL temporaire y donne accès).
+  async obtenirUrlTemporaire(referenceStockage) {
+    const { driveId, itemId } = decoderReference(referenceStockage);
+    const client = await graphClient.obtenirClientGraph();
+
+    // Pas de `.select(...)` : Graph inclut `@microsoft.graph.downloadUrl` par défaut dans la
+    // réponse d'un GET sur un driveItem fichier, sans restriction de champs nécessaire ici.
+    let item;
+    try {
+      item = await client.api(`/drives/${driveId}/items/${itemId}`).get();
+    } catch (erreur) {
+      throw traduireErreurGraph(erreur, `obtention de l'URL de téléchargement temporaire de l'item "${itemId}"`);
+    }
+
+    if (!item['@microsoft.graph.downloadUrl']) {
+      throw new Error(`Aucune URL de téléchargement disponible pour l'item "${itemId}" (fichier introuvable ou dossier).`);
+    }
+    return item['@microsoft.graph.downloadUrl'];
+  }
+
   async supprimer(referenceStockage) {
     const { driveId, itemId } = decoderReference(referenceStockage);
     const client = await graphClient.obtenirClientGraph();
