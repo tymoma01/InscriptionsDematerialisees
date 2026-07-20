@@ -5,7 +5,7 @@
    l'en-tête fixe et le décalage du contenu qui défile en dessous — une seule valeur à ajuster
    si l'en-tête change de taille. */
 .page-inscription-tablette {
-  --hauteur-entete: 9rem;
+  --hauteur-entete: 8rem;
 }
 
 /* En-tête de la page d'inscription, en deux couches :
