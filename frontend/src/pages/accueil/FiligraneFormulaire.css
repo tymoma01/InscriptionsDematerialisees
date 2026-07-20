@@ -25,15 +25,20 @@
 
 .filigrane-formulaire__logo {
   position: absolute;
-  width: 90px;
+  width: 130px;
   height: auto;
-  opacity: 0.03;
+  /* 3%, 6% puis 12% sont restés trop discrets à l'écran de l'utilisateur — remonté à 22%,
+     puis 30%. */
+  opacity: 0.3;
 }
 
+/* Décalage réduit à 12px (au lieu de 24px) : le logo est passé de 90px à 130px de large, or à
+   1400px de large (le seuil d'apparition), la marge disponible hors du formulaire n'est que de
+   150px de chaque côté — 12px laisse encore de la place pour ne jamais toucher le contenu. */
 .filigrane-formulaire__logo--gauche {
-  left: 24px;
+  left: 12px;
 }
 
 .filigrane-formulaire__logo--droite {
-  right: 24px;
+  right: 12px;
 }
