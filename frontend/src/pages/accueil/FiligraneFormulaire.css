@@ -1,0 +1,39 @@
+/* Filigrane décoratif : logo ACCECIT répété à très faible opacité dans les marges gauche/droite,
+   en dehors du conteneur centré du formulaire (--largeur-max-formulaire). `position: fixed` +
+   `inset: 0` sur le conteneur : les répétitions restent à des hauteurs fixes de l'écran plutôt
+   que de défiler avec le contenu (comportement volontaire, cohérent avec l'en-tête fixe).
+   `z-index: -1` : sous la pile de l'empilement racine (bucket « z-index négatif »), donc peint
+   avant le contenu normal du document (`<main>`, non positionné) qui, lui, est peint dans la
+   pile suivante — le filigrane reste ainsi visuellement derrière tout le contenu sans qu'aucun
+   z-index positif n'ait besoin d'être posé sur ce dernier. `pointer-events: none` : jamais
+   cliquable, hérité par les images enfants. Masqué sous 1400px (voir media query) : en dessous,
+   la marge disponible hors du formulaire devient trop étroite pour laisser respirer le motif. */
+.filigrane-formulaire {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@media (min-width: 1400px) {
+  .filigrane-formulaire {
+    display: block;
+  }
+}
+
+.filigrane-formulaire__logo {
+  position: absolute;
+  width: 90px;
+  height: auto;
+  opacity: 0.03;
+}
+
+.filigrane-formulaire__logo--gauche {
+  left: 24px;
+}
+
+.filigrane-formulaire__logo--droite {
+  right: 24px;
+}

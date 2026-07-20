@@ -4,6 +4,7 @@ import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
 import iconeAccecitTertiaire from '../../assets/icone-accecit-tertiaire.png';
 import PiedDePageFormulaire from './PiedDePageFormulaire';
+import FiligraneFormulaire from './FiligraneFormulaire';
 import './InscriptionTablette.css';
 
 // Logos des sous-marques : icône (image) + texte (HTML) plutôt qu'un unique visuel figé, pour
@@ -27,6 +28,7 @@ function LogoSousMarque({ icone, nom }) {
 export default function InscriptionTablette() {
   return (
     <main className="page-inscription-tablette">
+      <FiligraneFormulaire />
       <header className="page-inscription-tablette__entete">
         <div className="page-inscription-tablette__entete-contenu">
           <img
