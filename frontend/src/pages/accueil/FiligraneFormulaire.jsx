@@ -2,19 +2,15 @@ import logoAccecit from '../../assets/logo-accecit-fonce.png';
 import './FiligraneFormulaire.css';
 
 // Répétitions du logo dans les marges gauche/droite, à des hauteurs volontairement irrégulières
-// (écarts croissants, pas une grille) pour un rendu discret plutôt que « papier peint ». Masqué
-// sous 1400px via CSS (voir FiligraneFormulaire.css) : en dessous de ce seuil, la marge devient
-// trop étroite pour laisser respirer le motif sans frôler le formulaire.
-const REPETITIONS = [
-  { cote: 'gauche', haut: '6%' },
-  { cote: 'gauche', haut: '26%' },
-  { cote: 'gauche', haut: '55%' },
-  { cote: 'gauche', haut: '90%' },
-  { cote: 'droite', haut: '15%' },
-  { cote: 'droite', haut: '42%' },
-  { cote: 'droite', haut: '68%' },
-  { cote: 'droite', haut: '95%' },
-];
+// (écarts croissants, pas une grille) pour un rendu discret plutôt que « papier peint ». Les deux
+// côtés partagent les mêmes hauteurs pour rester alignés l'un avec l'autre. Masqué sous 1400px
+// via CSS (voir FiligraneFormulaire.css) : en dessous de ce seuil, la marge devient trop étroite
+// pour laisser respirer le motif sans frôler le formulaire.
+const HAUTEURS = ['6%', '26%', '55%', '90%'];
+const REPETITIONS = HAUTEURS.flatMap((haut) => [
+  { cote: 'gauche', haut },
+  { cote: 'droite', haut },
+]);
 
 // Filigrane purement décoratif, commun à toutes les pages du formulaire d'inscription :
 // `aria-hidden` + `pointer-events: none` (voir CSS) pour rester invisible aux lecteurs d'écran
