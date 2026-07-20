@@ -356,3 +356,24 @@ Points figés avec le développeur senior le 2026-07-16 (voir `docs/architecture
 Restent à trancher :
 - Quels rôles/endpoints ont accès au NIR déchiffré, et comment ça s'articule avec `journal_audit`
 - Sauvegardes de la base : s'assurer que la clé de chiffrement n'est jamais sauvegardée avec les données chiffrées (sinon le chiffrement devient inutile)
+
+### 5. Implémentation de l'authentification par session et du RBAC
+**Contexte** : CLAUDE.md décrit le design cible depuis le début du projet (section « Authentification et rôles ») — session serveur `express-session` + `connect-pg-simple`, mots de passe hashés argon2, RBAC via la table `roles` (déjà modélisée, voir §1 `roles`/`utilisateurs`/`transition_roles` ci-dessus). Mais aucune ligne de code n'existe encore : `backend/src/api/middlewares/auth.middleware.js`, `rbac.middleware.js` et `backend/src/core/auth/{session,rbac,password}.js` sont des fichiers vides. Conséquence concrète : toutes les routes API déjà implémentées (inscription candidat, upload/consultation/vérification des pièces justificatives) sont non protégées — accessibles sans authentification, y compris des actions réservées en théorie à un rôle précis (ex : valider/rejeter une pièce justificative, normalement du ressort de l'accueil/coordination).
+
+Déjà tranché par CLAUDE.md (pas à rediscuter, seulement à implémenter) :
+- Sessions serveur, jamais de JWT
+- `express-session` + `connect-pg-simple` (store PostgreSQL, cohérent avec l'hébergement Neon déjà en place)
+- Hash argon2 (ou bcrypt) des mots de passe
+- Cookie `httpOnly`, `secure`, `sameSite=strict`
+- Session courte (~2h d'inactivité), vu la sensibilité des données manipulées (NIR, RIB, pièces d'identité)
+- Rate limiting sur `/login`
+- Logging des connexions/déconnexions, intégré à la traçabilité RGPD (`journal_audit`)
+- 4 rôles via la table `roles` (`accueil_coordination`, `recruteur`, `formateur`, `admin`)
+
+Restent à trancher avec le développeur senior avant implémentation :
+- Ordre de priorité : quelles routes protéger en premier ? (les routes pièces justificatives ajoutées récemment sont un exemple concret de surface actuellement ouverte, à traiter en priorité vu la sensibilité des données)
+- Quels rôles/endpoints ont accès au NIR déchiffré — même question que le point ouvert n°4 ci-dessus, à traiter comme un seul chantier plutôt que deux chantiers séparés qui divergeraient
+- Isolation multi-entité au niveau session : un utilisateur est rattaché à une seule entité (`utilisateurs.entite_id`) — faut-il vérifier explicitement `req.session.utilisateur.entite_id === req.entite.id` sur chaque requête protégée, pour empêcher un agent d'une entité d'agir sur les données d'une autre (résolues aujourd'hui indépendamment via `entiteContext`, sans lien avec la session) ?
+- Politique de verrouillage de compte après un nombre de tentatives échouées, en complément du rate limiting sur `/login` ?
+
+**Question pour la revue** : quel calendrier/priorité pour ce chantier (voir [[decision-auth-rbac]]), et par quelles routes commencer la protection — l'inscription candidat exceptée par nature (parcours public, sans compte) ?

@@ -181,3 +181,4 @@ Cette table est le résumé opérationnel de la contrainte de modularité de CLA
 - Choix S3-compatible vs API native pour le connecteur OVH (`.env.example` note ce point comme non tranché).
 ~~Emplacement et rotation de la clé de chiffrement du NIR~~ — **tranché le 2026-07-16** : Azure Key Vault retenu (accès en attente côté équipe, cf. point ouvert n°4 de `docs/schema-bdd-proposition.md`).
 - Job de purge RGPD (candidats non retenus, `duree_conservation_mois`) — non implémenté à ce stade.
+- Authentification par session et RBAC (design déjà décrit par CLAUDE.md, mais `auth.middleware.js`/`rbac.middleware.js`/`core/auth/*` toujours vides — toutes les routes API actuelles sont donc non protégées) : voir point ouvert n°5 de `docs/schema-bdd-proposition.md` pour le détail et les questions restant à trancher.
