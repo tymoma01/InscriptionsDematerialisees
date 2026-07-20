@@ -1,0 +1,174 @@
+/* Réutilise les variables de la charte graphique (styles/variables.css) et le même langage
+   visuel que les blocs du formulaire d'inscription (fond blanc, ombre douce, coins arrondis —
+   voir styles/blocFormulaire.css) sans dépendre de la classe .bloc-formulaire elle-même : cet
+   écran n'est pas un bloc du formulaire d'inscription, mais un écran séparé (étape 3 du parcours,
+   accueil), qui doit simplement avoir la même apparence de carte. */
+.capture-tablette {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.capture-tablette__entete h2 {
+  color: var(--couleur-primaire);
+  margin: 0 0 var(--espace-petit);
+}
+
+.capture-tablette__agent {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  margin: 0 0 var(--espace-petit);
+}
+
+.capture-tablette__progression {
+  font-weight: 600;
+  margin: 0 0 var(--espace-moyen);
+}
+
+.capture-tablette__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.capture-tablette__item {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  padding: var(--espace-petit) var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+/* Pastille de statut : vide/grise tant que la pièce n'est pas capturée, coche pleine une fois
+   envoyée — même logique de couleur sémantique que --couleur-erreur pour les alertes, mais pas
+   de variable "succès" existante dans variables.css : couleur posée localement plutôt que
+   d'ajouter une variable globale pour un unique usage. */
+.capture-tablette__statut {
+  flex: 0 0 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid var(--couleur-bordure);
+  color: transparent;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.capture-tablette__statut--ok {
+  border-color: #1e7e34;
+  background-color: #1e7e34;
+  color: #ffffff;
+}
+
+.capture-tablette__libelle {
+  flex: 1 1 auto;
+  color: var(--couleur-texte);
+}
+
+.capture-tablette__optionnel {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.capture-tablette__item button {
+  flex: 0 0 auto;
+}
+
+/* Panneau de capture : reste sur le même écran (pas de nouvelle page) pour ne pas perdre le
+   contexte du dossier en cours — fond légèrement distinct (--couleur-fond-secondaire) pour se
+   détacher visuellement de la liste au-dessus. */
+.capture-tablette__panneau {
+  margin-top: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.capture-tablette__panneau-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--espace-petit);
+}
+
+.capture-tablette__panneau-entete h3 {
+  margin: 0;
+  color: var(--couleur-primaire);
+}
+
+.capture-tablette__choix-methode,
+.capture-tablette__apercu-actions,
+.capture-tablette__camera {
+  display: flex;
+  gap: var(--espace-moyen);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.capture-tablette__apercu-actions,
+.capture-tablette__camera {
+  gap: var(--espace-petit);
+  margin-top: var(--espace-petit);
+}
+
+.capture-tablette__bouton-fichier {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  cursor: pointer;
+}
+
+.capture-tablette__bouton-fichier input[type='file'] {
+  /* L'input réel reste dans le DOM et accessible au clavier/lecteur d'écran (pas de
+     display:none) — seule son apparence est réduite à rien, le <label> ci-dessus porte
+     l'apparence du bouton. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+/* Dimensions réelles de la capture pilotées par videoWidth/videoHeight au moment de la photo
+   (voir capturerPhoto dans CaptureTablette.jsx) — ici uniquement le gabarit d'affichage. */
+.capture-tablette__video {
+  width: 100%;
+  max-width: 480px;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure);
+  background-color: #000000;
+}
+
+.capture-tablette__apercu-image {
+  max-width: 480px;
+  width: 100%;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure);
+}
+
+.capture-tablette__apercu-fichier {
+  padding: var(--espace-moyen);
+  border: 1px dashed var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  margin: 0;
+}
+
+.capture-tablette [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
