@@ -4,6 +4,18 @@
 const db = require('../../db/knex');
 const storageFactory = require('../../integrations/stockage/storageFactory');
 const pieceJustificativeRepository = require('./pieceJustificativeRepository');
+const dossierRepository = require('./dossierRepository');
+
+// dossierId vient toujours de l'URL (voir pieces.routes.js) : jamais traité sans confirmer au
+// préalable qu'il appartient à l'entité résolue par entiteContext pour la requête en cours —
+// sinon un utilisateur authentifié d'une entité pourrait agir sur le dossier d'une autre entité
+// en devinant un dossierId (même faille IDOR que sur pieceId, voir pieceJustificativeRepository.js).
+async function verifierDossierAppartientEntite(bd, entite, dossierId) {
+  const dossier = await dossierRepository.trouverDossierParId(bd, entite.id, dossierId);
+  if (!dossier) {
+    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+}
 
 // Les codes de type de pièce (CNI, RIB, attestation-formation...) ne sont volontairement pas
 // figés ici : ils viennent de la table `types_pieces`, configurable par entité (voir Modularité,
@@ -20,6 +32,8 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   }
 
   const bd = await db.obtenirKnex();
+  await verifierDossierAppartientEntite(bd, entite, dossierId);
+
   const typePiece = await pieceJustificativeRepository.trouverTypePieceParCode(bd, entite.id, typePieceCode);
   if (!typePiece) {
     throw new Error(`Type de pièce "${typePieceCode}" non configuré pour l'entité « ${entite.code} ».`);
@@ -44,7 +58,7 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
 
 async function telechargerPieceJustificative(entite, pieceId) {
   const bd = await db.obtenirKnex();
-  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, pieceId);
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
     throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
   }
@@ -59,7 +73,7 @@ async function telechargerPieceJustificative(entite, pieceId) {
 // retirer la ligne en base, pour ne jamais garder une référence vers un fichier déjà effacé.
 async function supprimerPieceJustificative(entite, pieceId) {
   const bd = await db.obtenirKnex();
-  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, pieceId);
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
     throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
   }
@@ -69,8 +83,10 @@ async function supprimerPieceJustificative(entite, pieceId) {
   await pieceJustificativeRepository.supprimerPieceJustificativeParId(bd, pieceId);
 }
 
-function listerPiecesJustificatives(entite, dossierId) {
-  return db.obtenirKnex().then((bd) => pieceJustificativeRepository.listerPiecesParDossier(bd, dossierId));
+async function listerPiecesJustificatives(entite, dossierId) {
+  const bd = await db.obtenirKnex();
+  await verifierDossierAppartientEntite(bd, entite, dossierId);
+  return pieceJustificativeRepository.listerPiecesParDossier(bd, dossierId);
 }
 
 // URL de téléchargement temporaire et pré-authentifiée (ex. `@microsoft.graph.downloadUrl` côté
@@ -78,7 +94,7 @@ function listerPiecesJustificatives(entite, dossierId) {
 // prestataire de stockage.
 async function obtenirUrlTemporairePieceJustificative(entite, pieceId) {
   const bd = await db.obtenirKnex();
-  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, pieceId);
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
     throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
   }
@@ -100,7 +116,7 @@ async function mettreAJourStatutVerificationPieceJustificative(entite, pieceId, 
   }
 
   const bd = await db.obtenirKnex();
-  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, pieceId);
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
     throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
   }

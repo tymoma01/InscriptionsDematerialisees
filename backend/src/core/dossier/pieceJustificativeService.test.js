@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const db = require('../../db/knex');
 const pieceJustificativeRepository = require('./pieceJustificativeRepository');
+const dossierRepository = require('./dossierRepository');
 // storageFactory('azure_onedrive') retourne toujours ce même singleton : on mocke ses méthodes
 // directement plutôt que storageFactory (export de fonction brute, non mockable via t.mock.method
 // une fois déstructuré/consommé — cf. commentaire en tête de azureOneDriveConnector.js).
@@ -16,6 +17,10 @@ function mockerKnex(t) {
   // fonctions du repository sont mockées, donc la valeur passée pour `bd` n'a pas besoin d'être
   // un vrai knex — seule sa présence (pas d'appel réseau réel à Neon) compte.
   t.mock.method(db, 'obtenirKnex', async () => ({}));
+  // Par défaut le dossier appartient bien à l'entité (voir verifierDossierAppartientEntite dans
+  // pieceJustificativeService.js) — les tests qui veulent couvrir le rejet inter-entités
+  // surchargent ce mock explicitement.
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
 }
 
 test('uploaderPieceJustificative rejette un contenu qui n\'est pas un Buffer', async () => {
@@ -44,6 +49,22 @@ test('uploaderPieceJustificative rejette un type de pièce non configuré pour l
       uploadedBy: 1,
     }),
     /Type de pièce "INCONNU" non configuré pour l'entité « accecit »/,
+  );
+});
+
+test("uploaderPieceJustificative rejette si le dossier n'appartient pas à l'entité", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => undefined);
+
+  await assert.rejects(
+    () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+      dossierId: 999,
+      typePieceCode: 'CNI',
+      nomFichier: 'cni.pdf',
+      contenu: Buffer.from('x'),
+      uploadedBy: 1,
+    }),
+    /Dossier "999" introuvable pour l'entité « accecit »/,
   );
 });
 
@@ -133,6 +154,16 @@ test('listerPiecesJustificatives délègue au repository pour le dossier donné'
 
   assert.deepEqual(resultat, [{ id: 1, dossier_id: 42, type_piece_code: 'CNI' }]);
   assert.deepEqual(listerMock.mock.calls[0].arguments[1], 42);
+});
+
+test("listerPiecesJustificatives rejette si le dossier n'appartient pas à l'entité", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => undefined);
+
+  await assert.rejects(
+    () => service.listerPiecesJustificatives(ENTITE_ACCECIT, 999),
+    /Dossier "999" introuvable pour l'entité « accecit »/,
+  );
 });
 
 test('obtenirUrlTemporairePieceJustificative rejette si la pièce est introuvable en base', async (t) => {

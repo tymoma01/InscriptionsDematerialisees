@@ -18,8 +18,18 @@ async function enregistrerPieceJustificative(trx, { dossierId, typePieceId, refe
   return piece.id;
 }
 
-function trouverPieceJustificativeParId(trx, pieceId) {
-  return trx('pieces_justificatives').where({ id: pieceId }).first();
+// Scopé par entiteId (jointure vers dossiers) : un pieceId est un entier séquentiel, donc
+// devinable/énumérable — sans ce filtre, un utilisateur authentifié d'une entité pourrait
+// accéder à une pièce (CNI, RIB...) d'une autre entité en devinant son id. Retourne undefined
+// aussi bien si la pièce n'existe pas que si elle appartient à une autre entité : le même
+// message "introuvable" est renvoyé au client dans les deux cas (voir pieceJustificativeService.js),
+// pour ne pas laisser fuiter l'information qu'un id existe ailleurs.
+function trouverPieceJustificativeParId(trx, entiteId, pieceId) {
+  return trx('pieces_justificatives')
+    .join('dossiers', 'dossiers.id', 'pieces_justificatives.dossier_id')
+    .where({ 'pieces_justificatives.id': pieceId, 'dossiers.entite_id': entiteId })
+    .select('pieces_justificatives.*')
+    .first();
 }
 
 function supprimerPieceJustificativeParId(trx, pieceId) {
@@ -28,6 +38,9 @@ function supprimerPieceJustificativeParId(trx, pieceId) {
 
 // Jointure sur types_pieces pour exposer le code/libellé du type de pièce (pas seulement
 // type_piece_id) — évite au consommateur de la liste (back-office) une seconde requête par ligne.
+// dossierId est déjà vérifié comme appartenant à l'entité par pieceJustificativeService (via
+// dossierRepository.trouverDossierParId) avant d'appeler cette fonction — pas de filtre entiteId
+// redondant ici, cohérent avec le principe "vérifier une fois, à l'entrée du service".
 function listerPiecesParDossier(trx, dossierId) {
   return trx('pieces_justificatives')
     .join('types_pieces', 'types_pieces.id', 'pieces_justificatives.type_piece_id')

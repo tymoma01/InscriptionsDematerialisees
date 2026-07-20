@@ -2,6 +2,7 @@ require('dotenv').config();
 
 module.exports = {
   PORT: process.env.PORT ?? 3000,
+  NODE_ENV: process.env.NODE_ENV ?? 'development',
   // Code entité utilisé quand le sous-domaine ne permet pas de résoudre l'entité
   // (développement local sur localhost) — voir entiteContext.middleware.js.
   ENTITE_PAR_DEFAUT: process.env.ENTITE_PAR_DEFAUT,
@@ -9,4 +10,10 @@ module.exports = {
   // entité en production (accecit.xxx.fr, adaptel.xxx.fr...), à faire évoluer vers une
   // résolution multi-origine par entité le jour où plusieurs entités sont déployées ensemble.
   FRONTEND_URL: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+  // Secret de signature des cookies de session (express-session, voir core/auth/session.js).
+  // Reste en variable d'environnement plutôt qu'Azure Key Vault, contrairement à la connection
+  // string Neon et à la clé NIR : express-session en a besoin de façon synchrone au démarrage, et
+  // sa compromission n'expose que l'intégrité/l'authenticité des cookies (pas de donnée métier
+  // directement) — à revalider avec le développeur senior (voir CLAUDE.auth-rbac.md).
+  SESSION_SECRET: process.env.SESSION_SECRET,
 };

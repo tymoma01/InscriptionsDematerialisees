@@ -33,6 +33,13 @@ async function creerDossier(trx, { candidatId, entiteId, statutId }) {
   return dossier.id;
 }
 
+// Utilisé pour vérifier qu'un dossierId venant de l'URL (ex : routes pièces justificatives)
+// appartient bien à l'entité résolue par entiteContext pour la requête en cours, avant toute
+// lecture/écriture le concernant — voir pieceJustificativeService.js.
+function trouverDossierParId(trx, entiteId, dossierId) {
+  return trx('dossiers').where({ id: dossierId, entite_id: entiteId }).first();
+}
+
 function enregistrerDonneesBloc(trx, { dossierId, blocCode, donnees }) {
   return trx('dossier_donnees_formulaire').insert({
     dossier_id: dossierId,
@@ -63,6 +70,7 @@ module.exports = {
   insererCandidat,
   trouverStatutInitial,
   creerDossier,
+  trouverDossierParId,
   enregistrerDonneesBloc,
   trouverCharteActive,
   enregistrerSignatureCharte,
