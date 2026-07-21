@@ -1,0 +1,151 @@
+.page-utilisateurs {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-grand) var(--espace-moyen);
+}
+
+.page-utilisateurs__entete h1 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-primaire);
+}
+
+.page-utilisateurs__agent {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  margin: 0 0 var(--espace-grand);
+}
+
+.page-utilisateurs__vide {
+  color: var(--couleur-texte-secondaire);
+}
+
+.page-utilisateurs > button {
+  margin-bottom: var(--espace-moyen);
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-primaire);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-utilisateurs [role='alert'] {
+  color: var(--couleur-erreur);
+}
+
+/* Conteneur de défilement dédié : sur un écran étroit (tablette en portrait), seul le tableau
+   défile horizontalement, jamais toute la page — même patron que DossierList.css. */
+.table-utilisateurs__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  margin-bottom: var(--espace-grand);
+}
+
+.table-utilisateurs {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--couleur-fond);
+}
+
+.table-utilisateurs th,
+.table-utilisateurs td {
+  padding: 0.75rem var(--espace-moyen);
+  text-align: left;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  white-space: nowrap;
+}
+
+.table-utilisateurs th {
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table-utilisateurs tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-utilisateurs tbody tr:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.table-utilisateurs__actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.formulaire-utilisateur {
+  max-width: 26rem;
+  margin: 0 0 var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.formulaire-utilisateur h2 {
+  margin: 0;
+  color: var(--couleur-primaire);
+  font-size: 1.1rem;
+}
+
+.formulaire-utilisateur label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.formulaire-utilisateur input,
+.formulaire-utilisateur select {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.formulaire-utilisateur input:disabled {
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+}
+
+.formulaire-utilisateur [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.formulaire-utilisateur__actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.formulaire-utilisateur__actions button {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.formulaire-utilisateur__actions button[type='submit'] {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.formulaire-utilisateur__actions button:disabled,
+.table-utilisateurs__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

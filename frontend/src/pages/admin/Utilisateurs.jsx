@@ -1,0 +1,267 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import StatutBadge from '../../core/workflow/StatutBadge';
+import { useSession } from '../../core/auth/useSession';
+import {
+  listerUtilisateurs,
+  listerRolesAssignables,
+  creerUtilisateur,
+  mettreAJourUtilisateur,
+} from '../../services/utilisateurService';
+import './Utilisateurs.css';
+
+const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+// Écran admin de gestion des comptes (CLAUDE.md, section Rôles : "Admin : gestion globale") —
+// liste des comptes de l'entité courante, création, modification (nom/prénom/rôle/mot de passe)
+// et activation/désactivation. Aucune suppression : un compte désactivé (actif: false) ne peut
+// plus se connecter (voir backend utilisateurRepository.trouverParEmail), mais reste référencé
+// par l'historique/les relances/les évaluations/le journal d'audit — le supprimer casserait
+// cette traçabilité.
+export default function Utilisateurs() {
+  const { utilisateur: utilisateurConnecte, chargement: chargementSession } = useSession();
+
+  const [utilisateurs, setUtilisateurs] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState(null);
+  // null = fermé, 'creation' = formulaire vide, ou l'objet utilisateur à éditer.
+  const [formulaireOuvert, setFormulaireOuvert] = useState(null);
+
+  const chargerUtilisateurs = () => {
+    setChargement(true);
+    setErreur(null);
+    return listerUtilisateurs()
+      .then(setUtilisateurs)
+      .catch(() => setErreur('Impossible de récupérer les comptes.'))
+      .finally(() => setChargement(false));
+  };
+
+  useEffect(() => {
+    chargerUtilisateurs();
+    listerRolesAssignables()
+      .then(setRoles)
+      .catch(() => {
+        // Non bloquant pour la liste ci-dessous ; sans rôles chargés, le formulaire de création/
+        // édition reste simplement désactivé (voir FormulaireUtilisateur).
+      });
+  }, []);
+
+  const gererFinFormulaire = () => {
+    setFormulaireOuvert(null);
+    chargerUtilisateurs();
+  };
+
+  // Bascule rapide depuis la liste, sans ouvrir le formulaire complet — le serveur revalide
+  // systématiquement (ex : impossible de se désactiver soi-même), voir utilisateurService.js.
+  const basculerActif = async (cible) => {
+    try {
+      await mettreAJourUtilisateur(cible.id, { actif: !cible.actif });
+      chargerUtilisateurs();
+    } catch (erreur) {
+      window.alert(
+        erreur.response?.data?.erreur ?? "Le serveur n'a pas pu enregistrer ce changement. Merci de réessayer.",
+      );
+    }
+  };
+
+  if (chargementSession) {
+    return <p>Chargement de la session…</p>;
+  }
+
+  if (!utilisateurConnecte) {
+    return (
+      <p role="alert">
+        Vous devez être connecté pour gérer les comptes. <Link to="/connexion">Se connecter</Link>
+      </p>
+    );
+  }
+
+  return (
+    <main className="page-utilisateurs">
+      <header className="page-utilisateurs__entete">
+        <h1>Comptes utilisateurs</h1>
+        <p className="page-utilisateurs__agent">
+          Agent connecté : {utilisateurConnecte.prenom} {utilisateurConnecte.nom}
+        </p>
+      </header>
+
+      <button type="button" onClick={() => setFormulaireOuvert('creation')}>
+        Nouveau compte
+      </button>
+
+      {formulaireOuvert && (
+        <FormulaireUtilisateur
+          // key force un remontage (donc un état de formulaire vierge) quand on passe de la
+          // création à l'édition, ou de l'édition d'un compte à un autre, sans avoir à fermer le
+          // formulaire entre les deux — sans ça, les champs contrôlés garderaient leurs valeurs
+          // précédentes (useState ne réinitialise pas sur un simple changement de props).
+          key={formulaireOuvert === 'creation' ? 'creation' : formulaireOuvert.id}
+          utilisateur={formulaireOuvert === 'creation' ? null : formulaireOuvert}
+          roles={roles}
+          onTermine={gererFinFormulaire}
+          onAnnuler={() => setFormulaireOuvert(null)}
+        />
+      )}
+
+      {chargement && <p>Chargement des comptes…</p>}
+      {erreur && <p role="alert">{erreur}</p>}
+
+      {!chargement && !erreur && utilisateurs.length === 0 && (
+        <p className="page-utilisateurs__vide">Aucun compte pour cette entité.</p>
+      )}
+
+      {!chargement && !erreur && utilisateurs.length > 0 && (
+        <div className="table-utilisateurs__scroll">
+          <table className="table-utilisateurs">
+            <thead>
+              <tr>
+                <th scope="col">Nom</th>
+                <th scope="col">Email</th>
+                <th scope="col">Rôle</th>
+                <th scope="col">Statut</th>
+                <th scope="col">Dernière connexion</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {utilisateurs.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    {u.prenom} {u.nom}
+                  </td>
+                  <td>{u.email}</td>
+                  <td>{u.role_libelle}</td>
+                  <td>
+                    <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
+                  </td>
+                  <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '—'}</td>
+                  <td className="table-utilisateurs__actions">
+                    <button type="button" onClick={() => setFormulaireOuvert(u)}>
+                      Modifier
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => basculerActif(u)}
+                      disabled={u.actif && u.id === utilisateurConnecte.id}
+                    >
+                      {u.actif ? 'Désactiver' : 'Réactiver'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </main>
+  );
+}
+
+const MOT_DE_PASSE_MIN = 8;
+
+// Formulaire de création/édition — un seul composant pour les deux, `utilisateur` vaut null en
+// création. L'email n'est jamais modifiable en édition (désactivé, voir input ci-dessous) : le
+// backend n'accepte de toute façon pas ce champ sur PATCH — le changer soulèverait des questions
+// hors périmètre ici (ré-vérification d'unicité, sessions actives sur l'ancien email...).
+function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
+  const modeEdition = Boolean(utilisateur);
+
+  const [nom, setNom] = useState(utilisateur?.nom ?? '');
+  const [prenom, setPrenom] = useState(utilisateur?.prenom ?? '');
+  const [email, setEmail] = useState(utilisateur?.email ?? '');
+  const [roleCode, setRoleCode] = useState(utilisateur?.role_code ?? roles[0]?.code ?? '');
+  const [motDePasse, setMotDePasse] = useState('');
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [erreur, setErreur] = useState(null);
+
+  const gererEnvoi = async (evenement) => {
+    evenement.preventDefault();
+    setEnvoiEnCours(true);
+    setErreur(null);
+    try {
+      if (modeEdition) {
+        const donnees = { nom, prenom, roleCode };
+        if (motDePasse) donnees.motDePasse = motDePasse;
+        await mettreAJourUtilisateur(utilisateur.id, donnees);
+      } else {
+        await creerUtilisateur({ nom, prenom, email, motDePasse, roleCode });
+      }
+      onTermine();
+    } catch (erreur) {
+      setErreur(
+        erreur.response?.data?.erreur ?? "Le serveur n'a pas pu enregistrer ce compte. Merci de réessayer.",
+      );
+    } finally {
+      setEnvoiEnCours(false);
+    }
+  };
+
+  return (
+    <form className="formulaire-utilisateur" onSubmit={gererEnvoi}>
+      <h2>{modeEdition ? `Modifier ${utilisateur.prenom} ${utilisateur.nom}` : 'Nouveau compte'}</h2>
+
+      <label>
+        <span>Prénom</span>
+        <input type="text" value={prenom} onChange={(evenement) => setPrenom(evenement.target.value)} required />
+      </label>
+
+      <label>
+        <span>Nom</span>
+        <input type="text" value={nom} onChange={(evenement) => setNom(evenement.target.value)} required />
+      </label>
+
+      <label>
+        <span>Email</span>
+        <input
+          type="email"
+          value={email}
+          onChange={(evenement) => setEmail(evenement.target.value)}
+          required
+          disabled={modeEdition}
+        />
+      </label>
+
+      <label>
+        <span>Rôle</span>
+        <select value={roleCode} onChange={(evenement) => setRoleCode(evenement.target.value)} required>
+          {roles.length === 0 && <option value="">Aucun rôle disponible</option>}
+          {roles.map((role) => (
+            <option key={role.code} value={role.code}>
+              {role.libelle}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        <span>{modeEdition ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe'}</span>
+        <input
+          type="password"
+          value={motDePasse}
+          onChange={(evenement) => setMotDePasse(evenement.target.value)}
+          required={!modeEdition}
+          minLength={MOT_DE_PASSE_MIN}
+          autoComplete="new-password"
+        />
+      </label>
+
+      {erreur && <p role="alert">{erreur}</p>}
+
+      <div className="formulaire-utilisateur__actions">
+        <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
+          Annuler
+        </button>
+        <button type="submit" disabled={envoiEnCours || roles.length === 0}>
+          {envoiEnCours ? 'Enregistrement...' : modeEdition ? 'Enregistrer' : 'Créer le compte'}
+        </button>
+      </div>
+    </form>
+  );
+}

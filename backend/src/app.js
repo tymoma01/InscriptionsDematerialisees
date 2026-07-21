@@ -11,6 +11,7 @@ const relancesRoutes = require('./api/routes/relances.routes');
 const rendezvousRoutes = require('./api/routes/rendezvous.routes');
 const transitionsRoutes = require('./api/routes/transitions.routes');
 const evaluationsRoutes = require('./api/routes/evaluations.routes');
+const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
 const { FRONTEND_URL } = require('./config/env');
 
 // Fabrique asynchrone (plutôt qu'un export synchrone de `app`) : le middleware de session a
@@ -52,6 +53,9 @@ async function creerApp() {
   // Évaluation du test (CLAUDE.md, section Rôles : "Formateur ... évalue les candidats") — top-
   // level, pas nichée sous un dossier précis (voir evaluations.routes.js).
   app.use('/api/evaluations', evaluationsRoutes);
+  // Gestion des comptes (CLAUDE.md, section Rôles : "Admin : gestion globale") — admin
+  // uniquement, voir utilisateurs.routes.js.
+  app.use('/api/utilisateurs', utilisateursRoutes);
 
   // Gestionnaire d'erreurs générique : ne jamais renvoyer la stack ni le détail interne au client.
   // eslint-disable-next-line no-unused-vars

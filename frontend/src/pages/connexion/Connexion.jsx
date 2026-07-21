@@ -2,11 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import LoginForm from '../../core/auth/LoginForm';
 
 // Redirection après connexion, propre à chaque rôle — le recruteur atterrit sur son back-office,
-// le formateur sur ses évaluations à faire, les autres rôles internes (accueil/coordination,
-// admin) sur le tableau de bord Accueil, seul écran qu'ils ont en commun pour l'instant.
+// le formateur sur ses évaluations à faire, l'admin sur la gestion des comptes, le reste
+// (accueil/coordination) sur le tableau de bord Accueil.
 const DESTINATION_PAR_ROLE = {
   recruteur: '/recruteur/dossiers',
   formateur: '/formateur/evaluations',
+  admin: '/admin/utilisateurs',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
 
