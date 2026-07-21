@@ -1,0 +1,42 @@
+.backoffice-recruteur {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-grand) var(--espace-moyen);
+}
+
+.backoffice-recruteur__entete h1 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-primaire);
+}
+
+.backoffice-recruteur__agent {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  margin: 0 0 var(--espace-grand);
+}
+
+.backoffice-recruteur__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
+}
+
+.backoffice-recruteur__filtres button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.backoffice-recruteur__filtres button.actif {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+}
+
+.backoffice-recruteur [role='alert'] {
+  color: var(--couleur-erreur);
+}

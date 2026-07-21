@@ -1,7 +1,9 @@
 const { Router } = require('express');
+const { z } = require('zod');
 const dossierService = require('../../core/dossier/dossierService');
 const relanceService = require('../../core/dossier/relanceService');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
+const workflowEngine = require('../../core/workflow/workflowEngine');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
@@ -66,6 +68,24 @@ router.get('/rendezvous/motifs-desistement', requireRole(...ROLES_CONSULTATION_D
     const motifs = await rendezvousService.listerMotifsDesistement(req.entite);
     res.json(motifs);
   } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// GET /api/dossiers/transitions/motifs?codeAction=X — motifs configurés pour une action de la
+// machine à états (categorie === codeAction, voir core/workflow/workflowEngine.js), pas propre à
+// un dossier en particulier — même logique que les deux routes de motifs ci-dessus. Sert au
+// back-office recruteur à construire le sélecteur de motif d'une décision (ex. rejeter_dossier)
+// sans connaître les codes possibles à l'avance.
+router.get('/transitions/motifs', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+  try {
+    const { codeAction } = z.object({ codeAction: z.string().trim().min(1) }).parse(req.query);
+    const motifs = await workflowEngine.listerMotifsPourAction(req.entite, codeAction);
+    res.json(motifs);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+    }
     next(erreur);
   }
 });

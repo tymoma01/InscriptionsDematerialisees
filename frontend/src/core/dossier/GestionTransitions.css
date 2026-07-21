@@ -1,0 +1,96 @@
+.gestion-transitions {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.gestion-transitions h2 {
+  color: var(--couleur-primaire);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.gestion-transitions__vide {
+  color: var(--couleur-texte-secondaire);
+}
+
+.gestion-transitions__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+}
+
+.gestion-transitions__actions button {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-primaire);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-primaire);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gestion-transitions__actions button:hover {
+  background-color: var(--couleur-primaire-clair);
+}
+
+.gestion-transitions__formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.gestion-transitions__formulaire h3 {
+  margin: 0;
+  color: var(--couleur-texte);
+}
+
+.gestion-transitions__formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.gestion-transitions__formulaire select,
+.gestion-transitions__formulaire textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+}
+
+.gestion-transitions [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
+
+.gestion-transitions__formulaire-actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.gestion-transitions__formulaire-actions button {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.gestion-transitions__formulaire-actions button[type='submit'] {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.gestion-transitions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

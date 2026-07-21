@@ -88,4 +88,12 @@ async function listerTransitionsDisponibles(entite, dossierId, roleCode) {
   return workflowRepository.listerTransitionsAutoriseesDepuisStatut(bd, entite.id, dossier.statut_id, roleCode);
 }
 
-module.exports = { appliquerTransition, listerTransitionsDisponibles };
+// Motifs configurés pour une action donnée (categorie === codeAction, voir en-tête de fichier)
+// — sert au front à construire le sélecteur de motif d'une transition à `motif_requis`, sans
+// connaître les codes possibles à l'avance (voir Modularité, CLAUDE.md).
+async function listerMotifsPourAction(entite, codeAction) {
+  const bd = await db.obtenirKnex();
+  return motifRepository.listerMotifsParCategorie(bd, entite.id, codeAction);
+}
+
+module.exports = { appliquerTransition, listerTransitionsDisponibles, listerMotifsPourAction };
