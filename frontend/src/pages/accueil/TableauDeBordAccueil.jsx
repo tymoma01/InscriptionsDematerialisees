@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './TableauDeBordAccueil.css';
@@ -81,9 +82,7 @@ export default function TableauDeBordAccueil() {
     <main className="tableau-bord-accueil">
       <header className="tableau-bord-accueil__entete">
         <h1>Dossiers candidats</h1>
-        <p className="tableau-bord-accueil__agent">
-          Agent connecté : {utilisateur.prenom} {utilisateur.nom}
-        </p>
+        <EnTeteBackOffice />
       </header>
 
       <nav className="tableau-bord-accueil__filtres" aria-label="Filtrer par statut">

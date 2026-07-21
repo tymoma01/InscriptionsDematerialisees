@@ -9,12 +9,6 @@
   color: var(--couleur-primaire);
 }
 
-.tableau-bord-accueil__agent {
-  color: var(--couleur-texte-secondaire);
-  font-size: 0.9rem;
-  margin: 0 0 var(--espace-grand);
-}
-
 .tableau-bord-accueil__filtres {
   display: flex;
   flex-wrap: wrap;

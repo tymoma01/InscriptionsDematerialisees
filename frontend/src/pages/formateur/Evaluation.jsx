@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ListeEvaluationsAFaire from '../../core/evaluation/ListeEvaluationsAFaire';
 import GrilleEvaluation from '../../core/evaluation/GrilleEvaluation';
 import './Evaluation.css';
@@ -37,9 +38,7 @@ export default function Evaluation() {
     <main className="page-evaluation">
       <header className="page-evaluation__entete">
         <h1>Évaluations à faire</h1>
-        <p className="page-evaluation__agent">
-          Formateur connecté : {utilisateur.prenom} {utilisateur.nom}
-        </p>
+        <EnTeteBackOffice />
       </header>
 
       {!rendezvousSelectionne && (

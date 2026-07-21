@@ -1,6 +1,8 @@
 import { useParams } from 'react-router-dom';
 import HistoriqueRelances from '../../core/dossier/HistoriqueRelances';
 import GestionRendezvous from '../../core/dossier/GestionRendezvous';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
+import './Relances.css';
 
 // Page coordination : relances et rendez-vous d'un dossier (CLAUDE.md, étape "relances et
 // reprogrammations"), les deux concernant le même besoin de suivi terrain — regroupées sur un
@@ -13,6 +15,7 @@ export default function Relances() {
 
   return (
     <main className="page-relances">
+      <EnTeteBackOffice />
       <GestionRendezvous dossierId={dossierId} />
       <HistoriqueRelances dossierId={dossierId} />
     </main>

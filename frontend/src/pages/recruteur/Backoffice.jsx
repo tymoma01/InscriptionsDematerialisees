@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './Backoffice.css';
@@ -79,9 +80,7 @@ export default function Backoffice() {
     <main className="backoffice-recruteur">
       <header className="backoffice-recruteur__entete">
         <h1>Back-office recruteur</h1>
-        <p className="backoffice-recruteur__agent">
-          Agent connecté : {utilisateur.prenom} {utilisateur.nom}
-        </p>
+        <EnTeteBackOffice />
       </header>
 
       <nav className="backoffice-recruteur__filtres" aria-label="Filtrer par statut">

@@ -1,0 +1,10 @@
+/* GestionRendezvous.css / HistoriqueRelances.css centrent déjà chacun leur propre carte
+   (max-width + margin: auto) — cette règle ne fait que donner à EnTeteBackOffice le même
+   traitement, pour que la barre d'en-tête s'aligne visuellement avec les cartes en dessous
+   plutôt que de s'étirer sur toute la largeur de l'écran. */
+.page-relances > .en-tete-back-office {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-moyen);
+  padding: 0 var(--espace-moyen);
+  box-sizing: border-box;
+}

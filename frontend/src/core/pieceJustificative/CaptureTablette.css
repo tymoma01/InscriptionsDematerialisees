@@ -18,12 +18,6 @@
   margin: 0 0 var(--espace-petit);
 }
 
-.capture-tablette__agent {
-  color: var(--couleur-texte-secondaire);
-  font-size: 0.9rem;
-  margin: 0 0 var(--espace-petit);
-}
-
 .capture-tablette__progression {
   font-weight: 600;
   margin: 0 0 var(--espace-moyen);

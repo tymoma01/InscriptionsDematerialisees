@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
+import EnTeteBackOffice from '../auth/EnTeteBackOffice';
 import './CaptureTablette.css';
 
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
@@ -84,10 +85,8 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
   return (
     <section className="capture-tablette">
       <header className="capture-tablette__entete">
+        <EnTeteBackOffice />
         <h2>Pièces justificatives</h2>
-        <p className="capture-tablette__agent">
-          Agent connecté : {utilisateur.prenom} {utilisateur.nom}
-        </p>
         <p className="capture-tablette__progression" role="status">
           {nombreCapturees} / {typesPieces.length} pièces capturées
         </p>

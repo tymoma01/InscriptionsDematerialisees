@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import GestionTransitions from '../../core/dossier/GestionTransitions';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import './Validation.css';
 
@@ -45,6 +46,7 @@ export default function Validation() {
 
   return (
     <main className="page-validation">
+      <EnTeteBackOffice />
       <h1>Dossier #{dossierId}</h1>
 
       <section className="page-validation__pieces">

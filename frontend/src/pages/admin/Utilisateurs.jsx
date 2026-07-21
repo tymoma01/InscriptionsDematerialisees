@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import {
   listerUtilisateurs,
@@ -87,9 +88,7 @@ export default function Utilisateurs() {
     <main className="page-utilisateurs">
       <header className="page-utilisateurs__entete">
         <h1>Comptes utilisateurs</h1>
-        <p className="page-utilisateurs__agent">
-          Agent connecté : {utilisateurConnecte.prenom} {utilisateurConnecte.nom}
-        </p>
+        <EnTeteBackOffice />
       </header>
 
       <button type="button" onClick={() => setFormulaireOuvert('creation')}>

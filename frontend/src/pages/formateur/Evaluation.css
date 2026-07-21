@@ -9,12 +9,6 @@
   color: var(--couleur-primaire);
 }
 
-.page-evaluation__agent {
-  color: var(--couleur-texte-secondaire);
-  font-size: 0.9rem;
-  margin: 0 0 var(--espace-grand);
-}
-
 .page-evaluation [role='alert'] {
   color: var(--couleur-erreur);
 }
