@@ -1,0 +1,42 @@
+.tableau-bord-accueil {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-grand) var(--espace-moyen);
+}
+
+.tableau-bord-accueil__entete h1 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-primaire);
+}
+
+.tableau-bord-accueil__agent {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  margin: 0 0 var(--espace-grand);
+}
+
+.tableau-bord-accueil__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
+}
+
+.tableau-bord-accueil__filtres button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.tableau-bord-accueil__filtres button.actif {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+}
+
+.tableau-bord-accueil [role='alert'] {
+  color: var(--couleur-erreur);
+}

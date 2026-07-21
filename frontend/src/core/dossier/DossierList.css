@@ -1,0 +1,42 @@
+.dossier-list {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  overflow: hidden;
+}
+
+.dossier-list th,
+.dossier-list td {
+  padding: 0.75rem var(--espace-moyen);
+  text-align: left;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.dossier-list th {
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dossier-list tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.dossier-list tbody tr:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.dossier-list__actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.dossier-list__vide {
+  color: var(--couleur-texte-secondaire);
+  padding: var(--espace-grand);
+  text-align: center;
+}

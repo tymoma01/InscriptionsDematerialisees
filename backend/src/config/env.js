@@ -16,4 +16,10 @@ module.exports = {
   // sa compromission n'expose que l'intégrité/l'authenticité des cookies (pas de donnée métier
   // directement) — à revalider avec le développeur senior (voir CLAUDE.auth-rbac.md).
   SESSION_SECRET: process.env.SESSION_SECRET,
+  // Compte AllMySMS déjà existant (voir CLAUDE.md, intégrations externes) — reste en variable
+  // d'environnement classique comme dans .env.example, pas Azure Key Vault : ce n'est pas une
+  // donnée candidat sensible (NIR, connection string DB), contrairement aux secrets qui y sont
+  // déjà (voir core/securite/keyVaultClient.js pour ceux-là).
+  ALLMYSMS_API_LOGIN: process.env.ALLMYSMS_API_LOGIN,
+  ALLMYSMS_API_PASSWORD: process.env.ALLMYSMS_API_PASSWORD,
 };

@@ -234,8 +234,38 @@ async function inscrireCandidat(entite, donneesBrutes) {
       signatureImage: charteSignatureBuffer,
     });
 
+    // Fin des étapes du formulaire : le dossier quitte automatiquement son statut initial pour
+    // « en_attente_pieces » (voir CLAUDE.md, parcours ACCECIT étape 3 — prise des pièces par
+    // l'accueil). Aucun agent n'est connecté à cette étape (le candidat saisit lui-même, voir
+    // candidats.routes.js) : l'acteur tracé dans historique_statuts est l'utilisateur système de
+    // l'entité, pas un choix arbitraire, pour que la traçabilité RGPD reste exacte.
+    const statutEnAttentePieces = await dossierRepository.trouverStatutParCode(trx, entite.id, 'en_attente_pieces');
+    if (!statutEnAttentePieces) {
+      throw new Error(`Statut « en_attente_pieces » non configuré pour l'entité « ${entite.code} ».`);
+    }
+    const utilisateurSysteme = await dossierRepository.trouverUtilisateurSysteme(trx, entite.id);
+    if (!utilisateurSysteme) {
+      throw new Error(`Utilisateur système non configuré pour l'entité « ${entite.code} ».`);
+    }
+    await dossierRepository.enregistrerChangementStatut(trx, {
+      dossierId,
+      statutId: statutEnAttentePieces.id,
+      utilisateurId: utilisateurSysteme.id,
+      commentaire: 'Inscription soumise par le candidat — passage automatique en attente de pièces justificatives.',
+    });
+
     return { candidatId, dossierId };
   });
 }
 
-module.exports = { inscrireCandidat };
+async function listerDossiers(entite, { statutCode } = {}) {
+  const bd = await obtenirKnex();
+  return dossierRepository.listerDossiers(bd, entite.id, { statutCode });
+}
+
+async function listerStatuts(entite) {
+  const bd = await obtenirKnex();
+  return dossierRepository.listerStatuts(bd, entite.id);
+}
+
+module.exports = { inscrireCandidat, listerDossiers, listerStatuts };

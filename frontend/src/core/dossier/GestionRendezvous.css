@@ -1,0 +1,117 @@
+.gestion-rendezvous {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.gestion-rendezvous h2 {
+  color: var(--couleur-primaire);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.gestion-rendezvous__vide {
+  color: var(--couleur-texte-secondaire);
+}
+
+.gestion-rendezvous__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.gestion-rendezvous__item {
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.gestion-rendezvous__ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+.gestion-rendezvous__type {
+  font-weight: 600;
+  color: var(--couleur-primaire);
+  text-transform: capitalize;
+}
+
+.gestion-rendezvous__date {
+  color: var(--couleur-texte);
+}
+
+.gestion-rendezvous__motif {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+}
+
+.gestion-rendezvous__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-top: var(--espace-petit);
+}
+
+.gestion-rendezvous__formulaire-motif {
+  margin-top: var(--espace-petit);
+  padding-top: var(--espace-petit);
+  border-top: 1px solid var(--couleur-bordure-legere);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.gestion-rendezvous__formulaire-motif label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+  max-width: 20rem;
+}
+
+.gestion-rendezvous__formulaire-motif select {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.gestion-rendezvous__formulaire-motif-actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.gestion-rendezvous [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
+
+.gestion-rendezvous button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.gestion-rendezvous__formulaire-motif-actions button[type='submit'] {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.gestion-rendezvous button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

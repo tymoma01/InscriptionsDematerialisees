@@ -1,1 +1,10 @@
-{}
+{
+  "code": "adaptel",
+  "nom": "Adaptel",
+  "connecteur_stockage": "ovh",
+  "sms_actif": false,
+  "canal_rappel": "sms",
+  "smartof_actif": false,
+  "duree_conservation_mois": 12,
+  "actif": true
+}

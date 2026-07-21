@@ -3,6 +3,7 @@
   "nom": "ACCECIT",
   "connecteur_stockage": "azure_onedrive",
   "sms_actif": true,
+  "canal_rappel": "sms",
   "smartof_actif": true,
   "duree_conservation_mois": 12,
   "actif": true

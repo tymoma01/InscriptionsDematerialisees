@@ -20,6 +20,7 @@ async function seedEntite(codeEntite) {
         nom: config.nom,
         connecteur_stockage: config.connecteur_stockage,
         sms_actif: config.sms_actif,
+        canal_rappel: config.canal_rappel,
         smartof_actif: config.smartof_actif,
         duree_conservation_mois: config.duree_conservation_mois,
         actif: config.actif,

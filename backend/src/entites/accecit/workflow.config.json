@@ -1,1 +1,35 @@
-{}
+{
+  "statuts": [
+    { "code": "nouveau", "libelle": "Nouveau", "ordre": 1, "estInitial": true, "estFinal": false },
+    { "code": "en_attente_pieces", "libelle": "En attente de pièces", "ordre": 2, "estInitial": false, "estFinal": false },
+    { "code": "en_attente_verification", "libelle": "En attente de vérification", "ordre": 3, "estInitial": false, "estFinal": false },
+    { "code": "valide", "libelle": "Validé", "ordre": 4, "estInitial": false, "estFinal": true },
+    { "code": "rejete", "libelle": "Rejeté", "ordre": 5, "estInitial": false, "estFinal": true }
+  ],
+  "transitions": [
+    {
+      "codeAction": "inscription_soumise",
+      "statutOrigine": "nouveau",
+      "statutDestination": "en_attente_pieces",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "pieces_completes",
+      "statutOrigine": "en_attente_pieces",
+      "statutDestination": "en_attente_verification",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "valider_dossier",
+      "statutOrigine": "en_attente_verification",
+      "statutDestination": "valide",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "rejeter_dossier",
+      "statutOrigine": "en_attente_verification",
+      "statutDestination": "rejete",
+      "motifRequis": true
+    }
+  ]
+}

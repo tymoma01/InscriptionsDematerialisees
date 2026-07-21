@@ -1,0 +1,121 @@
+.historique-relances {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.historique-relances h2 {
+  color: var(--couleur-primaire);
+  margin: 0 0 var(--espace-moyen);
+}
+
+/* Bandeau d'alerte "déjà relancé" : c'est le cœur du besoin ("ne pas relancer en double"), donc
+   volontairement mis en avant plutôt que noyé dans la liste — fond ambré, pas rouge (--couleur-
+   erreur) : ce n'est pas une erreur, juste une information à vérifier avant d'agir. */
+.historique-relances__alerte {
+  background-color: #fdf3e2;
+  border: 1px solid #f3d9a4;
+  color: #6b4a0a;
+  padding: var(--espace-moyen);
+  border-radius: var(--rayon-bordure);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.historique-relances__vide {
+  color: var(--couleur-texte-secondaire);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.historique-relances__liste {
+  list-style: none;
+  margin: 0 0 var(--espace-grand);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.historique-relances__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+  padding: var(--espace-petit) var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.historique-relances__canal {
+  font-weight: 600;
+  color: var(--couleur-primaire);
+  flex: 0 0 6rem;
+}
+
+.historique-relances__resultat {
+  flex: 1 1 auto;
+  color: var(--couleur-texte);
+}
+
+.historique-relances__meta {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.historique-relances__formulaire {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--espace-moyen);
+  padding-top: var(--espace-moyen);
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+.historique-relances__formulaire h3 {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 1rem;
+  color: var(--couleur-texte);
+}
+
+.historique-relances__formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.historique-relances__formulaire select {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  min-width: 12rem;
+}
+
+.historique-relances [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
+
+.historique-relances__formulaire button {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.historique-relances__formulaire button:hover:not(:disabled) {
+  background-color: var(--couleur-primaire-hover);
+}
+
+.historique-relances__formulaire button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

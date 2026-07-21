@@ -1,0 +1,29 @@
+.statut-badge {
+  display: inline-block;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background-color: var(--gris-100);
+  color: var(--couleur-texte-secondaire);
+  border: 1px solid var(--couleur-bordure-legere);
+}
+
+.statut-badge--attente {
+  background-color: #fdf3e2;
+  color: #92620a;
+  border-color: #f3d9a4;
+}
+
+.statut-badge--succes {
+  background-color: #e6f4ea;
+  color: #1e7e34;
+  border-color: #b8e2c4;
+}
+
+.statut-badge--echec {
+  background-color: #fbeae8;
+  color: var(--couleur-erreur);
+  border-color: #f1c3bd;
+}

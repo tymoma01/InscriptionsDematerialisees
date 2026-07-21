@@ -13,6 +13,7 @@ const ROLES_A_AMORCER = [
   { code: ROLES.RECRUTEUR, libelle: 'Recruteur' },
   { code: ROLES.FORMATEUR, libelle: 'Formateur' },
   { code: ROLES.ADMIN, libelle: 'Admin' },
+  { code: ROLES.SYSTEME, libelle: 'Système (automatisation)' },
 ];
 
 async function seedRoles() {
