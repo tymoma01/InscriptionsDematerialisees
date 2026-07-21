@@ -14,6 +14,7 @@ async function entiteContext(req, res, next) {
       : sousDomaine;
 
     if (!codeEntite) {
+      console.warn(`entiteContext : sous-domaine absent pour l'hôte « ${req.hostname} », aucune entité par défaut configurée.`);
       return res.status(400).json({
         erreur: "Entité non résolue : sous-domaine absent et aucune entité par défaut configurée.",
       });
@@ -23,6 +24,7 @@ async function entiteContext(req, res, next) {
     const entite = await bd('entites').where({ code: codeEntite, actif: true }).first();
 
     if (!entite) {
+      console.warn(`entiteContext : entité « ${codeEntite} » introuvable ou inactive (hôte « ${req.hostname} »).`);
       return res.status(404).json({ erreur: `Entité « ${codeEntite} » introuvable ou inactive.` });
     }
 

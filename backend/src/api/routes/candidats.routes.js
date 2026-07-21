@@ -10,9 +10,11 @@ const router = Router();
 router.post('/', async (req, res, next) => {
   try {
     const { candidatId, dossierId } = await inscrireCandidat(req.entite, req.body);
+    console.log(`Inscription réussie : candidat ${candidatId}, dossier ${dossierId} (entité ${req.entite.code}).`);
     res.status(201).json({ candidatId, dossierId });
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {
+      console.warn('Inscription rejetée (données invalides) :', JSON.stringify(erreur.flatten()));
       return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
     }
     next(erreur);

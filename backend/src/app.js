@@ -27,6 +27,17 @@ async function creerApp() {
   app.use(cors({ origin: FRONTEND_URL, credentials: true }));
   app.use(express.json());
 
+  // Log de chaque requête reçue avec son statut de réponse — utile pour distinguer une requête
+  // qui n'atteint jamais le backend (souci proxy/CORS côté front) d'une requête traitée mais
+  // rejetée en amont des routes (ex. entiteContext, voir plus bas).
+  app.use((req, res, next) => {
+    const debut = Date.now();
+    res.on('finish', () => {
+      console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${Date.now() - debut}ms)`);
+    });
+    next();
+  });
+
   app.use(entiteContext);
   // Doit être monté après entiteContext (req.entite) et avant toute route protégée : les
   // middlewares d'authentification (auth.middleware.js) comparent req.session.utilisateur à
