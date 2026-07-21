@@ -168,15 +168,30 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
     try {
       const flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       streamRef.current = flux;
-      if (videoRef.current) {
-        videoRef.current.srcObject = flux;
-        await videoRef.current.play();
-      }
+      // srcObject n'est jamais assigné ici : <video> n'est monté que si modeCamera est vrai
+      // (voir le rendu plus bas), donc videoRef.current vaudrait encore null à cet instant — le
+      // flux serait bien obtenu (permission accordée) mais jamais réellement branché à l'élément
+      // vidéo affiché ensuite, d'où un aperçu noir malgré une caméra correctement autorisée.
+      // L'assignation réelle se fait dans l'effet ci-dessous, une fois <video> effectivement monté.
       setModeCamera(true);
-    } catch {
+    } catch (erreur) {
+      console.error('Échec de getUserMedia (accès caméra) :', erreur);
       setErreurCamera("Impossible d'accéder à la caméra. Vérifiez les autorisations données à l'application.");
     }
   };
+
+  // Branche le flux sur <video> une fois l'élément réellement présent dans le DOM (après le
+  // rendu déclenché par setModeCamera(true) ci-dessus) — voir le commentaire dans
+  // demarrerCamera pour le bug que cet effet corrige.
+  useEffect(() => {
+    if (!modeCamera || !videoRef.current || !streamRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    video.play().catch((erreur) => {
+      console.error('Échec de la lecture du flux caméra :', erreur);
+      setErreurCamera("Impossible de démarrer l'aperçu caméra. Réessayez.");
+    });
+  }, [modeCamera]);
 
   const annulerCamera = () => {
     arreterCamera();
@@ -278,8 +293,10 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
         <div className="capture-tablette__camera">
           {/* muted : évite tout blocage de lecture autoplay, même si aucune piste audio n'est
               demandée (video: {...} seul, pas de audio: true) — playsInline : empêche Safari iOS
-              de forcer la vidéo en plein écran natif. */}
-          <video ref={videoRef} className="capture-tablette__video" playsInline muted />
+              de forcer la vidéo en plein écran natif. autoPlay : filet de sécurité en plus de
+              l'appel explicite à video.play() dans l'effet ci-dessus — sans effet indésirable
+              ici puisque srcObject n'est de toute façon assigné qu'après le montage. */}
+          <video ref={videoRef} className="capture-tablette__video" autoPlay playsInline muted />
           <button type="button" onClick={capturerPhoto}>
             Capturer la photo
           </button>
