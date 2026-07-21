@@ -3,9 +3,22 @@
    puissent s'étendre en plein bord tandis que le contenu du formulaire reste centré sur une
    largeur de lecture confortable. `--hauteur-entete` pilote à la fois la hauteur réservée à
    l'en-tête fixe et le décalage du contenu qui défile en dessous — une seule valeur à ajuster
-   si l'en-tête change de taille. */
+   si l'en-tête change de taille.
+
+   Pied de page collé en bas ("sticky footer") : `display: flex; flex-direction: column` sur ce
+   conteneur + `min-height: 100vh` pour qu'il occupe au moins toute la hauteur de l'écran, et
+   `flex: 1 0 auto` sur `__contenu` ci-dessous pour qu'il absorbe tout l'espace vertical restant
+   — le pied de page (dernier enfant en flux normal) se retrouve donc poussé en bas de l'écran
+   quand le contenu est court (ex. l'écran de confirmation "Inscription enregistrée avec
+   succès"), et reste simplement après le contenu quand celui-ci dépasse déjà 100vh (les étapes
+   du formulaire), la hauteur du conteneur suivant alors naturellement le contenu. `__entete` et
+   `<FiligraneFormulaire>` sont tous deux en `position: fixed` (voir plus bas / FiligraneFormulaire.css)
+   donc hors du flux normal — ce passage en flex n'a aucun effet sur eux. */
 .page-inscription-tablette {
   --hauteur-entete: 8rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 /* En-tête de la page d'inscription, en deux couches :
@@ -101,7 +114,10 @@
 
 /* Contenu défilant sous l'en-tête fixe : largeur maximale centrée (reprise ici, plus sur
    `.page-inscription-tablette`, voir plus haut) + décalage du haut de la hauteur de l'en-tête
-   (+ une respiration supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape. */
+   (+ une respiration supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape.
+   `flex: 1 0 auto` (grandir : oui, rétrécir : non, base : sa taille naturelle) : c'est cet
+   élément qui absorbe l'espace vertical restant pour pousser le pied de page en bas de l'écran
+   quand le contenu est court — voir le commentaire sur `.page-inscription-tablette` ci-dessus. */
 .page-inscription-tablette__contenu {
   box-sizing: border-box;
   max-width: var(--largeur-max-formulaire);
@@ -110,6 +126,7 @@
   padding-right: var(--espace-moyen);
   padding-bottom: var(--espace-grand);
   padding-left: var(--espace-moyen);
+  flex: 1 0 auto;
 }
 
 .page-inscription-tablette h1 {
