@@ -1,0 +1,20 @@
+.page-evaluation {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-grand) var(--espace-moyen);
+}
+
+.page-evaluation__entete h1 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-primaire);
+}
+
+.page-evaluation__agent {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  margin: 0 0 var(--espace-grand);
+}
+
+.page-evaluation [role='alert'] {
+  color: var(--couleur-erreur);
+}

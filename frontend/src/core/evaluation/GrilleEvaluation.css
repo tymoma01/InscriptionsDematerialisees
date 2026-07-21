@@ -1,0 +1,95 @@
+.grille-evaluation {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.grille-evaluation h2 {
+  margin: 0;
+  color: var(--couleur-primaire);
+}
+
+.grille-evaluation__vide {
+  color: var(--couleur-texte-secondaire);
+}
+
+.grille-evaluation__critere {
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+}
+
+.grille-evaluation__critere legend {
+  padding: 0 0.4rem;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+.grille-evaluation__choix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+}
+
+.grille-evaluation__choix label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.grille-evaluation__resultat-global,
+.grille-evaluation__commentaire {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.grille-evaluation__resultat-global select,
+.grille-evaluation__commentaire textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+}
+
+.grille-evaluation [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
+
+.grille-evaluation__actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.grille-evaluation__actions button {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.grille-evaluation__actions button[type='submit'] {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.grille-evaluation button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

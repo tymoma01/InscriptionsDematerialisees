@@ -10,6 +10,7 @@ const piecesRoutes = require('./api/routes/pieces.routes');
 const relancesRoutes = require('./api/routes/relances.routes');
 const rendezvousRoutes = require('./api/routes/rendezvous.routes');
 const transitionsRoutes = require('./api/routes/transitions.routes');
+const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const { FRONTEND_URL } = require('./config/env');
 
 // Fabrique asynchrone (plutôt qu'un export synchrone de `app`) : le middleware de session a
@@ -48,6 +49,9 @@ async function creerApp() {
   // Machine à états des dossiers (CLAUDE.md, contrainte de modularité n°1 : statuts/transitions
   // pilotés par configuration) — moteur générique, voir core/workflow/workflowEngine.js.
   app.use('/api/dossiers/:dossierId/transitions', transitionsRoutes);
+  // Évaluation du test (CLAUDE.md, section Rôles : "Formateur ... évalue les candidats") — top-
+  // level, pas nichée sous un dossier précis (voir evaluations.routes.js).
+  app.use('/api/evaluations', evaluationsRoutes);
 
   // Gestionnaire d'erreurs générique : ne jamais renvoyer la stack ni le détail interne au client.
   // eslint-disable-next-line no-unused-vars

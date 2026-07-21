@@ -1,0 +1,43 @@
+.liste-evaluations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.liste-evaluations__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.liste-evaluations__candidat {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+.liste-evaluations__date {
+  color: var(--couleur-texte-secondaire);
+}
+
+.liste-evaluations__item button {
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--couleur-primaire);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-primaire);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.liste-evaluations__vide {
+  color: var(--couleur-texte-secondaire);
+}
