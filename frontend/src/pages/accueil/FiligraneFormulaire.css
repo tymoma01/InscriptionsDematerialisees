@@ -1,4 +1,4 @@
-/* Filigrane décoratif : logo ACCECIT répété à très faible opacité dans les marges gauche/droite,
+/* Filigrane décoratif : logo ACCECIT répété à faible opacité dans les marges gauche/droite,
    en dehors du conteneur centré du formulaire (--largeur-max-formulaire). `position: fixed` +
    `inset: 0` sur le conteneur : les répétitions restent à des hauteurs fixes de l'écran plutôt
    que de défiler avec le contenu (comportement volontaire, cohérent avec l'en-tête fixe).
@@ -6,8 +6,12 @@
    avant le contenu normal du document (`<main>`, non positionné) qui, lui, est peint dans la
    pile suivante — le filigrane reste ainsi visuellement derrière tout le contenu sans qu'aucun
    z-index positif n'ait besoin d'être posé sur ce dernier. `pointer-events: none` : jamais
-   cliquable, hérité par les images enfants. Masqué sous 1400px (voir media query) : en dessous,
-   la marge disponible hors du formulaire devient trop étroite pour laisser respirer le motif. */
+   cliquable, hérité par les images enfants.
+
+   Seuil d'apparition remonté à 1440px (au lieu de 1400px) en même temps que l'agrandissement du
+   logo ci-dessous : à 1400px pile, la marge disponible hors du formulaire (150px) n'aurait laissé
+   aucune respiration à un logo centré de 150px de large. À 1440px, la marge passe à 170px, ce qui
+   garde ~10px de dégagement de chaque côté du logo à la largeur d'écran minimale d'apparition. */
 .filigrane-formulaire {
   display: none;
   position: fixed;
@@ -15,9 +19,23 @@
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
+  /* Centralisée ici plutôt que répétée dans le calc() de centrage ci-dessous, pour ne jamais
+     désynchroniser la largeur réelle du logo de celle utilisée pour le centrer. */
+  --largeur-logo-filigrane: 150px;
+  /* Plage verticale sur laquelle les quatre logos se répartissent (voir top dans
+     FiligraneFormulaire.jsx) : entre 56px sous le bas de l'en-tête fixe (--hauteur-entete, voir
+     InscriptionTablette.css — remonté à 32px dans un premier temps, jugé encore trop collé à
+     l'en-tête) et 32px au-dessus du bas de l'écran — pas la hauteur totale de l'écran, pour
+     remonter le premier logo près de l'en-tête plutôt que de le laisser à 12,5% de la hauteur
+     totale (qui, une fois l'en-tête pris en compte, laissait un grand vide en haut). Répartir
+     ensuite les 4 logos sur les BORDS de cette plage (0/33/66/100%, voir JSX) plutôt que sur ses
+     quarts centrés (l'ancien 12,5/37,5/62,5/87,5%) agrandit aussi l'écart entre chaque répétition.
+     Fallback 8rem sur --hauteur-entete si ce composant est un jour monté hors de
+     .page-inscription-tablette (qui la définit). 88px = 56px (haut) + 32px (bas). */
+  --filigrane-plage: calc(100vh - var(--hauteur-entete, 8rem) - 88px);
 }
 
-@media (min-width: 1400px) {
+@media (min-width: 1440px) {
   .filigrane-formulaire {
     display: block;
   }
@@ -25,20 +43,27 @@
 
 .filigrane-formulaire__logo {
   position: absolute;
-  width: 130px;
+  width: var(--largeur-logo-filigrane);
   height: auto;
-  /* 3%, 6% puis 12% sont restés trop discrets à l'écran de l'utilisateur — remonté à 22%,
-     puis 30%. */
-  opacity: 0.3;
+  /* Repassé de 0.3 à 0.35 : la précédente valeur (déjà remontée depuis 0.12 lors d'un ajustement
+     antérieur, voir historique git) restait jugée trop discrète à l'écran. */
+  opacity: 0.35;
+  /* Centre le logo sur la hauteur ciblée par `top` (voir FiligraneFormulaire.jsx) plutôt que d'y
+     poser son bord supérieur — nécessaire pour que la répartition verticale soit réellement
+     centrée sur la hauteur de l'écran, pas seulement les points de départ des images. */
+  transform: translateY(-50%);
 }
 
-/* Décalage réduit à 12px (au lieu de 24px) : le logo est passé de 90px à 130px de large, or à
-   1400px de large (le seuil d'apparition), la marge disponible hors du formulaire n'est que de
-   150px de chaque côté — 12px laisse encore de la place pour ne jamais toucher le contenu. */
+/* Centré horizontalement dans sa marge (l'espace entre le bord de l'écran et le bord du
+   formulaire centré) plutôt que collé au bord de l'écran. La marge de chaque côté vaut
+   (100vw - largeur-max-formulaire) / 2 ; centrer un logo dedans revient à décaler son bord de
+   la moitié de cet espace restant après avoir retiré sa propre largeur — d'où le /4 (moitié de
+   moitié) et le -largeur-logo-filigrane/2. Fonctionne à toute largeur d'écran au-delà du seuil
+   d'apparition, pas seulement à 1440px. */
 .filigrane-formulaire__logo--gauche {
-  left: 12px;
+  left: calc((100vw - var(--largeur-max-formulaire)) / 4 - var(--largeur-logo-filigrane) / 2);
 }
 
 .filigrane-formulaire__logo--droite {
-  right: 12px;
+  right: calc((100vw - var(--largeur-max-formulaire)) / 4 - var(--largeur-logo-filigrane) / 2);
 }
