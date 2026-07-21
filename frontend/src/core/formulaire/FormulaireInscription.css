@@ -1,14 +1,29 @@
-/* Mise en page générique des blocs d'une étape : un bloc occupe toute la ligne par défaut,
-   deux blocs consécutifs marqués `largeur: 'moitie'` en config (voir formulaireConfig.*.js)
-   s'affichent côte à côte sur une grille à deux colonnes strictement égales. `align-items:
-   stretch` (comportement par défaut de la grille) étire les deux blocs d'une même ligne à
-   la même hauteur — même si l'un contient moins de champs que l'autre — pour un équilibre
-   visuel entre colonnes ; voir la règle ci-dessous qui propage cet étirement jusqu'au cadre
-   visible du bloc. Ne dépend d'aucun code de bloc précis. */
+/* Mise en page générique des blocs d'une étape : une seule colonne par défaut (mobile-first,
+   voir CLAUDE.md), deux colonnes à partir de 1024px de large seulement. En dessous de ce seuil,
+   deux blocs consécutifs marqués `largeur: 'moitie'` (voir .formulaire-inscription__bloc--moitie
+   plus bas et formulaireConfig.*.js) occuperaient chacun une colonne trop étroite pour leurs
+   champs à largeur fixe (label 11rem + champ 16rem, voir BlocInfosPerso.css/BlocCoordonnees.css)
+   — les lignes label/champ passaient alors à la ligne au lieu de rester alignées, y compris sur
+   la tablette d'accueil tenue en portrait (810 à 834px de large selon le modèle : iPad, iPad Air,
+   iPad Pro 11"). 1024px correspond à la largeur de l'iPad Pro 12.9" en portrait, le seul modèle
+   courant encore assez large pour deux colonnes sans ce problème. Ne dépend d'aucun code de bloc
+   précis : à cette largeur, `.formulaire-inscription__bloc--moitie` (grid-column: span 1)
+   occupe déjà toute la largeur de l'unique colonne, sans règle spécifique à ajouter. */
 .formulaire-inscription__etape {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--espace-grand);
+}
+
+@media (min-width: 1024px) {
+  .formulaire-inscription__etape {
+    /* align-items: stretch (comportement par défaut de la grille) étire les deux blocs d'une
+       même ligne à la même hauteur — même si l'un contient moins de champs que l'autre — pour
+       un équilibre visuel entre colonnes ; voir la règle plus bas qui propage cet étirement
+       jusqu'au cadre visible du bloc. Sans effet en une colonne (chaque bloc a déjà sa propre
+       ligne), donc inutile de la répéter hors de ce point de rupture. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .formulaire-inscription__bloc {

@@ -1,10 +1,18 @@
+/* Le défilement horizontal (si besoin) reste isolé à cette zone, pas à toute la page — voir
+   DossierList.jsx. `border`/`border-radius` posés ici plutôt que sur `.dossier-list` : sur un
+   <table>, `overflow: hidden` ne suffit à lui seul à découper les coins des cellules d'angle
+   qu'en l'absence de scroll ; les poser sur ce conteneur les garde corrects même quand le
+   tableau, lui, défile à l'intérieur. */
+.dossier-list__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
 .dossier-list {
   width: 100%;
   border-collapse: collapse;
   background-color: var(--couleur-fond);
-  border: 1px solid var(--couleur-bordure-legere);
-  border-radius: var(--rayon-bordure);
-  overflow: hidden;
 }
 
 .dossier-list th,
