@@ -21,6 +21,14 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
 // figés ici : ils viennent de la table `types_pieces`, configurable par entité (voir Modularité,
 // CLAUDE.md) — une autre entité peut avoir un jeu de pièces différent sans toucher ce module.
 
+// Statuts sous lesquels un upload reste possible : en_attente_pieces (le cas nominal, l'accueil
+// prend les pièces) et en_attente_verification (ajout tardif — ex. remplacer une pièce que le
+// recruteur vient de rejeter — sans avoir à repasser explicitement le dossier en
+// en_attente_pieces, transition qui n'existe d'ailleurs pas dans transitions_statut). En dehors
+// de ces deux statuts (nouveau, valide, rejete), l'upload est refusé : ni avant la signature de
+// la charte (nouveau), ni après une décision définitive sur le dossier (valide/rejete).
+const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'];
+
 // dossierId reste la clé de rangement chez le connecteur (StorageConnector.upload(dossierId, fichier)),
 // cohérente avec pieces_justificatives.dossier_id — pas de réorganisation par candidat_id/année.
 async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, uploadedBy }) {
@@ -32,7 +40,16 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   }
 
   const bd = await db.obtenirKnex();
-  await verifierDossierAppartientEntite(bd, entite, dossierId);
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  if (!dossier) {
+    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  if (!STATUTS_UPLOAD_AUTORISES.includes(dossier.statut_code)) {
+    throw new Error(
+      `Impossible d'ajouter une pièce justificative : le dossier "${dossierId}" est au statut "${dossier.statut_libelle}" ` +
+        `(attendu : en attente de pièces ou en attente de vérification).`,
+    );
+  }
 
   const typePiece = await pieceJustificativeRepository.trouverTypePieceParCode(bd, entite.id, typePieceCode);
   if (!typePiece) {

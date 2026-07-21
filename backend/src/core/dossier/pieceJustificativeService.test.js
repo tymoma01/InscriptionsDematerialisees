@@ -17,10 +17,17 @@ function mockerKnex(t) {
   // fonctions du repository sont mockées, donc la valeur passée pour `bd` n'a pas besoin d'être
   // un vrai knex — seule sa présence (pas d'appel réseau réel à Neon) compte.
   t.mock.method(db, 'obtenirKnex', async () => ({}));
-  // Par défaut le dossier appartient bien à l'entité (voir verifierDossierAppartientEntite dans
-  // pieceJustificativeService.js) — les tests qui veulent couvrir le rejet inter-entités
-  // surchargent ce mock explicitement.
+  // Par défaut le dossier appartient bien à l'entité (voir verifierDossierAppartientEntite,
+  // utilisée par listerPiecesJustificatives) et, pour uploaderPieceJustificative (qui interroge
+  // trouverDossierAvecStatutParId à la place, voir pieceJustificativeService.js), est dans un
+  // statut où l'upload est autorisé — les tests qui veulent couvrir le rejet inter-entités ou le
+  // rejet par statut surchargent le mock concerné explicitement.
   t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'en_attente_pieces',
+    statut_libelle: 'En attente de pièces',
+  }));
 }
 
 test('uploaderPieceJustificative rejette un contenu qui n\'est pas un Buffer', async () => {
@@ -54,7 +61,7 @@ test('uploaderPieceJustificative rejette un type de pièce non configuré pour l
 
 test("uploaderPieceJustificative rejette si le dossier n'appartient pas à l'entité", async (t) => {
   mockerKnex(t);
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => undefined);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => undefined);
 
   await assert.rejects(
     () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
@@ -66,6 +73,48 @@ test("uploaderPieceJustificative rejette si le dossier n'appartient pas à l'ent
     }),
     /Dossier "999" introuvable pour l'entité « accecit »/,
   );
+});
+
+test("uploaderPieceJustificative rejette si le dossier n'est pas dans un statut autorisant l'upload", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'valide',
+    statut_libelle: 'Validé',
+  }));
+
+  await assert.rejects(
+    () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+      dossierId: 42,
+      typePieceCode: 'CNI',
+      nomFichier: 'cni.pdf',
+      contenu: Buffer.from('x'),
+      uploadedBy: 1,
+    }),
+    /Impossible d'ajouter une pièce justificative.*statut "Validé"/,
+  );
+});
+
+test("uploaderPieceJustificative autorise l'upload quand le dossier est en_attente_verification (ajout tardif)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'en_attente_verification',
+    statut_libelle: 'En attente de vérification',
+  }));
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
+  t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-456');
+  t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 100);
+
+  const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 42,
+    typePieceCode: 'CNI',
+    nomFichier: 'cni.pdf',
+    contenu: Buffer.from('contenu'),
+    uploadedBy: 5,
+  });
+
+  assert.deepEqual(resultat, { pieceId: 100, referenceStockage: 'ref-stockage-456' });
 });
 
 test('uploaderPieceJustificative uploade vers le connecteur puis enregistre la référence en base', async (t) => {
