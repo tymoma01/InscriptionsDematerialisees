@@ -53,6 +53,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
     register,
     formState: { errors, isValid },
     watch,
+    setValue,
   } = useForm({
     mode: 'onChange',
     resolver: zodResolver(blocDisponibilitesSchema),
@@ -261,9 +262,19 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
             <label key={option.code} htmlFor={`commentConnu-${option.code}`}>
               <input
                 id={`commentConnu-${option.code}`}
+                // `name` volontairement unique par option (pas de name partagé) : un name
+                // commun fait qu'un navigateur ne pose qu'un seul arrêt Tab par groupe radio
+                // natif (les flèches naviguent alors entre options) — ici on veut au contraire
+                // que Tab visite chaque option individuellement.
+                name={`commentConnu-${option.code}`}
                 type="radio"
                 value={option.code}
-                {...register('commentConnu')}
+                // Exclusivité mutuelle et mise à jour reprises à la main (`checked` + onChange
+                // manuel) plutôt que via {...register('commentConnu')} : react-hook-form
+                // retrouve en interne le champ modifié via `event.target.name`, qui n'est plus
+                // "commentConnu" ici — son onChange ne mettrait donc jamais à jour la valeur.
+                checked={commentConnuSelectionne === option.code}
+                onChange={() => setValue('commentConnu', option.code, { shouldValidate: true })}
               />
               {option.libelle}
             </label>
