@@ -13,3 +13,20 @@
 .bloc-charte__confirmation input#charteMention {
   margin-left: var(--espace-petit);
 }
+
+.bloc-charte__label-signature {
+  margin: var(--espace-moyen) 0 var(--espace-petit);
+}
+
+/* Message du scroll-gate (voir BlocCharte.jsx) : tant que la charte n'a pas été
+   entièrement défilée, la mention et la signature restent grisées/non interactives. */
+.bloc-charte__alerte-lecture {
+  color: var(--couleur-erreur);
+  font-size: 0.9rem;
+}
+
+.bloc-charte__confirmation input#charteMention:disabled {
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+  cursor: not-allowed;
+}

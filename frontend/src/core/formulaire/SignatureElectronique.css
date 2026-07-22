@@ -4,3 +4,15 @@
   border: 1px solid #333;
   touch-action: none;
 }
+
+/* Grisé + non interactif tant qu'une condition préalable de l'appelant n'est pas remplie
+   (ex. scroll-gate de la charte) — le pad lui-même est désactivé côté JS (pad.off()),
+   pointer-events ici en renfort visuel/tactile immédiat. */
+.signature-electronique--desactivee {
+  opacity: 0.5;
+}
+
+.signature-electronique--desactivee .signature-electronique__canvas {
+  pointer-events: none;
+  cursor: not-allowed;
+}

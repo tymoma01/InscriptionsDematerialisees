@@ -1,9 +1,14 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { blocCharteSchema } from './BlocCharte.schema';
 import SignatureElectronique from '../SignatureElectronique';
 import './BlocCharte.css';
+
+// Marge de tolérance sur la comparaison scrollTop + clientHeight >= scrollHeight : compense
+// les arrondis de sous-pixel qui varient selon les navigateurs/zoom, sans quoi le bas exact
+// de la charte pourrait ne jamais être détecté comme atteint sur certains appareils.
+const TOLERANCE_SCROLL_PX = 4;
 
 // Bloc générique "charte" : même contrat que les autres blocs (valeurs, onChange,
 // onValiditeChange) — rendu par BlocRenderer via blocRegistry, aucune connaissance du parcours
@@ -35,11 +40,29 @@ export default function BlocCharte({ valeurs, onChange, onValiditeChange }) {
     onValiditeChange(isValid);
   }, [isValid]);
 
+  const [charteLue, setCharteLue] = useState(false);
+  const noticeRef = useRef(null);
+
+  const verifierCharteLue = () => {
+    const noeud = noticeRef.current;
+    if (!noeud || charteLue) return;
+    if (noeud.scrollTop + noeud.clientHeight >= noeud.scrollHeight - TOLERANCE_SCROLL_PX) {
+      setCharteLue(true);
+    }
+  };
+
+  // Si la charte tient déjà entièrement dans la hauteur du conteneur (pas de défilement
+  // possible), débloque automatiquement dès le montage — sinon le candidat resterait bloqué
+  // sans aucun moyen de faire défiler quoi que ce soit.
+  useEffect(() => {
+    verifierCharteLue();
+  }, []);
+
   return (
     <fieldset className="bloc-formulaire bloc-charte">
       <legend>Charte ACCECIT</legend>
 
-      <div className="bloc-charte__notice">
+      <div className="bloc-charte__notice" ref={noticeRef} onScroll={verifierCharteLue}>
         <p>
           <strong>Préambule</strong> — Le présent règlement a pour objet de préciser les règles
           applicables au sein d'ACCECIT et chez ses entreprises clientes, dans l'intérêt de tous
@@ -95,13 +118,25 @@ export default function BlocCharte({ valeurs, onChange, onValiditeChange }) {
       <div className="bloc-charte__confirmation">
         <p>Recopiez la mention suivante et signez : « Lu et Approuvé »</p>
 
-        <label htmlFor="charteMention">Mention recopiée</label>
-        <input id="charteMention" type="text" {...register('charteMention')} />
+        {!charteLue && (
+          <p role="alert" className="bloc-charte__alerte-lecture">
+            Veuillez lire l'intégralité de la charte avant de continuer
+          </p>
+        )}
+
+        <label htmlFor="charteMention">
+          Mention recopiée <span className="champ-obligatoire">*</span>
+        </label>
+        <input id="charteMention" type="text" disabled={!charteLue} {...register('charteMention')} />
         {errors.charteMention && <p role="alert">{errors.charteMention.message}</p>}
 
+        <p className="bloc-charte__label-signature">
+          Signature <span className="champ-obligatoire">*</span>
+        </p>
         <SignatureElectronique
           valeur={valeursSaisies.charteSignatureImage}
           onChange={(image) => setValue('charteSignatureImage', image, { shouldValidate: true })}
+          disabled={!charteLue}
         />
         {errors.charteSignatureImage && <p role="alert">{errors.charteSignatureImage.message}</p>}
       </div>
