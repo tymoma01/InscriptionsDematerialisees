@@ -1,9 +1,10 @@
 import { z } from 'zod';
+import { NATIONALITES } from './nationalites';
 
 // NIR : 15 chiffres (13 + clé à 2 chiffres), espaces tolérés à la saisie
 const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 
-// Nom/nationalité : lettres uniquement (accents, tirets et apostrophes tolérés)
+// Nom de naissance : lettres uniquement (accents, tirets et apostrophes tolérés)
 const LETTRES_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 
 export const blocInfosPersoSchema = z.object({
@@ -16,11 +17,8 @@ export const blocInfosPersoSchema = z.object({
       message: 'Le nom de naissance ne doit contenir que des lettres',
     }),
   lieuNaissance: z.string().trim().min(1, 'Le lieu de naissance est obligatoire'),
-  nationalite: z
-    .string()
-    .trim()
-    .min(1, 'La nationalité est obligatoire')
-    .regex(LETTRES_REGEX, 'La nationalité ne doit contenir que des lettres'),
+  // Doit correspondre à une option de la liste déroulante (voir nationalites.js), plus de texte libre
+  nationalite: z.enum(NATIONALITES, { errorMap: () => ({ message: 'La nationalité est obligatoire' }) }),
   prenom: z.string().trim().min(1, 'Le prénom est obligatoire'),
   dateNaissance: z.string().min(1, 'La date de naissance est obligatoire'),
   nir: z

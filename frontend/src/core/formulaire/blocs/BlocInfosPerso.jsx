@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocInfosPersoSchema } from './BlocInfosPerso.schema';
+import { NATIONALITES } from './nationalites';
 import './BlocInfosPerso.css';
 
 const SITUATIONS_FAMILIALES = [
@@ -80,7 +81,14 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
         <label htmlFor="nationalite">Nationalité</label>
-        <input id="nationalite" type="text" {...register('nationalite')} />
+        <select id="nationalite" {...register('nationalite')}>
+          <option value="">Sélectionner...</option>
+          {NATIONALITES.map((nationalite) => (
+            <option key={nationalite} value={nationalite}>
+              {nationalite}
+            </option>
+          ))}
+        </select>
         {errors.nationalite && <p role="alert">{errors.nationalite.message}</p>}
       </div>
 
