@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocConsentementRgpdSchema } from './BlocConsentementRGPD.schema';
+import { propsRadioAccessible } from '../radioAccessible';
 import SignatureElectronique from '../SignatureElectronique';
 import './BlocConsentementRGPD.css';
 
@@ -76,7 +77,13 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
             id="consentementDiffusion-autorise"
             type="radio"
             value="autorise"
-            {...register('consentementDiffusion')}
+            {...propsRadioAccessible({
+              register,
+              setValue,
+              champ: 'consentementDiffusion',
+              valeur: 'autorise',
+              valeurCourante: valeursSaisies.consentementDiffusion,
+            })}
           />
           J'autorise les sociétés ACCECIT HOTELLERIE et ACCECIT TERTIAIRE à utiliser et diffuser à
           titre gratuit et non exclusif toutes les données mentionnées ci-dessus, susceptibles
@@ -89,7 +96,13 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
             id="consentementDiffusion-refuse"
             type="radio"
             value="refuse"
-            {...register('consentementDiffusion')}
+            {...propsRadioAccessible({
+              register,
+              setValue,
+              champ: 'consentementDiffusion',
+              valeur: 'refuse',
+              valeurCourante: valeursSaisies.consentementDiffusion,
+            })}
           />
           Je n'autorise pas les sociétés ACCECIT HOTELLERIE et ACCECIT TERTIAIRE à utiliser et
           diffuser toutes les données mentionnées ci-dessus me concernant.

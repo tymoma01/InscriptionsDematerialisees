@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocDisponibilitesSchema } from './BlocDisponibilites.schema';
+import { propsRadioAccessible } from '../radioAccessible';
 import './BlocDisponibilites.css';
 
 const CRENEAUX = [
@@ -193,11 +194,33 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
         </legend>
         <div className="bloc-disponibilites__options">
           <label htmlFor="typePoste-bureau">
-            <input id="typePoste-bureau" type="radio" value="bureau" {...register('typePoste')} />
+            <input
+              id="typePoste-bureau"
+              type="radio"
+              value="bureau"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: 'typePoste',
+                valeur: 'bureau',
+                valeurCourante: typePosteSelectionne,
+              })}
+            />
             Bureau
           </label>
           <label htmlFor="typePoste-hotel">
-            <input id="typePoste-hotel" type="radio" value="hotel" {...register('typePoste')} />
+            <input
+              id="typePoste-hotel"
+              type="radio"
+              value="hotel"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: 'typePoste',
+                valeur: 'hotel',
+                valeurCourante: typePosteSelectionne,
+              })}
+            />
             Hôtel
           </label>
         </div>
@@ -261,19 +284,15 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
             <label key={option.code} htmlFor={`commentConnu-${option.code}`}>
               <input
                 id={`commentConnu-${option.code}`}
-                // `name` volontairement unique par option (pas de name partagé) : un name
-                // commun fait qu'un navigateur ne pose qu'un seul arrêt Tab par groupe radio
-                // natif (les flèches naviguent alors entre options) — ici on veut au contraire
-                // que Tab visite chaque option individuellement.
-                name={`commentConnu-${option.code}`}
                 type="radio"
                 value={option.code}
-                // Exclusivité mutuelle et mise à jour reprises à la main (`checked` + onChange
-                // manuel) plutôt que via {...register('commentConnu')} : react-hook-form
-                // retrouve en interne le champ modifié via `event.target.name`, qui n'est plus
-                // "commentConnu" ici — son onChange ne mettrait donc jamais à jour la valeur.
-                checked={commentConnuSelectionne === option.code}
-                onChange={() => setValue('commentConnu', option.code, { shouldValidate: true })}
+                {...propsRadioAccessible({
+                  register,
+                  setValue,
+                  champ: 'commentConnu',
+                  valeur: option.code,
+                  valeurCourante: commentConnuSelectionne,
+                })}
               />
               {option.libelle}
             </label>

@@ -99,7 +99,14 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
               <label key={v.code}>
                 <input
                   type="radio"
-                  name={`critere-${critere.code}`}
+                  // name unique par option (pas par critère) : un name partagé entre les options
+                  // d'un même groupe radio ne pose qu'un seul arrêt Tab natif par groupe (les
+                  // flèches naviguent alors entre options) — ici on veut que Tab visite chaque
+                  // option individuellement (même correctif que BlocDisponibilites.jsx et les
+                  // autres blocs du formulaire d'inscription, voir radioAccessible.js). Aucun
+                  // risque ici de casser la mise à jour de la valeur : checked/onChange sont déjà
+                  // entièrement contrôlés par ce composant, sans dépendre de react-hook-form.
+                  name={`critere-${critere.code}-${v.code}`}
                   value={v.code}
                   checked={valeurs[critere.code] === v.code}
                   onChange={() => setValeurs((precedent) => ({ ...precedent, [critere.code]: v.code }))}

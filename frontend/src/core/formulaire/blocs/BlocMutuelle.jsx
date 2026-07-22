@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocMutuelleSchema } from './BlocMutuelle.schema';
+import { propsRadioAccessible } from '../radioAccessible';
 
 const CAS_DISPENSE = [
   {
@@ -75,11 +76,33 @@ export default function BlocMutuelle({ valeurs, onChange, onValiditeChange }) {
             {cas.libelle} <span className="champ-obligatoire">*</span>
           </legend>
           <label htmlFor={`${cas.champ}-oui`}>
-            <input id={`${cas.champ}-oui`} type="radio" value="oui" {...register(cas.champ)} />
+            <input
+              id={`${cas.champ}-oui`}
+              type="radio"
+              value="oui"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: cas.champ,
+                valeur: 'oui',
+                valeurCourante: valeursSaisies[cas.champ],
+              })}
+            />
             Oui
           </label>
           <label htmlFor={`${cas.champ}-non`}>
-            <input id={`${cas.champ}-non`} type="radio" value="non" {...register(cas.champ)} />
+            <input
+              id={`${cas.champ}-non`}
+              type="radio"
+              value="non"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: cas.champ,
+                valeur: 'non',
+                valeurCourante: valeursSaisies[cas.champ],
+              })}
+            />
             Non
           </label>
           {errors[cas.champ] && <p role="alert">{errors[cas.champ].message}</p>}
