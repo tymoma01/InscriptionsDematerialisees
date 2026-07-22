@@ -1,0 +1,64 @@
+/* Largeur de case à cocher fixée explicitement (au lieu de dépendre du rendu natif du
+   navigateur) : sert de référence commune pour aligner le texte "Disponible immédiatement"
+   et le décalage de la ligne des dates ci-dessous, sans dépendre d'un rendu approximatif. */
+.bloc-disponibilites__case-immediate {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.bloc-disponibilites__case-immediate input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+/* Dates de disponibilité : les deux champs côte à côte (plutôt que l'un sous l'autre),
+   avec un espacement entre chaque label et son champ de saisie associé. Décalées vers la
+   droite (largeur case à cocher + même espacement) pour démarrer à la même position
+   horizontale que le texte "Disponible immédiatement" au-dessus. Même logique de repli de
+   l'erreur sur sa propre ligne que BlocCoordonnees.css. */
+.bloc-disponibilites__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-grand);
+  margin-left: calc(1rem + var(--espace-petit));
+}
+
+.bloc-disponibilites__dates > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.bloc-disponibilites__dates > div p[role='alert'] {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+/* Groupes d'options case à cocher/radio (Créneaux, Jours, Langues, Type de poste, Poste
+   recherché bureau/hôtel, Comment nous avez-vous connu) : sans ce wrapper, les <label>
+   restent inline et ne sont séparés que par l'espace blanc du JSX (~un caractère) une fois
+   collapsé en HTML — trop serré pour rester lisible sur tablette. */
+.bloc-disponibilites__options {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--espace-grand);
+  row-gap: var(--espace-petit);
+}
+
+/* Champs "Précisez" (langue "Autre", comment nous avez-vous connu) : même espacement
+   label/champ que la ligne des dates de disponibilité ci-dessus. */
+.bloc-disponibilites__champ-precision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.bloc-disponibilites__champ-precision p[role='alert'] {
+  flex-basis: 100%;
+  margin: 0;
+}

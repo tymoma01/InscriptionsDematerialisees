@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocDisponibilitesSchema } from './BlocDisponibilites.schema';
+import './BlocDisponibilites.css';
 
 const CRENEAUX = [
   { code: 'matin', libelle: 'Matin' },
@@ -85,94 +86,106 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   const autreLangueCochee = (valeursSaisies.languesParlees ?? []).includes('autre');
   const typePosteSelectionne = valeursSaisies.typePoste;
   const commentConnuSelectionne = valeursSaisies.commentConnu;
-  const commentConnuPrecisionVisible = ['internet', 'autre'].includes(commentConnuSelectionne);
+  const commentConnuPrecisionVisible = ['internet', 'autre', 'cooptation'].includes(commentConnuSelectionne);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
       <legend>Disponibilités</legend>
 
-      <label htmlFor="disponibiliteImmediate">
+      <label htmlFor="disponibiliteImmediate" className="bloc-disponibilites__case-immediate">
         <input id="disponibiliteImmediate" type="checkbox" {...register('disponibiliteImmediate')} />
         Disponible immédiatement
       </label>
 
       {!disponibleImmediatement && (
-        <>
-          <label htmlFor="dateDebut">Date de début de disponibilité</label>
-          <input id="dateDebut" type="date" {...register('dateDebut')} />
-          {errors.dateDebut && <p role="alert">{errors.dateDebut.message}</p>}
+        <div className="bloc-disponibilites__dates">
+          <div>
+            <label htmlFor="dateDebut">Date de début de disponibilité</label>
+            <input id="dateDebut" type="date" {...register('dateDebut')} />
+            {errors.dateDebut && <p role="alert">{errors.dateDebut.message}</p>}
+          </div>
 
-          <label htmlFor="dateFin">Date de fin de disponibilité</label>
-          <input id="dateFin" type="date" {...register('dateFin')} />
-          {errors.dateFin && <p role="alert">{errors.dateFin.message}</p>}
-        </>
+          <div>
+            <label htmlFor="dateFin">Date de fin de disponibilité</label>
+            <input id="dateFin" type="date" {...register('dateFin')} />
+            {errors.dateFin && <p role="alert">{errors.dateFin.message}</p>}
+          </div>
+        </div>
       )}
 
       <fieldset>
         <legend>Créneaux souhaités</legend>
-        {CRENEAUX.map((creneau) => (
-          <label key={creneau.code} htmlFor={`creneau-${creneau.code}`}>
-            <input
-              id={`creneau-${creneau.code}`}
-              type="checkbox"
-              value={creneau.code}
-              {...register('creneaux')}
-            />
-            {creneau.libelle}
-          </label>
-        ))}
+        <div className="bloc-disponibilites__options">
+          {CRENEAUX.map((creneau) => (
+            <label key={creneau.code} htmlFor={`creneau-${creneau.code}`}>
+              <input
+                id={`creneau-${creneau.code}`}
+                type="checkbox"
+                value={creneau.code}
+                {...register('creneaux')}
+              />
+              {creneau.libelle}
+            </label>
+          ))}
+        </div>
       </fieldset>
       {errors.creneaux && <p role="alert">{errors.creneaux.message}</p>}
 
       <fieldset>
         <legend>Jours disponibles</legend>
-        {JOURS.map((jour) => (
-          <label key={jour.code} htmlFor={`jour-${jour.code}`}>
-            <input
-              id={`jour-${jour.code}`}
-              type="checkbox"
-              value={jour.code}
-              {...register('joursDisponibles')}
-            />
-            {jour.libelle}
-          </label>
-        ))}
+        <div className="bloc-disponibilites__options">
+          {JOURS.map((jour) => (
+            <label key={jour.code} htmlFor={`jour-${jour.code}`}>
+              <input
+                id={`jour-${jour.code}`}
+                type="checkbox"
+                value={jour.code}
+                {...register('joursDisponibles')}
+              />
+              {jour.libelle}
+            </label>
+          ))}
+        </div>
       </fieldset>
       {errors.joursDisponibles && <p role="alert">{errors.joursDisponibles.message}</p>}
 
       <fieldset>
         <legend>Langues parlées</legend>
-        {LANGUES.map((langue) => (
-          <label key={langue.code} htmlFor={`langue-${langue.code}`}>
-            <input
-              id={`langue-${langue.code}`}
-              type="checkbox"
-              value={langue.code}
-              {...register('languesParlees')}
-            />
-            {langue.libelle}
-          </label>
-        ))}
+        <div className="bloc-disponibilites__options">
+          {LANGUES.map((langue) => (
+            <label key={langue.code} htmlFor={`langue-${langue.code}`}>
+              <input
+                id={`langue-${langue.code}`}
+                type="checkbox"
+                value={langue.code}
+                {...register('languesParlees')}
+              />
+              {langue.libelle}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       {autreLangueCochee && (
-        <>
+        <div className="bloc-disponibilites__champ-precision">
           <label htmlFor="autreLanguePrecision">Précisez la langue</label>
           <input id="autreLanguePrecision" type="text" {...register('autreLanguePrecision')} />
           {errors.autreLanguePrecision && <p role="alert">{errors.autreLanguePrecision.message}</p>}
-        </>
+        </div>
       )}
 
       <fieldset>
         <legend>Type de poste recherché</legend>
-        <label htmlFor="typePoste-bureau">
-          <input id="typePoste-bureau" type="radio" value="bureau" {...register('typePoste')} />
-          Bureau
-        </label>
-        <label htmlFor="typePoste-hotel">
-          <input id="typePoste-hotel" type="radio" value="hotel" {...register('typePoste')} />
-          Hôtel
-        </label>
+        <div className="bloc-disponibilites__options">
+          <label htmlFor="typePoste-bureau">
+            <input id="typePoste-bureau" type="radio" value="bureau" {...register('typePoste')} />
+            Bureau
+          </label>
+          <label htmlFor="typePoste-hotel">
+            <input id="typePoste-hotel" type="radio" value="hotel" {...register('typePoste')} />
+            Hôtel
+          </label>
+        </div>
       </fieldset>
       {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
 
@@ -180,17 +193,19 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
         <>
           <fieldset>
             <legend>Poste recherché (bureau)</legend>
-            {POSTES_BUREAU.map((poste) => (
-              <label key={poste.code} htmlFor={`posteBureau-${poste.code}`}>
-                <input
-                  id={`posteBureau-${poste.code}`}
-                  type="checkbox"
-                  value={poste.code}
-                  {...register('posteBureau')}
-                />
-                {poste.libelle}
-              </label>
-            ))}
+            <div className="bloc-disponibilites__options">
+              {POSTES_BUREAU.map((poste) => (
+                <label key={poste.code} htmlFor={`posteBureau-${poste.code}`}>
+                  <input
+                    id={`posteBureau-${poste.code}`}
+                    type="checkbox"
+                    value={poste.code}
+                    {...register('posteBureau')}
+                  />
+                  {poste.libelle}
+                </label>
+              ))}
+            </div>
           </fieldset>
           {errors.posteBureau && <p role="alert">{errors.posteBureau.message}</p>}
         </>
@@ -200,17 +215,19 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
         <>
           <fieldset>
             <legend>Poste recherché (hôtel)</legend>
-            {POSTES_HOTEL.map((poste) => (
-              <label key={poste.code} htmlFor={`posteHotel-${poste.code}`}>
-                <input
-                  id={`posteHotel-${poste.code}`}
-                  type="checkbox"
-                  value={poste.code}
-                  {...register('posteHotel')}
-                />
-                {poste.libelle}
-              </label>
-            ))}
+            <div className="bloc-disponibilites__options">
+              {POSTES_HOTEL.map((poste) => (
+                <label key={poste.code} htmlFor={`posteHotel-${poste.code}`}>
+                  <input
+                    id={`posteHotel-${poste.code}`}
+                    type="checkbox"
+                    value={poste.code}
+                    {...register('posteHotel')}
+                  />
+                  {poste.libelle}
+                </label>
+              ))}
+            </div>
           </fieldset>
           {errors.posteHotel && <p role="alert">{errors.posteHotel.message}</p>}
         </>
@@ -218,26 +235,28 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
 
       <fieldset>
         <legend>Comment nous avez-vous connu ?</legend>
-        {COMMENT_CONNU.map((option) => (
-          <label key={option.code} htmlFor={`commentConnu-${option.code}`}>
-            <input
-              id={`commentConnu-${option.code}`}
-              type="radio"
-              value={option.code}
-              {...register('commentConnu')}
-            />
-            {option.libelle}
-          </label>
-        ))}
+        <div className="bloc-disponibilites__options">
+          {COMMENT_CONNU.map((option) => (
+            <label key={option.code} htmlFor={`commentConnu-${option.code}`}>
+              <input
+                id={`commentConnu-${option.code}`}
+                type="radio"
+                value={option.code}
+                {...register('commentConnu')}
+              />
+              {option.libelle}
+            </label>
+          ))}
+        </div>
       </fieldset>
       {errors.commentConnu && <p role="alert">{errors.commentConnu.message}</p>}
 
       {commentConnuPrecisionVisible && (
-        <>
+        <div className="bloc-disponibilites__champ-precision">
           <label htmlFor="commentConnuPrecision">Précisez</label>
           <input id="commentConnuPrecision" type="text" {...register('commentConnuPrecision')} />
           {errors.commentConnuPrecision && <p role="alert">{errors.commentConnuPrecision.message}</p>}
-        </>
+        </div>
       )}
     </fieldset>
   );
