@@ -3,7 +3,20 @@
 
 async function insererCandidat(
   trx,
-  { entiteId, nom, nomNaissance, lieuNaissance, nationalite, prenom, dateNaissance, situationFamiliale, nirChiffre, nirIv }
+  {
+    entiteId,
+    nom,
+    nomNaissance,
+    lieuNaissance,
+    nationalite,
+    prenom,
+    dateNaissance,
+    situationFamiliale,
+    nirChiffre,
+    nirIv,
+    nirHash,
+    email,
+  }
 ) {
   const [candidat] = await trx('candidats')
     .insert({
@@ -17,9 +30,22 @@ async function insererCandidat(
       situation_familiale: situationFamiliale,
       nir: nirChiffre,
       nir_iv: nirIv,
+      nir_hash: nirHash,
+      email,
     })
     .returning('id');
   return candidat.id;
+}
+
+// Vérification d'unicité à l'inscription (voir dossierService.inscrireCandidat) : nirHash est un
+// HMAC-SHA256 déterministe (core/securite/nirCipher.js), jamais le NIR en clair ni sa version
+// chiffrée AES-256-GCM (non déterministe, une recherche par égalité dessus ne trouverait rien).
+function trouverCandidatParNirHash(trx, entiteId, nirHash) {
+  return trx('candidats').where({ entite_id: entiteId, nir_hash: nirHash }).first();
+}
+
+function trouverCandidatParEmail(trx, entiteId, email) {
+  return trx('candidats').where({ entite_id: entiteId, email }).first();
 }
 
 function trouverStatutInitial(trx, entiteId) {
@@ -144,6 +170,8 @@ function enregistrerSignatureCharte(trx, { candidatId, charteId, signatureImage 
 
 module.exports = {
   insererCandidat,
+  trouverCandidatParNirHash,
+  trouverCandidatParEmail,
   trouverStatutInitial,
   creerDossier,
   trouverDossierParId,

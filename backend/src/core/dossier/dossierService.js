@@ -1,7 +1,27 @@
 const { z } = require('zod');
 const { obtenirKnex } = require('../../db/knex');
-const { chiffrer } = require('../securite/nirCipher');
+const { chiffrer, hasherNirPourUnicite } = require('../securite/nirCipher');
 const dossierRepository = require('./dossierRepository');
+
+// Codes des contraintes UNIQUE posées par la migration 032_ajout_email_nir_hash_candidats —
+// sert de filet de sécurité si deux inscriptions concurrentes passent toutes les deux la
+// vérification préalable (trouverCandidatParNirHash/trouverCandidatParEmail ci-dessous) avant
+// qu'aucune des deux n'ait encore inséré : la contrainte DB reste alors la seule à even
+// détecter le doublon, et son erreur brute Postgres est traduite ici en message clair plutôt
+// que de remonter telle quelle jusqu'au gestionnaire d'erreurs générique (500 opaque).
+const CONTRAINTE_UNIQUE_EMAIL = 'candidats_entite_id_email_unique';
+const CONTRAINTE_UNIQUE_NIR_HASH = 'candidats_entite_id_nir_hash_unique';
+
+// Erreur métier distincte de z.ZodError (données mal formées) : signale une donnée valide mais
+// déjà utilisée par un autre dossier — candidats.routes.js la traduit en 409 (Conflict) plutôt
+// que 400, avec un message directement affichable au candidat.
+class ErreurInscriptionConflit extends Error {
+  constructor(message, champ) {
+    super(message);
+    this.name = 'ErreurInscriptionConflit';
+    this.champ = champ; // 'nir' | 'email'
+  }
+}
 
 const TELEPHONE_REGEX = /^0[1-9](\s?\d{2}){4}$/;
 const NIR_REGEX = /^\d{13}\s?\d{2}$/;
@@ -130,21 +150,59 @@ async function inscrireCandidat(entite, donneesBrutes) {
   const donnees = donneesInscriptionSchema.parse(donneesBrutes);
   const nirSansEspaces = donnees.nir.replace(/\s/g, '');
   const { nirChiffre, iv } = await chiffrer(nirSansEspaces);
+  // Hash déterministe (HMAC-SHA256) distinct du chiffrement AES-256-GCM ci-dessus : seul lui
+  // permet une recherche d'unicité par égalité (voir core/securite/nirCipher.js) — jamais
+  // stocké ni comparé en clair.
+  const nirHash = await hasherNirPourUnicite(nirSansEspaces);
 
   const bd = await obtenirKnex();
   return bd.transaction(async (trx) => {
-    const candidatId = await dossierRepository.insererCandidat(trx, {
-      entiteId: entite.id,
-      nom: donnees.nom,
-      nomNaissance: donnees.nomNaissance,
-      lieuNaissance: donnees.lieuNaissance,
-      nationalite: donnees.nationalite,
-      prenom: donnees.prenom,
-      dateNaissance: donnees.dateNaissance,
-      situationFamiliale: donnees.situationFamiliale,
-      nirChiffre,
-      nirIv: iv,
-    });
+    // Vérification préalable (message clair, cas normal) — la contrainte UNIQUE en base reste
+    // le filet de sécurité contre une course entre deux inscriptions concurrentes (voir plus bas).
+    const candidatNirExistant = await dossierRepository.trouverCandidatParNirHash(trx, entite.id, nirHash);
+    if (candidatNirExistant) {
+      throw new ErreurInscriptionConflit(
+        'Ce numéro de sécurité sociale est déjà utilisé par un autre dossier.',
+        'nir',
+      );
+    }
+
+    const candidatEmailExistant = await dossierRepository.trouverCandidatParEmail(trx, entite.id, donnees.email);
+    if (candidatEmailExistant) {
+      throw new ErreurInscriptionConflit('Cet email est déjà utilisé par un autre dossier.', 'email');
+    }
+
+    let candidatId;
+    try {
+      candidatId = await dossierRepository.insererCandidat(trx, {
+        entiteId: entite.id,
+        nom: donnees.nom,
+        nomNaissance: donnees.nomNaissance,
+        lieuNaissance: donnees.lieuNaissance,
+        nationalite: donnees.nationalite,
+        prenom: donnees.prenom,
+        dateNaissance: donnees.dateNaissance,
+        situationFamiliale: donnees.situationFamiliale,
+        nirChiffre,
+        nirIv: iv,
+        nirHash,
+        email: donnees.email,
+      });
+    } catch (erreurInsertion) {
+      // code 23505 = violation de contrainte UNIQUE Postgres — n'arrive ici qu'en cas de course
+      // entre deux inscriptions concurrentes passées toutes les deux la vérification ci-dessus
+      // avant qu'aucune n'ait encore inséré.
+      if (erreurInsertion.code === '23505' && erreurInsertion.constraint === CONTRAINTE_UNIQUE_NIR_HASH) {
+        throw new ErreurInscriptionConflit(
+          'Ce numéro de sécurité sociale est déjà utilisé par un autre dossier.',
+          'nir',
+        );
+      }
+      if (erreurInsertion.code === '23505' && erreurInsertion.constraint === CONTRAINTE_UNIQUE_EMAIL) {
+        throw new ErreurInscriptionConflit('Cet email est déjà utilisé par un autre dossier.', 'email');
+      }
+      throw erreurInsertion;
+    }
 
     const statutInitial = await dossierRepository.trouverStatutInitial(trx, entite.id);
     if (!statutInitial) {
@@ -268,4 +326,4 @@ async function listerStatuts(entite) {
   return dossierRepository.listerStatuts(bd, entite.id);
 }
 
-module.exports = { inscrireCandidat, listerDossiers, listerStatuts };
+module.exports = { inscrireCandidat, listerDossiers, listerStatuts, ErreurInscriptionConflit };

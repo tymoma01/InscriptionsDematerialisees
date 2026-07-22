@@ -8,16 +8,26 @@ const crypto = require('node:crypto');
 const keyVaultClient = require('./keyVaultClient');
 
 const CLE_TEST_BASE64 = crypto.randomBytes(32).toString('base64');
+const CLE_TEST_HMAC_BASE64 = crypto.randomBytes(32).toString('base64');
 let nombreAppelsObtenirSecret = 0;
 
 keyVaultClient.obtenirSecret = async (nomSecret) => {
   nombreAppelsObtenirSecret += 1;
-  assert.equal(nomSecret, 'nir-encryption-key');
-  return CLE_TEST_BASE64;
+  assert.ok(
+    ['nir-encryption-key', 'nir-hmac-key'].includes(nomSecret),
+    `nom de secret inattendu : ${nomSecret}`,
+  );
+  return nomSecret === 'nir-hmac-key' ? CLE_TEST_HMAC_BASE64 : CLE_TEST_BASE64;
 };
 keyVaultClient.invaliderSecret = () => {};
 
-const { chiffrerNir, dechiffrerNir, chiffrerNirPourColonnes, dechiffrerNirDepuisColonnes } = require('./nirCipher');
+const {
+  chiffrerNir,
+  dechiffrerNir,
+  chiffrerNirPourColonnes,
+  dechiffrerNirDepuisColonnes,
+  hasherNirPourUnicite,
+} = require('./nirCipher');
 
 test('chiffrer puis déchiffrer redonne la valeur d\'origine', async () => {
   const nir = '1850578006048';
@@ -88,6 +98,30 @@ test('chiffrerNirPourColonnes / dechiffrerNirDepuisColonnes round-trip (colonnes
 
 test('dechiffrerNirDepuisColonnes rejette des arguments qui ne sont pas des Buffer', async () => {
   await assert.rejects(() => dechiffrerNirDepuisColonnes('pas-un-buffer', Buffer.alloc(12)), /Buffer/);
+});
+
+test('hasherNirPourUnicite : déterministe (même NIR -> même hash, contrairement au chiffrement)', async () => {
+  const nir = '1850578006048';
+  const a = await hasherNirPourUnicite(nir);
+  const b = await hasherNirPourUnicite(nir);
+  assert.ok(a.equals(b));
+});
+
+test('hasherNirPourUnicite : deux NIR différents donnent des hash différents', async () => {
+  const a = await hasherNirPourUnicite('1850578006048');
+  const b = await hasherNirPourUnicite('1850578006049');
+  assert.ok(!a.equals(b));
+});
+
+test('hasherNirPourUnicite : retourne un Buffer de 32 octets (SHA-256)', async () => {
+  const hash = await hasherNirPourUnicite('1850578006048');
+  assert.ok(Buffer.isBuffer(hash));
+  assert.equal(hash.length, 32);
+});
+
+test('hasherNirPourUnicite : rejette une entrée vide ou non-string', async () => {
+  await assert.rejects(() => hasherNirPourUnicite(''), /chaîne non vide/);
+  await assert.rejects(() => hasherNirPourUnicite(undefined), /chaîne non vide/);
 });
 
 test('aucune fuite du NIR en clair dans les erreurs, quelle que soit la panne', async () => {

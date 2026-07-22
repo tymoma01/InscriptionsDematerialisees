@@ -7,7 +7,14 @@ const TAILLE_IV_OCTETS = 12; // taille recommandée (96 bits) pour AES-GCM
 const TAILLE_CLE_OCTETS = 32; // AES-256
 const TAILLE_TAG_OCTETS = 16; // taille fixe du tag d'authentification GCM produit par Node
 
+// Clé séparée de nir-encryption-key : ne jamais réutiliser une même clé pour deux usages
+// cryptographiques différents (ici chiffrement confidentialité vs. authentification de message
+// pour la recherche d'unicité) — voir hasherNirPourUnicite plus bas.
+const NOM_SECRET_CLE_HMAC = 'nir-hmac-key';
+const TAILLE_CLE_HMAC_OCTETS = 32;
+
 let promesseCle;
+let promesseCleHmac;
 
 // Clé AES-256 récupérée depuis Azure Key Vault — jamais dans le code ni dans une variable
 // d'environnement en clair (voir CLAUDE.md, section RGPD, et architecture-technique.md §1.7).
@@ -39,6 +46,52 @@ async function obtenirCle() {
 function invaliderCacheCle() {
   promesseCle = undefined;
   invaliderSecret(NOM_SECRET_CLE);
+}
+
+// Même logique que obtenirCle(), pour la clé HMAC (secret Key Vault séparé).
+async function obtenirCleHmac() {
+  if (!promesseCleHmac) {
+    promesseCleHmac = obtenirSecret(NOM_SECRET_CLE_HMAC).then((valeurBase64) => {
+      if (!valeurBase64) {
+        throw new Error(`Secret "${NOM_SECRET_CLE_HMAC}" introuvable dans Key Vault`);
+      }
+      const cle = Buffer.from(valeurBase64, 'base64');
+      if (cle.length !== TAILLE_CLE_HMAC_OCTETS) {
+        throw new Error(
+          `Le secret "${NOM_SECRET_CLE_HMAC}" doit décoder en ${TAILLE_CLE_HMAC_OCTETS} octets une fois décodé en base64, obtenu : ${cle.length} octet(s)`
+        );
+      }
+      return cle;
+    });
+    promesseCleHmac.catch(() => {
+      promesseCleHmac = undefined;
+    });
+  }
+  return promesseCleHmac;
+}
+
+function invaliderCacheCleHmac() {
+  promesseCleHmac = undefined;
+  invaliderSecret(NOM_SECRET_CLE_HMAC);
+}
+
+/**
+ * Hash déterministe du NIR (HMAC-SHA256) : permet une recherche d'unicité en base (égalité
+ * directe) là où le chiffrement AES-256-GCM ne le permet pas (non déterministe par nature — même
+ * NIR en clair chiffré deux fois donne deux résultats différents, à cause de l'IV aléatoire).
+ * HMAC plutôt qu'un simple SHA-256 : un NIR n'a qu'environ 10^12 combinaisons plausibles (13
+ * chiffres structurés par date de naissance/département) — un hash sans clé secrète serait
+ * cassable par dictionnaire précalculé par quiconque a accès à la colonne. La clé HMAC, tenue
+ * secrète dans Key Vault, empêche cette attaque tant qu'elle reste elle-même non compromise.
+ * Ne jamais exposer ce hash au front ni le faire figurer dans une réponse API — il ne sert qu'à
+ * une comparaison d'égalité côté serveur.
+ */
+async function hasherNirPourUnicite(nirClair) {
+  if (typeof nirClair !== 'string' || nirClair.length === 0) {
+    throw new Error('hasherNirPourUnicite attend une chaîne non vide');
+  }
+  const cle = await obtenirCleHmac();
+  return crypto.createHmac('sha256', cle).update(nirClair, 'utf8').digest();
 }
 
 /**
@@ -141,6 +194,8 @@ module.exports = {
   chiffrerNirPourColonnes,
   dechiffrerNirDepuisColonnes,
   invaliderCacheCle,
+  invaliderCacheCleHmac,
+  hasherNirPourUnicite,
   chiffrer,
   dechiffrer,
 };
