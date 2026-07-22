@@ -8,6 +8,14 @@
   --couleur-primaire-hover: #243074;
   --couleur-primaire-clair: #eeeff6;
 
+  /* Bleu back-office (agents/recruteurs/admin) — volontairement distinct de --couleur-primaire
+     ci-dessus (candidat), variante plus sombre/gris-bleu, pour qu'un agent distingue l'espace
+     interne du formulaire public en un coup d'œil. Jamais utilisé côté formulaire candidat :
+     --couleur-primaire ne change pas. */
+  --couleur-back-office: #1f4e9c;
+  --couleur-back-office-hover: #17396f;
+  --couleur-back-office-clair: #eef1f8;
+
   /* Palette de gris */
   --gris-50: #f9fafb;
   --gris-100: #f3f4f6;

@@ -14,7 +14,7 @@
 }
 
 .capture-tablette__entete h2 {
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   margin: 0 0 var(--espace-petit);
 }
 
@@ -98,7 +98,7 @@
 
 .capture-tablette__panneau-entete h3 {
   margin: 0;
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
 }
 
 .capture-tablette__choix-methode,

@@ -1,12 +1,9 @@
-.page-utilisateurs {
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: var(--espace-grand) var(--espace-moyen);
-}
-
+/* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css) qui enveloppe
+   désormais cette page — ne reste que la mise en page interne propre à cet écran. */
 .page-utilisateurs__entete h1 {
   margin: 0 0 var(--espace-petit);
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
 }
 
 .page-utilisateurs__vide {
@@ -16,9 +13,9 @@
 .page-utilisateurs > button {
   margin-bottom: var(--espace-moyen);
   padding: 0.6rem 1.2rem;
-  border: 1px solid var(--couleur-primaire);
+  border: 1px solid var(--couleur-back-office);
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
   cursor: pointer;
@@ -87,7 +84,7 @@
 
 .formulaire-utilisateur h2 {
   margin: 0;
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   font-size: 1.1rem;
 }
 
@@ -132,8 +129,8 @@
 }
 
 .formulaire-utilisateur__actions button[type='submit'] {
-  background-color: var(--couleur-primaire);
-  border-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
 }

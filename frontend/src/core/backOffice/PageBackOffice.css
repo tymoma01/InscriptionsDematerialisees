@@ -1,0 +1,160 @@
+/* Habillage back-office : même structure à deux couches que InscriptionTablette.css côté
+   candidat (en-tête fixe en plein bord + contenu recentré dessous, pied de page collé en bas),
+   mais teinte propre au back-office (--couleur-back-office, voir styles/variables.css) au lieu
+   de --couleur-primaire — voir le commentaire d'en-tête de PageBackOffice.jsx pour le choix de
+   dupliquer plutôt que partager ces styles avec le formulaire candidat.
+
+   Sticky footer : display:flex + min-height:100vh sur le conteneur, flex:1 0 auto sur
+   __contenu — même technique que .page-inscription-tablette, voir son commentaire pour le détail. */
+.page-back-office {
+  --hauteur-entete: 8rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  box-sizing: border-box;
+  /* Dégradé de fond propre au back-office, teinté --couleur-back-office-clair plutôt que
+     --couleur-primaire-clair (celui posé sur <body>, voir styles/blocFormulaire.css) — cette page
+     couvre toute la hauteur (min-height: 100vh) et masque donc entièrement le dégradé candidat
+     du <body> derrière elle, sans avoir à toucher cette règle globale. */
+  background-color: #ffffff;
+  background-image: linear-gradient(180deg, #ffffff 0%, var(--couleur-back-office-clair) 100%);
+}
+
+/* En-tête sticky : dégradé sobre à une seule teinte (clair -> foncé) plutôt que le dégradé
+   bicolore indigo/turquoise du formulaire candidat (InscriptionTablette.css, repris de la
+   bannière du site officiel accecit.com) — cette différence de traitement, pas seulement de
+   teinte, renforce la distinction entre les deux espaces au premier coup d'œil. */
+.page-back-office__entete {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--couleur-back-office), var(--couleur-back-office-hover));
+  border-bottom: 1px solid var(--couleur-back-office-hover);
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.page-back-office__entete-contenu {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-grand);
+  min-height: var(--hauteur-entete);
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-petit) var(--espace-moyen);
+}
+
+.page-back-office__logo {
+  display: block;
+  height: 4.5rem;
+  width: auto;
+}
+
+.page-back-office__logos-marques {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--espace-grand);
+}
+
+.page-back-office__logo-marque {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.page-back-office__logo-marque-icone {
+  display: block;
+  height: 2.75rem;
+  width: auto;
+}
+
+.page-back-office__logo-marque-texte {
+  display: flex;
+  flex-direction: column;
+}
+
+.page-back-office__logo-marque-nom {
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  line-height: 1.3;
+}
+
+.page-back-office__logo-marque-sous-nom {
+  color: #d8e6f2;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  margin-top: 0.15rem;
+  padding-top: 0.15rem;
+}
+
+/* Contenu défilant sous l'en-tête fixe : largeur maximale centrée, décalé du haut de la hauteur
+   de l'en-tête (+ une respiration) pour ne jamais passer dessous. flex: 1 0 auto absorbe l'espace
+   vertical restant pour pousser le pied de page en bas de l'écran sur les pages courtes. */
+.page-back-office__contenu {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding-top: calc(var(--hauteur-entete) + var(--espace-grand));
+  padding-right: var(--espace-moyen);
+  padding-bottom: var(--espace-grand);
+  padding-left: var(--espace-moyen);
+  flex: 1 0 auto;
+}
+
+/* Pied de page : même dégradé (une seule teinte, haut -> bas) que l'en-tête, coins hauts arrondis
+   en écho avec lui — même logique que .pied-de-page côté candidat (PiedDePageFormulaire.css). */
+.page-back-office__pied-de-page {
+  background: linear-gradient(180deg, var(--couleur-back-office), var(--couleur-back-office-hover));
+  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
+}
+
+.page-back-office__pied-de-page-contenu {
+  box-sizing: border-box;
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-petit) var(--espace-moyen);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+}
+
+.page-back-office__pied-de-page-logo {
+  display: block;
+  height: 2.75rem;
+  width: auto;
+}
+
+.page-back-office__coordonnees {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 0.2rem;
+}
+
+.page-back-office__contact {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.page-back-office__copyright {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+}

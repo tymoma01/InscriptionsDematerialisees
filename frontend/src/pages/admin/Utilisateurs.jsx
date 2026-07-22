@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
+import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import {
   listerUtilisateurs,
   listerRolesAssignables,
@@ -73,93 +74,101 @@ export default function Utilisateurs() {
   };
 
   if (chargementSession) {
-    return <p>Chargement de la session…</p>;
+    return (
+      <PageBackOffice>
+        <p>Chargement de la session…</p>
+      </PageBackOffice>
+    );
   }
 
   if (!utilisateurConnecte) {
     return (
-      <p role="alert">
-        Vous devez être connecté pour gérer les comptes. <Link to="/connexion">Se connecter</Link>
-      </p>
+      <PageBackOffice>
+        <p role="alert">
+          Vous devez être connecté pour gérer les comptes. <Link to="/connexion">Se connecter</Link>
+        </p>
+      </PageBackOffice>
     );
   }
 
   return (
-    <main className="page-utilisateurs">
-      <header className="page-utilisateurs__entete">
-        <h1>Comptes utilisateurs</h1>
-        <EnTeteBackOffice />
-      </header>
+    <PageBackOffice>
+      <div className="page-utilisateurs">
+        <header className="page-utilisateurs__entete">
+          <h1>Comptes utilisateurs</h1>
+          <EnTeteBackOffice />
+        </header>
 
-      <button type="button" onClick={() => setFormulaireOuvert('creation')}>
-        Nouveau compte
-      </button>
+        <button type="button" onClick={() => setFormulaireOuvert('creation')}>
+          Nouveau compte
+        </button>
 
-      {formulaireOuvert && (
-        <FormulaireUtilisateur
-          // key force un remontage (donc un état de formulaire vierge) quand on passe de la
-          // création à l'édition, ou de l'édition d'un compte à un autre, sans avoir à fermer le
-          // formulaire entre les deux — sans ça, les champs contrôlés garderaient leurs valeurs
-          // précédentes (useState ne réinitialise pas sur un simple changement de props).
-          key={formulaireOuvert === 'creation' ? 'creation' : formulaireOuvert.id}
-          utilisateur={formulaireOuvert === 'creation' ? null : formulaireOuvert}
-          roles={roles}
-          onTermine={gererFinFormulaire}
-          onAnnuler={() => setFormulaireOuvert(null)}
-        />
-      )}
+        {formulaireOuvert && (
+          <FormulaireUtilisateur
+            // key force un remontage (donc un état de formulaire vierge) quand on passe de la
+            // création à l'édition, ou de l'édition d'un compte à un autre, sans avoir à fermer le
+            // formulaire entre les deux — sans ça, les champs contrôlés garderaient leurs valeurs
+            // précédentes (useState ne réinitialise pas sur un simple changement de props).
+            key={formulaireOuvert === 'creation' ? 'creation' : formulaireOuvert.id}
+            utilisateur={formulaireOuvert === 'creation' ? null : formulaireOuvert}
+            roles={roles}
+            onTermine={gererFinFormulaire}
+            onAnnuler={() => setFormulaireOuvert(null)}
+          />
+        )}
 
-      {chargement && <p>Chargement des comptes…</p>}
-      {erreur && <p role="alert">{erreur}</p>}
+        {chargement && <p>Chargement des comptes…</p>}
+        {erreur && <p role="alert">{erreur}</p>}
 
-      {!chargement && !erreur && utilisateurs.length === 0 && (
-        <p className="page-utilisateurs__vide">Aucun compte pour cette entité.</p>
-      )}
+        {!chargement && !erreur && utilisateurs.length === 0 && (
+          <p className="page-utilisateurs__vide">Aucun compte pour cette entité.</p>
+        )}
 
-      {!chargement && !erreur && utilisateurs.length > 0 && (
-        <div className="table-utilisateurs__scroll">
-          <table className="table-utilisateurs">
-            <thead>
-              <tr>
-                <th scope="col">Nom</th>
-                <th scope="col">Email</th>
-                <th scope="col">Rôle</th>
-                <th scope="col">Statut</th>
-                <th scope="col">Dernière connexion</th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {utilisateurs.map((u) => (
-                <tr key={u.id}>
-                  <td>
-                    {u.prenom} {u.nom}
-                  </td>
-                  <td>{u.email}</td>
-                  <td>{u.role_libelle}</td>
-                  <td>
-                    <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
-                  </td>
-                  <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '—'}</td>
-                  <td className="table-utilisateurs__actions">
-                    <button type="button" onClick={() => setFormulaireOuvert(u)}>
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => basculerActif(u)}
-                      disabled={u.actif && u.id === utilisateurConnecte.id}
-                    >
-                      {u.actif ? 'Désactiver' : 'Réactiver'}
-                    </button>
-                  </td>
+        {!chargement && !erreur && utilisateurs.length > 0 && (
+          <div className="table-utilisateurs__scroll">
+            <table className="table-utilisateurs">
+              <thead>
+                <tr>
+                  <th scope="col">Nom</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Rôle</th>
+                  <th scope="col">Statut</th>
+                  <th scope="col">Dernière connexion</th>
+                  <th scope="col"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+              </thead>
+              <tbody>
+                {utilisateurs.map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      {u.prenom} {u.nom}
+                    </td>
+                    <td>{u.email}</td>
+                    <td>{u.role_libelle}</td>
+                    <td>
+                      <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
+                    </td>
+                    <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '—'}</td>
+                    <td className="table-utilisateurs__actions">
+                      <button type="button" onClick={() => setFormulaireOuvert(u)}>
+                        Modifier
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => basculerActif(u)}
+                        disabled={u.actif && u.id === utilisateurConnecte.id}
+                      >
+                        {u.actif ? 'Désactiver' : 'Réactiver'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </PageBackOffice>
   );
 }
 
