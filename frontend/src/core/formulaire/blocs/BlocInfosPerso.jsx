@@ -3,7 +3,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocInfosPersoSchema } from './BlocInfosPerso.schema';
 import { NATIONALITES } from './nationalites';
+import { propsChampNumeriqueMasque } from '../masqueNumerique';
 import './BlocInfosPerso.css';
+
+// 1 (sexe) - 2 (année) - 2 (mois) - 2 (département) - 3 (commune) - 3 (numéro d'ordre) - 2 (clé)
+// = 15 chiffres, format NIR français standard (ex. "1 85 05 78 006 084 36").
+const GROUPES_NIR = [1, 2, 2, 2, 3, 3, 2];
+const LONGUEUR_NIR = 15;
 
 const SITUATIONS_FAMILIALES = [
   { code: 'celibataire', libelle: 'Célibataire' },
@@ -20,6 +26,7 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     register,
     formState: { errors, isValid },
     watch,
+    setValue,
   } = useForm({
     mode: 'onChange',
     resolver: zodResolver(blocInfosPersoSchema),
@@ -44,6 +51,17 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
   useEffect(() => {
     onValiditeChange(isValid);
   }, [isValid]);
+
+  // Espacement automatique pendant la saisie (affichage uniquement, voir masqueNumerique.js) —
+  // la valeur suivie par react-hook-form et validée par le resolver zod reste sans espace.
+  // Volontairement pas de {...register('nir')} sur ce champ (voir le commentaire détaillé dans
+  // masqueNumerique.js) : entièrement piloté par value/onChange + setValue.
+  const propsNir = propsChampNumeriqueMasque({
+    valeurCourante: valeursSaisies.nir,
+    tailles: GROUPES_NIR,
+    longueurChiffresMax: LONGUEUR_NIR,
+    onChangerValeur: (chiffres) => setValue('nir', chiffres, { shouldValidate: true }),
+  });
 
   return (
     <fieldset className="bloc-formulaire bloc-infos-perso">
@@ -121,7 +139,7 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
         <label htmlFor="nir">
           N° de sécurité sociale <span className="champ-obligatoire">*</span>
         </label>
-        <input id="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...register('nir')} />
+        <input id="nir" name="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...propsNir} />
         {errors.nir && <p role="alert">{errors.nir.message}</p>}
       </div>
     </fieldset>

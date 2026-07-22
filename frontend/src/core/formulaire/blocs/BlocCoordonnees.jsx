@@ -2,7 +2,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocCoordonneesSchema } from './BlocCoordonnees.schema';
+import { propsChampNumeriqueMasque } from '../masqueNumerique';
 import './BlocCoordonnees.css';
+
+// Format téléphone français standard : 5 groupes de 2 chiffres (ex. "06 12 34 56 78").
+const GROUPES_TELEPHONE = [2, 2, 2, 2, 2];
+const LONGUEUR_TELEPHONE = 10;
 
 // Bloc générique "coordonnées" : même contrat que BlocInfosPerso (valeurs, onChange,
 // onValiditeChange) — rendu par BlocRenderer via blocRegistry, aucune connaissance du parcours global.
@@ -11,6 +16,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
     register,
     formState: { errors, isValid },
     watch,
+    setValue,
   } = useForm({
     mode: 'onChange',
     resolver: zodResolver(blocCoordonneesSchema),
@@ -33,6 +39,24 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
     onValiditeChange(isValid);
   }, [isValid]);
 
+  // Espacement automatique pendant la saisie (affichage uniquement, voir masqueNumerique.js) —
+  // la valeur suivie par react-hook-form et validée par le resolver zod reste sans espace.
+  // Volontairement pas de {...register(...)} sur ces deux champs (voir le commentaire détaillé
+  // dans masqueNumerique.js) : entièrement pilotés par value/onChange + setValue.
+  const propsTelephone = propsChampNumeriqueMasque({
+    valeurCourante: valeursSaisies.telephone,
+    tailles: GROUPES_TELEPHONE,
+    longueurChiffresMax: LONGUEUR_TELEPHONE,
+    onChangerValeur: (chiffres) => setValue('telephone', chiffres, { shouldValidate: true }),
+  });
+
+  const propsContactUrgenceTelephone = propsChampNumeriqueMasque({
+    valeurCourante: valeursSaisies.contactUrgenceTelephone,
+    tailles: GROUPES_TELEPHONE,
+    longueurChiffresMax: LONGUEUR_TELEPHONE,
+    onChangerValeur: (chiffres) => setValue('contactUrgenceTelephone', chiffres, { shouldValidate: true }),
+  });
+
   return (
     <fieldset className="bloc-formulaire bloc-coordonnees">
       <legend>Coordonnées</legend>
@@ -49,7 +73,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
         <label htmlFor="telephone">
           Téléphone <span className="champ-obligatoire">*</span>
         </label>
-        <input id="telephone" type="tel" autoComplete="tel" {...register('telephone')} />
+        <input id="telephone" name="telephone" type="tel" autoComplete="tel" {...propsTelephone} />
         {errors.telephone && <p role="alert">{errors.telephone.message}</p>}
       </div>
 
@@ -73,7 +97,12 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
         <label htmlFor="contactUrgenceTelephone">
           Téléphone du contact d'urgence <span className="champ-obligatoire">*</span>
         </label>
-        <input id="contactUrgenceTelephone" type="tel" {...register('contactUrgenceTelephone')} />
+        <input
+          id="contactUrgenceTelephone"
+          name="contactUrgenceTelephone"
+          type="tel"
+          {...propsContactUrgenceTelephone}
+        />
         {errors.contactUrgenceTelephone && <p role="alert">{errors.contactUrgenceTelephone.message}</p>}
       </div>
     </fieldset>
