@@ -9,7 +9,7 @@
 }
 
 .gestion-transitions h2 {
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   margin: 0 0 var(--espace-moyen);
 }
 
@@ -25,16 +25,16 @@
 
 .gestion-transitions__actions button {
   padding: 0.6rem 1.2rem;
-  border: 1px solid var(--couleur-primaire);
+  border: 1px solid var(--couleur-back-office);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   font-weight: 600;
   cursor: pointer;
 }
 
 .gestion-transitions__actions button:hover {
-  background-color: var(--couleur-primaire-clair);
+  background-color: var(--couleur-back-office-clair);
 }
 
 .gestion-transitions__formulaire {
@@ -84,8 +84,8 @@
 }
 
 .gestion-transitions__formulaire-actions button[type='submit'] {
-  background-color: var(--couleur-primaire);
-  border-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
 }

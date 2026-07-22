@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
+import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './Backoffice.css';
 
@@ -63,61 +64,69 @@ export default function Backoffice() {
   }, [statutFiltre]);
 
   if (chargementSession) {
-    return <p>Chargement de la session…</p>;
+    return (
+      <PageBackOffice>
+        <p>Chargement de la session…</p>
+      </PageBackOffice>
+    );
   }
 
   // Le back refuserait de toute façon (401/403) sans session valide ou rôle autorisé : mieux
   // vaut le dire tout de suite (même principe que TableauDeBordAccueil.jsx).
   if (!utilisateur) {
     return (
-      <p role="alert">
-        Vous devez être connecté pour accéder au back-office. <Link to="/connexion">Se connecter</Link>
-      </p>
+      <PageBackOffice>
+        <p role="alert">
+          Vous devez être connecté pour accéder au back-office. <Link to="/connexion">Se connecter</Link>
+        </p>
+      </PageBackOffice>
     );
   }
 
   return (
-    <main className="backoffice-recruteur">
-      <header className="backoffice-recruteur__entete">
-        <h1>Back-office recruteur</h1>
-        <EnTeteBackOffice />
-      </header>
+    <PageBackOffice>
+      <div className="backoffice-recruteur">
+        <header className="backoffice-recruteur__entete">
+          <h1>Back-office recruteur</h1>
+          <EnTeteBackOffice />
+        </header>
 
-      <nav className="backoffice-recruteur__filtres" aria-label="Filtrer par statut">
-        <button
-          type="button"
-          className={statutFiltre === null ? 'actif' : ''}
-          onClick={() => setStatutFiltre(null)}
-        >
-          Tous
-        </button>
-        {statuts.map((statut) => (
+        <nav className="backoffice-recruteur__filtres" aria-label="Filtrer par statut">
           <button
-            key={statut.code}
             type="button"
-            className={statutFiltre === statut.code ? 'actif' : ''}
-            onClick={() => setStatutFiltre(statut.code)}
+            className={statutFiltre === null ? 'actif' : ''}
+            onClick={() => setStatutFiltre(null)}
           >
-            {statut.libelle}
+            Tous
           </button>
-        ))}
-      </nav>
+          {statuts.map((statut) => (
+            <button
+              key={statut.code}
+              type="button"
+              className={statutFiltre === statut.code ? 'actif' : ''}
+              onClick={() => setStatutFiltre(statut.code)}
+            >
+              {statut.libelle}
+            </button>
+          ))}
+        </nav>
 
-      {chargementDossiers && <p>Chargement des dossiers…</p>}
-      {erreur && <p role="alert">{erreur}</p>}
+        {chargementDossiers && <p>Chargement des dossiers…</p>}
+        {erreur && <p role="alert">{erreur}</p>}
 
-      {!chargementDossiers && !erreur && (
-        <DossierList
-          dossiers={dossiers}
-          varianteStatut={varianteStatut}
-          actions={[
-            {
-              libelle: 'Étudier le dossier',
-              onSelectionner: (dossier) => navigate(`/recruteur/dossiers/${dossier.id}/validation`),
-            },
-          ]}
-        />
-      )}
-    </main>
+        {!chargementDossiers && !erreur && (
+          <DossierList
+            dossiers={dossiers}
+            varianteStatut={varianteStatut}
+            actions={[
+              {
+                libelle: 'Étudier le dossier',
+                onSelectionner: (dossier) => navigate(`/recruteur/dossiers/${dossier.id}/validation`),
+              },
+            ]}
+          />
+        )}
+      </div>
+    </PageBackOffice>
   );
 }

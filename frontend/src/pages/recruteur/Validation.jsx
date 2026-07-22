@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import GestionTransitions from '../../core/dossier/GestionTransitions';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
+import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import './Validation.css';
 
@@ -45,38 +46,42 @@ export default function Validation() {
   }, [dossierId]);
 
   return (
-    <main className="page-validation">
-      <EnTeteBackOffice />
-      <h1>Dossier #{dossierId}</h1>
+    <PageBackOffice>
+      <div className="page-validation">
+        <EnTeteBackOffice />
+        <h1>Dossier #{dossierId}</h1>
 
-      <section className="page-validation__pieces">
-        <h2>Pièces justificatives</h2>
+        <section className="page-validation__pieces">
+          <h2>Pièces justificatives</h2>
 
-        {chargement && <p>Chargement…</p>}
-        {erreur && <p role="alert">{erreur}</p>}
+          {chargement && <p>Chargement…</p>}
+          {erreur && <p role="alert">{erreur}</p>}
 
-        {!chargement && !erreur && pieces.length === 0 && (
-          <p className="page-validation__pieces-vide">Aucune pièce reçue pour ce dossier.</p>
-        )}
+          {!chargement && !erreur && pieces.length === 0 && (
+            <p className="page-validation__pieces-vide">Aucune pièce reçue pour ce dossier.</p>
+          )}
 
-        {!chargement && !erreur && pieces.length > 0 && (
-          <ul className="page-validation__pieces-liste">
-            {pieces.map((piece) => (
-              <li key={piece.id}>
-                <span className="page-validation__piece-libelle">{piece.type_piece_libelle}</span>
-                <span
-                  className={`page-validation__piece-statut page-validation__piece-statut--${piece.statut_verification}`}
-                >
-                  {LIBELLES_STATUT_VERIFICATION[piece.statut_verification] ?? piece.statut_verification}
-                </span>
-                <span className="page-validation__piece-date">{FORMAT_DATE.format(new Date(piece.date_upload))}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+          {!chargement && !erreur && pieces.length > 0 && (
+            <ul className="page-validation__pieces-liste">
+              {pieces.map((piece) => (
+                <li key={piece.id}>
+                  <span className="page-validation__piece-libelle">{piece.type_piece_libelle}</span>
+                  <span
+                    className={`page-validation__piece-statut page-validation__piece-statut--${piece.statut_verification}`}
+                  >
+                    {LIBELLES_STATUT_VERIFICATION[piece.statut_verification] ?? piece.statut_verification}
+                  </span>
+                  <span className="page-validation__piece-date">
+                    {FORMAT_DATE.format(new Date(piece.date_upload))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <GestionTransitions dossierId={dossierId} />
-    </main>
+        <GestionTransitions dossierId={dossierId} />
+      </div>
+    </PageBackOffice>
   );
 }

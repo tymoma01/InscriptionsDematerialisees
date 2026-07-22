@@ -8,13 +8,20 @@
   --couleur-primaire-hover: #243074;
   --couleur-primaire-clair: #eeeff6;
 
-  /* Bleu back-office (agents/recruteurs/admin) — volontairement distinct de --couleur-primaire
-     ci-dessus (candidat), variante plus sombre/gris-bleu, pour qu'un agent distingue l'espace
-     interne du formulaire public en un coup d'œil. Jamais utilisé côté formulaire candidat :
-     --couleur-primaire ne change pas. */
-  --couleur-back-office: #1f4e9c;
-  --couleur-back-office-hover: #17396f;
-  --couleur-back-office-clair: #eef1f8;
+  /* Brun/bronze back-office (agents/recruteurs/admin) — volontairement distinct de
+     --couleur-primaire ci-dessus (bleu, candidat), pour qu'un agent distingue l'espace interne
+     du formulaire public en un coup d'œil. Jamais utilisé côté formulaire candidat :
+     --couleur-primaire ne change pas.
+     Dérivé du doré du tourbillon des logos Hôtellerie/Tertiaire (rgb(199,170,118) = #c7aa76,
+     déjà échantillonné pour --ombre-bloc plus bas) plutôt qu'inventé : reste cohérent avec
+     l'identité de marque existante. --couleur-back-office-dore n'utilise cependant pas cette
+     valeur telle quelle (#c7aa76) mais une version assombrie (#7a5a34) — le doré pur, trop clair,
+     ne laisserait qu'un contraste d'environ 2,2:1 pour du texte blanc par-dessus (bien en dessous
+     du minimum WCAG AA de 4,5:1) ; assombri, il repasse au-dessus de 6:1. */
+  --couleur-back-office: #2e2013;
+  --couleur-back-office-hover: #1f150c;
+  --couleur-back-office-clair: #f7f3ee;
+  --couleur-back-office-dore: #7a5a34;
 
   /* Palette de gris */
   --gris-50: #f9fafb;

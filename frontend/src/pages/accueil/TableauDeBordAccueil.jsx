@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
+import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './TableauDeBordAccueil.css';
 
@@ -65,62 +66,70 @@ export default function TableauDeBordAccueil() {
   }, [statutFiltre]);
 
   if (chargementSession) {
-    return <p>Chargement de la session…</p>;
+    return (
+      <PageBackOffice>
+        <p>Chargement de la session…</p>
+      </PageBackOffice>
+    );
   }
 
   // Le back refuserait de toute façon (401/403) sans session valide ou rôle autorisé : mieux
   // vaut le dire tout de suite (même principe que CaptureTablette.jsx).
   if (!utilisateur) {
     return (
-      <p role="alert">
-        Vous devez être connecté pour accéder au tableau de bord. <Link to="/connexion">Se connecter</Link>
-      </p>
+      <PageBackOffice>
+        <p role="alert">
+          Vous devez être connecté pour accéder au tableau de bord. <Link to="/connexion">Se connecter</Link>
+        </p>
+      </PageBackOffice>
     );
   }
 
   return (
-    <main className="tableau-bord-accueil">
-      <header className="tableau-bord-accueil__entete">
-        <h1>Dossiers candidats</h1>
-        <EnTeteBackOffice />
-      </header>
+    <PageBackOffice>
+      <div className="tableau-bord-accueil">
+        <header className="tableau-bord-accueil__entete">
+          <h1>Dossiers candidats</h1>
+          <EnTeteBackOffice />
+        </header>
 
-      <nav className="tableau-bord-accueil__filtres" aria-label="Filtrer par statut">
-        <button
-          type="button"
-          className={statutFiltre === null ? 'actif' : ''}
-          onClick={() => setStatutFiltre(null)}
-        >
-          Tous
-        </button>
-        {statuts.map((statut) => (
+        <nav className="tableau-bord-accueil__filtres" aria-label="Filtrer par statut">
           <button
-            key={statut.code}
             type="button"
-            className={statutFiltre === statut.code ? 'actif' : ''}
-            onClick={() => setStatutFiltre(statut.code)}
+            className={statutFiltre === null ? 'actif' : ''}
+            onClick={() => setStatutFiltre(null)}
           >
-            {statut.libelle}
+            Tous
           </button>
-        ))}
-      </nav>
+          {statuts.map((statut) => (
+            <button
+              key={statut.code}
+              type="button"
+              className={statutFiltre === statut.code ? 'actif' : ''}
+              onClick={() => setStatutFiltre(statut.code)}
+            >
+              {statut.libelle}
+            </button>
+          ))}
+        </nav>
 
-      {chargementDossiers && <p>Chargement des dossiers…</p>}
-      {erreur && <p role="alert">{erreur}</p>}
+        {chargementDossiers && <p>Chargement des dossiers…</p>}
+        {erreur && <p role="alert">{erreur}</p>}
 
-      {!chargementDossiers && !erreur && (
-        <DossierList
-          dossiers={dossiers}
-          varianteStatut={varianteStatut}
-          actions={[
-            { libelle: 'Pièces', onSelectionner: (dossier) => navigate(`/accueil/dossiers/${dossier.id}/pieces`) },
-            {
-              libelle: 'Relances',
-              onSelectionner: (dossier) => navigate(`/coordination/dossiers/${dossier.id}/relances`),
-            },
-          ]}
-        />
-      )}
-    </main>
+        {!chargementDossiers && !erreur && (
+          <DossierList
+            dossiers={dossiers}
+            varianteStatut={varianteStatut}
+            actions={[
+              { libelle: 'Pièces', onSelectionner: (dossier) => navigate(`/accueil/dossiers/${dossier.id}/pieces`) },
+              {
+                libelle: 'Relances',
+                onSelectionner: (dossier) => navigate(`/coordination/dossiers/${dossier.id}/relances`),
+              },
+            ]}
+          />
+        )}
+      </div>
+    </PageBackOffice>
   );
 }

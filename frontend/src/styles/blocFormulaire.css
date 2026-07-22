@@ -10,6 +10,10 @@
    un `opacity` CSS sur le calque assombrirait aussi le dégradé en dessous). `min-height: 100vh`
    pour que le dégradé couvre tout l'écran même sur les vues courtes (ex. écran de confirmation). */
 body {
+  /* Marge par défaut du navigateur (généralement 8px) jamais réinitialisée jusqu'ici : c'est elle
+     qui laissait un petit espace vide sur les côtés d'éléments censés couvrir toute la largeur de
+     l'écran (ex. pied de page back-office, voir core/backOffice/PageBackOffice.css). */
+  margin: 0;
   font-family: var(--police-base);
   color: var(--couleur-texte);
   min-height: 100vh;
@@ -18,6 +22,19 @@ body {
     url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22220%22%20height%3D%22220%22%20viewBox%3D%220%200%20220%20220%22%3E%3Cg%20transform%3D%22translate%28110%2C110%29%22%20fill%3D%22rgba%2845%2C60%2C146%2C0.035%29%22%3E%3Cpath%20d%3D%22M0%2C-75%20A75%2C75%200%200%2C1%2070.48%2C-25.65%20L23.49%2C-8.55%20A25%2C25%200%200%2C0%200%2C-25%20Z%22/%3E%3Cpath%20d%3D%22M0%2C-75%20A75%2C75%200%200%2C1%2070.48%2C-25.65%20L23.49%2C-8.55%20A25%2C25%200%200%2C0%200%2C-25%20Z%22%20transform%3D%22rotate%28120%29%22/%3E%3Cpath%20d%3D%22M0%2C-75%20A75%2C75%200%200%2C1%2070.48%2C-25.65%20L23.49%2C-8.55%20A25%2C25%200%200%2C0%200%2C-25%20Z%22%20transform%3D%22rotate%28240%29%22/%3E%3C/g%3E%3C/svg%3E");
   background-repeat: no-repeat, repeat;
   background-size: auto, 220px 220px;
+}
+
+/* Variante back-office du fond ci-dessus (même construction à deux couches, teinte bronze/doré
+   plutôt que bleu candidat) — classe posée sur <body> par PageBackOffice.jsx (useEffect), pas une
+   simple couleur de fond sur le conteneur de page : le filigrane (FiligraneFormulaire, position
+   fixed + z-index négatif) doit rester visible PAR-DESSUS le fond de <body> mais EN DESSOUS du
+   contenu de page normal — si le conteneur de page (.page-back-office) portait lui-même un fond
+   opaque, ce fond peindrait devant le filigrane (les éléments en flux normal non positionnés
+   peignent devant les éléments à z-index négatif d'un même contexte d'empilement), le masquant
+   entièrement. C'est exactement ce qui s'est produit avant ce correctif. */
+body.corps-back-office {
+  background-image: linear-gradient(180deg, #ffffff 0%, var(--couleur-back-office-clair) 100%),
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22220%22%20height%3D%22220%22%20viewBox%3D%220%200%20220%20220%22%3E%3Cg%20transform%3D%22translate%28110%2C110%29%22%20fill%3D%22rgba%28122%2C90%2C52%2C0.035%29%22%3E%3Cpath%20d%3D%22M0%2C-75%20A75%2C75%200%200%2C1%2070.48%2C-25.65%20L23.49%2C-8.55%20A25%2C25%200%200%2C0%200%2C-25%20Z%22/%3E%3Cpath%20d%3D%22M0%2C-75%20A75%2C75%200%200%2C1%2070.48%2C-25.65%20L23.49%2C-8.55%20A25%2C25%200%200%2C0%200%2C-25%20Z%22%20transform%3D%22rotate%28120%29%22/%3E%3Cpath%20d%3D%22M0%2C-75%20A75%2C75%200%200%2C1%2070.48%2C-25.65%20L23.49%2C-8.55%20A25%2C25%200%200%2C0%200%2C-25%20Z%22%20transform%3D%22rotate%28240%29%22/%3E%3C/g%3E%3C/svg%3E");
 }
 
 /* Bloc « flottant » : délimité par une ombre douce plutôt qu'un contour dessiné (pas de

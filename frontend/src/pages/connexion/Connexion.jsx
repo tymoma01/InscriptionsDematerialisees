@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginForm from '../../core/auth/LoginForm';
+import PageBackOffice from '../../core/backOffice/PageBackOffice';
 
 // Redirection après connexion, propre à chaque rôle — le recruteur atterrit sur son back-office,
 // le formateur sur ses évaluations à faire, l'admin sur la gestion des comptes, le reste
@@ -27,10 +28,12 @@ export default function Connexion() {
   const cibleRedirection = redirection?.startsWith('/') ? redirection : null;
 
   return (
-    <LoginForm
-      onConnexionReussie={(utilisateur) =>
-        navigate(cibleRedirection || (DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT))
-      }
-    />
+    <PageBackOffice>
+      <LoginForm
+        onConnexionReussie={(utilisateur) =>
+          navigate(cibleRedirection || (DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT))
+        }
+      />
+    </PageBackOffice>
   );
 }

@@ -30,9 +30,9 @@
 
 .liste-evaluations__item button {
   padding: 0.5rem 1.2rem;
-  border: 1px solid var(--couleur-primaire);
+  border: 1px solid var(--couleur-back-office);
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
   cursor: pointer;

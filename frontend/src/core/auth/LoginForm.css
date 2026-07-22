@@ -13,7 +13,7 @@
 
 .login-form h1 {
   margin: 0;
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   font-size: 1.4rem;
 }
 
@@ -41,14 +41,14 @@
   padding: 0.7rem;
   border: none;
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
   cursor: pointer;
 }
 
 .login-form button:hover:not(:disabled) {
-  background-color: var(--couleur-primaire-hover);
+  background-color: var(--couleur-back-office-hover);
 }
 
 .login-form button:disabled {

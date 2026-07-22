@@ -6,24 +6,29 @@
 
    Sticky footer : display:flex + min-height:100vh sur le conteneur, flex:1 0 auto sur
    __contenu — même technique que .page-inscription-tablette, voir son commentaire pour le détail. */
+/* Pas de fond posé ici (contrairement à une précédente version) : ce conteneur doit rester
+   transparent pour laisser transparaître le fond dégradé de <body> (.corps-back-office, voir
+   styles/blocFormulaire.css) — un fond opaque ici peindrait par-dessus le filigrane
+   (FiligraneFormulaire, position fixed + z-index négatif) et le rendrait invisible. Même
+   principe que .page-inscription-tablette côté candidat, qui est transparent pour la même
+   raison. */
 .page-back-office {
   --hauteur-entete: 8rem;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   box-sizing: border-box;
-  /* Dégradé de fond propre au back-office, teinté --couleur-back-office-clair plutôt que
-     --couleur-primaire-clair (celui posé sur <body>, voir styles/blocFormulaire.css) — cette page
-     couvre toute la hauteur (min-height: 100vh) et masque donc entièrement le dégradé candidat
-     du <body> derrière elle, sans avoir à toucher cette règle globale. */
-  background-color: #ffffff;
-  background-image: linear-gradient(180deg, #ffffff 0%, var(--couleur-back-office-clair) 100%);
 }
 
-/* En-tête sticky : dégradé sobre à une seule teinte (clair -> foncé) plutôt que le dégradé
-   bicolore indigo/turquoise du formulaire candidat (InscriptionTablette.css, repris de la
-   bannière du site officiel accecit.com) — cette différence de traitement, pas seulement de
-   teinte, renforce la distinction entre les deux espaces au premier coup d'œil. */
+/* En-tête sticky : dégradé brun foncé -> doré (--couleur-back-office-dore, dérivé du tourbillon
+   doré du logo — voir variables.css), même construction à deux teintes que le dégradé
+   indigo/turquoise du formulaire candidat (InscriptionTablette.css) mais dans une famille de
+   couleur totalement différente (brun/bronze plutôt que bleu), pour renforcer la distinction
+   entre les deux espaces au premier coup d'œil tout en restant cohérent avec l'identité de
+   marque (le doré du logo). --couleur-back-office-dore est volontairement assombri par rapport
+   au doré brut du logo (voir le commentaire dans variables.css) : le texte blanc du logo/des
+   sous-marques doit rester lisible sur toute la largeur du dégradé, y compris à son extrémité
+   la plus claire. */
 .page-back-office__entete {
   position: fixed;
   top: 0;
@@ -31,7 +36,7 @@
   right: 0;
   z-index: 10;
   overflow: hidden;
-  background: linear-gradient(90deg, var(--couleur-back-office), var(--couleur-back-office-hover));
+  background: linear-gradient(90deg, var(--couleur-back-office), var(--couleur-back-office-dore));
   border-bottom: 1px solid var(--couleur-back-office-hover);
   border-radius: 10px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
@@ -79,22 +84,29 @@
   flex-direction: column;
 }
 
+/* text-shadow sur le texte blanc de l'en-tête/pied de page : filet de sécurité supplémentaire
+   pour la lisibilité par-dessus le dégradé brun/doré (en plus du calibrage de
+   --couleur-back-office-dore lui-même, voir son commentaire dans variables.css) — absent côté
+   candidat (InscriptionTablette.css), pas nécessaire là où le dégradé ne comporte aucune teinte
+   claire. */
 .page-back-office__logo-marque-nom {
   color: #ffffff;
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: 0.28em;
   line-height: 1.3;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .page-back-office__logo-marque-sous-nom {
-  color: #d8e6f2;
+  color: #f1e6d3;
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   line-height: 1.3;
   border-top: 1px solid rgba(255, 255, 255, 0.55);
   margin-top: 0.15rem;
   padding-top: 0.15rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* Contenu défilant sous l'en-tête fixe : largeur maximale centrée, décalé du haut de la hauteur
@@ -112,10 +124,13 @@
   flex: 1 0 auto;
 }
 
-/* Pied de page : même dégradé (une seule teinte, haut -> bas) que l'en-tête, coins hauts arrondis
-   en écho avec lui — même logique que .pied-de-page côté candidat (PiedDePageFormulaire.css). */
+/* Pied de page : même dégradé brun -> doré que l'en-tête (haut -> bas plutôt que gauche ->
+   droite), coins hauts arrondis en écho avec lui — même logique que .pied-de-page côté candidat
+   (PiedDePageFormulaire.css). */
 .page-back-office__pied-de-page {
-  background: linear-gradient(180deg, var(--couleur-back-office), var(--couleur-back-office-hover));
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, var(--couleur-back-office), var(--couleur-back-office-dore));
   border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
 }
 
@@ -149,6 +164,7 @@
   margin: 0;
   color: #ffffff;
   font-size: 0.9rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .page-back-office__copyright {
@@ -157,4 +173,5 @@
   text-align: center;
   color: rgba(255, 255, 255, 0.7);
   font-size: 0.75rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }

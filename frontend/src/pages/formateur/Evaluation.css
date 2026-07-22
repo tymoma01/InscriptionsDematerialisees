@@ -1,12 +1,8 @@
-.page-evaluation {
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: var(--espace-grand) var(--espace-moyen);
-}
-
+/* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). */
 .page-evaluation__entete h1 {
   margin: 0 0 var(--espace-petit);
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
 }
 
 .page-evaluation [role='alert'] {

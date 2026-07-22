@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import FiligraneFormulaire from '../../pages/accueil/FiligraneFormulaire';
 import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
@@ -41,6 +42,17 @@ function LogoSousMarque({ icone, nom }) {
 // candidat) — ce composant ne connaît aucun titre ni contenu propre à une page back-office
 // particulière, seulement l'habillage commun.
 export default function PageBackOffice({ children }) {
+  // Pose la teinte back-office sur <body> plutôt que sur ce conteneur de page (voir
+  // styles/blocFormulaire.css, .corps-back-office, pour l'explication détaillée) : le filigrane
+  // (position fixed + z-index négatif) doit rester visible par-dessus le fond de <body>, ce qui ne
+  // fonctionne que si AUCUN élément en flux normal entre <body> et lui ne porte de fond opaque.
+  // Nettoyage au démontage : une page back-office ne reste jamais affichée en même temps qu'une
+  // page candidat, mais la classe ne doit pas persister sur <body> après un changement de route.
+  useEffect(() => {
+    document.body.classList.add('corps-back-office');
+    return () => document.body.classList.remove('corps-back-office');
+  }, []);
+
   return (
     <main className="page-back-office">
       <FiligraneFormulaire />

@@ -9,7 +9,7 @@
 }
 
 .gestion-rendezvous h2 {
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   margin: 0 0 var(--espace-moyen);
 }
 
@@ -41,7 +41,7 @@
 
 .gestion-rendezvous__type {
   font-weight: 600;
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   text-transform: capitalize;
 }
 
@@ -105,8 +105,8 @@
 }
 
 .gestion-rendezvous__formulaire-motif-actions button[type='submit'] {
-  background-color: var(--couleur-primaire);
-  border-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
 }

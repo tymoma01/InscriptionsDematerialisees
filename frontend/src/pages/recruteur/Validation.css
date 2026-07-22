@@ -1,12 +1,8 @@
-.page-validation {
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: var(--espace-grand) var(--espace-moyen);
-}
-
+/* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). */
 .page-validation h1 {
   margin: 0 0 var(--espace-grand);
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
 }
 
 .page-validation__pieces {
@@ -20,7 +16,7 @@
 }
 
 .page-validation__pieces h2 {
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   margin: 0 0 var(--espace-moyen);
 }
 

@@ -9,7 +9,7 @@
 }
 
 .historique-relances h2 {
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   margin: 0 0 var(--espace-moyen);
 }
 
@@ -51,7 +51,7 @@
 
 .historique-relances__canal {
   font-weight: 600;
-  color: var(--couleur-primaire);
+  color: var(--couleur-back-office);
   flex: 0 0 6rem;
 }
 
@@ -105,14 +105,14 @@
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-primaire);
+  background-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
   cursor: pointer;
 }
 
 .historique-relances__formulaire button:hover:not(:disabled) {
-  background-color: var(--couleur-primaire-hover);
+  background-color: var(--couleur-back-office-hover);
 }
 
 .historique-relances__formulaire button:disabled {
