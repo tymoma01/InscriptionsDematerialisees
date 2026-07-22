@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import FormulaireInscription from '../../core/formulaire/FormulaireInscription';
 import { formulaireConfigAccecitTest } from '../../core/formulaire/donneesTest/formulaireConfig.accecit';
 import ConfirmationInscription from './ConfirmationInscription';
@@ -32,6 +32,16 @@ export default function InscriptionTablette() {
   // le formulaire — la mention "* Champs obligatoires" n'a plus lieu d'être une fois
   // l'inscription terminée, elle ne doit donc apparaître que dans la branche formulaire.
   const [dossierIdConfirmation, setDossierIdConfirmation] = useState(null);
+
+  // DEV UNIQUEMENT — À RETIRER une fois inutile : ?apercu_confirmation=<dossierId> affiche
+  // directement l'écran de confirmation avec ce dossierId, sans passer par une inscription
+  // réelle. Utile pour prévisualiser cet écran quand la soumission échoue pour une raison
+  // indépendante du front (ex. secret Key Vault nir-hmac-key pas encore créé côté infra).
+  // Exemple : http://localhost:5173/?apercu_confirmation=52
+  useEffect(() => {
+    const dossierIdApercu = new URLSearchParams(window.location.search).get('apercu_confirmation');
+    if (dossierIdApercu) setDossierIdConfirmation(dossierIdApercu);
+  }, []);
 
   return (
     <main className="page-inscription-tablette">
