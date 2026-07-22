@@ -44,6 +44,7 @@ export default function InscriptionTablette() {
       </header>
       <div className="page-inscription-tablette__contenu">
         <h1>Inscription candidat</h1>
+        <p className="page-inscription-tablette__mention-obligatoire">* Champs obligatoires</p>
         <FormulaireInscription configBlocs={formulaireConfigAccecitTest} />
       </div>
       <PiedDePageFormulaire />

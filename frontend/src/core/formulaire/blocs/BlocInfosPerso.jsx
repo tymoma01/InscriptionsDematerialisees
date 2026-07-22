@@ -50,13 +50,17 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       <legend>Informations personnelles</legend>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="nom">Nom</label>
+        <label htmlFor="nom">
+          Nom <span className="champ-obligatoire">*</span>
+        </label>
         <input id="nom" type="text" autoComplete="family-name" {...register('nom')} />
         {errors.nom && <p role="alert">{errors.nom.message}</p>}
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="prenom">Prénom</label>
+        <label htmlFor="prenom">
+          Prénom <span className="champ-obligatoire">*</span>
+        </label>
         <input id="prenom" type="text" autoComplete="given-name" {...register('prenom')} />
         {errors.prenom && <p role="alert">{errors.prenom.message}</p>}
       </div>
@@ -68,19 +72,25 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="dateNaissance">Date de naissance</label>
+        <label htmlFor="dateNaissance">
+          Date de naissance <span className="champ-obligatoire">*</span>
+        </label>
         <input id="dateNaissance" type="date" {...register('dateNaissance')} />
         {errors.dateNaissance && <p role="alert">{errors.dateNaissance.message}</p>}
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="lieuNaissance">Lieu de naissance</label>
+        <label htmlFor="lieuNaissance">
+          Lieu de naissance <span className="champ-obligatoire">*</span>
+        </label>
         <input id="lieuNaissance" type="text" {...register('lieuNaissance')} />
         {errors.lieuNaissance && <p role="alert">{errors.lieuNaissance.message}</p>}
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="nationalite">Nationalité</label>
+        <label htmlFor="nationalite">
+          Nationalité <span className="champ-obligatoire">*</span>
+        </label>
         <select id="nationalite" {...register('nationalite')}>
           <option value="">Sélectionner...</option>
           {NATIONALITES.map((nationalite) => (
@@ -93,7 +103,9 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="situationFamiliale">Situation familiale</label>
+        <label htmlFor="situationFamiliale">
+          Situation familiale <span className="champ-obligatoire">*</span>
+        </label>
         <select id="situationFamiliale" {...register('situationFamiliale')}>
           <option value="">Sélectionner...</option>
           {SITUATIONS_FAMILIALES.map((situation) => (
@@ -106,7 +118,9 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="nir">N° de sécurité sociale</label>
+        <label htmlFor="nir">
+          N° de sécurité sociale <span className="champ-obligatoire">*</span>
+        </label>
         <input id="nir" type="text" inputMode="numeric" placeholder="1 85 05 78 006 084 36" {...register('nir')} />
         {errors.nir && <p role="alert">{errors.nir.message}</p>}
       </div>

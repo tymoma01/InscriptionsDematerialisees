@@ -87,6 +87,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   const typePosteSelectionne = valeursSaisies.typePoste;
   const commentConnuSelectionne = valeursSaisies.commentConnu;
   const commentConnuPrecisionVisible = ['internet', 'autre', 'cooptation'].includes(commentConnuSelectionne);
+  // La précision n'est réellement obligatoire (voir BlocDisponibilites.schema.js) que pour
+  // "Internet"/"Autre" — "Cooptation" affiche aussi le champ mais ne l'exige pas.
+  const commentConnuPrecisionObligatoire = ['internet', 'autre'].includes(commentConnuSelectionne);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
@@ -100,13 +103,17 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       {!disponibleImmediatement && (
         <div className="bloc-disponibilites__dates">
           <div>
-            <label htmlFor="dateDebut">Date de début de disponibilité</label>
+            <label htmlFor="dateDebut">
+              Date de début de disponibilité <span className="champ-obligatoire">*</span>
+            </label>
             <input id="dateDebut" type="date" {...register('dateDebut')} />
             {errors.dateDebut && <p role="alert">{errors.dateDebut.message}</p>}
           </div>
 
           <div>
-            <label htmlFor="dateFin">Date de fin de disponibilité</label>
+            <label htmlFor="dateFin">
+              Date de fin de disponibilité <span className="champ-obligatoire">*</span>
+            </label>
             <input id="dateFin" type="date" {...register('dateFin')} />
             {errors.dateFin && <p role="alert">{errors.dateFin.message}</p>}
           </div>
@@ -114,7 +121,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       )}
 
       <fieldset>
-        <legend>Créneaux souhaités</legend>
+        <legend>
+          Créneaux souhaités <span className="champ-obligatoire">*</span>
+        </legend>
         <div className="bloc-disponibilites__options">
           {CRENEAUX.map((creneau) => (
             <label key={creneau.code} htmlFor={`creneau-${creneau.code}`}>
@@ -132,7 +141,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       {errors.creneaux && <p role="alert">{errors.creneaux.message}</p>}
 
       <fieldset>
-        <legend>Jours disponibles</legend>
+        <legend>
+          Jours disponibles <span className="champ-obligatoire">*</span>
+        </legend>
         <div className="bloc-disponibilites__options">
           {JOURS.map((jour) => (
             <label key={jour.code} htmlFor={`jour-${jour.code}`}>
@@ -168,14 +179,18 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
 
       {autreLangueCochee && (
         <div className="bloc-disponibilites__champ-precision">
-          <label htmlFor="autreLanguePrecision">Précisez la langue</label>
+          <label htmlFor="autreLanguePrecision">
+            Précisez la langue <span className="champ-obligatoire">*</span>
+          </label>
           <input id="autreLanguePrecision" type="text" {...register('autreLanguePrecision')} />
           {errors.autreLanguePrecision && <p role="alert">{errors.autreLanguePrecision.message}</p>}
         </div>
       )}
 
       <fieldset>
-        <legend>Type de poste recherché</legend>
+        <legend>
+          Type de poste recherché <span className="champ-obligatoire">*</span>
+        </legend>
         <div className="bloc-disponibilites__options">
           <label htmlFor="typePoste-bureau">
             <input id="typePoste-bureau" type="radio" value="bureau" {...register('typePoste')} />
@@ -192,7 +207,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       {typePosteSelectionne === 'bureau' && (
         <>
           <fieldset>
-            <legend>Poste recherché (bureau)</legend>
+            <legend>
+              Poste recherché (bureau) <span className="champ-obligatoire">*</span>
+            </legend>
             <div className="bloc-disponibilites__options">
               {POSTES_BUREAU.map((poste) => (
                 <label key={poste.code} htmlFor={`posteBureau-${poste.code}`}>
@@ -214,7 +231,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       {typePosteSelectionne === 'hotel' && (
         <>
           <fieldset>
-            <legend>Poste recherché (hôtel)</legend>
+            <legend>
+              Poste recherché (hôtel) <span className="champ-obligatoire">*</span>
+            </legend>
             <div className="bloc-disponibilites__options">
               {POSTES_HOTEL.map((poste) => (
                 <label key={poste.code} htmlFor={`posteHotel-${poste.code}`}>
@@ -234,7 +253,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       )}
 
       <fieldset>
-        <legend>Comment nous avez-vous connu ?</legend>
+        <legend>
+          Comment nous avez-vous connu ? <span className="champ-obligatoire">*</span>
+        </legend>
         <div className="bloc-disponibilites__options">
           {COMMENT_CONNU.map((option) => (
             <label key={option.code} htmlFor={`commentConnu-${option.code}`}>
@@ -253,7 +274,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
 
       {commentConnuPrecisionVisible && (
         <div className="bloc-disponibilites__champ-precision">
-          <label htmlFor="commentConnuPrecision">Précisez</label>
+          <label htmlFor="commentConnuPrecision">
+            Précisez {commentConnuPrecisionObligatoire && <span className="champ-obligatoire">*</span>}
+          </label>
           <input id="commentConnuPrecision" type="text" {...register('commentConnuPrecision')} />
           {errors.commentConnuPrecision && <p role="alert">{errors.commentConnuPrecision.message}</p>}
         </div>

@@ -67,7 +67,9 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
       </div>
 
       <fieldset>
-        <legend>Autorisation de diffusion de vos données</legend>
+        <legend>
+          Autorisation de diffusion de vos données <span className="champ-obligatoire">*</span>
+        </legend>
 
         <label className="bloc-consentement-rgpd__option" htmlFor="consentementDiffusion-autorise">
           <input
@@ -97,7 +99,10 @@ export default function BlocConsentementRGPD({ valeurs, onChange, onValiditeChan
 
       {autorise && (
         <div className="bloc-consentement-rgpd__signature">
-          <p>Merci de signer ci-dessous pour confirmer votre autorisation.</p>
+          <p>
+            Merci de signer ci-dessous pour confirmer votre autorisation.{' '}
+            <span className="champ-obligatoire">*</span>
+          </p>
           <SignatureElectronique
             valeur={valeursSaisies.signatureImage}
             onChange={(image) => setValue('signatureImage', image, { shouldValidate: true })}

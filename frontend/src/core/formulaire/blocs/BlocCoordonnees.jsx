@@ -38,31 +38,41 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
       <legend>Coordonnées</legend>
 
       <div className="bloc-coordonnees__champ">
-        <label htmlFor="adresse">Adresse</label>
+        <label htmlFor="adresse">
+          Adresse <span className="champ-obligatoire">*</span>
+        </label>
         <input id="adresse" type="text" autoComplete="street-address" {...register('adresse')} />
         {errors.adresse && <p role="alert">{errors.adresse.message}</p>}
       </div>
 
       <div className="bloc-coordonnees__champ">
-        <label htmlFor="telephone">Téléphone</label>
+        <label htmlFor="telephone">
+          Téléphone <span className="champ-obligatoire">*</span>
+        </label>
         <input id="telephone" type="tel" autoComplete="tel" {...register('telephone')} />
         {errors.telephone && <p role="alert">{errors.telephone.message}</p>}
       </div>
 
       <div className="bloc-coordonnees__champ">
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">
+          Email <span className="champ-obligatoire">*</span>
+        </label>
         <input id="email" type="email" autoComplete="email" {...register('email')} />
         {errors.email && <p role="alert">{errors.email.message}</p>}
       </div>
 
       <div className="bloc-coordonnees__champ">
-        <label htmlFor="contactUrgenceNom">Nom du contact d'urgence</label>
+        <label htmlFor="contactUrgenceNom">
+          Nom du contact d'urgence <span className="champ-obligatoire">*</span>
+        </label>
         <input id="contactUrgenceNom" type="text" {...register('contactUrgenceNom')} />
         {errors.contactUrgenceNom && <p role="alert">{errors.contactUrgenceNom.message}</p>}
       </div>
 
       <div className="bloc-coordonnees__champ">
-        <label htmlFor="contactUrgenceTelephone">Téléphone du contact d'urgence</label>
+        <label htmlFor="contactUrgenceTelephone">
+          Téléphone du contact d'urgence <span className="champ-obligatoire">*</span>
+        </label>
         <input id="contactUrgenceTelephone" type="tel" {...register('contactUrgenceTelephone')} />
         {errors.contactUrgenceTelephone && <p role="alert">{errors.contactUrgenceTelephone.message}</p>}
       </div>

@@ -130,6 +130,15 @@
 }
 
 .page-inscription-tablette h1 {
-  margin: 0 0 var(--espace-moyen);
+  margin: 0 0 0.25rem;
   color: var(--couleur-texte);
+}
+
+/* Mention discrète expliquant la convention de l'astérisque (voir .champ-obligatoire,
+   styles/blocFormulaire.css) — taille réduite et couleur secondaire pour ne pas concurrencer
+   le titre, rapprochée de celui-ci puis espacée du formulaire qui suit. */
+.page-inscription-tablette__mention-obligatoire {
+  margin: 0 0 var(--espace-grand);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
 }

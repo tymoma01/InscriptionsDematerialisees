@@ -88,3 +88,10 @@ body {
   color: var(--couleur-erreur);
   font-size: 0.875rem;
 }
+
+/* Astérisque des champs obligatoires (voir convention "* Champs obligatoires" en tête du
+   formulaire, InscriptionTablette.jsx) : couleur d'erreur pour rester visible sans dépendre
+   d'une nouvelle variable de couleur dédiée. */
+.champ-obligatoire {
+  color: var(--couleur-erreur);
+}
