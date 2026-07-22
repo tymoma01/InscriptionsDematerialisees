@@ -64,27 +64,27 @@ export default function BlocCharte({ valeurs, onChange, onValiditeChange }) {
 
       <div className="bloc-charte__notice" ref={noticeRef} onScroll={verifierCharteLue}>
         <p>
-          <strong>Préambule</strong> — Le présent règlement a pour objet de préciser les règles
+          <strong>Préambule.</strong> Le présent règlement a pour objet de préciser les règles
           applicables au sein d'ACCECIT et chez ses entreprises clientes, dans l'intérêt de tous
           et pour la bonne marche du travail. Il s'applique à l'ensemble du personnel intérimaire
           et temporaire pendant la durée de sa mission.
         </p>
 
         <p>
-          <strong>Article I — Ponctualité</strong> — Le salarié doit se présenter à son poste de
+          <strong>Article I : Ponctualité.</strong> Le salarié doit se présenter à son poste de
           travail à l'heure fixée, en tenue de travail complète et conforme aux exigences du
           poste.
         </p>
 
         <p>
-          <strong>Article II — Respect du règlement et de la clientèle</strong> — Le salarié
+          <strong>Article II : Respect du règlement et de la clientèle.</strong> Le salarié
           s'engage à respecter le règlement intérieur de l'entreprise cliente ainsi que sa
           clientèle. Ce règlement est disponible à l'accueil de l'agence et dans le cahier de
           correspondance de chaque site.
         </p>
 
         <p>
-          <strong>Article III — Interdictions</strong> — Sont notamment interdits :
+          <strong>Article III : Interdictions.</strong> Sont notamment interdits :
         </p>
         <ul>
           <li>la diffusion de tracts ou l'affichage non autorisé ;</li>
@@ -100,7 +100,7 @@ export default function BlocCharte({ valeurs, onChange, onValiditeChange }) {
         </ul>
 
         <p>
-          <strong>Article IV — Comportement et hygiène</strong> — Le salarié doit adopter un
+          <strong>Article IV : Comportement et hygiène.</strong> Le salarié doit adopter un
           comportement courtois envers la clientèle. Il est interdit de pénétrer sur le lieu de
           travail en état d'ébriété ou d'y introduire des boissons alcoolisées, ainsi que de
           fumer dans les zones où cela est signalé. Le salarié doit veiller à sa propreté
