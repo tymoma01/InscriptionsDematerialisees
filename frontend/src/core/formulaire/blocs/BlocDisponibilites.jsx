@@ -87,10 +87,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   const autreLangueCochee = (valeursSaisies.languesParlees ?? []).includes('autre');
   const typePosteSelectionne = valeursSaisies.typePoste;
   const commentConnuSelectionne = valeursSaisies.commentConnu;
+  // Visible et obligatoire pour les 3 mêmes options (voir BlocDisponibilites.schema.js) :
+  // Internet, Autre et Cooptation.
   const commentConnuPrecisionVisible = ['internet', 'autre', 'cooptation'].includes(commentConnuSelectionne);
-  // La précision n'est réellement obligatoire (voir BlocDisponibilites.schema.js) que pour
-  // "Internet"/"Autre" — "Cooptation" affiche aussi le champ mais ne l'exige pas.
-  const commentConnuPrecisionObligatoire = ['internet', 'autre'].includes(commentConnuSelectionne);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
@@ -286,7 +285,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       {commentConnuPrecisionVisible && (
         <div className="bloc-disponibilites__champ-precision">
           <label htmlFor="commentConnuPrecision">
-            Précisez {commentConnuPrecisionObligatoire && <span className="champ-obligatoire">*</span>}
+            Précisez <span className="champ-obligatoire">*</span>
           </label>
           <input id="commentConnuPrecision" type="text" {...register('commentConnuPrecision')} />
           {errors.commentConnuPrecision && <p role="alert">{errors.commentConnuPrecision.message}</p>}

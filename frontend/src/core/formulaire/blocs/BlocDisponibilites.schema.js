@@ -47,10 +47,12 @@ export const blocDisponibilitesSchema = z
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
   })
-  // Précision obligatoire uniquement si "Internet" ou "Autre" est sélectionné
+  // Précision obligatoire pour "Internet", "Autre" et "Cooptation" — les 3 options où le champ
+  // "Précisez" est affiché (voir commentConnuPrecisionVisible, BlocDisponibilites.jsx)
   .refine(
     (valeurs) =>
-      !['internet', 'autre'].includes(valeurs.commentConnu) || valeurs.commentConnuPrecision !== '',
+      !['internet', 'autre', 'cooptation'].includes(valeurs.commentConnu) ||
+      valeurs.commentConnuPrecision !== '',
     {
       message: 'Veuillez préciser',
       path: ['commentConnuPrecision'],
