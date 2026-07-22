@@ -6,7 +6,12 @@ import './FormulaireInscription.css';
 
 // Conteneur générique : orchestre la navigation entre blocs actifs d'une entité.
 // Ne référence aucun bloc par son code — uniquement via la config reçue en prop.
-export default function FormulaireInscription({ configBlocs }) {
+// onInscriptionReussie({ candidatId, dossierId }) : l'écran affiché une fois l'inscription
+// enregistrée (gros message centré + bouton de redirection vers la prise des pièces
+// justificatives, voir ConfirmationInscription.jsx) est spécifique à l'entité/à la page, pas au
+// moteur générique — ce composant se contente de signaler la réussite à l'appelant
+// (InscriptionTablette.jsx), qui décide de l'écran suivant.
+export default function FormulaireInscription({ configBlocs, onInscriptionReussie }) {
   const {
     etapes,
     blocsActifs,
@@ -25,7 +30,6 @@ export default function FormulaireInscription({ configBlocs }) {
 
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
-  const [inscriptionReussie, setInscriptionReussie] = useState(false);
 
   if (etapes.length === 0) {
     return <p>Aucun bloc de formulaire actif pour cette entité.</p>;
@@ -40,8 +44,8 @@ export default function FormulaireInscription({ configBlocs }) {
     setEnvoiEnCours(true);
     try {
       const candidat = Object.assign({}, ...blocsActifs.map((bloc) => valeursParBloc[bloc.code]));
-      await creerCandidat(candidat);
-      setInscriptionReussie(true);
+      const { candidatId, dossierId } = await creerCandidat(candidat);
+      onInscriptionReussie?.({ candidatId, dossierId });
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
@@ -52,14 +56,6 @@ export default function FormulaireInscription({ configBlocs }) {
       setEnvoiEnCours(false);
     }
   };
-
-  if (inscriptionReussie) {
-    return (
-      <div className="formulaire-inscription__confirmation" role="status">
-        <p>Inscription enregistrée avec succès.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="formulaire-inscription">

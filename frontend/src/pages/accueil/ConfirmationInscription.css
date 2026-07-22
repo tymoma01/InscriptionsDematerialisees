@@ -1,0 +1,46 @@
+/* Écran de confirmation : gros message bien visible, centré à la fois horizontalement (texte)
+   et verticalement dans l'espace disponible (min-height), pour rester lisible de loin une fois
+   la tablette tendue au candidat puis reprise par l'agent. */
+.confirmation-inscription {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--espace-grand);
+  min-height: 60vh;
+}
+
+.confirmation-inscription__message {
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--couleur-primaire);
+  max-width: 40rem;
+}
+
+/* Même style que les boutons de navigation du formulaire (FormulaireInscription.css), pour
+   rester visuellement cohérent avec le reste du parcours. */
+.confirmation-inscription button {
+  font-family: var(--police-base);
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-primaire);
+  background-color: var(--couleur-primaire);
+  color: var(--couleur-fond);
+  cursor: pointer;
+}
+
+.confirmation-inscription button:hover:not(:disabled) {
+  background-color: var(--couleur-primaire-hover);
+  border-color: var(--couleur-primaire-hover);
+}
+
+.confirmation-inscription button:disabled {
+  background-color: var(--gris-200);
+  border-color: var(--gris-200);
+  color: var(--gris-500);
+  cursor: not-allowed;
+}

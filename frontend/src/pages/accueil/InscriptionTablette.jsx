@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import FormulaireInscription from '../../core/formulaire/FormulaireInscription';
 import { formulaireConfigAccecitTest } from '../../core/formulaire/donneesTest/formulaireConfig.accecit';
+import ConfirmationInscription from './ConfirmationInscription';
 import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
 import iconeAccecitTertiaire from '../../assets/icone-accecit-tertiaire.png';
@@ -26,6 +28,11 @@ function LogoSousMarque({ icone, nom }) {
 // La config vient de données de test locales tant que le backend n'est pas branché ;
 // elle sera remplacée par le résultat de l'appel à l'API (résolution via entiteContext).
 export default function InscriptionTablette() {
+  // Une fois renseigné (voir onInscriptionReussie ci-dessous), l'écran de confirmation remplace
+  // le formulaire — la mention "* Champs obligatoires" n'a plus lieu d'être une fois
+  // l'inscription terminée, elle ne doit donc apparaître que dans la branche formulaire.
+  const [dossierIdConfirmation, setDossierIdConfirmation] = useState(null);
+
   return (
     <main className="page-inscription-tablette">
       <FiligraneFormulaire />
@@ -43,9 +50,18 @@ export default function InscriptionTablette() {
         </div>
       </header>
       <div className="page-inscription-tablette__contenu">
-        <h1>Inscription candidat</h1>
-        <p className="page-inscription-tablette__mention-obligatoire">* Champs obligatoires</p>
-        <FormulaireInscription configBlocs={formulaireConfigAccecitTest} />
+        {dossierIdConfirmation ? (
+          <ConfirmationInscription dossierId={dossierIdConfirmation} />
+        ) : (
+          <>
+            <h1>Inscription candidat</h1>
+            <p className="page-inscription-tablette__mention-obligatoire">* Champs obligatoires</p>
+            <FormulaireInscription
+              configBlocs={formulaireConfigAccecitTest}
+              onInscriptionReussie={({ dossierId }) => setDossierIdConfirmation(dossierId)}
+            />
+          </>
+        )}
       </div>
       <PiedDePageFormulaire />
     </main>
