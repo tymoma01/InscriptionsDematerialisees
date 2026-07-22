@@ -12,11 +12,38 @@
 }
 
 .confirmation-inscription__message {
-  font-size: 2rem;
+  font-size: 2.75rem;
   font-weight: 600;
   line-height: 1.3;
   color: var(--couleur-primaire);
-  max-width: 40rem;
+  max-width: 48rem;
+}
+
+/* Les deux phrases du message sur leur propre ligne, avec un espacement entre elles plus
+   généreux que le simple interligne (line-height) du paragraphe. Icône + texte alignés côte à
+   côte et centrés ensemble (flex plutôt que display: block simple, pour ça). */
+.confirmation-inscription__ligne {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espace-petit);
+}
+
+.confirmation-inscription__ligne svg {
+  flex-shrink: 0;
+}
+
+/* Première phrase ("Votre inscription est enregistrée avec succès") : taille réduite par
+   rapport au reste du message et vert de confirmation plutôt que la couleur primaire — reste
+   sur une seule ligne (nowrap) même une fois plus petite, pour ne jamais se couper au milieu. */
+.confirmation-inscription__ligne--succes {
+  font-size: 1.75rem;
+  color: var(--couleur-succes);
+  white-space: nowrap;
+}
+
+.confirmation-inscription__ligne + .confirmation-inscription__ligne {
+  margin-top: 2.5rem;
 }
 
 /* Même style que les boutons de navigation du formulaire (FormulaireInscription.css), pour

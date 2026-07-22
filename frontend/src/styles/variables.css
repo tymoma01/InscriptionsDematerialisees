@@ -27,6 +27,9 @@
   --couleur-texte: var(--gris-800);
   --couleur-texte-secondaire: var(--gris-600);
   --couleur-erreur: #c0392b;
+  /* Vert "Nephritis" de la même palette flat-UI que --couleur-erreur ci-dessus (Pomegranate) —
+     reste dans la même famille visuelle professionnelle/peu saturée plutôt qu'un vert franc. */
+  --couleur-succes: #27ae60;
 
   /* Typographie — Open Sans (police du site officiel accecit.com), chargée via Google Fonts
      dans index.html ; repli sur la pile système si le chargement échoue. */
