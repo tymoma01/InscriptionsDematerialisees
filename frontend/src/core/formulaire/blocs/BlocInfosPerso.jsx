@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { blocInfosPersoSchema } from './BlocInfosPerso.schema';
 import { NATIONALITES } from './nationalites';
 import { propsChampNumeriqueMasque } from '../masqueNumerique';
+import { propsRadioAccessible } from '../radioAccessible';
 import { verifierDisponibilite } from '../../../services/candidatService';
 import './BlocInfosPerso.css';
 
@@ -32,6 +33,7 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     mode: 'onChange',
     resolver: zodResolver(blocInfosPersoSchema),
     defaultValues: {
+      civilite: valeurs?.civilite,
       nom: valeurs?.nom ?? '',
       nomNaissance: valeurs?.nomNaissance ?? '',
       lieuNaissance: valeurs?.lieuNaissance ?? '',
@@ -93,9 +95,50 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     }
   };
 
+  const civiliteSelectionnee = valeursSaisies.civilite;
+
   return (
     <fieldset className="bloc-formulaire bloc-infos-perso">
       <legend>Informations personnelles</legend>
+
+      <fieldset>
+        <legend>
+          Civilité <span className="champ-obligatoire">*</span>
+        </legend>
+        <div className="bloc-infos-perso__options">
+          <label htmlFor="civilite-monsieur">
+            <input
+              id="civilite-monsieur"
+              type="radio"
+              value="monsieur"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: 'civilite',
+                valeur: 'monsieur',
+                valeurCourante: civiliteSelectionnee,
+              })}
+            />
+            Monsieur
+          </label>
+          <label htmlFor="civilite-madame">
+            <input
+              id="civilite-madame"
+              type="radio"
+              value="madame"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: 'civilite',
+                valeur: 'madame',
+                valeurCourante: civiliteSelectionnee,
+              })}
+            />
+            Madame
+          </label>
+        </div>
+      </fieldset>
+      {errors.civilite && <p role="alert">{errors.civilite.message}</p>}
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
         <label htmlFor="nom">

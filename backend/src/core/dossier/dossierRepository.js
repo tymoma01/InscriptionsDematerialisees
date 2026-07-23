@@ -5,6 +5,7 @@ async function insererCandidat(
   trx,
   {
     entiteId,
+    civilite,
     nom,
     nomNaissance,
     lieuNaissance,
@@ -21,6 +22,7 @@ async function insererCandidat(
   const [candidat] = await trx('candidats')
     .insert({
       entite_id: entiteId,
+      civilite,
       nom,
       nom_naissance: nomNaissance,
       lieu_naissance: lieuNaissance,

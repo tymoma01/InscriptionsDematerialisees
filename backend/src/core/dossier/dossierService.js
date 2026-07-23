@@ -42,6 +42,7 @@ const MENTION_CHARTE_ATTENDUE = 'lu et approuvé'.normalize('NFC');
 // à sécuriser une écriture en base.
 const donneesInscriptionSchema = z
   .object({
+    civilite: z.enum(['monsieur', 'madame']),
     nom: z.string().trim().min(1),
     // Facultatif : vide/absent accepté, mais lettres uniquement si renseigné
     nomNaissance: z
@@ -176,6 +177,7 @@ async function inscrireCandidat(entite, donneesBrutes) {
     try {
       candidatId = await dossierRepository.insererCandidat(trx, {
         entiteId: entite.id,
+        civilite: donnees.civilite,
         nom: donnees.nom,
         nomNaissance: donnees.nomNaissance,
         lieuNaissance: donnees.lieuNaissance,

@@ -24,3 +24,13 @@
   flex-basis: 100%;
   margin: 0.25rem 0 0 calc(var(--largeur-label-champ) + var(--espace-petit));
 }
+
+/* Groupe de boutons radio (Civilité) — même patron que .bloc-disponibilites__options : sans ce
+   wrapper, les <label> restent inline et ne sont séparés que par l'espace blanc du JSX. */
+.bloc-infos-perso__options {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--espace-grand);
+  row-gap: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+}

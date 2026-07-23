@@ -8,6 +8,7 @@ const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 const LETTRES_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 
 export const blocInfosPersoSchema = z.object({
+  civilite: z.enum(['monsieur', 'madame'], { required_error: 'La civilité est obligatoire' }),
   nom: z.string().trim().min(1, 'Le nom est obligatoire'),
   // Facultatif : vide accepté, mais lettres uniquement si renseigné
   nomNaissance: z
