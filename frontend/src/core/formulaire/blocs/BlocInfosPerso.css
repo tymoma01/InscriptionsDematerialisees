@@ -33,17 +33,27 @@
    label/champ des autres lignes du bloc : display: contents retire sa boîte de la mise en page,
    ses enfants (legend, div d'options) deviennent alors directement des éléments flex de
    .bloc-infos-perso__champ-pleine-largeur, au même titre que label/input pour les autres champs.
-   border/margin/padding à 0 en filet de sécurité si display: contents n'était pas honoré. */
-.bloc-infos-perso__champ-pleine-largeur fieldset {
+   border/margin/padding à 0 en filet de sécurité si display: contents n'était pas honoré.
+   Classes dédiées (.bloc-infos-perso__fieldset-civilite / __legende-civilite) plutôt que les
+   simples sélecteurs de type `fieldset`/`legend` : styles/blocFormulaire.css pose déjà, pour TOUT
+   bloc, un cadre visible sur les sous-groupes fieldset/legend imbriqués (Créneaux, Jours...,
+   voir BlocDisponibilites) avec `.bloc-formulaire fieldset legend { padding: 0 var(--espace-petit); }`
+   — une classe + un type (spécificité 0,1,2), plus précis qu'un simple `fieldset`/`legend` ici
+   (0,1,1). Sans classes dédiées, cette règle globale gagnait silencieusement malgré `padding: 0`
+   ci-dessous, quel que soit l'ordre de chargement des feuilles de style — d'où le décalage
+   résiduel. Deux classes (0,2,*) l'emportent de façon déterministe. */
+.bloc-infos-perso__champ-pleine-largeur .bloc-infos-perso__fieldset-civilite {
   display: contents;
   border: 0;
   margin: 0;
   padding: 0;
+  min-width: 0;
 }
 
-.bloc-infos-perso__champ-pleine-largeur legend {
+.bloc-infos-perso__champ-pleine-largeur .bloc-infos-perso__legende-civilite {
   flex: 0 0 var(--largeur-label-champ);
   padding: 0;
+  margin: 0;
 }
 
 /* Groupe de boutons radio (Civilité) — même patron que .bloc-disponibilites__options : sans ce

@@ -102,11 +102,12 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       <legend>Informations personnelles</legend>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        {/* fieldset en display: contents côté CSS — retiré de la mise en page pour que legend
-            et le div d'options s'alignent sur la même grille label/champ que les autres lignes
-            du bloc (voir BlocInfosPerso.css), au lieu de dessiner leur propre cadre. */}
-        <fieldset>
-          <legend>
+        {/* Classes dédiées (pas juste fieldset/legend) : nécessaire pour que le reset de mise en
+            page dans BlocInfosPerso.css l'emporte sur le cadre générique posé par
+            styles/blocFormulaire.css pour tout fieldset/legend imbriqué — voir le commentaire
+            détaillé là-bas. */}
+        <fieldset className="bloc-infos-perso__fieldset-civilite">
+          <legend className="bloc-infos-perso__legende-civilite">
             Civilité <span className="champ-obligatoire">*</span>
           </legend>
           <div className="bloc-infos-perso__options">
