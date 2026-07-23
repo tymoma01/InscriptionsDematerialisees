@@ -4,7 +4,11 @@
     { "code": "en_attente_pieces", "libelle": "En attente de pièces", "ordre": 2, "estInitial": false, "estFinal": false },
     { "code": "en_attente_verification", "libelle": "En attente de vérification", "ordre": 3, "estInitial": false, "estFinal": false },
     { "code": "valide", "libelle": "Validé", "ordre": 4, "estInitial": false, "estFinal": true },
-    { "code": "rejete", "libelle": "Rejeté", "ordre": 5, "estInitial": false, "estFinal": true }
+    { "code": "rejete", "libelle": "Rejeté", "ordre": 5, "estInitial": false, "estFinal": true },
+    { "code": "test_planifie", "libelle": "Test planifié", "ordre": 6, "estInitial": false, "estFinal": false },
+    { "code": "en_attente_verdict", "libelle": "En attente de verdict", "ordre": 7, "estInitial": false, "estFinal": false },
+    { "code": "verdict_positif", "libelle": "Verdict positif", "ordre": 8, "estInitial": false, "estFinal": false },
+    { "code": "verdict_negatif", "libelle": "Verdict négatif", "ordre": 9, "estInitial": false, "estFinal": false }
   ],
   "transitions": [
     {
@@ -30,6 +34,30 @@
       "statutOrigine": "en_attente_verification",
       "statutDestination": "rejete",
       "motifRequis": true
+    },
+    {
+      "codeAction": "planifier_test",
+      "statutOrigine": "en_attente_verification",
+      "statutDestination": "test_planifie",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "test_realise",
+      "statutOrigine": "test_planifie",
+      "statutDestination": "en_attente_verdict",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "soumettre_verdict_positif",
+      "statutOrigine": "en_attente_verdict",
+      "statutDestination": "verdict_positif",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "soumettre_verdict_negatif",
+      "statutOrigine": "en_attente_verdict",
+      "statutDestination": "verdict_negatif",
+      "motifRequis": false
     }
   ]
 }

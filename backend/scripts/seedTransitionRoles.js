@@ -25,6 +25,22 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // Décision finale du recruteur (CLAUDE.md, section Rôles : "décision finale (validé/refusé)").
   valider_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
   rejeter_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
+  // Bouton "Terminer et planifier un test" (CLAUDE.md, section Accueil/Coordination :
+  // "planifie les tests"). Déclenchée lors de la création du rendez-vous de test — la route de
+  // création n'existe pas encore (voir core/rendezvous/rendezvousRepository.js), à raccorder
+  // quand elle sera écrite.
+  planifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
+  // Transition interne, même statut que inscription_soumise ci-dessus : pas déclenchée par un
+  // agent via POST /transitions, mais par un mécanisme automatique (job planifié à écrire,
+  // même patron que rappelService.js) quand la date du rendez-vous de test est atteinte.
+  // ROLES.SYSTEME listé par cohérence documentaire uniquement.
+  test_realise: [ROLES.SYSTEME],
+  // Écrites par evaluationEngine.enregistrerEvaluation (à raccorder — voir CLAUDE.md, section
+  // Rôles : "Formateur ... valide/invalide le test"), pas par POST /transitions directement pour
+  // l'instant. FORMATEUR listé par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au
+  // cas où l'action serait un jour exposée telle quelle via l'API générique.
+  soumettre_verdict_positif: [ROLES.FORMATEUR, ROLES.ADMIN],
+  soumettre_verdict_negatif: [ROLES.FORMATEUR, ROLES.ADMIN],
 };
 
 async function seedTransitionRoles(codeEntite) {
