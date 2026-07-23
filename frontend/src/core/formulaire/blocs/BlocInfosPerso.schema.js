@@ -1,8 +1,13 @@
 import { z } from 'zod';
 import { NATIONALITES } from './nationalites';
 
-// NIR : 15 chiffres (13 + clé à 2 chiffres), espaces tolérés à la saisie
-const NIR_REGEX = /^\d{13}\s?\d{2}$/;
+// NIR : 15 chiffres (13 + clé à 2 chiffres), espaces tolérés à la saisie. Exportée : réutilisée
+// par BlocInfosPerso.jsx pour la validation croisée NIR / civilité / date de naissance (voir
+// calculerErreurCoherenceNir là-bas — implémentée en dehors du schéma zod, pas via .refine() :
+// react-hook-form + zodResolver s'est révélé peu fiable pour rafraîchir une erreur croisée sur un
+// champ quand c'est un AUTRE champ dont dépend le refine qui change, voir le commentaire détaillé
+// dans BlocInfosPerso.jsx).
+export const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 
 // Nom de naissance : lettres uniquement (accents, tirets et apostrophes tolérés)
 const LETTRES_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
