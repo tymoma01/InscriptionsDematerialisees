@@ -1,8 +1,9 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { blocCoordonneesSchema } from './BlocCoordonnees.schema';
 import { propsChampNumeriqueMasque } from '../masqueNumerique';
+import { verifierDisponibilite } from '../../../services/candidatService';
 import './BlocCoordonnees.css';
 
 // Format téléphone français standard : 5 groupes de 2 chiffres (ex. "06 12 34 56 78").
@@ -35,9 +36,38 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
     onChange(valeursSaisies);
   }, [JSON.stringify(valeursSaisies)]);
 
+  // Vérification d'unicité en temps réel (au blur, voir gererBlurEmail plus bas) — distincte de la
+  // validation de format (isValid ci-dessus) : un email peut être bien formé mais déjà utilisé
+  // par un autre dossier. Tant que ce conflit n'est pas résolu, le bloc reste invalide (voir
+  // useEffect onValiditeChange plus bas) pour empêcher d'avancer avec un email en conflit.
+  const [erreurDisponibiliteEmail, setErreurDisponibiliteEmail] = useState(null);
+
   useEffect(() => {
-    onValiditeChange(isValid);
-  }, [isValid]);
+    setErreurDisponibiliteEmail(null);
+  }, [valeursSaisies.email]);
+
+  useEffect(() => {
+    onValiditeChange(isValid && !erreurDisponibiliteEmail);
+  }, [isValid, erreurDisponibiliteEmail]);
+
+  // register('email') capturé à part (plutôt que {...register('email')} directement dans le
+  // JSX) pour pouvoir composer son onBlur natif (validation/état "touched" de react-hook-form)
+  // avec la vérification d'unicité ci-dessous, sans perdre l'un ou l'autre.
+  const champEmail = register('email');
+
+  const gererBlurEmail = async (evenement) => {
+    champEmail.onBlur(evenement);
+    const email = evenement.target.value.trim();
+    if (!email || errors.email) return;
+    try {
+      const disponible = await verifierDisponibilite('email', email);
+      setErreurDisponibiliteEmail(disponible ? null : 'Cet email est déjà utilisé.');
+    } catch {
+      // Panne réseau ponctuelle : ne pas bloquer la saisie, la vérification finale à la
+      // soumission reste le filet de sécurité (voir dossierService.inscrireCandidat, 409).
+      setErreurDisponibiliteEmail(null);
+    }
+  };
 
   // Espacement automatique pendant la saisie (affichage uniquement, voir masqueNumerique.js) —
   // la valeur suivie par react-hook-form et validée par le resolver zod reste sans espace.
@@ -81,8 +111,9 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
         <label htmlFor="email">
           Email <span className="champ-obligatoire">*</span>
         </label>
-        <input id="email" type="email" autoComplete="email" {...register('email')} />
+        <input id="email" type="email" autoComplete="email" {...champEmail} onBlur={gererBlurEmail} />
         {errors.email && <p role="alert">{errors.email.message}</p>}
+        {!errors.email && erreurDisponibiliteEmail && <p role="alert">{erreurDisponibiliteEmail}</p>}
       </div>
 
       <div className="bloc-coordonnees__champ">

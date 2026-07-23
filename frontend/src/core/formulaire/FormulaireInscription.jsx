@@ -47,11 +47,16 @@ export default function FormulaireInscription({ configBlocs, onInscriptionReussi
       const { candidatId, dossierId } = await creerCandidat(candidat);
       onInscriptionReussie?.({ candidatId, dossierId });
     } catch (erreur) {
-      setErreurEnvoi(
-        erreur.response
-          ? "Le serveur n'a pas pu enregistrer l'inscription. Merci de réessayer."
-          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
-      );
+      if (!erreur.response) {
+        setErreurEnvoi('Connexion au serveur impossible. Vérifiez le réseau et réessayez.');
+      } else if (erreur.response.status === 409) {
+        // Conflit NIR ou email (voir candidats.routes.js) : le back renvoie déjà un message
+        // précis et distinct pour chaque cas dans erreur.response.data.erreur — l'afficher tel
+        // quel plutôt que le message générique ci-dessous.
+        setErreurEnvoi(erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer l'inscription. Merci de réessayer.");
+      } else {
+        setErreurEnvoi("Le serveur n'a pas pu enregistrer l'inscription. Merci de réessayer.");
+      }
     } finally {
       setEnvoiEnCours(false);
     }

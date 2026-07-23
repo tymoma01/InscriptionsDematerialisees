@@ -11,4 +11,16 @@ const limiteurConnexion = rateLimit({
   message: { erreur: 'Trop de tentatives de connexion. Merci de réessayer plus tard.' },
 });
 
-module.exports = { limiteurConnexion };
+// Vérification d'unicité NIR/email au blur (candidats.routes.js POST /disponibilite) : plus
+// permissif que la connexion (un candidat peut corriger sa saisie plusieurs fois de suite au
+// clavier tactile), mais toujours limité — endpoint public, sans quoi il permettrait à un tiers
+// d'énumérer par force brute les NIR/email déjà enregistrés.
+const limiteurVerificationDisponibilite = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erreur: 'Trop de vérifications. Merci de réessayer plus tard.' },
+});
+
+module.exports = { limiteurConnexion, limiteurVerificationDisponibilite };

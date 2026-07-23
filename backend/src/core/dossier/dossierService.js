@@ -316,6 +316,32 @@ async function inscrireCandidat(entite, donneesBrutes) {
   });
 }
 
+// Vérification ponctuelle d'unicité (NIR ou email), appelée au blur du champ concerné avant la
+// soumission finale (voir candidats.routes.js POST /disponibilite) — même logique de recherche
+// que les vérifications préalables d'inscrireCandidat ci-dessus, mais sans écriture et sans
+// jamais exposer au front autre chose qu'un booléen (ne pas révéler l'identité du dossier en
+// conflit, voir CLAUDE.md/RGPD). Une valeur qui ne respecte pas encore le format attendu n'est
+// pas considérée en conflit : la validation de format reste du ressort des schémas front/zod.
+async function verifierDisponibilite(entite, champ, valeurBrute) {
+  const bd = await obtenirKnex();
+
+  if (champ === 'nir') {
+    if (!NIR_REGEX.test(valeurBrute.trim())) {
+      return true;
+    }
+    const nirHash = await hasherNirPourUnicite(valeurBrute.replace(/\s/g, ''));
+    const candidatExistant = await dossierRepository.trouverCandidatParNirHash(bd, entite.id, nirHash);
+    return !candidatExistant;
+  }
+
+  const email = valeurBrute.trim();
+  if (!z.string().email().safeParse(email).success) {
+    return true;
+  }
+  const candidatExistant = await dossierRepository.trouverCandidatParEmail(bd, entite.id, email);
+  return !candidatExistant;
+}
+
 async function listerDossiers(entite, { statutCode } = {}) {
   const bd = await obtenirKnex();
   return dossierRepository.listerDossiers(bd, entite.id, { statutCode });
@@ -326,4 +352,10 @@ async function listerStatuts(entite) {
   return dossierRepository.listerStatuts(bd, entite.id);
 }
 
-module.exports = { inscrireCandidat, listerDossiers, listerStatuts, ErreurInscriptionConflit };
+module.exports = {
+  inscrireCandidat,
+  verifierDisponibilite,
+  listerDossiers,
+  listerStatuts,
+  ErreurInscriptionConflit,
+};
