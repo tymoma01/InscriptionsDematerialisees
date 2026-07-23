@@ -9,12 +9,16 @@
   margin-bottom: var(--espace-petit);
 }
 
-.bloc-infos-perso__champ-pleine-largeur label {
+/* Sélecteurs restreints aux enfants directs (> plutôt que la descendance large) : le fieldset
+   Civilité contient lui aussi des <label>/<input> (les options Monsieur/Madame), imbriqués plus
+   profondément — sans ce filtrage, la règle s'appliquerait aussi à eux et casserait leur mise en
+   page (chacun forcé à la largeur de la colonne label/champ). */
+.bloc-infos-perso__champ-pleine-largeur > label {
   flex: 0 0 var(--largeur-label-champ);
 }
 
-.bloc-infos-perso__champ-pleine-largeur input,
-.bloc-infos-perso__champ-pleine-largeur select {
+.bloc-infos-perso__champ-pleine-largeur > input,
+.bloc-infos-perso__champ-pleine-largeur > select {
   flex: 0 0 var(--largeur-champ-saisie);
   width: var(--largeur-champ-saisie);
   box-sizing: border-box;
@@ -25,12 +29,30 @@
   margin: 0.25rem 0 0 calc(var(--largeur-label-champ) + var(--espace-petit));
 }
 
+/* Le fieldset Civilité ne doit pas dessiner son propre cadre ni se décaler de la grille
+   label/champ des autres lignes du bloc : display: contents retire sa boîte de la mise en page,
+   ses enfants (legend, div d'options) deviennent alors directement des éléments flex de
+   .bloc-infos-perso__champ-pleine-largeur, au même titre que label/input pour les autres champs.
+   border/margin/padding à 0 en filet de sécurité si display: contents n'était pas honoré. */
+.bloc-infos-perso__champ-pleine-largeur fieldset {
+  display: contents;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.bloc-infos-perso__champ-pleine-largeur legend {
+  flex: 0 0 var(--largeur-label-champ);
+  padding: 0;
+}
+
 /* Groupe de boutons radio (Civilité) — même patron que .bloc-disponibilites__options : sans ce
-   wrapper, les <label> restent inline et ne sont séparés que par l'espace blanc du JSX. */
+   wrapper, les <label> Monsieur/Madame resteraient inline et ne seraient séparés que par
+   l'espace blanc du JSX. Pas de largeur figée : démarre juste après legend dans la même ligne
+   flex, ce qui suffit à l'aligner à la même position horizontale que les champs de saisie. */
 .bloc-infos-perso__options {
   display: flex;
   flex-wrap: wrap;
   column-gap: var(--espace-grand);
   row-gap: var(--espace-petit);
-  margin-bottom: var(--espace-petit);
 }

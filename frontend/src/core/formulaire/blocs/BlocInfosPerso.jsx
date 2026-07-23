@@ -101,44 +101,49 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
     <fieldset className="bloc-formulaire bloc-infos-perso">
       <legend>Informations personnelles</legend>
 
-      <fieldset>
-        <legend>
-          Civilité <span className="champ-obligatoire">*</span>
-        </legend>
-        <div className="bloc-infos-perso__options">
-          <label htmlFor="civilite-monsieur">
-            <input
-              id="civilite-monsieur"
-              type="radio"
-              value="monsieur"
-              {...propsRadioAccessible({
-                register,
-                setValue,
-                champ: 'civilite',
-                valeur: 'monsieur',
-                valeurCourante: civiliteSelectionnee,
-              })}
-            />
-            Monsieur
-          </label>
-          <label htmlFor="civilite-madame">
-            <input
-              id="civilite-madame"
-              type="radio"
-              value="madame"
-              {...propsRadioAccessible({
-                register,
-                setValue,
-                champ: 'civilite',
-                valeur: 'madame',
-                valeurCourante: civiliteSelectionnee,
-              })}
-            />
-            Madame
-          </label>
-        </div>
-      </fieldset>
-      {errors.civilite && <p role="alert">{errors.civilite.message}</p>}
+      <div className="bloc-infos-perso__champ-pleine-largeur">
+        {/* fieldset en display: contents côté CSS — retiré de la mise en page pour que legend
+            et le div d'options s'alignent sur la même grille label/champ que les autres lignes
+            du bloc (voir BlocInfosPerso.css), au lieu de dessiner leur propre cadre. */}
+        <fieldset>
+          <legend>
+            Civilité <span className="champ-obligatoire">*</span>
+          </legend>
+          <div className="bloc-infos-perso__options">
+            <label htmlFor="civilite-monsieur">
+              <input
+                id="civilite-monsieur"
+                type="radio"
+                value="monsieur"
+                {...propsRadioAccessible({
+                  register,
+                  setValue,
+                  champ: 'civilite',
+                  valeur: 'monsieur',
+                  valeurCourante: civiliteSelectionnee,
+                })}
+              />
+              Monsieur
+            </label>
+            <label htmlFor="civilite-madame">
+              <input
+                id="civilite-madame"
+                type="radio"
+                value="madame"
+                {...propsRadioAccessible({
+                  register,
+                  setValue,
+                  champ: 'civilite',
+                  valeur: 'madame',
+                  valeurCourante: civiliteSelectionnee,
+                })}
+              />
+              Madame
+            </label>
+          </div>
+        </fieldset>
+        {errors.civilite && <p role="alert">{errors.civilite.message}</p>}
+      </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
         <label htmlFor="nom">
