@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listerCriteres, enregistrerEvaluation } from '../../services/evaluationService';
+import { listerTransitions, appliquerTransition } from '../../services/transitionService';
 import './GrilleEvaluation.css';
 
 // Échelle de notation commune à tout critère (voir backend evaluationEngine.js,
@@ -10,6 +11,14 @@ const VALEURS = [
   { code: 'a_ameliorer', libelle: 'À améliorer' },
   { code: 'non_conforme', libelle: 'Non conforme' },
 ];
+
+// Codes des transitions qui font avancer le dossier jusqu'au verdict correspondant (voir
+// workflow.config.json de l'entité) — jamais supposées systématiques : vérifiées dynamiquement
+// via GET /transitions avant d'être appliquées (voir gererEnvoi), même patron que
+// CaptureTablette.jsx pour planifier_test/pieces_completes. Une entité qui n'aurait pas cette
+// étape verrait simplement l'évaluation enregistrée sans changement de statut du dossier.
+const CODE_ACTION_VERDICT_POSITIF = 'soumettre_verdict_positif';
+const CODE_ACTION_VERDICT_NEGATIF = 'soumettre_verdict_negatif';
 
 // Grille d'évaluation générique : ne connaît aucun critère en dur (voir Modularité, CLAUDE.md) —
 // charge les critères configurés pour l'entité (GET /api/evaluations/criteres) et construit un
@@ -55,6 +64,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
+
     try {
       await enregistrerEvaluation({
         rendezvousId: rendezvous.id,
@@ -62,16 +72,41 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         commentaire,
         criteres: criteres.map((critere) => ({ code: critere.code, valeur: valeurs[critere.code] })),
       });
-      onTermine();
     } catch (erreur) {
+      setEnvoiEnCours(false);
       setErreurEnvoi(
         erreur.response
           ? "Le serveur n'a pas pu enregistrer l'évaluation. Merci de réessayer."
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
-    } finally {
-      setEnvoiEnCours(false);
+      return;
     }
+
+    // Fait avancer le statut du dossier jusqu'au verdict correspondant, si cette transition est
+    // actuellement proposée par le moteur générique pour ce dossier — voir le commentaire sur
+    // CODE_ACTION_VERDICT_POSITIF plus haut.
+    try {
+      const transitionsDisponibles = await listerTransitions(rendezvous.dossier_id);
+      const codesDisponibles = transitionsDisponibles.map((transition) => transition.code_action);
+      const codeActionVerdict = resultatGlobal === 'valide' ? CODE_ACTION_VERDICT_POSITIF : CODE_ACTION_VERDICT_NEGATIF;
+
+      if (codesDisponibles.includes(codeActionVerdict)) {
+        await appliquerTransition(rendezvous.dossier_id, { codeAction: codeActionVerdict, commentaire });
+      }
+    } catch {
+      // L'évaluation existe déjà en base à ce stade : le dire clairement plutôt que de laisser
+      // croire qu'aucune donnée n'a été enregistrée, pas de retour arrière automatique (même
+      // principe que CaptureTablette.jsx).
+      setEnvoiEnCours(false);
+      setErreurEnvoi(
+        "L'évaluation a bien été enregistrée, mais la mise à jour du statut du dossier a échoué. " +
+          'Merci de contacter un administrateur.',
+      );
+      return;
+    }
+
+    setEnvoiEnCours(false);
+    onTermine();
   };
 
   if (chargement) {

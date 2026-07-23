@@ -14,12 +14,16 @@ const router = Router({ mergeParams: true });
 
 // Décision sur le dossier (valider/rejeter, CLAUDE.md : "Recruteur ... décision finale
 // (validé/refusé)") comme les étapes intermédiaires du parcours (accueil confirmant que les
-// pièces sont complètes). Ce gate de route reste volontairement large (tous les rôles internes
-// susceptibles d'agir sur un dossier, hors formateur) : c'est un filtre grossier et bon marché
-// avant même de toucher la base — le contrôle fin "quel rôle peut déclencher quelle transition
-// précise" est fait par workflowEngine via `transition_roles` (migration 006), pas ici. Défense
-// en profondeur : les deux niveaux sont complémentaires, ni redondants ni contradictoires.
-const ROLES_GESTION_TRANSITIONS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// pièces sont complètes). FORMATEUR ajouté pour soumettre_verdict_positif/negatif (voir
+// GrilleEvaluation.jsx : la soumission d'une évaluation fait avancer le dossier jusqu'au
+// verdict correspondant). Ce gate de route reste volontairement large (tous les rôles internes
+// susceptibles d'agir sur un dossier) : c'est un filtre grossier et bon marché avant même de
+// toucher la base — le contrôle fin "quel rôle peut déclencher quelle transition précise" est
+// fait par workflowEngine via `transition_roles` (migration 006), pas ici : un formateur reste
+// incapable de déclencher valider_dossier/pieces_completes/etc., faute de ligne transition_roles
+// pour ces couples-là. Défense en profondeur : les deux niveaux sont complémentaires, ni
+// redondants ni contradictoires.
+const ROLES_GESTION_TRANSITIONS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
 
