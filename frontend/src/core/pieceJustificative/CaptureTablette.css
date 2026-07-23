@@ -221,6 +221,18 @@
   font: inherit;
 }
 
+/* Sans cette largeur, l'input (comme tout input dans un label en display: flex/column, voir
+   ci-dessus — étirement par défaut, align-items: stretch) s'étire sur toute la largeur du
+   formulaire alors que son rendu natif (jj/mm/aaaa --:-- + icône calendrier) ne remplit qu'une
+   petite portion fixe à gauche : le reste de la boîte a l'air cliquable (même bordure/fond) mais
+   ne correspond à aucun segment réel du contrôle. Sur tablette tactile, ça se traduisait par une
+   zone morte entre le segment heure/minute et le bord droit — le doigt tape souvent dans cette
+   zone en croyant viser l'heure, sans effet perceptible. 260px suffit largement au rendu natif
+   du contrôle (mesuré ~200px + icône), avec une marge raisonnable. */
+.capture-tablette__formulaire-planification input[type='datetime-local'] {
+  max-width: 260px;
+}
+
 .capture-tablette__formulaire-planification-actions {
   display: flex;
   gap: var(--espace-petit);
