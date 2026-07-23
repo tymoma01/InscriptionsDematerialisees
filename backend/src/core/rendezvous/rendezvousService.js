@@ -86,6 +86,15 @@ async function listerMotifsDesistement(entite) {
   return motifRepository.listerMotifsParCategorie(bd, entite.id, CATEGORIE_MOTIF_DESISTEMENT);
 }
 
+// Vue d'ensemble des rendez-vous de test de l'entité, tous dossiers confondus (page
+// Planification côté Coordination) — contrairement à listerRendezvous ci-dessus, ne prend pas de
+// dossierId : rien à vérifier côté IDOR, la portée est déjà l'entité entière (voir
+// entiteContext), pas un dossier précis.
+async function listerRendezvousTest(entite, { aVenirSeulement, formateurId } = {}) {
+  const bd = await db.obtenirKnex();
+  return rendezvousRepository.listerRendezvousTest(bd, entite.id, { aVenirSeulement, formateurId });
+}
+
 // Planifie un nouveau rendez-vous pour un dossier (ex. rendez-vous de test, CLAUDE.md étape
 // "Envoi en test" : "attribution selon poste et disponibilité, date fixée, notification envoyée
 // au formateur concerné"). Ne déclenche aucune transition de statut du dossier ici — c'est une
@@ -125,6 +134,7 @@ module.exports = {
   listerRendezvous,
   changerStatutRendezvous,
   listerMotifsDesistement,
+  listerRendezvousTest,
   creerRendezvous,
   ErreurFormateurInvalide,
   ErreurCreneauPris,

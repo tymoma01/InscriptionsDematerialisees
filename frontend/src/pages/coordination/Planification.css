@@ -1,0 +1,92 @@
+/* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css) — même convention que
+   TableauDeBordAccueil.css. */
+.planification__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
+}
+
+.planification__entete h1 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.planification__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-grand);
+  margin-bottom: var(--espace-moyen);
+}
+
+.planification__filtre-case {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.planification__filtre-formateur {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.planification__filtre-formateur select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.planification [role='alert'] {
+  color: var(--couleur-erreur);
+}
+
+.planification__vide {
+  color: var(--couleur-texte-secondaire);
+  padding: var(--espace-grand);
+  text-align: center;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+/* Même patron que DossierList.css : défilement horizontal isolé à cette zone (pas toute la
+   page) si la tablette est trop étroite en portrait. */
+.planification__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.planification__table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--couleur-fond);
+}
+
+.planification__table th,
+.planification__table td {
+  padding: 0.75rem var(--espace-moyen);
+  text-align: left;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.planification__table th {
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.planification__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.planification__table tbody tr:hover {
+  background-color: var(--couleur-fond-secondaire);
+}

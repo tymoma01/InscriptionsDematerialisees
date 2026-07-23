@@ -32,3 +32,10 @@ export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateur
   const { data } = await api.post(`/dossiers/${dossierId}/rendezvous`, { typeRdv, dateHeure, formateurId });
   return data;
 }
+
+// Vue d'ensemble des rendez-vous de test, tous dossiers confondus (page Planification côté
+// Coordination) — distinct de listerRendezvous ci-dessus, qui liste ceux d'UN dossier précis.
+export async function listerRendezvousTest({ aVenir, formateurId } = {}) {
+  const { data } = await api.get('/dossiers/rendezvous', { params: { aVenir, formateurId } });
+  return data;
+}

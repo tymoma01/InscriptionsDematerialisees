@@ -90,6 +90,9 @@ export default function TableauDeBordAccueil() {
       <div className="tableau-bord-accueil">
         <header className="tableau-bord-accueil__entete">
           <h1>Dossiers candidats</h1>
+          <Link to="/coordination/planification" className="tableau-bord-accueil__lien-planification">
+            Planification des tests
+          </Link>
           <EnTeteBackOffice />
         </header>
 

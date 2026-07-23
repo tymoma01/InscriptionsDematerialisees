@@ -3,6 +3,7 @@ import InscriptionTablette from './pages/accueil/InscriptionTablette';
 import VerificationPieces from './pages/accueil/VerificationPieces';
 import TableauDeBordAccueil from './pages/accueil/TableauDeBordAccueil';
 import Relances from './pages/coordination/Relances';
+import Planification from './pages/coordination/Planification';
 import Backoffice from './pages/recruteur/Backoffice';
 import Validation from './pages/recruteur/Validation';
 import Evaluation from './pages/formateur/Evaluation';
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/accueil/tableau-de-bord" element={<TableauDeBordAccueil />} />
         <Route path="/accueil/dossiers/:dossierId/pieces" element={<VerificationPieces />} />
         <Route path="/coordination/dossiers/:dossierId/relances" element={<Relances />} />
+        <Route path="/coordination/planification" element={<Planification />} />
         <Route path="/recruteur/dossiers" element={<Backoffice />} />
         <Route path="/recruteur/dossiers/:dossierId/validation" element={<Validation />} />
         <Route path="/formateur/evaluations" element={<Evaluation />} />

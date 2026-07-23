@@ -67,6 +67,39 @@ function listerRendezvousParDossier(bd, dossierId) {
     .orderBy('rendezvous.date_heure', 'desc');
 }
 
+// Vue d'ensemble des rendez-vous de test, tous dossiers confondus (page Planification côté
+// Coordination, CLAUDE.md : "planifie les tests") — 'test' explicitement plutôt qu'un paramètre
+// type_rdv générique : même choix que evaluationRepository.listerRendezvousAEvaluer, cette page
+// ne parle que de tests, pas de rendez-vous en général (ex. signature de contrat, à venir).
+// formateur_id étant nullable, leftJoin (un rendez-vous pas encore assigné doit rester listé).
+function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId }) {
+  const requete = bd('rendezvous')
+    .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
+    .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
+    .select(
+      'rendezvous.id',
+      'rendezvous.dossier_id',
+      'rendezvous.date_heure',
+      'rendezvous.statut',
+      'candidats.prenom as candidat_prenom',
+      'candidats.nom as candidat_nom',
+      'utilisateurs.prenom as formateur_prenom',
+      'utilisateurs.nom as formateur_nom',
+    )
+    .orderBy('rendezvous.date_heure', 'asc');
+
+  if (aVenirSeulement) {
+    requete.andWhere('rendezvous.date_heure', '>=', bd.fn.now()).whereIn('rendezvous.statut', ['prevu', 'confirme']);
+  }
+  if (formateurId) {
+    requete.andWhere('rendezvous.formateur_id', formateurId);
+  }
+
+  return requete;
+}
+
 function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
   return bd('rendezvous')
     .where({ id: rendezvousId })
@@ -107,6 +140,7 @@ module.exports = {
   trouverCoordonneesCandidat,
   trouverRendezvousParId,
   listerRendezvousParDossier,
+  listerRendezvousTest,
   mettreAJourStatutRendezvous,
   trouverRendezvousFormateurAuCreneau,
   creerRendezvous,
