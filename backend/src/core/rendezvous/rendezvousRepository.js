@@ -75,10 +75,28 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
     .then(([rendezvous]) => rendezvous);
 }
 
+// Toujours créé au statut 'prevu' (voir rendezvousService.STATUTS_AUTORISES) — un rendez-vous ne
+// naît jamais confirmé/absent/annulé, ces statuts ne se posent qu'après coup via
+// mettreAJourStatutRendezvous. formateurId peut être nul (rendez-vous pas encore assigné) : voir
+// rendezvousService.creerRendezvous pour la validation du rôle formateur en amont.
+async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId }) {
+  const [rendezvous] = await bd('rendezvous')
+    .insert({
+      dossier_id: dossierId,
+      type_rdv: typeRdv,
+      date_heure: dateHeure,
+      formateur_id: formateurId,
+      statut: 'prevu',
+    })
+    .returning('*');
+  return rendezvous;
+}
+
 module.exports = {
   listerRendezvousARappeler,
   trouverCoordonneesCandidat,
   trouverRendezvousParId,
   listerRendezvousParDossier,
   mettreAJourStatutRendezvous,
+  creerRendezvous,
 };

@@ -2,6 +2,8 @@ const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
+const utilisateurRepository = require('../auth/utilisateurRepository');
+const { ROLES } = require('../auth/rbac');
 
 const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
 
@@ -67,4 +69,32 @@ async function listerMotifsDesistement(entite) {
   return motifRepository.listerMotifsParCategorie(bd, entite.id, CATEGORIE_MOTIF_DESISTEMENT);
 }
 
-module.exports = { listerRendezvous, changerStatutRendezvous, listerMotifsDesistement };
+// Planifie un nouveau rendez-vous pour un dossier (ex. rendez-vous de test, CLAUDE.md étape
+// "Envoi en test" : "attribution selon poste et disponibilité, date fixée, notification envoyée
+// au formateur concerné"). Ne déclenche aucune transition de statut du dossier ici — c'est une
+// action distincte (voir transitions.routes.js, codeAction "planifier_test" pour ACCECIT),
+// exactement comme changerStatutRendezvous ci-dessus ne touche jamais dossiers.statut non plus.
+async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateurId }) {
+  const bd = await db.obtenirKnex();
+  await verifierDossierAppartientEntite(bd, entite, dossierId);
+
+  let formateurIdValide = null;
+  if (formateurId != null) {
+    const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
+    if (!formateur || formateur.role_code !== ROLES.FORMATEUR) {
+      throw new Error(
+        `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur pour l'entité « ${entite.code} ».`,
+      );
+    }
+    formateurIdValide = formateur.id;
+  }
+
+  return rendezvousRepository.creerRendezvous(bd, {
+    dossierId,
+    typeRdv,
+    dateHeure,
+    formateurId: formateurIdValide,
+  });
+}
+
+module.exports = { listerRendezvous, changerStatutRendezvous, listerMotifsDesistement, creerRendezvous };

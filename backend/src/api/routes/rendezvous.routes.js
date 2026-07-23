@@ -28,6 +28,16 @@ const statutBodySchema = z.object({
   motifCode: z.string().trim().min(1).optional(),
 });
 
+// typeRdv volontairement pas une enum figée ici (voir migration 018 : colonne string sans
+// contrainte CHECK) — un rendez-vous n'est pas forcément un test (CLAUDE.md prévoit aussi un
+// rendez-vous de signature de contrat en fin de formation), et le moteur générique ne fige pas
+// le vocabulaire métier d'une entité (voir Modularité, CLAUDE.md).
+const creationRendezvousSchema = z.object({
+  typeRdv: z.string().trim().min(1),
+  dateHeure: z.string().trim().datetime({ offset: true }),
+  formateurId: idPositifSchema.optional(),
+});
+
 function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
@@ -38,6 +48,43 @@ router.get('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next)
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const rendezvous = await rendezvousService.listerRendezvous(req.entite, dossierId);
     res.json(rendezvous);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// POST /api/dossiers/:dossierId/rendezvous — planifie un nouveau rendez-vous pour le dossier
+// (ex. rendez-vous de test, CLAUDE.md étape "Envoi en test"). formateurId optionnel, mais s'il
+// est fourni doit référencer un utilisateur de cette entité ayant le rôle formateur (voir
+// rendezvousService.creerRendezvous) — c'est lui qui verra ensuite ce rendez-vous dans
+// GET /api/evaluations/a-faire. Ne déclenche aucune transition de statut du dossier (voir
+// commentaire dans rendezvousService.js) — à faire séparément via
+// POST /api/dossiers/:dossierId/transitions (codeAction "planifier_test" pour ACCECIT).
+router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
+  try {
+    const dossierId = idPositifSchema.parse(req.params.dossierId);
+    const { typeRdv, dateHeure, formateurId } = creationRendezvousSchema.parse(req.body);
+
+    const rendezvous = await rendezvousService.creerRendezvous(req.entite, {
+      dossierId,
+      typeRdv,
+      dateHeure,
+      formateurId,
+    });
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'rendezvous_cree',
+      tableCible: 'rendezvous',
+      cibleId: rendezvous.id,
+      donnees: { dossierId, typeRdv, dateHeure, formateurId: formateurId ?? null },
+      adresseIp: req.ip,
+    });
+
+    res.status(201).json(rendezvous);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
