@@ -24,3 +24,11 @@ export async function listerMotifsDesistement() {
   const { data } = await api.get('/dossiers/rendezvous/motifs-desistement');
   return data;
 }
+
+// Planifie un nouveau rendez-vous (ex. rendez-vous de test, voir CaptureTablette.jsx) — le back
+// revalide tout (dossier/entité, rôle du formateur, créneau déjà pris), voir
+// backend/src/core/rendezvous/rendezvousService.js.
+export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateurId }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/rendezvous`, { typeRdv, dateHeure, formateurId });
+  return data;
+}

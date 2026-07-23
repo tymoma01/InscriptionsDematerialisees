@@ -166,3 +166,78 @@
   color: var(--couleur-erreur);
   font-size: 0.875rem;
 }
+
+/* Bouton de planification, toujours visible en bas d'écran (voir CaptureTablette.jsx) — séparé
+   de la liste par un filet, même logique visuelle que .capture-tablette__panneau. */
+.capture-tablette__pied {
+  margin-top: var(--espace-moyen);
+  padding-top: var(--espace-moyen);
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+.capture-tablette__pied button {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.capture-tablette__pied button:disabled {
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte-secondaire);
+  border-color: var(--couleur-bordure-legere);
+  cursor: default;
+}
+
+.capture-tablette__pied-indication {
+  margin: 0.4rem 0 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+/* Formulaire de planification (date/heure + formateur) : même structure verticale label/champ
+   que .gestion-transitions__formulaire, pour rester cohérent avec le reste du back-office. */
+.capture-tablette__formulaire-planification {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.capture-tablette__formulaire-planification label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.capture-tablette__formulaire-planification input,
+.capture-tablette__formulaire-planification select {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.capture-tablette__formulaire-planification-actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.capture-tablette__formulaire-planification-actions button[type='submit'] {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Écran de confirmation une fois le test planifié — même esprit que
+   pages/accueil/ConfirmationInscription.css (message clair + action de sortie unique). */
+.capture-tablette__confirmation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--espace-moyen);
+}

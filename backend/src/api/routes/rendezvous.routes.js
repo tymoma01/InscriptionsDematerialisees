@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
+const { ErreurFormateurInvalide, ErreurCreneauPris } = rendezvousService;
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -87,6 +88,12 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
     res.status(201).json(rendezvous);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurFormateurInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof ErreurCreneauPris) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

@@ -75,6 +75,16 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
     .then(([rendezvous]) => rendezvous);
 }
 
+// Empêche d'assigner un formateur déjà pris au même horaire exact (voir
+// rendezvousService.creerRendezvous) — 'prevu'/'confirme' uniquement : un rendez-vous marqué
+// absent ou annulé libère le créneau, il ne doit pas bloquer une nouvelle planification dessus.
+function trouverRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
+  return bd('rendezvous')
+    .where({ formateur_id: formateurId, date_heure: dateHeure })
+    .whereIn('statut', ['prevu', 'confirme'])
+    .first();
+}
+
 // Toujours créé au statut 'prevu' (voir rendezvousService.STATUTS_AUTORISES) — un rendez-vous ne
 // naît jamais confirmé/absent/annulé, ces statuts ne se posent qu'après coup via
 // mettreAJourStatutRendezvous. formateurId peut être nul (rendez-vous pas encore assigné) : voir
@@ -98,5 +108,6 @@ module.exports = {
   trouverRendezvousParId,
   listerRendezvousParDossier,
   mettreAJourStatutRendezvous,
+  trouverRendezvousFormateurAuCreneau,
   creerRendezvous,
 };

@@ -14,6 +14,23 @@ const STATUTS_AUTORISES = ['prevu', 'confirme', 'absent', 'annule'];
 // l'avance) sont les deux façons dont un candidat ne donne pas suite à un rendez-vous.
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
 
+// Erreurs métier distinctes d'une Error générique (500 opaque) : rendezvous.routes.js les
+// traduit en 400/409 avec un message directement affichable à l'agent — même principe que
+// ErreurInscriptionConflit dans dossierService.js.
+class ErreurFormateurInvalide extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurFormateurInvalide';
+  }
+}
+
+class ErreurCreneauPris extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurCreneauPris';
+  }
+}
+
 // dossierId vient toujours de l'URL (voir rendezvous.routes.js) : jamais traité sans confirmer
 // au préalable qu'il appartient à l'entité résolue par entiteContext, même faille IDOR déjà
 // corrigée pour les pièces justificatives et les relances.
@@ -82,11 +99,18 @@ async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateu
   if (formateurId != null) {
     const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
     if (!formateur || formateur.role_code !== ROLES.FORMATEUR) {
-      throw new Error(
+      throw new ErreurFormateurInvalide(
         `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur pour l'entité « ${entite.code} ».`,
       );
     }
     formateurIdValide = formateur.id;
+
+    // Un même formateur ne peut pas être assigné à deux rendez-vous 'prevu'/'confirme' au même
+    // horaire exact — voir rendezvousRepository.trouverRendezvousFormateurAuCreneau.
+    const conflit = await rendezvousRepository.trouverRendezvousFormateurAuCreneau(bd, formateurIdValide, dateHeure);
+    if (conflit) {
+      throw new ErreurCreneauPris('Ce formateur a déjà un rendez-vous prévu à ce créneau.');
+    }
   }
 
   return rendezvousRepository.creerRendezvous(bd, {
@@ -97,4 +121,11 @@ async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateu
   });
 }
 
-module.exports = { listerRendezvous, changerStatutRendezvous, listerMotifsDesistement, creerRendezvous };
+module.exports = {
+  listerRendezvous,
+  changerStatutRendezvous,
+  listerMotifsDesistement,
+  creerRendezvous,
+  ErreurFormateurInvalide,
+  ErreurCreneauPris,
+};

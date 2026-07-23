@@ -1,8 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
+import { listerFormateurs } from '../../services/formateurService';
+import { creerRendezvous } from '../../services/rendezvousService';
+import { listerTransitions, appliquerTransition } from '../../services/transitionService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
 import './CaptureTablette.css';
+
+const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+// Code de la transition qui planifie le test (voir workflow.config.json de l'entité) — celle qui
+// précède peut varier d'une entité à l'autre ou ne pas exister du tout (voir plus bas, gestion
+// dynamique via GET /transitions plutôt qu'un enchaînement figé de deux codeAction en dur).
+const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
+// Certaines entités font passer le dossier par une étape de confirmation "pièces complètes"
+// avant de pouvoir planifier un test (ex. ACCECIT : en_attente_pieces -> en_attente_verification
+// -> test_planifie) ; à ce stade de la prise de pièces le dossier peut encore être dans le tout
+// premier statut. On ne code pas ce code_action en dur dans un switch : on se contente de
+// vérifier s'il figure parmi les transitions actuellement proposées par le moteur générique pour
+// ce dossier (voir soumettre() dans ModalePlanificationTest) et on ne l'applique que s'il y est.
+const CODE_ACTION_PIECES_COMPLETES = 'pieces_completes';
 
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
 // ici uniquement pour donner un retour immédiat à l'agent, le back revalide de toute façon.
@@ -33,12 +57,16 @@ function fichierAccepte(fichier) {
 // pieceJustificativeService.js et CLAUDE.auth-rbac.md pour le détail du correctif de sécurité
 // que ce choix évite de réintroduire).
 export default function CaptureTablette({ dossierId, typesPieces }) {
+  const navigate = useNavigate();
   const { utilisateur, chargement: chargementSession } = useSession();
 
   const [piecesCapturees, setPiecesCapturees] = useState(() => new Set());
   const [chargementListe, setChargementListe] = useState(true);
   const [erreurListe, setErreurListe] = useState(null);
   const [typeSelectionne, setTypeSelectionne] = useState(null);
+
+  const [planificationOuverte, setPlanificationOuverte] = useState(false);
+  const [planificationReussie, setPlanificationReussie] = useState(null); // { dateHeure, formateurNom }
 
   useEffect(() => {
     let annule = false;
@@ -72,6 +100,13 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
 
   const nombreCapturees = typesPieces.filter((type) => piecesCapturees.has(type.code)).length;
 
+  // Seules les pièces obligatoires conditionnent le bouton de planification — les 2 pièces
+  // optionnelles (justificatif d'expérience, attestation mutuelle) n'ont jamais besoin d'être
+  // capturées pour avancer le dossier.
+  const piecesObligatoiresCompletes = typesPieces
+    .filter((type) => type.obligatoire)
+    .every((type) => piecesCapturees.has(type.code));
+
   if (chargementSession) {
     return <p>Chargement de la session…</p>;
   }
@@ -80,6 +115,30 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
   // suite que laisser l'agent capturer une pièce pour découvrir l'échec seulement à l'envoi.
   if (!utilisateur) {
     return <p role="alert">Vous devez être connecté pour capturer des pièces justificatives.</p>;
+  }
+
+  // Une fois le test planifié, l'agent n'a plus rien à faire sur cet écran — la liste des pièces
+  // et le bouton de planification n'ont plus lieu d'être affichés à côté d'une confirmation qui
+  // invite déjà à passer à autre chose (même principe que ConfirmationInscription.jsx : un écran
+  // dédié plutôt qu'un message qui s'ajoute au-dessus du reste).
+  if (planificationReussie) {
+    return (
+      <section className="capture-tablette">
+        <header className="capture-tablette__entete">
+          <EnTeteBackOffice />
+          <h2>Pièces justificatives</h2>
+        </header>
+        <div className="capture-tablette__confirmation" role="status">
+          <p>
+            Test planifié le {FORMAT_DATE_HEURE.format(new Date(planificationReussie.dateHeure))} avec{' '}
+            {planificationReussie.formateurNom}.
+          </p>
+          <button type="button" onClick={() => navigate('/accueil/tableau-de-bord')}>
+            Retour au tableau de bord
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -128,7 +187,188 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
           onEnvoiReussi={() => gererEnvoiReussi(typeCourant.code)}
         />
       )}
+
+      {/* Toujours visible en bas de page (CLAUDE.md, besoin Coordination : "planifie les
+          tests"), désactivé tant que les pièces obligatoires ne sont pas toutes capturées —
+          voir piecesObligatoiresCompletes ci-dessus. */}
+      <div className="capture-tablette__pied">
+        <button
+          type="button"
+          onClick={() => setPlanificationOuverte(true)}
+          disabled={!piecesObligatoiresCompletes}
+        >
+          Terminer et planifier un test
+        </button>
+        {!piecesObligatoiresCompletes && (
+          <p className="capture-tablette__pied-indication">
+            Capturez les 4 pièces obligatoires pour activer ce bouton.
+          </p>
+        )}
+      </div>
+
+      {planificationOuverte && (
+        <ModalePlanificationTest
+          dossierId={dossierId}
+          onAnnuler={() => setPlanificationOuverte(false)}
+          onReussite={(resultat) => {
+            setPlanificationOuverte(false);
+            setPlanificationReussie(resultat);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+// Modale de planification d'un test : choix de la date/heure et du formateur, puis (1) création
+// du rendez-vous, (2) avancement du statut du dossier jusqu'à test_planifie via le moteur de
+// transitions générique. Composant local (non exporté), même patron que PanneauCapture ci-dessous.
+function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
+  const [formateurs, setFormateurs] = useState([]);
+  const [chargementFormateurs, setChargementFormateurs] = useState(true);
+  const [erreurFormateurs, setErreurFormateurs] = useState(null);
+
+  const [dateHeure, setDateHeure] = useState('');
+  const [formateurId, setFormateurId] = useState('');
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [erreurEnvoi, setErreurEnvoi] = useState(null);
+
+  useEffect(() => {
+    let annule = false;
+    listerFormateurs()
+      .then((valeur) => {
+        if (annule) return;
+        setFormateurs(valeur);
+        if (valeur.length > 0) setFormateurId(String(valeur[0].id));
+      })
+      .catch(() => {
+        if (!annule) setErreurFormateurs('Impossible de récupérer la liste des formateurs.');
+      })
+      .finally(() => {
+        if (!annule) setChargementFormateurs(false);
+      });
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  const soumettre = async (evenement) => {
+    evenement.preventDefault();
+    if (!dateHeure || !formateurId || envoiEnCours) return;
+
+    setEnvoiEnCours(true);
+    setErreurEnvoi(null);
+
+    const formateurChoisi = formateurs.find((f) => String(f.id) === formateurId);
+    const dateHeureIso = new Date(dateHeure).toISOString();
+
+    // Étape 1 : créer le rendez-vous. Si ça échoue, rien d'autre n'est tenté — le dossier reste
+    // dans son statut courant, l'agent peut réessayer sans risque de double changement de statut.
+    try {
+      await creerRendezvous(dossierId, { typeRdv: 'test', dateHeure: dateHeureIso, formateurId: Number(formateurId) });
+    } catch (erreur) {
+      setEnvoiEnCours(false);
+      setErreurEnvoi(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer le rendez-vous. Merci de réessayer.")
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
+      return;
+    }
+
+    // Étape 2 : faire avancer le statut du dossier jusqu'à test_planifie. "pieces_completes"
+    // n'est appliqué que s'il figure parmi les actions actuellement proposées par le moteur
+    // générique pour ce dossier (voir CODE_ACTION_PIECES_COMPLETES plus haut) — jamais supposé
+    // systématique, une autre entité peut ne pas avoir cette étape intermédiaire.
+    try {
+      const transitionsDisponibles = await listerTransitions(dossierId);
+      const codesDisponibles = transitionsDisponibles.map((transition) => transition.code_action);
+
+      if (codesDisponibles.includes(CODE_ACTION_PIECES_COMPLETES)) {
+        await appliquerTransition(dossierId, {
+          codeAction: CODE_ACTION_PIECES_COMPLETES,
+          commentaire: 'Pièces justificatives complètes — passage en vérification avant planification du test.',
+        });
+      }
+
+      await appliquerTransition(dossierId, {
+        codeAction: CODE_ACTION_PLANIFIER_TEST,
+        commentaire: `Test planifié le ${FORMAT_DATE_HEURE.format(new Date(dateHeureIso))} avec ${formateurChoisi.prenom} ${formateurChoisi.nom}.`,
+      });
+    } catch {
+      // Le rendez-vous existe déjà en base à ce stade (étape 1 réussie) : on le dit clairement
+      // plutôt que de laisser croire qu'aucune donnée n'a été enregistrée, pas de retour arrière
+      // automatique (pas de route de suppression de rendez-vous).
+      setEnvoiEnCours(false);
+      setErreurEnvoi(
+        "Le rendez-vous a bien été créé, mais la mise à jour du statut du dossier a échoué. " +
+          'Merci de réessayer ou de contacter un administrateur.',
+      );
+      return;
+    }
+
+    setEnvoiEnCours(false);
+    onReussite({ dateHeure: dateHeureIso, formateurNom: `${formateurChoisi.prenom} ${formateurChoisi.nom}` });
+  };
+
+  return (
+    <div className="capture-tablette__panneau" role="dialog" aria-label="Planifier un test">
+      <div className="capture-tablette__panneau-entete">
+        <h3>Planifier un test</h3>
+        <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
+          Fermer
+        </button>
+      </div>
+
+      {chargementFormateurs && <p>Chargement des formateurs…</p>}
+      {erreurFormateurs && <p role="alert">{erreurFormateurs}</p>}
+
+      {!chargementFormateurs && !erreurFormateurs && formateurs.length === 0 && (
+        <p role="alert">Aucun formateur disponible pour cette entité — impossible de planifier un test.</p>
+      )}
+
+      {!chargementFormateurs && formateurs.length > 0 && (
+        <form className="capture-tablette__formulaire-planification" onSubmit={soumettre}>
+          <label htmlFor="planification-date-heure">
+            Date et heure du test <span className="champ-obligatoire">*</span>
+          </label>
+          <input
+            id="planification-date-heure"
+            type="datetime-local"
+            value={dateHeure}
+            onChange={(evenement) => setDateHeure(evenement.target.value)}
+            required
+          />
+
+          <label htmlFor="planification-formateur">
+            Formateur <span className="champ-obligatoire">*</span>
+          </label>
+          <select
+            id="planification-formateur"
+            value={formateurId}
+            onChange={(evenement) => setFormateurId(evenement.target.value)}
+            required
+          >
+            {formateurs.map((formateur) => (
+              <option key={formateur.id} value={formateur.id}>
+                {formateur.prenom} {formateur.nom}
+              </option>
+            ))}
+          </select>
+
+          {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
+
+          <div className="capture-tablette__formulaire-planification-actions">
+            <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
+              Annuler
+            </button>
+            <button type="submit" disabled={envoiEnCours || !dateHeure || !formateurId}>
+              {envoiEnCours ? 'Enregistrement...' : 'Confirmer la planification'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 

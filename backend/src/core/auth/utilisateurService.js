@@ -26,6 +26,14 @@ async function listerRolesAssignables() {
   return utilisateurRepository.listerRolesAssignables(bd);
 }
 
+// Formateurs actifs de l'entité (CLAUDE.md, section Rôles : "Formateur ... reçoit les
+// notifications de test") — sert à peupler le sélecteur lors de la planification d'un test,
+// accessible à Accueil/Coordination sans lui donner les droits admin de listerUtilisateurs.
+async function listerFormateurs(entite) {
+  const bd = await db.obtenirKnex();
+  return utilisateurRepository.listerUtilisateursParRole(bd, entite.id, ROLES.FORMATEUR);
+}
+
 async function creerUtilisateur(entite, { nom, prenom, email, motDePasse, roleCode }) {
   rejeterRoleSysteme(roleCode);
 
@@ -95,4 +103,10 @@ async function mettreAJourUtilisateur(entite, utilisateurId, { nom, prenom, role
   return utilisateurRepository.mettreAJourUtilisateur(bd, utilisateurId, champs);
 }
 
-module.exports = { listerUtilisateurs, listerRolesAssignables, creerUtilisateur, mettreAJourUtilisateur };
+module.exports = {
+  listerUtilisateurs,
+  listerRolesAssignables,
+  listerFormateurs,
+  creerUtilisateur,
+  mettreAJourUtilisateur,
+};

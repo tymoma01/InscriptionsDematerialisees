@@ -12,6 +12,7 @@ const rendezvousRoutes = require('./api/routes/rendezvous.routes');
 const transitionsRoutes = require('./api/routes/transitions.routes');
 const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
+const formateursRoutes = require('./api/routes/formateurs.routes');
 const { FRONTEND_URL } = require('./config/env');
 
 // Fabrique asynchrone (plutôt qu'un export synchrone de `app`) : le middleware de session a
@@ -67,6 +68,10 @@ async function creerApp() {
   // Gestion des comptes (CLAUDE.md, section Rôles : "Admin : gestion globale") — admin
   // uniquement, voir utilisateurs.routes.js.
   app.use('/api/utilisateurs', utilisateursRoutes);
+  // Liste des formateurs (Accueil/Coordination/Recruteur/Admin) — distinct de /api/utilisateurs
+  // (admin uniquement) : sert à assigner un formateur lors de la planification d'un test, voir
+  // formateurs.routes.js.
+  app.use('/api/formateurs', formateursRoutes);
 
   // Gestionnaire d'erreurs générique : ne jamais renvoyer la stack ni le détail interne au client.
   // eslint-disable-next-line no-unused-vars

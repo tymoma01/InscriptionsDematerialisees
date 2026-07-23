@@ -78,6 +78,18 @@ function listerRolesAssignables(bd) {
   return bd('roles').whereNot('code', 'systeme').orderBy('id', 'asc');
 }
 
+// Utilisateurs actifs d'un rôle donné pour l'entité — sert par ex. à peupler le sélecteur de
+// formateur lors de la planification d'un test (voir rendezvous.routes.js), sans passer par
+// l'écran de gestion des comptes (admin uniquement, voir utilisateurs.routes.js) : un agent
+// Accueil/Coordination doit pouvoir lister les formateurs sans avoir les droits d'administration.
+function listerUtilisateursParRole(bd, entiteId, roleCode) {
+  return bd('utilisateurs')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
+    .where({ 'utilisateurs.entite_id': entiteId, 'roles.code': roleCode, 'utilisateurs.actif': true })
+    .select('utilisateurs.id', 'utilisateurs.nom', 'utilisateurs.prenom')
+    .orderBy('utilisateurs.nom', 'asc');
+}
+
 async function creerUtilisateur(bd, { entiteId, roleId, nom, prenom, email, motDePasseHash }) {
   const [utilisateur] = await bd('utilisateurs')
     .insert({ entite_id: entiteId, role_id: roleId, nom, prenom, email, mot_de_passe_hash: motDePasseHash })
@@ -98,6 +110,7 @@ module.exports = {
   trouverUtilisateurParEmailGlobal,
   trouverRoleParCode,
   listerRolesAssignables,
+  listerUtilisateursParRole,
   creerUtilisateur,
   mettreAJourUtilisateur,
 };
