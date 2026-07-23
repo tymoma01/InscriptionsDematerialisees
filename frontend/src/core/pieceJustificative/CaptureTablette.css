@@ -221,16 +221,41 @@
   font: inherit;
 }
 
-/* Sans cette largeur, l'input (comme tout input dans un label en display: flex/column, voir
-   ci-dessus — étirement par défaut, align-items: stretch) s'étire sur toute la largeur du
-   formulaire alors que son rendu natif (jj/mm/aaaa --:-- + icône calendrier) ne remplit qu'une
-   petite portion fixe à gauche : le reste de la boîte a l'air cliquable (même bordure/fond) mais
-   ne correspond à aucun segment réel du contrôle. Sur tablette tactile, ça se traduisait par une
-   zone morte entre le segment heure/minute et le bord droit — le doigt tape souvent dans cette
-   zone en croyant viser l'heure, sans effet perceptible. 260px suffit largement au rendu natif
-   du contrôle (mesuré ~200px + icône), avec une marge raisonnable. */
-.capture-tablette__formulaire-planification input[type='datetime-local'] {
-  max-width: 260px;
+/* Groupe date/heure du test : fieldset plutôt qu'un label, trois contrôles distincts (date,
+   heure, minute — voir CaptureTablette.jsx, remplace l'ancien input datetime-local dont le
+   segment heure/minute s'est révélé peu fiable au tactile). Pas de display: flex ici : la
+   légende doit rester un seul bloc de texte (label + astérisque) sur la même ligne. */
+.capture-tablette__champ-date-heure {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.6rem 0.75rem;
+  margin: 0;
+}
+
+.capture-tablette__champ-date-heure legend {
+  padding: 0 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.capture-tablette__date-heure-controles {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+
+/* Chacun garde sa taille naturelle (pas d'étirement en ligne, contrairement à label/select en
+   colonne ci-dessus) : évite de reproduire la zone morte de l'ancien input datetime-local. */
+.capture-tablette__date-heure-controles input[type='date'] {
+  flex: 0 0 auto;
+  max-width: 160px;
+}
+
+.capture-tablette__date-heure-controles select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 4.5rem;
 }
 
 .capture-tablette__formulaire-planification-actions {

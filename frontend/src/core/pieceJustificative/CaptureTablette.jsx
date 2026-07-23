@@ -28,6 +28,16 @@ const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
 // ce dossier (voir soumettre() dans ModalePlanificationTest) et on ne l'applique que s'il y est.
 const CODE_ACTION_PIECES_COMPLETES = 'pieces_completes';
 
+// L'input natif type="datetime-local" s'est révélé peu fiable au tactile pour sa partie
+// heure/minute (segment difficile à cibler précisément, voir le correctif de largeur précédent
+// qui n'a pas suffi) — remplacé par un input type="date" (fiable, déjà éprouvé) combiné à deux
+// <select> classiques pour l'heure et les minutes : un select est un composant natif que
+// l'agent peut ouvrir et faire défiler au doigt, sans dépendre d'une frappe précise sur un
+// sous-segment. Minutes par pas de 15 : granularité suffisante pour planifier un test, une liste
+// des 60 valeurs serait inutilement longue à faire défiler sur tablette.
+const HEURES_DISPONIBLES = Array.from({ length: 24 }, (_, heure) => String(heure).padStart(2, '0'));
+const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
+
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
 // ici uniquement pour donner un retour immédiat à l'agent, le back revalide de toute façon.
 const TAILLE_MAX_OCTETS = 15 * 1024 * 1024;
@@ -228,7 +238,9 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
   const [chargementFormateurs, setChargementFormateurs] = useState(true);
   const [erreurFormateurs, setErreurFormateurs] = useState(null);
 
-  const [dateHeure, setDateHeure] = useState('');
+  const [dateTest, setDateTest] = useState('');
+  const [heureTest, setHeureTest] = useState('');
+  const [minuteTest, setMinuteTest] = useState('');
   const [formateurId, setFormateurId] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
@@ -254,13 +266,16 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
 
   const soumettre = async (evenement) => {
     evenement.preventDefault();
-    if (!dateHeure || !formateurId || envoiEnCours) return;
+    if (!dateTest || !heureTest || !minuteTest || !formateurId || envoiEnCours) return;
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
 
     const formateurChoisi = formateurs.find((f) => String(f.id) === formateurId);
-    const dateHeureIso = new Date(dateHeure).toISOString();
+    // Recombine les trois contrôles séparés (date + heure + minute) dans le même format que
+    // produisait l'ancien input datetime-local ('aaaa-mm-jjTHH:mm'), pour ne rien changer côté
+    // service/back (voir creerRendezvous, qui attend une chaîne convertible en Date).
+    const dateHeureIso = new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString();
 
     // Étape 1 : créer le rendez-vous. Si ça échoue, rien d'autre n'est tenté — le dossier reste
     // dans son statut courant, l'agent peut réessayer sans risque de double changement de statut.
@@ -329,32 +344,78 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
 
       {!chargementFormateurs && formateurs.length > 0 && (
         <form className="capture-tablette__formulaire-planification" onSubmit={soumettre}>
-          <label htmlFor="planification-date-heure">
-            Date et heure du test <span className="champ-obligatoire">*</span>
-          </label>
-          <input
-            id="planification-date-heure"
-            type="datetime-local"
-            value={dateHeure}
-            onChange={(evenement) => setDateHeure(evenement.target.value)}
-            required
-          />
+          {/* fieldset plutôt qu'un simple label : trois contrôles distincts (date, heure,
+              minute) partagent une seule légende — même patron que le groupe Civilité du
+              formulaire d'inscription (BlocInfosPerso.jsx). Le texte de la légende reste un bloc
+              unique (pas de display: flex sur le fieldset/legend ici), donc l'astérisque reste
+              sur la même ligne. */}
+          <fieldset className="capture-tablette__champ-date-heure">
+            <legend>
+              Date et heure du test <span className="champ-obligatoire">*</span>
+            </legend>
+            <div className="capture-tablette__date-heure-controles">
+              <input
+                id="planification-date"
+                type="date"
+                value={dateTest}
+                onChange={(evenement) => setDateTest(evenement.target.value)}
+                required
+              />
+              <select
+                id="planification-heure"
+                aria-label="Heure"
+                value={heureTest}
+                onChange={(evenement) => setHeureTest(evenement.target.value)}
+                required
+              >
+                <option value="">--</option>
+                {HEURES_DISPONIBLES.map((heure) => (
+                  <option key={heure} value={heure}>
+                    {heure}
+                  </option>
+                ))}
+              </select>
+              <span aria-hidden="true">:</span>
+              <select
+                id="planification-minute"
+                aria-label="Minutes"
+                value={minuteTest}
+                onChange={(evenement) => setMinuteTest(evenement.target.value)}
+                required
+              >
+                <option value="">--</option>
+                {MINUTES_DISPONIBLES.map((minute) => (
+                  <option key={minute} value={minute}>
+                    {minute}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </fieldset>
 
-          <label htmlFor="planification-formateur">
-            Formateur <span className="champ-obligatoire">*</span>
+          {/* Texte du label regroupé dans un unique <span> (plutôt que texte + astérisque comme
+              deux enfants directs du label) : le label est en display: flex/column pour
+              empiler son contenu au-dessus du <select> imbriqué (voir CaptureTablette.css) — un
+              texte et un astérisque comme deux enfants directs se seraient sinon empilés l'un
+              sous l'autre au lieu de rester sur la même ligne (même bug que celui corrigé pour
+              date/heure ci-dessus, présent ici aussi). */}
+          <label>
+            <span>
+              Formateur <span className="champ-obligatoire">*</span>
+            </span>
+            <select
+              id="planification-formateur"
+              value={formateurId}
+              onChange={(evenement) => setFormateurId(evenement.target.value)}
+              required
+            >
+              {formateurs.map((formateur) => (
+                <option key={formateur.id} value={formateur.id}>
+                  {formateur.prenom} {formateur.nom}
+                </option>
+              ))}
+            </select>
           </label>
-          <select
-            id="planification-formateur"
-            value={formateurId}
-            onChange={(evenement) => setFormateurId(evenement.target.value)}
-            required
-          >
-            {formateurs.map((formateur) => (
-              <option key={formateur.id} value={formateur.id}>
-                {formateur.prenom} {formateur.nom}
-              </option>
-            ))}
-          </select>
 
           {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
@@ -362,7 +423,10 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
             <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
               Annuler
             </button>
-            <button type="submit" disabled={envoiEnCours || !dateHeure || !formateurId}>
+            <button
+              type="submit"
+              disabled={envoiEnCours || !dateTest || !heureTest || !minuteTest || !formateurId}
+            >
               {envoiEnCours ? 'Enregistrement...' : 'Confirmer la planification'}
             </button>
           </div>
