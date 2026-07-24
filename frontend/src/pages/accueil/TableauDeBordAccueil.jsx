@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
+import FiltresStatut from '../../core/dossier/FiltresStatut';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -96,29 +97,7 @@ export default function TableauDeBordAccueil() {
           <EnTeteBackOffice />
         </header>
 
-        <nav className="tableau-bord-accueil__filtres" aria-label="Filtrer par statut">
-          <div className="tableau-bord-accueil__filtres-tous">
-            <button
-              type="button"
-              className={statutFiltre === null ? 'actif' : ''}
-              onClick={() => setStatutFiltre(null)}
-            >
-              Tous
-            </button>
-          </div>
-          <div className="tableau-bord-accueil__filtres-statuts">
-            {statuts.map((statut) => (
-              <button
-                key={statut.code}
-                type="button"
-                className={statutFiltre === statut.code ? 'actif' : ''}
-                onClick={() => setStatutFiltre(statut.code)}
-              >
-                {statut.libelle}
-              </button>
-            ))}
-          </div>
-        </nav>
+        <FiltresStatut statuts={statuts} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}

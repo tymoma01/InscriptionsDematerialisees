@@ -5,28 +5,6 @@
   color: var(--couleur-back-office);
 }
 
-.backoffice-recruteur__filtres {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--espace-petit);
-  margin-bottom: var(--espace-moyen);
-}
-
-.backoffice-recruteur__filtres button {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--couleur-bordure);
-  border-radius: 999px;
-  background-color: var(--couleur-fond);
-  color: var(--couleur-texte);
-  cursor: pointer;
-}
-
-.backoffice-recruteur__filtres button.actif {
-  background-color: var(--couleur-back-office);
-  border-color: var(--couleur-back-office);
-  color: #ffffff;
-}
-
 .backoffice-recruteur [role='alert'] {
   color: var(--couleur-erreur);
 }

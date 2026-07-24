@@ -1,0 +1,46 @@
+.filtres-statut {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
+}
+
+.filtres-statut__tous {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.filtres-statut__statuts {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  align-items: center;
+  gap: var(--espace-petit);
+  padding: var(--espace-petit);
+  background-color: var(--couleur-fond-secondaire);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  /* Sans min-width: 0, un enfant flex ne se rétrécit jamais sous la largeur de son
+     contenu (min-width:auto par défaut) : sur une fenêtre étroite, ce bloc débordait
+     au lieu de laisser flex-wrap répartir les boutons sur plusieurs lignes. */
+  min-width: 0;
+}
+
+.filtres-statut button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.filtres-statut button.actif {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+}

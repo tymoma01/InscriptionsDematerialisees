@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
+import FiltresStatut from '../../core/dossier/FiltresStatut';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -91,25 +92,7 @@ export default function Backoffice() {
           <EnTeteBackOffice />
         </header>
 
-        <nav className="backoffice-recruteur__filtres" aria-label="Filtrer par statut">
-          <button
-            type="button"
-            className={statutFiltre === null ? 'actif' : ''}
-            onClick={() => setStatutFiltre(null)}
-          >
-            Tous
-          </button>
-          {statuts.map((statut) => (
-            <button
-              key={statut.code}
-              type="button"
-              className={statutFiltre === statut.code ? 'actif' : ''}
-              onClick={() => setStatutFiltre(statut.code)}
-            >
-              {statut.libelle}
-            </button>
-          ))}
-        </nav>
+        <FiltresStatut statuts={statuts} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}
