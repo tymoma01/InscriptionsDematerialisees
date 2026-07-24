@@ -97,13 +97,15 @@ export default function TableauDeBordAccueil() {
         </header>
 
         <nav className="tableau-bord-accueil__filtres" aria-label="Filtrer par statut">
-          <button
-            type="button"
-            className={statutFiltre === null ? 'actif' : ''}
-            onClick={() => setStatutFiltre(null)}
-          >
-            Tous
-          </button>
+          <div className="tableau-bord-accueil__filtres-tous">
+            <button
+              type="button"
+              className={statutFiltre === null ? 'actif' : ''}
+              onClick={() => setStatutFiltre(null)}
+            >
+              Tous
+            </button>
+          </div>
           <div className="tableau-bord-accueil__filtres-statuts">
             {statuts.map((statut) => (
               <button

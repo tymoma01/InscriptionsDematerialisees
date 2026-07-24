@@ -27,14 +27,22 @@
 .tableau-bord-accueil__filtres {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--espace-petit);
   margin-bottom: var(--espace-moyen);
+}
+
+.tableau-bord-accueil__filtres-tous {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tableau-bord-accueil__filtres-statuts {
   display: flex;
   flex-wrap: wrap;
+  align-content: center;
+  align-items: center;
   gap: var(--espace-petit);
   padding: var(--espace-petit);
   background-color: var(--couleur-fond-secondaire);
