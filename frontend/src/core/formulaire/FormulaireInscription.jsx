@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import BlocRenderer from './BlocRenderer';
 import { useFormulaireInscription } from './useFormulaireInscription';
 import { creerCandidat } from '../../services/candidatService';
@@ -30,6 +30,13 @@ export default function FormulaireInscription({ configBlocs, onInscriptionReussi
 
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
+
+  // Ramène en haut de page à chaque changement d'étape : sans ça, la position de
+  // défilement de l'étape précédente est conservée et l'utilisateur peut arriver
+  // au milieu de la nouvelle étape.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [etapeCourante]);
 
   if (etapes.length === 0) {
     return <p>Aucun bloc de formulaire actif pour cette entité.</p>;
