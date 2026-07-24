@@ -16,18 +16,23 @@
 
 .filtres-statut__statuts {
   display: flex;
-  flex-wrap: wrap;
-  align-content: center;
+  flex: 1;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--espace-petit);
+  justify-content: space-between;
+  gap: 0.3rem;
   padding: var(--espace-petit);
   background-color: var(--couleur-fond-secondaire);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
-  /* Sans min-width: 0, un enfant flex ne se rétrécit jamais sous la largeur de son
-     contenu (min-width:auto par défaut) : sur une fenêtre étroite, ce bloc débordait
-     au lieu de laisser flex-wrap répartir les boutons sur plusieurs lignes. */
+  /* flex: 1 sur ce bloc (et non plus wrap) : il occupe toute la largeur restante à côté
+     du bloc "Tous", pour donner le plus de place possible à une seule ligne de boutons.
+     min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous
+     la largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait au lieu
+     de se resserrer. overflow-x en ultime filet de sécurité si, malgré les réductions de
+     gap/padding/police ci-dessous, la largeur réelle de l'écran restait insuffisante. */
   min-width: 0;
+  overflow-x: auto;
 }
 
 .filtres-statut button {
@@ -37,6 +42,13 @@
   background-color: var(--couleur-fond);
   color: var(--couleur-texte);
   cursor: pointer;
+}
+
+.filtres-statut__statuts button {
+  flex-shrink: 0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .filtres-statut button.actif {
