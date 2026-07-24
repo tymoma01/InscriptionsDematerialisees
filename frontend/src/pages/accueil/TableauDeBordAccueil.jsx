@@ -104,16 +104,18 @@ export default function TableauDeBordAccueil() {
           >
             Tous
           </button>
-          {statuts.map((statut) => (
-            <button
-              key={statut.code}
-              type="button"
-              className={statutFiltre === statut.code ? 'actif' : ''}
-              onClick={() => setStatutFiltre(statut.code)}
-            >
-              {statut.libelle}
-            </button>
-          ))}
+          <div className="tableau-bord-accueil__filtres-statuts">
+            {statuts.map((statut) => (
+              <button
+                key={statut.code}
+                type="button"
+                className={statutFiltre === statut.code ? 'actif' : ''}
+                onClick={() => setStatutFiltre(statut.code)}
+              >
+                {statut.libelle}
+              </button>
+            ))}
+          </div>
         </nav>
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
