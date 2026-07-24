@@ -7,9 +7,20 @@
 
 .backoffice-recruteur__filtres {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: var(--espace-petit);
   margin-bottom: var(--espace-moyen);
+}
+
+.backoffice-recruteur__filtres-statuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  padding: var(--espace-petit);
+  background-color: var(--couleur-fond-secondaire);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
 }
 
 .backoffice-recruteur__filtres button {
