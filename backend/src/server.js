@@ -13,20 +13,31 @@ async function demarrer() {
     console.log(`Serveur démarré sur le port ${PORT}`);
   });
 
-  // Arrêt propre : on attend la fin des requêtes en cours avant de quitter
-  process.on('SIGTERM', () => {
-    serveur.close(() => {
-      console.log('Serveur arrêté proprement.');
-      process.exit(0);
-    });
-  });
+  // Arrêt propre : on attend la fin des requêtes en cours, mais serveur.close() seul ne coupe
+  // pas les connexions keep-alive déjà établies (ex: onglet front resté ouvert) - sans ça son
+  // callback n'est jamais appelé et le process reste vivant indéfiniment après un SIGINT/SIGTERM,
+  // silencieusement (observé en pratique : process orphelin de plusieurs jours après un Ctrl+C).
+  // closeAllConnections() force leur fermeture immédiate ; le délai de secours force la sortie
+  // si l'arrêt traîne quand même au-delà d'un temps raisonnable.
+  function arreter(signal) {
+    console.log(`Signal ${signal} reçu, arrêt du serveur...`);
 
-  process.on('SIGINT', () => {
+    const delaiSecours = setTimeout(() => {
+      console.warn('Arrêt propre trop long, sortie forcée.');
+      process.exit(1);
+    }, 5000);
+    delaiSecours.unref();
+
     serveur.close(() => {
+      clearTimeout(delaiSecours);
       console.log('Serveur arrêté proprement.');
       process.exit(0);
     });
-  });
+    serveur.closeAllConnections();
+  }
+
+  process.on('SIGTERM', () => arreter('SIGTERM'));
+  process.on('SIGINT', () => arreter('SIGINT'));
 }
 
 demarrer().catch((erreur) => {
