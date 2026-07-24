@@ -5,11 +5,14 @@
  */
 class StorageConnector {
   /**
-   * @param {number|string} dossierId
+   * dossierInfo porte de quoi construire un rangement lisible/organisé côté prestataire (ex.
+   * {année}/{mois}/{NOM_PRENOM} chez Azure OneDrive) — chaque connecteur reste seul responsable
+   * de la construction et de la normalisation de son propre chemin.
+   * @param {{ id: number|string, dateCreation: Date, nomCandidat: string, prenomCandidat: string }} dossierInfo
    * @param {{ nom: string, contenu: Buffer }} fichier
    * @returns {Promise<string>} reference_stockage à persister dans pieces_justificatives
    */
-  async upload(dossierId, fichier) {
+  async upload(dossierInfo, fichier) {
     throw new Error('StorageConnector.upload doit être implémenté par la classe dérivée');
   }
 
@@ -30,10 +33,10 @@ class StorageConnector {
   }
 
   /**
-   * @param {number|string} dossierId
+   * @param {{ id: number|string, dateCreation: Date, nomCandidat: string, prenomCandidat: string }} dossierInfo
    * @returns {Promise<string[]>} liste de references_stockage
    */
-  async lister(dossierId) {
+  async lister(dossierInfo) {
     throw new Error('StorageConnector.lister doit être implémenté par la classe dérivée');
   }
 

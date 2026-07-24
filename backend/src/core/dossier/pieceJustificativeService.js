@@ -29,8 +29,6 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
 // la charte (nouveau), ni après une décision définitive sur le dossier (valide/rejete).
 const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'];
 
-// dossierId reste la clé de rangement chez le connecteur (StorageConnector.upload(dossierId, fichier)),
-// cohérente avec pieces_justificatives.dossier_id — pas de réorganisation par candidat_id/année.
 async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, uploadedBy }) {
   if (!Buffer.isBuffer(contenu)) {
     throw new Error('uploaderPieceJustificative attend un contenu de type Buffer');
@@ -59,8 +57,21 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   // Upload distant avant écriture en base : en cas d'échec de l'insertion, mieux vaut un fichier
   // orphelin sur le stockage (négligeable) qu'une ligne pieces_justificatives pointant vers un
   // fichier qui n'a jamais été réellement envoyé (trompeur pour le second contrôle RH).
+  //
+  // dossierInfo transmet de quoi construire l'arborescence {année}/{mois}/{NOM_PRENOM} exigée
+  // par le connecteur ACCECIT (Azure OneDrive) — dateCreation vient de dossiers.date_creation,
+  // jamais recalculée si le dossier reste ouvert à cheval sur deux mois, cf.
+  // dossierRepository.trouverDossierAvecStatutParId. Le connecteur reste seul responsable de la
+  // construction du chemin final (normalisation incluse) : ce service ne connaît pas les
+  // contraintes de nommage propres à SharePoint/OVH.
   const connecteur = storageFactory(entite.connecteur_stockage);
-  const referenceStockage = await connecteur.upload(dossierId, { nom: nomFichier, contenu });
+  const dossierInfo = {
+    id: dossierId,
+    dateCreation: dossier.date_creation,
+    nomCandidat: dossier.candidat_nom,
+    prenomCandidat: dossier.candidat_prenom,
+  };
+  const referenceStockage = await connecteur.upload(dossierInfo, { nom: nomFichier, contenu });
 
   const pieceId = await pieceJustificativeRepository.enregistrerPieceJustificative(bd, {
     dossierId,

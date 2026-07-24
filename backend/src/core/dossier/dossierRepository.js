@@ -71,12 +71,22 @@ function trouverDossierParId(trx, entiteId, dossierId) {
 // Même filtre IDOR que trouverDossierParId, avec en plus le code du statut courant — utilisé
 // quand une action doit être refusée selon le statut du dossier (voir
 // pieceJustificativeService.uploaderPieceJustificative), pour éviter une seconde requête
-// séparée juste pour résoudre statut_id en code.
+// séparée juste pour résoudre statut_id en code. Join sur candidats en plus (nom/prénom) : sert
+// à construire le segment "NOM_PRENOM" de l'arborescence SharePoint (voir azureOneDriveConnector,
+// StorageConnector.upload) sans requête séparée — dossiers.date_creation (déjà dans dossiers.*)
+// fournit l'année/le mois de cette même arborescence.
 function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
   return trx('dossiers')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
-    .select('dossiers.*', 'statuts.code as statut_code', 'statuts.libelle as statut_libelle')
+    .select(
+      'dossiers.*',
+      'statuts.code as statut_code',
+      'statuts.libelle as statut_libelle',
+      'candidats.nom as candidat_nom',
+      'candidats.prenom as candidat_prenom',
+    )
     .first();
 }
 

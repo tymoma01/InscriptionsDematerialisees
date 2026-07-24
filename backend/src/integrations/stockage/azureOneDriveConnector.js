@@ -6,10 +6,74 @@ const StorageConnector = require('./StorageConnector');
 const graphClient = require('./graphClient');
 const { traduireErreurGraph } = require('./erreursGraph');
 
-// Bibliothèque de documents cible pour ACCECIT, sur le site SharePoint racine du tenant.
-// Si une future entité utilise elle aussi OneDrive/SharePoint avec une bibliothèque différente,
-// faire de ce nom une valeur de configuration par entité plutôt que d'ajouter un branchement ici.
+// Bibliothèque de documents cible pour ACCECIT, sur le site SharePoint racine du tenant (vérifié :
+// /sites/root résout bien sur le site nommé "Communication site" utilisé par Florence, même site,
+// aucun siteId à cibler explicitement). Si une future entité utilise elle aussi OneDrive/SharePoint
+// avec une bibliothèque différente, faire de ce nom une valeur de configuration par entité plutôt
+// que d'ajouter un branchement ici.
 const NOM_BIBLIOTHEQUE = 'Inscriptions';
+
+// Mois FR en majuscules sans accent (contrainte d'encodage SharePoint), indexés comme
+// Date#getMonth()/Intl (0 = janvier).
+const MOIS_FR_MAJUSCULE = [
+  'JANVIER',
+  'FEVRIER',
+  'MARS',
+  'AVRIL',
+  'MAI',
+  'JUIN',
+  'JUILLET',
+  'AOUT',
+  'SEPTEMBRE',
+  'OCTOBRE',
+  'NOVEMBRE',
+  'DECEMBRE',
+];
+
+// Caractères interdits dans un nom de dossier/fichier SharePoint.
+const CARACTERES_INTERDITS_SHAREPOINT = /[/\\:*?"<>|]/g;
+
+// Année/mois calculés dans le fuseau Europe/Paris (jamais celui, potentiellement différent, du
+// serveur applicatif) : sans ça, un dossier créé juste après minuit heure de Paris pourrait
+// tomber dans le mauvais mois — voire la mauvaise année pour la nuit du 31 décembre — si le
+// serveur tourne en UTC ou dans un autre fuseau.
+function anneeMoisParis(date) {
+  const parties = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date);
+  const annee = parties.find((partie) => partie.type === 'year').value;
+  const moisIndex = Number(parties.find((partie) => partie.type === 'month').value) - 1;
+  return { annee, mois: MOIS_FR_MAJUSCULE[moisIndex] };
+}
+
+// Construit le segment de dossier "NOM_PRENOM" du candidat : majuscules, accents retirés
+// (décomposition NFD puis suppression des marques diacritiques), caractères interdits SharePoint
+// retirés, espaces (un ou plusieurs) réduits à un seul "_" — jamais d'espace ni d'accent dans un
+// nom de dossier SharePoint généré automatiquement.
+// \p{Mn} (Unicode property escape, nécessite le flag "u") : catégorie "Mark, nonspacing" — couvre
+// toutes les marques diacritiques qu'une décomposition NFD peut produire, sans dépendre d'une
+// plage de code points écrite en dur.
+const MARQUES_DIACRITIQUES = /\p{Mn}/gu;
+
+function normaliserSegmentDossierCandidat(nom, prenom) {
+  return `${nom} ${prenom}`
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(MARQUES_DIACRITIQUES, '')
+    .replace(CARACTERES_INTERDITS_SHAREPOINT, '')
+    .trim()
+    .replace(/\s+/g, '_');
+}
+
+// Chemin (sans nom de fichier) de la nouvelle arborescence, demandée pour classer les pièces par
+// période et par candidat plutôt que par simple id de dossier technique.
+function cheminDossierCandidat(dossierInfo) {
+  const { annee, mois } = anneeMoisParis(dossierInfo.dateCreation);
+  const segmentCandidat = normaliserSegmentDossierCandidat(dossierInfo.nomCandidat, dossierInfo.prenomCandidat);
+  return `${annee}/${mois}/${segmentCandidat}`;
+}
 
 // Limite de l'upload simple (PUT .../content) côté Microsoft Graph : 4 Mio. Au-delà, obligation
 // de passer par une upload session (envoi par tranches), sans quoi la requête échoue.
@@ -116,15 +180,29 @@ async function uploaderGrosFichier(client, driveId, chemin, contenu) {
   return itemFinal;
 }
 
+// Liste le contenu d'un seul chemin, [] si le dossier n'existe pas (rien uploadé à cet
+// emplacement) — factorisé pour lister() ci-dessous, qui interroge deux emplacements possibles.
+async function listerItemsChemin(client, driveId, chemin, dossierId) {
+  try {
+    const reponse = await client.api(`/drives/${driveId}/root:/${encoderChemin(chemin)}:/children`).get();
+    return reponse.value.map((item) => encoderReference(driveId, item.id));
+  } catch (erreur) {
+    if (erreur.statusCode === 404) {
+      return []; // aucun dossier créé à cet emplacement = aucune pièce justificative ici
+    }
+    throw traduireErreurGraph(erreur, `listing du dossier "${dossierId}"`);
+  }
+}
+
 class AzureOneDriveConnector extends StorageConnector {
-  async upload(dossierId, fichier) {
+  async upload(dossierInfo, fichier) {
     if (!fichier || typeof fichier.nom !== 'string' || !Buffer.isBuffer(fichier.contenu)) {
       throw new Error('upload attend un fichier { nom: string, contenu: Buffer }');
     }
 
     const client = await graphClient.obtenirClientGraph();
     const driveId = await obtenirDriveId(client);
-    const chemin = encoderChemin(`${dossierId}/${fichier.nom}`);
+    const chemin = encoderChemin(`${cheminDossierCandidat(dossierInfo)}/${fichier.nom}`);
 
     const item =
       fichier.contenu.length <= SEUIL_UPLOAD_SIMPLE_OCTETS
@@ -184,19 +262,20 @@ class AzureOneDriveConnector extends StorageConnector {
     }
   }
 
-  async lister(dossierId) {
+  // Interroge à la fois l'ancien rangement plat {dossierId}/ (pièces uploadées avant
+  // l'introduction de l'arborescence année/mois/candidat, jamais migrées rétroactivement — voir
+  // le plan validé pour ce chantier) et le nouveau {année}/{mois}/{NOM_PRENOM}/ (uploads
+  // courants), pour ne perdre aucune pièce déjà envoyée à l'un ou l'autre emplacement.
+  async lister(dossierInfo) {
     const client = await graphClient.obtenirClientGraph();
     const driveId = await obtenirDriveId(client);
 
-    try {
-      const reponse = await client.api(`/drives/${driveId}/root:/${encoderChemin(String(dossierId))}:/children`).get();
-      return reponse.value.map((item) => encoderReference(driveId, item.id));
-    } catch (erreur) {
-      if (erreur.statusCode === 404) {
-        return []; // aucun dossier créé pour ce candidat = aucune pièce justificative
-      }
-      throw traduireErreurGraph(erreur, `listing du dossier "${dossierId}"`);
-    }
+    const [itemsAncienChemin, itemsNouveauChemin] = await Promise.all([
+      listerItemsChemin(client, driveId, String(dossierInfo.id), dossierInfo.id),
+      listerItemsChemin(client, driveId, cheminDossierCandidat(dossierInfo), dossierInfo.id),
+    ]);
+
+    return [...itemsAncienChemin, ...itemsNouveauChemin];
   }
 }
 

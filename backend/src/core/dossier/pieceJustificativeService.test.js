@@ -12,6 +12,11 @@ const service = require('./pieceJustificativeService');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit', connecteur_stockage: 'azure_onedrive' };
 
+// date_creation/candidat_nom/candidat_prenom : depuis la jointure candidats ajoutée à
+// trouverDossierAvecStatutParId (voir dossierRepository.js) — sert à construire l'arborescence
+// SharePoint {année}/{mois}/{NOM_PRENOM} au moment de l'upload (voir pieceJustificativeService.js).
+const DATE_CREATION_DOSSIER_TEST = new Date('2026-07-20T10:00:00Z');
+
 function mockerKnex(t) {
   // bd n'est jamais réellement interrogé dans ces tests : trouverTypePieceParCode et les autres
   // fonctions du repository sont mockées, donc la valeur passée pour `bd` n'a pas besoin d'être
@@ -27,6 +32,9 @@ function mockerKnex(t) {
     id: 42,
     statut_code: 'en_attente_pieces',
     statut_libelle: 'En attente de pièces',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Martin',
+    candidat_prenom: 'Sophie',
   }));
 }
 
@@ -81,6 +89,9 @@ test("uploaderPieceJustificative rejette si le dossier n'est pas dans un statut 
     id: 42,
     statut_code: 'valide',
     statut_libelle: 'Validé',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Martin',
+    candidat_prenom: 'Sophie',
   }));
 
   await assert.rejects(
@@ -101,6 +112,9 @@ test("uploaderPieceJustificative autorise l'upload quand le dossier est en_atten
     id: 42,
     statut_code: 'en_attente_verification',
     statut_libelle: 'En attente de vérification',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Martin',
+    candidat_prenom: 'Sophie',
   }));
   t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
   t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-456');
@@ -133,7 +147,10 @@ test('uploaderPieceJustificative uploade vers le connecteur puis enregistre la r
 
   assert.deepEqual(resultat, { pieceId: 99, referenceStockage: 'ref-stockage-123' });
   assert.equal(uploadMock.mock.calls.length, 1);
-  assert.deepEqual(uploadMock.mock.calls[0].arguments, [42, { nom: 'cni.pdf', contenu: Buffer.from('contenu') }]);
+  assert.deepEqual(uploadMock.mock.calls[0].arguments, [
+    { id: 42, dateCreation: DATE_CREATION_DOSSIER_TEST, nomCandidat: 'Martin', prenomCandidat: 'Sophie' },
+    { nom: 'cni.pdf', contenu: Buffer.from('contenu') },
+  ]);
   assert.equal(enregistrerMock.mock.calls.length, 1);
   assert.deepEqual(enregistrerMock.mock.calls[0].arguments[1], {
     dossierId: 42,
