@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
 import { listerFormateurs } from '../../services/formateurService';
-import { creerRendezvous } from '../../services/rendezvousService';
-import { listerTransitions, appliquerTransition } from '../../services/transitionService';
+import { creerRendezvousAvecTransitions } from '../../services/rendezvousService';
+import { listerTransitions } from '../../services/transitionService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
 import './CaptureTablette.css';
@@ -277,47 +277,53 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
     // service/back (voir creerRendezvous, qui attend une chaîne convertible en Date).
     const dateHeureIso = new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString();
 
-    // Étape 1 : créer le rendez-vous. Si ça échoue, rien d'autre n'est tenté — le dossier reste
-    // dans son statut courant, l'agent peut réessayer sans risque de double changement de statut.
+    // Construit la liste des transitions à appliquer : "pieces_completes" seulement s'il figure
+    // parmi les actions actuellement proposées par le moteur générique pour ce dossier (voir
+    // CODE_ACTION_PIECES_COMPLETES plus haut — jamais supposé systématique, une autre entité peut
+    // ne pas avoir cette étape intermédiaire), puis toujours "planifier_test". Simple lecture,
+    // avant tout écriture : rien n'est encore créé à ce stade.
+    let transitions;
     try {
-      await creerRendezvous(dossierId, { typeRdv: 'test', dateHeure: dateHeureIso, formateurId: Number(formateurId) });
+      const transitionsDisponibles = await listerTransitions(dossierId);
+      const codesDisponibles = transitionsDisponibles.map((transition) => transition.code_action);
+
+      transitions = [];
+      if (codesDisponibles.includes(CODE_ACTION_PIECES_COMPLETES)) {
+        transitions.push({
+          codeAction: CODE_ACTION_PIECES_COMPLETES,
+          commentaire: 'Pièces justificatives complètes — passage en vérification avant planification du test.',
+        });
+      }
+      transitions.push({
+        codeAction: CODE_ACTION_PLANIFIER_TEST,
+        commentaire: `Test planifié le ${FORMAT_DATE_HEURE.format(new Date(dateHeureIso))} avec ${formateurChoisi.prenom} ${formateurChoisi.nom}.`,
+      });
     } catch (erreur) {
       setEnvoiEnCours(false);
       setErreurEnvoi(
         erreur.response
-          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer le rendez-vous. Merci de réessayer.")
+          ? (erreur.response.data?.erreur ?? 'Impossible de récupérer les actions disponibles pour ce dossier.')
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
       return;
     }
 
-    // Étape 2 : faire avancer le statut du dossier jusqu'à test_planifie. "pieces_completes"
-    // n'est appliqué que s'il figure parmi les actions actuellement proposées par le moteur
-    // générique pour ce dossier (voir CODE_ACTION_PIECES_COMPLETES plus haut) — jamais supposé
-    // systématique, une autre entité peut ne pas avoir cette étape intermédiaire.
+    // Création du rendez-vous et changement de statut en une seule transaction côté back (voir
+    // rendezvousService.creerRendezvousAvecTransitions) : soit les deux réussissent, soit aucun
+    // des deux n'est enregistré — plus de rendez-vous "orphelin" possible si la transition échoue.
     try {
-      const transitionsDisponibles = await listerTransitions(dossierId);
-      const codesDisponibles = transitionsDisponibles.map((transition) => transition.code_action);
-
-      if (codesDisponibles.includes(CODE_ACTION_PIECES_COMPLETES)) {
-        await appliquerTransition(dossierId, {
-          codeAction: CODE_ACTION_PIECES_COMPLETES,
-          commentaire: 'Pièces justificatives complètes — passage en vérification avant planification du test.',
-        });
-      }
-
-      await appliquerTransition(dossierId, {
-        codeAction: CODE_ACTION_PLANIFIER_TEST,
-        commentaire: `Test planifié le ${FORMAT_DATE_HEURE.format(new Date(dateHeureIso))} avec ${formateurChoisi.prenom} ${formateurChoisi.nom}.`,
+      await creerRendezvousAvecTransitions(dossierId, {
+        typeRdv: 'test',
+        dateHeure: dateHeureIso,
+        formateurId: Number(formateurId),
+        transitions,
       });
-    } catch {
-      // Le rendez-vous existe déjà en base à ce stade (étape 1 réussie) : on le dit clairement
-      // plutôt que de laisser croire qu'aucune donnée n'a été enregistrée, pas de retour arrière
-      // automatique (pas de route de suppression de rendez-vous).
+    } catch (erreur) {
       setEnvoiEnCours(false);
       setErreurEnvoi(
-        "Le rendez-vous a bien été créé, mais la mise à jour du statut du dossier a échoué. " +
-          'Merci de réessayer ou de contacter un administrateur.',
+        erreur.response
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la planification. Merci de réessayer.")
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
       return;
     }

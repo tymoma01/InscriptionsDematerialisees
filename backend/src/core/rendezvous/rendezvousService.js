@@ -100,8 +100,13 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId } = {
 // au formateur concerné"). Ne déclenche aucune transition de statut du dossier ici — c'est une
 // action distincte (voir transitions.routes.js, codeAction "planifier_test" pour ACCECIT),
 // exactement comme changerStatutRendezvous ci-dessus ne touche jamais dossiers.statut non plus.
-async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateurId }) {
-  const bd = await db.obtenirKnex();
+//
+// bdExistante : voir le commentaire équivalent dans workflowEngine.appliquerTransition — permet
+// à planificationRendezvousService de faire participer cette création à une transaction déjà
+// ouverte, pour que la création du rendez-vous et la transition de statut qui suit réussissent
+// ou échouent ensemble.
+async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateurId }, bdExistante = null) {
+  const bd = bdExistante ?? (await db.obtenirKnex());
   await verifierDossierAppartientEntite(bd, entite, dossierId);
 
   let formateurIdValide = null;

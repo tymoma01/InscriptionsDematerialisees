@@ -36,12 +36,23 @@ async function trouverDossierOuEchouer(bd, entite, dossierId) {
 // transition non déclarée dans `transitions_statut` pour le statut courant du dossier est
 // refusée — impossible de sauter un statut ou d'appliquer une action non prévue par la
 // configuration de l'entité, quel que soit ce qu'un client enverrait.
-async function appliquerTransition(entite, { dossierId, codeAction, motifCode, commentaire, utilisateurId, roleCode }) {
+//
+// bdExistante : permet à un appelant (voir planificationRendezvousService.js) de faire
+// participer cette transition à une transaction déjà ouverte ailleurs — sans ça, chaque appel
+// résout sa propre connexion et deux opérations censées être atomiques (créer un rendez-vous +
+// avancer le statut du dossier) peuvent diverger si la seconde échoue après que la première a
+// déjà été validée en base (voir l'incident constaté sur le dossier 62 : rendez-vous créés sans
+// changement de statut correspondant).
+async function appliquerTransition(
+  entite,
+  { dossierId, codeAction, motifCode, commentaire, utilisateurId, roleCode },
+  bdExistante = null,
+) {
   if (!commentaire || !commentaire.trim()) {
     throw new Error('Un commentaire est obligatoire pour tout changement de statut.');
   }
 
-  const bd = await db.obtenirKnex();
+  const bd = bdExistante ?? (await db.obtenirKnex());
   const dossier = await trouverDossierOuEchouer(bd, entite, dossierId);
 
   const transition = await workflowRepository.trouverTransition(bd, entite.id, dossier.statut_id, codeAction);

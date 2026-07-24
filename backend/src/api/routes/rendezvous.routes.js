@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
 const { ErreurFormateurInvalide, ErreurCreneauPris } = rendezvousService;
+const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -39,6 +40,22 @@ const creationRendezvousSchema = z.object({
   formateurId: idPositifSchema.optional(),
 });
 
+// Une transition à appliquer juste après la création du rendez-vous, dans la même transaction
+// (voir planificationRendezvousService.js) — codeAction pas figé en enum ici, même principe que
+// transitions.routes.js : le moteur générique valide la légitimité de l'action, pas cette couche.
+const transitionAAppliquerSchema = z.object({
+  codeAction: z.string().trim().min(1),
+  motifCode: z.string().trim().min(1).optional(),
+  commentaire: z.string().trim().min(1),
+});
+
+const creationAvecTransitionsSchema = creationRendezvousSchema.extend({
+  // Ordonnée : appliquée dans l'ordre reçu (ex. ACCECIT : "pieces_completes" puis
+  // "planifier_test" — voir CaptureTablette.jsx). Au moins une transition, sinon autant utiliser
+  // POST / ci-dessus (création seule, sans transition).
+  transitions: z.array(transitionAAppliquerSchema).min(1),
+});
+
 function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
@@ -59,9 +76,10 @@ router.get('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next)
 // (ex. rendez-vous de test, CLAUDE.md étape "Envoi en test"). formateurId optionnel, mais s'il
 // est fourni doit référencer un utilisateur de cette entité ayant le rôle formateur (voir
 // rendezvousService.creerRendezvous) — c'est lui qui verra ensuite ce rendez-vous dans
-// GET /api/evaluations/a-faire. Ne déclenche aucune transition de statut du dossier (voir
-// commentaire dans rendezvousService.js) — à faire séparément via
-// POST /api/dossiers/:dossierId/transitions (codeAction "planifier_test" pour ACCECIT).
+// GET /api/evaluations/a-faire. Ne déclenche aucune transition de statut du dossier ici — pour un
+// rendez-vous qui doit s'accompagner d'un changement de statut atomique (ex. planification de
+// test), voir POST /avec-transitions ci-dessous plutôt que d'enchaîner cet endpoint avec
+// POST /api/dossiers/:dossierId/transitions séparément (non atomique, voir son historique).
 router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
@@ -86,6 +104,56 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
     });
 
     res.status(201).json(rendezvous);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurFormateurInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof ErreurCreneauPris) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
+    next(erreur);
+  }
+});
+
+// POST /api/dossiers/:dossierId/rendezvous/avec-transitions — même création de rendez-vous que
+// POST / ci-dessus, mais applique en plus une ou plusieurs transitions de statut dans la MÊME
+// transaction DB (voir planificationRendezvousService.js) : soit tout réussit, soit rien n'est
+// écrit — corrige l'incident du dossier 62 (rendez-vous créés sans le changement de statut
+// attendu, après plusieurs tentatives ayant chacune échoué sur la transition uniquement).
+router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
+  try {
+    const dossierId = idPositifSchema.parse(req.params.dossierId);
+    const { typeRdv, dateHeure, formateurId, transitions } = creationAvecTransitionsSchema.parse(req.body);
+
+    const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(req.entite, {
+      dossierId,
+      typeRdv,
+      dateHeure,
+      formateurId,
+      transitions,
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+    });
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'rendezvous_cree_avec_transitions',
+      tableCible: 'rendezvous',
+      cibleId: resultat.rendezvous.id,
+      donnees: {
+        dossierId,
+        typeRdv,
+        dateHeure,
+        formateurId: formateurId ?? null,
+        codesActions: transitions.map((transition) => transition.codeAction),
+      },
+      adresseIp: req.ip,
+    });
+
+    res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof ErreurFormateurInvalide) {

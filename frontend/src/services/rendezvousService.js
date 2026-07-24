@@ -27,9 +27,27 @@ export async function listerMotifsDesistement() {
 
 // Planifie un nouveau rendez-vous (ex. rendez-vous de test, voir CaptureTablette.jsx) — le back
 // revalide tout (dossier/entité, rôle du formateur, créneau déjà pris), voir
-// backend/src/core/rendezvous/rendezvousService.js.
+// backend/src/core/rendezvous/rendezvousService.js. Ne change aucun statut de dossier — pour un
+// rendez-vous qui doit s'accompagner d'un changement de statut atomique, voir
+// creerRendezvousAvecTransitions ci-dessous.
 export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateurId }) {
   const { data } = await api.post(`/dossiers/${dossierId}/rendezvous`, { typeRdv, dateHeure, formateurId });
+  return data;
+}
+
+// Crée le rendez-vous et applique une ou plusieurs transitions de statut du dossier en une seule
+// transaction côté back (voir backend/src/core/rendezvous/planificationRendezvousService.js) :
+// soit tout réussit, soit rien n'est enregistré — remplace l'ancien enchaînement
+// creerRendezvous() + appliquerTransition() séparés, qui pouvait laisser un rendez-vous créé sans
+// le changement de statut correspondant si la seconde étape échouait (voir CaptureTablette.jsx).
+// transitions : liste ordonnée de { codeAction, commentaire, motifCode? }.
+export async function creerRendezvousAvecTransitions(dossierId, { typeRdv, dateHeure, formateurId, transitions }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/rendezvous/avec-transitions`, {
+    typeRdv,
+    dateHeure,
+    formateurId,
+    transitions,
+  });
   return data;
 }
 
