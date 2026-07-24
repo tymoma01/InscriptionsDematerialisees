@@ -99,18 +99,16 @@ export default function Backoffice() {
           >
             Tous
           </button>
-          <div className="backoffice-recruteur__filtres-statuts">
-            {statuts.map((statut) => (
-              <button
-                key={statut.code}
-                type="button"
-                className={statutFiltre === statut.code ? 'actif' : ''}
-                onClick={() => setStatutFiltre(statut.code)}
-              >
-                {statut.libelle}
-              </button>
-            ))}
-          </div>
+          {statuts.map((statut) => (
+            <button
+              key={statut.code}
+              type="button"
+              className={statutFiltre === statut.code ? 'actif' : ''}
+              onClick={() => setStatutFiltre(statut.code)}
+            >
+              {statut.libelle}
+            </button>
+          ))}
         </nav>
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
