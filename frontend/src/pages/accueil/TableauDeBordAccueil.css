@@ -34,8 +34,10 @@
 
 .tableau-bord-accueil__filtres-tous {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  font-weight: 700;
 }
 
 .tableau-bord-accueil__filtres-statuts {
@@ -48,6 +50,10 @@
   background-color: var(--couleur-fond-secondaire);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
+  /* Sans min-width: 0, un enfant flex ne se rétrécit jamais sous la largeur de son
+     contenu (min-width:auto par défaut) : sur une fenêtre étroite, ce bloc débordait
+     au lieu de laisser flex-wrap répartir les boutons sur plusieurs lignes. */
+  min-width: 0;
 }
 
 .tableau-bord-accueil__filtres button {
