@@ -157,7 +157,13 @@ function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSel
               {creneauxJour.length > 0 && (
                 <span className="calendrier-disponibilite__badges">
                   {creneauxJour.map((rendezvous) => (
-                    <span key={rendezvous.id} className="calendrier-disponibilite__badge">
+                    // title natif : tooltip au survol sans dépendance supplémentaire, cohérent
+                    // avec le reste du projet (pas de lib de tooltip custom en place).
+                    <span
+                      key={rendezvous.id}
+                      className="calendrier-disponibilite__badge"
+                      title={`${rendezvous.candidat_nom} ${rendezvous.candidat_prenom}`}
+                    >
                       {FORMAT_HEURE.format(new Date(rendezvous.date_heure))}
                     </span>
                   ))}
