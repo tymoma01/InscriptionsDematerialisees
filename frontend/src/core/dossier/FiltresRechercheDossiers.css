@@ -1,0 +1,43 @@
+/* Même langage visuel que .filtres-statut__statuts juste en dessous (FiltresStatut.css) : fond
+   clair, bordure légère, coins arrondis — pour que les deux barres de filtres se lisent comme un
+   seul bloc cohérent plutôt que deux composants disparates empilés. */
+.filtres-recherche-dossiers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit);
+  padding: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+  background-color: var(--couleur-fond-secondaire);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.filtres-recherche-dossiers__recherche {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+}
+
+.filtres-recherche-dossiers__date {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.filtres-recherche-dossiers__date input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+}

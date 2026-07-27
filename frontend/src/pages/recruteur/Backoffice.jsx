@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
+import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
+import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -36,6 +38,13 @@ export default function Backoffice() {
   const [chargementDossiers, setChargementDossiers] = useState(true);
   const [erreur, setErreur] = useState(null);
 
+  // Recherche nom/prénom + plage de date, combinées au statutFiltre déjà géré côté serveur
+  // ci-dessus — filtrage entièrement client (voir filtrerDossiers.js), la liste `dossiers` étant
+  // déjà intégralement en mémoire.
+  const [recherche, setRecherche] = useState('');
+  const [dateDebutFiltre, setDateDebutFiltre] = useState('');
+  const [dateFinFiltre, setDateFinFiltre] = useState('');
+
   useEffect(() => {
     listerStatuts()
       .then(setStatuts)
@@ -63,6 +72,11 @@ export default function Backoffice() {
       annule = true;
     };
   }, [statutFiltre]);
+
+  const dossiersFiltres = useMemo(
+    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre }),
+    [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
+  );
 
   if (chargementSession) {
     return (
@@ -92,6 +106,14 @@ export default function Backoffice() {
           <EnTeteBackOffice />
         </header>
 
+        <FiltresRechercheDossiers
+          recherche={recherche}
+          onChangerRecherche={setRecherche}
+          dateDebutFiltre={dateDebutFiltre}
+          onChangerDateDebutFiltre={setDateDebutFiltre}
+          dateFinFiltre={dateFinFiltre}
+          onChangerDateFinFiltre={setDateFinFiltre}
+        />
         <FiltresStatut statuts={statuts} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
@@ -99,7 +121,7 @@ export default function Backoffice() {
 
         {!chargementDossiers && !erreur && (
           <DossierList
-            dossiers={dossiers}
+            dossiers={dossiersFiltres}
             varianteStatut={varianteStatut}
             actions={[
               {
