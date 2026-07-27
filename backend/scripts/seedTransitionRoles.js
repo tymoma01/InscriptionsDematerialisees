@@ -25,7 +25,7 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // Décision finale du recruteur (CLAUDE.md, section Rôles : "décision finale (validé/refusé)").
   valider_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
   rejeter_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
-  // Bouton "Terminer et planifier un test" (CLAUDE.md, section Accueil/Coordination :
+  // Bouton "Planifier un test" (CLAUDE.md, section Accueil/Coordination :
   // "planifie les tests"). Déclenchée lors de la création du rendez-vous de test — la route de
   // création n'existe pas encore (voir core/rendezvous/rendezvousRepository.js), à raccorder
   // quand elle sera écrite.

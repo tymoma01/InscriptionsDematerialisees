@@ -208,7 +208,7 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
           onClick={() => setPlanificationOuverte(true)}
           disabled={!piecesObligatoiresCompletes}
         >
-          Terminer et planifier un test
+          Planifier un test
         </button>
         {!piecesObligatoiresCompletes && (
           <p className="capture-tablette__pied-indication">
