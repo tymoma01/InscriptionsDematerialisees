@@ -5,6 +5,13 @@
   color: var(--couleur-back-office);
 }
 
+/* Format "NOM Prénom" classique, même convention que .capture-tablette__candidat-nom
+   (CaptureTablette.css) : distingue nom/prénom sans dépendre d'un ordre figé, quelle que soit
+   la casse saisie en base. */
+.page-validation__candidat-nom {
+  text-transform: uppercase;
+}
+
 .page-validation__pieces {
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto var(--espace-grand);

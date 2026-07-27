@@ -8,3 +8,20 @@
   padding: 0 var(--espace-moyen);
   box-sizing: border-box;
 }
+
+/* Même traitement que le titre ci-dessus : centré/plafonné à la largeur des cartes en dessous
+   (GestionRendezvous.css / HistoriqueRelances.css), plutôt que de s'étirer sur toute la largeur
+   de l'écran comme le ferait un h1 par défaut. */
+.page-relances h1 {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: 0 var(--espace-moyen);
+  box-sizing: border-box;
+  color: var(--couleur-back-office);
+}
+
+/* Format "NOM Prénom" classique, même convention que .page-validation__candidat-nom
+   (Validation.css) / .capture-tablette__candidat-nom (CaptureTablette.css). */
+.page-relances__candidat-nom {
+  text-transform: uppercase;
+}

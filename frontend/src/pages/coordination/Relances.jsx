@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import HistoriqueRelances from '../../core/dossier/HistoriqueRelances';
 import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import { obtenirDossier } from '../../services/dossierService';
 import './Relances.css';
 
 // Page coordination : relances et rendez-vous d'un dossier (CLAUDE.md, étape "relances et
@@ -14,10 +16,37 @@ import './Relances.css';
 export default function Relances() {
   const { dossierId } = useParams();
 
+  // Nom du candidat affiché à côté du numéro de dossier dans le titre, même patron que
+  // Validation.jsx (obtenirDossier, statut + nom/prénom déjà joints côté back) : purement
+  // informatif, un échec de chargement ne bloque donc pas le reste de l'écran (catch silencieux,
+  // comme là-bas).
+  const [dossier, setDossier] = useState(null);
+
+  useEffect(() => {
+    let annule = false;
+    obtenirDossier(dossierId)
+      .then((valeur) => {
+        if (!annule) setDossier(valeur);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [dossierId]);
+
   return (
     <PageBackOffice>
       <div className="page-relances">
         <EnTeteBackOffice />
+        <h1>
+          Dossier #{dossierId}
+          {dossier && (
+            <>
+              {' — '}
+              <span className="page-relances__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+            </>
+          )}
+        </h1>
         <GestionRendezvous dossierId={dossierId} />
         <HistoriqueRelances dossierId={dossierId} />
       </div>

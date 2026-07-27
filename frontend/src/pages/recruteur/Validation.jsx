@@ -4,6 +4,7 @@ import GestionTransitions from '../../core/dossier/GestionTransitions';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
+import { obtenirDossier } from '../../services/dossierService';
 import './Validation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -25,6 +26,24 @@ export default function Validation() {
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
+
+  // Nom du candidat affiché à côté du numéro de dossier dans le titre, même patron que
+  // CaptureTablette.jsx (obtenirDossier, statut + nom/prénom déjà joints côté back) : purement
+  // informatif, un échec de chargement ne bloque donc pas le reste de l'écran de décision
+  // (catch silencieux, comme là-bas).
+  const [dossier, setDossier] = useState(null);
+
+  useEffect(() => {
+    let annule = false;
+    obtenirDossier(dossierId)
+      .then((valeur) => {
+        if (!annule) setDossier(valeur);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [dossierId]);
 
   useEffect(() => {
     let annule = false;
@@ -49,7 +68,15 @@ export default function Validation() {
     <PageBackOffice>
       <div className="page-validation">
         <EnTeteBackOffice />
-        <h1>Dossier #{dossierId}</h1>
+        <h1>
+          Dossier #{dossierId}
+          {dossier && (
+            <>
+              {' — '}
+              <span className="page-validation__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+            </>
+          )}
+        </h1>
 
         <section className="page-validation__pieces">
           <h2>Pièces justificatives</h2>

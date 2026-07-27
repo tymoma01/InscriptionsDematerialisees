@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
-import { obtenirDossier } from '../../services/dossierService';
 import { listerFormateurs } from '../../services/formateurService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import { useSession } from '../auth/useSession';
@@ -73,27 +72,6 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
   const [planificationOuverte, setPlanificationOuverte] = useState(false);
   const [planificationReussie, setPlanificationReussie] = useState(null); // { dateHeure, formateurNom }
 
-  // Nom du candidat affiché en en-tête, pour que l'accueil identifie tout de suite le dossier
-  // ouvert (utile quand plusieurs onglets/tablettes sont utilisés en parallèle). Purement
-  // informatif : aucune autre partie de l'écran n'attend cette valeur, un échec de
-  // chargement ne bloque donc rien (voir .catch ci-dessous, silencieux).
-  const [dossier, setDossier] = useState(null);
-
-  useEffect(() => {
-    let annule = false;
-    obtenirDossier(dossierId)
-      .then((valeur) => {
-        if (!annule) setDossier(valeur);
-      })
-      .catch(() => {
-        // Silencieux : un nom de candidat manquant en en-tête n'empêche pas de capturer les
-        // pièces, contrairement à erreurListe ci-dessous qui bloque un vrai besoin fonctionnel.
-      });
-    return () => {
-      annule = true;
-    };
-  }, [dossierId]);
-
   useEffect(() => {
     let annule = false;
     setChargementListe(true);
@@ -150,11 +128,6 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
   if (planificationReussie) {
     return (
       <section className="capture-tablette">
-        {dossier && (
-          <div className="capture-tablette__bandeau-candidat">
-            Candidat : <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-          </div>
-        )}
         <header className="capture-tablette__entete">
           <EnTeteBackOffice />
           <h2>Pièces justificatives</h2>
@@ -174,11 +147,6 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
 
   return (
     <section className="capture-tablette">
-      {dossier && (
-        <div className="capture-tablette__bandeau-candidat">
-          Candidat : <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-        </div>
-      )}
       <header className="capture-tablette__entete">
         <EnTeteBackOffice />
         <h2>Pièces justificatives</h2>
