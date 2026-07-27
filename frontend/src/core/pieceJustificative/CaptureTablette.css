@@ -13,9 +13,26 @@
   box-shadow: var(--ombre-bloc);
 }
 
-.capture-tablette__candidat {
-  margin: 0;
-  color: var(--couleur-back-office-dore);
+/* Bandeau sticky avec le nom du candidat : reste visible en permanence pendant que l'agent
+   scrolle la liste des pièces ou la modale de planification plus bas (CLAUDE.md, besoin Accueil :
+   "l'accueil est engorgé par des candidats aux objectifs hétérogènes" — s'assurer qu'on manipule
+   toujours le bon dossier). top: var(--hauteur-entete) plutôt que top: 0 : cette variable est
+   définie par .page-back-office (PageBackOffice.css) et héritée jusqu'ici par la cascade CSS —
+   coller ce bandeau au tout haut du viewport le placerait sous l'en-tête ACCECIT, qui est en
+   position: fixed avec z-index: 10 (donc toujours par-dessus, voir z-index ci-dessous inférieur).
+   Bleed sur toute la largeur de la carte via des marges négatives égales au padding de
+   .capture-tablette : un enfant sticky d'un conteneur avec padding resterait sinon inséré, avec un
+   vide visible de part et d'autre une fois collé au scroll. */
+.capture-tablette__bandeau-candidat {
+  position: sticky;
+  top: var(--hauteur-entete);
+  z-index: 5;
+  margin: calc(-1 * var(--espace-moyen)) calc(-1 * var(--espace-moyen)) var(--espace-moyen);
+  padding: 0.6rem var(--espace-moyen);
+  background-color: var(--couleur-back-office-clair);
+  border-bottom: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
+  color: var(--couleur-back-office);
   font-weight: 600;
   font-size: 0.85rem;
 }

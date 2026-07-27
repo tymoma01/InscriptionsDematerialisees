@@ -157,13 +157,13 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
   if (planificationReussie) {
     return (
       <section className="capture-tablette">
+        {dossier && (
+          <div className="capture-tablette__bandeau-candidat">
+            <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+          </div>
+        )}
         <header className="capture-tablette__entete">
           <EnTeteBackOffice />
-          {dossier && (
-            <p className="capture-tablette__candidat">
-              <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-            </p>
-          )}
           <h2>Pièces justificatives</h2>
         </header>
         <div className="capture-tablette__confirmation" role="status">
@@ -181,13 +181,13 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
 
   return (
     <section className="capture-tablette">
+      {dossier && (
+        <div className="capture-tablette__bandeau-candidat">
+          <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+        </div>
+      )}
       <header className="capture-tablette__entete">
         <EnTeteBackOffice />
-        {dossier && (
-          <p className="capture-tablette__candidat">
-            <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-          </p>
-        )}
         <h2>Pièces justificatives</h2>
         <p className="capture-tablette__progression" role="status">
           {nombreCapturees} / {typesPieces.length} pièces capturées
