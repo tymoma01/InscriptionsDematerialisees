@@ -1,8 +1,26 @@
 /* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
-   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). */
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). Même mise en page
+   d'en-tête que TableauDeBordAccueil.css (flex sur une seule ligne, EnTeteBackOffice plaqué à
+   droite) pour rester cohérent entre les deux pages qui listent des dossiers. */
+.backoffice-recruteur__entete {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
 .backoffice-recruteur__entete h1 {
-  margin: 0 0 var(--espace-petit);
+  margin: 0;
   color: var(--couleur-back-office);
+}
+
+/* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
+   l'en-tête — scopé à ce conteneur précis (pas dans EnTeteBackOffice.css lui-même, réutilisé
+   ailleurs avec des besoins de mise en page différents), même patron que
+   TableauDeBordAccueil.css. */
+.backoffice-recruteur__entete .en-tete-back-office {
+  margin-left: auto;
 }
 
 .backoffice-recruteur [role='alert'] {
