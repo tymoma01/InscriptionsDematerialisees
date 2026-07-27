@@ -159,7 +159,7 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
       <section className="capture-tablette">
         {dossier && (
           <div className="capture-tablette__bandeau-candidat">
-            <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+            Candidat : <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
           </div>
         )}
         <header className="capture-tablette__entete">
@@ -183,7 +183,7 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
     <section className="capture-tablette">
       {dossier && (
         <div className="capture-tablette__bandeau-candidat">
-          <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+          Candidat : <span className="capture-tablette__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
         </div>
       )}
       <header className="capture-tablette__entete">
