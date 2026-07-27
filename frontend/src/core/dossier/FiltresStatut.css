@@ -14,23 +14,34 @@
   font-weight: 700;
 }
 
+/* Fond ivoire de la charte back-office (--couleur-back-office-clair, dérivé du doré du logo —
+   voir variables.css) plutôt que le gris neutre --couleur-fond-secondaire utilisé ailleurs
+   (tableaux, survol) : ce bloc doit se lire comme une zone de filtres à part entière, dans la
+   même famille marron/doré que le reste du back-office, pas comme un gris générique. L'ombre
+   légère qui l'accompagne reprend la teinte dorée de --ombre-bloc (rgb(122, 90, 52), issue de
+   --couleur-back-office-dore — rgba() n'accepte pas de var() dans ses canaux de couleur, même
+   limitation déjà documentée sur --ombre-bloc dans variables.css). */
 .filtres-statut__statuts {
   display: flex;
   flex: 1;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.3rem;
+  justify-content: flex-start;
+  gap: var(--espace-petit);
   padding: var(--espace-petit);
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-back-office-clair);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
+  box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
   /* flex: 1 sur ce bloc (et non plus wrap) : il occupe toute la largeur restante à côté
      du bloc "Tous", pour donner le plus de place possible à une seule ligne de boutons.
      min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous
      la largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait au lieu
      de se resserrer. overflow-x en ultime filet de sécurité si, malgré les réductions de
-     gap/padding/police ci-dessous, la largeur réelle de l'écran restait insuffisante. */
+     gap/padding/police ci-dessous, la largeur réelle de l'écran restait insuffisante.
+     justify-content: flex-start (plutôt que l'ancien space-between) : avec flex:1 sur un
+     nombre variable de boutons, space-between étirait le "gap" réel bien au-delà du gap posé
+     ci-dessus dès qu'il restait de la place libre, d'où l'aspect trop espacé signalé. */
   min-width: 0;
   overflow-x: auto;
 }
@@ -49,6 +60,12 @@
   padding: 0.5rem 0.6rem;
   font-size: 0.85rem;
   white-space: nowrap;
+  /* Le fond blanc plein des boutons inactifs ne suffit plus, seul, à se détacher du nouveau
+     fond ivoire (les deux sont très clairs) : bordure remontée à --gris-500 pour repasser
+     au-dessus du minimum WCAG 1.4.11 (3:1, délimitation d'un composant d'interface) calculé
+     contre --couleur-back-office-clair — --couleur-bordure (gris-300) tombait sous 1,5:1 sur ce
+     fond. Sans effet sur .actif ci-dessous, qui définit sa propre bordure pleine couleur. */
+  border-color: var(--gris-500);
 }
 
 .filtres-statut button.actif {

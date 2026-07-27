@@ -1,6 +1,8 @@
 /* Même langage visuel que .filtres-statut__statuts juste en dessous (FiltresStatut.css) : fond
-   clair, bordure légère, coins arrondis — pour que les deux barres de filtres se lisent comme un
-   seul bloc cohérent plutôt que deux composants disparates empilés. */
+   ivoire de la charte back-office, ombre dorée légère, bordure légère, coins arrondis — pour que
+   les deux barres de filtres se lisent comme un seul bloc cohérent plutôt que deux composants
+   disparates empilés. Gardé synchronisé à la main avec FiltresStatut.css (pas de règle CSS
+   partagée entre les deux fichiers) : répercuter ici tout futur changement de fond/ombre. */
 .filtres-recherche-dossiers {
   display: flex;
   flex-wrap: wrap;
@@ -8,9 +10,10 @@
   gap: var(--espace-petit);
   padding: var(--espace-petit);
   margin-bottom: var(--espace-petit);
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-back-office-clair);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
+  box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
 }
 
 .filtres-recherche-dossiers__recherche {
