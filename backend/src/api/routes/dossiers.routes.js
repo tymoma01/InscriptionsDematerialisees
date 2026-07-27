@@ -63,20 +63,27 @@ router.get('/relances/motifs-resultat', requireRole(...ROLES_CONSULTATION_DOSSIE
 const rendezvousTestQuerySchema = z.object({
   aVenir: z.enum(['true', 'false']).optional(),
   formateurId: z.coerce.number().int().positive().optional(),
+  // 'AAAA-MM-JJ', bornes du calendrier de disponibilité formateur (dateFin exclusive) — voir
+  // CalendrierDisponibiliteFormateur.jsx.
+  dateDebut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 // GET /api/dossiers/rendezvous — vue d'ensemble des rendez-vous de test, tous dossiers
 // confondus (page Planification côté Coordination, CLAUDE.md : "planifie les tests") —
-// filtrable par aVenir (statut prevu/confirme + date future) et par formateurId. Distinct de
+// filtrable par aVenir (statut prevu/confirme + date future), par formateurId, et par plage de
+// dates (dateDebut/dateFin, pour le calendrier mensuel de disponibilité). Distinct de
 // GET /api/dossiers/:dossierId/rendezvous (rendezvous.routes.js), qui liste les rendez-vous d'UN
 // dossier précis — même logique "pas propre à un dossier en particulier" que les routes de
 // motifs ci-dessous.
 router.get('/rendezvous', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
   try {
-    const { aVenir, formateurId } = rendezvousTestQuerySchema.parse(req.query);
+    const { aVenir, formateurId, dateDebut, dateFin } = rendezvousTestQuerySchema.parse(req.query);
     const rendezvous = await rendezvousService.listerRendezvousTest(req.entite, {
       aVenirSeulement: aVenir === 'true',
       formateurId,
+      dateDebut,
+      dateFin,
     });
     res.json(rendezvous);
   } catch (erreur) {

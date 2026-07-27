@@ -90,9 +90,9 @@ async function listerMotifsDesistement(entite) {
 // Planification côté Coordination) — contrairement à listerRendezvous ci-dessus, ne prend pas de
 // dossierId : rien à vérifier côté IDOR, la portée est déjà l'entité entière (voir
 // entiteContext), pas un dossier précis.
-async function listerRendezvousTest(entite, { aVenirSeulement, formateurId } = {}) {
+async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
   const bd = await db.obtenirKnex();
-  return rendezvousRepository.listerRendezvousTest(bd, entite.id, { aVenirSeulement, formateurId });
+  return rendezvousRepository.listerRendezvousTest(bd, entite.id, { aVenirSeulement, formateurId, dateDebut, dateFin });
 }
 
 // Planifie un nouveau rendez-vous pour un dossier (ex. rendez-vous de test, CLAUDE.md étape

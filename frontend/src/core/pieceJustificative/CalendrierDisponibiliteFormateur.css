@@ -1,0 +1,119 @@
+.calendrier-disponibilite {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.calendrier-disponibilite__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-petit);
+}
+
+.calendrier-disponibilite__entete > button {
+  border: 1px solid var(--couleur-bordure);
+  background: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  width: 2rem;
+  height: 2rem;
+  line-height: 1;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.calendrier-disponibilite__titre {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+.calendrier-disponibilite__aujourdhui {
+  border: 1px solid var(--couleur-back-office);
+  background: var(--couleur-fond);
+  color: var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.calendrier-disponibilite__statut {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+.calendrier-disponibilite__grille {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.calendrier-disponibilite__entete-jour {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--couleur-texte-secondaire);
+  padding-bottom: 0.2rem;
+}
+
+.calendrier-disponibilite__case {
+  aspect-ratio: 1;
+  min-height: 2.75rem;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background: var(--couleur-fond);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.calendrier-disponibilite__case:hover {
+  border-color: var(--couleur-back-office);
+}
+
+.calendrier-disponibilite__case--vide {
+  border-color: transparent;
+  cursor: default;
+}
+
+.calendrier-disponibilite__case--aujourdhui {
+  border-color: var(--couleur-back-office-dore);
+}
+
+.calendrier-disponibilite__case--selectionne {
+  background: var(--couleur-back-office-clair);
+  border-color: var(--couleur-back-office);
+}
+
+.calendrier-disponibilite__jour-numero {
+  font-size: 0.8rem;
+  color: var(--couleur-texte);
+}
+
+.calendrier-disponibilite__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  justify-content: center;
+}
+
+.calendrier-disponibilite__badge {
+  background: var(--couleur-erreur);
+  color: #ffffff;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  line-height: 1;
+  padding: 0.15rem 0.3rem;
+}

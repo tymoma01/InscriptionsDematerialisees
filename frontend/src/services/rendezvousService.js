@@ -53,7 +53,9 @@ export async function creerRendezvousAvecTransitions(dossierId, { typeRdv, dateH
 
 // Vue d'ensemble des rendez-vous de test, tous dossiers confondus (page Planification côté
 // Coordination) — distinct de listerRendezvous ci-dessus, qui liste ceux d'UN dossier précis.
-export async function listerRendezvousTest({ aVenir, formateurId } = {}) {
-  const { data } = await api.get('/dossiers/rendezvous', { params: { aVenir, formateurId } });
+// dateDebut/dateFin ('AAAA-MM-JJ', dateFin exclusive) : utilisé par le calendrier de
+// disponibilité formateur (CalendrierDisponibiliteFormateur.jsx) pour ne charger qu'un mois.
+export async function listerRendezvousTest({ aVenir, formateurId, dateDebut, dateFin } = {}) {
+  const { data } = await api.get('/dossiers/rendezvous', { params: { aVenir, formateurId, dateDebut, dateFin } });
   return data;
 }

@@ -72,7 +72,13 @@ function listerRendezvousParDossier(bd, dossierId) {
 // type_rdv générique : même choix que evaluationRepository.listerRendezvousAEvaluer, cette page
 // ne parle que de tests, pas de rendez-vous en général (ex. signature de contrat, à venir).
 // formateur_id étant nullable, leftJoin (un rendez-vous pas encore assigné doit rester listé).
-function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId }) {
+// dateDebut/dateFin : bornes du jour au format 'AAAA-MM-JJ' (dateFin exclusive), utilisées par le
+// calendrier de disponibilité d'un formateur (voir CalendrierDisponibiliteFormateur.jsx) pour ne
+// charger que le mois affiché. Comparées telles quelles à date_heure (timestamptz) : la précision
+// est à la journée, suffisante pour un calendrier — pas de conversion de fuseau applicative ici,
+// même niveau de simplicité que le reste du filtrage par date de ce dépôt (aVenirSeulement
+// ci-dessous compare aussi directement à bd.fn.now()).
+function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
   const requete = bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -95,6 +101,20 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId }) {
   }
   if (formateurId) {
     requete.andWhere('rendezvous.formateur_id', formateurId);
+  }
+  if (dateDebut) {
+    requete.andWhere('rendezvous.date_heure', '>=', dateDebut);
+  }
+  if (dateFin) {
+    requete.andWhere('rendezvous.date_heure', '<', dateFin);
+  }
+  // Un calendrier de disponibilité ne doit montrer comme "occupé" que ce qui bloque
+  // effectivement un nouveau créneau (même convention que trouverRendezvousFormateurAuCreneau) —
+  // un rendez-vous absent/annulé a libéré la place. Seulement quand une borne de date est fournie
+  // : aVenirSeulement gère déjà ce filtre pour son propre usage (page Planification), pas la
+  // peine de dupliquer le whereIn si les deux sont absents (comportement historique inchangé).
+  if ((dateDebut || dateFin) && !aVenirSeulement) {
+    requete.whereIn('rendezvous.statut', ['prevu', 'confirme']);
   }
 
   return requete;

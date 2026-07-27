@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
 import { listerFormateurs } from '../../services/formateurService';
-import { creerRendezvousAvecTransitions } from '../../services/rendezvousService';
+import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import { listerTransitions } from '../../services/transitionService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
+import CalendrierDisponibiliteFormateur from './CalendrierDisponibiliteFormateur';
 import './CaptureTablette.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -245,6 +246,12 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
 
+  // Créneaux du formateur sélectionné, pour le seul jour choisi (voir calendrier mensuel plus
+  // bas pour la vue d'ensemble par mois) — sert uniquement au message d'alerte + désactivation du
+  // bouton ci-dessous. Confort visuel seulement : trouverRendezvousFormateurAuCreneau côté
+  // serveur reste le garde-fou qui fait foi (409 ErreurCreneauPris à la création).
+  const [creneauxJourSelectionne, setCreneauxJourSelectionne] = useState([]);
+
   useEffect(() => {
     let annule = false;
     listerFormateurs()
@@ -264,9 +271,43 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!formateurId || !dateTest) {
+      setCreneauxJourSelectionne([]);
+      return undefined;
+    }
+    let annule = false;
+    // Bornes du seul jour choisi (dateFin exclusive) — calcul par arithmétique locale de Date
+    // (pas de toISOString ici) pour ne jamais glisser sur le jour voisin selon le fuseau du
+    // navigateur, cf. cleJourLocal dans CalendrierDisponibiliteFormateur.jsx.
+    const [annee, mois, jour] = dateTest.split('-').map(Number);
+    const lendemain = new Date(annee, mois - 1, jour + 1);
+    const dateFin = `${lendemain.getFullYear()}-${String(lendemain.getMonth() + 1).padStart(2, '0')}-${String(lendemain.getDate()).padStart(2, '0')}`;
+
+    listerRendezvousTest({ formateurId: Number(formateurId), dateDebut: dateTest, dateFin })
+      .then((valeur) => {
+        if (!annule) setCreneauxJourSelectionne(valeur);
+      })
+      .catch(() => {
+        if (!annule) setCreneauxJourSelectionne([]);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [formateurId, dateTest]);
+
+  // Même recombinaison que celle utilisée au submit (voir plus bas) : null tant que les trois
+  // contrôles ne sont pas tous renseignés, pour ne pas comparer un créneau incomplet.
+  const dateHeureChoisieIso = dateTest && heureTest && minuteTest
+    ? new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString()
+    : null;
+
+  const creneauDejaPris = dateHeureChoisieIso !== null
+    && creneauxJourSelectionne.some((rendezvous) => new Date(rendezvous.date_heure).toISOString() === dateHeureChoisieIso);
+
   const soumettre = async (evenement) => {
     evenement.preventDefault();
-    if (!dateTest || !heureTest || !minuteTest || !formateurId || envoiEnCours) return;
+    if (!dateTest || !heureTest || !minuteTest || !formateurId || envoiEnCours || creneauDejaPris) return;
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
@@ -275,7 +316,7 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
     // Recombine les trois contrôles séparés (date + heure + minute) dans le même format que
     // produisait l'ancien input datetime-local ('aaaa-mm-jjTHH:mm'), pour ne rien changer côté
     // service/back (voir creerRendezvous, qui attend une chaîne convertible en Date).
-    const dateHeureIso = new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString();
+    const dateHeureIso = dateHeureChoisieIso;
 
     // Construit la liste des transitions à appliquer : "pieces_completes" seulement s'il figure
     // parmi les actions actuellement proposées par le moteur générique pour ce dossier (voir
@@ -350,6 +391,40 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
 
       {!chargementFormateurs && formateurs.length > 0 && (
         <form className="capture-tablette__formulaire-planification" onSubmit={soumettre}>
+          {/* Texte du label regroupé dans un unique <span> (plutôt que texte + astérisque comme
+              deux enfants directs du label) : le label est en display: flex/column pour
+              empiler son contenu au-dessus du <select> imbriqué (voir CaptureTablette.css) — un
+              texte et un astérisque comme deux enfants directs se seraient sinon empilés l'un
+              sous l'autre au lieu de rester sur la même ligne (même bug que celui corrigé pour
+              date/heure ci-dessous, présent ici aussi). Placé avant le calendrier et la date/heure
+              : le formateur doit être connu avant d'afficher ses disponibilités. */}
+          <label>
+            <span>
+              Formateur <span className="champ-obligatoire">*</span>
+            </span>
+            <select
+              id="planification-formateur"
+              value={formateurId}
+              onChange={(evenement) => setFormateurId(evenement.target.value)}
+              required
+            >
+              {formateurs.map((formateur) => (
+                <option key={formateur.id} value={formateur.id}>
+                  {formateur.prenom} {formateur.nom}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {/* Aide visuelle uniquement (voir commentaire de CalendrierDisponibiliteFormateur) : le
+              clic sur un jour se contente de préremplir le input date ci-dessous, qui reste la
+              seule source de vérité pour la date choisie. */}
+          <CalendrierDisponibiliteFormateur
+            formateurId={formateurId}
+            dateSelectionnee={dateTest}
+            onSelectionnerJour={setDateTest}
+          />
+
           {/* fieldset plutôt qu'un simple label : trois contrôles distincts (date, heure,
               minute) partagent une seule légende — même patron que le groupe Civilité du
               formulaire d'inscription (BlocInfosPerso.jsx). Le texte de la légende reste un bloc
@@ -399,29 +474,9 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
             </div>
           </fieldset>
 
-          {/* Texte du label regroupé dans un unique <span> (plutôt que texte + astérisque comme
-              deux enfants directs du label) : le label est en display: flex/column pour
-              empiler son contenu au-dessus du <select> imbriqué (voir CaptureTablette.css) — un
-              texte et un astérisque comme deux enfants directs se seraient sinon empilés l'un
-              sous l'autre au lieu de rester sur la même ligne (même bug que celui corrigé pour
-              date/heure ci-dessus, présent ici aussi). */}
-          <label>
-            <span>
-              Formateur <span className="champ-obligatoire">*</span>
-            </span>
-            <select
-              id="planification-formateur"
-              value={formateurId}
-              onChange={(evenement) => setFormateurId(evenement.target.value)}
-              required
-            >
-              {formateurs.map((formateur) => (
-                <option key={formateur.id} value={formateur.id}>
-                  {formateur.prenom} {formateur.nom}
-                </option>
-              ))}
-            </select>
-          </label>
+          {creneauDejaPris && (
+            <p role="alert">Ce formateur a déjà un test prévu à cet horaire. Choisissez un autre créneau.</p>
+          )}
 
           {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
@@ -431,7 +486,7 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
             </button>
             <button
               type="submit"
-              disabled={envoiEnCours || !dateTest || !heureTest || !minuteTest || !formateurId}
+              disabled={envoiEnCours || !dateTest || !heureTest || !minuteTest || !formateurId || creneauDejaPris}
             >
               {envoiEnCours ? 'Enregistrement...' : 'Confirmer la planification'}
             </button>
