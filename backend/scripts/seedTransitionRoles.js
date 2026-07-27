@@ -19,28 +19,44 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // POST /transitions par un humain puisqu'aucun utilisateur SYSTEME ne peut se connecter (voir
   // scripts/seedUtilisateurSysteme.js, actif: false).
   inscription_soumise: [ROLES.SYSTEME],
-  // Accueil/coordination confirme que les pièces sont complètes (CLAUDE.md, section Accueil :
-  // "vérification des pièces").
-  pieces_completes: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
-  // Décision finale du recruteur (CLAUDE.md, section Rôles : "décision finale (validé/refusé)").
-  valider_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
-  rejeter_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
-  // Bouton "Planifier un test" (CLAUDE.md, section Accueil/Coordination :
-  // "planifie les tests"). Déclenchée lors de la création du rendez-vous de test — la route de
-  // création n'existe pas encore (voir core/rendezvous/rendezvousRepository.js), à raccorder
-  // quand elle sera écrite.
+  // Bouton "Planifier un test" (CLAUDE.md, section Accueil/Coordination : "planifie les tests") —
+  // l'agent scanne les pièces, les juge visuellement conformes, et planifie directement le test
+  // dans la foulée (workflow v2 : plus d'étape "en_attente_verification" séparée, la vérification
+  // est inline). Même code_action réutilisé pour la replanification (voir replanifier_test
+  // ci-dessous) : deux origines différentes, jamais ambiguës à l'exécution (workflowEngine filtre
+  // toujours par le statut courant réel du dossier), seulement à distinguer ici pour le seed des
+  // rôles — d'où la boucle sur toutes les lignes correspondantes plus bas, pas juste la première.
   planifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
-  // Transition interne, même statut que inscription_soumise ci-dessus : pas déclenchée par un
-  // agent via POST /transitions, mais par un mécanisme automatique (job planifié à écrire,
-  // même patron que rappelService.js) quand la date du rendez-vous de test est atteinte.
-  // ROLES.SYSTEME listé par cohérence documentaire uniquement.
-  test_realise: [ROLES.SYSTEME],
-  // Écrites par evaluationEngine.enregistrerEvaluation (à raccorder — voir CLAUDE.md, section
-  // Rôles : "Formateur ... valide/invalide le test"), pas par POST /transitions directement pour
-  // l'instant. FORMATEUR listé par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au
-  // cas où l'action serait un jour exposée telle quelle via l'API générique.
+  // Le formateur marque le test comme réalisé — déclenchée par evaluationEngine.enregistrerEvaluation
+  // (même transaction que l'évaluation elle-même), pas par un job automatique séparé : voir
+  // workflow v2, plus simple que l'ancien plan (SYSTEME) qui supposait un job jamais écrit.
+  test_realise: [ROLES.FORMATEUR, ROLES.ADMIN],
+  // Le formateur marque le test comme non réalisé (candidat absent, etc.) — aucune évaluation
+  // associée, transition seule via POST /transitions générique (voir ListeEvaluationsAFaire.jsx).
+  test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN],
+  // Replanification d'un nouveau créneau, depuis test_non_realise OU verdict_negatif (deux lignes
+  // transitions_statut partagent ce même code_action, voir commentaire de planifier_test
+  // ci-dessus) — UI de déclenchement différée à un prompt dédié (workflow v2), la transition
+  // elle-même existe déjà en configuration.
+  replanifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
+  // Écrites par evaluationEngine.enregistrerEvaluation, dans la même transaction que test_realise
+  // ci-dessus (workflow v2) — pas par POST /transitions directement, mais FORMATEUR/ADMIN listés
+  // par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour
+  // exposée telle quelle via l'API générique.
   soumettre_verdict_positif: [ROLES.FORMATEUR, ROLES.ADMIN],
   soumettre_verdict_negatif: [ROLES.FORMATEUR, ROLES.ADMIN],
+  // Transition automatique déclenchée par evaluationEngine.enregistrerEvaluation juste après un
+  // verdict positif (workflow v2) — SYSTEME seul, jamais FORMATEUR : un formateur ne doit pas
+  // pouvoir faire avancer un dossier jusqu'au recruteur via POST /transitions sans qu'une
+  // évaluation réelle n'existe, seul evaluationEngine passe explicitement roleCode: ROLES.SYSTEME
+  // pour cet appel précis (les deux transitions précédentes de la même chaîne gardent, elles, le
+  // vrai rôle du formateur connecté).
+  transmettre_recruteur: [ROLES.SYSTEME],
+  // Décision finale du recruteur (CLAUDE.md, section Rôles : "décision finale (validé/refusé)") —
+  // origine en_attente_validation_recruteur (workflow v2, après le verdict positif du test),
+  // remplace l'ancienne origine en_attente_verification (avant tout test).
+  valider_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
+  rejeter_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
 };
 
 async function seedTransitionRoles(codeEntite) {
@@ -52,29 +68,35 @@ async function seedTransitionRoles(codeEntite) {
     }
 
     for (const [codeAction, rolesAutorises] of Object.entries(ROLES_PAR_ACTION_ACCECIT)) {
-      const transition = await bd('transitions_statut').where({ entite_id: entite.id, code_action: codeAction }).first();
-      if (!transition) {
+      // Toutes les lignes transitions_statut portant ce code_action, pas juste la première : un
+      // même code_action peut être partagé par plusieurs origines (voir replanifier_test /
+      // planifier_test ci-dessus) — un .first() ici laisserait l'une des deux lignes sans aucun
+      // rôle autorisé (donc injouable par quiconque, fail closed silencieux).
+      const transitions = await bd('transitions_statut').where({ entite_id: entite.id, code_action: codeAction });
+      if (transitions.length === 0) {
         console.log(
           `Transition « ${codeAction} » introuvable pour « ${codeEntite} » — exécuter d'abord scripts/seedStatuts.js`,
         );
         continue;
       }
 
-      for (const codeRole of rolesAutorises) {
-        const role = await bd('roles').where({ code: codeRole }).first();
-        if (!role) {
-          console.log(`Rôle « ${codeRole} » introuvable — exécuter d'abord scripts/seedRoles.js`);
-          continue;
-        }
+      for (const transition of transitions) {
+        for (const codeRole of rolesAutorises) {
+          const role = await bd('roles').where({ code: codeRole }).first();
+          if (!role) {
+            console.log(`Rôle « ${codeRole} » introuvable — exécuter d'abord scripts/seedRoles.js`);
+            continue;
+          }
 
-        const existant = await bd('transition_roles').where({ transition_id: transition.id, role_id: role.id }).first();
-        if (existant) {
-          console.log(`Rôle « ${codeRole} » déjà autorisé pour « ${codeAction} » (« ${codeEntite} ») ✔`);
-          continue;
-        }
+          const existant = await bd('transition_roles').where({ transition_id: transition.id, role_id: role.id }).first();
+          if (existant) {
+            console.log(`Rôle « ${codeRole} » déjà autorisé pour « ${codeAction} » id=${transition.id} (« ${codeEntite} ») ✔`);
+            continue;
+          }
 
-        await bd('transition_roles').insert({ transition_id: transition.id, role_id: role.id });
-        console.log(`Rôle « ${codeRole} » autorisé pour « ${codeAction} » (« ${codeEntite} ») ✔`);
+          await bd('transition_roles').insert({ transition_id: transition.id, role_id: role.id });
+          console.log(`Rôle « ${codeRole} » autorisé pour « ${codeAction} » id=${transition.id} (« ${codeEntite} ») ✔`);
+        }
       }
     }
   } finally {

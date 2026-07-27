@@ -4,7 +4,6 @@ import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../se
 import { obtenirDossier } from '../../services/dossierService';
 import { listerFormateurs } from '../../services/formateurService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
-import { listerTransitions } from '../../services/transitionService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
 import CalendrierDisponibiliteFormateur from './CalendrierDisponibiliteFormateur';
@@ -18,17 +17,11 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Code de la transition qui planifie le test (voir workflow.config.json de l'entité) — celle qui
-// précède peut varier d'une entité à l'autre ou ne pas exister du tout (voir plus bas, gestion
-// dynamique via GET /transitions plutôt qu'un enchaînement figé de deux codeAction en dur).
+// Code de la transition qui planifie le test (voir workflow.config.json de l'entité) — ACCECIT
+// l'a directement depuis en_attente_pieces (workflow v2 : la vérification des pièces est inline,
+// jugée visuellement par l'accueil, plus une étape de statut séparée). Une autre entité peut
+// nommer/enchaîner ça différemment, jamais codé en dur au-delà de cette seule constante.
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
-// Certaines entités font passer le dossier par une étape de confirmation "pièces complètes"
-// avant de pouvoir planifier un test (ex. ACCECIT : en_attente_pieces -> en_attente_verification
-// -> test_planifie) ; à ce stade de la prise de pièces le dossier peut encore être dans le tout
-// premier statut. On ne code pas ce code_action en dur dans un switch : on se contente de
-// vérifier s'il figure parmi les transitions actuellement proposées par le moteur générique pour
-// ce dossier (voir soumettre() dans ModalePlanificationTest) et on ne l'applique que s'il y est.
-const CODE_ACTION_PIECES_COMPLETES = 'pieces_completes';
 
 // L'input natif type="datetime-local" s'est révélé peu fiable au tactile pour sa partie
 // heure/minute (segment difficile à cibler précisément, voir le correctif de largeur précédent
@@ -350,36 +343,15 @@ function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
     // service/back (voir creerRendezvous, qui attend une chaîne convertible en Date).
     const dateHeureIso = dateHeureChoisieIso;
 
-    // Construit la liste des transitions à appliquer : "pieces_completes" seulement s'il figure
-    // parmi les actions actuellement proposées par le moteur générique pour ce dossier (voir
-    // CODE_ACTION_PIECES_COMPLETES plus haut — jamais supposé systématique, une autre entité peut
-    // ne pas avoir cette étape intermédiaire), puis toujours "planifier_test". Simple lecture,
-    // avant tout écriture : rien n'est encore créé à ce stade.
-    let transitions;
-    try {
-      const transitionsDisponibles = await listerTransitions(dossierId);
-      const codesDisponibles = transitionsDisponibles.map((transition) => transition.code_action);
-
-      transitions = [];
-      if (codesDisponibles.includes(CODE_ACTION_PIECES_COMPLETES)) {
-        transitions.push({
-          codeAction: CODE_ACTION_PIECES_COMPLETES,
-          commentaire: 'Pièces justificatives complètes — passage en vérification avant planification du test.',
-        });
-      }
-      transitions.push({
+    // Une seule transition à appliquer désormais : "planifier_test" directement depuis
+    // en_attente_pieces (workflow v2 — plus d'étape "pieces_completes" intermédiaire, la
+    // vérification des pièces est inline/visuelle, voir CODE_ACTION_PLANIFIER_TEST plus haut).
+    const transitions = [
+      {
         codeAction: CODE_ACTION_PLANIFIER_TEST,
         commentaire: `Test planifié le ${FORMAT_DATE_HEURE.format(new Date(dateHeureIso))} avec ${formateurChoisi.prenom} ${formateurChoisi.nom}.`,
-      });
-    } catch (erreur) {
-      setEnvoiEnCours(false);
-      setErreurEnvoi(
-        erreur.response
-          ? (erreur.response.data?.erreur ?? 'Impossible de récupérer les actions disponibles pour ce dossier.')
-          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
-      );
-      return;
-    }
+      },
+    ];
 
     // Création du rendez-vous et changement de statut en une seule transaction côté back (voir
     // rendezvousService.creerRendezvousAvecTransitions) : soit les deux réussissent, soit aucun

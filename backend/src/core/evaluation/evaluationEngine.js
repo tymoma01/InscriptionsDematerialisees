@@ -1,6 +1,7 @@
 const db = require('../../db/knex');
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const evaluationRepository = require('./evaluationRepository');
+const workflowEngine = require('../workflow/workflowEngine');
 const { ROLES } = require('../auth/rbac');
 
 // Moteur d'évaluation du test (voir docs/architecture-technique.md §1.5) : les critères
@@ -12,6 +13,15 @@ const { ROLES } = require('../auth/rbac');
 // même statut que les canaux de relance (petite énumération fixe, pas de table dédiée).
 const RESULTATS_GLOBAUX_AUTORISES = ['valide', 'invalide'];
 const VALEURS_CRITERE_AUTORISEES = ['conforme', 'a_ameliorer', 'non_conforme'];
+
+// Vocabulaire de resultatGlobal (valide/invalide, propre à evaluationEngine) traduit vers les
+// codeAction de la machine à états du dossier (soumettre_verdict_positif/negatif, voir
+// workflow.config.json) — à ne pas confondre avec le statut de dossier "valide" (décision finale
+// recruteur), simple coïncidence de vocabulaire, voir l'audit de la machine à états.
+const CODE_ACTION_PAR_RESULTAT = {
+  valide: 'soumettre_verdict_positif',
+  invalide: 'soumettre_verdict_negatif',
+};
 
 async function listerCriteres(entite) {
   const bd = await db.obtenirKnex();
@@ -95,6 +105,54 @@ async function enregistrerEvaluation(entite, { rendezvousId, formateurId, roleCo
       commentaire,
     });
     await evaluationRepository.enregistrerResultatsCriteres(trx, evaluationId, resultatsResolus);
+
+    // Fait avancer le dossier dans la même transaction que l'évaluation elle-même (même patron
+    // que planificationRendezvousService.planifierRendezvousAvecTransitions) — pas sur le simple
+    // clic "Évaluer" qui ouvre la grille : annuler la grille avant soumission ne doit rien avancer
+    // (voir Evaluation.jsx, bouton "Annuler"), donc test_realise n'est déclenché qu'ici, au moment
+    // où l'évaluation est réellement soumise. roleCode reste celui du formateur connecté pour ces
+    // deux premières transitions (transition_roles les autorise explicitement pour FORMATEUR).
+    await workflowEngine.appliquerTransition(
+      entite,
+      {
+        dossierId: rendezvous.dossier_id,
+        codeAction: 'test_realise',
+        commentaire: 'Test réalisé — évaluation soumise par le formateur.',
+        utilisateurId: formateurId,
+        roleCode,
+      },
+      trx,
+    );
+    await workflowEngine.appliquerTransition(
+      entite,
+      {
+        dossierId: rendezvous.dossier_id,
+        codeAction: CODE_ACTION_PAR_RESULTAT[resultatGlobal],
+        commentaire,
+        utilisateurId: formateurId,
+        roleCode,
+      },
+      trx,
+    );
+
+    // Transmission automatique au recruteur après un verdict positif — SYSTEME uniquement (jamais
+    // le rôle réel du formateur, voir seedTransitionRoles.js) : ce n'est pas une action distincte
+    // qu'un formateur pourrait déclencher à volonté via POST /transitions, seulement la
+    // conséquence directe d'un verdict positif réellement soumis ici.
+    if (resultatGlobal === 'valide') {
+      await workflowEngine.appliquerTransition(
+        entite,
+        {
+          dossierId: rendezvous.dossier_id,
+          codeAction: 'transmettre_recruteur',
+          commentaire: 'Verdict positif — transmission automatique au recruteur pour décision finale.',
+          utilisateurId: formateurId,
+          roleCode: ROLES.SYSTEME,
+        },
+        trx,
+      );
+    }
+
     return { evaluationId };
   });
 }

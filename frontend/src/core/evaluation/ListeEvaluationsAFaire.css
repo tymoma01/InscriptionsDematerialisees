@@ -38,6 +38,14 @@
   cursor: pointer;
 }
 
+/* "Test non réalisé" : action secondaire (moins fréquente que "Évaluer"), même contour neutre
+   que les boutons secondaires ailleurs dans le projet (ex. GestionTransitions.css, "Annuler"). */
+.liste-evaluations__item button.liste-evaluations__bouton-secondaire {
+  background-color: var(--couleur-fond);
+  border-color: var(--couleur-bordure);
+  color: var(--couleur-texte);
+}
+
 .liste-evaluations__vide {
   color: var(--couleur-texte-secondaire);
 }

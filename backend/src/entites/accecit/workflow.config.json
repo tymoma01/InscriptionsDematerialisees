@@ -2,13 +2,14 @@
   "statuts": [
     { "code": "nouveau", "libelle": "Nouveau", "ordre": 1, "estInitial": true, "estFinal": false },
     { "code": "en_attente_pieces", "libelle": "En attente de pièces", "ordre": 2, "estInitial": false, "estFinal": false },
-    { "code": "en_attente_verification", "libelle": "En attente de vérification", "ordre": 3, "estInitial": false, "estFinal": false },
-    { "code": "valide", "libelle": "Validé", "ordre": 4, "estInitial": false, "estFinal": true },
-    { "code": "rejete", "libelle": "Rejeté", "ordre": 5, "estInitial": false, "estFinal": true },
-    { "code": "test_planifie", "libelle": "Test planifié", "ordre": 6, "estInitial": false, "estFinal": false },
-    { "code": "en_attente_verdict", "libelle": "En attente de verdict", "ordre": 7, "estInitial": false, "estFinal": false },
-    { "code": "verdict_positif", "libelle": "Verdict positif", "ordre": 8, "estInitial": false, "estFinal": false },
-    { "code": "verdict_negatif", "libelle": "Verdict négatif", "ordre": 9, "estInitial": false, "estFinal": false }
+    { "code": "test_planifie", "libelle": "Test planifié", "ordre": 3, "estInitial": false, "estFinal": false },
+    { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 4, "estInitial": false, "estFinal": false },
+    { "code": "en_attente_verdict", "libelle": "En attente de verdict", "ordre": 5, "estInitial": false, "estFinal": false },
+    { "code": "verdict_positif", "libelle": "Verdict positif", "ordre": 6, "estInitial": false, "estFinal": false },
+    { "code": "verdict_negatif", "libelle": "Verdict négatif", "ordre": 7, "estInitial": false, "estFinal": false },
+    { "code": "en_attente_validation_recruteur", "libelle": "En attente de validation recruteur", "ordre": 8, "estInitial": false, "estFinal": false },
+    { "code": "valide", "libelle": "Validé", "ordre": 9, "estInitial": false, "estFinal": true },
+    { "code": "rejete", "libelle": "Rejeté", "ordre": 10, "estInitial": false, "estFinal": true }
   ],
   "transitions": [
     {
@@ -18,26 +19,8 @@
       "motifRequis": false
     },
     {
-      "codeAction": "pieces_completes",
-      "statutOrigine": "en_attente_pieces",
-      "statutDestination": "en_attente_verification",
-      "motifRequis": false
-    },
-    {
-      "codeAction": "valider_dossier",
-      "statutOrigine": "en_attente_verification",
-      "statutDestination": "valide",
-      "motifRequis": false
-    },
-    {
-      "codeAction": "rejeter_dossier",
-      "statutOrigine": "en_attente_verification",
-      "statutDestination": "rejete",
-      "motifRequis": true
-    },
-    {
       "codeAction": "planifier_test",
-      "statutOrigine": "en_attente_verification",
+      "statutOrigine": "en_attente_pieces",
       "statutDestination": "test_planifie",
       "motifRequis": false
     },
@@ -45,6 +28,18 @@
       "codeAction": "test_realise",
       "statutOrigine": "test_planifie",
       "statutDestination": "en_attente_verdict",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "test_non_realise",
+      "statutOrigine": "test_planifie",
+      "statutDestination": "test_non_realise",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "replanifier_test",
+      "statutOrigine": "test_non_realise",
+      "statutDestination": "test_planifie",
       "motifRequis": false
     },
     {
@@ -58,6 +53,30 @@
       "statutOrigine": "en_attente_verdict",
       "statutDestination": "verdict_negatif",
       "motifRequis": false
+    },
+    {
+      "codeAction": "replanifier_test",
+      "statutOrigine": "verdict_negatif",
+      "statutDestination": "test_planifie",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "transmettre_recruteur",
+      "statutOrigine": "verdict_positif",
+      "statutDestination": "en_attente_validation_recruteur",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "valider_dossier",
+      "statutOrigine": "en_attente_validation_recruteur",
+      "statutDestination": "valide",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "rejeter_dossier",
+      "statutOrigine": "en_attente_validation_recruteur",
+      "statutDestination": "rejete",
+      "motifRequis": true
     }
   ]
 }

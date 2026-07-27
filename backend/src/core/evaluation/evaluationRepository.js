@@ -16,14 +16,21 @@ function trouverCritereParCode(bd, entiteId, code) {
 // candidat ('prevu'/'confirme' uniquement) et n'ayant pas déjà d'évaluation enregistrée (voir
 // enregistrerEvaluation) — c'est ce NOT EXISTS qui fait disparaître un rendez-vous de la liste
 // "à évaluer" une fois l'évaluation soumise, sans avoir besoin d'un statut dédié.
+//
+// dossiers.statut_id = 'test_planifie' en plus (workflow v2) : un rendez-vous existe toujours
+// après que son dossier soit passé à test_non_realise (voir evaluationEngine.enregistrerEvaluation
+// / ListeEvaluationsAFaire.jsx, bouton "Test non réalisé") — sans ce filtre, ce même rendez-vous
+// resterait affiché comme "à évaluer" alors que la seule action possible dessus a déjà été prise.
 function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .where({
       'dossiers.entite_id': entiteId,
       'rendezvous.type_rdv': 'test',
       'rendezvous.formateur_id': formateurId,
+      'statuts.code': 'test_planifie',
     })
     .whereIn('rendezvous.statut', ['prevu', 'confirme'])
     .whereNotExists(function () {
