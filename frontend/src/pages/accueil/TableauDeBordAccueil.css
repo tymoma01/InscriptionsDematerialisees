@@ -14,15 +14,24 @@
 }
 
 .tableau-bord-accueil__lien-planification {
-  margin-left: auto;
-  /* Le gap du conteneur flex parent (var(--espace-moyen)) ne suffit pas ici : margin-left: auto
-     ci-dessus absorbe tout l'espace disponible entre le <h1> et ce lien, ce qui colle son bord
-     droit contre EnTeteBackOffice ("Agent connecté : ..."). Marge droite explicite en plus du gap
-     pour une vraie respiration entre les deux. */
-  margin-right: var(--espace-grand);
+  /* Pas de margin-left: auto ici (contrairement à une version précédente) : ça poussait le lien
+     tout à droite, collé contre EnTeteBackOffice ("Agent connecté : ..."). C'est EnTeteBackOffice
+     ci-dessous qui porte le margin-left: auto, pour rester plaqué à droite. Décalage explicite de
+     1cm (unité physique CSS, cohérent avec l'usage tablette uniquement de cet écran — voir
+     CLAUDE.md) plutôt qu'une valeur de l'échelle --espace-* du projet, aucune n'approchant cet
+     ordre de grandeur. */
+  margin-left: 1cm;
   color: var(--couleur-back-office);
   font-weight: 600;
   text-decoration: none;
+}
+
+/* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
+   l'en-tête — scopé à ce conteneur précis (pas dans EnTeteBackOffice.css lui-même, qui est
+   réutilisé par d'autres pages avec des besoins de mise en page différents, ex.
+   Backoffice.css). */
+.tableau-bord-accueil__entete .en-tete-back-office {
+  margin-left: auto;
 }
 
 .tableau-bord-accueil__lien-planification:hover {
