@@ -13,6 +13,19 @@
   box-shadow: var(--ombre-bloc);
 }
 
+.capture-tablette__candidat {
+  margin: 0;
+  color: var(--couleur-back-office-dore);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+/* Nom de famille en majuscules, prénom laissé tel que saisi — convention administrative
+   classique ("DUPONT Jean") qui distingue nom/prénom sans dépendre d'un ordre figé. */
+.capture-tablette__candidat-nom {
+  text-transform: uppercase;
+}
+
 .capture-tablette__entete h2 {
   color: var(--couleur-back-office);
   margin: 0 0 var(--espace-petit);

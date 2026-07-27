@@ -349,6 +349,16 @@ async function listerDossiers(entite, { statutCode } = {}) {
   return dossierRepository.listerDossiers(bd, entite.id, { statutCode });
 }
 
+// Un seul dossier, avec statut et nom/prénom du candidat déjà joints (voir
+// trouverDossierAvecStatutParId) — sert par exemple à afficher le nom du candidat en en-tête de
+// l'écran de capture de pièces (CaptureTablette.jsx), sans dupliquer une requête candidats à
+// part. undefined si le dossier n'existe pas pour cette entité (même filtre IDOR que le reste de
+// ce module) : à la route d'appel de traduire ça en 404.
+async function obtenirDossier(entite, dossierId) {
+  const bd = await obtenirKnex();
+  return dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+}
+
 async function listerStatuts(entite) {
   const bd = await obtenirKnex();
   return dossierRepository.listerStatuts(bd, entite.id);
@@ -359,5 +369,6 @@ module.exports = {
   verifierDisponibilite,
   listerDossiers,
   listerStatuts,
+  obtenirDossier,
   ErreurInscriptionConflit,
 };

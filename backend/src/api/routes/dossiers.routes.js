@@ -124,4 +124,24 @@ router.get('/transitions/motifs', requireRole(...ROLES_CONSULTATION_DOSSIERS), a
   }
 });
 
+// GET /api/dossiers/:dossierId — un seul dossier (statut + nom/prénom du candidat déjà joints,
+// voir dossierService.obtenirDossier), pour un écran qui a besoin d'identifier le candidat sans
+// recharger la liste complète de l'entité (ex. en-tête de CaptureTablette.jsx). Déclarée en
+// dernier, après toutes les routes à segment littéral ci-dessus ('/statuts', '/rendezvous', ...) :
+// un ':dossierId' générique enregistré plus tôt les intercepterait (ex. '/statuts' matchant
+// dossierId='statuts'). Aucune collision avec les routeurs montés séparément sur
+// '/api/dossiers/:dossierId/pieces' etc. (voir app.js) : ce pattern à un seul segment ne matche
+// pas un chemin qui a un segment de plus.
+router.get('/:dossierId', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+  try {
+    const dossier = await dossierService.obtenirDossier(req.entite, req.params.dossierId);
+    if (!dossier) {
+      return res.status(404).json({ erreur: `Dossier "${req.params.dossierId}" introuvable.` });
+    }
+    res.json(dossier);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
 module.exports = router;

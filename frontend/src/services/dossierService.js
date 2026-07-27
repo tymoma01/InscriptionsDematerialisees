@@ -16,3 +16,10 @@ export async function listerStatuts() {
   const { data } = await api.get('/dossiers/statuts');
   return data;
 }
+
+// Un seul dossier (statut + nom/prénom du candidat déjà joints côté back) — sert par exemple à
+// afficher le nom du candidat en en-tête de l'écran de capture de pièces (CaptureTablette.jsx).
+export async function obtenirDossier(dossierId) {
+  const { data } = await api.get(`/dossiers/${dossierId}`);
+  return data;
+}
