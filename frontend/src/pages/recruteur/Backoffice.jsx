@@ -23,6 +23,18 @@ function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
+// Sous-ensemble des statuts proposés comme filtres sur cette page (recruteur : dossiers du test
+// jusqu'à la décision finale) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
+// reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
+// (workflow hérité, plus jamais atteint) n'y figure volontairement pas.
+const CODES_STATUTS_FILTRES_RECRUTEUR = [
+  'test_planifie',
+  'en_attente_verdict',
+  'en_attente_validation_recruteur',
+  'valide',
+  'rejete',
+];
+
 // Back-office recruteur (CLAUDE.md, section Rôles : "back-office complet, validation des profils,
 // décision finale (validé/refusé)") — liste des dossiers de l'entité courante, filtrables par
 // statut, même moteur générique que le tableau de bord Accueil (DossierList/dossierService).
@@ -78,6 +90,11 @@ export default function Backoffice() {
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
   );
 
+  const statutsFiltres = useMemo(
+    () => statuts.filter((statut) => CODES_STATUTS_FILTRES_RECRUTEUR.includes(statut.code)),
+    [statuts],
+  );
+
   if (chargementSession) {
     return (
       <PageBackOffice>
@@ -114,7 +131,7 @@ export default function Backoffice() {
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
-        <FiltresStatut statuts={statuts} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
+        <FiltresStatut statuts={statutsFiltres} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}

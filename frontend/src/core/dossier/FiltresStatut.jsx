@@ -6,7 +6,7 @@ import './FiltresStatut.css';
 // aucune logique de filtrage ici, seulement statuts/statutFiltre/onChangerStatutFiltre reçus en
 // props — la page appelante reste seule responsable du comptage et du déclenchement de la requête
 // filtrée (voir TableauDeBordAccueil.jsx / Backoffice.jsx).
-export default function FiltresStatut({ statuts, statutFiltre, onChangerStatutFiltre }) {
+export default function FiltresStatut({ statuts = [], statutFiltre, onChangerStatutFiltre }) {
   return (
     <nav className="filtres-statut" aria-label="Filtrer par statut">
       <div className="filtres-statut__tous">

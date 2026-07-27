@@ -25,6 +25,12 @@ function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
+// Sous-ensemble des statuts proposés comme filtres sur cette page (accueil : dossiers à traiter
+// avant l'envoi en test) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
+// reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
+// (workflow hérité, plus jamais atteint) n'y figure volontairement pas.
+const CODES_STATUTS_FILTRES_ACCUEIL = ['nouveau', 'en_attente_pieces', 'test_planifie', 'test_non_realise'];
+
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
 // dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Deux
 // actions par ligne : reprendre la prise de pièces (VerificationPieces) et consulter/enregistrer
@@ -80,6 +86,11 @@ export default function TableauDeBordAccueil() {
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
   );
 
+  const statutsFiltres = useMemo(
+    () => statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code)),
+    [statuts],
+  );
+
   if (chargementSession) {
     return (
       <PageBackOffice>
@@ -119,7 +130,7 @@ export default function TableauDeBordAccueil() {
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
-        <FiltresStatut statuts={statuts} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
+        <FiltresStatut statuts={statutsFiltres} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}
