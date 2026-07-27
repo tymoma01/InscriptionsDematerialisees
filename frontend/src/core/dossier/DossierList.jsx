@@ -50,12 +50,19 @@ export default function DossierList({ dossiers, varianteStatut, actions = [] }) 
               </td>
               <td>{FORMAT_DATE.format(new Date(dossier.date_maj))}</td>
               {actions.length > 0 && (
-                <td className="dossier-list__actions">
-                  {actions.map((action) => (
-                    <button key={action.libelle} type="button" onClick={() => action.onSelectionner(dossier)}>
-                      {action.libelle}
-                    </button>
-                  ))}
+                <td>
+                  {/* display: flex sur un <div> interne plutôt que directement sur le <td> :
+                      posé sur la cellule elle-même, ça lui ferait perdre son display: table-cell
+                      (donc son étirement/centrage vertical automatique sur la hauteur de la
+                      ligne) — décalage visible dès qu'une autre cellule de la même ligne est plus
+                      haute (ex. nom de candidat sur deux lignes). */}
+                  <div className="dossier-list__actions">
+                    {actions.map((action) => (
+                      <button key={action.libelle} type="button" onClick={() => action.onSelectionner(dossier)}>
+                        {action.libelle}
+                      </button>
+                    ))}
+                  </div>
                 </td>
               )}
             </tr>
