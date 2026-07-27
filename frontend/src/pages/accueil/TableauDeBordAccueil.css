@@ -15,6 +15,11 @@
 
 .tableau-bord-accueil__lien-planification {
   margin-left: auto;
+  /* Le gap du conteneur flex parent (var(--espace-moyen)) ne suffit pas ici : margin-left: auto
+     ci-dessus absorbe tout l'espace disponible entre le <h1> et ce lien, ce qui colle son bord
+     droit contre EnTeteBackOffice ("Agent connecté : ..."). Marge droite explicite en plus du gap
+     pour une vraie respiration entre les deux. */
+  margin-right: var(--espace-grand);
   color: var(--couleur-back-office);
   font-weight: 600;
   text-decoration: none;
