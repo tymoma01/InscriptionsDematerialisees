@@ -23,6 +23,16 @@ const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
 // propre à cette page/entité, pas au moteur générique DossierList).
 const STATUTS_REPLANIFIABLES = ['test_non_realise', 'verdict_negatif'];
 
+// Statuts pour lesquels le bouton "Relances" a un sens concret pour l'agent Accueil — au-delà
+// (dossier transmis au recruteur, verdict rendu, décision finale prise), la relance sort de son
+// périmètre d'action, même logique de restriction que STATUTS_REPLANIFIABLES ci-dessus. Liste
+// explicite plutôt que des conditions if/else dispersées dans le JSX : un seul endroit à modifier
+// si le périmètre change, cohérent avec les autres listes de cette page (CODES_STATUTS_FILTRES_
+// ACCUEIL, STATUTS_REPLANIFIABLES). "Pièces", lui, reste affiché pour tous les statuts sans
+// exception (consultation des pièces déjà capturées toujours possible, même hors périmètre) —
+// pas de `visible` sur cette action.
+const STATUTS_RELANCES_AUTORISEES = ['nouveau', 'en_attente_pieces', 'test_planifie', 'test_non_realise'];
+
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
 // formulaireConfig.accecit.js le temps que `statuts` porte une polarité succès/échec/attente en
@@ -65,10 +75,11 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
 ];
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
-// dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Deux
-// actions par ligne : reprendre la prise de pièces (VerificationPieces) et consulter/enregistrer
-// une relance (Relances, historique des relances — voir HistoriqueRelances.jsx), toutes deux
-// déjà câblées dans App.jsx.
+// dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Jusqu'à
+// trois actions par ligne : reprendre la prise de pièces (VerificationPieces, tous statuts),
+// consulter/enregistrer une relance (Relances, historique des relances — voir
+// HistoriqueRelances.jsx — restreint aux statuts où une relance a un sens, voir
+// STATUTS_RELANCES_AUTORISEES), et replanifier un test (voir STATUTS_REPLANIFIABLES).
 export default function TableauDeBordAccueil() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();
@@ -191,6 +202,7 @@ export default function TableauDeBordAccueil() {
               {
                 libelle: 'Relances',
                 onSelectionner: (dossier) => navigate(`/coordination/dossiers/${dossier.id}/relances`),
+                visible: (dossier) => STATUTS_RELANCES_AUTORISEES.includes(dossier.statut_code),
               },
               {
                 libelle: 'Replanifier',
