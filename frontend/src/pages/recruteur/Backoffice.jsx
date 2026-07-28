@@ -85,8 +85,8 @@ export default function Backoffice() {
       .then((valeur) => {
         if (!annule) setDossiers(valeur);
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer les dossiers.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les dossiers.');
       })
       .finally(() => {
         if (!annule) setChargementDossiers(false);

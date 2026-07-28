@@ -39,7 +39,7 @@ export default function NotesDossier({ dossierId }) {
     setErreur(null);
     return listerNotesDossier(dossierId)
       .then(setNotes)
-      .catch(() => setErreur('Impossible de récupérer les notes de ce dossier.'))
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les notes de ce dossier.'))
       .finally(() => setChargement(false));
   };
 
@@ -61,7 +61,7 @@ export default function NotesDossier({ dossierId }) {
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer la note. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la note. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
     } finally {

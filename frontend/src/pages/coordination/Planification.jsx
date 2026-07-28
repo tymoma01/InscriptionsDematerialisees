@@ -82,8 +82,8 @@ export default function Planification() {
       .then((valeur) => {
         if (!annule) setRendezvous(valeur);
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer les rendez-vous de test.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les rendez-vous de test.');
       })
       .finally(() => {
         if (!annule) setChargement(false);

@@ -71,8 +71,10 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
         if (annule) return;
         setPiecesCapturees(new Set(pieces.map((piece) => piece.type_piece_code)));
       })
-      .catch(() => {
-        if (!annule) setErreurListe('Impossible de récupérer les pièces déjà envoyées pour ce dossier.');
+      .catch((erreur) => {
+        if (!annule) {
+          setErreurListe(erreur.response?.data?.erreur ?? 'Impossible de récupérer les pièces déjà envoyées pour ce dossier.');
+        }
       })
       .finally(() => {
         if (!annule) setChargementListe(false);
@@ -335,7 +337,7 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer la pièce. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la pièce. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
     } finally {

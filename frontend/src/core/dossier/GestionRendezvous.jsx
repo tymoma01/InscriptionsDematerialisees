@@ -54,7 +54,7 @@ export default function GestionRendezvous({ dossierId }) {
     setErreur(null);
     return listerRendezvous(dossierId)
       .then(setRendezvous)
-      .catch(() => setErreur('Impossible de récupérer les rendez-vous.'))
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les rendez-vous.'))
       .finally(() => setChargement(false));
   };
 
@@ -102,7 +102,7 @@ export default function GestionRendezvous({ dossierId }) {
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer le désistement. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer le désistement. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
     } finally {
@@ -119,7 +119,7 @@ export default function GestionRendezvous({ dossierId }) {
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer la confirmation. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la confirmation. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
     } finally {

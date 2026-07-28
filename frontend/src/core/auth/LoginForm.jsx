@@ -24,8 +24,17 @@ export default function LoginForm({ onConnexionReussie }) {
         return;
       }
       onConnexionReussie(utilisateur);
-    } catch {
-      setErreur('Connexion au serveur impossible. Vérifiez le réseau et réessayez.');
+    } catch (erreur) {
+      // Distinct du cas "identifiants invalides" ci-dessus (401, volontairement générique pour
+      // ne jamais confirmer/infirmer l'existence d'un compte — anti-énumération) : ici, une
+      // réponse du serveur existe mais avec un autre statut (ex. 429, "Trop de tentatives de
+      // connexion...", voir rateLimiter.js) — l'afficher plutôt que le message réseau générique,
+      // qui serait trompeur.
+      setErreur(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.')
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
     } finally {
       setEnvoiEnCours(false);
     }

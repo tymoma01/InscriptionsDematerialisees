@@ -46,7 +46,7 @@ export default function HistoriqueRelances({ dossierId }) {
     setErreur(null);
     return listerRelances(dossierId)
       .then(setRelances)
-      .catch(() => setErreur('Impossible de récupérer l’historique des relances.'))
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer l’historique des relances.'))
       .finally(() => setChargement(false));
   };
 
@@ -83,7 +83,7 @@ export default function HistoriqueRelances({ dossierId }) {
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer la relance. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la relance. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
     } finally {

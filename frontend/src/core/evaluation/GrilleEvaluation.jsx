@@ -47,8 +47,8 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         setCriteres(valeur);
         setValeurs(Object.fromEntries(valeur.map((critere) => [critere.code, VALEURS[0].code])));
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer la grille de critères.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer la grille de critères.');
       })
       .finally(() => {
         if (!annule) setChargement(false);
@@ -76,7 +76,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
       setEnvoiEnCours(false);
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer l'évaluation. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer l'évaluation. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
       return;

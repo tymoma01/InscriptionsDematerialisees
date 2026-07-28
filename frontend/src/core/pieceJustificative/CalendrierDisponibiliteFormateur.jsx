@@ -70,8 +70,8 @@ function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSel
       .then((valeur) => {
         if (!annule) setCreneaux(valeur);
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer les créneaux occupés de ce formateur.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les créneaux occupés de ce formateur.');
       })
       .finally(() => {
         if (!annule) setChargement(false);

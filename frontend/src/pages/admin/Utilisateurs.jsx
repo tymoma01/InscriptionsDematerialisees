@@ -82,7 +82,7 @@ export default function Utilisateurs() {
     setErreur(null);
     return listerUtilisateurs()
       .then(setUtilisateurs)
-      .catch(() => setErreur('Impossible de récupérer les comptes.'))
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les comptes.'))
       .finally(() => setChargement(false));
   };
 

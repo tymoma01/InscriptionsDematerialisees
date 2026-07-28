@@ -94,8 +94,8 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
         setFormateurs(valeur);
         if (valeur.length > 0) setFormateurId(String(valeur[0].id));
       })
-      .catch(() => {
-        if (!annule) setErreurFormateurs('Impossible de récupérer la liste des formateurs.');
+      .catch((erreur) => {
+        if (!annule) setErreurFormateurs(erreur.response?.data?.erreur ?? 'Impossible de récupérer la liste des formateurs.');
       })
       .finally(() => {
         if (!annule) setChargementFormateurs(false);

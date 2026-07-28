@@ -54,8 +54,8 @@ export default function Validation() {
       .then((valeur) => {
         if (!annule) setPieces(valeur);
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer les pièces justificatives.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les pièces justificatives.');
       })
       .finally(() => {
         if (!annule) setChargement(false);

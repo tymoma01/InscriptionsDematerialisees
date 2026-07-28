@@ -36,7 +36,7 @@ export default function GestionTransitions({ dossierId, onTransitionAppliquee })
     setErreur(null);
     return listerTransitions(dossierId)
       .then(setTransitions)
-      .catch(() => setErreur('Impossible de récupérer les actions disponibles.'))
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les actions disponibles.'))
       .finally(() => setChargement(false));
   };
 
@@ -86,7 +86,7 @@ export default function GestionTransitions({ dossierId, onTransitionAppliquee })
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response
-          ? "Le serveur n'a pas pu enregistrer la décision. Merci de réessayer."
+          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la décision. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
     } finally {

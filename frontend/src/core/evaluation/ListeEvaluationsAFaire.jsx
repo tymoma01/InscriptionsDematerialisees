@@ -31,8 +31,8 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
       .then((valeur) => {
         if (!annule) setRendezvous(valeur);
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer les évaluations à faire.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les évaluations à faire.');
       })
       .finally(() => {
         if (!annule) setChargement(false);
@@ -57,8 +57,12 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
         commentaire: `Test non réalisé le ${FORMAT_DATE.format(new Date(rdv.date_heure))}.`,
       });
       setRendezvous((precedent) => precedent.filter((r) => r.id !== rdv.id));
-    } catch {
-      setErreurAction("Impossible d'enregistrer ce test comme non réalisé. Merci de réessayer.");
+    } catch (erreur) {
+      setErreurAction(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? "Impossible d'enregistrer ce test comme non réalisé. Merci de réessayer.")
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
     } finally {
       setEnCoursId(null);
     }

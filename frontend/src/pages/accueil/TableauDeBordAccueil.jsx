@@ -121,8 +121,8 @@ export default function TableauDeBordAccueil() {
       .then((valeur) => {
         if (!annule) setDossiers(valeur);
       })
-      .catch(() => {
-        if (!annule) setErreur('Impossible de récupérer les dossiers.');
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les dossiers.');
       })
       .finally(() => {
         if (!annule) setChargementDossiers(false);
@@ -139,7 +139,7 @@ export default function TableauDeBordAccueil() {
   const rechargerDossiers = () => {
     listerDossiers({ statut: statutFiltre })
       .then(setDossiers)
-      .catch(() => setErreur('Impossible de récupérer les dossiers.'));
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les dossiers.'));
   };
 
   const dossiersFiltres = useMemo(
