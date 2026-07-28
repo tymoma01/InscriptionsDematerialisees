@@ -31,6 +31,13 @@ class ErreurCreneauPris extends Error {
   }
 }
 
+class ErreurDatePassee extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurDatePassee';
+  }
+}
+
 // dossierId vient toujours de l'URL (voir rendezvous.routes.js) : jamais traité sans confirmer
 // au préalable qu'il appartient à l'entité résolue par entiteContext, même faille IDOR déjà
 // corrigée pour les pièces justificatives et les relances.
@@ -106,6 +113,17 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
 // ouverte, pour que la création du rendez-vous et la transition de statut qui suit réussissent
 // ou échouent ensemble.
 async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateurId }, bdExistante = null) {
+  // Ne jamais se fier uniquement au front (calendrier grisé + <input min>, voir
+  // CalendrierDisponibiliteFormateur.jsx/ModalePlanificationTest.jsx) — même principe que les
+  // autres règles métier de ce module (voir changerStatutRendezvous ci-dessus). Comparaison
+  // d'instants réels (Date#getTime()), pas de dates calendaires : dateHeure est un datetime ISO
+  // complet avec fuseau (voir creationRendezvousSchema, .datetime({offset:true})), donc "avant
+  // maintenant" ne dépend d'aucun fuseau horaire particulier ici — contrairement au calendrier
+  // front, qui doit lui choisir un fuseau (Europe/Paris) pour décider quel jour est "aujourd'hui".
+  if (new Date(dateHeure).getTime() < Date.now()) {
+    throw new ErreurDatePassee("La date du rendez-vous ne peut pas être antérieure à aujourd'hui.");
+  }
+
   const bd = bdExistante ?? (await db.obtenirKnex());
   await verifierDossierAppartientEntite(bd, entite, dossierId);
 
@@ -143,4 +161,5 @@ module.exports = {
   creerRendezvous,
   ErreurFormateurInvalide,
   ErreurCreneauPris,
+  ErreurDatePassee,
 };

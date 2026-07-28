@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listerRendezvousTest } from '../../services/rendezvousService';
+import { dateDuJourParis } from '../dossier/dateDuJourParis';
 import './CalendrierDisponibiliteFormateur.css';
 
 const JOURS_SEMAINE = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -100,6 +101,15 @@ function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSel
   const surMoisCourant = annee === anneeAujourdHui && moisIndex === moisIndexAujourdHui;
   const aujourdHuiJour = new Date().getDate();
 
+  // Fuseau Europe/Paris (voir dateDuJourParis.js), pas l'heure locale brute du navigateur — un
+  // agent sur un appareil mal configuré ne doit pas voir un jour différent grisé/actif que le
+  // reste de l'équipe. Comparaison en chaîne 'AAAA-MM-JJ' (voir formatDateJour) : un jour
+  // strictement avant aujourd'hui est désactivé sur tous les mois navigables, pas seulement le
+  // mois courant — un agent qui recule dans le calendrier ne doit jamais pouvoir sélectionner un
+  // jour déjà passé, la validation serveur (rendezvousService.creerRendezvous) reste le garde-fou
+  // qui fait foi si ce contrôle visuel était contourné.
+  const aujourdHuiIso = dateDuJourParis();
+
   const libelleMois = FORMAT_MOIS_ANNEE.format(new Date(annee, moisIndex, 1));
   const libelleMoisCapitalise = libelleMois.charAt(0).toUpperCase() + libelleMois.slice(1);
 
@@ -141,6 +151,7 @@ function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSel
           const creneauxJour = creneauxParJour.get(dateJourIso) ?? [];
           const estAujourdHui = surMoisCourant && jour === aujourdHuiJour;
           const estSelectionne = dateJourIso === dateSelectionnee;
+          const estPasse = dateJourIso < aujourdHuiIso;
 
           return (
             <button
@@ -150,7 +161,10 @@ function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSel
                 'calendrier-disponibilite__case',
                 estAujourdHui ? 'calendrier-disponibilite__case--aujourdhui' : '',
                 estSelectionne ? 'calendrier-disponibilite__case--selectionne' : '',
+                estPasse ? 'calendrier-disponibilite__case--passe' : '',
               ].join(' ').trim()}
+              disabled={estPasse}
+              aria-disabled={estPasse}
               onClick={() => onSelectionnerJour(dateJourIso)}
             >
               <span className="calendrier-disponibilite__jour-numero">{jour}</span>

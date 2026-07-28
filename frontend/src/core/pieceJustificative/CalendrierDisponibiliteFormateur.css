@@ -97,6 +97,19 @@
   border-color: var(--couleur-back-office);
 }
 
+/* Jour antérieur à aujourd'hui (Europe/Paris, voir CalendrierDisponibiliteFormateur.jsx) : grisé
+   et non cliquable (disabled natif sur le <button>), même traitement visuel que les autres
+   boutons désactivés du projet (opacity + cursor: default). */
+.calendrier-disponibilite__case--passe {
+  opacity: 0.45;
+  cursor: default;
+  background: var(--couleur-fond-secondaire);
+}
+
+.calendrier-disponibilite__case--passe:hover {
+  border-color: var(--couleur-bordure-legere);
+}
+
 .calendrier-disponibilite__jour-numero {
   font-size: 0.8rem;
   color: var(--couleur-texte);

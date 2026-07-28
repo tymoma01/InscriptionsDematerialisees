@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
+import { dateDuJourParis } from './dateDuJourParis';
 import './ModalePlanificationTest.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -249,6 +250,7 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
                 id="planification-date"
                 type="date"
                 value={dateTest}
+                min={dateDuJourParis()}
                 onChange={(evenement) => setDateTest(evenement.target.value)}
                 required
               />
