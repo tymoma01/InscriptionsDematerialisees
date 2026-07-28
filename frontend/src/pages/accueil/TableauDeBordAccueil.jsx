@@ -31,7 +31,10 @@ const STATUTS_REPLANIFIABLES = ['test_non_realise', 'verdict_negatif'];
 // ACCUEIL, STATUTS_REPLANIFIABLES). "Pièces", lui, reste affiché pour tous les statuts sans
 // exception (consultation des pièces déjà capturées toujours possible, même hors périmètre) —
 // pas de `visible` sur cette action.
-const STATUTS_RELANCES_AUTORISEES = ['nouveau', 'en_attente_pieces', 'test_planifie', 'test_non_realise'];
+// "nouveau" volontairement absent : les inscriptions se font en agence, un dossier encore à ce
+// statut signifie que l'agent n'a pas encore scanné les pièces (session interrompue ou en
+// attente) — la reprise se fait via "Pièces", pas "Relances".
+const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test_non_realise'];
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
