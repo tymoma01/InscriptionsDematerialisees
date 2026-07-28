@@ -27,7 +27,7 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
 // utilisateurId vient toujours de la session (req.utilisateur.id, voir relances.routes.js),
 // jamais du corps de la requête — même principe que uploadedBy pour les pièces justificatives
 // (voir CLAUDE.auth-rbac.md).
-async function enregistrerRelance(entite, { dossierId, canal, resultat, utilisateurId }) {
+async function enregistrerRelance(entite, { dossierId, canal, resultat, commentaire, utilisateurId }) {
   if (!CANAUX_AUTORISES.includes(canal)) {
     throw new Error(`Canal "${canal}" invalide (attendu : ${CANAUX_AUTORISES.join(', ')}).`);
   }
@@ -40,7 +40,7 @@ async function enregistrerRelance(entite, { dossierId, canal, resultat, utilisat
     throw new Error(`Résultat de relance "${resultat}" non configuré pour l'entité « ${entite.code} ».`);
   }
 
-  const relanceId = await relanceRepository.enregistrerRelance(bd, { dossierId, canal, resultat, utilisateurId });
+  const relanceId = await relanceRepository.enregistrerRelance(bd, { dossierId, canal, resultat, commentaire, utilisateurId });
   return { relanceId };
 }
 

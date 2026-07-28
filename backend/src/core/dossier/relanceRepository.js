@@ -14,6 +14,7 @@ function listerRelancesParDossier(trx, dossierId) {
       'relances.id',
       'relances.canal',
       'relances.resultat',
+      'relances.commentaire',
       'relances.date_envoi',
       'relances.rendezvous_id',
       'utilisateurs.prenom as agent_prenom',
@@ -26,9 +27,19 @@ function listerRelancesParDossier(trx, dossierId) {
 // via relanceService.enregistrerRelance) n'est rattachée à aucun rendez-vous précis ; seul le
 // rappel automatique de créneau (voir core/rendezvous/rappelService.js) le renseigne, pour
 // pouvoir détecter qu'un rappel a déjà été envoyé pour CE rendez-vous précis.
-async function enregistrerRelance(trx, { dossierId, canal, resultat, utilisateurId, rendezvousId = null }) {
+async function enregistrerRelance(trx, { dossierId, canal, resultat, commentaire, utilisateurId, rendezvousId = null }) {
   const [relance] = await trx('relances')
-    .insert({ dossier_id: dossierId, canal, resultat, utilisateur_id: utilisateurId, rendezvous_id: rendezvousId })
+    .insert({
+      dossier_id: dossierId,
+      canal,
+      resultat,
+      // Chaîne vide (textarea laissé vide côté front) stockée en NULL plutôt qu'en '' : distingue
+      // "pas de commentaire" de "commentaire vide", cohérent avec la colonne nullable sans
+      // defaultTo (voir migration 034).
+      commentaire: commentaire || null,
+      utilisateur_id: utilisateurId,
+      rendezvous_id: rendezvousId,
+    })
     .returning('id');
   return relance.id;
 }

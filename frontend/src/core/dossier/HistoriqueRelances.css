@@ -40,13 +40,20 @@
 }
 
 .historique-relances__item {
+  padding: var(--espace-petit) var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+/* Ligne canal/résultat/méta : anciennement posée directement sur .historique-relances__item,
+   déplacée dans un conteneur dédié pour que le commentaire (voir
+   .historique-relances__commentaire-texte ci-dessous) s'empile en dessous plutôt que de
+   s'insérer dans cette même ligne flex. */
+.historique-relances__item-ligne {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--espace-moyen);
-  padding: var(--espace-petit) var(--espace-moyen);
-  border: 1px solid var(--couleur-bordure-legere);
-  border-radius: var(--rayon-bordure);
 }
 
 .historique-relances__canal {
@@ -63,6 +70,19 @@
 .historique-relances__meta {
   color: var(--couleur-texte-secondaire);
   font-size: 0.85rem;
+}
+
+/* Note libre de l'agent, affichée seulement si présente (voir HistoriqueRelances.jsx) — sous la
+   ligne canal/résultat/méta, avec un filet de séparation léger pour la distinguer visuellement
+   sans reproduire une bordure complète. pre-wrap : conserve les retours à la ligne saisis dans le
+   textarea du formulaire, tout en repassant à la ligne sur un mot trop long. */
+.historique-relances__commentaire-texte {
+  margin: 0.5rem 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--couleur-bordure-legere);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
 }
 
 .historique-relances__formulaire {
@@ -94,6 +114,21 @@
   border-radius: var(--rayon-bordure);
   font: inherit;
   min-width: 12rem;
+}
+
+/* Occupe toute la largeur de la ligne suivante (le conteneur parent est flex-wrap) plutôt que de
+   se caser à côté des deux <select>, trop étroit pour un champ multiligne. */
+.historique-relances__champ-commentaire {
+  flex: 1 1 100%;
+}
+
+.historique-relances__formulaire textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+  min-height: 4.5rem;
 }
 
 .historique-relances [role='alert'] {

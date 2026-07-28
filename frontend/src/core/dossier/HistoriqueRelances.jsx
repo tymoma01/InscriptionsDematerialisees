@@ -37,6 +37,7 @@ export default function HistoriqueRelances({ dossierId }) {
 
   const [canal, setCanal] = useState(CANAUX[0].code);
   const [resultat, setResultat] = useState('');
+  const [commentaire, setCommentaire] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
 
@@ -77,7 +78,7 @@ export default function HistoriqueRelances({ dossierId }) {
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
     try {
-      await enregistrerRelance(dossierId, { canal, resultat });
+      await enregistrerRelance(dossierId, { canal, resultat, commentaire: commentaire.trim() || undefined });
       await chargerRelances();
     } catch (erreur) {
       setErreurEnvoi(
@@ -123,11 +124,14 @@ export default function HistoriqueRelances({ dossierId }) {
         <ul className="historique-relances__liste">
           {relances.map((relance) => (
             <li key={relance.id} className="historique-relances__item">
-              <span className="historique-relances__canal">{libelleCanal(relance.canal)}</span>
-              <span className="historique-relances__resultat">{libelleResultat(relance.resultat)}</span>
-              <span className="historique-relances__meta">
-                {FORMAT_DATE.format(new Date(relance.date_envoi))} — {relance.agent_prenom} {relance.agent_nom}
-              </span>
+              <div className="historique-relances__item-ligne">
+                <span className="historique-relances__canal">{libelleCanal(relance.canal)}</span>
+                <span className="historique-relances__resultat">{libelleResultat(relance.resultat)}</span>
+                <span className="historique-relances__meta">
+                  {FORMAT_DATE.format(new Date(relance.date_envoi))} — {relance.agent_prenom} {relance.agent_nom}
+                </span>
+              </div>
+              {relance.commentaire && <p className="historique-relances__commentaire-texte">{relance.commentaire}</p>}
             </li>
           ))}
         </ul>
@@ -157,6 +161,16 @@ export default function HistoriqueRelances({ dossierId }) {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="historique-relances__champ-commentaire">
+          <span>Commentaire (optionnel)</span>
+          <textarea
+            value={commentaire}
+            onChange={(evenement) => setCommentaire(evenement.target.value)}
+            rows={3}
+            maxLength={2000}
+          />
         </label>
 
         {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}

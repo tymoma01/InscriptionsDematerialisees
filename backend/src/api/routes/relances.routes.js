@@ -28,6 +28,10 @@ const relanceBodySchema = z.object({
   // par entité (voir Modularité, CLAUDE.md — cf. scripts/seedMotifsRelance.js). Un code inconnu
   // pour l'entité courante est rejeté par relanceService, pas ici.
   resultat: z.string().trim().min(1),
+  // Note libre de l'agent, jamais obligatoire (contrairement au commentaire d'une transition de
+  // statut, voir transitions.routes.js) — une relance reste valide sans, le canal/résultat suffit
+  // à l'historique ("ne pas relancer en double").
+  commentaire: z.string().trim().max(2000).optional(),
   // utilisateurId n'est jamais lu ici : il vient de req.utilisateur.id (session serveur), jamais
   // du corps de la requête envoyé par le client — même principe que uploadedBy pour les pièces
   // justificatives (voir pieces.routes.js et CLAUDE.auth-rbac.md).
@@ -41,12 +45,13 @@ function repondreErreurValidation(res, erreurZod) {
 router.post('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { canal, resultat } = relanceBodySchema.parse(req.body);
+    const { canal, resultat, commentaire } = relanceBodySchema.parse(req.body);
 
     const resultatAction = await relanceService.enregistrerRelance(req.entite, {
       dossierId,
       canal,
       resultat,
+      commentaire,
       utilisateurId: req.utilisateur.id,
     });
 
@@ -57,7 +62,7 @@ router.post('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) 
       action: 'relance_creation',
       tableCible: 'relances',
       cibleId: resultatAction.relanceId,
-      donnees: { dossierId, canal, resultat },
+      donnees: { dossierId, canal, resultat, commentaire: commentaire ?? null },
       adresseIp: req.ip,
     });
 

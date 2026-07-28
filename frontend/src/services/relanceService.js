@@ -10,9 +10,10 @@ export async function listerRelances(dossierId) {
 }
 
 // utilisateurId n'est jamais envoyé ici : le back le dérive de la session serveur de l'agent
-// connecté (voir backend/src/api/routes/relances.routes.js), jamais un champ manuel.
-export async function enregistrerRelance(dossierId, { canal, resultat }) {
-  const { data } = await api.post(`/dossiers/${dossierId}/relances`, { canal, resultat });
+// connecté (voir backend/src/api/routes/relances.routes.js), jamais un champ manuel. commentaire
+// optionnel, envoyé tel quel — le back le range en NULL s'il est vide (voir relanceRepository.js).
+export async function enregistrerRelance(dossierId, { canal, resultat, commentaire }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/relances`, { canal, resultat, commentaire });
   return data;
 }
 
