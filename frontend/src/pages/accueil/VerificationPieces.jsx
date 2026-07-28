@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import CaptureTablette from '../../core/pieceJustificative/CaptureTablette';
+import NotesDossier from '../../core/dossier/NotesDossier';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
@@ -51,6 +52,7 @@ export default function VerificationPieces() {
           )}
         </h1>
         <CaptureTablette dossierId={dossierId} typesPieces={typesPiecesConfigAccecitTest} />
+        <NotesDossier dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );

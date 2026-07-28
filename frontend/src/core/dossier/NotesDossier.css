@@ -1,0 +1,100 @@
+/* Même langage visuel que HistoriqueRelances.css (carte blanche, titre back-office, formulaire
+   séparé par un filet) — pour que les blocs "Notes" et "Relances" se lisent comme un seul
+   système cohérent sur les pages qui les affichent côte à côte. */
+.notes-dossier {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.notes-dossier h2 {
+  color: var(--couleur-back-office);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.notes-dossier__vide {
+  color: var(--couleur-texte-secondaire);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.notes-dossier__liste {
+  list-style: none;
+  margin: 0 0 var(--espace-grand);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.notes-dossier__item {
+  padding: var(--espace-petit) var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+/* pre-wrap : conserve les retours à la ligne saisis dans le textarea du formulaire, tout en
+   repassant à la ligne sur un mot trop long — même choix que
+   .historique-relances__commentaire-texte. */
+.notes-dossier__contenu {
+  margin: 0 0 0.4rem;
+  color: var(--couleur-texte);
+  white-space: pre-wrap;
+}
+
+.notes-dossier__meta {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.notes-dossier__formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+  padding-top: var(--espace-moyen);
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+.notes-dossier__formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.notes-dossier__formulaire textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.notes-dossier [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
+
+.notes-dossier__formulaire button {
+  align-self: flex-start;
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notes-dossier__formulaire button:hover:not(:disabled) {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.notes-dossier__formulaire button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

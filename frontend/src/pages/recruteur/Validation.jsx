@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import GestionTransitions from '../../core/dossier/GestionTransitions';
+import NotesDossier from '../../core/dossier/NotesDossier';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
@@ -108,6 +109,7 @@ export default function Validation() {
         </section>
 
         <GestionTransitions dossierId={dossierId} />
+        <NotesDossier dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );

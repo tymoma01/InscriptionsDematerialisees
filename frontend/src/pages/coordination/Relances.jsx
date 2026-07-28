@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import HistoriqueRelances from '../../core/dossier/HistoriqueRelances';
 import GestionRendezvous from '../../core/dossier/GestionRendezvous';
+import NotesDossier from '../../core/dossier/NotesDossier';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
@@ -49,6 +50,7 @@ export default function Relances() {
         </h1>
         <GestionRendezvous dossierId={dossierId} />
         <HistoriqueRelances dossierId={dossierId} />
+        <NotesDossier dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );
