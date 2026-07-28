@@ -8,6 +8,14 @@
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond-secondaire);
+  /* Compense l'en-tête ACCECIT en position: fixed (PageBackOffice.css, --hauteur-entete défini
+     sur .page-back-office et hérité jusqu'ici par la cascade) : scrollIntoView({block:'start'},
+     voir ModalePlanificationTest.jsx) ne sait pas qu'un en-tête fixe occupe le haut du viewport
+     et alignerait sinon ce panneau pile derrière lui — le titre et le sélecteur de formateur se
+     retrouveraient masqués, seul le calendrier plus bas resterait visible (recouvrement observé
+     en test manuel). Même valeur d'offset que .page-back-office__contenu (padding-top), pour
+     rester cohérent avec le reste du back-office plutôt qu'un nombre choisi au pif ici. */
+  scroll-margin-top: calc(var(--hauteur-entete) + var(--espace-grand));
 }
 
 .modale-planification-test__entete {

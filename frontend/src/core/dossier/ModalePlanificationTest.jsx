@@ -37,6 +37,12 @@ const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
 // plusieurs origines possibles pour un même codeAction (ex. "replanifier_test" existe en
 // configuration à la fois depuis test_non_realise et verdict_negatif).
 export default function ModalePlanificationTest({ dossierId, codeAction, titre, onAnnuler, onReussite }) {
+  const panneauRef = useRef(null);
+
+  const [formateurs, setFormateurs] = useState([]);
+  const [chargementFormateurs, setChargementFormateurs] = useState(true);
+  const [erreurFormateurs, setErreurFormateurs] = useState(null);
+
   // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
   // l'appelant, voir ModalePlanificationTest.css) : sans amener la vue jusqu'à lui, l'agent ne le
   // voit pas apparaître et doit défiler manuellement pour s'en apercevoir. `block: 'start'` cale
@@ -51,14 +57,20 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
   // props changent) — un tableau de dépendances vide ne réexécuterait alors le scroll qu'à la
   // toute première ouverture. En dépendant de l'identité de ce qui est planifié, l'effet se
   // redéclenche à chaque nouvelle cible, y compris sans démontage.
-  const panneauRef = useRef(null);
+  //
+  // `chargementFormateurs` est aussi une dépendance, et l'effet ne scrolle pas tant qu'il vaut
+  // encore true : à l'ouverture initiale (avant que GET /formateurs ait répondu), le panneau
+  // n'affiche que "Chargement des formateurs…", bien plus court qu'une fois le calendrier de
+  // disponibilité affiché — scroller sur cette hauteur provisoire atterrit trop haut dans le
+  // document (donc, une fois le panneau grandi, le titre se retrouve au-dessus du viewport et
+  // l'agent voit le calendrier en premier). En attendant la fin du chargement, l'effet scrolle
+  // sur la hauteur finale réelle du panneau. Lors d'un changement de dossier alors que les
+  // formateurs sont déjà en cache (chargementFormateurs déjà à false, cas normal après la toute
+  // première ouverture sur cette page), l'effet scrolle immédiatement comme avant.
   useEffect(() => {
+    if (chargementFormateurs) return;
     panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [dossierId, codeAction]);
-
-  const [formateurs, setFormateurs] = useState([]);
-  const [chargementFormateurs, setChargementFormateurs] = useState(true);
-  const [erreurFormateurs, setErreurFormateurs] = useState(null);
+  }, [dossierId, codeAction, chargementFormateurs]);
 
   const [dateTest, setDateTest] = useState('');
   const [heureTest, setHeureTest] = useState('');
