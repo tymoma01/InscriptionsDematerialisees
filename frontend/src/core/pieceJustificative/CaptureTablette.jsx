@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
-import { listerFormateurs } from '../../services/formateurService';
-import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
-import CalendrierDisponibiliteFormateur from './CalendrierDisponibiliteFormateur';
+import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
 import './CaptureTablette.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -19,18 +17,10 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // Code de la transition qui planifie le test (voir workflow.config.json de l'entité) — ACCECIT
 // l'a directement depuis en_attente_pieces (workflow v2 : la vérification des pièces est inline,
 // jugée visuellement par l'accueil, plus une étape de statut séparée). Une autre entité peut
-// nommer/enchaîner ça différemment, jamais codé en dur au-delà de cette seule constante.
+// nommer/enchaîner ça différemment, jamais codé en dur au-delà de cette seule constante. Transmis
+// à ModalePlanificationTest (core/dossier/), composant générique partagé avec la replanification
+// depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test").
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
-
-// L'input natif type="datetime-local" s'est révélé peu fiable au tactile pour sa partie
-// heure/minute (segment difficile à cibler précisément, voir le correctif de largeur précédent
-// qui n'a pas suffi) — remplacé par un input type="date" (fiable, déjà éprouvé) combiné à deux
-// <select> classiques pour l'heure et les minutes : un select est un composant natif que
-// l'agent peut ouvrir et faire défiler au doigt, sans dépendre d'une frappe précise sur un
-// sous-segment. Minutes par pas de 15 : granularité suffisante pour planifier un test, une liste
-// des 60 valeurs serait inutilement longue à faire défiler sur tablette.
-const HEURES_DISPONIBLES = Array.from({ length: 24 }, (_, heure) => String(heure).padStart(2, '0'));
-const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
 
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
 // ici uniquement pour donner un retour immédiat à l'agent, le back revalide de toute façon.
@@ -213,6 +203,8 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
       {planificationOuverte && (
         <ModalePlanificationTest
           dossierId={dossierId}
+          codeAction={CODE_ACTION_PLANIFIER_TEST}
+          titre="Planifier un test"
           onAnnuler={() => setPlanificationOuverte(false)}
           onReussite={(resultat) => {
             setPlanificationOuverte(false);
@@ -221,251 +213,6 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
         />
       )}
     </section>
-  );
-}
-
-// Modale de planification d'un test : choix de la date/heure et du formateur, puis (1) création
-// du rendez-vous, (2) avancement du statut du dossier jusqu'à test_planifie via le moteur de
-// transitions générique. Composant local (non exporté), même patron que PanneauCapture ci-dessous.
-function ModalePlanificationTest({ dossierId, onAnnuler, onReussite }) {
-  const [formateurs, setFormateurs] = useState([]);
-  const [chargementFormateurs, setChargementFormateurs] = useState(true);
-  const [erreurFormateurs, setErreurFormateurs] = useState(null);
-
-  const [dateTest, setDateTest] = useState('');
-  const [heureTest, setHeureTest] = useState('');
-  const [minuteTest, setMinuteTest] = useState('');
-  const [formateurId, setFormateurId] = useState('');
-  const [envoiEnCours, setEnvoiEnCours] = useState(false);
-  const [erreurEnvoi, setErreurEnvoi] = useState(null);
-
-  // Créneaux du formateur sélectionné, pour le seul jour choisi (voir calendrier mensuel plus
-  // bas pour la vue d'ensemble par mois) — sert uniquement au message d'alerte + désactivation du
-  // bouton ci-dessous. Confort visuel seulement : trouverRendezvousFormateurAuCreneau côté
-  // serveur reste le garde-fou qui fait foi (409 ErreurCreneauPris à la création).
-  const [creneauxJourSelectionne, setCreneauxJourSelectionne] = useState([]);
-
-  useEffect(() => {
-    let annule = false;
-    listerFormateurs()
-      .then((valeur) => {
-        if (annule) return;
-        setFormateurs(valeur);
-        if (valeur.length > 0) setFormateurId(String(valeur[0].id));
-      })
-      .catch(() => {
-        if (!annule) setErreurFormateurs('Impossible de récupérer la liste des formateurs.');
-      })
-      .finally(() => {
-        if (!annule) setChargementFormateurs(false);
-      });
-    return () => {
-      annule = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!formateurId || !dateTest) {
-      setCreneauxJourSelectionne([]);
-      return undefined;
-    }
-    let annule = false;
-    // Bornes du seul jour choisi (dateFin exclusive) — calcul par arithmétique locale de Date
-    // (pas de toISOString ici) pour ne jamais glisser sur le jour voisin selon le fuseau du
-    // navigateur, cf. cleJourLocal dans CalendrierDisponibiliteFormateur.jsx.
-    const [annee, mois, jour] = dateTest.split('-').map(Number);
-    const lendemain = new Date(annee, mois - 1, jour + 1);
-    const dateFin = `${lendemain.getFullYear()}-${String(lendemain.getMonth() + 1).padStart(2, '0')}-${String(lendemain.getDate()).padStart(2, '0')}`;
-
-    listerRendezvousTest({ formateurId: Number(formateurId), dateDebut: dateTest, dateFin })
-      .then((valeur) => {
-        if (!annule) setCreneauxJourSelectionne(valeur);
-      })
-      .catch(() => {
-        if (!annule) setCreneauxJourSelectionne([]);
-      });
-    return () => {
-      annule = true;
-    };
-  }, [formateurId, dateTest]);
-
-  // Même recombinaison que celle utilisée au submit (voir plus bas) : null tant que les trois
-  // contrôles ne sont pas tous renseignés, pour ne pas comparer un créneau incomplet.
-  const dateHeureChoisieIso = dateTest && heureTest && minuteTest
-    ? new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString()
-    : null;
-
-  const creneauDejaPris = dateHeureChoisieIso !== null
-    && creneauxJourSelectionne.some((rendezvous) => new Date(rendezvous.date_heure).toISOString() === dateHeureChoisieIso);
-
-  const soumettre = async (evenement) => {
-    evenement.preventDefault();
-    if (!dateTest || !heureTest || !minuteTest || !formateurId || envoiEnCours || creneauDejaPris) return;
-
-    setEnvoiEnCours(true);
-    setErreurEnvoi(null);
-
-    const formateurChoisi = formateurs.find((f) => String(f.id) === formateurId);
-    // Recombine les trois contrôles séparés (date + heure + minute) dans le même format que
-    // produisait l'ancien input datetime-local ('aaaa-mm-jjTHH:mm'), pour ne rien changer côté
-    // service/back (voir creerRendezvous, qui attend une chaîne convertible en Date).
-    const dateHeureIso = dateHeureChoisieIso;
-
-    // Une seule transition à appliquer désormais : "planifier_test" directement depuis
-    // en_attente_pieces (workflow v2 — plus d'étape "pieces_completes" intermédiaire, la
-    // vérification des pièces est inline/visuelle, voir CODE_ACTION_PLANIFIER_TEST plus haut).
-    const transitions = [
-      {
-        codeAction: CODE_ACTION_PLANIFIER_TEST,
-        commentaire: `Test planifié le ${FORMAT_DATE_HEURE.format(new Date(dateHeureIso))} avec ${formateurChoisi.prenom} ${formateurChoisi.nom}.`,
-      },
-    ];
-
-    // Création du rendez-vous et changement de statut en une seule transaction côté back (voir
-    // rendezvousService.creerRendezvousAvecTransitions) : soit les deux réussissent, soit aucun
-    // des deux n'est enregistré — plus de rendez-vous "orphelin" possible si la transition échoue.
-    try {
-      await creerRendezvousAvecTransitions(dossierId, {
-        typeRdv: 'test',
-        dateHeure: dateHeureIso,
-        formateurId: Number(formateurId),
-        transitions,
-      });
-    } catch (erreur) {
-      setEnvoiEnCours(false);
-      setErreurEnvoi(
-        erreur.response
-          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer la planification. Merci de réessayer.")
-          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
-      );
-      return;
-    }
-
-    setEnvoiEnCours(false);
-    onReussite({ dateHeure: dateHeureIso, formateurNom: `${formateurChoisi.prenom} ${formateurChoisi.nom}` });
-  };
-
-  return (
-    <div className="capture-tablette__panneau" role="dialog" aria-label="Planifier un test">
-      <div className="capture-tablette__panneau-entete">
-        <h3>Planifier un test</h3>
-        <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
-          Fermer
-        </button>
-      </div>
-
-      {chargementFormateurs && <p>Chargement des formateurs…</p>}
-      {erreurFormateurs && <p role="alert">{erreurFormateurs}</p>}
-
-      {!chargementFormateurs && !erreurFormateurs && formateurs.length === 0 && (
-        <p role="alert">Aucun formateur disponible pour cette entité — impossible de planifier un test.</p>
-      )}
-
-      {!chargementFormateurs && formateurs.length > 0 && (
-        <form className="capture-tablette__formulaire-planification" onSubmit={soumettre}>
-          {/* Texte du label regroupé dans un unique <span> (plutôt que texte + astérisque comme
-              deux enfants directs du label) : le label est en display: flex/column pour
-              empiler son contenu au-dessus du <select> imbriqué (voir CaptureTablette.css) — un
-              texte et un astérisque comme deux enfants directs se seraient sinon empilés l'un
-              sous l'autre au lieu de rester sur la même ligne (même bug que celui corrigé pour
-              date/heure ci-dessous, présent ici aussi). Placé avant le calendrier et la date/heure
-              : le formateur doit être connu avant d'afficher ses disponibilités. */}
-          <label>
-            <span>
-              Formateur <span className="champ-obligatoire">*</span>
-            </span>
-            <select
-              id="planification-formateur"
-              value={formateurId}
-              onChange={(evenement) => setFormateurId(evenement.target.value)}
-              required
-            >
-              {formateurs.map((formateur) => (
-                <option key={formateur.id} value={formateur.id}>
-                  {formateur.prenom} {formateur.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Aide visuelle uniquement (voir commentaire de CalendrierDisponibiliteFormateur) : le
-              clic sur un jour se contente de préremplir le input date ci-dessous, qui reste la
-              seule source de vérité pour la date choisie. */}
-          <CalendrierDisponibiliteFormateur
-            formateurId={formateurId}
-            dateSelectionnee={dateTest}
-            onSelectionnerJour={setDateTest}
-          />
-
-          {/* fieldset plutôt qu'un simple label : trois contrôles distincts (date, heure,
-              minute) partagent une seule légende — même patron que le groupe Civilité du
-              formulaire d'inscription (BlocInfosPerso.jsx). Le texte de la légende reste un bloc
-              unique (pas de display: flex sur le fieldset/legend ici), donc l'astérisque reste
-              sur la même ligne. */}
-          <fieldset className="capture-tablette__champ-date-heure">
-            <legend>
-              Date et heure du test <span className="champ-obligatoire">*</span>
-            </legend>
-            <div className="capture-tablette__date-heure-controles">
-              <input
-                id="planification-date"
-                type="date"
-                value={dateTest}
-                onChange={(evenement) => setDateTest(evenement.target.value)}
-                required
-              />
-              <select
-                id="planification-heure"
-                aria-label="Heure"
-                value={heureTest}
-                onChange={(evenement) => setHeureTest(evenement.target.value)}
-                required
-              >
-                <option value="">--</option>
-                {HEURES_DISPONIBLES.map((heure) => (
-                  <option key={heure} value={heure}>
-                    {heure}
-                  </option>
-                ))}
-              </select>
-              <span aria-hidden="true">:</span>
-              <select
-                id="planification-minute"
-                aria-label="Minutes"
-                value={minuteTest}
-                onChange={(evenement) => setMinuteTest(evenement.target.value)}
-                required
-              >
-                <option value="">--</option>
-                {MINUTES_DISPONIBLES.map((minute) => (
-                  <option key={minute} value={minute}>
-                    {minute}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </fieldset>
-
-          {creneauDejaPris && (
-            <p role="alert">Ce formateur a déjà un test prévu à cet horaire. Choisissez un autre créneau.</p>
-          )}
-
-          {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
-
-          <div className="capture-tablette__formulaire-planification-actions">
-            <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
-              Annuler
-            </button>
-            <button
-              type="submit"
-              disabled={envoiEnCours || !dateTest || !heureTest || !minuteTest || !formateurId || creneauDejaPris}
-            >
-              {envoiEnCours ? 'Enregistrement...' : 'Confirmer la planification'}
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
   );
 }
 

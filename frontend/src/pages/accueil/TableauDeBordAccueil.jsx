@@ -4,11 +4,24 @@ import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
+import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './TableauDeBordAccueil.css';
+
+// Code de la transition qui replanifie un test après un désistement (test_non_realise) ou un
+// verdict négatif (workflow.config.json ACCECIT : les deux origines partagent ce même codeAction,
+// vers test_planifie) — voir ModalePlanificationTest.jsx, qui ne connaît lui-même aucun statut ni
+// codeAction en dur, c'est cette page qui décide depuis quelle action elle l'ouvre. Le moteur de
+// transitions (workflowEngine.appliquerTransition) résout la bonne ligne transitions_statut à
+// partir du statut réel du dossier, jamais choisie ici.
+const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
+
+// Statuts depuis lesquels le bouton "Replanifier" est proposé (voir Modularité, CLAUDE.md : reste
+// propre à cette page/entité, pas au moteur générique DossierList).
+const STATUTS_REPLANIFIABLES = ['test_non_realise', 'verdict_negatif'];
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
@@ -29,7 +42,16 @@ function varianteStatut(code) {
 // avant l'envoi en test) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
 // reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
 // (workflow hérité, plus jamais atteint) n'y figure volontairement pas.
-const CODES_STATUTS_FILTRES_ACCUEIL = ['nouveau', 'en_attente_pieces', 'test_planifie', 'test_non_realise'];
+const CODES_STATUTS_FILTRES_ACCUEIL = [
+  'nouveau',
+  'en_attente_pieces',
+  'test_planifie',
+  'test_non_realise',
+  // Ajouté avec le bouton "Replanifier" (voir STATUTS_REPLANIFIABLES ci-dessous) : permet à
+  // l'accueil d'isoler d'un coup les dossiers en attente de replanification après un verdict
+  // négatif, sans devoir les repérer dans la liste complète.
+  'verdict_negatif',
+];
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
 // dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Deux
@@ -52,6 +74,10 @@ export default function TableauDeBordAccueil() {
   const [recherche, setRecherche] = useState('');
   const [dateDebutFiltre, setDateDebutFiltre] = useState('');
   const [dateFinFiltre, setDateFinFiltre] = useState('');
+
+  // Dossier sélectionné pour une replanification, ou null si le panneau est fermé — voir bouton
+  // "Replanifier" plus bas et ModalePlanificationTest.jsx.
+  const [dossierAReplanifier, setDossierAReplanifier] = useState(null);
 
   useEffect(() => {
     listerStatuts()
@@ -80,6 +106,16 @@ export default function TableauDeBordAccueil() {
       annule = true;
     };
   }, [statutFiltre]);
+
+  // Rechargement manuel après une replanification réussie (voir plus bas) : le dossier a changé
+  // de statut (→ test_planifie), il doit soit disparaître de la vue filtrée courante, soit voir
+  // son badge de statut mis à jour — un simple retrait local serait incorrect si le filtre actif
+  // est justement "Test planifié".
+  const rechargerDossiers = () => {
+    listerDossiers({ statut: statutFiltre })
+      .then(setDossiers)
+      .catch(() => setErreur('Impossible de récupérer les dossiers.'));
+  };
 
   const dossiersFiltres = useMemo(
     () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre }),
@@ -145,7 +181,25 @@ export default function TableauDeBordAccueil() {
                 libelle: 'Relances',
                 onSelectionner: (dossier) => navigate(`/coordination/dossiers/${dossier.id}/relances`),
               },
+              {
+                libelle: 'Replanifier',
+                onSelectionner: (dossier) => setDossierAReplanifier(dossier),
+                visible: (dossier) => STATUTS_REPLANIFIABLES.includes(dossier.statut_code),
+              },
             ]}
+          />
+        )}
+
+        {dossierAReplanifier && (
+          <ModalePlanificationTest
+            dossierId={dossierAReplanifier.id}
+            codeAction={CODE_ACTION_REPLANIFIER_TEST}
+            titre={`Replanifier un test — ${dossierAReplanifier.candidat_prenom} ${dossierAReplanifier.candidat_nom}`}
+            onAnnuler={() => setDossierAReplanifier(null)}
+            onReussite={() => {
+              setDossierAReplanifier(null);
+              rechargerDossiers();
+            }}
           />
         )}
       </div>

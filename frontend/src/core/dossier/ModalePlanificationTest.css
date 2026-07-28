@@ -1,0 +1,100 @@
+/* Panneau générique de planification de test, extrait de CaptureTablette.css (voir
+   ModalePlanificationTest.jsx) — reste sur le même écran (pas de nouvelle page) pour ne pas
+   perdre le contexte du dossier en cours, fond légèrement distinct pour se détacher visuellement
+   du contenu au-dessus (liste de dossiers ou liste de pièces selon l'appelant). */
+.modale-planification-test {
+  margin-top: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.modale-planification-test__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--espace-petit);
+}
+
+.modale-planification-test__entete h3 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.modale-planification-test [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}
+
+/* Même structure verticale label/champ que .gestion-transitions__formulaire, pour rester
+   cohérent avec le reste du back-office. */
+.modale-planification-test__formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-planification-test__formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.modale-planification-test__formulaire input,
+.modale-planification-test__formulaire select {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+/* Groupe date/heure du test : fieldset plutôt qu'un label, trois contrôles distincts (date,
+   heure, minute — voir ModalePlanificationTest.jsx, remplace l'ancien input datetime-local dont
+   le segment heure/minute s'est révélé peu fiable au tactile). Pas de display: flex ici : la
+   légende doit rester un seul bloc de texte (label + astérisque) sur la même ligne. */
+.modale-planification-test__champ-date-heure {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.6rem 0.75rem;
+  margin: 0;
+}
+
+.modale-planification-test__champ-date-heure legend {
+  padding: 0 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.modale-planification-test__date-heure-controles {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+
+/* Chacun garde sa taille naturelle (pas d'étirement en ligne, contrairement à label/select en
+   colonne ci-dessus) : évite de reproduire la zone morte de l'ancien input datetime-local. */
+.modale-planification-test__date-heure-controles input[type='date'] {
+  flex: 0 0 auto;
+  max-width: 160px;
+}
+
+.modale-planification-test__date-heure-controles select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 4.5rem;
+}
+
+.modale-planification-test__formulaire-actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.modale-planification-test__formulaire-actions button[type='submit'] {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+}

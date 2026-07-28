@@ -26,7 +26,11 @@ const COLONNES = [
 // liste d'actions par ligne, comme FormulaireInscription reçoit ses blocs actifs plutôt que de
 // les connaître.
 // `varianteStatut` et `actions` restent optionnels : sans eux, la liste reste utilisable en
-// lecture seule avec des badges neutres. `actions` : [{ libelle, onSelectionner(dossier) }].
+// lecture seule avec des badges neutres. `actions` : [{ libelle, onSelectionner(dossier),
+// visible?(dossier) }] — `visible` optionnel (défaut : toujours affichée), pour des actions qui
+// ne concernent que certains statuts (ex. "Replanifier" sur TableauDeBordAccueil.jsx, réservé aux
+// dossiers en test_non_realise/verdict_negatif) sans que ce composant générique ait besoin de
+// connaître ces codes de statut lui-même.
 //
 // Tri entièrement client, sur la liste déjà reçue (déjà filtrée par statut/recherche/date par
 // l'appelant, voir TableauDeBordAccueil.jsx/Backoffice.jsx) : ni l'une ni l'autre des deux pages
@@ -112,11 +116,13 @@ export default function DossierList({ dossiers, varianteStatut, actions = [] }) 
                       ligne) — décalage visible dès qu'une autre cellule de la même ligne est plus
                       haute (ex. nom de candidat sur deux lignes). */}
                   <div className="dossier-list__actions">
-                    {actions.map((action) => (
-                      <button key={action.libelle} type="button" onClick={() => action.onSelectionner(dossier)}>
-                        {action.libelle}
-                      </button>
-                    ))}
+                    {actions
+                      .filter((action) => !action.visible || action.visible(dossier))
+                      .map((action) => (
+                        <button key={action.libelle} type="button" onClick={() => action.onSelectionner(dossier)}>
+                          {action.libelle}
+                        </button>
+                      ))}
                   </div>
                 </td>
               )}
