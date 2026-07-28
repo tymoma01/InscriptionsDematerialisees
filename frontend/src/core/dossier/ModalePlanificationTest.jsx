@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
@@ -37,6 +37,18 @@ const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
 // plusieurs origines possibles pour un même codeAction (ex. "replanifier_test" existe en
 // configuration à la fois depuis test_non_realise et verdict_negatif).
 export default function ModalePlanificationTest({ dossierId, codeAction, titre, onAnnuler, onReussite }) {
+  // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
+  // l'appelant, voir ModalePlanificationTest.css) : sans amener la vue jusqu'à lui, l'agent ne le
+  // voit pas apparaître et doit défiler manuellement pour s'en apercevoir. `block: 'start'` cale
+  // le haut du panneau (son titre) en haut de viewport plutôt que 'nearest'/'center', pour
+  // toujours afficher l'en-tête même quand le panneau est plus haut que l'écran (tablette en
+  // portrait) — cohérent quel que soit l'appelant, puisque géré ici une seule fois plutôt que
+  // dupliqué dans CaptureTablette.jsx et TableauDeBordAccueil.jsx.
+  const panneauRef = useRef(null);
+  useEffect(() => {
+    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   const [formateurs, setFormateurs] = useState([]);
   const [chargementFormateurs, setChargementFormateurs] = useState(true);
   const [erreurFormateurs, setErreurFormateurs] = useState(null);
@@ -155,7 +167,7 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
   };
 
   return (
-    <div className="modale-planification-test" role="dialog" aria-label={titre}>
+    <div ref={panneauRef} className="modale-planification-test" role="dialog" aria-label={titre}>
       <div className="modale-planification-test__entete">
         <h3>{titre}</h3>
         <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
