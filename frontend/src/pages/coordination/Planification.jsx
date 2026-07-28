@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -27,6 +27,21 @@ function varianteStatutRendezvous(statut) {
   return 'attente';
 }
 
+// Une entrée par colonne triable, même patron que DossierList.jsx (core/dossier/DossierList.jsx)
+// — "Candidat" trie sur candidats.nom (nom de famille), pas la chaîne "prénom nom" affichée.
+// "Statut" trie sur le libellé affiché (LIBELLES_STATUT), plus lisible pour l'utilisateur qu'un
+// tri sur le code brut ('absent' avant 'confirme' avant 'prevu'...).
+const COLONNES = [
+  { cle: 'date_heure', libelle: 'Date et heure', extraire: (rdv) => new Date(rdv.date_heure).getTime() },
+  { cle: 'candidat_nom', libelle: 'Candidat', extraire: (rdv) => (rdv.candidat_nom ?? '').toLowerCase() },
+  { cle: 'formateur_nom', libelle: 'Formateur', extraire: (rdv) => (rdv.formateur_nom ?? '').toLowerCase() },
+  {
+    cle: 'statut',
+    libelle: 'Statut',
+    extraire: (rdv) => (LIBELLES_STATUT[rdv.statut] ?? rdv.statut ?? '').toLowerCase(),
+  },
+];
+
 // Vue d'ensemble des rendez-vous de test côté Coordination (CLAUDE.md, besoin Accueil/
 // Coordination : "planifie les tests") — tous dossiers confondus, contrairement à
 // GestionRendezvous.jsx qui reste scopé à un seul dossier. Ne crée ni ne modifie aucun
@@ -43,6 +58,12 @@ export default function Planification() {
   const [aVenirSeulement, setAVenirSeulement] = useState(true);
   const [formateurFiltre, setFormateurFiltre] = useState(''); // '' = tous les formateurs
   const [formateurs, setFormateurs] = useState([]);
+
+  // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
+  // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
+  // date et heure croissantes (comportement historique de cette page, prochain rendez-vous en
+  // premier), préservé tant qu'aucun en-tête n'a été cliqué.
+  const [tri, setTri] = useState({ colonne: 'date_heure', ordre: 'asc' });
 
   useEffect(() => {
     listerFormateurs()
@@ -71,6 +92,32 @@ export default function Planification() {
       annule = true;
     };
   }, [aVenirSeulement, formateurFiltre]);
+
+  const rendezvousTries = useMemo(() => {
+    const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
+    const copie = [...rendezvous];
+    copie.sort((a, b) => {
+      const valeurA = colonneTri.extraire(a);
+      const valeurB = colonneTri.extraire(b);
+      if (valeurA < valeurB) return tri.ordre === 'asc' ? -1 : 1;
+      if (valeurA > valeurB) return tri.ordre === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return copie;
+  }, [rendezvous, tri]);
+
+  // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Date et heure"
+  // repart croissant (le prochain rendez-vous en premier reste le repère le plus utile), les
+  // colonnes textuelles repartent croissant (ordre alphabétique naturel) — même patron que
+  // DossierList.jsx.
+  const trierPar = (colonne) => {
+    setTri((precedent) => {
+      if (precedent.colonne === colonne) {
+        return { colonne, ordre: precedent.ordre === 'asc' ? 'desc' : 'asc' };
+      }
+      return { colonne, ordre: 'asc' };
+    });
+  };
 
   if (chargementSession) {
     return (
@@ -131,15 +178,28 @@ export default function Planification() {
             <table className="planification__table">
               <thead>
                 <tr>
-                  <th scope="col">Date et heure</th>
-                  <th scope="col">Candidat</th>
-                  <th scope="col">Formateur</th>
-                  <th scope="col">Statut</th>
+                  {COLONNES.map((colonne) => {
+                    const actif = tri.colonne === colonne.cle;
+                    return (
+                      <th
+                        key={colonne.cle}
+                        scope="col"
+                        aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      >
+                        <button type="button" className="planification__entete-tri" onClick={() => trierPar(colonne.cle)}>
+                          {colonne.libelle}
+                          <span className="planification__indicateur-tri" aria-hidden="true">
+                            {actif ? (tri.ordre === 'asc' ? '▲' : '▼') : ''}
+                          </span>
+                        </button>
+                      </th>
+                    );
+                  })}
                   <th scope="col"></th>
                 </tr>
               </thead>
               <tbody>
-                {rendezvous.map((rdv) => (
+                {rendezvousTries.map((rdv) => (
                   <tr key={rdv.id}>
                     <td>{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td>

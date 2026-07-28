@@ -81,6 +81,34 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* Le padding vit sur le bouton interne (voir .planification__entete-tri), pas ici : sinon la
+     zone cliquable ne couvrirait pas toute la cellule. Même patron que DossierList.css. */
+  padding: 0;
+}
+
+.planification__entete-tri {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  width: 100%;
+  padding: 0.75rem var(--espace-moyen);
+  border: none;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.planification__entete-tri:hover,
+.planification__entete-tri:focus-visible {
+  color: var(--couleur-texte);
+}
+
+.planification__indicateur-tri {
+  font-size: 0.7rem;
+  min-width: 0.8em;
 }
 
 .planification__table tbody tr:last-child td {

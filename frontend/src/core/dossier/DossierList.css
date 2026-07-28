@@ -32,6 +32,39 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* Le padding vit sur le bouton interne (voir .dossier-list__entete-tri), pas ici : sinon la
+     zone cliquable ne couvrirait pas toute la cellule. */
+  padding: 0;
+}
+
+/* Bouton plutôt que le <th> lui-même comme cible du clic : accessible au clavier (focus/Entrée)
+   sans rien ajouter, contrairement à un gestionnaire posé directement sur <th>. Réinitialisé pour
+   se fondre visuellement dans l'en-tête existant. */
+.dossier-list__entete-tri {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  width: 100%;
+  padding: 0.75rem var(--espace-moyen);
+  border: none;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dossier-list__entete-tri:hover,
+.dossier-list__entete-tri:focus-visible {
+  color: var(--couleur-texte);
+}
+
+.dossier-list__indicateur-tri {
+  font-size: 0.7rem;
+  /* Largeur réservée même sans indicateur affiché : évite que le libellé de la colonne se
+     décale d'une colonne à l'autre selon que son tri est actif ou non. */
+  min-width: 0.8em;
 }
 
 .dossier-list tbody tr:last-child td {
