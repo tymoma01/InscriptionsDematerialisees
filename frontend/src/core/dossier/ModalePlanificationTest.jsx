@@ -44,10 +44,17 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
   // toujours afficher l'en-tête même quand le panneau est plus haut que l'écran (tablette en
   // portrait) — cohérent quel que soit l'appelant, puisque géré ici une seule fois plutôt que
   // dupliqué dans CaptureTablette.jsx et TableauDeBordAccueil.jsx.
+  //
+  // Dépend de [dossierId, codeAction] plutôt que [] : sur TableauDeBordAccueil.jsx, le panneau
+  // n'est pas démonté/remonté entre deux ouvertures si l'agent clique "Replanifier" sur un autre
+  // dossier sans avoir fermé le panneau précédent (même position dans l'arbre React, seules les
+  // props changent) — un tableau de dépendances vide ne réexécuterait alors le scroll qu'à la
+  // toute première ouverture. En dépendant de l'identité de ce qui est planifié, l'effet se
+  // redéclenche à chaque nouvelle cible, y compris sans démontage.
   const panneauRef = useRef(null);
   useEffect(() => {
     panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  }, [dossierId, codeAction]);
 
   const [formateurs, setFormateurs] = useState([]);
   const [chargementFormateurs, setChargementFormateurs] = useState(true);
