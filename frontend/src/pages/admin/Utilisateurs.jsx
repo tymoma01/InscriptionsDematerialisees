@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
+import ChampRecherche from '../../core/filtres/ChampRecherche';
+import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import {
@@ -20,6 +22,33 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+// Options du filtre "Statut de compte" — {code, libelle} comme les rôles ci-dessous, pour
+// réutiliser FiltresStatut.jsx tel quel (voir son en-tête : générique par nature, peu importe ce
+// que "statuts" représente). Codes propres à cette page, aucun lien avec la table `statuts` des
+// dossiers (booléen `actif` de la table `utilisateurs`, pas un statut piloté par configuration).
+const STATUTS_COMPTE = [
+  { code: 'actif', libelle: 'Actif' },
+  { code: 'desactive', libelle: 'Désactivé' },
+];
+
+// Une entrée par colonne triable, même patron que DossierList.jsx (core/dossier/DossierList.jsx)
+// et Planification.jsx — "Rôle"/"Statut" trient sur le libellé affiché (plus lisible pour
+// l'utilisateur qu'un tri sur le code brut). "Dernière connexion" : les comptes jamais connectés
+// (derniere_connexion null, affichés "—") retombent en fin de tri quel que soit le sens choisi,
+// -Infinity les place naturellement après les dates réelles en ordre décroissant (le plus récent
+// en premier, comportement historique de cette colonne).
+const COLONNES = [
+  { cle: 'nom', libelle: 'Nom', extraire: (u) => (u.nom ?? '').toLowerCase() },
+  { cle: 'email', libelle: 'Email', extraire: (u) => (u.email ?? '').toLowerCase() },
+  { cle: 'role_libelle', libelle: 'Rôle', extraire: (u) => (u.role_libelle ?? '').toLowerCase() },
+  { cle: 'actif', libelle: 'Statut', extraire: (u) => (u.actif ? 'actif' : 'desactive') },
+  {
+    cle: 'derniere_connexion',
+    libelle: 'Dernière connexion',
+    extraire: (u) => (u.derniere_connexion ? new Date(u.derniere_connexion).getTime() : -Infinity),
+  },
+];
+
 // Écran admin de gestion des comptes (CLAUDE.md, section Rôles : "Admin : gestion globale") —
 // liste des comptes de l'entité courante, création, modification (nom/prénom/rôle/mot de passe)
 // et activation/désactivation. Aucune suppression : un compte désactivé (actif: false) ne peut
@@ -35,6 +64,18 @@ export default function Utilisateurs() {
   const [erreur, setErreur] = useState(null);
   // null = fermé, 'creation' = formulaire vide, ou l'objet utilisateur à éditer.
   const [formulaireOuvert, setFormulaireOuvert] = useState(null);
+
+  // Recherche + filtres, cumulables entre eux et avec le tri ci-dessous — entièrement client :
+  // GET /api/utilisateurs ne pagine pas (voir utilisateurRepository.listerUtilisateurs, aucun
+  // LIMIT/OFFSET), la liste `utilisateurs` est donc déjà intégralement en mémoire, même choix que
+  // DossierList.jsx/Planification.jsx pour la même raison.
+  const [recherche, setRecherche] = useState('');
+  const [roleFiltre, setRoleFiltre] = useState(null); // null = tous les rôles
+  const [statutCompteFiltre, setStatutCompteFiltre] = useState(null); // null = tous
+
+  // Défaut = nom croissant, même ordre que le backend (utilisateurRepository.listerUtilisateurs,
+  // orderBy nom asc) — préservé tant qu'aucun en-tête n'a été cliqué.
+  const [tri, setTri] = useState({ colonne: 'nom', ordre: 'asc' });
 
   const chargerUtilisateurs = () => {
     setChargement(true);
@@ -71,6 +112,52 @@ export default function Utilisateurs() {
         erreur.response?.data?.erreur ?? "Le serveur n'a pas pu enregistrer ce changement. Merci de réessayer.",
       );
     }
+  };
+
+  // Recherche sur le nom complet (prénom + nom, même patron que filtrerDossiers.js) et l'email —
+  // les deux champs où un admin identifie un compte au premier coup d'œil.
+  const utilisateursFiltres = useMemo(() => {
+    const rechercheNormalisee = recherche.trim().toLowerCase();
+    return utilisateurs.filter((u) => {
+      if (rechercheNormalisee) {
+        const nomComplet = `${u.prenom} ${u.nom}`.toLowerCase();
+        if (!nomComplet.includes(rechercheNormalisee) && !u.email.toLowerCase().includes(rechercheNormalisee)) {
+          return false;
+        }
+      }
+      if (roleFiltre && u.role_code !== roleFiltre) return false;
+      if (statutCompteFiltre) {
+        const statutCode = u.actif ? 'actif' : 'desactive';
+        if (statutCode !== statutCompteFiltre) return false;
+      }
+      return true;
+    });
+  }, [utilisateurs, recherche, roleFiltre, statutCompteFiltre]);
+
+  const utilisateursTries = useMemo(() => {
+    const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
+    const copie = [...utilisateursFiltres];
+    copie.sort((a, b) => {
+      const valeurA = colonneTri.extraire(a);
+      const valeurB = colonneTri.extraire(b);
+      if (valeurA < valeurB) return tri.ordre === 'asc' ? -1 : 1;
+      if (valeurA > valeurB) return tri.ordre === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return copie;
+  }, [utilisateursFiltres, tri]);
+
+  // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Dernière
+  // connexion" repart décroissant (le plus récent en premier reste le repère le plus utile), les
+  // colonnes textuelles repartent croissant (ordre alphabétique naturel) — même patron que
+  // DossierList.jsx/Planification.jsx.
+  const trierPar = (colonne) => {
+    setTri((precedent) => {
+      if (precedent.colonne === colonne) {
+        return { colonne, ordre: precedent.ordre === 'asc' ? 'desc' : 'asc' };
+      }
+      return { colonne, ordre: colonne === 'derniere_connexion' ? 'desc' : 'asc' };
+    });
   };
 
   if (chargementSession) {
@@ -120,25 +207,64 @@ export default function Utilisateurs() {
         {chargement && <p>Chargement des comptes…</p>}
         {erreur && <p role="alert">{erreur}</p>}
 
+        {!chargement && !erreur && utilisateurs.length > 0 && (
+          <>
+            <ChampRecherche
+              valeur={recherche}
+              onChanger={setRecherche}
+              placeholder="Rechercher un compte (nom, email)"
+              ariaLabel="Rechercher un compte par nom ou email"
+            />
+            <FiltresStatut
+              statuts={roles}
+              statutFiltre={roleFiltre}
+              onChangerStatutFiltre={setRoleFiltre}
+              ariaLabel="Filtrer par rôle"
+            />
+            <FiltresStatut
+              statuts={STATUTS_COMPTE}
+              statutFiltre={statutCompteFiltre}
+              onChangerStatutFiltre={setStatutCompteFiltre}
+              ariaLabel="Filtrer par statut de compte"
+            />
+          </>
+        )}
+
         {!chargement && !erreur && utilisateurs.length === 0 && (
           <p className="page-utilisateurs__vide">Aucun compte pour cette entité.</p>
         )}
 
-        {!chargement && !erreur && utilisateurs.length > 0 && (
+        {!chargement && !erreur && utilisateurs.length > 0 && utilisateursTries.length === 0 && (
+          <p className="page-utilisateurs__vide">Aucun compte ne correspond à ces critères.</p>
+        )}
+
+        {!chargement && !erreur && utilisateursTries.length > 0 && (
           <div className="table-utilisateurs__scroll">
             <table className="table-utilisateurs">
               <thead>
                 <tr>
-                  <th scope="col">Nom</th>
-                  <th scope="col">Email</th>
-                  <th scope="col">Rôle</th>
-                  <th scope="col">Statut</th>
-                  <th scope="col">Dernière connexion</th>
+                  {COLONNES.map((colonne) => {
+                    const actif = tri.colonne === colonne.cle;
+                    return (
+                      <th
+                        key={colonne.cle}
+                        scope="col"
+                        aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
+                      >
+                        <button type="button" className="table-utilisateurs__entete-tri" onClick={() => trierPar(colonne.cle)}>
+                          {colonne.libelle}
+                          <span className="table-utilisateurs__indicateur-tri" aria-hidden="true">
+                            {actif ? (tri.ordre === 'asc' ? '▲' : '▼') : ''}
+                          </span>
+                        </button>
+                      </th>
+                    );
+                  })}
                   <th scope="col"></th>
                 </tr>
               </thead>
               <tbody>
-                {utilisateurs.map((u) => (
+                {utilisateursTries.map((u) => (
                   <tr key={u.id}>
                     <td>
                       {u.prenom} {u.nom}

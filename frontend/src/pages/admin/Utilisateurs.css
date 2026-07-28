@@ -54,6 +54,34 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* Le padding vit sur le bouton interne (voir .table-utilisateurs__entete-tri), pas ici : sinon
+     la zone cliquable ne couvrirait pas toute la cellule. Même patron que DossierList.css. */
+  padding: 0;
+}
+
+.table-utilisateurs__entete-tri {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  width: 100%;
+  padding: 0.75rem var(--espace-moyen);
+  border: none;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.table-utilisateurs__entete-tri:hover,
+.table-utilisateurs__entete-tri:focus-visible {
+  color: var(--couleur-texte);
+}
+
+.table-utilisateurs__indicateur-tri {
+  font-size: 0.7rem;
+  min-width: 0.8em;
 }
 
 .table-utilisateurs tbody tr:last-child td {
