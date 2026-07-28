@@ -13,11 +13,22 @@ import './Backoffice.css';
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — même donnée de test locale que TableauDeBordAccueil.jsx, le temps
 // que `statuts` porte une polarité succès/échec/attente en base.
+// Une variante distincte par statut (voir styles/variables.css, --statut-*) plutôt que les 4
+// polarités génériques seules — même mapping que TableauDeBordAccueil.jsx (dupliqué plutôt que
+// partagé : quelques lignes de données, pas de quoi justifier un module commun, voir CLAUDE.md
+// conventions du projet).
 const VARIANTE_PAR_CODE_ACCECIT = {
+  nouveau: 'neutre',
   en_attente_pieces: 'attente',
-  en_attente_verification: 'attente',
+  en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
+  test_planifie: 'bleu',
+  test_non_realise: 'alerte',
+  en_attente_verdict: 'violet',
+  verdict_positif: 'vert-clair',
+  verdict_negatif: 'echec',
+  en_attente_validation_recruteur: 'dore',
   valide: 'succes',
-  rejete: 'echec',
+  rejete: 'echec-fort',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

@@ -28,11 +28,22 @@ const STATUTS_REPLANIFIABLES = ['test_non_realise', 'verdict_negatif'];
 // formulaireConfig.accecit.js le temps que `statuts` porte une polarité succès/échec/attente en
 // base : un code absent de ce mapping (autre entité, nouveau statut) retombe simplement sur un
 // badge neutre plutôt que d'échouer.
+// Une variante distincte par statut (voir styles/variables.css, --statut-*) plutôt que les 4
+// polarités génériques seules : avec seulement neutre/attente/succes/echec, la plupart des 10
+// statuts ACCECIT retombaient sur "neutre" (gris) faute d'entrée dans ce mapping, rendant des
+// statuts pourtant très différents indiscernables au premier coup d'œil sur la liste.
 const VARIANTE_PAR_CODE_ACCECIT = {
+  nouveau: 'neutre',
   en_attente_pieces: 'attente',
-  en_attente_verification: 'attente',
+  en_attente_verification: 'attente', // workflow hérité, plus jamais atteint (voir CODES_STATUTS_FILTRES_ACCUEIL)
+  test_planifie: 'bleu',
+  test_non_realise: 'alerte',
+  en_attente_verdict: 'violet',
+  verdict_positif: 'vert-clair',
+  verdict_negatif: 'echec',
+  en_attente_validation_recruteur: 'dore',
   valide: 'succes',
-  rejete: 'echec',
+  rejete: 'echec-fort',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

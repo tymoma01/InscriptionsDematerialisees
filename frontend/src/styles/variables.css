@@ -83,4 +83,61 @@
   /* Largeur maximale du formulaire, pour éviter que le contenu ne s'étire sur toute
      la largeur de l'écran (usage tablette). */
   --largeur-max-formulaire: 1100px;
+
+  /* Palette des badges de statut (StatutBadge.jsx) — source unique de couleurs par variante,
+     consommée uniquement via var() dans StatutBadge.css (pas de couleur codée en dur ailleurs).
+     Le composant reste générique (voir Modularité, CLAUDE.md : StatutBadge ne connaît aucun code
+     de statut, seulement une "variante" fournie par la page appelante) — ce fichier ne définit
+     donc que des variantes nommées par leur teinte, jamais par un code de statut ACCECIT
+     (`--statut-bleu-*`, pas `--statut-test-planifie-*`), pour rester réutilisable par une entité
+     dont le vocabulaire de statuts diffère entièrement (voir pages/accueil/TableauDeBordAccueil.jsx
+     et pages/recruteur/Backoffice.jsx pour le mapping code-de-statut -> variante, propre à ACCECIT).
+     Chaque paire fond/texte vérifiée au ratio de contraste WCAG AA (>= 4,5:1, texte de badge en
+     0.8rem donc traité comme "petit texte", pas le seuil allégé 3:1 du grand texte) — voir le
+     script de vérification utilisé en amont, non versionné. `neutre`/`attente`/`succes`/`echec`
+     reprennent exactement les couleurs déjà en place (ne pas les faire dériver, réutilisées par
+     GestionRendezvous.jsx/Planification.jsx pour les statuts de rendez-vous, hors périmètre de
+     cette palette de statuts de dossier). */
+  --statut-neutre-fond: var(--gris-100);
+  --statut-neutre-texte: var(--couleur-texte-secondaire);
+  --statut-neutre-bordure: var(--couleur-bordure-legere);
+
+  --statut-attente-fond: #fdf3e2;
+  --statut-attente-texte: #92620a;
+  --statut-attente-bordure: #f3d9a4;
+
+  --statut-succes-fond: #e6f4ea;
+  --statut-succes-texte: #1e7e34;
+  --statut-succes-bordure: #b8e2c4;
+
+  --statut-echec-fond: #fbeae8;
+  --statut-echec-texte: var(--couleur-erreur);
+  --statut-echec-bordure: #f1c3bd;
+
+  /* Nouvelles variantes (voir CLAUDE.md, tâche "palette de statuts distincte par code") */
+  --statut-bleu-fond: #e3edfa;
+  --statut-bleu-texte: #1a4d8f;
+  --statut-bleu-bordure: #b7d3f2;
+
+  --statut-violet-fond: #f1e8fa;
+  --statut-violet-texte: #6b21a8;
+  --statut-violet-bordure: #dcc0ef;
+
+  --statut-vert-clair-fond: #e2f8ea;
+  --statut-vert-clair-texte: #047a4f;
+  --statut-vert-clair-bordure: #a9e6c4;
+
+  --statut-alerte-fond: #fbe8df;
+  --statut-alerte-texte: #a8420c;
+  --statut-alerte-bordure: #f0c0a0;
+
+  /* Doré, dérivé de --couleur-back-office-dore (identité de marque) plutôt qu'inventé — cohérent
+     avec la charte ACCECIT marron/doré, texte réutilisant directement cette variable existante. */
+  --statut-dore-fond: #faf1d6;
+  --statut-dore-texte: var(--couleur-back-office-dore);
+  --statut-dore-bordure: #e9d18f;
+
+  --statut-echec-fort-fond: #f5d6d1;
+  --statut-echec-fort-texte: #7c2415;
+  --statut-echec-fort-bordure: #e3a89f;
 }
