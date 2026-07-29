@@ -20,6 +20,30 @@
   color: var(--couleur-texte-secondaire);
 }
 
+.grille-evaluation__question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+  background-color: var(--couleur-fond-secondaire, transparent);
+}
+
+.grille-evaluation__question legend {
+  padding: 0 0.4rem;
+  font-weight: 700;
+  color: var(--couleur-texte);
+}
+
+.grille-evaluation__question textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+}
+
 .grille-evaluation__critere {
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);

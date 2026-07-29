@@ -23,6 +23,12 @@ router.use(requireRole(...ROLES_EVALUATION));
 
 const idPositifSchema = z.coerce.number().int().positive();
 
+// posteCode volontairement libre ici (pas un enum figé) : les postes viennent de la config du
+// formulaire d'inscription (BlocDisponibilites.jsx), propre à chaque entité — un code qui ne
+// correspond à aucun poste déclaré pour ce dossier est rejeté par evaluationEngine (résolution
+// serveur), pas ici (voir Modularité, CLAUDE.md).
+const posteCodeSchema = z.string().trim().min(1).optional();
+
 const evaluationBodySchema = z.object({
   rendezvousId: idPositifSchema,
   resultatGlobal: z.enum(['valide', 'invalide']),
@@ -30,15 +36,18 @@ const evaluationBodySchema = z.object({
   // est revérifiée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md : ce schéma ne fait
   // que la forme, jamais la règle métier).
   orientation: z.enum(['envoi_formation', 'pret_embauche']).optional(),
+  posteCode: posteCodeSchema,
   commentaire: z.string().trim().min(1),
-  // Les codes de critère ne sont volontairement pas figés ici : ils viennent de
-  // `criteres_evaluation`, configurable par entité — un code inconnu ou une grille incomplète
-  // est rejetée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md).
-  criteres: z
+  // Les codes de question/item ne sont volontairement pas figés ici : ils viennent du
+  // questionnaire résolu pour le poste (voir questionnaires_evaluation/questions_evaluation,
+  // migration 037), configurable par entité — un code inconnu ou une grille incomplète est
+  // rejetée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md).
+  reponses: z
     .array(
       z.object({
-        code: z.string().trim().min(1),
-        valeur: z.enum(['conforme', 'a_ameliorer', 'non_conforme']),
+        questionCode: z.string().trim().min(1),
+        questionItemCode: z.string().trim().min(1).optional(),
+        valeur: z.string().trim().min(0),
       }),
     )
     .min(1),
@@ -48,12 +57,25 @@ function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
 
-// GET /api/evaluations/criteres — grille de critères configurée pour l'entité courante.
-router.get('/criteres', async (req, res, next) => {
+// GET /api/evaluations/questionnaire — questions+items du questionnaire résolu pour le poste
+// donné (repli générique si absent, voir evaluationEngine.listerQuestionnaire). rendezvousId
+// obligatoire : sert à vérifier que ce formateur a bien accès à ce rendez-vous et que le
+// posteCode demandé correspond réellement au dossier concerné, pas un paramètre libre.
+router.get('/questionnaire', async (req, res, next) => {
   try {
-    const criteres = await evaluationEngine.listerCriteres(req.entite);
-    res.json(criteres);
+    const { rendezvousId, posteCode } = z
+      .object({ rendezvousId: idPositifSchema, posteCode: posteCodeSchema })
+      .parse(req.query);
+
+    const questions = await evaluationEngine.listerQuestionnaire(req.entite, {
+      rendezvousId,
+      formateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+      posteCode,
+    });
+    res.json(questions);
   } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
   }
 });
@@ -75,7 +97,9 @@ router.get('/a-faire', async (req, res, next) => {
 // POST /api/evaluations — enregistre une évaluation complète pour un rendez-vous de test.
 router.post('/', async (req, res, next) => {
   try {
-    const { rendezvousId, resultatGlobal, orientation, commentaire, criteres } = evaluationBodySchema.parse(req.body);
+    const { rendezvousId, resultatGlobal, orientation, posteCode, commentaire, reponses } = evaluationBodySchema.parse(
+      req.body,
+    );
 
     const resultat = await evaluationEngine.enregistrerEvaluation(req.entite, {
       rendezvousId,
@@ -83,8 +107,9 @@ router.post('/', async (req, res, next) => {
       roleCode: req.utilisateur.roleCode,
       resultatGlobal,
       orientation,
+      posteCode,
       commentaire,
-      criteres,
+      reponses,
     });
 
     const bd = await obtenirKnex();
@@ -94,7 +119,7 @@ router.post('/', async (req, res, next) => {
       action: `evaluation_${resultatGlobal}`,
       tableCible: 'evaluations',
       cibleId: resultat.evaluationId,
-      donnees: { rendezvousId, resultatGlobal, orientation },
+      donnees: { rendezvousId, resultatGlobal, orientation, posteCode },
       adresseIp: req.ip,
     });
 

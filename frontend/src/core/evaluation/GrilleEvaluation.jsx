@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react';
-import { listerCriteres, enregistrerEvaluation } from '../../services/evaluationService';
+import { obtenirQuestionnaire, enregistrerEvaluation } from '../../services/evaluationService';
 import './GrilleEvaluation.css';
 
-// Échelle de notation commune à tout critère (voir backend evaluationEngine.js,
-// VALEURS_CRITERE_AUTORISEES) — pas une donnée de configuration par entité comme les critères
-// eux-mêmes : c'est la forme même de la grille, pas un vocabulaire métier.
-const VALEURS = [
-  { code: 'conforme', libelle: 'Conforme' },
-  { code: 'a_ameliorer', libelle: 'À améliorer' },
-  { code: 'non_conforme', libelle: 'Non conforme' },
+// Échelle de notation d'une question 'grille_qcu' (voir backend evaluationEngine.js,
+// ACQUIS_AUTORISEES) — pas une donnée de configuration par entité comme les questions
+// elles-mêmes : c'est la forme même de ce type de question, pas un vocabulaire métier.
+const ACQUIS = [
+  { code: 'acquis', libelle: 'Acquis' },
+  { code: 'non_acquis', libelle: 'Non acquis' },
+  { code: 'a_ameliorer', libelle: 'A améliorer' },
 ];
+
+// Libellés des postes hôtel pour le sélecteur affiché quand un dossier a coché plusieurs postes
+// (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx (POSTES_HOTEL),
+// dupliqués ici plutôt que partagés : quelques lignes de données, même choix déjà fait pour
+// VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx/Backoffice.jsx).
+const POSTE_HOTEL_LIBELLES = {
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
 
 // Orientation du candidat en cas de verdict positif (workflow v3, voir backend evaluationEngine.js,
 // ORIENTATIONS_AUTORISEES) — sans objet si le résultat global est "Invalidé", jamais affichée
@@ -19,20 +30,58 @@ const ORIENTATIONS = [
   { code: 'pret_embauche', libelle: "Prêt à l'embauche" },
 ];
 
-// Grille d'évaluation générique : ne connaît aucun critère en dur (voir Modularité, CLAUDE.md) —
-// charge les critères configurés pour l'entité (GET /api/evaluations/criteres) et construit un
-// sélecteur par critère, comme FormulaireInscription compose ses blocs actifs plutôt que de les
-// connaître.
+// Clé interne d'une réponse, unique par (question, item) — item absent pour une question
+// 'texte_libre' (une seule réponse par question, pas par item), voir clesReponses plus bas.
+function cleReponse(questionCode, itemCode) {
+  return `${questionCode}:${itemCode ?? ''}`;
+}
+
+// Valeurs par défaut pour un questionnaire fraîchement chargé — un grille_qcu/choix_multiple a
+// toujours une valeur pour chaque item (jamais d'état "vide", même principe que l'ancienne grille
+// de critères fixe), un texte_libre part vide.
+function valeursParDefaut(questions) {
+  const valeurs = {};
+  for (const question of questions) {
+    if (question.type_question === 'texte_libre') {
+      valeurs[cleReponse(question.code)] = '';
+      continue;
+    }
+    const valeurDefaut = question.type_question === 'grille_qcu' ? ACQUIS[0].code : 'non_coche';
+    for (const item of question.items) {
+      valeurs[cleReponse(question.code, item.code)] = valeurDefaut;
+    }
+  }
+  return valeurs;
+}
+
+// Grille d'évaluation dynamique selon le poste réellement recherché par le candidat (voir
+// Modularité, CLAUDE.md) : ne connaît aucune question en dur — charge le questionnaire résolu
+// côté serveur pour ce poste (GET /api/evaluations/questionnaire, repli générique si le poste n'a
+// pas de questionnaire dédié) et construit son rendu selon le type de chaque question
+// (grille_qcu / choix_multiple / texte_libre), comme FormulaireInscription compose ses blocs
+// actifs plutôt que de les connaître.
 //
-// rendezvous reçu en prop ({ id, candidat_prenom, candidat_nom, ... }, voir
-// ListeEvaluationsAFaire.jsx) — ce composant ne connaît pas le routage, même patron que
-// CaptureTablette.jsx.
+// rendezvous reçu en prop ({ id, dossier_id, candidat_prenom, candidat_nom, postesBureau,
+// postesHotel }, voir ListeEvaluationsAFaire.jsx / backend evaluationEngine.listerRendezvousAEvaluer)
+// — ce composant ne connaît pas le routage, même patron que CaptureTablette.jsx.
 export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
-  const [criteres, setCriteres] = useState([]);
-  const [chargement, setChargement] = useState(true);
+  // Plusieurs postes hôtel cochés sur un même dossier : le formulaire d'inscription le permet
+  // (case à cocher indépendante par poste, voir BlocDisponibilites.jsx) — sans façon fiable de
+  // deviner lequel des questionnaires dédiés s'applique, c'est le formateur qui choisit avant de
+  // charger la grille (décision actée avec la responsable de projet), plutôt qu'une hypothèse
+  // fausse sur l'intention du candidat.
+  const postesHotel = rendezvous.postesHotel ?? [];
+  const postesAmbigus = postesHotel.length > 1;
+  const posteResolutionAutomatique = postesHotel.length === 1 ? postesHotel[0] : undefined;
+
+  const [posteChoisi, setPosteChoisi] = useState('');
+  const posteCode = postesAmbigus ? posteChoisi || undefined : posteResolutionAutomatique;
+
+  const [questions, setQuestions] = useState(null);
+  const [chargement, setChargement] = useState(!postesAmbigus);
   const [erreur, setErreur] = useState(null);
 
-  const [valeurs, setValeurs] = useState({}); // { [code]: valeur }
+  const [reponses, setReponses] = useState({});
   const [resultatGlobal, setResultatGlobal] = useState('valide');
   const [orientation, setOrientation] = useState('');
   const [commentaire, setCommentaire] = useState('');
@@ -41,24 +90,27 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
 
   const orientationVisible = resultatGlobal === 'valide';
 
-  // Décochée si le formateur repasse sur "Invalidé" après avoir choisi une orientation — sans
-  // objet dans ce cas (voir ORIENTATIONS_AUTORISEES, backend evaluationEngine.js), pas de valeur
-  // résiduelle envoyée par erreur au serveur.
   const gererChangementResultat = (valeur) => {
     setResultatGlobal(valeur);
     if (valeur !== 'valide') setOrientation('');
   };
 
+  // Ne se déclenche qu'une fois le poste connu : soit immédiatement (un seul poste hôtel, ou
+  // aucun — repli générique), soit après le choix du formateur (postesAmbigus).
   useEffect(() => {
+    if (postesAmbigus && !posteCode) return undefined;
+
     let annule = false;
-    listerCriteres()
+    setChargement(true);
+    setErreur(null);
+    obtenirQuestionnaire({ rendezvousId: rendezvous.id, posteCode })
       .then((valeur) => {
         if (annule) return;
-        setCriteres(valeur);
-        setValeurs(Object.fromEntries(valeur.map((critere) => [critere.code, VALEURS[0].code])));
+        setQuestions(valeur);
+        setReponses(valeursParDefaut(valeur));
       })
       .catch((erreur) => {
-        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer la grille de critères.');
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer le questionnaire.');
       })
       .finally(() => {
         if (!annule) setChargement(false);
@@ -66,26 +118,46 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     return () => {
       annule = true;
     };
-  }, []);
+  }, [rendezvous.id, posteCode]);
 
   const gererEnvoi = async (evenement) => {
     evenement.preventDefault();
     if (!commentaire.trim()) return;
     if (orientationVisible && !orientation) return;
+    if (
+      questions.some(
+        (question) =>
+          question.type_question === 'texte_libre' && question.obligatoire && !reponses[cleReponse(question.code)]?.trim(),
+      )
+    ) {
+      return;
+    }
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
 
+    const reponsesEnvoyees = questions.flatMap((question) => {
+      if (question.type_question === 'texte_libre') {
+        return [{ questionCode: question.code, valeur: reponses[cleReponse(question.code)] }];
+      }
+      return question.items.map((item) => ({
+        questionCode: question.code,
+        questionItemCode: item.code,
+        valeur: reponses[cleReponse(question.code, item.code)],
+      }));
+    });
+
     try {
       // Le serveur fait avancer le statut du dossier dans la même transaction que l'enregistrement
-      // de l'évaluation (voir backend evaluationEngine.enregistrerEvaluation) — plus de second
-      // appel front à part pour la transition, workflow v3.
+      // de l'évaluation (voir backend evaluationEngine.enregistrerEvaluation) — pas de second appel
+      // front à part pour la transition, workflow v3.
       await enregistrerEvaluation({
         rendezvousId: rendezvous.id,
         resultatGlobal,
         orientation: orientationVisible ? orientation : undefined,
+        posteCode,
         commentaire,
-        criteres: criteres.map((critere) => ({ code: critere.code, valeur: valeurs[critere.code] })),
+        reponses: reponsesEnvoyees,
       });
     } catch (erreur) {
       setEnvoiEnCours(false);
@@ -101,6 +173,31 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     onTermine();
   };
 
+  if (postesAmbigus && !posteCode) {
+    return (
+      <div className="grille-evaluation">
+        <h2>
+          Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+        </h2>
+        <p>
+          Plusieurs postes ont été demandés par ce candidat — choisissez celui sur lequel porte cette évaluation :
+        </p>
+        <div className="grille-evaluation__choix">
+          {postesHotel.map((code) => (
+            <button key={code} type="button" onClick={() => setPosteChoisi(code)}>
+              {POSTE_HOTEL_LIBELLES[code] ?? code}
+            </button>
+          ))}
+        </div>
+        <div className="grille-evaluation__actions">
+          <button type="button" onClick={onAnnuler}>
+            Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (chargement) {
     return <p>Chargement de la grille…</p>;
   }
@@ -108,40 +205,83 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     return <p role="alert">{erreur}</p>;
   }
 
+  // Un texte_libre obligatoire vide bloque déjà la soumission via l'attribut `required` natif du
+  // textarea (même principe que le champ Commentaire), revérifié ici pour désactiver le bouton en
+  // amont plutôt que de dépendre uniquement de la validation native du navigateur.
+  const texteLibreIncomplet = questions.some(
+    (question) =>
+      question.type_question === 'texte_libre' && question.obligatoire && !reponses[cleReponse(question.code)]?.trim(),
+  );
+
   return (
     <form className="grille-evaluation" onSubmit={gererEnvoi}>
       <h2>
         Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
       </h2>
 
-      {criteres.length === 0 && (
-        <p className="grille-evaluation__vide">Aucun critère d’évaluation configuré pour cette entité.</p>
+      {questions.length === 0 && (
+        <p className="grille-evaluation__vide">Aucune question configurée pour ce questionnaire.</p>
       )}
 
-      {criteres.map((critere) => (
-        <fieldset key={critere.code} className="grille-evaluation__critere">
-          <legend>{critere.libelle}</legend>
-          <div className="grille-evaluation__choix">
-            {VALEURS.map((v) => (
-              <label key={v.code}>
-                <input
-                  type="radio"
-                  // name unique par option (pas par critère) : un name partagé entre les options
-                  // d'un même groupe radio ne pose qu'un seul arrêt Tab natif par groupe (les
-                  // flèches naviguent alors entre options) — ici on veut que Tab visite chaque
-                  // option individuellement (même correctif que BlocDisponibilites.jsx et les
-                  // autres blocs du formulaire d'inscription, voir radioAccessible.js). Aucun
-                  // risque ici de casser la mise à jour de la valeur : checked/onChange sont déjà
-                  // entièrement contrôlés par ce composant, sans dépendre de react-hook-form.
-                  name={`critere-${critere.code}-${v.code}`}
-                  value={v.code}
-                  checked={valeurs[critere.code] === v.code}
-                  onChange={() => setValeurs((precedent) => ({ ...precedent, [critere.code]: v.code }))}
-                />
-                {v.libelle}
-              </label>
+      {questions.map((question) => (
+        <fieldset key={question.code} className="grille-evaluation__question">
+          <legend>
+            {question.libelle}
+            {question.obligatoire && <span className="champ-obligatoire"> *</span>}
+          </legend>
+
+          {question.type_question === 'grille_qcu' &&
+            question.items.map((item) => (
+              <fieldset key={item.code} className="grille-evaluation__critere">
+                <legend>{item.libelle}</legend>
+                <div className="grille-evaluation__choix">
+                  {ACQUIS.map((v) => (
+                    <label key={v.code}>
+                      <input
+                        type="radio"
+                        name={`${question.code}-${item.code}-${v.code}`}
+                        checked={reponses[cleReponse(question.code, item.code)] === v.code}
+                        onChange={() =>
+                          setReponses((precedent) => ({ ...precedent, [cleReponse(question.code, item.code)]: v.code }))
+                        }
+                      />
+                      {v.libelle}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             ))}
-          </div>
+
+          {question.type_question === 'choix_multiple' && (
+            <div className="grille-evaluation__choix">
+              {question.items.map((item) => (
+                <label key={item.code}>
+                  <input
+                    type="checkbox"
+                    checked={reponses[cleReponse(question.code, item.code)] === 'coche'}
+                    onChange={(evenement) =>
+                      setReponses((precedent) => ({
+                        ...precedent,
+                        [cleReponse(question.code, item.code)]: evenement.target.checked ? 'coche' : 'non_coche',
+                      }))
+                    }
+                  />
+                  {item.libelle}
+                </label>
+              ))}
+            </div>
+          )}
+
+          {question.type_question === 'texte_libre' && (
+            <textarea
+              rows={2}
+              value={reponses[cleReponse(question.code)] ?? ''}
+              onChange={(evenement) =>
+                setReponses((precedent) => ({ ...precedent, [cleReponse(question.code)]: evenement.target.value }))
+              }
+              required={question.obligatoire}
+            />
+          )}
         </fieldset>
       ))}
 
@@ -205,7 +345,13 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         </button>
         <button
           type="submit"
-          disabled={envoiEnCours || !commentaire.trim() || criteres.length === 0 || (orientationVisible && !orientation)}
+          disabled={
+            envoiEnCours ||
+            !commentaire.trim() ||
+            questions.length === 0 ||
+            (orientationVisible && !orientation) ||
+            texteLibreIncomplet
+          }
         >
           {envoiEnCours ? 'Enregistrement...' : "Enregistrer l'évaluation"}
         </button>
