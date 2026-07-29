@@ -198,11 +198,15 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     );
   }
 
-  if (chargement) {
-    return <p>Chargement de la grille…</p>;
-  }
   if (erreur) {
     return <p role="alert">{erreur}</p>;
+  }
+  // Vérifie `questions` (pas seulement `chargement`) : juste après le choix du poste dans le
+  // sélecteur ci-dessus, un rendu intermédiaire est possible avant que l'effet n'ait eu le temps
+  // de repasser `chargement` à true (posteCode change, mais l'effet ne s'exécute qu'après ce
+  // rendu) — sans cette garde, le formulaire plus bas accéderait à `questions` encore `null`.
+  if (chargement || !questions) {
+    return <p>Chargement de la grille…</p>;
   }
 
   // Un texte_libre obligatoire vide bloque déjà la soumission via l'attribut `required` natif du
