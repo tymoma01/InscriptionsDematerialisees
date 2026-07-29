@@ -66,6 +66,12 @@
   width: 100%;
   border-collapse: collapse;
   background-color: var(--couleur-fond);
+  /* Largeur fixe de la colonne "Date et heure" (voir .planification__colonne-date) — sert aussi
+     de décalage (`left`) à la colonne "Candidat" figée juste derrière elle
+     (.planification__colonne-figee) : les deux valeurs doivent rester égales, d'où cette variable
+     plutôt qu'un nombre répété à deux endroits. Assez large pour "28/07/2026 15:00" (format le
+     plus long produit par FORMAT_DATE_HEURE) sans jamais être coupé. */
+  --planification-largeur-colonne-date: 11rem;
 }
 
 .planification__table th,
@@ -116,5 +122,45 @@
 }
 
 .planification__table tbody tr:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* "Candidat" (2e colonne) figée au défilement horizontal — mais elle n'est pas en 1re position
+   ici (contrairement à .table-utilisateurs__colonne-figee/.dossier-list__colonne-figee), donc
+   "Date et heure" doit être figée aussi, juste devant elle (left: 0), sinon "Candidat" resterait
+   figée à un `left` fixe pendant que "Date et heure" défilerait hors champ derrière elle,
+   laissant un vide béant à gauche une fois cette dernière disparue. Les deux colonnes forment
+   donc un bloc figé de deux colonnes, comme des volets gelés classiques dans un tableur. Fond
+   opaque obligatoire sur les deux (pas transparent) : sans lui, le texte des colonnes qui
+   défilent transparaîtrait dessous. */
+.planification__colonne-date {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--planification-largeur-colonne-date);
+  white-space: nowrap;
+  background-color: var(--couleur-fond);
+}
+
+.planification__colonne-figee {
+  position: sticky;
+  left: var(--planification-largeur-colonne-date);
+  z-index: 1;
+  background-color: var(--couleur-fond);
+  /* Bordure + ombre légère sur le bord droit : seule "Candidat" (dernière colonne du bloc figé)
+     porte ce séparateur, pour signaler la limite entre le bloc figé et le contenu qui défile —
+     même principe qu'un tableau à colonnes figées classique. */
+  border-right: 1px solid var(--couleur-bordure-legere);
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+}
+
+.planification__table th.planification__colonne-date,
+.planification__table th.planification__colonne-figee {
+  background-color: var(--couleur-fond-secondaire);
+  z-index: 2;
+}
+
+.planification__table tbody tr:hover td.planification__colonne-date,
+.planification__table tbody tr:hover td.planification__colonne-figee {
   background-color: var(--couleur-fond-secondaire);
 }

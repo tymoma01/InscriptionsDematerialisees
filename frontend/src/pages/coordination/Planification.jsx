@@ -180,10 +180,20 @@ export default function Planification() {
                 <tr>
                   {COLONNES.map((colonne) => {
                     const actif = tri.colonne === colonne.cle;
+                    // "Candidat" (2e colonne) figée au défilement horizontal, comme le repère de
+                    // ligne des tableaux Comptes utilisateurs/Dossiers candidats — mais "Candidat"
+                    // n'est pas en 1re position ici, donc "Date et heure" doit être figée aussi
+                    // (même left: 0 que d'habitude) pour que "Candidat" reste juste derrière elle
+                    // sans laisser un vide à gauche une fois "Date et heure" scrollée hors champ
+                    // (voir Planification.css, --planification-largeur-colonne-date).
+                    let classeFigee;
+                    if (colonne.cle === 'date_heure') classeFigee = 'planification__colonne-date';
+                    else if (colonne.cle === 'candidat_nom') classeFigee = 'planification__colonne-figee';
                     return (
                       <th
                         key={colonne.cle}
                         scope="col"
+                        className={classeFigee}
                         aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <button type="button" className="planification__entete-tri" onClick={() => trierPar(colonne.cle)}>
@@ -201,8 +211,8 @@ export default function Planification() {
               <tbody>
                 {rendezvousTries.map((rdv) => (
                   <tr key={rdv.id}>
-                    <td>{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
-                    <td>
+                    <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
+                    <td className="planification__colonne-figee">
                       {rdv.candidat_prenom} {rdv.candidat_nom}
                     </td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '—'}</td>
