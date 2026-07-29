@@ -5,7 +5,7 @@ const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dim
 const LANGUES = ['francais', 'anglais', 'autre'];
 const TYPES_POSTE = ['bureau', 'hotel'];
 const POSTES_BUREAU = ['nettoyage', 'chef_equipe', 'autres'];
-const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
+const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant', 'autres'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 
 export const blocDisponibilitesSchema = z
@@ -21,6 +21,7 @@ export const blocDisponibilitesSchema = z
     posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
     autrePosteBureauPrecision: z.string().trim().optional().default(''),
     posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
+    autrePosteHotelPrecision: z.string().trim().optional().default(''),
     commentConnu: z.enum(COMMENT_CONNU, { required_error: 'Merci de préciser comment vous nous avez connu' }),
     commentConnuPrecision: z.string().trim().optional().default(''),
   })
@@ -52,6 +53,11 @@ export const blocDisponibilitesSchema = z
   .refine((valeurs) => valeurs.typePoste !== 'hotel' || valeurs.posteHotel.length > 0, {
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
+  })
+  // Précision obligatoire uniquement si "Autres" est coché parmi les postes hôtel
+  .refine((valeurs) => !valeurs.posteHotel.includes('autres') || valeurs.autrePosteHotelPrecision !== '', {
+    message: 'Veuillez préciser le poste',
+    path: ['autrePosteHotelPrecision'],
   })
   // Précision obligatoire pour "Internet", "Autre" et "Cooptation" — les 3 options où le champ
   // "Précisez" est affiché (voir commentConnuPrecisionVisible, BlocDisponibilites.jsx)
