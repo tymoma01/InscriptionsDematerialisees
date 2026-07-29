@@ -13,15 +13,23 @@ const { ROLES } = require('../auth/rbac');
 // même statut que les canaux de relance (petite énumération fixe, pas de table dédiée).
 const RESULTATS_GLOBAUX_AUTORISES = ['valide', 'invalide'];
 const VALEURS_CRITERE_AUTORISEES = ['conforme', 'a_ameliorer', 'non_conforme'];
+// Orientation du candidat en cas de verdict positif (workflow v3, simplification du parcours
+// décidée avec la responsable de projet : plus d'étape de validation recruteur intermédiaire, le
+// formateur statue directement sur l'issue finale du dossier) — sans objet si resultatGlobal
+// vaut 'invalide', jamais lu dans ce cas (voir enregistrerEvaluation ci-dessous).
+const ORIENTATIONS_AUTORISEES = ['envoi_formation', 'pret_embauche'];
 
-// Vocabulaire de resultatGlobal (valide/invalide, propre à evaluationEngine) traduit vers les
-// codeAction de la machine à états du dossier (soumettre_verdict_positif/negatif, voir
-// workflow.config.json) — à ne pas confondre avec le statut de dossier "valide" (décision finale
-// recruteur), simple coïncidence de vocabulaire, voir l'audit de la machine à états.
-const CODE_ACTION_PAR_RESULTAT = {
-  valide: 'soumettre_verdict_positif',
-  invalide: 'soumettre_verdict_negatif',
+// Vocabulaire de resultatGlobal/orientation (propre à evaluationEngine) traduit vers les
+// codeAction de la machine à états du dossier — à ne pas confondre avec le statut de dossier
+// "valide" (workflow hérité, plus jamais atteint pour une nouvelle évaluation), simple
+// coïncidence de vocabulaire, voir l'audit de la machine à états (workflow v3 : transition
+// directe depuis en_attente_verdict, plus de passage par un verdict intermédiaire ni par le
+// recruteur — voir workflow.config.json).
+const CODE_ACTION_PAR_ORIENTATION = {
+  envoi_formation: 'valider_envoi_formation',
+  pret_embauche: 'valider_pret_embauche',
 };
+const CODE_ACTION_INVALIDATION = 'invalider_test';
 
 async function listerCriteres(entite) {
   const bd = await db.obtenirKnex();
@@ -41,9 +49,14 @@ async function listerRendezvousAEvaluer(entite, formateurId) {
 // client déclare avoir affiché), et doit couvrir EXACTEMENT les critères actuellement configurés
 // pour l'entité, ni plus ni moins — une grille partielle est refusée plutôt qu'enregistrée à
 // moitié.
-async function enregistrerEvaluation(entite, { rendezvousId, formateurId, roleCode, resultatGlobal, commentaire, criteres }) {
+async function enregistrerEvaluation(entite, { rendezvousId, formateurId, roleCode, resultatGlobal, orientation, commentaire, criteres }) {
   if (!RESULTATS_GLOBAUX_AUTORISES.includes(resultatGlobal)) {
     throw new Error(`Résultat global "${resultatGlobal}" invalide (attendu : ${RESULTATS_GLOBAUX_AUTORISES.join(', ')}).`);
+  }
+  // Orientation obligatoire uniquement en cas de verdict positif (voir ORIENTATIONS_AUTORISEES
+  // ci-dessus) — sans objet, et ignorée, si le test est invalidé.
+  if (resultatGlobal === 'valide' && !ORIENTATIONS_AUTORISEES.includes(orientation)) {
+    throw new Error(`Orientation "${orientation}" invalide (attendu : ${ORIENTATIONS_AUTORISEES.join(', ')}).`);
   }
   if (!commentaire || !commentaire.trim()) {
     throw new Error('Un commentaire est obligatoire pour toute évaluation.');
@@ -102,6 +115,7 @@ async function enregistrerEvaluation(entite, { rendezvousId, formateurId, roleCo
       rendezvousId,
       formateurId,
       resultatGlobal,
+      orientation: resultatGlobal === 'valide' ? orientation : null,
       commentaire,
     });
     await evaluationRepository.enregistrerResultatsCriteres(trx, evaluationId, resultatsResolus);
@@ -111,7 +125,7 @@ async function enregistrerEvaluation(entite, { rendezvousId, formateurId, roleCo
     // clic "Évaluer" qui ouvre la grille : annuler la grille avant soumission ne doit rien avancer
     // (voir Evaluation.jsx, bouton "Annuler"), donc test_realise n'est déclenché qu'ici, au moment
     // où l'évaluation est réellement soumise. roleCode reste celui du formateur connecté pour ces
-    // deux premières transitions (transition_roles les autorise explicitement pour FORMATEUR).
+    // deux transitions (transition_roles les autorise explicitement pour FORMATEUR).
     await workflowEngine.appliquerTransition(
       entite,
       {
@@ -123,35 +137,24 @@ async function enregistrerEvaluation(entite, { rendezvousId, formateurId, roleCo
       },
       trx,
     );
+
+    // Workflow v3 (simplification du parcours, responsable de projet) : transition directe vers
+    // l'issue finale du dossier, plus de verdict intermédiaire ni de passage par le recruteur
+    // (transmettre_recruteur/en_attente_validation_recruteur retirés du parcours actif pour toute
+    // nouvelle évaluation, voir workflow.config.json).
+    const codeActionFinal =
+      resultatGlobal === 'valide' ? CODE_ACTION_PAR_ORIENTATION[orientation] : CODE_ACTION_INVALIDATION;
     await workflowEngine.appliquerTransition(
       entite,
       {
         dossierId: rendezvous.dossier_id,
-        codeAction: CODE_ACTION_PAR_RESULTAT[resultatGlobal],
+        codeAction: codeActionFinal,
         commentaire,
         utilisateurId: formateurId,
         roleCode,
       },
       trx,
     );
-
-    // Transmission automatique au recruteur après un verdict positif — SYSTEME uniquement (jamais
-    // le rôle réel du formateur, voir seedTransitionRoles.js) : ce n'est pas une action distincte
-    // qu'un formateur pourrait déclencher à volonté via POST /transitions, seulement la
-    // conséquence directe d'un verdict positif réellement soumis ici.
-    if (resultatGlobal === 'valide') {
-      await workflowEngine.appliquerTransition(
-        entite,
-        {
-          dossierId: rendezvous.dossier_id,
-          codeAction: 'transmettre_recruteur',
-          commentaire: 'Verdict positif — transmission automatique au recruteur pour décision finale.',
-          utilisateurId: formateurId,
-          roleCode: ROLES.SYSTEME,
-        },
-        trx,
-      );
-    }
 
     return { evaluationId };
   });

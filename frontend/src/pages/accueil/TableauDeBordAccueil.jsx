@@ -12,16 +12,17 @@ import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './TableauDeBordAccueil.css';
 
 // Code de la transition qui replanifie un test après un désistement (test_non_realise) ou un
-// verdict négatif (workflow.config.json ACCECIT : les deux origines partagent ce même codeAction,
-// vers test_planifie) — voir ModalePlanificationTest.jsx, qui ne connaît lui-même aucun statut ni
-// codeAction en dur, c'est cette page qui décide depuis quelle action elle l'ouvre. Le moteur de
-// transitions (workflowEngine.appliquerTransition) résout la bonne ligne transitions_statut à
-// partir du statut réel du dossier, jamais choisie ici.
+// test invalidé (workflow v3 : les deux origines partagent ce même codeAction, vers
+// test_planifie, voir workflow.config.json ACCECIT) — voir ModalePlanificationTest.jsx, qui ne
+// connaît lui-même aucun statut ni codeAction en dur, c'est cette page qui décide depuis quelle
+// action elle l'ouvre. Le moteur de transitions (workflowEngine.appliquerTransition) résout la
+// bonne ligne transitions_statut à partir du statut réel du dossier, jamais choisie ici.
 const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
 
 // Statuts depuis lesquels le bouton "Replanifier" est proposé (voir Modularité, CLAUDE.md : reste
-// propre à cette page/entité, pas au moteur générique DossierList).
-const STATUTS_REPLANIFIABLES = ['test_non_realise', 'verdict_negatif'];
+// propre à cette page/entité, pas au moteur générique DossierList). "invalide" remplace
+// "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif).
+const STATUTS_REPLANIFIABLES = ['test_non_realise', 'invalide'];
 
 // Statuts pour lesquels le bouton "Relances" a un sens concret pour l'agent Accueil — au-delà
 // (dossier transmis au recruteur, verdict rendu, décision finale prise), la relance sort de son
@@ -34,7 +35,9 @@ const STATUTS_REPLANIFIABLES = ['test_non_realise', 'verdict_negatif'];
 // "nouveau" volontairement absent : les inscriptions se font en agence, un dossier encore à ce
 // statut signifie que l'agent n'a pas encore scanné les pièces (session interrompue ou en
 // attente) — la reprise se fait via "Pièces", pas "Relances".
-const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test_non_realise'];
+// "invalide" ajouté (workflow v3) : même logique que test_non_realise, une relance a un sens tant
+// qu'une replanification est possible sur ce dossier.
+const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test_non_realise', 'invalide'];
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
@@ -52,11 +55,12 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
   en_attente_verdict: 'violet',
-  verdict_positif: 'vert-clair',
-  verdict_negatif: 'echec',
-  en_attente_validation_recruteur: 'dore',
-  valide: 'succes',
+  invalide: 'echec',
+  en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
+  valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
   rejete: 'echec-fort',
+  valide_envoi_formation: 'vert-clair',
+  valide_pret_embauche: 'succes',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
@@ -72,9 +76,10 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
   'test_planifie',
   'test_non_realise',
   // Ajouté avec le bouton "Replanifier" (voir STATUTS_REPLANIFIABLES ci-dessous) : permet à
-  // l'accueil d'isoler d'un coup les dossiers en attente de replanification après un verdict
-  // négatif, sans devoir les repérer dans la liste complète.
-  'verdict_negatif',
+  // l'accueil d'isoler d'un coup les dossiers en attente de replanification après un test
+  // invalidé, sans devoir les repérer dans la liste complète. "invalide" remplace
+  // "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif).
+  'invalide',
 ];
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des

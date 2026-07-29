@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { listerCriteres, enregistrerEvaluation } from '../../services/evaluationService';
-import { listerTransitions, appliquerTransition } from '../../services/transitionService';
 import './GrilleEvaluation.css';
 
 // Échelle de notation commune à tout critère (voir backend evaluationEngine.js,
@@ -12,13 +11,13 @@ const VALEURS = [
   { code: 'non_conforme', libelle: 'Non conforme' },
 ];
 
-// Codes des transitions qui font avancer le dossier jusqu'au verdict correspondant (voir
-// workflow.config.json de l'entité) — jamais supposées systématiques : vérifiées dynamiquement
-// via GET /transitions avant d'être appliquées (voir gererEnvoi), même patron que
-// CaptureTablette.jsx pour planifier_test/pieces_completes. Une entité qui n'aurait pas cette
-// étape verrait simplement l'évaluation enregistrée sans changement de statut du dossier.
-const CODE_ACTION_VERDICT_POSITIF = 'soumettre_verdict_positif';
-const CODE_ACTION_VERDICT_NEGATIF = 'soumettre_verdict_negatif';
+// Orientation du candidat en cas de verdict positif (workflow v3, voir backend evaluationEngine.js,
+// ORIENTATIONS_AUTORISEES) — sans objet si le résultat global est "Invalidé", jamais affichée
+// dans ce cas (voir orientationVisible plus bas).
+const ORIENTATIONS = [
+  { code: 'envoi_formation', libelle: 'Envoi en formation' },
+  { code: 'pret_embauche', libelle: "Prêt à l'embauche" },
+];
 
 // Grille d'évaluation générique : ne connaît aucun critère en dur (voir Modularité, CLAUDE.md) —
 // charge les critères configurés pour l'entité (GET /api/evaluations/criteres) et construit un
@@ -35,9 +34,20 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
 
   const [valeurs, setValeurs] = useState({}); // { [code]: valeur }
   const [resultatGlobal, setResultatGlobal] = useState('valide');
+  const [orientation, setOrientation] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
+
+  const orientationVisible = resultatGlobal === 'valide';
+
+  // Décochée si le formateur repasse sur "Invalidé" après avoir choisi une orientation — sans
+  // objet dans ce cas (voir ORIENTATIONS_AUTORISEES, backend evaluationEngine.js), pas de valeur
+  // résiduelle envoyée par erreur au serveur.
+  const gererChangementResultat = (valeur) => {
+    setResultatGlobal(valeur);
+    if (valeur !== 'valide') setOrientation('');
+  };
 
   useEffect(() => {
     let annule = false;
@@ -61,14 +71,19 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
   const gererEnvoi = async (evenement) => {
     evenement.preventDefault();
     if (!commentaire.trim()) return;
+    if (orientationVisible && !orientation) return;
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
 
     try {
+      // Le serveur fait avancer le statut du dossier dans la même transaction que l'enregistrement
+      // de l'évaluation (voir backend evaluationEngine.enregistrerEvaluation) — plus de second
+      // appel front à part pour la transition, workflow v3.
       await enregistrerEvaluation({
         rendezvousId: rendezvous.id,
         resultatGlobal,
+        orientation: orientationVisible ? orientation : undefined,
         commentaire,
         criteres: criteres.map((critere) => ({ code: critere.code, valeur: valeurs[critere.code] })),
       });
@@ -78,29 +93,6 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         erreur.response
           ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer l'évaluation. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
-      );
-      return;
-    }
-
-    // Fait avancer le statut du dossier jusqu'au verdict correspondant, si cette transition est
-    // actuellement proposée par le moteur générique pour ce dossier — voir le commentaire sur
-    // CODE_ACTION_VERDICT_POSITIF plus haut.
-    try {
-      const transitionsDisponibles = await listerTransitions(rendezvous.dossier_id);
-      const codesDisponibles = transitionsDisponibles.map((transition) => transition.code_action);
-      const codeActionVerdict = resultatGlobal === 'valide' ? CODE_ACTION_VERDICT_POSITIF : CODE_ACTION_VERDICT_NEGATIF;
-
-      if (codesDisponibles.includes(codeActionVerdict)) {
-        await appliquerTransition(rendezvous.dossier_id, { codeAction: codeActionVerdict, commentaire });
-      }
-    } catch {
-      // L'évaluation existe déjà en base à ce stade : le dire clairement plutôt que de laisser
-      // croire qu'aucune donnée n'a été enregistrée, pas de retour arrière automatique (même
-      // principe que CaptureTablette.jsx).
-      setEnvoiEnCours(false);
-      setErreurEnvoi(
-        "L'évaluation a bien été enregistrée, mais la mise à jour du statut du dossier a échoué. " +
-          'Merci de contacter un administrateur.',
       );
       return;
     }
@@ -153,13 +145,52 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         </fieldset>
       ))}
 
-      <label className="grille-evaluation__resultat-global">
-        <span>Résultat global</span>
-        <select value={resultatGlobal} onChange={(evenement) => setResultatGlobal(evenement.target.value)}>
-          <option value="valide">Validé</option>
-          <option value="invalide">Invalidé</option>
-        </select>
-      </label>
+      <fieldset className="grille-evaluation__resultat-global">
+        <legend>
+          Résultat du test <span className="champ-obligatoire">*</span>
+        </legend>
+        <div className="grille-evaluation__choix">
+          <label>
+            <input
+              type="radio"
+              name="resultat-global-valide"
+              checked={resultatGlobal === 'valide'}
+              onChange={() => gererChangementResultat('valide')}
+            />
+            Validé
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="resultat-global-invalide"
+              checked={resultatGlobal === 'invalide'}
+              onChange={() => gererChangementResultat('invalide')}
+            />
+            Invalidé
+          </label>
+        </div>
+      </fieldset>
+
+      {orientationVisible && (
+        <fieldset className="grille-evaluation__orientation">
+          <legend>
+            Orientation <span className="champ-obligatoire">*</span>
+          </legend>
+          <div className="grille-evaluation__choix">
+            {ORIENTATIONS.map((o) => (
+              <label key={o.code}>
+                <input
+                  type="radio"
+                  name={`orientation-${o.code}`}
+                  checked={orientation === o.code}
+                  onChange={() => setOrientation(o.code)}
+                />
+                {o.libelle}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <label className="grille-evaluation__commentaire">
         <span>Commentaire (obligatoire)</span>
@@ -172,7 +203,10 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
           Annuler
         </button>
-        <button type="submit" disabled={envoiEnCours || !commentaire.trim() || criteres.length === 0}>
+        <button
+          type="submit"
+          disabled={envoiEnCours || !commentaire.trim() || criteres.length === 0 || (orientationVisible && !orientation)}
+        >
           {envoiEnCours ? 'Enregistrement...' : "Enregistrer l'évaluation"}
         </button>
       </div>

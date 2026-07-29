@@ -12,11 +12,12 @@ const { ROLES } = require('../../core/auth/rbac');
 // pieces.routes.js / relances.routes.js / rendezvous.routes.js.
 const router = Router({ mergeParams: true });
 
-// Décision sur le dossier (valider/rejeter, CLAUDE.md : "Recruteur ... décision finale
-// (validé/refusé)") comme les étapes intermédiaires du parcours (accueil confirmant que les
-// pièces sont complètes). FORMATEUR ajouté pour soumettre_verdict_positif/negatif (voir
-// GrilleEvaluation.jsx : la soumission d'une évaluation fait avancer le dossier jusqu'au
-// verdict correspondant). Ce gate de route reste volontairement large (tous les rôles internes
+// Décision sur le dossier (valider/rejeter, workflow hérité conservé le temps de clore les 2
+// derniers dossiers via l'ancien circuit, voir migrerWorkflowAccecitV3.js) comme les étapes
+// intermédiaires du parcours (accueil confirmant que les pièces sont complètes). FORMATEUR ajouté
+// pour valider_envoi_formation/valider_pret_embauche/invalider_test (voir GrilleEvaluation.jsx :
+// la soumission d'une évaluation fait avancer le dossier directement jusqu'à son issue finale,
+// workflow v3). Ce gate de route reste volontairement large (tous les rôles internes
 // susceptibles d'agir sur un dossier) : c'est un filtre grossier et bon marché avant même de
 // toucher la base — le contrôle fin "quel rôle peut déclencher quelle transition précise" est
 // fait par workflowEngine via `transition_roles` (migration 006), pas ici : un formateur reste

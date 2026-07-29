@@ -16,7 +16,7 @@ export async function listerRendezvousAEvaluer() {
   return data;
 }
 
-export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, commentaire, criteres }) {
-  const { data } = await api.post('/evaluations', { rendezvousId, resultatGlobal, commentaire, criteres });
+export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orientation, commentaire, criteres }) {
+  const { data } = await api.post('/evaluations', { rendezvousId, resultatGlobal, orientation, commentaire, criteres });
   return data;
 }

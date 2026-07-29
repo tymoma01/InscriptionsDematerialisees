@@ -12,10 +12,19 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 
 const LIBELLES_STATUT_VERIFICATION = { en_attente: 'En attente', valide: 'Validée', rejete: 'Rejetée' };
 
-// Écran de décision recruteur pour un dossier (CLAUDE.md : "indicateur de complétude" +
-// "décision finale (validé/refusé)") — dossierId vient du paramètre de route (à la différence des
-// composants génériques de core/, cette page connaît le routage, même patron que
-// VerificationPieces.jsx / Relances.jsx).
+// Écran détail dossier pour le recruteur (CLAUDE.md : "indicateur de complétude") — dossierId
+// vient du paramètre de route (à la différence des composants génériques de core/, cette page
+// connaît le routage, même patron que VerificationPieces.jsx / Relances.jsx).
+//
+// Depuis le workflow v3 (simplification du parcours, responsable de projet), la décision finale
+// est prise directement par le formateur à l'issue du test (voir evaluationEngine.js) : cette
+// page n'est donc plus un écran de décision pour le recruteur, mais une vue de consultation
+// (pièces, historique via GestionTransitions/NotesDossier) — GestionTransitions reste générique
+// et n'affiche simplement plus aucune action pour un dossier dont le statut ne propose aucune
+// transition au rôle RECRUTEUR (voir workflow.config.json). Exception temporaire : les 2 derniers
+// dossiers encore en_attente_validation_recruteur via l'ancien circuit (voir
+// migrerWorkflowAccecitV3.js) y verront encore valider_dossier/rejeter_dossier le temps d'être
+// clos.
 //
 // L'indicateur de complétude reste partiel : la liste des pièces déjà reçues avec leur statut de
 // vérification (réutilise le service déjà utilisé par CaptureTablette.jsx), pas un ratio "X/Y

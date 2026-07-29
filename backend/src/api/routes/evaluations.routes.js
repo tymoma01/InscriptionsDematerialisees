@@ -26,6 +26,10 @@ const idPositifSchema = z.coerce.number().int().positive();
 const evaluationBodySchema = z.object({
   rendezvousId: idPositifSchema,
   resultatGlobal: z.enum(['valide', 'invalide']),
+  // Sans objet si resultatGlobal vaut 'invalide' — la présence/validité pour un verdict positif
+  // est revérifiée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md : ce schéma ne fait
+  // que la forme, jamais la règle métier).
+  orientation: z.enum(['envoi_formation', 'pret_embauche']).optional(),
   commentaire: z.string().trim().min(1),
   // Les codes de critère ne sont volontairement pas figés ici : ils viennent de
   // `criteres_evaluation`, configurable par entité — un code inconnu ou une grille incomplète
@@ -71,13 +75,14 @@ router.get('/a-faire', async (req, res, next) => {
 // POST /api/evaluations — enregistre une évaluation complète pour un rendez-vous de test.
 router.post('/', async (req, res, next) => {
   try {
-    const { rendezvousId, resultatGlobal, commentaire, criteres } = evaluationBodySchema.parse(req.body);
+    const { rendezvousId, resultatGlobal, orientation, commentaire, criteres } = evaluationBodySchema.parse(req.body);
 
     const resultat = await evaluationEngine.enregistrerEvaluation(req.entite, {
       rendezvousId,
       formateurId: req.utilisateur.id,
       roleCode: req.utilisateur.roleCode,
       resultatGlobal,
+      orientation,
       commentaire,
       criteres,
     });
@@ -89,7 +94,7 @@ router.post('/', async (req, res, next) => {
       action: `evaluation_${resultatGlobal}`,
       tableCible: 'evaluations',
       cibleId: resultat.evaluationId,
-      donnees: { rendezvousId, resultatGlobal },
+      donnees: { rendezvousId, resultatGlobal, orientation },
       adresseIp: req.ip,
     });
 

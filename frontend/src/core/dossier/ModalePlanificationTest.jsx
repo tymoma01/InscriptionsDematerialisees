@@ -30,13 +30,13 @@ const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
 //
 // Composant générique, extrait de CaptureTablette.jsx (première planification, depuis
 // en_attente_pieces) pour être réutilisé par TableauDeBordAccueil.jsx (replanification, depuis
-// test_non_realise ou verdict_negatif) : `codeAction` est reçu en prop plutôt que figé en
+// test_non_realise ou invalide) : `codeAction` est reçu en prop plutôt que figé en
 // constante interne — ce composant ne connaît aucun statut ni transition en dur (voir
 // Modularité, CLAUDE.md), c'est à l'appelant de savoir depuis quelle action il ouvre ce panneau.
 // Le moteur de transitions (workflowEngine.appliquerTransition) résout lui-même la bonne ligne
 // transitions_statut à partir du statut courant réel du dossier : pas besoin ici de choisir entre
 // plusieurs origines possibles pour un même codeAction (ex. "replanifier_test" existe en
-// configuration à la fois depuis test_non_realise et verdict_negatif).
+// configuration à la fois depuis test_non_realise et invalide).
 export default function ModalePlanificationTest({ dossierId, codeAction, titre, onAnnuler, onReussite }) {
   const panneauRef = useRef(null);
 

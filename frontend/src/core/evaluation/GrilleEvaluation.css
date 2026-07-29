@@ -47,6 +47,19 @@
 }
 
 .grille-evaluation__resultat-global,
+.grille-evaluation__orientation {
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+}
+
+.grille-evaluation__resultat-global legend,
+.grille-evaluation__orientation legend {
+  padding: 0 0.4rem;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
 .grille-evaluation__commentaire {
   display: flex;
   flex-direction: column;
@@ -54,7 +67,6 @@
   color: var(--couleur-texte);
 }
 
-.grille-evaluation__resultat-global select,
 .grille-evaluation__commentaire textarea {
   padding: 0.5rem;
   border: 1px solid var(--couleur-bordure);

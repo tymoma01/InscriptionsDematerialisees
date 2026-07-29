@@ -34,27 +34,24 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // Le formateur marque le test comme non réalisé (candidat absent, etc.) — aucune évaluation
   // associée, transition seule via POST /transitions générique (voir ListeEvaluationsAFaire.jsx).
   test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN],
-  // Replanification d'un nouveau créneau, depuis test_non_realise OU verdict_negatif (deux lignes
+  // Replanification d'un nouveau créneau, depuis test_non_realise OU invalide (deux lignes
   // transitions_statut partagent ce même code_action, voir commentaire de planifier_test
-  // ci-dessus) — UI de déclenchement différée à un prompt dédié (workflow v2), la transition
-  // elle-même existe déjà en configuration.
+  // ci-dessus ; "invalide" remplace "verdict_negatif" depuis le workflow v3) — la boucle plus bas
+  // applique ces rôles à chaque ligne partageant ce code_action, jamais juste la première.
   replanifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
   // Écrites par evaluationEngine.enregistrerEvaluation, dans la même transaction que test_realise
-  // ci-dessus (workflow v2) — pas par POST /transitions directement, mais FORMATEUR/ADMIN listés
-  // par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour
-  // exposée telle quelle via l'API générique.
-  soumettre_verdict_positif: [ROLES.FORMATEUR, ROLES.ADMIN],
-  soumettre_verdict_negatif: [ROLES.FORMATEUR, ROLES.ADMIN],
-  // Transition automatique déclenchée par evaluationEngine.enregistrerEvaluation juste après un
-  // verdict positif (workflow v2) — SYSTEME seul, jamais FORMATEUR : un formateur ne doit pas
-  // pouvoir faire avancer un dossier jusqu'au recruteur via POST /transitions sans qu'une
-  // évaluation réelle n'existe, seul evaluationEngine passe explicitement roleCode: ROLES.SYSTEME
-  // pour cet appel précis (les deux transitions précédentes de la même chaîne gardent, elles, le
-  // vrai rôle du formateur connecté).
-  transmettre_recruteur: [ROLES.SYSTEME],
-  // Décision finale du recruteur (CLAUDE.md, section Rôles : "décision finale (validé/refusé)") —
-  // origine en_attente_validation_recruteur (workflow v2, après le verdict positif du test),
-  // remplace l'ancienne origine en_attente_verification (avant tout test).
+  // ci-dessus (workflow v3 : simplification du parcours actée avec la responsable de projet —
+  // transition directe vers l'issue finale du dossier, plus de verdict intermédiaire ni de
+  // passage par le recruteur) — pas par POST /transitions directement, mais FORMATEUR/ADMIN
+  // listés par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait
+  // un jour exposée telle quelle via l'API générique.
+  valider_envoi_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
+  valider_pret_embauche: [ROLES.FORMATEUR, ROLES.ADMIN],
+  invalider_test: [ROLES.FORMATEUR, ROLES.ADMIN],
+  // Décision finale du recruteur — workflow hérité (v2), retiré du parcours actif pour toute
+  // nouvelle évaluation depuis le workflow v3 (voir evaluationEngine.js) : conservé uniquement le
+  // temps que les derniers dossiers encore en_attente_validation_recruteur soient clos par un
+  // recruteur (voir backend/scripts/migrerWorkflowAccecitV3.js), qui retirera aussi ces 2 lignes.
   valider_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
   rejeter_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
 };

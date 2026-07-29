@@ -24,11 +24,12 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
   en_attente_verdict: 'violet',
-  verdict_positif: 'vert-clair',
-  verdict_negatif: 'echec',
-  en_attente_validation_recruteur: 'dore',
-  valide: 'succes',
+  invalide: 'echec',
+  en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
+  valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
   rejete: 'echec-fort',
+  valide_envoi_formation: 'vert-clair',
+  valide_pret_embauche: 'succes',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
@@ -41,16 +42,23 @@ function varianteStatut(code) {
 const CODES_STATUTS_FILTRES_RECRUTEUR = [
   'test_planifie',
   'en_attente_verdict',
+  // en_attente_validation_recruteur/valide : workflow v3, temporaires (2 dossiers encore en cours
+  // via l'ancien circuit, voir migrerWorkflowAccecitV3.js) — à retirer une fois ces dossiers clos.
   'en_attente_validation_recruteur',
   'valide',
   'rejete',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
 ];
 
-// Back-office recruteur (CLAUDE.md, section Rôles : "back-office complet, validation des profils,
-// décision finale (validé/refusé)") — liste des dossiers de l'entité courante, filtrables par
-// statut, même moteur générique que le tableau de bord Accueil (DossierList/dossierService).
-// "Étudier le dossier" renvoie vers l'écran de décision (Validation.jsx), qui affiche les pièces
-// justificatives et les actions de la machine à états disponibles pour ce rôle.
+// Back-office recruteur (CLAUDE.md, section Rôles : "back-office complet") — liste des dossiers
+// de l'entité courante, filtrables par statut, même moteur générique que le tableau de bord
+// Accueil (DossierList/dossierService).
+// "Étudier le dossier" renvoie vers Validation.jsx : depuis le workflow v3, la décision finale
+// (validé/refusé, orientation formation/embauche) est prise directement par le formateur à
+// l'issue du test — cette page reste une vue de consultation (pièces, historique, notes) pour le
+// recruteur, plus un écran de décision (sauf pour les 2 derniers dossiers de l'ancien circuit,
+// voir migrerWorkflowAccecitV3.js).
 export default function Backoffice() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();

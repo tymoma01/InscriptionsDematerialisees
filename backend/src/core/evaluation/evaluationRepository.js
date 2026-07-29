@@ -50,13 +50,14 @@ function trouverEvaluationParRendezvous(bd, rendezvousId) {
   return bd('evaluations').where({ rendezvous_id: rendezvousId }).first();
 }
 
-async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId, resultatGlobal, commentaire }) {
+async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId, resultatGlobal, orientation, commentaire }) {
   const [evaluation] = await bd('evaluations')
     .insert({
       dossier_id: dossierId,
       rendezvous_id: rendezvousId,
       formateur_id: formateurId,
       resultat_global: resultatGlobal,
+      orientation: orientation ?? null,
       commentaire,
     })
     .returning('id');

@@ -29,7 +29,7 @@ const COLONNES = [
 // lecture seule avec des badges neutres. `actions` : [{ libelle, onSelectionner(dossier),
 // visible?(dossier) }] — `visible` optionnel (défaut : toujours affichée), pour des actions qui
 // ne concernent que certains statuts (ex. "Replanifier" sur TableauDeBordAccueil.jsx, réservé aux
-// dossiers en test_non_realise/verdict_negatif) sans que ce composant générique ait besoin de
+// dossiers en test_non_realise/invalide) sans que ce composant générique ait besoin de
 // connaître ces codes de statut lui-même.
 //
 // Tri entièrement client, sur la liste déjà reçue (déjà filtrée par statut/recherche/date par

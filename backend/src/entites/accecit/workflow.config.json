@@ -5,11 +5,12 @@
     { "code": "test_planifie", "libelle": "Test planifié", "ordre": 3, "estInitial": false, "estFinal": false },
     { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 4, "estInitial": false, "estFinal": false },
     { "code": "en_attente_verdict", "libelle": "En attente de verdict", "ordre": 5, "estInitial": false, "estFinal": false },
-    { "code": "verdict_positif", "libelle": "Verdict positif", "ordre": 6, "estInitial": false, "estFinal": false },
-    { "code": "verdict_negatif", "libelle": "Verdict négatif", "ordre": 7, "estInitial": false, "estFinal": false },
+    { "code": "invalide", "libelle": "Invalidé", "ordre": 6, "estInitial": false, "estFinal": false },
     { "code": "en_attente_validation_recruteur", "libelle": "En attente de validation recruteur", "ordre": 8, "estInitial": false, "estFinal": false },
     { "code": "valide", "libelle": "Validé", "ordre": 9, "estInitial": false, "estFinal": true },
-    { "code": "rejete", "libelle": "Rejeté", "ordre": 10, "estInitial": false, "estFinal": true }
+    { "code": "rejete", "libelle": "Rejeté", "ordre": 10, "estInitial": false, "estFinal": true },
+    { "code": "valide_envoi_formation", "libelle": "Validé — envoyé en formation", "ordre": 11, "estInitial": false, "estFinal": true },
+    { "code": "valide_pret_embauche", "libelle": "Validé — prêt à l'embauche", "ordre": 12, "estInitial": false, "estFinal": true }
   ],
   "transitions": [
     {
@@ -43,27 +44,27 @@
       "motifRequis": false
     },
     {
-      "codeAction": "soumettre_verdict_positif",
+      "codeAction": "valider_envoi_formation",
       "statutOrigine": "en_attente_verdict",
-      "statutDestination": "verdict_positif",
+      "statutDestination": "valide_envoi_formation",
       "motifRequis": false
     },
     {
-      "codeAction": "soumettre_verdict_negatif",
+      "codeAction": "valider_pret_embauche",
       "statutOrigine": "en_attente_verdict",
-      "statutDestination": "verdict_negatif",
+      "statutDestination": "valide_pret_embauche",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "invalider_test",
+      "statutOrigine": "en_attente_verdict",
+      "statutDestination": "invalide",
       "motifRequis": false
     },
     {
       "codeAction": "replanifier_test",
-      "statutOrigine": "verdict_negatif",
+      "statutOrigine": "invalide",
       "statutDestination": "test_planifie",
-      "motifRequis": false
-    },
-    {
-      "codeAction": "transmettre_recruteur",
-      "statutOrigine": "verdict_positif",
-      "statutDestination": "en_attente_validation_recruteur",
       "motifRequis": false
     },
     {
