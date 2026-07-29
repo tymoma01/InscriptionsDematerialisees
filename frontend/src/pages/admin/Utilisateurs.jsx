@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -307,6 +307,17 @@ const MOT_DE_PASSE_MIN = 8;
 function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
   const modeEdition = Boolean(utilisateur);
 
+  // Amène le formulaire à l'écran dès son ouverture ("Nouveau compte" ou "Modifier"), même
+  // principe que ModalePlanificationTest.jsx : sans ça, il s'ouvre en bas de la page (après le
+  // tableau des comptes) et l'admin ne le voit pas apparaître sans défiler manuellement. Un seul
+  // effet au montage suffit (pas de contenu chargé de façon asynchrone après coup ici,
+  // contrairement au calendrier de disponibilité de ModalePlanificationTest.jsx) — la prop `key`
+  // posée par Utilisateurs.jsx (voir plus haut) garantit un remontage à chaque nouvelle cible.
+  const panneauRef = useRef(null);
+  useEffect(() => {
+    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   const [nom, setNom] = useState(utilisateur?.nom ?? '');
   const [prenom, setPrenom] = useState(utilisateur?.prenom ?? '');
   const [email, setEmail] = useState(utilisateur?.email ?? '');
@@ -338,7 +349,7 @@ function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
   };
 
   return (
-    <form className="formulaire-utilisateur" onSubmit={gererEnvoi}>
+    <form ref={panneauRef} className="formulaire-utilisateur" onSubmit={gererEnvoi}>
       <h2>{modeEdition ? `Modifier ${utilisateur.prenom} ${utilisateur.nom}` : 'Nouveau compte'}</h2>
 
       <label>
