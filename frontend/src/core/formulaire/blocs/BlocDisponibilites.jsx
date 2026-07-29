@@ -38,7 +38,6 @@ const POSTES_HOTEL = [
   { code: 'cafetier', libelle: 'Cafétier(ère)' },
   { code: 'equipier', libelle: 'Équipier(ère)' },
   { code: 'gouvernant', libelle: 'Gouvernant(e)' },
-  { code: 'autres', libelle: 'Autres' },
 ];
 
 const COMMENT_CONNU = [
@@ -71,7 +70,6 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       posteBureau: valeurs?.posteBureau ?? [],
       autrePosteBureauPrecision: valeurs?.autrePosteBureauPrecision ?? '',
       posteHotel: valeurs?.posteHotel ?? [],
-      autrePosteHotelPrecision: valeurs?.autrePosteHotelPrecision ?? '',
       commentConnu: valeurs?.commentConnu,
       commentConnuPrecision: valeurs?.commentConnuPrecision ?? '',
     },
@@ -91,7 +89,6 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   const autreLangueCochee = (valeursSaisies.languesParlees ?? []).includes('autre');
   const typePosteSelectionne = valeursSaisies.typePoste;
   const autrePosteBureauCoche = (valeursSaisies.posteBureau ?? []).includes('autres');
-  const autrePosteHotelCoche = (valeursSaisies.posteHotel ?? []).includes('autres');
   const commentConnuSelectionne = valeursSaisies.commentConnu;
   // Visible et obligatoire pour les 3 mêmes options (voir BlocDisponibilites.schema.js) :
   // Internet, Autre et Cooptation.
@@ -102,12 +99,6 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       setValue('autrePosteBureauPrecision', '');
     }
   }, [autrePosteBureauCoche]);
-
-  useEffect(() => {
-    if (!autrePosteHotelCoche) {
-      setValue('autrePosteHotelPrecision', '');
-    }
-  }, [autrePosteHotelCoche]);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
@@ -298,15 +289,6 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
             </div>
           </fieldset>
           {errors.posteHotel && <p role="alert">{errors.posteHotel.message}</p>}
-          {autrePosteHotelCoche && (
-            <div className="bloc-disponibilites__champ-precision">
-              <label htmlFor="autrePosteHotelPrecision">
-                Précisez le poste <span className="champ-obligatoire">*</span>
-              </label>
-              <input id="autrePosteHotelPrecision" type="text" {...register('autrePosteHotelPrecision')} />
-              {errors.autrePosteHotelPrecision && <p role="alert">{errors.autrePosteHotelPrecision.message}</p>}
-            </div>
-          )}
         </>
       )}
 
