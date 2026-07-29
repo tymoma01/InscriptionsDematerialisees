@@ -19,6 +19,7 @@ export const blocDisponibilitesSchema = z
     autreLanguePrecision: z.string().trim().optional().default(''),
     typePoste: z.enum(TYPES_POSTE, { required_error: 'Le type de poste recherché est obligatoire' }),
     posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
+    autrePosteBureauPrecision: z.string().trim().optional().default(''),
     posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
     commentConnu: z.enum(COMMENT_CONNU, { required_error: 'Merci de préciser comment vous nous avez connu' }),
     commentConnuPrecision: z.string().trim().optional().default(''),
@@ -41,6 +42,11 @@ export const blocDisponibilitesSchema = z
   .refine((valeurs) => valeurs.typePoste !== 'bureau' || valeurs.posteBureau.length > 0, {
     message: 'Sélectionnez au moins un poste',
     path: ['posteBureau'],
+  })
+  // Précision obligatoire uniquement si "Autres" est coché parmi les postes bureau
+  .refine((valeurs) => !valeurs.posteBureau.includes('autres') || valeurs.autrePosteBureauPrecision !== '', {
+    message: 'Veuillez préciser le poste',
+    path: ['autrePosteBureauPrecision'],
   })
   // Au moins un poste hôtel requis si le type de poste recherché est "Hôtel"
   .refine((valeurs) => valeurs.typePoste !== 'hotel' || valeurs.posteHotel.length > 0, {

@@ -68,6 +68,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       autreLanguePrecision: valeurs?.autreLanguePrecision ?? '',
       typePoste: valeurs?.typePoste,
       posteBureau: valeurs?.posteBureau ?? [],
+      autrePosteBureauPrecision: valeurs?.autrePosteBureauPrecision ?? '',
       posteHotel: valeurs?.posteHotel ?? [],
       commentConnu: valeurs?.commentConnu,
       commentConnuPrecision: valeurs?.commentConnuPrecision ?? '',
@@ -87,10 +88,17 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   const disponibleImmediatement = valeursSaisies.disponibiliteImmediate;
   const autreLangueCochee = (valeursSaisies.languesParlees ?? []).includes('autre');
   const typePosteSelectionne = valeursSaisies.typePoste;
+  const autrePosteBureauCoche = (valeursSaisies.posteBureau ?? []).includes('autres');
   const commentConnuSelectionne = valeursSaisies.commentConnu;
   // Visible et obligatoire pour les 3 mêmes options (voir BlocDisponibilites.schema.js) :
   // Internet, Autre et Cooptation.
   const commentConnuPrecisionVisible = ['internet', 'autre', 'cooptation'].includes(commentConnuSelectionne);
+
+  useEffect(() => {
+    if (!autrePosteBureauCoche) {
+      setValue('autrePosteBureauPrecision', '');
+    }
+  }, [autrePosteBureauCoche]);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
@@ -248,6 +256,15 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
             </div>
           </fieldset>
           {errors.posteBureau && <p role="alert">{errors.posteBureau.message}</p>}
+          {autrePosteBureauCoche && (
+            <div className="bloc-disponibilites__champ-precision">
+              <label htmlFor="autrePosteBureauPrecision">
+                Précisez le poste <span className="champ-obligatoire">*</span>
+              </label>
+              <input id="autrePosteBureauPrecision" type="text" {...register('autrePosteBureauPrecision')} />
+              {errors.autrePosteBureauPrecision && <p role="alert">{errors.autrePosteBureauPrecision.message}</p>}
+            </div>
+          )}
         </>
       )}
 
