@@ -98,7 +98,15 @@
 }
 
 .formulaire-utilisateur {
-  max-width: 26rem;
+  /* Pas de max-width étroit ici (contrairement à une précédente version, 26rem) : sans `auto` sur
+     les marges horizontales, ce cadre restait collé à gauche avec beaucoup de vide autour, un
+     rendu incohérent avec le reste du back-office. width: 100% aligne exactement ce cadre sur la
+     largeur du tableau des comptes juste en dessous (.table-utilisateurs__scroll, elle-même sans
+     max-width propre — les deux héritent donc de la même largeur de contenu posée par
+     .page-back-office__contenu), déjà centrée par ce conteneur commun : pas besoin d'une marge
+     auto distincte ici. */
+  width: 100%;
+  box-sizing: border-box;
   margin: 0 0 var(--espace-grand);
   padding: var(--espace-moyen);
   background-color: var(--couleur-fond);
@@ -108,6 +116,19 @@
   display: flex;
   flex-direction: column;
   gap: var(--espace-moyen);
+  /* Compense l'en-tête ACCECIT en position: fixed (voir PageBackOffice.css, --hauteur-entete) —
+     même correctif et même valeur d'offset que ModalePlanificationTest.css : sans lui,
+     scrollIntoView({block:'start'}, voir Utilisateurs.jsx) ignore l'en-tête fixe et aligne ce
+     formulaire pile derrière lui, masquant le titre et les premiers champs. */
+  scroll-margin-top: calc(var(--hauteur-entete) + var(--espace-grand));
+}
+
+/* Les champs eux-mêmes restent à une largeur de lecture confortable même si le cadre occupe
+   toute la largeur du tableau ci-dessus — un input nom/prénom/email/mot de passe étiré sur toute
+   la largeur d'un tableau (potentiellement large sur desktop) serait inconfortable à lire/remplir. */
+.formulaire-utilisateur label,
+.formulaire-utilisateur__actions {
+  max-width: 26rem;
 }
 
 .formulaire-utilisateur h2 {
