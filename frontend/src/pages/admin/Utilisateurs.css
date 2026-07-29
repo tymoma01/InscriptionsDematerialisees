@@ -36,7 +36,15 @@
 
 .table-utilisateurs {
   width: 100%;
-  border-collapse: collapse;
+  /* separate + border-spacing: 0 (pas collapse) : border-collapse: collapse casse le rendu de
+     position: sticky sur une cellule (voir .table-utilisateurs__colonne-figee) dans plusieurs
+     moteurs de rendu — la cellule figée se détache visuellement du reste de sa ligne au
+     défilement (lignes désynchronisées, fond/texte de la colonne suivante qui chevauche).
+     border-spacing: 0 évite tout écart visuel entre cellules par rapport à l'ancien modèle
+     collapse (seul border-bottom est utilisé ici, jamais de bordure verticale entre colonnes
+     hors la colonne figée, donc aucun risque de bordure doublée avec ce changement). */
+  border-collapse: separate;
+  border-spacing: 0;
   background-color: var(--couleur-fond);
 }
 
@@ -44,6 +52,10 @@
 .table-utilisateurs td {
   padding: 0.75rem var(--espace-moyen);
   text-align: left;
+  /* Explicite plutôt que de compter sur le défaut du navigateur (voir DossierList.css, même
+     règle) : garantit que la cellule figée (position: sticky) reste alignée sur la même ligne
+     horizontale que le reste de la ligne, quelle que soit la hauteur naturelle du contenu. */
+  vertical-align: middle;
   border-bottom: 1px solid var(--couleur-bordure-legere);
   white-space: nowrap;
 }

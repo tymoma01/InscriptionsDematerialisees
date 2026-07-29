@@ -280,17 +280,25 @@ export default function Utilisateurs() {
                       <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
                     </td>
                     <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '—'}</td>
-                    <td className="table-utilisateurs__actions">
-                      <button type="button" onClick={() => setFormulaireOuvert(u)}>
-                        Modifier
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => basculerActif(u)}
-                        disabled={u.actif && u.id === utilisateurConnecte.id}
-                      >
-                        {u.actif ? 'Désactiver' : 'Réactiver'}
-                      </button>
+                    <td>
+                      {/* display: flex sur un <div> interne plutôt que directement sur le <td> :
+                          posé sur la cellule elle-même, ça lui ferait perdre son
+                          display: table-cell (donc son étirement/centrage vertical automatique
+                          sur la hauteur de la ligne) — décalage visible dès qu'une autre cellule
+                          de la même ligne est plus haute. Même correctif que DossierList.jsx
+                          (__actions), qui documente ce même piège pour la même raison. */}
+                      <div className="table-utilisateurs__actions">
+                        <button type="button" onClick={() => setFormulaireOuvert(u)}>
+                          Modifier
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => basculerActif(u)}
+                          disabled={u.actif && u.id === utilisateurConnecte.id}
+                        >
+                          {u.actif ? 'Désactiver' : 'Réactiver'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
