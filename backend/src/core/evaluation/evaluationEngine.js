@@ -189,6 +189,8 @@ async function enregistrerEvaluation(
       formateurId,
       resultatGlobal,
       orientation: resultatGlobal === 'valide' ? orientation : null,
+      // posteCodeResolu (résolu/validé plus haut), jamais le posteCode brut reçu du client.
+      posteCode: posteCodeResolu,
       commentaire,
     });
     await evaluationRepository.enregistrerReponses(trx, evaluationId, reponsesResolues);

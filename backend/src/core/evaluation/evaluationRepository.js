@@ -101,7 +101,7 @@ async function trouverPostesDossier(bd, dossierId) {
   };
 }
 
-async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId, resultatGlobal, orientation, commentaire }) {
+async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId, resultatGlobal, orientation, posteCode, commentaire }) {
   const [evaluation] = await bd('evaluations')
     .insert({
       dossier_id: dossierId,
@@ -109,6 +109,11 @@ async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId,
       formateur_id: formateurId,
       resultat_global: resultatGlobal,
       orientation: orientation ?? null,
+      // Poste effectivement évalué (voir migration 038) — null pour un repli sur le
+      // questionnaire générique (dossier bureau, ou poste hôtel sans questionnaire dédié).
+      // Toujours le poste résolu/validé côté serveur (evaluationEngine.resoudrePosteCode),
+      // jamais la valeur brute envoyée par le client.
+      poste_code: posteCode ?? null,
       commentaire,
     })
     .returning('id');
