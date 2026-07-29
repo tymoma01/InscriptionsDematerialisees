@@ -75,6 +75,32 @@
   background-color: var(--couleur-fond-secondaire);
 }
 
+/* Colonne "Candidat" figée pendant le défilement horizontal (tablette/écran étroit, voir
+   .dossier-list__scroll) — reste un repère visuel constant pour savoir à quel dossier se
+   rapportent les colonnes suivantes une fois défilées hors champ. Fond opaque obligatoire (pas
+   transparent) : sans lui, le texte des colonnes qui défilent transparaîtrait sous cette colonne
+   figée au lieu de rester masqué derrière. Même patron que
+   .table-utilisateurs__colonne-figee (Utilisateurs.css). */
+.dossier-list__colonne-figee {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--couleur-fond);
+  /* Bordure + ombre légère sur le bord droit : signale que cette colonne est distincte du reste
+     du contenu qui défile en dessous, même principe qu'un tableau à colonne figée classique. */
+  border-right: 1px solid var(--couleur-bordure-legere);
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+}
+
+.dossier-list th.dossier-list__colonne-figee {
+  background-color: var(--couleur-fond-secondaire);
+  z-index: 2;
+}
+
+.dossier-list tbody tr:hover td.dossier-list__colonne-figee {
+  background-color: var(--couleur-fond-secondaire);
+}
+
 .dossier-list__actions {
   display: flex;
   align-items: center;

@@ -82,7 +82,16 @@ export default function DossierList({ dossiers, varianteStatut, actions = [] }) 
             {COLONNES.map((colonne) => {
               const actif = tri.colonne === colonne.cle;
               return (
-                <th key={colonne.cle} scope="col" aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                <th
+                  key={colonne.cle}
+                  scope="col"
+                  // Colonne "Candidat" figée au défilement horizontal (voir
+                  // .dossier-list__colonne-figee, DossierList.css) — repère constant pour savoir à
+                  // quel dossier se rapportent les colonnes suivantes une fois défilées hors champ,
+                  // même patron que .table-utilisateurs__colonne-figee (Utilisateurs.jsx).
+                  className={colonne.cle === 'candidat_nom' ? 'dossier-list__colonne-figee' : undefined}
+                  aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
                   <button type="button" className="dossier-list__entete-tri" onClick={() => trierPar(colonne.cle)}>
                     {colonne.libelle}
                     <span className="dossier-list__indicateur-tri" aria-hidden="true">
@@ -98,7 +107,7 @@ export default function DossierList({ dossiers, varianteStatut, actions = [] }) 
         <tbody>
           {dossiersTries.map((dossier) => (
             <tr key={dossier.id}>
-              <td>
+              <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
               <td>

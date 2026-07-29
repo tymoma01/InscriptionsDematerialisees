@@ -92,6 +92,36 @@
   background-color: var(--couleur-fond-secondaire);
 }
 
+/* Colonne "Nom" figée pendant le défilement horizontal (tablette/écran étroit, voir
+   .table-utilisateurs__scroll) — reste un repère visuel constant pour savoir à quel compte se
+   rapportent les colonnes suivantes une fois défilées hors champ. Fond opaque obligatoire (pas
+   transparent) : sans lui, le texte des colonnes qui défilent transparaîtrait sous cette colonne
+   figée au lieu de rester masqué derrière. */
+.table-utilisateurs__colonne-figee {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--couleur-fond);
+  /* Bordure + ombre légère sur le bord droit : signale que cette colonne est distincte du reste
+     du contenu qui défile en dessous, même principe qu'un tableau à colonne figée classique. */
+  border-right: 1px solid var(--couleur-bordure-legere);
+  box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+}
+
+/* L'en-tête a son propre fond (--couleur-fond-secondaire, voir règle `th` plus haut) — la version
+   figée doit reprendre ce même fond plutôt que celui du corps du tableau, et rester au-dessus des
+   cellules figées du corps (z-index supérieur) si jamais les deux se chevauchent visuellement. */
+.table-utilisateurs th.table-utilisateurs__colonne-figee {
+  background-color: var(--couleur-fond-secondaire);
+  z-index: 2;
+}
+
+/* Le survol de ligne (règle ci-dessus) doit aussi teinter la cellule figée, sinon elle resterait
+   au fond de base pendant que le reste de la ligne change de couleur — seam visuel incohérent. */
+.table-utilisateurs tbody tr:hover td.table-utilisateurs__colonne-figee {
+  background-color: var(--couleur-fond-secondaire);
+}
+
 .table-utilisateurs__actions {
   display: flex;
   gap: var(--espace-petit);
@@ -123,12 +153,23 @@
   scroll-margin-top: calc(var(--hauteur-entete) + var(--espace-grand));
 }
 
-/* Les champs eux-mêmes restent à une largeur de lecture confortable même si le cadre occupe
-   toute la largeur du tableau ci-dessus — un input nom/prénom/email/mot de passe étiré sur toute
-   la largeur d'un tableau (potentiellement large sur desktop) serait inconfortable à lire/remplir. */
-.formulaire-utilisateur label,
+/* Grille à deux colonnes de largeur égale (Nom/Prénom, puis Email/Rôle, voir Utilisateurs.jsx) —
+   occupe le cadre élargi plutôt que de laisser un grand vide à droite avec un champ par ligne. */
+.formulaire-utilisateur__ligne {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--espace-moyen);
+}
+
+/* Chaque rangée occupe toute la largeur du cadre (lui-même aligné sur le tableau des comptes,
+   voir .formulaire-utilisateur ci-dessus) — pas de max-width ici : une largeur plafonnée
+   laisserait à nouveau un grand vide à droite, ce que cette disposition en grille doit
+   justement éviter. Le mot de passe (seul label restant en enfant direct du formulaire, voir
+   Utilisateurs.jsx) et les actions s'alignent sur cette même largeur pleine. */
+.formulaire-utilisateur__ligne,
+.formulaire-utilisateur > label,
 .formulaire-utilisateur__actions {
-  max-width: 26rem;
+  width: 100%;
 }
 
 .formulaire-utilisateur h2 {

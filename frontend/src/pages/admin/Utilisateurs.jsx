@@ -249,6 +249,11 @@ export default function Utilisateurs() {
                       <th
                         key={colonne.cle}
                         scope="col"
+                        // Colonne "Nom" figée au défilement horizontal (voir
+                        // .table-utilisateurs__colonne-figee, Utilisateurs.css) — première colonne
+                        // du tableau, repère constant pour identifier une ligne même une fois les
+                        // colonnes suivantes défilées hors champ sur tablette/écran étroit.
+                        className={colonne.cle === 'nom' ? 'table-utilisateurs__colonne-figee' : undefined}
                         aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <button type="button" className="table-utilisateurs__entete-tri" onClick={() => trierPar(colonne.cle)}>
@@ -266,7 +271,7 @@ export default function Utilisateurs() {
               <tbody>
                 {utilisateursTries.map((u) => (
                   <tr key={u.id}>
-                    <td>
+                    <td className="table-utilisateurs__colonne-figee">
                       {u.prenom} {u.nom}
                     </td>
                     <td>{u.email}</td>
@@ -352,38 +357,47 @@ function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
     <form ref={panneauRef} className="formulaire-utilisateur" onSubmit={gererEnvoi}>
       <h2>{modeEdition ? `Modifier ${utilisateur.prenom} ${utilisateur.nom}` : 'Nouveau compte'}</h2>
 
-      <label>
-        <span>Prénom</span>
-        <input type="text" value={prenom} onChange={(evenement) => setPrenom(evenement.target.value)} required />
-      </label>
+      {/* Grille à deux colonnes de largeur égale (Nom/Prénom, puis Email/Rôle) : occupe le cadre
+          élargi (voir Utilisateurs.css) plutôt que de laisser un grand vide à droite avec un
+          champ par ligne. Identique en création et en édition — aucun champ supplémentaire
+          (le statut actif/désactivé se bascule depuis un bouton de la liste, pas ce formulaire,
+          voir basculerActif). */}
+      <div className="formulaire-utilisateur__ligne">
+        <label>
+          <span>Nom</span>
+          <input type="text" value={nom} onChange={(evenement) => setNom(evenement.target.value)} required />
+        </label>
 
-      <label>
-        <span>Nom</span>
-        <input type="text" value={nom} onChange={(evenement) => setNom(evenement.target.value)} required />
-      </label>
+        <label>
+          <span>Prénom</span>
+          <input type="text" value={prenom} onChange={(evenement) => setPrenom(evenement.target.value)} required />
+        </label>
+      </div>
 
-      <label>
-        <span>Email</span>
-        <input
-          type="email"
-          value={email}
-          onChange={(evenement) => setEmail(evenement.target.value)}
-          required
-          disabled={modeEdition}
-        />
-      </label>
+      <div className="formulaire-utilisateur__ligne">
+        <label>
+          <span>Email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(evenement) => setEmail(evenement.target.value)}
+            required
+            disabled={modeEdition}
+          />
+        </label>
 
-      <label>
-        <span>Rôle</span>
-        <select value={roleCode} onChange={(evenement) => setRoleCode(evenement.target.value)} required>
-          {roles.length === 0 && <option value="">Aucun rôle disponible</option>}
-          {roles.map((role) => (
-            <option key={role.code} value={role.code}>
-              {role.libelle}
-            </option>
-          ))}
-        </select>
-      </label>
+        <label>
+          <span>Rôle</span>
+          <select value={roleCode} onChange={(evenement) => setRoleCode(evenement.target.value)} required>
+            {roles.length === 0 && <option value="">Aucun rôle disponible</option>}
+            {roles.map((role) => (
+              <option key={role.code} value={role.code}>
+                {role.libelle}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <label>
         <span>{modeEdition ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe'}</span>
