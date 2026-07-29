@@ -1,0 +1,68 @@
+/* Même patron que DossierList.css : conteneur de défilement horizontal dédié, pas toute la page. */
+.historique-evaluations__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.historique-evaluations {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--couleur-fond);
+}
+
+.historique-evaluations th,
+.historique-evaluations td {
+  padding: 0.75rem var(--espace-moyen);
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.historique-evaluations th {
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0;
+}
+
+.historique-evaluations__entete-tri {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  width: 100%;
+  padding: 0.75rem var(--espace-moyen);
+  border: none;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.historique-evaluations__entete-tri:hover,
+.historique-evaluations__entete-tri:focus-visible {
+  color: var(--couleur-texte);
+}
+
+.historique-evaluations__indicateur-tri {
+  font-size: 0.7rem;
+  min-width: 0.8em;
+}
+
+.historique-evaluations tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.historique-evaluations tbody tr:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.historique-evaluations__vide {
+  color: var(--couleur-texte-secondaire);
+  padding: var(--espace-grand);
+  text-align: center;
+}

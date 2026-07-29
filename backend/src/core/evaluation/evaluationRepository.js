@@ -86,6 +86,61 @@ function trouverEvaluationParRendezvous(bd, rendezvousId) {
   return bd('evaluations').where({ rendezvous_id: rendezvousId }).first();
 }
 
+// Historique des évaluations déjà soumises par CE formateur (formateur_id, jamais tous
+// formateurs confondus) — voir evaluationEngine.listerHistorique / HistoriqueEvaluations.jsx.
+// entiteId filtré via la jointure dossiers, même patron que listerRendezvousAEvaluer ci-dessus.
+function listerEvaluationsParFormateur(bd, entiteId, formateurId) {
+  return bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .where({ 'dossiers.entite_id': entiteId, 'evaluations.formateur_id': formateurId })
+    .select(
+      'evaluations.id',
+      'evaluations.dossier_id',
+      'evaluations.resultat_global',
+      'evaluations.orientation',
+      'evaluations.poste_code',
+      'evaluations.date_evaluation',
+      'candidats.prenom as candidat_prenom',
+      'candidats.nom as candidat_nom',
+    )
+    .orderBy('evaluations.date_evaluation', 'desc');
+}
+
+// Une évaluation donnée, scopée par entité (jointure dossiers) — utilisé pour vérifier l'accès
+// avant de renvoyer le détail des réponses (voir evaluationEngine.obtenirDetailEvaluation), même
+// garde IDOR que trouverDossierParId/trouverRendezvousParId ailleurs dans le projet.
+function trouverEvaluationParId(bd, entiteId, evaluationId) {
+  return bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .where({ 'evaluations.id': evaluationId, 'dossiers.entite_id': entiteId })
+    .select('evaluations.*', 'candidats.prenom as candidat_prenom', 'candidats.nom as candidat_nom')
+    .first();
+}
+
+// Détail des réponses d'une évaluation déjà soumise, dans l'ordre du questionnaire — lecture
+// seule (voir DetailEvaluation.jsx), jamais utilisé pour reconstruire une grille modifiable.
+// leftJoin sur question_items_evaluation : nullable pour une question 'texte_libre' (une seule
+// réponse par question, pas par item, voir migration 037).
+function listerReponsesEvaluation(bd, evaluationId) {
+  return bd('evaluation_reponses')
+    .join('questions_evaluation', 'questions_evaluation.id', 'evaluation_reponses.question_id')
+    .leftJoin('question_items_evaluation', 'question_items_evaluation.id', 'evaluation_reponses.question_item_id')
+    .where('evaluation_reponses.evaluation_id', evaluationId)
+    .select(
+      'questions_evaluation.code as question_code',
+      'questions_evaluation.libelle as question_libelle',
+      'questions_evaluation.type_question',
+      'questions_evaluation.ordre as question_ordre',
+      'question_items_evaluation.code as item_code',
+      'question_items_evaluation.libelle as item_libelle',
+      'question_items_evaluation.ordre as item_ordre',
+      'evaluation_reponses.valeur',
+    )
+    .orderBy(['questions_evaluation.ordre', 'question_items_evaluation.ordre']);
+}
+
 // Postes déclarés au bloc 'disponibilites' du formulaire d'inscription (JSONB, voir
 // dossier_donnees_formulaire, migration 013) — sert à valider côté serveur qu'un posteCode reçu
 // du front correspond bien à un poste réellement déclaré pour ce dossier, jamais de confiance
@@ -143,4 +198,7 @@ module.exports = {
   trouverPostesDossier,
   enregistrerEvaluation,
   enregistrerReponses,
+  listerEvaluationsParFormateur,
+  trouverEvaluationParId,
+  listerReponsesEvaluation,
 };

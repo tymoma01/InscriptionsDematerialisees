@@ -1,8 +1,32 @@
 /* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
    (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). */
+.page-evaluation__entete {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
 .page-evaluation__entete h1 {
-  margin: 0 0 var(--espace-petit);
+  margin: 0;
   color: var(--couleur-back-office);
+}
+
+/* Même patron que .tableau-bord-accueil__lien-planification (TableauDeBordAccueil.css) : lien
+   vers l'autre écran formateur, EnTeteBackOffice plaqué à droite par sa propre marge ci-dessous. */
+.page-evaluation__lien-historique {
+  color: var(--couleur-back-office);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.page-evaluation__lien-historique:hover {
+  text-decoration: underline;
+}
+
+.page-evaluation__entete .en-tete-back-office {
+  margin-left: auto;
 }
 
 .page-evaluation [role='alert'] {

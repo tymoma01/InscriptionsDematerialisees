@@ -30,3 +30,18 @@ export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orie
   });
   return data;
 }
+
+// Évaluations déjà soumises par le formateur connecté — jamais tous formateurs confondus (voir
+// backend evaluationEngine.listerHistorique), même principe que listerRendezvousAEvaluer ci-dessus.
+export async function listerHistoriqueEvaluations() {
+  const { data } = await api.get('/evaluations/historique');
+  return data;
+}
+
+// Détail en lecture seule d'une évaluation déjà soumise (voir DetailEvaluation.jsx) — l'appartenance
+// au formateur connecté est revérifiée côté serveur, pas seulement supposée parce que l'id vient
+// de sa propre liste d'historique.
+export async function obtenirDetailEvaluation(evaluationId) {
+  const { data } = await api.get(`/evaluations/historique/${evaluationId}`);
+  return data;
+}

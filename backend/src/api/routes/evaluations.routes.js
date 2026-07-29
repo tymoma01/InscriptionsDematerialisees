@@ -94,6 +94,37 @@ router.get('/a-faire', async (req, res, next) => {
   }
 });
 
+// GET /api/evaluations/historique — évaluations déjà soumises par le formateur connecté
+// (jamais tous formateurs confondus, voir evaluationEngine.listerHistorique). formateurId vient
+// toujours de la session, même principe que /a-faire ci-dessus.
+router.get('/historique', async (req, res, next) => {
+  try {
+    const historique = await evaluationEngine.listerHistorique(req.entite, req.utilisateur.id);
+    res.json(historique);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// GET /api/evaluations/historique/:id — détail en lecture seule d'une évaluation déjà soumise
+// (voir DetailEvaluation.jsx) ; l'appartenance au formateur connecté est revérifiée côté serveur
+// (evaluationEngine.obtenirDetailEvaluation), jamais de confiance dans le fait que l'id apparaît
+// dans SA propre liste côté front.
+router.get('/historique/:id', async (req, res, next) => {
+  try {
+    const { id: evaluationId } = z.object({ id: idPositifSchema }).parse(req.params);
+    const detail = await evaluationEngine.obtenirDetailEvaluation(req.entite, {
+      evaluationId,
+      formateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+    });
+    res.json(detail);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
 // POST /api/evaluations — enregistre une évaluation complète pour un rendez-vous de test.
 router.post('/', async (req, res, next) => {
   try {

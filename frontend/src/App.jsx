@@ -7,6 +7,7 @@ import Planification from './pages/coordination/Planification';
 import Backoffice from './pages/recruteur/Backoffice';
 import Validation from './pages/recruteur/Validation';
 import Evaluation from './pages/formateur/Evaluation';
+import HistoriqueEvaluations from './pages/formateur/HistoriqueEvaluations';
 import Utilisateurs from './pages/admin/Utilisateurs';
 import Connexion from './pages/connexion/Connexion';
 
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/recruteur/dossiers" element={<Backoffice />} />
         <Route path="/recruteur/dossiers/:dossierId/validation" element={<Validation />} />
         <Route path="/formateur/evaluations" element={<Evaluation />} />
+        <Route path="/formateur/historique" element={<HistoriqueEvaluations />} />
         <Route path="/admin/utilisateurs" element={<Utilisateurs />} />
       </Routes>
     </BrowserRouter>

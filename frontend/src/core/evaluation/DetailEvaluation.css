@@ -1,0 +1,99 @@
+/* Même habillage général que GrilleEvaluation.css (carte, mêmes variables) — vue en lecture
+   seule d'une évaluation déjà soumise, pas un formulaire. */
+.detail-evaluation {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.detail-evaluation h2 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.detail-evaluation__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-grand);
+  margin: 0;
+}
+
+.detail-evaluation__meta dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--couleur-texte-secondaire);
+}
+
+.detail-evaluation__meta dd {
+  margin: 0.2rem 0 0;
+  color: var(--couleur-texte);
+}
+
+/* Même patron que .grille-evaluation__question (GrilleEvaluation.css) : un fieldset par
+   question, légende en gras. */
+.detail-evaluation__question {
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+}
+
+.detail-evaluation__question legend {
+  padding: 0 0.4rem;
+  font-weight: 700;
+  color: var(--couleur-texte);
+}
+
+.detail-evaluation__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.detail-evaluation__items li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  color: var(--couleur-texte);
+}
+
+.detail-evaluation__texte-libre {
+  margin: 0;
+  color: var(--couleur-texte);
+  white-space: pre-wrap;
+}
+
+.detail-evaluation__commentaire h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+  color: var(--couleur-texte);
+}
+
+.detail-evaluation__commentaire p {
+  margin: 0;
+  color: var(--couleur-texte);
+  white-space: pre-wrap;
+}
+
+.detail-evaluation__actions button {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.detail-evaluation [role='alert'] {
+  color: var(--couleur-erreur);
+}

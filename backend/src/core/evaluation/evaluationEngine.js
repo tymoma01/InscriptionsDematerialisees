@@ -235,4 +235,68 @@ async function enregistrerEvaluation(
   });
 }
 
-module.exports = { listerQuestionnaire, listerRendezvousAEvaluer, enregistrerEvaluation };
+// Historique des évaluations déjà soumises par CE formateur connecté — jamais tous formateurs
+// confondus (voir evaluationRepository.listerEvaluationsParFormateur). Un candidat peut avoir
+// plusieurs entrées si repassé un test pour un poste différent (poste_code distinct par ligne,
+// voir migration 038) : volontairement pas dédupliqué par candidat.
+async function listerHistorique(entite, formateurId) {
+  const bd = await db.obtenirKnex();
+  return evaluationRepository.listerEvaluationsParFormateur(bd, entite.id, formateurId);
+}
+
+// Détail en lecture seule d'une évaluation déjà soumise (voir DetailEvaluation.jsx) — jamais
+// modifiable depuis cet écran. Vérifie que l'évaluation appartient bien à CE formateur (ou à un
+// admin) avant de renvoyer quoi que ce soit, même garde IDOR que listerQuestionnaire/
+// enregistrerEvaluation ci-dessus.
+async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, roleCode }) {
+  const bd = await db.obtenirKnex();
+  const evaluation = await evaluationRepository.trouverEvaluationParId(bd, entite.id, evaluationId);
+  if (!evaluation) {
+    throw new Error(`Évaluation "${evaluationId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  if (evaluation.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
+    throw new Error("Cette évaluation n'appartient pas à ce formateur.");
+  }
+
+  const lignes = await evaluationRepository.listerReponsesEvaluation(bd, evaluationId);
+  const questionsParCode = new Map();
+  for (const ligne of lignes) {
+    if (!questionsParCode.has(ligne.question_code)) {
+      questionsParCode.set(ligne.question_code, {
+        code: ligne.question_code,
+        libelle: ligne.question_libelle,
+        type_question: ligne.type_question,
+        items: [],
+        valeur: null,
+      });
+    }
+    const question = questionsParCode.get(ligne.question_code);
+    if (ligne.item_code) {
+      question.items.push({ code: ligne.item_code, libelle: ligne.item_libelle, valeur: ligne.valeur });
+    } else {
+      question.valeur = ligne.valeur;
+    }
+  }
+
+  return {
+    evaluation: {
+      id: evaluation.id,
+      resultatGlobal: evaluation.resultat_global,
+      orientation: evaluation.orientation,
+      posteCode: evaluation.poste_code,
+      commentaire: evaluation.commentaire,
+      dateEvaluation: evaluation.date_evaluation,
+      candidatPrenom: evaluation.candidat_prenom,
+      candidatNom: evaluation.candidat_nom,
+    },
+    questions: [...questionsParCode.values()],
+  };
+}
+
+module.exports = {
+  listerQuestionnaire,
+  listerRendezvousAEvaluer,
+  enregistrerEvaluation,
+  listerHistorique,
+  obtenirDetailEvaluation,
+};

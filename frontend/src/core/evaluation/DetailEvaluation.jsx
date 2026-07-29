@@ -1,0 +1,145 @@
+import { useEffect, useState } from 'react';
+import StatutBadge from '../workflow/StatutBadge';
+import { obtenirDetailEvaluation } from '../../services/evaluationService';
+import './DetailEvaluation.css';
+
+const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+// Mêmes codes/libellés que BlocDisponibilites.jsx/GrilleEvaluation.jsx/HistoriqueEvaluations.jsx
+// (dupliqué plutôt que partagé, voir leurs commentaires respectifs).
+const POSTE_HOTEL_LIBELLES = {
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+
+// Échelles de réponse — mêmes valeurs que backend evaluationEngine.js (ACQUIS_AUTORISEES /
+// CHOIX_MULTIPLE_VALEURS) et GrilleEvaluation.jsx (ACQUIS), traduites en libellés lisibles pour
+// cet affichage lecture seule.
+const LIBELLES_ACQUIS = { acquis: 'Acquis', non_acquis: 'Non acquis', a_ameliorer: 'A améliorer' };
+const LIBELLES_CHOIX_MULTIPLE = { coche: 'Coché', non_coche: 'Non coché' };
+
+function libelleValeur(typeQuestion, valeur) {
+  if (typeQuestion === 'grille_qcu') return LIBELLES_ACQUIS[valeur] ?? valeur;
+  if (typeQuestion === 'choix_multiple') return LIBELLES_CHOIX_MULTIPLE[valeur] ?? valeur;
+  return valeur;
+}
+
+function libellePoste(posteCode) {
+  return posteCode ? (POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode) : 'Générique (bureau)';
+}
+
+function libelleResultat(evaluation) {
+  if (evaluation.resultatGlobal === 'invalide') return 'Invalidé';
+  if (evaluation.orientation === 'pret_embauche') return 'Validé — prêt à l\'embauche';
+  return 'Validé — envoyé en formation';
+}
+
+// Détail en lecture seule d'une évaluation déjà soumise — jamais modifiable depuis cet écran
+// (contrairement à GrilleEvaluation.jsx, qui saisit une évaluation en cours). `evaluationId` reçu
+// en prop (voir HistoriqueEvaluations.jsx, bouton "Voir le détail") — ce composant ne connaît pas
+// le routage, même patron que GrilleEvaluation.jsx/ListeEvaluationsAFaire.jsx.
+export default function DetailEvaluation({ evaluationId, onFermer }) {
+  const [detail, setDetail] = useState(null);
+  const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState(null);
+
+  useEffect(() => {
+    let annule = false;
+    setChargement(true);
+    setErreur(null);
+    obtenirDetailEvaluation(evaluationId)
+      .then((valeur) => {
+        if (!annule) setDetail(valeur);
+      })
+      .catch((erreur) => {
+        if (!annule) setErreur(erreur.response?.data?.erreur ?? "Impossible de récupérer le détail de cette évaluation.");
+      })
+      .finally(() => {
+        if (!annule) setChargement(false);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [evaluationId]);
+
+  if (chargement) {
+    return <p>Chargement du détail…</p>;
+  }
+  if (erreur) {
+    return (
+      <div className="detail-evaluation">
+        <p role="alert">{erreur}</p>
+        <button type="button" onClick={onFermer}>
+          Retour à l’historique
+        </button>
+      </div>
+    );
+  }
+
+  const { evaluation, questions } = detail;
+
+  return (
+    <div className="detail-evaluation">
+      <h2>
+        Évaluation — {evaluation.candidatPrenom} {evaluation.candidatNom}
+      </h2>
+
+      <dl className="detail-evaluation__meta">
+        <div>
+          <dt>Poste évalué</dt>
+          <dd>{libellePoste(evaluation.posteCode)}</dd>
+        </div>
+        <div>
+          <dt>Date du test</dt>
+          <dd>{FORMAT_DATE.format(new Date(evaluation.dateEvaluation))}</dd>
+        </div>
+        <div>
+          <dt>Résultat</dt>
+          <dd>
+            <StatutBadge
+              libelle={libelleResultat(evaluation)}
+              variante={evaluation.resultatGlobal === 'invalide' ? 'echec' : 'succes'}
+            />
+          </dd>
+        </div>
+      </dl>
+
+      {questions.map((question) => (
+        <fieldset key={question.code} className="detail-evaluation__question">
+          <legend>{question.libelle}</legend>
+          {question.type_question === 'texte_libre' ? (
+            <p className="detail-evaluation__texte-libre">{question.valeur?.trim() ? question.valeur : '—'}</p>
+          ) : (
+            <ul className="detail-evaluation__items">
+              {question.items.map((item) => (
+                <li key={item.code}>
+                  <span>{item.libelle}</span>
+                  <strong>{libelleValeur(question.type_question, item.valeur)}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
+        </fieldset>
+      ))}
+
+      <div className="detail-evaluation__commentaire">
+        <h3>Commentaire</h3>
+        <p>{evaluation.commentaire}</p>
+      </div>
+
+      <div className="detail-evaluation__actions">
+        <button type="button" onClick={onFermer}>
+          Retour à l’historique
+        </button>
+      </div>
+    </div>
+  );
+}
