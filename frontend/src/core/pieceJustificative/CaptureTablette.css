@@ -29,12 +29,17 @@
 
 .capture-tablette__bouton-retour {
   padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-bordure);
+  border: 1px solid var(--couleur-back-office-dore);
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-fond);
-  color: var(--couleur-texte);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+.capture-tablette__bouton-retour:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
 }
 
 .capture-tablette__progression {

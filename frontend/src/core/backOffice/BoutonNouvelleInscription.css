@@ -1,0 +1,69 @@
+/* Flottant, ancré en haut à gauche sous l'en-tête fixe (--hauteur-entete, défini par
+   .page-back-office, voir PageBackOffice.css) — position/taille constantes quelle que soit la
+   largeur d'écran, contrairement au filigrane décoratif (FiligraneFormulaire.css) qui ne
+   s'affiche qu'à partir de 1440px : ce bouton reste une action utilisable sur tablette, pas un
+   simple ornement de grand écran. */
+.bouton-nouvelle-inscription {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + 1rem);
+  left: 1rem;
+  z-index: 5;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+
+  /* Bleu -> violet ACCECIT : --couleur-primaire (bleu du logo officiel, voir variables.css) vers
+     --statut-violet-texte (seule teinte violette déjà présente dans la palette du projet, sinon
+     réservée aux badges de statut) — délibérément distinct du marron/doré du reste du
+     back-office pour que ce bouton continue à se détacher comme une action à part, pas un
+     élément d'habillage de plus. */
+  background: linear-gradient(135deg, var(--couleur-primaire), var(--statut-violet-texte));
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.bouton-nouvelle-inscription:hover,
+.bouton-nouvelle-inscription:focus-visible {
+  filter: brightness(0.9);
+  transform: scale(1.06);
+}
+
+.bouton-nouvelle-inscription__icone-plus {
+  stroke: #ffffff;
+}
+
+/* Infobulle maison plutôt que l'attribut title natif (voir BoutonNouvelleInscription.jsx) :
+   seule façon de lui donner le même dégradé bleu/violet que le bouton, une bulle title étant
+   dessinée par le système d'exploitation et non stylable en CSS. Positionnée à droite du bouton
+   (jamais à gauche, qui sortirait de l'écran vu que le bouton est déjà collé au bord gauche). */
+.bouton-nouvelle-inscription__infobulle {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  transform: translateY(-50%);
+
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-primaire), var(--statut-violet-texte));
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.bouton-nouvelle-inscription:hover .bouton-nouvelle-inscription__infobulle,
+.bouton-nouvelle-inscription:focus-visible .bouton-nouvelle-inscription__infobulle {
+  opacity: 1;
+}

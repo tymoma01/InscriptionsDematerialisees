@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import FiligraneFormulaire from '../../pages/accueil/FiligraneFormulaire';
+import BoutonNouvelleInscription from './BoutonNouvelleInscription';
 import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
 import iconeAccecitTertiaire from '../../assets/icone-accecit-tertiaire.png';
@@ -56,6 +57,10 @@ export default function PageBackOffice({ children }) {
   return (
     <main className="page-back-office">
       <FiligraneFormulaire />
+      {/* Ne s'affiche que pour le rôle Accueil/Coordination (voir son propre useSession() dans
+          BoutonNouvelleInscription.jsx) — monté ici une seule fois pour les 9 pages back-office
+          plutôt que dupliqué dans chacune. */}
+      <BoutonNouvelleInscription />
       <header className="page-back-office__entete">
         <div className="page-back-office__entete-contenu">
           <img
