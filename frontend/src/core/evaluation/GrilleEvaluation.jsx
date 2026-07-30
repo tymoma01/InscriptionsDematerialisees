@@ -36,9 +36,14 @@ function cleReponse(questionCode, itemCode) {
   return `${questionCode}:${itemCode ?? ''}`;
 }
 
-// Valeurs par défaut pour un questionnaire fraîchement chargé — un grille_qcu/choix_multiple a
-// toujours une valeur pour chaque item (jamais d'état "vide", même principe que l'ancienne grille
-// de critères fixe), un texte_libre part vide.
+// Valeurs par défaut pour un questionnaire fraîchement chargé. choix_multiple part à 'non_coche'
+// (case réellement décochée à l'écran — un état "non coché" est une réponse légitime, pas un
+// vide). grille_qcu part à null : contrairement à choix_multiple, aucune des 3 valeurs de
+// l'échelle ACQUIS ne représente "pas encore répondu" — chacune est un vrai jugement du
+// formateur, donc en présélectionner une (ex. ACQUIS[0], comme avant) permettait de soumettre une
+// évaluation sans avoir réellement répondu à chaque critère. null ne correspond à aucun v.code
+// dans le rendu des radios (voir plus bas) : les 3 options restent visuellement décochées tant
+// que l'agent n'a pas cliqué. texte_libre part vide.
 function valeursParDefaut(questions) {
   const valeurs = {};
   for (const question of questions) {
@@ -46,7 +51,7 @@ function valeursParDefaut(questions) {
       valeurs[cleReponse(question.code)] = '';
       continue;
     }
-    const valeurDefaut = question.type_question === 'grille_qcu' ? ACQUIS[0].code : 'non_coche';
+    const valeurDefaut = question.type_question === 'grille_qcu' ? null : 'non_coche';
     for (const item of question.items) {
       valeurs[cleReponse(question.code, item.code)] = valeurDefaut;
     }
@@ -124,6 +129,15 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     evenement.preventDefault();
     if (!commentaire.trim()) return;
     if (orientationVisible && !orientation) return;
+    if (
+      questions.some(
+        (question) =>
+          question.type_question === 'grille_qcu' &&
+          question.items.some((item) => !reponses[cleReponse(question.code, item.code)]),
+      )
+    ) {
+      return;
+    }
     if (
       questions.some(
         (question) =>
@@ -216,6 +230,20 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     (question) =>
       question.type_question === 'texte_libre' && question.obligatoire && !reponses[cleReponse(question.code)]?.trim(),
   );
+
+  // Une question grille_qcu n'a pas d'état "répondu mais vide" légitime (contrairement à
+  // texte_libre) : les 3 valeurs de l'échelle ACQUIS sont toutes des jugements réels, aucune ne
+  // représente "pas encore répondu" — chaque item doit donc recevoir une réponse avant soumission,
+  // quel que soit question.obligatoire (qui ne pilote que l'affichage de l'astérisque ci-dessous).
+  // Le back revaliderait de toute façon : ACQUIS_AUTORISEES (evaluationEngine.js) ne contient
+  // aucune valeur "non répondu", un item resté vide serait rejeté avec un message générique à
+  // l'enregistrement — ce contrôle évite juste à l'agent de le découvrir seulement à l'envoi.
+  const questionsGrilleIncompletes = questions.filter(
+    (question) =>
+      question.type_question === 'grille_qcu' &&
+      question.items.some((item) => !reponses[cleReponse(question.code, item.code)]),
+  );
+  const grilleQcuIncomplete = questionsGrilleIncompletes.length > 0;
 
   return (
     <form className="grille-evaluation" onSubmit={gererEnvoi}>
@@ -341,6 +369,13 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         <textarea value={commentaire} onChange={(evenement) => setCommentaire(evenement.target.value)} rows={3} required />
       </label>
 
+      {grilleQcuIncomplete && (
+        <p role="alert">
+          Répondez à toutes les questions de la grille avant de soumettre :{' '}
+          {questionsGrilleIncompletes.map((question) => question.libelle).join(', ')}.
+        </p>
+      )}
+
       {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
       <div className="grille-evaluation__actions">
@@ -354,6 +389,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
             !commentaire.trim() ||
             questions.length === 0 ||
             (orientationVisible && !orientation) ||
+            grilleQcuIncomplete ||
             texteLibreIncomplet
           }
         >
