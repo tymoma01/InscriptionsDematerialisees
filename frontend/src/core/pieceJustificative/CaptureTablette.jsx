@@ -4,6 +4,7 @@ import {
   listerPiecesJustificatives,
   uploaderPieceJustificative,
   supprimerPieceJustificative,
+  obtenirApercuPiece,
 } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
@@ -74,6 +75,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
   const [chargementListe, setChargementListe] = useState(true);
   const [erreurListe, setErreurListe] = useState(null);
   const [typeSelectionne, setTypeSelectionne] = useState(null);
+  const [typeApercu, setTypeApercu] = useState(null); // code du type dont l'aperçu est ouvert
   const [suppressionEnCours, setSuppressionEnCours] = useState(null); // type_piece_code en cours
   const [erreurSuppression, setErreurSuppression] = useState(null);
 
@@ -109,6 +111,11 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
   const typeCourant = useMemo(
     () => typesPieces.find((type) => type.code === typeSelectionne) ?? null,
     [typesPieces, typeSelectionne],
+  );
+
+  const typeEnApercu = useMemo(
+    () => typesPieces.find((type) => type.code === typeApercu) ?? null,
+    [typesPieces, typeApercu],
   );
 
   const gererEnvoiReussi = (typePieceCode, pieceId) => {
@@ -241,9 +248,25 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
                 // dans la liste, et comprend visuellement (grisé, curseur not-allowed, voir
                 // CaptureTablette.css) que l'action n'est plus disponible à ce stade.
                 <div className="capture-tablette__actions-piece">
+                  {/* Même condition de verrouillage que Reprendre/Supprimer (dossierPiecesModifiables)
+                      — pas de règle séparée pour l'aperçu. */}
                   <button
                     type="button"
-                    onClick={() => setTypeSelectionne(type.code)}
+                    className="capture-tablette__bouton-voir"
+                    onClick={() => {
+                      setTypeApercu(type.code);
+                      setTypeSelectionne(null);
+                    }}
+                    disabled={!dossierPiecesModifiables}
+                  >
+                    Voir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTypeSelectionne(type.code);
+                      setTypeApercu(null);
+                    }}
                     disabled={!dossierPiecesModifiables}
                   >
                     Reprendre
@@ -261,7 +284,13 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
                 // Le verrouillage post-planification ne concerne que les pièces déjà capturées
                 // (voir dossierPiecesModifiables) — une pièce jamais capturée, obligatoire ou
                 // optionnelle, doit rester capturable même après planification du test.
-                <button type="button" onClick={() => setTypeSelectionne(type.code)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypeSelectionne(type.code);
+                    setTypeApercu(null);
+                  }}
+                >
                   Capturer
                 </button>
               )}
@@ -279,6 +308,15 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
         />
       )}
 
+      {typeEnApercu && (
+        <PanneauApercuPiece
+          dossierId={dossierId}
+          type={typeEnApercu}
+          piece={piecesCapturees.get(typeEnApercu.code)}
+          onFermer={() => setTypeApercu(null)}
+        />
+      )}
+
       {/* Visible tant que le dossier est encore en_attente_pieces (CLAUDE.md, besoin
           Coordination : "planifie les tests"), désactivé tant que les pièces obligatoires ne sont
           pas toutes capturées — voir piecesObligatoiresCompletes ci-dessus. Une fois le test déjà
@@ -293,7 +331,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
             onClick={() => setPlanificationOuverte(true)}
             disabled={!piecesObligatoiresCompletes}
           >
-            Planifier un test
+            Valider et planifier un test
           </button>
           {!piecesObligatoiresCompletes && (
             <p className="capture-tablette__pied-indication">
@@ -507,10 +545,88 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
               Reprendre
             </button>
             <button type="button" onClick={valider} disabled={envoiEnCours}>
-              {envoiEnCours ? 'Envoi en cours...' : 'Valider et envoyer'}
+              {envoiEnCours ? 'Envoi en cours...' : 'Charger'}
             </button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// Aperçu d'une pièce déjà capturée (bouton "Voir") : récupère le fichier réel côté serveur (voir
+// pieceJustificativeService.obtenirApercuPiece, qui appelle la route /apercu — jamais un lien
+// direct SharePoint) et l'affiche intégré à la page, pas dans un nouvel onglet. Composant local
+// comme PanneauCapture : pas de registre de types, ce n'est pas un contenu piloté par config.
+function PanneauApercuPiece({ dossierId, type, piece, onFermer }) {
+  const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState(null);
+  const [apercuUrl, setApercuUrl] = useState(null);
+  const [contentType, setContentType] = useState(null);
+
+  // urlObjet (pas apercuUrl directement) dans la fermeture de nettoyage : évite de dépendre d'un
+  // state React potentiellement pas encore mis à jour au moment du cleanup (même précaution que
+  // reprendre()/fermer() pour la capture locale plus haut, qui révoquent captureEnCours.url).
+  useEffect(() => {
+    let annule = false;
+    let urlObjet = null;
+    setChargement(true);
+    setErreur(null);
+    setApercuUrl(null);
+
+    obtenirApercuPiece(dossierId, piece.id)
+      .then((blob) => {
+        if (annule) return;
+        urlObjet = URL.createObjectURL(blob);
+        setApercuUrl(urlObjet);
+        setContentType(blob.type);
+      })
+      .catch((erreur) => {
+        if (annule) return;
+        // Distingue une vraie coupure réseau (erreur.response absent) d'une réponse d'erreur du
+        // serveur — même patron que valider()/gererSuppression() plus haut, pour ne pas cacher le
+        // message réel derrière un texte générique en cas d'échec HTTP.
+        console.error('Échec de récupération de l’aperçu de la pièce :', erreur);
+        setErreur(
+          erreur.response
+            ? (erreur.response.data?.erreur ?? "Impossible de récupérer l'aperçu de cette pièce.")
+            : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+        );
+      })
+      .finally(() => {
+        if (!annule) setChargement(false);
+      });
+
+    return () => {
+      annule = true;
+      if (urlObjet) URL.revokeObjectURL(urlObjet);
+    };
+  }, [dossierId, piece.id]);
+
+  return (
+    <div className="capture-tablette__panneau capture-tablette__panneau-apercu" role="dialog" aria-label={`Aperçu — ${type.libelle}`}>
+      <div className="capture-tablette__panneau-entete">
+        <h3>{type.libelle}</h3>
+        <button type="button" onClick={onFermer}>
+          Fermer
+        </button>
+      </div>
+
+      {chargement && <p>Chargement de l’aperçu…</p>}
+      {erreur && <p role="alert">{erreur}</p>}
+
+      {apercuUrl && contentType?.startsWith('image/') && (
+        <img src={apercuUrl} alt={`Aperçu — ${type.libelle}`} className="capture-tablette__apercu-grand-image" />
+      )}
+
+      {/* Aucune lib PDF : le lecteur natif du navigateur s'affiche automatiquement dans un iframe
+          pointant vers un blob de type application/pdf (Chrome/Firefox/Edge/Safari). */}
+      {apercuUrl && contentType === 'application/pdf' && (
+        <iframe src={apercuUrl} title={`Aperçu — ${type.libelle}`} className="capture-tablette__apercu-pdf" />
+      )}
+
+      {apercuUrl && contentType && !contentType.startsWith('image/') && contentType !== 'application/pdf' && (
+        <p>Aperçu non disponible pour ce type de fichier ({contentType}).</p>
       )}
     </div>
   );

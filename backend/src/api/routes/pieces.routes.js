@@ -57,6 +57,26 @@ function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
 
+// Types de pièces réellement produits par CaptureTablette.jsx (photo caméra toujours en .jpg, ou
+// fichier choisi parmi image/*,application/pdf) — pas une table de configuration par entité :
+// c'est la forme même de ce que le navigateur sait prévisualiser nativement, pas un vocabulaire
+// métier. Extension inconnue -> application/octet-stream (le front retombe alors sur un
+// téléchargement plutôt qu'un aperçu, sans faire échouer la requête).
+const CONTENT_TYPE_PAR_EXTENSION = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+  '.pdf': 'application/pdf',
+};
+
+function deviserContentType(nomFichier) {
+  const extension = nomFichier.slice(nomFichier.lastIndexOf('.')).toLowerCase();
+  return CONTENT_TYPE_PAR_EXTENSION[extension] ?? 'application/octet-stream';
+}
+
 // POST /api/dossiers/:dossierId/pieces — upload d'une pièce justificative (multipart/form-data,
 // champ fichier "piece") vers le connecteur de stockage de l'entité, puis enregistrement de la
 // référence en base.
@@ -116,6 +136,28 @@ router.get('/:pieceId', requireRole(...ROLES_CONSULTATION_PIECES), async (req, r
     const pieceId = idPositifSchema.parse(req.params.pieceId);
     const url = await pieceJustificativeService.obtenirUrlTemporairePieceJustificative(req.entite, pieceId);
     res.redirect(302, url);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
+    next(erreur);
+  }
+});
+
+// GET /api/dossiers/:dossierId/pieces/:pieceId/apercu — sert le contenu réel de la pièce
+// (bouton "Voir", CaptureTablette.jsx) pour un affichage direct côté client (image/PDF).
+// Contrairement à la route ci-dessus, ne redirige pas vers l'URL de téléchargement temporaire
+// Graph : le front la récupère en `blob` via l'instance `api` (axios), pas en navigation directe
+// du navigateur — un fetch/XHR qui suivrait une redirection vers un domaine externe serait soumis
+// au CORS, sans garantie que l'URL Graph l'autorise. Le fichier est donc rapatrié côté serveur
+// (telechargerPieceJustificative, déjà écrite mais jusqu'ici jamais appelée) puis renvoyé depuis
+// notre propre origine, avec un Content-Type déduit de l'extension et Content-Disposition: inline.
+router.get('/:pieceId/apercu', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next) => {
+  try {
+    const pieceId = idPositifSchema.parse(req.params.pieceId);
+    const { nomFichier, contenu } = await pieceJustificativeService.telechargerPieceJustificative(req.entite, pieceId);
+    res.set('Content-Type', deviserContentType(nomFichier));
+    res.set('Content-Disposition', `inline; filename="${nomFichier.replace(/"/g, '')}"`);
+    res.send(contenu);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
