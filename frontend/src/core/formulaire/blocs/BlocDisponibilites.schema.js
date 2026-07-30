@@ -4,7 +4,7 @@ const CRENEAUX = ['matin', 'midi', 'soir'];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
 const TYPES_POSTE = ['bureau', 'hotel'];
-const POSTES_BUREAU = ['nettoyage', 'chef_equipe', 'autres'];
+const POSTES_BUREAU = ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autres'];
 const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 

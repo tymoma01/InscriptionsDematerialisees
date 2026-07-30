@@ -29,6 +29,8 @@ const LANGUES = [
 
 const POSTES_BUREAU = [
   { code: 'nettoyage', libelle: 'Nettoyage' },
+  { code: 'vitrerie', libelle: 'Vitrerie' },
+  { code: 'machiniste', libelle: 'Machiniste' },
   { code: 'chef_equipe', libelle: "Chef d'équipe" },
   { code: 'autres', libelle: 'Autres' },
 ];
