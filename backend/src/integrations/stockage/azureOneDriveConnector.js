@@ -258,6 +258,16 @@ class AzureOneDriveConnector extends StorageConnector {
     try {
       await client.api(`/drives/${driveId}/items/${itemId}`).delete();
     } catch (erreur) {
+      // Un item déjà absent de OneDrive (404) est traité comme un succès, pas une erreur :
+      // l'objectif de cet appel ("le fichier ne doit plus exister chez le prestataire") est déjà
+      // atteint, ça ne doit jamais empêcher pieceJustificativeService.supprimerPieceJustificative
+      // de retirer la ligne pieces_justificatives correspondante — même tolérance que
+      // listerItemsChemin plus bas pour un dossier absent. Cas rencontré en pratique : deux
+      // pièces qui partageaient par erreur le même item (voir upload, chemin non distingué par
+      // type de pièce) — l'une supprimée en efface l'autre, laissant une référence orpheline.
+      if (erreur.statusCode === 404 || erreur.code === 'itemNotFound') {
+        return;
+      }
       throw traduireErreurGraph(erreur, `suppression de l'item "${itemId}"`);
     }
   }

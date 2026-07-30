@@ -104,7 +104,15 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
     nomCandidat: dossier.candidat_nom,
     prenomCandidat: dossier.candidat_prenom,
   };
-  const referenceStockage = await connecteur.upload(dossierInfo, { nom: nomFichier, contenu });
+  // typePieceCode préfixé au nom transmis au connecteur (pas nomFichier seul, tel quel côté DB
+  // — voir enregistrerPieceJustificative plus bas, qui garde le nom d'origine pour l'affichage/le
+  // Content-Type de /apercu) : deux pièces de types différents peuvent être capturées depuis le
+  // même fichier source (même nom d'origine, ex. "images.jpeg" pris deux fois) — sans ce préfixe,
+  // elles atterrissent au même chemin OneDrive et se substituent l'une à l'autre côté stockage,
+  // laissant une pièce avec une référence qui pointe en réalité sur le fichier de l'autre (bug
+  // constaté en pratique, dossier 83, 2026-07-31 — voir aussi le correctif de tolérance sur les
+  // suppressions 404 dans azureOneDriveConnector.js, qui absorbe les cas déjà en base).
+  const referenceStockage = await connecteur.upload(dossierInfo, { nom: `${typePieceCode}_${nomFichier}`, contenu });
 
   const pieceId = await pieceJustificativeRepository.enregistrerPieceJustificative(bd, {
     dossierId,

@@ -255,6 +255,19 @@ test('supprimer traduit une erreur 403 (permissions insuffisantes) en message cl
   );
 });
 
+// Cas rencontré en pratique (dossier 83, 2026-07-30) : deux pièces partageant par erreur le même
+// item OneDrive (voir le correctif sur la construction du chemin d'upload) — supprimer la
+// première efface aussi la seconde côté SharePoint, laissant une référence orpheline en base dont
+// la suppression ne doit pas échouer pour autant.
+test("supprimer traite un item déjà absent (404) comme un succès, pas une erreur", async (t) => {
+  const client = creerClientMock({
+    'DELETE /drives/drive-1/items/item-1': { erreur: { statusCode: 404, code: 'itemNotFound' } },
+  });
+  const connecteurMocke = chargerConnecteurAvecClient(t, client);
+
+  await assert.doesNotReject(() => connecteurMocke.supprimer(JSON.stringify({ driveId: 'drive-1', itemId: 'item-1' })));
+});
+
 test('lister retourne un tableau vide si le dossier candidat n\'existe à aucun des deux emplacements (404)', async (t) => {
   const client = creerClientMock({
     [`GET ${CHEMIN_DRIVES}`]: REPONSE_DRIVES_OK,

@@ -242,11 +242,17 @@ test('uploaderPieceJustificative uploade vers le connecteur puis enregistre la r
 
   assert.deepEqual(resultat, { pieceId: 99, referenceStockage: 'ref-stockage-123' });
   assert.equal(uploadMock.mock.calls.length, 1);
+  // nom transmis au connecteur préfixé par le code du type de pièce ('CNI_cni.pdf', pas
+  // 'cni.pdf' seul) : évite que deux types de pièces capturés depuis le même fichier source
+  // n'atterrissent au même chemin OneDrive (voir le commentaire dans pieceJustificativeService.js).
   assert.deepEqual(uploadMock.mock.calls[0].arguments, [
     { id: 42, dateCreation: DATE_CREATION_DOSSIER_TEST, nomCandidat: 'Martin', prenomCandidat: 'Sophie' },
-    { nom: 'cni.pdf', contenu: Buffer.from('contenu') },
+    { nom: 'CNI_cni.pdf', contenu: Buffer.from('contenu') },
   ]);
   assert.equal(enregistrerMock.mock.calls.length, 1);
+  // nomFichier stocké en base reste le nom d'origine, SANS préfixe — c'est celui affiché à
+  // l'agent et utilisé pour déduire le Content-Type de l'aperçu (voir pieces.routes.js,
+  // deviserContentType) : seul le chemin de stockage change, jamais la donnée affichée.
   assert.deepEqual(enregistrerMock.mock.calls[0].arguments[1], {
     dossierId: 42,
     typePieceId: 7,
