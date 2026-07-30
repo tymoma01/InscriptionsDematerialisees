@@ -22,6 +22,10 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 const HEURES_DISPONIBLES = Array.from({ length: 24 }, (_, heure) => String(heure).padStart(2, '0'));
 const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
 
+// Alignée sur CAPACITE_MAX_FORMATEUR_PAR_CRENEAU côté back (rendezvousService.js) : un formateur
+// peut évaluer jusqu'à 2 candidats sur le même créneau exact, pas seulement 1.
+const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
+
 // Panneau de planification d'un test : choix de la date/heure et du formateur, puis (1) création
 // du rendez-vous, (2) avancement du statut du dossier via le moteur de transitions générique —
 // une seule transaction côté back (voir rendezvousService.creerRendezvousAvecTransitions), pour
@@ -82,7 +86,7 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
 
   // Créneaux du formateur sélectionné, pour le seul jour choisi (voir calendrier mensuel plus
   // bas pour la vue d'ensemble par mois) — sert uniquement au message d'alerte + désactivation du
-  // bouton ci-dessous. Confort visuel seulement : trouverRendezvousFormateurAuCreneau côté
+  // bouton ci-dessous. Confort visuel seulement : compterRendezvousFormateurAuCreneau côté
   // serveur reste le garde-fou qui fait foi (409 ErreurCreneauPris à la création).
   const [creneauxJourSelectionne, setCreneauxJourSelectionne] = useState([]);
 
@@ -136,8 +140,10 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
     ? new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString()
     : null;
 
-  const creneauDejaPris = dateHeureChoisieIso !== null
-    && creneauxJourSelectionne.some((rendezvous) => new Date(rendezvous.date_heure).toISOString() === dateHeureChoisieIso);
+  const nombreDejaPresentsSurCreneau = dateHeureChoisieIso === null
+    ? 0
+    : creneauxJourSelectionne.filter((rendezvous) => new Date(rendezvous.date_heure).toISOString() === dateHeureChoisieIso).length;
+  const creneauDejaPris = nombreDejaPresentsSurCreneau >= CAPACITE_MAX_FORMATEUR_PAR_CRENEAU;
 
   const soumettre = async (evenement) => {
     evenement.preventDefault();
@@ -287,7 +293,10 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
           </fieldset>
 
           {creneauDejaPris && (
-            <p role="alert">Ce formateur a déjà un test prévu à cet horaire. Choisissez un autre créneau.</p>
+            <p role="alert">
+              Ce formateur a déjà {CAPACITE_MAX_FORMATEUR_PAR_CRENEAU} candidats prévus à cet horaire (créneau
+              complet). Choisissez un autre créneau.
+            </p>
           )}
 
           {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}

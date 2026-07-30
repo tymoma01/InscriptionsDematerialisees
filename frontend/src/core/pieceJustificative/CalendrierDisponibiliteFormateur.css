@@ -130,3 +130,13 @@
   line-height: 1;
   padding: 0.15rem 0.3rem;
 }
+
+/* Créneau à sa capacité maximale (2 candidats déjà assignés au même formateur/instant, voir
+   CAPACITE_MAX_FORMATEUR_PAR_CRENEAU) : nuance plus foncée que le badge --couleur-erreur normal
+   (un seul candidat, créneau encore sélectionnable) — couleur posée localement plutôt que
+   d'ajouter une variable globale pour cet unique usage, même patron que
+   .capture-tablette__statut--ok dans CaptureTablette.css. */
+.calendrier-disponibilite__badge--complet {
+  background: #7b2314;
+  font-weight: 700;
+}

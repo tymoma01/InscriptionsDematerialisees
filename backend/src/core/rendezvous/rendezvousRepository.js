@@ -109,7 +109,7 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
     requete.andWhere('rendezvous.date_heure', '<', dateFin);
   }
   // Un calendrier de disponibilité ne doit montrer comme "occupé" que ce qui bloque
-  // effectivement un nouveau créneau (même convention que trouverRendezvousFormateurAuCreneau) —
+  // effectivement un nouveau créneau (même convention que compterRendezvousFormateurAuCreneau) —
   // un rendez-vous absent/annulé a libéré la place. Seulement quand une borne de date est fournie
   // : aVenirSeulement gère déjà ce filtre pour son propre usage (page Planification), pas la
   // peine de dupliquer le whereIn si les deux sont absents (comportement historique inchangé).
@@ -128,14 +128,17 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
     .then(([rendezvous]) => rendezvous);
 }
 
-// Empêche d'assigner un formateur déjà pris au même horaire exact (voir
-// rendezvousService.creerRendezvous) — 'prevu'/'confirme' uniquement : un rendez-vous marqué
-// absent ou annulé libère le créneau, il ne doit pas bloquer une nouvelle planification dessus.
-function trouverRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
-  return bd('rendezvous')
+// Nombre de candidats déjà assignés à ce formateur au même horaire exact (voir
+// rendezvousService.creerRendezvous, CAPACITE_MAX_FORMATEUR_PAR_CRENEAU) — 'prevu'/'confirme'
+// uniquement : un rendez-vous marqué absent ou annulé libère la place, il ne doit pas compter
+// dans l'occupation du créneau.
+async function compterRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
+  const ligne = await bd('rendezvous')
     .where({ formateur_id: formateurId, date_heure: dateHeure })
     .whereIn('statut', ['prevu', 'confirme'])
+    .count({ total: '*' })
     .first();
+  return Number(ligne.total);
 }
 
 // Toujours créé au statut 'prevu' (voir rendezvousService.STATUTS_AUTORISES) — un rendez-vous ne
@@ -162,6 +165,6 @@ module.exports = {
   listerRendezvousParDossier,
   listerRendezvousTest,
   mettreAJourStatutRendezvous,
-  trouverRendezvousFormateurAuCreneau,
+  compterRendezvousFormateurAuCreneau,
   creerRendezvous,
 };

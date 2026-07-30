@@ -7,6 +7,11 @@ const { ROLES } = require('../auth/rbac');
 
 const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
 
+// Un même formateur peut désormais évaluer jusqu'à 2 candidats sur un même créneau exact (ajout
+// métier — auparavant 1 seul) : constante simple plutôt que pilotée par la config d'entité, cette
+// demande ne visait qu'ACCECIT et ne mentionne aucune variation par entité.
+const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
+
 const STATUTS_AUTORISES = ['prevu', 'confirme', 'absent', 'annule'];
 // Statuts qui constituent un désistement (CLAUDE.md, besoin Accueil/Coordination : "motif de
 // désistement enregistré systématiquement, pour objectiver le phénomène et nourrir le futur
@@ -137,11 +142,18 @@ async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateu
     }
     formateurIdValide = formateur.id;
 
-    // Un même formateur ne peut pas être assigné à deux rendez-vous 'prevu'/'confirme' au même
-    // horaire exact — voir rendezvousRepository.trouverRendezvousFormateurAuCreneau.
-    const conflit = await rendezvousRepository.trouverRendezvousFormateurAuCreneau(bd, formateurIdValide, dateHeure);
-    if (conflit) {
-      throw new ErreurCreneauPris('Ce formateur a déjà un rendez-vous prévu à ce créneau.');
+    // Un même formateur ne peut pas être assigné à plus de CAPACITE_MAX_FORMATEUR_PAR_CRENEAU
+    // rendez-vous 'prevu'/'confirme' au même horaire exact — voir
+    // rendezvousRepository.compterRendezvousFormateurAuCreneau.
+    const nombreDejaPresents = await rendezvousRepository.compterRendezvousFormateurAuCreneau(
+      bd,
+      formateurIdValide,
+      dateHeure,
+    );
+    if (nombreDejaPresents >= CAPACITE_MAX_FORMATEUR_PAR_CRENEAU) {
+      throw new ErreurCreneauPris(
+        `Ce formateur a déjà ${CAPACITE_MAX_FORMATEUR_PAR_CRENEAU} rendez-vous prévus à ce créneau (créneau complet).`,
+      );
     }
   }
 

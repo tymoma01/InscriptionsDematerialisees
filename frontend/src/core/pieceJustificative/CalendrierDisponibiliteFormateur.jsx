@@ -5,6 +5,11 @@ import './CalendrierDisponibiliteFormateur.css';
 
 const JOURS_SEMAINE = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
+// Alignée sur CAPACITE_MAX_FORMATEUR_PAR_CRENEAU côté back (rendezvousService.js) : un formateur
+// peut désormais évaluer jusqu'à 2 candidats sur un même créneau exact — au-delà, le créneau est
+// complet et se distingue visuellement (voir regrouperParCreneauExact ci-dessous).
+const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
+
 const FORMAT_MOIS_ANNEE = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
@@ -30,6 +35,20 @@ function cleJourLocal(dateHeureIso) {
   return formatDateJour(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
+// Regroupe les rendez-vous d'un même jour par instant exact (date+heure+minute) : depuis que
+// jusqu'à CAPACITE_MAX_FORMATEUR_PAR_CRENEAU candidats peuvent partager le même créneau, deux
+// rendez-vous au même instant affichent une seule pastille (avec les deux noms en tooltip et une
+// nuance "complet") plutôt que deux pastilles identiques côte à côte.
+function regrouperParCreneauExact(creneauxJour) {
+  const parInstant = new Map();
+  creneauxJour.forEach((rendezvous) => {
+    const iso = new Date(rendezvous.date_heure).toISOString();
+    if (!parInstant.has(iso)) parInstant.set(iso, []);
+    parInstant.get(iso).push(rendezvous);
+  });
+  return Array.from(parInstant.entries()).map(([iso, rendezvousListe]) => ({ iso, rendezvousListe }));
+}
+
 // Premier jour du mois suivant (borne exclusive envoyée au back) — calcul manuel plutôt que
 // Date().toISOString() : évite tout décalage de fuseau, {annee, moisIndex} restent des entiers
 // calendaires purs jusqu'à leur formatage final en 'AAAA-MM-JJ'.
@@ -43,7 +62,7 @@ function moisPrecedent({ annee, moisIndex }) {
 
 // Calendrier mensuel des créneaux déjà occupés par un formateur (bloc "Planifier un test",
 // CaptureTablette.jsx) — aide visuelle uniquement : le contrôle qui fait foi reste
-// trouverRendezvousFormateurAuCreneau côté serveur (409 ErreurCreneauPris à la création). Charge
+// compterRendezvousFormateurAuCreneau côté serveur (409 ErreurCreneauPris à la création). Charge
 // dynamiquement les rendez-vous du mois affiché à chaque navigation, pour ne jamais rapatrier
 // l'historique complet d'un formateur.
 function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSelectionnerJour }) {
@@ -170,17 +189,28 @@ function CalendrierDisponibiliteFormateur({ formateurId, dateSelectionnee, onSel
               <span className="calendrier-disponibilite__jour-numero">{jour}</span>
               {creneauxJour.length > 0 && (
                 <span className="calendrier-disponibilite__badges">
-                  {creneauxJour.map((rendezvous) => (
+                  {regrouperParCreneauExact(creneauxJour).map(({ iso, rendezvousListe }) => {
+                    const complet = rendezvousListe.length >= CAPACITE_MAX_FORMATEUR_PAR_CRENEAU;
                     // title natif : tooltip au survol sans dépendance supplémentaire, cohérent
-                    // avec le reste du projet (pas de lib de tooltip custom en place).
-                    <span
-                      key={rendezvous.id}
-                      className="calendrier-disponibilite__badge"
-                      title={`${rendezvous.candidat_nom} ${rendezvous.candidat_prenom}`}
-                    >
-                      {FORMAT_HEURE.format(new Date(rendezvous.date_heure))}
-                    </span>
-                  ))}
+                    // avec le reste du projet (pas de lib de tooltip custom en place) — liste les
+                    // candidats du créneau (1 ou 2 noms).
+                    const noms = rendezvousListe
+                      .map((rendezvous) => `${rendezvous.candidat_nom} ${rendezvous.candidat_prenom}`)
+                      .join(', ');
+                    return (
+                      <span
+                        key={iso}
+                        className={
+                          complet
+                            ? 'calendrier-disponibilite__badge calendrier-disponibilite__badge--complet'
+                            : 'calendrier-disponibilite__badge'
+                        }
+                        title={noms}
+                      >
+                        {FORMAT_HEURE.format(new Date(iso))}
+                      </span>
+                    );
+                  })}
                 </span>
               )}
             </button>
