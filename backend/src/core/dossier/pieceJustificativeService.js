@@ -97,6 +97,13 @@ async function telechargerPieceJustificative(entite, pieceId) {
   return { nomFichier: piece.nom_fichier, contenu };
 }
 
+// Suppression permise uniquement tant que le dossier est encore en_attente_pieces : une fois le
+// test planifié (planifier_test), les pièces déjà prises pour cette étape ne doivent plus pouvoir
+// être retirées — plus strict que STATUTS_UPLOAD_AUTORISES (qui admet aussi
+// en_attente_verification, un ajout tardif après rejet du recruteur, cas où on remplace une pièce
+// via un nouvel upload plutôt que d'en supprimer une existante).
+const STATUTS_SUPPRESSION_AUTORISES = ['en_attente_pieces'];
+
 // Droit à l'effacement RGPD : supprime le fichier chez le prestataire de stockage avant de
 // retirer la ligne en base, pour ne jamais garder une référence vers un fichier déjà effacé.
 async function supprimerPieceJustificative(entite, pieceId) {
@@ -104,6 +111,14 @@ async function supprimerPieceJustificative(entite, pieceId) {
   const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
     throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+  }
+
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, piece.dossier_id);
+  if (!STATUTS_SUPPRESSION_AUTORISES.includes(dossier.statut_code)) {
+    throw new Error(
+      `Impossible de supprimer cette pièce justificative : le dossier est au statut "${dossier.statut_libelle}" ` +
+        `(attendu : en attente de pièces).`,
+    );
   }
 
   const connecteur = storageFactory(entite.connecteur_stockage);

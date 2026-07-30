@@ -188,6 +188,7 @@ test('supprimerPieceJustificative supprime chez le connecteur puis retire la lig
   mockerKnex(t);
   t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({
     id: 99,
+    dossier_id: 42,
     reference_stockage: 'ref-stockage-123',
   }));
   const supprimerConnecteurMock = t.mock.method(azureOneDriveConnector, 'supprimer', async () => {});
@@ -208,6 +209,27 @@ test('supprimerPieceJustificative rejette si la pièce est introuvable en base',
     () => service.supprimerPieceJustificative(ENTITE_ACCECIT, 999),
     /Pièce justificative "999" introuvable/,
   );
+});
+
+test("supprimerPieceJustificative rejette si le dossier a déjà un test planifié", async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({
+    id: 99,
+    dossier_id: 42,
+    reference_stockage: 'ref-stockage-123',
+  }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'test_planifie',
+    statut_libelle: 'Test planifié',
+  }));
+  const supprimerConnecteurMock = t.mock.method(azureOneDriveConnector, 'supprimer', async () => {});
+
+  await assert.rejects(
+    () => service.supprimerPieceJustificative(ENTITE_ACCECIT, 99),
+    /Impossible de supprimer cette pièce justificative.*statut "Test planifié"/,
+  );
+  assert.equal(supprimerConnecteurMock.mock.calls.length, 0);
 });
 
 test('listerPiecesJustificatives délègue au repository pour le dossier donné', async (t) => {

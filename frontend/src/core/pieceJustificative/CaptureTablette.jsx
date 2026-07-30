@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listerPiecesJustificatives, uploaderPieceJustificative } from '../../services/pieceJustificativeService';
+import {
+  listerPiecesJustificatives,
+  uploaderPieceJustificative,
+  supprimerPieceJustificative,
+} from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
 import EnTeteBackOffice from '../auth/EnTeteBackOffice';
 import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
@@ -21,6 +25,13 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // à ModalePlanificationTest (core/dossier/), composant générique partagé avec la replanification
 // depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test").
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
+
+// Statut sous lequel les pièces déjà capturées restent modifiables (reprise ou suppression) —
+// aligné sur STATUTS_SUPPRESSION_AUTORISES côté back (pieceJustificativeService.js), qui reste
+// seul juge en dernier ressort : cette constante n'est là que pour donner un retour immédiat à
+// l'agent (masquer des actions vouées à échouer une fois le test planifié), pas pour dupliquer la
+// règle métier.
+const STATUT_DOSSIER_PIECES_MODIFIABLES = 'en_attente_pieces';
 
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
 // ici uniquement pour donner un retour immédiat à l'agent, le back revalide de toute façon.
@@ -50,14 +61,21 @@ function fichierAccepte(fichier) {
 // l'upload depuis cette session — jamais un champ de saisie manuel (voir
 // pieceJustificativeService.js et CLAUDE.auth-rbac.md pour le détail du correctif de sécurité
 // que ce choix évite de réintroduire).
-export default function CaptureTablette({ dossierId, typesPieces }) {
+export default function CaptureTablette({ dossierId, typesPieces, statutCode }) {
   const navigate = useNavigate();
   const { utilisateur, chargement: chargementSession } = useSession();
 
-  const [piecesCapturees, setPiecesCapturees] = useState(() => new Set());
+  // Map plutôt que Set : contrairement au simple "déjà capturée ?" d'origine, supprimer une
+  // pièce nécessite son id (voir supprimerPieceJustificative, service front). pieces vient trié
+  // date_upload desc (voir pieceJustificativeRepository.listerPiecesParDossier) : en ignorant les
+  // codes déjà vus, on ne garde que la ligne la plus récente par type même quand plusieurs lignes
+  // partagent le même type_piece_code (voir diagnostic pièces dupliquées).
+  const [piecesCapturees, setPiecesCapturees] = useState(() => new Map());
   const [chargementListe, setChargementListe] = useState(true);
   const [erreurListe, setErreurListe] = useState(null);
   const [typeSelectionne, setTypeSelectionne] = useState(null);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(null); // type_piece_code en cours
+  const [erreurSuppression, setErreurSuppression] = useState(null);
 
   const [planificationOuverte, setPlanificationOuverte] = useState(false);
   const [planificationReussie, setPlanificationReussie] = useState(null); // { dateHeure, formateurNom }
@@ -69,7 +87,11 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
     listerPiecesJustificatives(dossierId)
       .then((pieces) => {
         if (annule) return;
-        setPiecesCapturees(new Set(pieces.map((piece) => piece.type_piece_code)));
+        const parType = new Map();
+        pieces.forEach((piece) => {
+          if (!parType.has(piece.type_piece_code)) parType.set(piece.type_piece_code, piece);
+        });
+        setPiecesCapturees(parType);
       })
       .catch((erreur) => {
         if (!annule) {
@@ -89,9 +111,39 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
     [typesPieces, typeSelectionne],
   );
 
-  const gererEnvoiReussi = (typePieceCode) => {
-    setPiecesCapturees((precedent) => new Set(precedent).add(typePieceCode));
+  const gererEnvoiReussi = (typePieceCode, pieceId) => {
+    setPiecesCapturees((precedent) => new Map(precedent).set(typePieceCode, { id: pieceId, type_piece_code: typePieceCode }));
     setTypeSelectionne(null);
+  };
+
+  // statutCode absent tant que la page appelante n'a pas fini de charger le dossier (voir
+  // VerificationPieces.jsx) : permissif par défaut dans ce cas, comme la vérification de taille
+  // de fichier plus haut — le back reste seul juge (STATUTS_SUPPRESSION_AUTORISES /
+  // STATUTS_UPLOAD_AUTORISES) et revalide de toute façon à l'envoi.
+  const dossierPiecesModifiables = statutCode == null || statutCode === STATUT_DOSSIER_PIECES_MODIFIABLES;
+
+  const gererSuppression = async (type) => {
+    const piece = piecesCapturees.get(type.code);
+    if (!piece) return;
+    const confirme = window.confirm('Êtes-vous sûr de vouloir supprimer cette pièce ? Cette action est irréversible.');
+    if (!confirme) return;
+
+    setErreurSuppression(null);
+    setSuppressionEnCours(type.code);
+    try {
+      await supprimerPieceJustificative(dossierId, piece.id);
+      setPiecesCapturees((precedent) => {
+        const suivant = new Map(precedent);
+        suivant.delete(type.code);
+        return suivant;
+      });
+    } catch (erreur) {
+      setErreurSuppression(
+        erreur.response?.data?.erreur ?? "Impossible de supprimer cette pièce. Merci de réessayer.",
+      );
+    } finally {
+      setSuppressionEnCours(null);
+    }
   };
 
   const nombreCapturees = typesPieces.filter((type) => piecesCapturees.has(type.code)).length;
@@ -149,6 +201,7 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
 
       {chargementListe && <p>Chargement des pièces déjà envoyées…</p>}
       {erreurListe && <p role="alert">{erreurListe}</p>}
+      {erreurSuppression && <p role="alert">{erreurSuppression}</p>}
 
       <ul className="capture-tablette__liste">
         {typesPieces.map((type) => {
@@ -167,9 +220,31 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
                 {type.libelle}
                 {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
               </span>
-              <button type="button" onClick={() => setTypeSelectionne(type.code)}>
-                {dejaCapturee ? 'Reprendre' : 'Capturer'}
-              </button>
+              {dossierPiecesModifiables ? (
+                dejaCapturee ? (
+                  <div className="capture-tablette__actions-piece">
+                    <button type="button" onClick={() => setTypeSelectionne(type.code)}>
+                      Reprendre
+                    </button>
+                    <button
+                      type="button"
+                      className="capture-tablette__bouton-supprimer"
+                      onClick={() => gererSuppression(type)}
+                      disabled={suppressionEnCours === type.code}
+                    >
+                      {suppressionEnCours === type.code ? 'Suppression…' : 'Supprimer'}
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setTypeSelectionne(type.code)}>
+                    Capturer
+                  </button>
+                )
+              ) : (
+                dejaCapturee && (
+                  <span className="capture-tablette__statut-verrouille">Test déjà planifié</span>
+                )
+              )}
             </li>
           );
         })}
@@ -180,7 +255,7 @@ export default function CaptureTablette({ dossierId, typesPieces }) {
           dossierId={dossierId}
           type={typeCourant}
           onAnnuler={() => setTypeSelectionne(null)}
-          onEnvoiReussi={() => gererEnvoiReussi(typeCourant.code)}
+          onEnvoiReussi={(pieceId) => gererEnvoiReussi(typeCourant.code, pieceId)}
         />
       )}
 
@@ -327,13 +402,13 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
     try {
-      await uploaderPieceJustificative(dossierId, {
+      const resultat = await uploaderPieceJustificative(dossierId, {
         typePieceCode: type.code,
         fichier: captureEnCours.blob,
         nomFichier: captureEnCours.nomFichier,
       });
       URL.revokeObjectURL(captureEnCours.url);
-      onEnvoiReussi();
+      onEnvoiReussi(resultat.pieceId);
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response

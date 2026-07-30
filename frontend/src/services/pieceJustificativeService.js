@@ -25,3 +25,10 @@ export async function uploaderPieceJustificative(dossierId, { typePieceCode, fic
   });
   return data;
 }
+
+// Le back refuse déjà la suppression si le dossier n'est plus en_attente_pieces (voir
+// pieceJustificativeService.js, STATUTS_SUPPRESSION_AUTORISES) — CaptureTablette.jsx applique la
+// même règle en amont pour ne même pas afficher le bouton, mais ce service ne la duplique pas.
+export async function supprimerPieceJustificative(dossierId, pieceId) {
+  await api.delete(`/dossiers/${dossierId}/pieces/${pieceId}`);
+}

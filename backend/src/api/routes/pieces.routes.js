@@ -150,4 +150,31 @@ router.patch('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res,
   }
 });
 
+// DELETE /api/dossiers/:dossierId/pieces/:pieceId — supprime une pièce justificative (fichier
+// chez le prestataire de stockage + ligne en base), tant que le dossier est encore au statut
+// en_attente_pieces (voir pieceJustificativeService.js, STATUTS_SUPPRESSION_AUTORISES) — une fois
+// le test planifié, les pièces déjà prises pour cette étape ne sont plus modifiables.
+router.delete('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res, next) => {
+  try {
+    const pieceId = idPositifSchema.parse(req.params.pieceId);
+
+    await pieceJustificativeService.supprimerPieceJustificative(req.entite, pieceId);
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'piece_justificative_suppression',
+      tableCible: 'pieces_justificatives',
+      cibleId: pieceId,
+      adresseIp: req.ip,
+    });
+
+    res.status(204).end();
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
 module.exports = router;

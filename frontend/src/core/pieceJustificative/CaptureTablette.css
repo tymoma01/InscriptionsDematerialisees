@@ -78,6 +78,24 @@
   flex: 0 0 auto;
 }
 
+.capture-tablette__actions-piece {
+  display: flex;
+  gap: var(--espace-petit);
+  flex: 0 0 auto;
+}
+
+.capture-tablette__bouton-supprimer {
+  color: var(--couleur-erreur);
+  border-color: var(--couleur-erreur);
+}
+
+.capture-tablette__statut-verrouille {
+  flex: 0 0 auto;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
 /* Panneau de capture : reste sur le même écran (pas de nouvelle page) pour ne pas perdre le
    contexte du dossier en cours — fond légèrement distinct (--couleur-fond-secondaire) pour se
    détacher visuellement de la liste au-dessus. */

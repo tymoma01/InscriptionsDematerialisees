@@ -51,7 +51,11 @@ export default function VerificationPieces() {
             </>
           )}
         </h1>
-        <CaptureTablette dossierId={dossierId} typesPieces={typesPiecesConfigAccecitTest} />
+        <CaptureTablette
+          dossierId={dossierId}
+          typesPieces={typesPiecesConfigAccecitTest}
+          statutCode={dossier?.statut_code}
+        />
         <NotesDossier dossierId={dossierId} />
       </div>
     </PageBackOffice>
