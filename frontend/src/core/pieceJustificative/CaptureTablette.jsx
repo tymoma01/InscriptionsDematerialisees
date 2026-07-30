@@ -220,8 +220,8 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
                 {type.libelle}
                 {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
               </span>
-              {dossierPiecesModifiables ? (
-                dejaCapturee ? (
+              {dejaCapturee ? (
+                dossierPiecesModifiables ? (
                   <div className="capture-tablette__actions-piece">
                     <button type="button" onClick={() => setTypeSelectionne(type.code)}>
                       Reprendre
@@ -236,14 +236,15 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
                     </button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setTypeSelectionne(type.code)}>
-                    Capturer
-                  </button>
-                )
-              ) : (
-                dejaCapturee && (
                   <span className="capture-tablette__statut-verrouille">Test déjà planifié</span>
                 )
+              ) : (
+                // Le verrouillage post-planification ne concerne que les pièces déjà capturées
+                // (voir dossierPiecesModifiables) — une pièce jamais capturée, obligatoire ou
+                // optionnelle, doit rester capturable même après planification du test.
+                <button type="button" onClick={() => setTypeSelectionne(type.code)}>
+                  Capturer
+                </button>
               )}
             </li>
           );
@@ -259,23 +260,29 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
         />
       )}
 
-      {/* Toujours visible en bas de page (CLAUDE.md, besoin Coordination : "planifie les
-          tests"), désactivé tant que les pièces obligatoires ne sont pas toutes capturées —
-          voir piecesObligatoiresCompletes ci-dessus. */}
-      <div className="capture-tablette__pied">
-        <button
-          type="button"
-          onClick={() => setPlanificationOuverte(true)}
-          disabled={!piecesObligatoiresCompletes}
-        >
-          Planifier un test
-        </button>
-        {!piecesObligatoiresCompletes && (
-          <p className="capture-tablette__pied-indication">
-            Capturez les 4 pièces obligatoires pour activer ce bouton.
-          </p>
-        )}
-      </div>
+      {/* Visible tant que le dossier est encore en_attente_pieces (CLAUDE.md, besoin
+          Coordination : "planifie les tests"), désactivé tant que les pièces obligatoires ne sont
+          pas toutes capturées — voir piecesObligatoiresCompletes ci-dessus. Une fois le test déjà
+          planifié (dossierPiecesModifiables faux, voir plus haut), cet écran ne sert plus qu'à
+          compléter une pièce manquante — pas à replanifier un test déjà en place, qui se fait
+          depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test") une fois le dossier
+          repassé par test_non_realise/invalide, pas depuis ce bouton. */}
+      {dossierPiecesModifiables && (
+        <div className="capture-tablette__pied">
+          <button
+            type="button"
+            onClick={() => setPlanificationOuverte(true)}
+            disabled={!piecesObligatoiresCompletes}
+          >
+            Planifier un test
+          </button>
+          {!piecesObligatoiresCompletes && (
+            <p className="capture-tablette__pied-indication">
+              Capturez les 4 pièces obligatoires pour activer ce bouton.
+            </p>
+          )}
+        </div>
+      )}
 
       {planificationOuverte && (
         <ModalePlanificationTest

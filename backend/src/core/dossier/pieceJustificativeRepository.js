@@ -36,6 +36,13 @@ function supprimerPieceJustificativeParId(trx, pieceId) {
   return trx('pieces_justificatives').where({ id: pieceId }).del();
 }
 
+// Utilisée par pieceJustificativeService.uploaderPieceJustificative pour distinguer, une fois le
+// test planifié, l'ajout d'une pièce encore jamais capturée (toléré) du remplacement d'une pièce
+// déjà présente (interdit, même via l'API directement — voir STATUTS_AJOUT_PIECE_MANQUANTE_AUTORISES).
+function trouverPieceParDossierEtType(trx, dossierId, typePieceId) {
+  return trx('pieces_justificatives').where({ dossier_id: dossierId, type_piece_id: typePieceId }).first();
+}
+
 // Jointure sur types_pieces pour exposer le code/libellé du type de pièce (pas seulement
 // type_piece_id) — évite au consommateur de la liste (back-office) une seconde requête par ligne.
 // dossierId est déjà vérifié comme appartenant à l'entité par pieceJustificativeService (via
@@ -72,6 +79,7 @@ module.exports = {
   enregistrerPieceJustificative,
   trouverPieceJustificativeParId,
   supprimerPieceJustificativeParId,
+  trouverPieceParDossierEtType,
   listerPiecesParDossier,
   mettreAJourStatutVerification,
 };

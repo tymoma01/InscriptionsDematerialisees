@@ -83,7 +83,10 @@ test("uploaderPieceJustificative rejette si le dossier n'appartient pas à l'ent
   );
 });
 
-test("uploaderPieceJustificative rejette si le dossier n'est pas dans un statut autorisant l'upload", async (t) => {
+// Même un dossier définitivement tranché ('valide') peut encore recevoir une pièce jamais
+// capturée (voir STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS, qui n'exclut que 'nouveau') — seul le
+// remplacement d'une pièce déjà présente reste bloqué (test dédié plus haut).
+test("uploaderPieceJustificative autorise l'ajout d'une pièce manquante même sur un dossier statut valide", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
     id: 42,
@@ -93,17 +96,20 @@ test("uploaderPieceJustificative rejette si le dossier n'est pas dans un statut 
     candidat_nom: 'Martin',
     candidat_prenom: 'Sophie',
   }));
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceParDossierEtType', async () => undefined);
+  t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-999');
+  t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 102);
 
-  await assert.rejects(
-    () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
-      dossierId: 42,
-      typePieceCode: 'CNI',
-      nomFichier: 'cni.pdf',
-      contenu: Buffer.from('x'),
-      uploadedBy: 1,
-    }),
-    /Impossible d'ajouter une pièce justificative.*statut "Validé"/,
-  );
+  const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 42,
+    typePieceCode: 'CNI',
+    nomFichier: 'cni.pdf',
+    contenu: Buffer.from('x'),
+    uploadedBy: 1,
+  });
+
+  assert.deepEqual(resultat, { pieceId: 102, referenceStockage: 'ref-stockage-999' });
 });
 
 test("uploaderPieceJustificative autorise l'upload quand le dossier est en_attente_verification (ajout tardif)", async (t) => {
@@ -129,6 +135,95 @@ test("uploaderPieceJustificative autorise l'upload quand le dossier est en_atten
   });
 
   assert.deepEqual(resultat, { pieceId: 100, referenceStockage: 'ref-stockage-456' });
+});
+
+// Couvre plusieurs statuts bien après en_attente_pieces (test planifié, ou même le test déjà
+// passé et le dossier tranché) : dans tous les cas, une pièce encore jamais capturée reste
+// ajoutable — ex. une pièce optionnelle complétée pour le second contrôle RH bien après le
+// verdict du test, cas signalé sur un dossier réel (CLAUDE.md, besoin RH "télécharger/exporter
+// les dossiers candidats", qui suppose de pouvoir encore les compléter).
+for (const { statutCode, statutLibelle } of [
+  { statutCode: 'test_planifie', statutLibelle: 'Test planifié' },
+  { statutCode: 'test_non_realise', statutLibelle: 'Test non réalisé' },
+  { statutCode: 'invalide', statutLibelle: 'Invalidé' },
+  { statutCode: 'valide_envoi_formation', statutLibelle: 'Envoyé en formation' },
+]) {
+  test(`uploaderPieceJustificative autorise la capture d'une pièce encore jamais présente (statut "${statutCode}")`, async (t) => {
+    mockerKnex(t);
+    t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+      id: 42,
+      statut_code: statutCode,
+      statut_libelle: statutLibelle,
+      date_creation: DATE_CREATION_DOSSIER_TEST,
+      candidat_nom: 'Martin',
+      candidat_prenom: 'Sophie',
+    }));
+    t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 9, code: 'ATTESTATION_MUTUELLE' }));
+    t.mock.method(pieceJustificativeRepository, 'trouverPieceParDossierEtType', async () => undefined);
+    t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-789');
+    t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 101);
+
+    const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+      dossierId: 42,
+      typePieceCode: 'ATTESTATION_MUTUELLE',
+      nomFichier: 'attestation.pdf',
+      contenu: Buffer.from('contenu'),
+      uploadedBy: 5,
+    });
+
+    assert.deepEqual(resultat, { pieceId: 101, referenceStockage: 'ref-stockage-789' });
+  });
+}
+
+test('uploaderPieceJustificative rejette le remplacement d\'une pièce déjà capturée une fois hors de en_attente_pieces', async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'invalide',
+    statut_libelle: 'Invalidé',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Martin',
+    candidat_prenom: 'Sophie',
+  }));
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceParDossierEtType', async () => ({ id: 55 }));
+  const uploadMock = t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-ne-devrait-pas-servir');
+
+  await assert.rejects(
+    () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+      dossierId: 42,
+      typePieceCode: 'CNI',
+      nomFichier: 'cni.pdf',
+      contenu: Buffer.from('x'),
+      uploadedBy: 1,
+    }),
+    /Impossible de remplacer une pièce justificative déjà capturée.*n'est plus au statut "en attente de pièces"/,
+  );
+  assert.equal(uploadMock.mock.calls.length, 0);
+});
+
+test("uploaderPieceJustificative rejette toute pièce avant la signature de la charte (statut nouveau)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'nouveau',
+    statut_libelle: 'Nouveau',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Martin',
+    candidat_prenom: 'Sophie',
+  }));
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
+
+  await assert.rejects(
+    () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+      dossierId: 42,
+      typePieceCode: 'CNI',
+      nomFichier: 'cni.pdf',
+      contenu: Buffer.from('x'),
+      uploadedBy: 1,
+    }),
+    /Impossible d'ajouter une pièce justificative.*statut "Nouveau"/,
+  );
 });
 
 test('uploaderPieceJustificative uploade vers le connecteur puis enregistre la référence en base', async (t) => {

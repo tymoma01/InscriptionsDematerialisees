@@ -6,6 +6,19 @@ const storageFactory = require('../../integrations/stockage/storageFactory');
 const pieceJustificativeRepository = require('./pieceJustificativeRepository');
 const dossierRepository = require('./dossierRepository');
 
+// Erreur métier distincte d'une Error générique (500 opaque) : pieces.routes.js la traduit en 400
+// avec un message directement affichable à l'agent — même principe que ErreurCreneauPris dans
+// rendezvousService.js. Avant ce correctif, tous les rejets métier de ce module (statut non
+// autorisé, pièce introuvable, remplacement interdit...) tombaient dans le gestionnaire d'erreurs
+// générique de app.js ("Une erreur est survenue. Merci de réessayer."), sans jamais montrer la
+// vraie cause à l'agent — y compris pour un rejet parfaitement normal et attendu.
+class ErreurPieceJustificativeInvalide extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurPieceJustificativeInvalide';
+  }
+}
+
 // dossierId vient toujours de l'URL (voir pieces.routes.js) : jamais traité sans confirmer au
 // préalable qu'il appartient à l'entité résolue par entiteContext pour la requête en cours —
 // sinon un utilisateur authentifié d'une entité pourrait agir sur le dossier d'une autre entité
@@ -13,7 +26,7 @@ const dossierRepository = require('./dossierRepository');
 async function verifierDossierAppartientEntite(bd, entite, dossierId) {
   const dossier = await dossierRepository.trouverDossierParId(bd, entite.id, dossierId);
   if (!dossier) {
-    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+    throw new ErreurPieceJustificativeInvalide(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
   }
 }
 
@@ -21,13 +34,23 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
 // figés ici : ils viennent de la table `types_pieces`, configurable par entité (voir Modularité,
 // CLAUDE.md) — une autre entité peut avoir un jeu de pièces différent sans toucher ce module.
 
-// Statuts sous lesquels un upload reste possible : en_attente_pieces (le cas nominal, l'accueil
-// prend les pièces) et en_attente_verification (ajout tardif — ex. remplacer une pièce que le
-// recruteur vient de rejeter — sans avoir à repasser explicitement le dossier en
-// en_attente_pieces, transition qui n'existe d'ailleurs pas dans transitions_statut). En dehors
-// de ces deux statuts (nouveau, valide, rejete), l'upload est refusé : ni avant la signature de
-// la charte (nouveau), ni après une décision définitive sur le dossier (valide/rejete).
+// Statuts sous lesquels un upload de n'importe quelle pièce (nouvelle ou remplacement via
+// "Reprendre") reste possible : en_attente_pieces (le cas nominal, l'accueil prend les pièces) et
+// en_attente_verification (ajout tardif — ex. remplacer une pièce que le recruteur vient de
+// rejeter — sans avoir à repasser explicitement le dossier en en_attente_pieces, transition qui
+// n'existe d'ailleurs pas dans transitions_statut).
 const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'];
+
+// La capture d'une pièce ENCORE JAMAIS présente pour ce dossier reste tolérée quel que soit le
+// statut atteint ensuite (test planifié, test réalisé, verdict rendu...) — ex. pièce optionnelle
+// (justificatif d'expérience, attestation mutuelle) complétée tardivement pour le second contrôle
+// RH (CLAUDE.md), y compris sur un dossier dont le test est déjà passé. Seul 'nouveau' reste
+// exclu : avant la signature de la charte, aucune pièce n'a de raison d'être capturée. Jamais le
+// remplacement d'une pièce déjà présente en dehors de STATUTS_UPLOAD_AUTORISES : ce serait un
+// moyen détourné de contourner l'interdiction de "Reprendre" une fois le dossier hors
+// en_attente_pieces (même restriction que STATUTS_SUPPRESSION_AUTORISES côté suppression), donc
+// revérifié explicitement plus bas (dejaPresente), pas seulement masqué côté front.
+const STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS = ['nouveau'];
 
 async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, uploadedBy }) {
   if (!Buffer.isBuffer(contenu)) {
@@ -40,18 +63,28 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   const bd = await db.obtenirKnex();
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier) {
-    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
-  }
-  if (!STATUTS_UPLOAD_AUTORISES.includes(dossier.statut_code)) {
-    throw new Error(
-      `Impossible d'ajouter une pièce justificative : le dossier "${dossierId}" est au statut "${dossier.statut_libelle}" ` +
-        `(attendu : en attente de pièces ou en attente de vérification).`,
-    );
+    throw new ErreurPieceJustificativeInvalide(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
   }
 
   const typePiece = await pieceJustificativeRepository.trouverTypePieceParCode(bd, entite.id, typePieceCode);
   if (!typePiece) {
-    throw new Error(`Type de pièce "${typePieceCode}" non configuré pour l'entité « ${entite.code} ».`);
+    throw new ErreurPieceJustificativeInvalide(`Type de pièce "${typePieceCode}" non configuré pour l'entité « ${entite.code} ».`);
+  }
+
+  if (!STATUTS_UPLOAD_AUTORISES.includes(dossier.statut_code)) {
+    if (STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS.includes(dossier.statut_code)) {
+      throw new ErreurPieceJustificativeInvalide(
+        `Impossible d'ajouter une pièce justificative : le dossier "${dossierId}" est au statut "${dossier.statut_libelle}" ` +
+          `(la charte doit être signée avant toute pièce justificative).`,
+      );
+    }
+    const dejaPresente = await pieceJustificativeRepository.trouverPieceParDossierEtType(bd, dossierId, typePiece.id);
+    if (dejaPresente) {
+      throw new ErreurPieceJustificativeInvalide(
+        `Impossible de remplacer une pièce justificative déjà capturée pour le dossier "${dossierId}" : le dossier n'est ` +
+          `plus au statut "en attente de pièces".`,
+      );
+    }
   }
 
   // Upload distant avant écriture en base : en cas d'échec de l'insertion, mieux vaut un fichier
@@ -88,7 +121,7 @@ async function telechargerPieceJustificative(entite, pieceId) {
   const bd = await db.obtenirKnex();
   const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
-    throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+    throw new ErreurPieceJustificativeInvalide(`Pièce justificative "${pieceId}" introuvable.`);
   }
 
   const connecteur = storageFactory(entite.connecteur_stockage);
@@ -110,12 +143,12 @@ async function supprimerPieceJustificative(entite, pieceId) {
   const bd = await db.obtenirKnex();
   const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
-    throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+    throw new ErreurPieceJustificativeInvalide(`Pièce justificative "${pieceId}" introuvable.`);
   }
 
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, piece.dossier_id);
   if (!STATUTS_SUPPRESSION_AUTORISES.includes(dossier.statut_code)) {
-    throw new Error(
+    throw new ErreurPieceJustificativeInvalide(
       `Impossible de supprimer cette pièce justificative : le dossier est au statut "${dossier.statut_libelle}" ` +
         `(attendu : en attente de pièces).`,
     );
@@ -139,7 +172,7 @@ async function obtenirUrlTemporairePieceJustificative(entite, pieceId) {
   const bd = await db.obtenirKnex();
   const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
-    throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+    throw new ErreurPieceJustificativeInvalide(`Pièce justificative "${pieceId}" introuvable.`);
   }
 
   const connecteur = storageFactory(entite.connecteur_stockage);
@@ -153,7 +186,7 @@ const STATUTS_VERIFICATION_AUTORISES = ['valide', 'rejete'];
 // (signature de charte, signature RGPD, voir CLAUDE.md).
 async function mettreAJourStatutVerificationPieceJustificative(entite, pieceId, statutVerification) {
   if (!STATUTS_VERIFICATION_AUTORISES.includes(statutVerification)) {
-    throw new Error(
+    throw new ErreurPieceJustificativeInvalide(
       `Statut de vérification "${statutVerification}" invalide (attendu : ${STATUTS_VERIFICATION_AUTORISES.join(' ou ')}).`,
     );
   }
@@ -161,7 +194,7 @@ async function mettreAJourStatutVerificationPieceJustificative(entite, pieceId, 
   const bd = await db.obtenirKnex();
   const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
-    throw new Error(`Pièce justificative "${pieceId}" introuvable.`);
+    throw new ErreurPieceJustificativeInvalide(`Pièce justificative "${pieceId}" introuvable.`);
   }
 
   return pieceJustificativeRepository.mettreAJourStatutVerification(bd, pieceId, {
@@ -177,4 +210,5 @@ module.exports = {
   listerPiecesJustificatives,
   obtenirUrlTemporairePieceJustificative,
   mettreAJourStatutVerificationPieceJustificative,
+  ErreurPieceJustificativeInvalide,
 };

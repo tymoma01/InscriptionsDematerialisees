@@ -2,6 +2,7 @@ const { Router } = require('express');
 const multer = require('multer');
 const { z } = require('zod');
 const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
+const { ErreurPieceJustificativeInvalide } = pieceJustificativeService;
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -89,6 +90,7 @@ router.post('/', requireRole(...ROLES_GESTION_PIECES), upload.single('piece'), a
     res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
     next(erreur);
   }
 });
@@ -101,6 +103,7 @@ router.get('/', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next
     res.json(pieces);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
     next(erreur);
   }
 });
@@ -115,6 +118,7 @@ router.get('/:pieceId', requireRole(...ROLES_CONSULTATION_PIECES), async (req, r
     res.redirect(302, url);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
     next(erreur);
   }
 });
@@ -146,6 +150,7 @@ router.patch('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res,
     res.json(piece);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
     next(erreur);
   }
 });
@@ -173,6 +178,7 @@ router.delete('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res
     res.status(204).end();
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
     next(erreur);
   }
 });
