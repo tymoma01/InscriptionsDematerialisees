@@ -3,13 +3,21 @@
    Evaluation.css. */
 .page-historique-evaluations__entete {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: var(--espace-moyen);
   margin-bottom: var(--espace-petit);
 }
 
-.page-historique-evaluations__entete h1 {
+/* Titre + lien empilés (même patron que .page-evaluation__titre-bloc dans Evaluation.css) : le
+   lien "Évaluations à faire" passe sous le titre plutôt que collé à côté. */
+.page-historique-evaluations__titre-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.page-historique-evaluations__titre-bloc h1 {
   margin: 0;
   color: var(--couleur-back-office);
 }
@@ -18,6 +26,15 @@
   color: var(--couleur-back-office);
   font-weight: 600;
   text-decoration: none;
+}
+
+/* Puce carrée devant le lien pour le distinguer visuellement du titre comme navigation
+   secondaire (même patron que .page-evaluation__lien-historique::before). */
+.page-historique-evaluations__lien-retour::before {
+  content: '■';
+  margin-right: 0.4em;
+  font-size: 0.6em;
+  vertical-align: middle;
 }
 
 .page-historique-evaluations__lien-retour:hover {

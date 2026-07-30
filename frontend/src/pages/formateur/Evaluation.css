@@ -2,23 +2,39 @@
    (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). */
 .page-evaluation__entete {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: var(--espace-moyen);
   margin-bottom: var(--espace-petit);
 }
 
-.page-evaluation__entete h1 {
+/* Titre + lien empilés (contrairement à .tableau-bord-accueil__entete où le lien reste sur la
+   même ligne que le h1) : le lien "Historique des évaluations" passe sous le titre plutôt que
+   collé à côté. */
+.page-evaluation__titre-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.page-evaluation__titre-bloc h1 {
   margin: 0;
   color: var(--couleur-back-office);
 }
 
-/* Même patron que .tableau-bord-accueil__lien-planification (TableauDeBordAccueil.css) : lien
-   vers l'autre écran formateur, EnTeteBackOffice plaqué à droite par sa propre marge ci-dessous. */
 .page-evaluation__lien-historique {
   color: var(--couleur-back-office);
   font-weight: 600;
   text-decoration: none;
+}
+
+/* Puce carrée devant le lien pour le distinguer visuellement du titre comme navigation
+   secondaire (même patron que .page-historique-evaluations__lien-retour::before). */
+.page-evaluation__lien-historique::before {
+  content: '■';
+  margin-right: 0.4em;
+  font-size: 0.6em;
+  vertical-align: middle;
 }
 
 .page-evaluation__lien-historique:hover {

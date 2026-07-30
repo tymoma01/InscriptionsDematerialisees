@@ -37,10 +37,12 @@ export default function PageHistoriqueEvaluations() {
     <PageBackOffice>
       <div className="page-historique-evaluations">
         <header className="page-historique-evaluations__entete">
-          <h1>Historique des évaluations</h1>
-          <Link to="/formateur/evaluations" className="page-historique-evaluations__lien-retour">
-            Évaluations à faire
-          </Link>
+          <div className="page-historique-evaluations__titre-bloc">
+            <h1>Historique des évaluations</h1>
+            <Link to="/formateur/evaluations" className="page-historique-evaluations__lien-retour">
+              Évaluations à faire
+            </Link>
+          </div>
           <EnTeteBackOffice />
         </header>
 
