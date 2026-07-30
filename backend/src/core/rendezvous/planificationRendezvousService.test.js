@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const db = require('../../db/knex');
 const rendezvousService = require('./rendezvousService');
 const workflowEngine = require('../workflow/workflowEngine');
+const invitationTestService = require('./invitationTestService');
 const planificationRendezvousService = require('./planificationRendezvousService');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
@@ -28,6 +29,11 @@ test('planifierRendezvousAvecTransitions crée le rendez-vous puis applique les 
     'appliquerTransition',
     async (entite, { codeAction }) => ({ statutDestinationId: codeAction === 'pieces_completes' ? 3 : 11 }),
   );
+  const envoyerInvitationMock = t.mock.method(
+    invitationTestService,
+    'envoyerInvitationTest',
+    async () => ({ emailEnvoye: true, smsEnvoye: true }),
+  );
 
   const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
     dossierId: 62,
@@ -42,7 +48,15 @@ test('planifierRendezvousAvecTransitions crée le rendez-vous puis applique les 
     roleCode: 'accueil_coordination',
   });
 
-  assert.deepEqual(resultat, { rendezvous: { id: 99 }, statutDestinationId: 11 });
+  assert.deepEqual(resultat, {
+    rendezvous: { id: 99 },
+    statutDestinationId: 11,
+    notification: { emailEnvoye: true, smsEnvoye: true },
+  });
+  // La convocation n'est envoyée qu'après la transaction, avec le rendez-vous réellement créé
+  // (pas trx) — voir planificationRendezvousService.js.
+  assert.equal(envoyerInvitationMock.mock.calls.length, 1);
+  assert.deepEqual(envoyerInvitationMock.mock.calls[0].arguments, [ENTITE_ACCECIT, { id: 99 }]);
 
   assert.equal(creerRendezvousMock.mock.calls.length, 1);
   assert.deepEqual(creerRendezvousMock.mock.calls[0].arguments, [
@@ -86,6 +100,7 @@ test('planifierRendezvousAvecTransitions accepte une liste de transitions vide (
   mockerTransaction(t);
   t.mock.method(rendezvousService, 'creerRendezvous', async () => ({ id: 101 }));
   const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({}));
+  t.mock.method(invitationTestService, 'envoyerInvitationTest', async () => ({ emailEnvoye: false, smsEnvoye: false }));
 
   const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
     dossierId: 62,
@@ -97,6 +112,31 @@ test('planifierRendezvousAvecTransitions accepte une liste de transitions vide (
     roleCode: 'accueil_coordination',
   });
 
-  assert.deepEqual(resultat, { rendezvous: { id: 101 } });
+  assert.deepEqual(resultat, {
+    rendezvous: { id: 101 },
+    notification: { emailEnvoye: false, smsEnvoye: false },
+  });
   assert.equal(appliquerTransitionMock.mock.calls.length, 0);
+});
+
+test("planifierRendezvousAvecTransitions n'envoie aucune convocation pour un rendez-vous qui n'est pas un test", async (t) => {
+  mockerTransaction(t);
+  t.mock.method(rendezvousService, 'creerRendezvous', async () => ({ id: 102 }));
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({}));
+  const envoyerInvitationMock = t.mock.method(invitationTestService, 'envoyerInvitationTest', async () => {
+    throw new Error("ne devrait jamais être appelé pour un rendez-vous hors 'test'");
+  });
+
+  const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
+    dossierId: 62,
+    typeRdv: 'signature_contrat',
+    dateHeure: '2026-07-24T09:30:00.000Z',
+    formateurId: null,
+    transitions: [],
+    utilisateurId: 3,
+    roleCode: 'accueil_coordination',
+  });
+
+  assert.deepEqual(resultat.notification, { emailEnvoye: false, smsEnvoye: false });
+  assert.equal(envoyerInvitationMock.mock.calls.length, 0);
 });

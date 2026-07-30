@@ -12,6 +12,14 @@ const CANAUX = [
   { code: 'email', libelle: 'Email' },
 ];
 
+// sms/email déclenchent désormais un envoi réel (voir relanceService.js, backend) : le résultat
+// n'est plus un choix libre de l'agent pour ces deux canaux, mais déterminé automatiquement par
+// le succès/échec de l'envoi ('envoye'/'echec_envoi') — le picker "Résultat" ci-dessous ne
+// s'affiche donc que pour 'telephone'. Ces deux codes restent exclus du picker même s'ils
+// apparaissent dans `motifs` (nécessaire pour que libelleResultat sache les afficher dans
+// l'historique).
+const CODES_RESULTAT_ENVOI_AUTOMATIQUE = ['envoye', 'echec_envoi'];
+
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   day: '2-digit',
   month: '2-digit',
@@ -50,6 +58,13 @@ export default function HistoriqueRelances({ dossierId }) {
       .finally(() => setChargement(false));
   };
 
+  // Options réellement proposées au picker "Résultat" (canal 'telephone' uniquement) — exclut
+  // 'envoye'/'echec_envoi' même s'ils sont configurés côté entité : ces deux codes ne sont
+  // jamais un choix de l'agent (voir CODES_RESULTAT_ENVOI_AUTOMATIQUE). `motifs` (liste complète)
+  // reste utilisé tel quel par libelleResultat, pour afficher un libellé correct sur les lignes
+  // d'historique sms/email aussi.
+  const motifsTelephone = motifs.filter((motif) => !CODES_RESULTAT_ENVOI_AUTOMATIQUE.includes(motif.code));
+
   useEffect(() => {
     let annule = false;
     chargerRelances();
@@ -57,7 +72,8 @@ export default function HistoriqueRelances({ dossierId }) {
       .then((valeur) => {
         if (annule) return;
         setMotifs(valeur);
-        if (valeur.length > 0) setResultat(valeur[0].code);
+        const optionsTelephone = valeur.filter((motif) => !CODES_RESULTAT_ENVOI_AUTOMATIQUE.includes(motif.code));
+        if (optionsTelephone.length > 0) setResultat(optionsTelephone[0].code);
       })
       .catch(() => {
         // Non bloquant : sans résultats configurés, le formulaire d'ajout reste désactivé
@@ -72,13 +88,20 @@ export default function HistoriqueRelances({ dossierId }) {
   const libelleCanal = (code) => CANAUX.find((c) => c.code === code)?.libelle ?? code;
   const libelleResultat = (code) => motifs.find((m) => m.code === code)?.libelle ?? code;
 
+  // Pour sms/email, resultat n'est plus envoyé du tout : le back le détermine lui-même d'après le
+  // succès/échec réel de l'envoi (voir relanceService.js) — seul le canal 'telephone' garde un
+  // résultat choisi par l'agent, donc seul lui bloque encore la soumission tant qu'il est vide.
   const gererEnvoi = async (evenement) => {
     evenement.preventDefault();
-    if (!resultat) return;
+    if (canal === 'telephone' && !resultat) return;
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
     try {
-      await enregistrerRelance(dossierId, { canal, resultat, commentaire: commentaire.trim() || undefined });
+      await enregistrerRelance(dossierId, {
+        canal,
+        resultat: canal === 'telephone' ? resultat : undefined,
+        commentaire: commentaire.trim() || undefined,
+      });
       await chargerRelances();
     } catch (erreur) {
       setErreurEnvoi(
@@ -151,17 +174,28 @@ export default function HistoriqueRelances({ dossierId }) {
           </select>
         </label>
 
-        <label>
-          <span>Résultat</span>
-          <select value={resultat} onChange={(evenement) => setResultat(evenement.target.value)} required>
-            {motifs.length === 0 && <option value="">Aucun résultat configuré</option>}
-            {motifs.map((motif) => (
-              <option key={motif.code} value={motif.code}>
-                {motif.libelle}
-              </option>
-            ))}
-          </select>
-        </label>
+        {/* Résultat choisi par l'agent uniquement pour un appel téléphonique — pour sms/email,
+            l'envoi est réel et le résultat est déterminé automatiquement par son succès/échec
+            (voir relanceService.js), donc rien à choisir ici. */}
+        {canal === 'telephone' && (
+          <label>
+            <span>Résultat</span>
+            <select value={resultat} onChange={(evenement) => setResultat(evenement.target.value)} required>
+              {motifsTelephone.length === 0 && <option value="">Aucun résultat configuré</option>}
+              {motifsTelephone.map((motif) => (
+                <option key={motif.code} value={motif.code}>
+                  {motif.libelle}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {canal !== 'telephone' && (
+          <p className="historique-relances__indication-envoi">
+            {libelleCanal(canal)} envoyé directement au candidat au moment de l’enregistrement.
+          </p>
+        )}
 
         <label className="historique-relances__champ-commentaire">
           <span>Commentaire (optionnel)</span>

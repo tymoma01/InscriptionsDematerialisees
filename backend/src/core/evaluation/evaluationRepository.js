@@ -45,7 +45,7 @@ async function listerQuestionsAvecItems(bd, questionnaireId) {
 //
 // Jointure gauche vers dossier_donnees_formulaire (bloc 'disponibilites', JSONB, migration 013)
 // pour exposer le(s) poste(s) recherché(s) — nécessaire pour charger le bon questionnaire côté
-// front (voir GrilleEvaluation.jsx), même patron que rendezvousRepository.trouverCoordonneesCandidat.
+// front (voir GrilleEvaluation.jsx), même patron que dossierRepository.trouverCoordonneesCandidat.
 // LEFT JOIN plutôt qu'un JOIN strict : un dossier sans bloc disponibilites enregistré (ne devrait
 // pas arriver en usage normal, mais pas de raison de faire disparaître le rendez-vous pour autant)
 // retombe simplement sur `donnees` null, traité comme "aucun poste connu" côté evaluationEngine.

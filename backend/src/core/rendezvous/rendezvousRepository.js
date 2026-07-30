@@ -26,16 +26,6 @@ function listerRendezvousARappeler(bd, entiteId, { fenetreHeures }) {
     );
 }
 
-// Coordonnées saisies au bloc 'coordonnees' du formulaire d'inscription (JSONB, voir
-// dossier_donnees_formulaire, migration 013) — pas de colonne dédiée telephone/email sur
-// `candidats` (voir Modularité, CLAUDE.md : les champs d'un bloc restent dans le JSONB générique).
-async function trouverCoordonneesCandidat(bd, dossierId) {
-  const ligne = await bd('dossier_donnees_formulaire')
-    .where({ dossier_id: dossierId, bloc_code: 'coordonnees' })
-    .first();
-  return ligne?.donnees ?? null;
-}
-
 // Scopé par entiteId (jointure vers dossiers) : un rendezvousId est un entier séquentiel, donc
 // devinable — sans ce filtre, un agent authentifié d'une entité pourrait agir sur le rendez-vous
 // d'une autre entité en devinant son id, même faille IDOR déjà corrigée pour les pièces
@@ -160,7 +150,6 @@ async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId 
 
 module.exports = {
   listerRendezvousARappeler,
-  trouverCoordonneesCandidat,
   trouverRendezvousParId,
   listerRendezvousParDossier,
   listerRendezvousTest,

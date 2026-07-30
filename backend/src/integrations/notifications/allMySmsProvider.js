@@ -12,7 +12,7 @@ const { ALLMYSMS_API_LOGIN, ALLMYSMS_API_PASSWORD } = require('../../config/env'
 const BASE_URL = 'https://api.allmysms.com/http/9.0';
 
 class AllMySmsProvider extends NotificationProvider {
-  async envoyer(destinataire, canal, message) {
+  async envoyer(destinataire, canal, message, options = {}) {
     if (!ALLMYSMS_API_LOGIN || !ALLMYSMS_API_PASSWORD) {
       throw new Error('Identifiants AllMySMS absents (ALLMYSMS_API_LOGIN / ALLMYSMS_API_PASSWORD).');
     }
@@ -20,13 +20,35 @@ class AllMySmsProvider extends NotificationProvider {
     const chemin = canal === 'email' ? '/email.do' : '/sms.do';
     const destinataireChamp = canal === 'email' ? 'email' : 'numero';
 
+    const payload = {
+      login: ALLMYSMS_API_LOGIN,
+      password: ALLMYSMS_API_PASSWORD,
+      [destinataireChamp]: destinataire,
+      message,
+    };
+
+    // Sujet et pièces jointes : uniquement transmis pour le canal 'email' (ignorés côté SMS).
+    // ATTENTION — forme non vérifiée, comme le reste de ce fichier (voir commentaire en tête) :
+    // ni le nom des champs (`sujet`, `pieces-jointes`) ni l'encodage attendu (base64 supposé ici)
+    // n'ont été confirmés auprès de la documentation officielle AllMySMS. Décision actée le
+    // 2026-07-30 : on structure le code sur cette hypothèse maintenant, à corriger dans ce seul
+    // fichier une fois la doc réelle consultée (ou le support AllMySMS contacté) — ne pas activer
+    // l'envoi de la convocation avec pièce jointe en prod avant cette vérification.
+    if (canal === 'email') {
+      if (options.sujet) {
+        payload.sujet = options.sujet;
+      }
+      if (options.piecesJointes?.length > 0) {
+        payload['pieces-jointes'] = options.piecesJointes.map((piece) => ({
+          nom: piece.nom,
+          type: piece.typeMime,
+          contenu: piece.contenu.toString('base64'),
+        }));
+      }
+    }
+
     try {
-      const reponse = await axios.post(`${BASE_URL}${chemin}`, {
-        login: ALLMYSMS_API_LOGIN,
-        password: ALLMYSMS_API_PASSWORD,
-        [destinataireChamp]: destinataire,
-        message,
-      });
+      const reponse = await axios.post(`${BASE_URL}${chemin}`, payload);
 
       if (reponse.data?.erreur) {
         throw new Error(`AllMySMS a refusé l'envoi : ${reponse.data.erreur}`);

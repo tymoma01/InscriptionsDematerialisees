@@ -90,6 +90,19 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
     .first();
 }
 
+// Coordonnées saisies au bloc 'coordonnees' du formulaire d'inscription (JSONB, voir
+// dossier_donnees_formulaire, migration 013) — pas de colonne dédiée telephone/email sur
+// `candidats` (voir Modularité, CLAUDE.md : les champs d'un bloc restent dans le JSONB
+// générique). Déplacée ici depuis rendezvousRepository.js (2026-07-30) : cette donnée est propre
+// au dossier, pas au rendez-vous — utilisée aussi bien par rappelService.js (rappel de créneau)
+// que par relanceService.js/invitationTestService.js (envoi réel email/SMS).
+async function trouverCoordonneesCandidat(bd, dossierId) {
+  const ligne = await bd('dossier_donnees_formulaire')
+    .where({ dossier_id: dossierId, bloc_code: 'coordonnees' })
+    .first();
+  return ligne?.donnees ?? null;
+}
+
 function enregistrerDonneesBloc(trx, { dossierId, blocCode, donnees }) {
   return trx('dossier_donnees_formulaire').insert({
     dossier_id: dossierId,
@@ -188,6 +201,7 @@ module.exports = {
   creerDossier,
   trouverDossierParId,
   trouverDossierAvecStatutParId,
+  trouverCoordonneesCandidat,
   enregistrerDonneesBloc,
   trouverCharteActive,
   enregistrerSignatureCharte,

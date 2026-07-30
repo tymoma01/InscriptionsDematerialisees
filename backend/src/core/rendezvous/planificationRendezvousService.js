@@ -1,6 +1,7 @@
 const db = require('../../db/knex');
 const rendezvousService = require('./rendezvousService');
 const workflowEngine = require('../workflow/workflowEngine');
+const invitationTestService = require('./invitationTestService');
 
 // Compose en une seule transaction DB : (1) la création d'un rendez-vous, (2) l'application
 // d'une ou plusieurs transitions de statut sur le dossier. Corrige un bug constaté (dossier 62) :
@@ -20,7 +21,7 @@ async function planifierRendezvousAvecTransitions(
 ) {
   const bd = await db.obtenirKnex();
 
-  return bd.transaction(async (trx) => {
+  const resultat = await bd.transaction(async (trx) => {
     const rendezvous = await rendezvousService.creerRendezvous(
       entite,
       { dossierId, typeRdv, dateHeure, formateurId },
@@ -38,6 +39,19 @@ async function planifierRendezvousAvecTransitions(
 
     return { rendezvous, ...resultatTransition };
   });
+
+  // Convocation (email + .ics, SMS) envoyée seulement une fois la transaction validée, jamais à
+  // l'intérieur (voir invitationTestService.js) — couvre à la fois une planification initiale et
+  // une replanification, puisque les deux passent par cette même fonction avec typeRdv === 'test'.
+  // Un échec d'envoi ne fait jamais échouer la planification elle-même : le rendez-vous reste
+  // créé, `notification` reflète simplement ce qui a réellement été envoyé pour que l'agent
+  // puisse relancer manuellement si besoin.
+  const notification =
+    typeRdv === 'test'
+      ? await invitationTestService.envoyerInvitationTest(entite, resultat.rendezvous)
+      : { emailEnvoye: false, smsEnvoye: false };
+
+  return { ...resultat, notification };
 }
 
 module.exports = { planifierRendezvousAvecTransitions };

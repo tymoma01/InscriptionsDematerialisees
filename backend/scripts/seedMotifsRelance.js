@@ -16,6 +16,12 @@ const RESULTATS_RELANCE_ACCECIT = [
   { code: 'a_rappeler', libelle: 'À rappeler plus tard' },
   { code: 'confirme', libelle: 'Présence confirmée' },
   { code: 'decline', libelle: 'A décliné / ne viendra pas' },
+  // Résultats déterminés automatiquement pour les canaux sms/email (envoi réel désormais
+  // déclenché par l'application, voir relanceService.js, CANAUX_ENVOI_REEL) — jamais choisis
+  // librement par l'agent, contrairement aux codes ci-dessus qui décrivent l'issue d'un appel
+  // téléphonique.
+  { code: 'envoye', libelle: 'Envoyé avec succès' },
+  { code: 'echec_envoi', libelle: "Échec de l'envoi" },
 ];
 
 async function seedMotifsRelance(codeEntite) {

@@ -27,7 +27,11 @@ const relanceBodySchema = z.object({
   // figés ici : ils viennent de la table `motifs` (categorie 'resultat_relance'), configurable
   // par entité (voir Modularité, CLAUDE.md — cf. scripts/seedMotifsRelance.js). Un code inconnu
   // pour l'entité courante est rejeté par relanceService, pas ici.
-  resultat: z.string().trim().min(1),
+  // Optionnel : obligatoire uniquement pour le canal 'telephone' (choisi librement par l'agent) —
+  // pour sms/email, relanceService l'ignore et le détermine lui-même d'après le succès/échec réel
+  // de l'envoi (voir CANAUX_ENVOI_REEL, relanceService.js). La règle par canal est appliquée côté
+  // service, pas ici.
+  resultat: z.string().trim().min(1).optional(),
   // Note libre de l'agent, jamais obligatoire (contrairement au commentaire d'une transition de
   // statut, voir transitions.routes.js) — une relance reste valide sans, le canal/résultat suffit
   // à l'historique ("ne pas relancer en double").
@@ -62,7 +66,10 @@ router.post('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) 
       action: 'relance_creation',
       tableCible: 'relances',
       cibleId: resultatAction.relanceId,
-      donnees: { dossierId, canal, resultat, commentaire: commentaire ?? null },
+      // resultatAction.resultat (pas la variable `resultat` du corps de requête) : pour sms/email,
+      // le résultat réellement enregistré est déterminé par relanceService, pas fourni par le
+      // client (voir relanceBodySchema ci-dessus).
+      donnees: { dossierId, canal, resultat: resultatAction.resultat, commentaire: commentaire ?? null },
       adresseIp: req.ip,
     });
 
