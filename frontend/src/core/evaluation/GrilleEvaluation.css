@@ -62,6 +62,19 @@
   gap: var(--espace-moyen);
 }
 
+/* Options d'un critère grille_qcu (Acquis / Non acquis / A améliorer, voir ACQUIS dans
+   GrilleEvaluation.jsx) : toujours exactement 3 options, fixes quel que soit le poste — une
+   grille à 3 colonnes égales les répartit sur toute la largeur de la ligne au lieu de les laisser
+   collées à gauche par le flex-wrap générique de .grille-evaluation__choix ci-dessus (réutilisé
+   tel quel pour choix_multiple, Résultat du test et Orientation, où le regroupement à gauche
+   reste voulu). Plus spécifique (.grille-evaluation__critere en préfixe) : l'emporte sans
+   dupliquer .grille-evaluation__choix. */
+.grille-evaluation__critere .grille-evaluation__choix {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--espace-petit) var(--espace-moyen);
+}
+
 .grille-evaluation__choix label {
   display: flex;
   align-items: center;

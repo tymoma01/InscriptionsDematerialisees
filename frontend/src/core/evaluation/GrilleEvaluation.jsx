@@ -87,7 +87,12 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
   const [erreur, setErreur] = useState(null);
 
   const [reponses, setReponses] = useState({});
-  const [resultatGlobal, setResultatGlobal] = useState('valide');
+  // Pas de présélection (même principe que les items grille_qcu, voir valeursParDefaut) : rien
+  // dans le vocabulaire 'valide'/'invalide' ne représente une absence de décision, donc démarrer
+  // sur 'valide' par défaut permettait de soumettre une évaluation sans que le formateur ait
+  // réellement tranché. '' ne correspond à aucun des deux radios ci-dessous (voir leur `checked`
+  // plus bas) : ni l'un ni l'autre n'apparaît coché tant que l'agent n'a pas cliqué.
+  const [resultatGlobal, setResultatGlobal] = useState('');
   const [orientation, setOrientation] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -127,6 +132,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
 
   const gererEnvoi = async (evenement) => {
     evenement.preventDefault();
+    if (!resultatGlobal) return;
     if (!commentaire.trim()) return;
     if (orientationVisible && !orientation) return;
     if (
@@ -369,6 +375,8 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         <textarea value={commentaire} onChange={(evenement) => setCommentaire(evenement.target.value)} rows={3} required />
       </label>
 
+      {!resultatGlobal && <p role="alert">Choisissez un résultat du test (Validé ou Invalidé) avant de soumettre.</p>}
+
       {grilleQcuIncomplete && (
         <p role="alert">
           Répondez à toutes les questions de la grille avant de soumettre :{' '}
@@ -386,6 +394,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
           type="submit"
           disabled={
             envoiEnCours ||
+            !resultatGlobal ||
             !commentaire.trim() ||
             questions.length === 0 ||
             (orientationVisible && !orientation) ||
