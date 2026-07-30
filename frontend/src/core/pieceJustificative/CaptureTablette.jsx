@@ -193,6 +193,20 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
     <section className="capture-tablette">
       <header className="capture-tablette__entete">
         <EnTeteBackOffice />
+        {/* Sous Déconnexion, aligné à droite — visible en permanence quel que soit le statut du
+            dossier, contrairement à l'ancien unique emplacement de ce bouton (uniquement dans
+            l'écran de confirmation planificationReussie ci-dessus, jamais atteint quand l'agent
+            revient sur cette page après coup, ex. pour compléter une pièce optionnelle une fois
+            le test déjà planifié). */}
+        <div className="capture-tablette__retour-ligne">
+          <button
+            type="button"
+            className="capture-tablette__bouton-retour"
+            onClick={() => navigate('/accueil/tableau-de-bord')}
+          >
+            Retour au tableau de bord
+          </button>
+        </div>
         <h2>Pièces justificatives</h2>
         <p className="capture-tablette__progression" role="status">
           {nombreCapturees} / {typesPieces.length} pièces capturées

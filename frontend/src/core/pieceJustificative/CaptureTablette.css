@@ -18,6 +18,25 @@
   margin: 0 0 var(--espace-petit);
 }
 
+/* Aligné à droite, juste sous Déconnexion (voir EnTeteBackOffice juste au-dessus, dont le
+   bouton Déconnexion est lui-même à droite grâce à son propre space-between interne) — sur sa
+   propre ligne plutôt que dans l'en-tête de titre, pour ne pas dépendre de la largeur du titre. */
+.capture-tablette__retour-ligne {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--espace-petit);
+}
+
+.capture-tablette__bouton-retour {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .capture-tablette__progression {
   font-weight: 600;
   margin: 0 0 var(--espace-moyen);

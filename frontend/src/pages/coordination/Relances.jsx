@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import HistoriqueRelances from '../../core/dossier/HistoriqueRelances';
 import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import NotesDossier from '../../core/dossier/NotesDossier';
@@ -39,15 +39,24 @@ export default function Relances() {
     <PageBackOffice>
       <div className="page-relances">
         <EnTeteBackOffice />
-        <h1>
-          Dossier #{dossierId}
-          {dossier && (
-            <>
-              {' — '}
-              <span className="page-relances__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-            </>
-          )}
-        </h1>
+        {/* Aligné à droite, juste sous Déconnexion — même patron que
+            .capture-tablette__retour-ligne (CaptureTablette.css). */}
+        <div className="page-relances__retour-ligne">
+          <Link to="/accueil/tableau-de-bord" className="page-relances__bouton-retour">
+            Retour au tableau de bord
+          </Link>
+        </div>
+        <div className="page-relances__titre-ligne">
+          <h1>
+            Dossier #{dossierId}
+            {dossier && (
+              <>
+                {' — '}
+                <span className="page-relances__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+              </>
+            )}
+          </h1>
+        </div>
         <GestionRendezvous dossierId={dossierId} />
         <HistoriqueRelances dossierId={dossierId} />
         <NotesDossier dossierId={dossierId} />

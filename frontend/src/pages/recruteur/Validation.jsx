@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import GestionTransitions from '../../core/dossier/GestionTransitions';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -78,15 +78,24 @@ export default function Validation() {
     <PageBackOffice>
       <div className="page-validation">
         <EnTeteBackOffice />
-        <h1>
-          Dossier #{dossierId}
-          {dossier && (
-            <>
-              {' — '}
-              <span className="page-validation__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-            </>
-          )}
-        </h1>
+        {/* Aligné à droite, juste sous Déconnexion — même patron que
+            .capture-tablette__retour-ligne (CaptureTablette.css). */}
+        <div className="page-validation__retour-ligne">
+          <Link to="/recruteur/dossiers" className="page-validation__bouton-retour">
+            Retour au tableau de bord
+          </Link>
+        </div>
+        <div className="page-validation__titre-ligne">
+          <h1>
+            Dossier #{dossierId}
+            {dossier && (
+              <>
+                {' — '}
+                <span className="page-validation__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+              </>
+            )}
+          </h1>
+        </div>
 
         <section className="page-validation__pieces">
           <h2>Pièces justificatives</h2>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -142,6 +142,13 @@ export default function Planification() {
           <h1>Planification des tests</h1>
           <EnTeteBackOffice />
         </header>
+        {/* Aligné à droite, juste sous Déconnexion — même patron que
+            .capture-tablette__retour-ligne (CaptureTablette.css). */}
+        <div className="planification__retour-ligne">
+          <Link to="/accueil/tableau-de-bord" className="planification__bouton-retour">
+            Retour au tableau de bord
+          </Link>
+        </div>
 
         <div className="planification__filtres">
           <label className="planification__filtre-case">

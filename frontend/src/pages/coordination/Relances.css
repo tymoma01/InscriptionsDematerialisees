@@ -9,15 +9,45 @@
   box-sizing: border-box;
 }
 
-/* Même traitement que le titre ci-dessus : centré/plafonné à la largeur des cartes en dessous
-   (GestionRendezvous.css / HistoriqueRelances.css), plutôt que de s'étirer sur toute la largeur
-   de l'écran comme le ferait un h1 par défaut. */
-.page-relances h1 {
+/* Même traitement que EnTeteBackOffice ci-dessus : centré/plafonné à la largeur des cartes en
+   dessous (GestionRendezvous.css / HistoriqueRelances.css), plutôt que de s'étirer sur toute la
+   largeur de l'écran. */
+.page-relances__retour-ligne,
+.page-relances__titre-ligne {
   max-width: var(--largeur-max-formulaire);
-  margin: 0 auto var(--espace-grand);
+  margin: 0 auto;
   padding: 0 var(--espace-moyen);
   box-sizing: border-box;
+}
+
+.page-relances__retour-ligne {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--espace-petit);
+}
+
+.page-relances__titre-ligne {
+  margin-bottom: var(--espace-grand);
+}
+
+.page-relances__titre-ligne h1 {
+  margin: 0;
   color: var(--couleur-back-office);
+}
+
+/* Aligné à droite, juste sous Déconnexion — même patron que .capture-tablette__bouton-retour
+   (CaptureTablette.css). */
+.page-relances__bouton-retour {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 /* Format "NOM Prénom" classique, même convention que .page-validation__candidat-nom
