@@ -90,11 +90,17 @@
   border-radius: var(--rayon-bordure);
 }
 
-.capture-tablette__statut-verrouille {
-  flex: 0 0 auto;
-  color: var(--couleur-texte-secondaire);
-  font-size: 0.85rem;
-  font-style: italic;
+/* Pièce déjà capturée sur un dossier verrouillé (test déjà planifié, voir
+   dossierPiecesModifiables dans CaptureTablette.jsx) : Reprendre/Supprimer restent affichés à
+   l'identique plutôt que remplacés par un message, mais désactivés — pattern de bouton désactivé
+   standard, y compris sur .capture-tablette__bouton-supprimer dont la couleur reste posée
+   au-dessus (spécificité égale, cette règle vient après dans la feuille). pointer-events: none en
+   plus de `disabled` : un <button disabled> ne déclenche déjà pas de clic, mais reste ceinture et
+   bretelles si ce style venait à être réutilisé sur un élément non natif. */
+.capture-tablette__actions-piece button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 /* Panneau de capture : reste sur le même écran (pas de nouvelle page) pour ne pas perdre le

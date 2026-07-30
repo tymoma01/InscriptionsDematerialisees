@@ -221,23 +221,28 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
                 {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
               </span>
               {dejaCapturee ? (
-                dossierPiecesModifiables ? (
-                  <div className="capture-tablette__actions-piece">
-                    <button type="button" onClick={() => setTypeSelectionne(type.code)}>
-                      Reprendre
-                    </button>
-                    <button
-                      type="button"
-                      className="capture-tablette__bouton-supprimer"
-                      onClick={() => gererSuppression(type)}
-                      disabled={suppressionEnCours === type.code}
-                    >
-                      {suppressionEnCours === type.code ? 'Suppression…' : 'Supprimer'}
-                    </button>
-                  </div>
-                ) : (
-                  <span className="capture-tablette__statut-verrouille">Test déjà planifié</span>
-                )
+                // Boutons toujours affichés à l'identique, y compris une fois le dossier
+                // verrouillé (dossierPiecesModifiables faux) — juste désactivés plutôt que
+                // remplacés par un message : l'agent garde la même structure de ligne partout
+                // dans la liste, et comprend visuellement (grisé, curseur not-allowed, voir
+                // CaptureTablette.css) que l'action n'est plus disponible à ce stade.
+                <div className="capture-tablette__actions-piece">
+                  <button
+                    type="button"
+                    onClick={() => setTypeSelectionne(type.code)}
+                    disabled={!dossierPiecesModifiables}
+                  >
+                    Reprendre
+                  </button>
+                  <button
+                    type="button"
+                    className="capture-tablette__bouton-supprimer"
+                    onClick={() => gererSuppression(type)}
+                    disabled={!dossierPiecesModifiables || suppressionEnCours === type.code}
+                  >
+                    {suppressionEnCours === type.code ? 'Suppression…' : 'Supprimer'}
+                  </button>
+                </div>
               ) : (
                 // Le verrouillage post-planification ne concerne que les pièces déjà capturées
                 // (voir dossierPiecesModifiables) — une pièce jamais capturée, obligatoire ou
