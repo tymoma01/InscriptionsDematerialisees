@@ -47,7 +47,7 @@ export default function Evaluation() {
         <header className="page-evaluation__entete">
           <div className="page-evaluation__titre-bloc">
             <h1>Évaluations à faire</h1>
-            <Link to="/formateur/historique" className="page-evaluation__lien-historique">
+            <Link to="/formateur/historique" className="page-evaluation__bouton-historique">
               Historique des évaluations
             </Link>
           </div>

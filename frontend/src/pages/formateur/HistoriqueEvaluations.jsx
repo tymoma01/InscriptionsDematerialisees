@@ -39,7 +39,7 @@ export default function PageHistoriqueEvaluations() {
         <header className="page-historique-evaluations__entete">
           <div className="page-historique-evaluations__titre-bloc">
             <h1>Historique des évaluations</h1>
-            <Link to="/formateur/evaluations" className="page-historique-evaluations__lien-retour">
+            <Link to="/formateur/evaluations" className="page-historique-evaluations__bouton-retour">
               Évaluations à faire
             </Link>
           </div>

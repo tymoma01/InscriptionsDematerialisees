@@ -191,7 +191,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
             Test planifié le {FORMAT_DATE_HEURE.format(new Date(planificationReussie.dateHeure))} avec{' '}
             {planificationReussie.formateurNom}.
           </p>
-          <button type="button" onClick={() => navigate('/accueil/tableau-de-bord')}>
+          <button type="button" className="capture-tablette__bouton-retour" onClick={() => navigate('/accueil/tableau-de-bord')}>
             Retour au tableau de bord
           </button>
         </div>

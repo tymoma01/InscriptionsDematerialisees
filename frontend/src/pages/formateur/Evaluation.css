@@ -8,8 +8,8 @@
   margin-bottom: var(--espace-petit);
 }
 
-/* Titre + lien empilés (contrairement à .tableau-bord-accueil__entete où le lien reste sur la
-   même ligne que le h1) : le lien "Historique des évaluations" passe sous le titre plutôt que
+/* Titre + bouton empilés (contrairement à .tableau-bord-accueil__entete où le lien reste sur la
+   même ligne que le h1) : le bouton "Historique des évaluations" passe sous le titre plutôt que
    collé à côté. */
 .page-evaluation__titre-bloc {
   display: flex;
@@ -22,23 +22,26 @@
   color: var(--couleur-back-office);
 }
 
-.page-evaluation__lien-historique {
+/* Même mise en forme que .capture-tablette__bouton-retour/.page-validation__bouton-retour/
+   .page-relances__bouton-retour/.planification__bouton-retour (dupliqué plutôt que partagé, même
+   choix qu'ailleurs dans le projet) : tous les liens de navigation back-office reprennent
+   l'apparence bouton bordé, plus de lien texte nu à puce. */
+.page-evaluation__bouton-historique {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
   color: var(--couleur-back-office);
-  font-weight: 600;
+  font-size: 0.85rem;
   text-decoration: none;
+  cursor: pointer;
 }
 
-/* Puce carrée devant le lien pour le distinguer visuellement du titre comme navigation
-   secondaire (même patron que .page-historique-evaluations__lien-retour::before). */
-.page-evaluation__lien-historique::before {
-  content: '■';
-  margin-right: 0.4em;
-  font-size: 0.6em;
-  vertical-align: middle;
-}
-
-.page-evaluation__lien-historique:hover {
-  text-decoration: underline;
+.page-evaluation__bouton-historique:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
 }
 
 .page-evaluation__entete .en-tete-back-office {
