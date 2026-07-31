@@ -114,7 +114,7 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
                 </th>
               );
             })}
-            {actions.length > 0 && <th scope="col"></th>}
+            {actions.length > 0 && <th scope="col">Actions</th>}
           </tr>
         </thead>
         <tbody>

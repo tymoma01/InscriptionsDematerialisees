@@ -139,7 +139,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
                 </th>
               );
             })}
-            <th scope="col"></th>
+            <th scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>

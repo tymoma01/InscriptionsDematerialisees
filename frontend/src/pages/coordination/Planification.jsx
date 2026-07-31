@@ -234,7 +234,7 @@ export default function Planification() {
                       </th>
                     );
                   })}
-                  <th scope="col"></th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
