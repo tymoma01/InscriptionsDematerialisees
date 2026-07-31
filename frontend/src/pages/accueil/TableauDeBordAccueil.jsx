@@ -21,8 +21,12 @@ const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
 
 // Statuts depuis lesquels le bouton "Replanifier" est proposé (voir Modularité, CLAUDE.md : reste
 // propre à cette page/entité, pas au moteur générique DossierList). "invalide" remplace
-// "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif).
-const STATUTS_REPLANIFIABLES = ['test_non_realise', 'invalide'];
+// "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif). "test_planifie"
+// ajouté (workflow v4, retrait de en_attente_verdict, responsable de projet, 2026-07-31) : la
+// replanification doit rester possible à tout moment tant que le dossier est encore test_planifie
+// (pas de restriction de délai) — le codeAction replanifier_test porte alors une transition vers
+// ce même statut (voir workflow.config.json), pas un changement d'état à proprement parler.
+const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide'];
 
 // Statuts pour lesquels le bouton "Relances" a un sens concret pour l'agent Accueil — au-delà
 // (dossier transmis au recruteur, verdict rendu, décision finale prise), la relance sort de son
@@ -54,7 +58,6 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint (voir CODES_STATUTS_FILTRES_ACCUEIL)
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
-  en_attente_verdict: 'violet',
   invalide: 'echec',
   en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
   valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)

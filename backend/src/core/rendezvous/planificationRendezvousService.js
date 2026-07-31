@@ -22,6 +22,13 @@ async function planifierRendezvousAvecTransitions(
   const bd = await db.obtenirKnex();
 
   const resultat = await bd.transaction(async (trx) => {
+    // Garde-fou propre à ACCECIT (délai avant le créneau actuel) — reçoit `transitions` tel quel,
+    // sans que ce module ait à en interpréter le contenu (voir rendezvousService.
+    // verifierDelaiAvantReplanification, qui décide seul si ce garde-fou s'applique). Avant la
+    // création du rendez-vous : pas la peine de créer une ligne qui serait de toute façon annulée
+    // par le rollback de la transaction si ce garde-fou lève une erreur.
+    await rendezvousService.verifierDelaiAvantReplanification(entite, dossierId, transitions, trx);
+
     const rendezvous = await rendezvousService.creerRendezvous(
       entite,
       { dossierId, typeRdv, dateHeure, formateurId },

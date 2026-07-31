@@ -12,6 +12,20 @@ const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
 // demande ne visait qu'ACCECIT et ne mentionne aucune variation par entité.
 const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
 
+// Workflow v4 (retrait de en_attente_verdict, responsable de projet, 2026-07-31) : la
+// replanification reste possible à tout moment tant que le dossier est test_planifie, SAUF dans
+// les DELAI_MIN_REPLANIFICATION_MINUTES minutes précédant le rendez-vous actuel — passé ce seuil,
+// le formateur peut déjà être en train d'évaluer le candidat, et une replanification créerait un
+// nouveau rendez-vous sans que personne n'ait prévenu ni le formateur ni le candidat déjà sur
+// place. Ne s'applique volontairement PAS à une replanification depuis test_non_realise/invalide
+// (voir verifierDelaiAvantReplanification ci-dessous) : dans ces deux cas le formateur a déjà agi
+// sur l'ancien rendez-vous (absence constatée ou test évalué), il n'y a plus de créneau en cours à
+// protéger — seule une replanification qui laisse le dossier en test_planifie (donc le même
+// rendez-vous encore "en attente") est concernée.
+const DELAI_MIN_REPLANIFICATION_MINUTES = 30;
+const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
+const STATUT_PROTEGE_PAR_DELAI_REPLANIFICATION = 'test_planifie';
+
 const STATUTS_AUTORISES = ['prevu', 'confirme', 'absent', 'annule'];
 // Statuts qui constituent un désistement (CLAUDE.md, besoin Accueil/Coordination : "motif de
 // désistement enregistré systématiquement, pour objectiver le phénomène et nourrir le futur
@@ -40,6 +54,13 @@ class ErreurDatePassee extends Error {
   constructor(message) {
     super(message);
     this.name = 'ErreurDatePassee';
+  }
+}
+
+class ErreurReplanificationTropTardive extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurReplanificationTropTardive';
   }
 }
 
@@ -165,13 +186,48 @@ async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateu
   });
 }
 
+// Appelée par planificationRendezvousService AVANT de créer le nouveau rendez-vous, pour toute
+// replanification (voir en-tête de fichier pour la portée exacte du garde-fou). `transitions`
+// reçu tel quel depuis l'appelant, sans que celui-ci ait besoin de connaître le codeAction —
+// planificationRendezvousService reste générique (voir Modularité, CLAUDE.md), c'est cette
+// fonction, déjà ACCECIT-flavored (voir CAPACITE_MAX_FORMATEUR_PAR_CRENEAU ci-dessus), qui
+// interprète le vocabulaire de transitions propre à ACCECIT. Ne fait rien (retour silencieux) si
+// aucune des conditions du garde-fou n'est réunie : action différente, dossier déjà ailleurs que
+// test_planifie, ou aucun rendez-vous actif à protéger.
+async function verifierDelaiAvantReplanification(entite, dossierId, transitions, bdExistante = null) {
+  if (!transitions.some((transition) => transition.codeAction === CODE_ACTION_REPLANIFIER_TEST)) {
+    return;
+  }
+
+  const bd = bdExistante ?? (await db.obtenirKnex());
+
+  const dossier = await dossierRepository.trouverDossierParId(bd, entite.id, dossierId);
+  if (!dossier || dossier.statut_code !== STATUT_PROTEGE_PAR_DELAI_REPLANIFICATION) {
+    return;
+  }
+
+  const rendezvousActuel = await rendezvousRepository.trouverRendezvousTestActifDossier(bd, dossierId);
+  if (!rendezvousActuel) {
+    return;
+  }
+
+  const seuil = new Date(rendezvousActuel.date_heure).getTime() - DELAI_MIN_REPLANIFICATION_MINUTES * 60_000;
+  if (Date.now() >= seuil) {
+    throw new ErreurReplanificationTropTardive(
+      `Impossible de replanifier : le rendez-vous actuel est dans moins de ${DELAI_MIN_REPLANIFICATION_MINUTES} minutes (ou déjà passé) — le formateur peut déjà être en train d'évaluer le candidat.`,
+    );
+  }
+}
+
 module.exports = {
   listerRendezvous,
   changerStatutRendezvous,
   listerMotifsDesistement,
   listerRendezvousTest,
   creerRendezvous,
+  verifierDelaiAvantReplanification,
   ErreurFormateurInvalide,
   ErreurCreneauPris,
   ErreurDatePassee,
+  ErreurReplanificationTropTardive,
 };

@@ -23,9 +23,9 @@ const ORIENTATIONS_AUTORISEES = ['envoi_formation', 'pret_embauche'];
 // Vocabulaire de resultatGlobal/orientation (propre à evaluationEngine) traduit vers les
 // codeAction de la machine à états du dossier — à ne pas confondre avec le statut de dossier
 // "valide" (workflow hérité, plus jamais atteint pour une nouvelle évaluation), simple
-// coïncidence de vocabulaire, voir l'audit de la machine à états (workflow v3 : transition
-// directe depuis en_attente_verdict, plus de passage par un verdict intermédiaire ni par le
-// recruteur — voir workflow.config.json).
+// coïncidence de vocabulaire. Workflow v4 (voir enregistrerEvaluation ci-dessous, retrait de
+// en_attente_verdict) : transition directe depuis test_planifie vers l'issue finale, plus de
+// passage par un verdict intermédiaire ni par le recruteur — voir workflow.config.json.
 const CODE_ACTION_PAR_ORIENTATION = {
   envoi_formation: 'valider_envoi_formation',
   pret_embauche: 'valider_pret_embauche',
@@ -198,25 +198,20 @@ async function enregistrerEvaluation(
     // Fait avancer le dossier dans la même transaction que l'évaluation elle-même (même patron
     // que planificationRendezvousService.planifierRendezvousAvecTransitions) — pas sur le simple
     // clic "Évaluer" qui ouvre la grille : annuler la grille avant soumission ne doit rien avancer
-    // (voir Evaluation.jsx, bouton "Annuler"), donc test_realise n'est déclenché qu'ici, au moment
-    // où l'évaluation est réellement soumise. roleCode reste celui du formateur connecté pour ces
-    // deux transitions (transition_roles les autorise explicitement pour FORMATEUR).
-    await workflowEngine.appliquerTransition(
-      entite,
-      {
-        dossierId: rendezvous.dossier_id,
-        codeAction: 'test_realise',
-        commentaire: 'Test réalisé — évaluation soumise par le formateur.',
-        utilisateurId: formateurId,
-        roleCode,
-      },
-      trx,
-    );
-
-    // Workflow v3 (simplification du parcours, responsable de projet) : transition directe vers
-    // l'issue finale du dossier, plus de verdict intermédiaire ni de passage par le recruteur
-    // (transmettre_recruteur/en_attente_validation_recruteur retirés du parcours actif pour toute
-    // nouvelle évaluation, voir workflow.config.json).
+    // (voir Evaluation.jsx, bouton "Annuler"), donc cette transition n'est déclenchée qu'ici, au
+    // moment où l'évaluation est réellement soumise.
+    //
+    // Workflow v4 (retrait de en_attente_verdict, responsable de projet, 2026-07-31) : transition
+    // directe test_planifie -> issue finale, en une seule étape, plus de statut intermédiaire —
+    // en_attente_verdict n'était de toute façon jamais observé comme état de repos (les deux
+    // transitions v3 avaient déjà lieu dans la même transaction), il ne servait donc qu'à bloquer
+    // à tort toute replanification une fois le test réalisé. Conséquence directe : un dossier ne
+    // peut plus jamais être à la fois "évalué" et encore "test_planifie" au même instant — c'est
+    // ce qui empêche une replanification concurrente de s'appliquer après coup sur un rendez-vous
+    // déjà évalué (workflowEngine.appliquerTransition revérifie toujours le statut réel du dossier
+    // en base, jamais une valeur mise en cache côté client) sans garde-fou supplémentaire à écrire
+    // ici. roleCode reste celui du formateur connecté (transition_roles l'autorise explicitement
+    // pour FORMATEUR, voir seedTransitionRoles.js).
     const codeActionFinal =
       resultatGlobal === 'valide' ? CODE_ACTION_PAR_ORIENTATION[orientation] : CODE_ACTION_INVALIDATION;
     await workflowEngine.appliquerTransition(

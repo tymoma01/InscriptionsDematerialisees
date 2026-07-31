@@ -1,7 +1,8 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
-const { ErreurFormateurInvalide, ErreurCreneauPris, ErreurDatePassee } = rendezvousService;
+const { ErreurFormateurInvalide, ErreurCreneauPris, ErreurDatePassee, ErreurReplanificationTropTardive } =
+  rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -167,6 +168,9 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
     }
     if (erreur instanceof ErreurDatePassee) {
       return res.status(400).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof ErreurReplanificationTropTardive) {
+      return res.status(409).json({ erreur: erreur.message });
     }
     next(erreur);
   }

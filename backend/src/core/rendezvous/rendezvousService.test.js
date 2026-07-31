@@ -96,3 +96,98 @@ test('creerRendezvous rejette un formateur qui a déjà 2 candidats sur ce crén
   );
   assert.equal(creerMock.mock.calls.length, 0);
 });
+
+// Workflow v4 : replanifier reste possible à tout moment tant que le dossier est test_planifie,
+// SAUF dans les 30 minutes précédant le rendez-vous actuel (voir rendezvousService.js, en-tête).
+const TRX_FACTICE = { estUnTrx: true };
+
+test("verifierDelaiAvantReplanification ne fait rien si la liste de transitions ne contient pas replanifier_test", async (t) => {
+  const trouverDossierMock = t.mock.method(dossierRepository, 'trouverDossierParId', async () => {
+    throw new Error('ne devrait jamais être appelé');
+  });
+
+  await rendezvousService.verifierDelaiAvantReplanification(
+    ENTITE_FACTICE,
+    42,
+    [{ codeAction: 'planifier_test', commentaire: 'Test planifié.' }],
+    TRX_FACTICE,
+  );
+
+  assert.equal(trouverDossierMock.mock.calls.length, 0);
+});
+
+test("verifierDelaiAvantReplanification ne fait rien si le dossier n'est plus test_planifie (replanification depuis test_non_realise/invalide)", async (t) => {
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42, statut_code: 'test_non_realise' }));
+  const trouverActifMock = t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => {
+    throw new Error('ne devrait jamais être appelé');
+  });
+
+  await rendezvousService.verifierDelaiAvantReplanification(
+    ENTITE_FACTICE,
+    42,
+    [{ codeAction: 'replanifier_test', commentaire: 'Replanifié.' }],
+    TRX_FACTICE,
+  );
+
+  assert.equal(trouverActifMock.mock.calls.length, 0);
+});
+
+test('verifierDelaiAvantReplanification ne fait rien si le dossier est test_planifie mais sans rendez-vous actif', async (t) => {
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42, statut_code: 'test_planifie' }));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+
+  await rendezvousService.verifierDelaiAvantReplanification(
+    ENTITE_FACTICE,
+    42,
+    [{ codeAction: 'replanifier_test', commentaire: 'Replanifié.' }],
+    TRX_FACTICE,
+  );
+  // Ne lève pas — rien à protéger.
+});
+
+test('verifierDelaiAvantReplanification autorise la replanification si le rendez-vous actuel est encore à plus de 30 minutes', async (t) => {
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42, statut_code: 'test_planifie' }));
+  const dansUneHeure = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({ date_heure: dansUneHeure }));
+
+  await rendezvousService.verifierDelaiAvantReplanification(
+    ENTITE_FACTICE,
+    42,
+    [{ codeAction: 'replanifier_test', commentaire: 'Replanifié.' }],
+    TRX_FACTICE,
+  );
+});
+
+test('verifierDelaiAvantReplanification rejette si le rendez-vous actuel est dans moins de 30 minutes', async (t) => {
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42, statut_code: 'test_planifie' }));
+  const dansQuinzeMinutes = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({ date_heure: dansQuinzeMinutes }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.verifierDelaiAvantReplanification(
+        ENTITE_FACTICE,
+        42,
+        [{ codeAction: 'replanifier_test', commentaire: 'Replanifié.' }],
+        TRX_FACTICE,
+      ),
+    rendezvousService.ErreurReplanificationTropTardive,
+  );
+});
+
+test('verifierDelaiAvantReplanification rejette si le rendez-vous actuel est déjà passé', async (t) => {
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42, statut_code: 'test_planifie' }));
+  const ilYADixMinutes = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({ date_heure: ilYADixMinutes }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.verifierDelaiAvantReplanification(
+        ENTITE_FACTICE,
+        42,
+        [{ codeAction: 'replanifier_test', commentaire: 'Replanifié.' }],
+        TRX_FACTICE,
+      ),
+    rendezvousService.ErreurReplanificationTropTardive,
+  );
+});

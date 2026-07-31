@@ -23,7 +23,6 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
-  en_attente_verdict: 'violet',
   invalide: 'echec',
   en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
   valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
@@ -41,7 +40,6 @@ function varianteStatut(code) {
 // (workflow hérité, plus jamais atteint) n'y figure volontairement pas.
 const CODES_STATUTS_FILTRES_RECRUTEUR = [
   'test_planifie',
-  'en_attente_verdict',
   // en_attente_validation_recruteur/valide : workflow v3, temporaires (2 dossiers encore en cours
   // via l'ancien circuit, voir migrerWorkflowAccecitV3.js) — à retirer une fois ces dossiers clos.
   'en_attente_validation_recruteur',

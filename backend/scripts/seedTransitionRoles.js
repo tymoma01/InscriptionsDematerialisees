@@ -27,24 +27,20 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // toujours par le statut courant réel du dossier), seulement à distinguer ici pour le seed des
   // rôles — d'où la boucle sur toutes les lignes correspondantes plus bas, pas juste la première.
   planifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
-  // Le formateur marque le test comme réalisé — déclenchée par evaluationEngine.enregistrerEvaluation
-  // (même transaction que l'évaluation elle-même), pas par un job automatique séparé : voir
-  // workflow v2, plus simple que l'ancien plan (SYSTEME) qui supposait un job jamais écrit.
-  test_realise: [ROLES.FORMATEUR, ROLES.ADMIN],
   // Le formateur marque le test comme non réalisé (candidat absent, etc.) — aucune évaluation
   // associée, transition seule via POST /transitions générique (voir ListeEvaluationsAFaire.jsx).
   test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN],
-  // Replanification d'un nouveau créneau, depuis test_non_realise OU invalide (deux lignes
-  // transitions_statut partagent ce même code_action, voir commentaire de planifier_test
-  // ci-dessus ; "invalide" remplace "verdict_negatif" depuis le workflow v3) — la boucle plus bas
+  // Replanification d'un nouveau créneau, depuis test_non_realise, invalide, OU test_planifie lui-
+  // même (workflow v4 : replanifier reste possible à tout moment tant que le dossier est encore
+  // test_planifie, sans restriction de délai — trois lignes transitions_statut partagent ce même
+  // code_action, "invalide" remplace "verdict_negatif" depuis le workflow v3) — la boucle plus bas
   // applique ces rôles à chaque ligne partageant ce code_action, jamais juste la première.
   replanifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
-  // Écrites par evaluationEngine.enregistrerEvaluation, dans la même transaction que test_realise
-  // ci-dessus (workflow v3 : simplification du parcours actée avec la responsable de projet —
-  // transition directe vers l'issue finale du dossier, plus de verdict intermédiaire ni de
-  // passage par le recruteur) — pas par POST /transitions directement, mais FORMATEUR/ADMIN
-  // listés par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait
-  // un jour exposée telle quelle via l'API générique.
+  // Écrites par evaluationEngine.enregistrerEvaluation (workflow v4 : transition directe depuis
+  // test_planifie vers l'issue finale du dossier, plus de verdict intermédiaire ni de passage par
+  // le recruteur) — pas par POST /transitions directement, mais FORMATEUR/ADMIN listés par
+  // cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour
+  // exposée telle quelle via l'API générique.
   valider_envoi_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
   valider_pret_embauche: [ROLES.FORMATEUR, ROLES.ADMIN],
   invalider_test: [ROLES.FORMATEUR, ROLES.ADMIN],

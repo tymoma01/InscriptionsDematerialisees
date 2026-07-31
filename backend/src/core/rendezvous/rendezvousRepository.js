@@ -110,6 +110,21 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
   return requete;
 }
 
+// Rendez-vous de test actuellement "actif" d'un dossier (voir rendezvousService.
+// verifierDelaiAvantReplanification) : le plus récent par date_heure parmi les rendez-vous 'test'
+// encore 'prevu'/'confirme' — un rendez-vous 'absent'/'annule' a déjà été traité par le formateur
+// (ou l'agent), il ne bloque plus rien. S'il existe plusieurs lignes 'prevu' pour ce dossier
+// (aucune transition ne referme automatiquement l'ancien rendez-vous lors d'une replanification,
+// voir ListeEvaluationsAFaire.jsx), c'est la plus récente qui représente le créneau réellement
+// attendu par le formateur.
+function trouverRendezvousTestActifDossier(bd, dossierId) {
+  return bd('rendezvous')
+    .where({ dossier_id: dossierId, type_rdv: 'test' })
+    .whereIn('statut', ['prevu', 'confirme'])
+    .orderBy('date_heure', 'desc')
+    .first();
+}
+
 function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
   return bd('rendezvous')
     .where({ id: rendezvousId })
@@ -155,5 +170,6 @@ module.exports = {
   listerRendezvousTest,
   mettreAJourStatutRendezvous,
   compterRendezvousFormateurAuCreneau,
+  trouverRendezvousTestActifDossier,
   creerRendezvous,
 };
