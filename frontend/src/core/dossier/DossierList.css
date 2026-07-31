@@ -24,6 +24,15 @@
      passe sur deux lignes), quelle que soit la cellule la plus haute. */
   vertical-align: middle;
   border-bottom: 1px solid var(--couleur-bordure-legere);
+  /* Séparateur vertical fin entre colonnes, même couleur discrète que border-bottom ci-dessus —
+     exclu de la dernière colonne (règle suivante) pour ne pas doubler la bordure du conteneur
+     .dossier-list__scroll, déjà posée sur son bord droit. */
+  border-right: 1px solid var(--couleur-bordure-legere);
+}
+
+.dossier-list th:last-child,
+.dossier-list td:last-child {
+  border-right: none;
 }
 
 .dossier-list th {
@@ -32,6 +41,11 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* Centré horizontalement (contrairement aux cellules du corps, restées à gauche, voir
+     .dossier-list th, .dossier-list td ci-dessus) — surcharge ce text-align: left pour ce
+     sélecteur plus spécifique (th seul). Sans effet sur la colonne "Actions" ci-dessous, qui n'a
+     pas de bouton interne : ce text-align s'applique directement à son texte. */
+  text-align: center;
   /* Le padding vit sur le bouton interne (voir .dossier-list__entete-tri), pas ici : sinon la
      zone cliquable ne couvrirait pas toute la cellule. */
   padding: 0;
@@ -43,6 +57,10 @@
 .dossier-list__entete-tri {
   display: flex;
   align-items: center;
+  /* Centre le libellé + l'indicateur de tri dans la largeur du bouton (text-align seul, posé sur
+     le <th> parent, resterait sans effet ici : justify-content pilote l'alignement des enfants
+     d'un conteneur flex, pas text-align). */
+  justify-content: center;
   gap: 0.35em;
   width: 100%;
   padding: 0.75rem var(--espace-moyen);

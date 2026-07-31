@@ -41,8 +41,9 @@
      moteurs de rendu — la cellule figée se détache visuellement du reste de sa ligne au
      défilement (lignes désynchronisées, fond/texte de la colonne suivante qui chevauche).
      border-spacing: 0 évite tout écart visuel entre cellules par rapport à l'ancien modèle
-     collapse (seul border-bottom est utilisé ici, jamais de bordure verticale entre colonnes
-     hors la colonne figée, donc aucun risque de bordure doublée avec ce changement). */
+     collapse — border-right (voir th/td ci-dessous) ne pose ici aucun risque de bordure doublée :
+     un seul côté (droit) porte une bordure par cellule, jamais les deux, donc rien à fusionner
+     entre deux cellules adjacentes. */
   border-collapse: separate;
   border-spacing: 0;
   background-color: var(--couleur-fond);
@@ -57,7 +58,16 @@
      horizontale que le reste de la ligne, quelle que soit la hauteur naturelle du contenu. */
   vertical-align: middle;
   border-bottom: 1px solid var(--couleur-bordure-legere);
+  /* Séparateur vertical fin entre colonnes, même patron que DossierList.css — exclu de la
+     dernière colonne (règle suivante) pour ne pas doubler la bordure de
+     .table-utilisateurs__scroll. */
+  border-right: 1px solid var(--couleur-bordure-legere);
   white-space: nowrap;
+}
+
+.table-utilisateurs th:last-child,
+.table-utilisateurs td:last-child {
+  border-right: none;
 }
 
 .table-utilisateurs th {
@@ -66,6 +76,9 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* Centré horizontalement (contrairement aux cellules du corps, restées à gauche) — même patron
+     que DossierList.css. */
+  text-align: center;
   /* Le padding vit sur le bouton interne (voir .table-utilisateurs__entete-tri), pas ici : sinon
      la zone cliquable ne couvrirait pas toute la cellule. Même patron que DossierList.css. */
   padding: 0;
@@ -74,6 +87,9 @@
 .table-utilisateurs__entete-tri {
   display: flex;
   align-items: center;
+  /* Centre le libellé + l'indicateur de tri dans la largeur du bouton — même patron que
+     DossierList.css. */
+  justify-content: center;
   gap: 0.35em;
   width: 100%;
   padding: 0.75rem var(--espace-moyen);

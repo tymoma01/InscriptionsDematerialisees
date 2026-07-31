@@ -105,6 +105,15 @@
   padding: 0.75rem var(--espace-moyen);
   text-align: left;
   border-bottom: 1px solid var(--couleur-bordure-legere);
+  /* Séparateur vertical fin entre colonnes, même patron que DossierList.css — exclu de la
+     dernière colonne (règle suivante) pour ne pas doubler la bordure de
+     .planification__scroll. */
+  border-right: 1px solid var(--couleur-bordure-legere);
+}
+
+.planification__table th:last-child,
+.planification__table td:last-child {
+  border-right: none;
 }
 
 .planification__table th {
@@ -113,6 +122,9 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* Centré horizontalement (contrairement aux cellules du corps, restées à gauche) — même patron
+     que DossierList.css. */
+  text-align: center;
   /* Le padding vit sur le bouton interne (voir .planification__entete-tri), pas ici : sinon la
      zone cliquable ne couvrirait pas toute la cellule. Même patron que DossierList.css. */
   padding: 0;
@@ -121,6 +133,9 @@
 .planification__entete-tri {
   display: flex;
   align-items: center;
+  /* Centre le libellé + l'indicateur de tri dans la largeur du bouton — même patron que
+     DossierList.css. */
+  justify-content: center;
   gap: 0.35em;
   width: 100%;
   padding: 0.75rem var(--espace-moyen);
