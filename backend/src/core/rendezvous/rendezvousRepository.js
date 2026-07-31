@@ -68,11 +68,22 @@ function listerRendezvousParDossier(bd, dossierId) {
 // est à la journée, suffisante pour un calendrier — pas de conversion de fuseau applicative ici,
 // même niveau de simplicité que le reste du filtrage par date de ce dépôt (aVenirSeulement
 // ci-dessous compare aussi directement à bd.fn.now()).
+// Jointure gauche vers dossier_donnees_formulaire (bloc 'disponibilites', JSONB, migration 013)
+// pour exposer le(s) poste(s) recherché(s) sur la colonne "Poste" de Planification.jsx — même
+// patron que dossierRepository.listerDossiers / evaluationRepository.listerRendezvousAEvaluer.
+// Keyed sur dossiers.id (pas rendezvous.id) : le bloc est propre au dossier, pas au rendez-vous.
 function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
   const requete = bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        bd.raw('?', ['disponibilites']),
+      );
+    })
     .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
     .select(
       'rendezvous.id',
@@ -83,6 +94,7 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
       'candidats.nom as candidat_nom',
       'utilisateurs.prenom as formateur_prenom',
       'utilisateurs.nom as formateur_nom',
+      'bloc_disponibilites.donnees as donnees_disponibilites',
     )
     .orderBy('rendezvous.date_heure', 'asc');
 
@@ -150,7 +162,7 @@ async function compterRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
 // naît jamais confirmé/absent/annulé, ces statuts ne se posent qu'après coup via
 // mettreAJourStatutRendezvous. formateurId peut être nul (rendez-vous pas encore assigné) : voir
 // rendezvousService.creerRendezvous pour la validation du rôle formateur en amont.
-async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId }) {
+async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId, postesSelectionnes = [] }) {
   const [rendezvous] = await bd('rendezvous')
     .insert({
       dossier_id: dossierId,
@@ -158,6 +170,10 @@ async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId 
       date_heure: dateHeure,
       formateur_id: formateurId,
       statut: 'prevu',
+      // JSON.stringify explicite (même patron que dossierRepository.enregistrerDonneesBloc) :
+      // ne pas laisser le driver pg deviner la sérialisation d'un tableau JS pour une colonne
+      // jsonb (migration 039).
+      postes_selectionnes: JSON.stringify(postesSelectionnes),
     })
     .returning('*');
   return rendezvous;

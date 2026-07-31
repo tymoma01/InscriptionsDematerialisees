@@ -69,6 +69,26 @@ function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
+// Libellés des postes (colonne "Poste" de DossierList.jsx) — mêmes codes/libellés que
+// BlocDisponibilites.jsx (POSTES_BUREAU/POSTES_HOTEL), dupliqué plutôt que partagé (même
+// convention que VARIANTE_PAR_CODE_ACCECIT ci-dessus, voir CLAUDE.md conventions du projet) : un
+// code absent (poste ajouté au formulaire mais pas encore ici) retombe simplement sur le code
+// brut plutôt que d'échouer.
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Sous-ensemble des statuts proposés comme filtres sur cette page (accueil : dossiers à traiter
 // avant l'envoi en test) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
 // reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
@@ -208,6 +228,7 @@ export default function TableauDeBordAccueil() {
           <DossierList
             dossiers={dossiersFiltres}
             varianteStatut={varianteStatut}
+            libellePoste={libellePoste}
             actions={[
               { libelle: 'Pièces', onSelectionner: (dossier) => navigate(`/accueil/dossiers/${dossier.id}/pieces`) },
               {
@@ -229,6 +250,9 @@ export default function TableauDeBordAccueil() {
             dossierId={dossierAReplanifier.id}
             codeAction={CODE_ACTION_REPLANIFIER_TEST}
             titre={`Replanifier un test — ${dossierAReplanifier.candidat_prenom} ${dossierAReplanifier.candidat_nom}`}
+            postesBureau={dossierAReplanifier.postesBureau}
+            postesHotel={dossierAReplanifier.postesHotel}
+            libellePoste={libellePoste}
             onAnnuler={() => setDossierAReplanifier(null)}
             onReussite={() => {
               setDossierAReplanifier(null);

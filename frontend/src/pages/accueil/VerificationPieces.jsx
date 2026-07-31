@@ -7,6 +7,24 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
 import './VerificationPieces.css';
 
+// Libellés des postes (sélection de poste(s) testé(s), voir ModalePlanificationTest.jsx via
+// CaptureTablette.jsx) — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx/Planification.jsx,
+// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Page accueil : prise des pièces justificatives (CLAUDE.md, étape 3 du parcours), une fois le
 // candidat inscrit. Lit dossierId depuis le paramètre de route et transmet la config des types
 // de pièces de l'entité — donnée de test locale tant que le backend n'expose pas cette
@@ -55,6 +73,9 @@ export default function VerificationPieces() {
           dossierId={dossierId}
           typesPieces={typesPiecesConfigAccecitTest}
           statutCode={dossier?.statut_code}
+          postesBureau={dossier?.postesBureau}
+          postesHotel={dossier?.postesHotel}
+          libellePoste={libellePoste}
         />
         <NotesDossier dossierId={dossierId} />
       </div>

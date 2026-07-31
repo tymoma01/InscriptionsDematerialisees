@@ -62,7 +62,10 @@ function fichierAccepte(fichier) {
 // l'upload depuis cette session — jamais un champ de saisie manuel (voir
 // pieceJustificativeService.js et CLAUDE.auth-rbac.md pour le détail du correctif de sécurité
 // que ce choix évite de réintroduire).
-export default function CaptureTablette({ dossierId, typesPieces, statutCode }) {
+// postesBureau/postesHotel/libellePoste : purement transmis à ModalePlanificationTest.jsx (Phase
+// 1, sélection de poste(s) testé(s), voir son en-tête de fichier) — ce composant ne s'en sert pas
+// lui-même ailleurs, même principe que dossierId reçu sans routage.
+export default function CaptureTablette({ dossierId, typesPieces, statutCode, postesBureau, postesHotel, libellePoste }) {
   const navigate = useNavigate();
   const { utilisateur, chargement: chargementSession } = useSession();
 
@@ -346,6 +349,9 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode }) 
           dossierId={dossierId}
           codeAction={CODE_ACTION_PLANIFIER_TEST}
           titre="Planifier un test"
+          postesBureau={postesBureau}
+          postesHotel={postesHotel}
+          libellePoste={libellePoste}
           onAnnuler={() => setPlanificationOuverte(false)}
           onReussite={(resultat) => {
             setPlanificationOuverte(false);

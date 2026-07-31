@@ -123,9 +123,21 @@ async function listerMotifsDesistement(entite) {
 // Planification côté Coordination) — contrairement à listerRendezvous ci-dessus, ne prend pas de
 // dossierId : rien à vérifier côté IDOR, la portée est déjà l'entité entière (voir
 // entiteContext), pas un dossier précis.
+// Postes recherchés exposés à plat (postesBureau/postesHotel) pour la colonne "Poste" de
+// Planification.jsx — même patron que dossierService.listerDossiers.
 async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
   const bd = await db.obtenirKnex();
-  return rendezvousRepository.listerRendezvousTest(bd, entite.id, { aVenirSeulement, formateurId, dateDebut, dateFin });
+  const rendezvous = await rendezvousRepository.listerRendezvousTest(bd, entite.id, {
+    aVenirSeulement,
+    formateurId,
+    dateDebut,
+    dateFin,
+  });
+  return rendezvous.map(({ donnees_disponibilites, ...reste }) => ({
+    ...reste,
+    postesBureau: donnees_disponibilites?.posteBureau ?? [],
+    postesHotel: donnees_disponibilites?.posteHotel ?? [],
+  }));
 }
 
 // Planifie un nouveau rendez-vous pour un dossier (ex. rendez-vous de test, CLAUDE.md étape
@@ -138,7 +150,16 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
 // à planificationRendezvousService de faire participer cette création à une transaction déjà
 // ouverte, pour que la création du rendez-vous et la transition de statut qui suit réussissent
 // ou échouent ensemble.
-async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateurId }, bdExistante = null) {
+// postesSelectionnes (Phase 1, informatif — voir evaluationEngine.resoudrePosteCode) : défaut
+// tableau vide, même défaut que la colonne `rendezvous.postes_selectionnes` (migration 039) —
+// jamais validé contre les postes réellement déclarés du dossier ici, ce module ne connaît pas ce
+// vocabulaire (voir Modularité, CLAUDE.md) ; une valeur incohérente reste sans conséquence
+// puisque purement informative pour le formateur, jamais utilisée pour une décision d'accès.
+async function creerRendezvous(
+  entite,
+  { dossierId, typeRdv, dateHeure, formateurId, postesSelectionnes = [] },
+  bdExistante = null,
+) {
   // Ne jamais se fier uniquement au front (calendrier grisé + <input min>, voir
   // CalendrierDisponibiliteFormateur.jsx/ModalePlanificationTest.jsx) — même principe que les
   // autres règles métier de ce module (voir changerStatutRendezvous ci-dessus). Comparaison
@@ -183,6 +204,7 @@ async function creerRendezvous(entite, { dossierId, typeRdv, dateHeure, formateu
     typeRdv,
     dateHeure,
     formateurId: formateurIdValide,
+    postesSelectionnes,
   });
 }
 

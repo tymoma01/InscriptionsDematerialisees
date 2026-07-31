@@ -101,6 +101,25 @@
   background-color: var(--couleur-fond-secondaire);
 }
 
+/* Une puce par poste, empilées verticalement (voir DossierList.jsx) — même forme de "badge" que
+   .statut-badge (StatutBadge.css) mais couleur neutre unique : contrairement au statut, un poste
+   n'a pas de polarité succès/échec/attente à représenter visuellement. */
+.dossier-list__postes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+
+.dossier-list__badge-poste {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background-color: var(--gris-100);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .dossier-list__actions {
   display: flex;
   align-items: center;

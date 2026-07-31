@@ -35,10 +35,15 @@ const statutBodySchema = z.object({
 // contrainte CHECK) — un rendez-vous n'est pas forcément un test (CLAUDE.md prévoit aussi un
 // rendez-vous de signature de contrat en fin de formation), et le moteur générique ne fige pas
 // le vocabulaire métier d'une entité (voir Modularité, CLAUDE.md).
+// postesSelectionnes (Phase 1, informatif — voir rendezvousService.creerRendezvous) : optionnel,
+// défaut tableau vide (même défaut que la colonne `rendezvous.postes_selectionnes`, migration
+// 039). Codes libres ici, pas un enum figé : ce sont des codes de postes propres à ACCECIT (voir
+// Modularité, CLAUDE.md), cette couche générique ne les connaît pas.
 const creationRendezvousSchema = z.object({
   typeRdv: z.string().trim().min(1),
   dateHeure: z.string().trim().datetime({ offset: true }),
   formateurId: idPositifSchema.optional(),
+  postesSelectionnes: z.array(z.string().trim().min(1)).default([]),
 });
 
 // Une transition à appliquer juste après la création du rendez-vous, dans la même transaction
@@ -84,13 +89,14 @@ router.get('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next)
 router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { typeRdv, dateHeure, formateurId } = creationRendezvousSchema.parse(req.body);
+    const { typeRdv, dateHeure, formateurId, postesSelectionnes } = creationRendezvousSchema.parse(req.body);
 
     const rendezvous = await rendezvousService.creerRendezvous(req.entite, {
       dossierId,
       typeRdv,
       dateHeure,
       formateurId,
+      postesSelectionnes,
     });
 
     const bd = await obtenirKnex();
@@ -100,7 +106,7 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
       action: 'rendezvous_cree',
       tableCible: 'rendezvous',
       cibleId: rendezvous.id,
-      donnees: { dossierId, typeRdv, dateHeure, formateurId: formateurId ?? null },
+      donnees: { dossierId, typeRdv, dateHeure, formateurId: formateurId ?? null, postesSelectionnes },
       adresseIp: req.ip,
     });
 
@@ -128,13 +134,15 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
 router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { typeRdv, dateHeure, formateurId, transitions } = creationAvecTransitionsSchema.parse(req.body);
+    const { typeRdv, dateHeure, formateurId, postesSelectionnes, transitions } =
+      creationAvecTransitionsSchema.parse(req.body);
 
     const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(req.entite, {
       dossierId,
       typeRdv,
       dateHeure,
       formateurId,
+      postesSelectionnes,
       transitions,
       utilisateurId: req.utilisateur.id,
       roleCode: req.utilisateur.roleCode,
@@ -152,6 +160,7 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
         typeRdv,
         dateHeure,
         formateurId: formateurId ?? null,
+        postesSelectionnes,
         codesActions: transitions.map((transition) => transition.codeAction),
       },
       adresseIp: req.ip,

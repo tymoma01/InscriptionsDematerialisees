@@ -41,7 +41,22 @@ const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
 // transitions_statut à partir du statut courant réel du dossier : pas besoin ici de choisir entre
 // plusieurs origines possibles pour un même codeAction (ex. "replanifier_test" existe en
 // configuration à la fois depuis test_non_realise et invalide).
-export default function ModalePlanificationTest({ dossierId, codeAction, titre, onAnnuler, onReussite }) {
+// postesBureau/postesHotel (Phase 1, informatif — voir evaluationEngine.resoudrePosteCode) : les
+// postes déclarés au dossier (dossierService.obtenirDossier / listerDossiers), reçus en prop
+// plutôt que résolus ici — ce composant ne fait aucun appel réseau pour les récupérer, comme
+// dossierId/titre déjà transmis par l'appelant. libellePoste : même principe que le prop
+// `varianteStatut` de DossierList.jsx — vocabulaire propre à ACCECIT (voir BlocDisponibilites.jsx),
+// ce composant générique affiche le code brut si non fourni plutôt que d'échouer.
+export default function ModalePlanificationTest({
+  dossierId,
+  codeAction,
+  titre,
+  postesBureau = [],
+  postesHotel = [],
+  libellePoste,
+  onAnnuler,
+  onReussite,
+}) {
   const panneauRef = useRef(null);
 
   const [formateurs, setFormateurs] = useState([]);
@@ -89,6 +104,34 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
   // bouton ci-dessous. Confort visuel seulement : compterRendezvousFormateurAuCreneau côté
   // serveur reste le garde-fou qui fait foi (409 ErreurCreneauPris à la création).
   const [creneauxJourSelectionne, setCreneauxJourSelectionne] = useState([]);
+
+  // Postes déclarés du dossier, à plat (posteBureau et posteHotel ne sont jamais tous les deux
+  // peuplés sur un même dossier, voir dossierService.js : typePoste est soit 'bureau' soit
+  // 'hotel') — recalculé à chaque rendu plutôt que mémoïsé, tableau trop court pour que ça compte.
+  const postesDisponibles = [...postesBureau, ...postesHotel];
+
+  // Tous pré-cochés à l'ouverture (comportement demandé) — Set plutôt qu'un tableau, pratique
+  // pour cocher/décocher sans reconstruire toute la liste à chaque clic.
+  const [postesCoches, setPostesCoches] = useState(() => new Set(postesDisponibles));
+
+  // Réinitialise la sélection quand le dossier change (voir l'effet de scroll ci-dessus pour la
+  // même raison : sur TableauDeBordAccueil.jsx, ce panneau n'est pas démonté/remonté entre deux
+  // ouvertures sur des dossiers différents, il faut donc un effet plutôt qu'un état initial calculé
+  // une seule fois). Clé sur les codes eux-mêmes (JSON.stringify), pas seulement dossierId : couvre
+  // aussi le cas où la liste de postes déclarés changerait pour un même dossier entre deux ouvertures.
+  useEffect(() => {
+    setPostesCoches(new Set(postesDisponibles));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossierId, JSON.stringify(postesDisponibles)]);
+
+  const togglerPoste = (code) => {
+    setPostesCoches((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(code)) suivant.delete(code);
+      else suivant.add(code);
+      return suivant;
+    });
+  };
 
   useEffect(() => {
     let annule = false;
@@ -176,6 +219,7 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
         typeRdv: 'test',
         dateHeure: dateHeureIso,
         formateurId: Number(formateurId),
+        postesSelectionnes: [...postesCoches],
         transitions,
       });
     } catch (erreur) {
@@ -291,6 +335,23 @@ export default function ModalePlanificationTest({ dossierId, codeAction, titre, 
               </select>
             </div>
           </fieldset>
+
+          {/* Phase 1 (informatif uniquement, voir CLAUDE.md/décision produit) : n'apparaît que si
+              le dossier a plusieurs postes déclarés — avec un seul poste, rien à choisir, l'afficher
+              serait un décochage sans effet utile. Toutes les cases restent pré-cochées par défaut
+              (postesCoches initialisé à l'ensemble des postes déclarés) : l'agent décoche seulement
+              ceux qui ne concernent pas ce test précis. */}
+          {postesDisponibles.length > 1 && (
+            <fieldset className="modale-planification-test__champ-postes">
+              <legend>Poste(s) testé(s)</legend>
+              {postesDisponibles.map((code) => (
+                <label key={code} className="modale-planification-test__poste">
+                  <input type="checkbox" checked={postesCoches.has(code)} onChange={() => togglerPoste(code)} />
+                  {libellePoste ? libellePoste(code) : code}
+                </label>
+              ))}
+            </fieldset>
+          )}
 
           {creneauDejaPris && (
             <p role="alert">

@@ -33,14 +33,24 @@ const CODE_ACTION_PAR_ORIENTATION = {
 const CODE_ACTION_INVALIDATION = 'invalider_test';
 
 // Vérifie que le poste choisi par le formateur (quand plusieurs postes sont déclarés sur le
-// dossier, voir GrilleEvaluation.jsx) correspond réellement à un poste déclaré pour CE dossier —
-// jamais de confiance dans ce qu'un client envoie, un formateur ne doit pas pouvoir demander le
-// questionnaire d'un poste sans rapport avec le dossier en cours d'évaluation. posteCode absent
-// (null/undefined) est toujours accepté : retombe sur le questionnaire générique.
-async function resoudrePosteCode(bd, dossierId, posteCode) {
+// dossier, voir GrilleEvaluation.jsx) correspond réellement à un poste attendu pour CE rendez-vous
+// — jamais de confiance dans ce qu'un client envoie, un formateur ne doit pas pouvoir demander le
+// questionnaire d'un poste sans rapport. posteCode absent (null/undefined) est toujours accepté :
+// retombe sur le questionnaire générique.
+//
+// postesSelectionnes (Phase 1, planification RDV, voir rendezvous.postes_selectionnes — migration
+// 039) : le(s) poste(s) que l'agent Accueil a retenus pour CE test précis, prioritaires sur les
+// postes déclarés au dossier quand renseignés (non vide) — repli sur
+// evaluationRepository.trouverPostesDossier (comportement inchangé) si vide, ex. anciens
+// rendez-vous créés avant cette colonne, ou aucun poste décoché à la planification.
+async function resoudrePosteCode(bd, dossierId, posteCode, postesSelectionnes = []) {
   if (!posteCode) return null;
-  const { posteBureau, posteHotel } = await evaluationRepository.trouverPostesDossier(bd, dossierId);
-  if (![...posteBureau, ...posteHotel].includes(posteCode)) {
+  let postesAutorises = postesSelectionnes;
+  if (postesAutorises.length === 0) {
+    const { posteBureau, posteHotel } = await evaluationRepository.trouverPostesDossier(bd, dossierId);
+    postesAutorises = [...posteBureau, ...posteHotel];
+  }
+  if (!postesAutorises.includes(posteCode)) {
     throw new Error(`Le poste "${posteCode}" ne correspond à aucun poste déclaré pour ce dossier.`);
   }
   return posteCode;
@@ -104,7 +114,7 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
     throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
   }
 
-  const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode);
+  const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode, rendezvous.postes_selectionnes);
   const questionnaire = await evaluationRepository.trouverQuestionnairePourPoste(bd, entite.id, posteCodeResolu);
   if (!questionnaire) {
     throw new Error(`Aucun questionnaire d'évaluation configuré pour l'entité « ${entite.code} ».`);
@@ -170,7 +180,7 @@ async function enregistrerEvaluation(
     throw new Error(`Le rendez-vous "${rendezvousId}" a déjà été évalué.`);
   }
 
-  const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode);
+  const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode, rendezvous.postes_selectionnes);
   const questionnaire = await evaluationRepository.trouverQuestionnairePourPoste(bd, entite.id, posteCodeResolu);
   if (!questionnaire) {
     throw new Error(`Aucun questionnaire d'évaluation configuré pour l'entité « ${entite.code} ».`);

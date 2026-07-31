@@ -27,6 +27,23 @@ function varianteStatutRendezvous(statut) {
   return 'attente';
 }
 
+// Libellés des postes (colonne "Poste") — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx,
+// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Une entrée par colonne triable, même patron que DossierList.jsx (core/dossier/DossierList.jsx)
 // — "Candidat" trie sur candidats.nom (nom de famille), pas la chaîne "prénom nom" affichée.
 // "Statut" trie sur le libellé affiché (LIBELLES_STATUT), plus lisible pour l'utilisateur qu'un
@@ -34,6 +51,11 @@ function varianteStatutRendezvous(statut) {
 const COLONNES = [
   { cle: 'date_heure', libelle: 'Date et heure', extraire: (rdv) => new Date(rdv.date_heure).getTime() },
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (rdv) => (rdv.candidat_nom ?? '').toLowerCase() },
+  {
+    cle: 'postes',
+    libelle: 'Poste',
+    extraire: (rdv) => [...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])].join(', '),
+  },
   { cle: 'formateur_nom', libelle: 'Formateur', extraire: (rdv) => (rdv.formateur_nom ?? '').toLowerCase() },
   {
     cle: 'statut',
@@ -221,6 +243,15 @@ export default function Planification() {
                     <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td className="planification__colonne-figee">
                       {rdv.candidat_prenom} {rdv.candidat_nom}
+                    </td>
+                    <td>
+                      <div className="planification__postes">
+                        {[...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])].map((code) => (
+                          <span key={code} className="planification__badge-poste">
+                            {libellePoste(code)}
+                          </span>
+                        ))}
+                      </div>
                     </td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '—'}</td>
                     <td>

@@ -75,10 +75,25 @@ function trouverDossierParId(trx, entiteId, dossierId) {
 // à construire le segment "NOM_PRENOM" de l'arborescence SharePoint (voir azureOneDriveConnector,
 // StorageConnector.upload) sans requête séparée — dossiers.date_creation (déjà dans dossiers.*)
 // fournit l'année/le mois de cette même arborescence.
+//
+// Jointure gauche vers dossier_donnees_formulaire (bloc 'disponibilites') en plus, même patron que
+// listerDossiers/listerRendezvousTest — sert à VerificationPieces.jsx/CaptureTablette.jsx pour
+// transmettre les postes déclarés du dossier à la sélection de poste(s) testé(s) de
+// ModalePlanificationTest.jsx (voir dossierService.obtenirDossier pour l'extraction). Les autres
+// appelants de cette fonction (pieceJustificativeService.js, invitationTestService.js,
+// relanceService.js) n'utilisent jamais ce champ : leftJoin sans impact pour eux, la ligne
+// donnees_disponibilites brute reste simplement ignorée.
 function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
   return trx('dossiers')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        trx.raw('?', ['disponibilites']),
+      );
+    })
     .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
     .select(
       'dossiers.*',
@@ -86,6 +101,7 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
       'statuts.libelle as statut_libelle',
       'candidats.nom as candidat_nom',
       'candidats.prenom as candidat_prenom',
+      'bloc_disponibilites.donnees as donnees_disponibilites',
     )
     .first();
 }
@@ -150,10 +166,23 @@ function enregistrerChangementStatut(trx, { dossierId, statutId, utilisateurId, 
 // Vue centralisée des dossiers (CLAUDE.md, besoins Accueil/Coordination) : jointure candidats +
 // statuts pour éviter au front une résolution en plusieurs appels. statutCode reste optionnel —
 // non fourni, la requête renvoie tous les dossiers de l'entité.
+//
+// Jointure gauche vers dossier_donnees_formulaire (bloc 'disponibilites', JSONB, migration 013)
+// pour exposer le(s) poste(s) recherché(s) sur la colonne "Poste" du tableau de bord (voir
+// dossierService.listerDossiers pour l'extraction posteBureau/posteHotel) — même patron que
+// evaluationRepository.listerRendezvousAEvaluer. LEFT JOIN : un dossier sans bloc disponibilites
+// enregistré (nouveau, pas encore rempli) ne doit pas disparaître de la liste pour autant.
 function listerDossiers(bd, entiteId, { statutCode } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        bd.raw('?', ['disponibilites']),
+      );
+    })
     .where('dossiers.entite_id', entiteId)
     .select(
       'dossiers.id',
@@ -164,6 +193,7 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
       'statuts.code as statut_code',
       'statuts.libelle as statut_libelle',
       'statuts.est_final as statut_est_final',
+      'bloc_disponibilites.donnees as donnees_disponibilites',
     )
     .orderBy('dossiers.date_maj', 'desc');
 

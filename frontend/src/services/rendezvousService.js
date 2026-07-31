@@ -40,12 +40,18 @@ export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateur
 // soit tout réussit, soit rien n'est enregistré — remplace l'ancien enchaînement
 // creerRendezvous() + appliquerTransition() séparés, qui pouvait laisser un rendez-vous créé sans
 // le changement de statut correspondant si la seconde étape échouait (voir CaptureTablette.jsx).
-// transitions : liste ordonnée de { codeAction, commentaire, motifCode? }.
-export async function creerRendezvousAvecTransitions(dossierId, { typeRdv, dateHeure, formateurId, transitions }) {
+// transitions : liste ordonnée de { codeAction, commentaire, motifCode? }. postesSelectionnes
+// (Phase 1, informatif — voir ModalePlanificationTest.jsx) : optionnel, le back retombe sur un
+// tableau vide par défaut si omis.
+export async function creerRendezvousAvecTransitions(
+  dossierId,
+  { typeRdv, dateHeure, formateurId, postesSelectionnes, transitions },
+) {
   const { data } = await api.post(`/dossiers/${dossierId}/rendezvous/avec-transitions`, {
     typeRdv,
     dateHeure,
     formateurId,
+    postesSelectionnes,
     transitions,
   });
   return data;

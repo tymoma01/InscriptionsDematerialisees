@@ -30,7 +30,7 @@ const CRENEAUX = ['matin', 'midi', 'soir'];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
 const TYPES_POSTE = ['bureau', 'hotel'];
-const POSTES_BUREAU = ['nettoyage', 'chef_equipe', 'autres'];
+const POSTES_BUREAU = ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autres'];
 const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 const OUI_NON = ['oui', 'non'];
@@ -344,9 +344,17 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
   return !candidatExistant;
 }
 
+// Postes recherchés exposés à plat (postesBureau/postesHotel) pour la colonne "Poste" des
+// tableaux de bord — même patron que evaluationEngine.listerRendezvousAEvaluer, qui fait la même
+// extraction depuis le même bloc 'disponibilites' (voir dossierRepository.listerDossiers).
 async function listerDossiers(entite, { statutCode } = {}) {
   const bd = await obtenirKnex();
-  return dossierRepository.listerDossiers(bd, entite.id, { statutCode });
+  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode });
+  return dossiers.map(({ donnees_disponibilites, ...reste }) => ({
+    ...reste,
+    postesBureau: donnees_disponibilites?.posteBureau ?? [],
+    postesHotel: donnees_disponibilites?.posteHotel ?? [],
+  }));
 }
 
 // Un seul dossier, avec statut et nom/prénom du candidat déjà joints (voir
@@ -354,9 +362,20 @@ async function listerDossiers(entite, { statutCode } = {}) {
 // l'écran de capture de pièces (CaptureTablette.jsx), sans dupliquer une requête candidats à
 // part. undefined si le dossier n'existe pas pour cette entité (même filtre IDOR que le reste de
 // ce module) : à la route d'appel de traduire ça en 404.
+//
+// postesBureau/postesHotel extraits ici, même patron que listerDossiers ci-dessus — sert à
+// VerificationPieces.jsx pour transmettre les postes déclarés du dossier à la sélection de
+// poste(s) testé(s) de ModalePlanificationTest.jsx (via CaptureTablette.jsx).
 async function obtenirDossier(entite, dossierId) {
   const bd = await obtenirKnex();
-  return dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  if (!dossier) return dossier;
+  const { donnees_disponibilites, ...reste } = dossier;
+  return {
+    ...reste,
+    postesBureau: donnees_disponibilites?.posteBureau ?? [],
+    postesHotel: donnees_disponibilites?.posteHotel ?? [],
+  };
 }
 
 async function listerStatuts(entite) {

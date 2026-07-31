@@ -61,7 +61,7 @@ test('planifierRendezvousAvecTransitions crée le rendez-vous puis applique les 
   assert.equal(creerRendezvousMock.mock.calls.length, 1);
   assert.deepEqual(creerRendezvousMock.mock.calls[0].arguments, [
     ENTITE_ACCECIT,
-    { dossierId: 62, typeRdv: 'test', dateHeure: '2026-07-24T09:30:00.000Z', formateurId: 8 },
+    { dossierId: 62, typeRdv: 'test', dateHeure: '2026-07-24T09:30:00.000Z', formateurId: 8, postesSelectionnes: undefined },
     TRX_FACTICE,
   ]);
 

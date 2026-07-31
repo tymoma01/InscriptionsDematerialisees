@@ -34,6 +34,23 @@ function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
+// Libellés des postes (colonne "Poste" de DossierList.jsx) — même mapping que
+// TableauDeBordAccueil.jsx, dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Sous-ensemble des statuts proposés comme filtres sur cette page (recruteur : dossiers du test
 // jusqu'à la décision finale) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
 // reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
@@ -157,6 +174,7 @@ export default function Backoffice() {
           <DossierList
             dossiers={dossiersFiltres}
             varianteStatut={varianteStatut}
+            libellePoste={libellePoste}
             actions={[
               {
                 libelle: 'Étudier le dossier',

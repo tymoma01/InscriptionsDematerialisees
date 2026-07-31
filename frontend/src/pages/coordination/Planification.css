@@ -190,3 +190,21 @@
 .planification__table tbody tr:hover td.planification__colonne-figee {
   background-color: var(--couleur-fond-secondaire);
 }
+
+/* Une puce par poste, empilées verticalement — même patron que .dossier-list__postes/
+   .dossier-list__badge-poste (DossierList.css). */
+.planification__postes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+
+.planification__badge-poste {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background-color: var(--gris-100);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

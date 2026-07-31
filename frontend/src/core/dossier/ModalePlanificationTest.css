@@ -95,6 +95,32 @@
   min-width: 4.5rem;
 }
 
+/* Sélection du/des poste(s) testé(s) (Phase 1, informatif) — même patron visuel que
+   .modale-planification-test__champ-date-heure (fieldset/legend). */
+.modale-planification-test__champ-postes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.6rem 0.75rem;
+  margin: 0;
+}
+
+.modale-planification-test__champ-postes legend {
+  padding: 0 0.3rem;
+  color: var(--couleur-texte);
+}
+
+/* Ligne plutôt que colonne : sélecteur plus spécifique que .modale-planification-test__formulaire
+   label (display: flex; flex-direction: column, pensé pour les champs texte/select au-dessus) pour
+   l'emporter sans !important. */
+.modale-planification-test__formulaire label.modale-planification-test__poste {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .modale-planification-test__formulaire-actions {
   display: flex;
   gap: var(--espace-petit);
