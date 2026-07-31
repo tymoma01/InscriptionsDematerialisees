@@ -6,6 +6,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier } from '../../services/dossierService';
+import api from '../../services/api';
 import './Validation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -98,7 +99,23 @@ export default function Validation() {
         </div>
 
         <section className="page-validation__pieces">
-          <h2>Pièces justificatives</h2>
+          <div className="page-validation__pieces-entete">
+            <h2>Pièces justificatives</h2>
+            {/* Téléchargement réel (pas un aperçu intégré) : lien classique plutôt qu'un fetch en
+                blob (voir CaptureTablette.jsx pour l'inverse) — le back pose déjà
+                Content-Disposition: attachment (voir pieces.routes.js), le navigateur gère le
+                téléchargement seul via le cookie de session (same-origin). Visible seulement s'il
+                y a quelque chose à exporter. */}
+            {!chargement && !erreur && pieces.length > 0 && (
+              <a
+                className="page-validation__bouton-export-zip"
+                href={`${api.defaults.baseURL}/dossiers/${dossierId}/pieces/export-zip`}
+                download
+              >
+                Télécharger toutes les pièces (ZIP)
+              </a>
+            )}
+          </div>
 
           {chargement && <p>Chargement…</p>}
           {erreur && <p role="alert">{erreur}</p>}

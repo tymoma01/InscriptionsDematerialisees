@@ -285,6 +285,46 @@ test('telechargerPieceJustificative récupère le contenu via le connecteur de l
   assert.deepEqual(resultat, { nomFichier: 'cni.pdf', contenu: Buffer.from('contenu') });
 });
 
+test("listerPiecesJustificativesAvecContenu rejette si le dossier n'appartient pas à l'entité", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => undefined);
+
+  await assert.rejects(
+    () => service.listerPiecesJustificativesAvecContenu(ENTITE_ACCECIT, 999),
+    /Dossier "999" introuvable pour l'entité « accecit »/,
+  );
+});
+
+test("listerPiecesJustificativesAvecContenu retourne un tableau vide si le dossier n'a aucune pièce", async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'listerPiecesAvecReferenceParDossier', async () => []);
+
+  const resultat = await service.listerPiecesJustificativesAvecContenu(ENTITE_ACCECIT, 42);
+  assert.deepEqual(resultat, []);
+});
+
+// Une seule pièce par type dans l'export, la plus récente (voir diagnostic pièces dupliquées) :
+// le mock reflète l'ordre réel du repository (date_upload desc), la pièce id 9 (plus ancienne,
+// même type que id 10) ne doit donc jamais être téléchargée ni apparaître dans le résultat.
+test('listerPiecesJustificativesAvecContenu récupère le contenu de chaque pièce, une seule par type (la plus récente)', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'listerPiecesAvecReferenceParDossier', async () => [
+    { id: 10, nom_fichier: 'cni.pdf', reference_stockage: 'ref-cni-recente', type_piece_code: 'carte_identite' },
+    { id: 9, nom_fichier: 'cni-ancienne.pdf', reference_stockage: 'ref-cni-ancienne', type_piece_code: 'carte_identite' },
+    { id: 11, nom_fichier: 'vitale.pdf', reference_stockage: 'ref-vitale', type_piece_code: 'carte_vitale' },
+  ]);
+  const downloadMock = t.mock.method(azureOneDriveConnector, 'download', async (ref) => Buffer.from(`contenu-${ref}`));
+
+  const resultat = await service.listerPiecesJustificativesAvecContenu(ENTITE_ACCECIT, 42);
+
+  assert.deepEqual(resultat, [
+    { nomFichier: 'cni.pdf', typePieceCode: 'carte_identite', contenu: Buffer.from('contenu-ref-cni-recente') },
+    { nomFichier: 'vitale.pdf', typePieceCode: 'carte_vitale', contenu: Buffer.from('contenu-ref-vitale') },
+  ]);
+  assert.equal(downloadMock.mock.calls.length, 2);
+  assert.deepEqual(downloadMock.mock.calls.map((appel) => appel.arguments[0]).sort(), ['ref-cni-recente', 'ref-vitale']);
+});
+
 test('supprimerPieceJustificative supprime chez le connecteur puis retire la ligne en base', async (t) => {
   mockerKnex(t);
   t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({

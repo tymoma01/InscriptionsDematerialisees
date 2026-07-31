@@ -56,9 +56,37 @@
   box-shadow: var(--ombre-bloc);
 }
 
-.page-validation__pieces h2 {
-  color: var(--couleur-back-office);
+.page-validation__pieces-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
   margin: 0 0 var(--espace-moyen);
+}
+
+.page-validation__pieces-entete h2 {
+  color: var(--couleur-back-office);
+  margin: 0;
+}
+
+.page-validation__bouton-export-zip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.page-validation__bouton-export-zip:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
 }
 
 .page-validation__pieces-vide {

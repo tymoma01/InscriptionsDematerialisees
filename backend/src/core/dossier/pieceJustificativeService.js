@@ -138,6 +138,36 @@ async function telechargerPieceJustificative(entite, pieceId) {
   return { nomFichier: piece.nom_fichier, contenu };
 }
 
+// Téléchargement groupé (RH, "second contrôle" — CLAUDE.md : "besoin de télécharger/exporter les
+// dossiers candidats") : le contenu réel de chaque pièce du dossier, une seule par type — la plus
+// récente (voir listerPiecesAvecReferenceParDossier, triée date_upload desc), jamais deux
+// fichiers pour un même type_piece_code dans l'export, même dédoublonnage que CaptureTablette.jsx
+// (voir diagnostic pièces dupliquées) : sans lui, un export pourrait inclure une pièce orpheline
+// désormais absente de OneDrive (voir le correctif du 2026-07-31 sur azureOneDriveConnector.supprimer).
+// L'assemblage en ZIP est laissé à la route (pieces.routes.js) : c'est une préoccupation de
+// réponse HTTP, pas une règle métier.
+async function listerPiecesJustificativesAvecContenu(entite, dossierId) {
+  const bd = await db.obtenirKnex();
+  await verifierDossierAppartientEntite(bd, entite, dossierId);
+
+  const pieces = await pieceJustificativeRepository.listerPiecesAvecReferenceParDossier(bd, dossierId);
+  const dernierePieceParType = new Map();
+  for (const piece of pieces) {
+    if (!dernierePieceParType.has(piece.type_piece_code)) {
+      dernierePieceParType.set(piece.type_piece_code, piece);
+    }
+  }
+
+  const connecteur = storageFactory(entite.connecteur_stockage);
+  return Promise.all(
+    [...dernierePieceParType.values()].map(async (piece) => ({
+      nomFichier: piece.nom_fichier,
+      typePieceCode: piece.type_piece_code,
+      contenu: await connecteur.download(piece.reference_stockage),
+    })),
+  );
+}
+
 // Suppression permise uniquement tant que le dossier est encore en_attente_pieces : une fois le
 // test planifié (planifier_test), les pièces déjà prises pour cette étape ne doivent plus pouvoir
 // être retirées — plus strict que STATUTS_UPLOAD_AUTORISES (qui admet aussi
@@ -214,6 +244,7 @@ async function mettreAJourStatutVerificationPieceJustificative(entite, pieceId, 
 module.exports = {
   uploaderPieceJustificative,
   telechargerPieceJustificative,
+  listerPiecesJustificativesAvecContenu,
   supprimerPieceJustificative,
   listerPiecesJustificatives,
   obtenirUrlTemporairePieceJustificative,

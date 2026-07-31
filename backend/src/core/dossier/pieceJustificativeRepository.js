@@ -66,6 +66,23 @@ function listerPiecesParDossier(trx, dossierId) {
     .orderBy('pieces_justificatives.date_upload', 'desc');
 }
 
+// Variante de listerPiecesParDossier incluant reference_stockage — jamais exposée telle quelle
+// au front (GET .../pieces normal n'en a pas besoin, voir listerPiecesParDossier ci-dessus) :
+// réservée à un usage interne serveur qui doit effectivement récupérer le contenu de chaque
+// fichier (export ZIP groupé, voir pieceJustificativeService.telechargerToutesPiecesJustificatives).
+function listerPiecesAvecReferenceParDossier(trx, dossierId) {
+  return trx('pieces_justificatives')
+    .join('types_pieces', 'types_pieces.id', 'pieces_justificatives.type_piece_id')
+    .where({ 'pieces_justificatives.dossier_id': dossierId })
+    .select(
+      'pieces_justificatives.id',
+      'pieces_justificatives.nom_fichier',
+      'pieces_justificatives.reference_stockage',
+      'types_pieces.code as type_piece_code',
+    )
+    .orderBy('pieces_justificatives.date_upload', 'desc');
+}
+
 function mettreAJourStatutVerification(trx, pieceId, { statutVerification, dateVerification }) {
   return trx('pieces_justificatives')
     .where({ id: pieceId })
@@ -81,5 +98,6 @@ module.exports = {
   supprimerPieceJustificativeParId,
   trouverPieceParDossierEtType,
   listerPiecesParDossier,
+  listerPiecesAvecReferenceParDossier,
   mettreAJourStatutVerification,
 };

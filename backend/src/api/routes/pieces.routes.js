@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const multer = require('multer');
+const archiver = require('archiver');
 const { z } = require('zod');
 const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
 const { ErreurPieceJustificativeInvalide } = pieceJustificativeService;
@@ -23,10 +24,13 @@ router.use(requireAuth);
 // l'accueil" ; commentaire plus bas : "pas une décision qu'un recruteur/accueil choisit").
 // L'admin est inclus par cohérence avec son rôle de gestion globale.
 const ROLES_GESTION_PIECES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
-// Consultation (liste, téléchargement) ouverte à tous les rôles internes : le formateur doit
-// pouvoir consulter/exporter un dossier (CLAUDE.md, section Rôles : "Formateur ... exporte les
-// dossiers").
+// Consultation (liste, téléchargement) ouverte à tous les rôles internes.
 const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR];
+// Export groupé (ZIP) réservé au Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 —
+// besoin RH "second contrôle" : télécharger/exporter les dossiers candidats). Volontairement plus
+// restreint que ROLES_CONSULTATION_PIECES : télécharger le contenu réel de toutes les pièces d'un
+// coup est un geste plus sensible que consulter une pièce à la fois.
+const ROLES_EXPORT_ZIP_PIECES = [ROLES.RECRUTEUR];
 
 // Fichier gardé en mémoire (pas écrit sur le disque du serveur applicatif) : part directement en
 // Buffer vers le connecteur de stockage (StorageConnector.upload attend { nom, contenu: Buffer }).
@@ -121,6 +125,61 @@ router.get('/', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const pieces = await pieceJustificativeService.listerPiecesJustificatives(req.entite, dossierId);
     res.json(pieces);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });
+    next(erreur);
+  }
+});
+
+// GET /api/dossiers/:dossierId/pieces/export-zip — télécharge toutes les pièces justificatives
+// d'un dossier en une seule archive (RH, "second contrôle", CLAUDE.md). Déclarée avant
+// GET /:pieceId ci-dessous : Express matche les routes dans l'ordre de déclaration, et
+// `:pieceId` matcherait la chaîne littérale "export-zip" comme n'importe quel autre segment si
+// cette route venait après — l'ordre ici n'est donc pas juste cosmétique.
+router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, res, next) => {
+  try {
+    const dossierId = idPositifSchema.parse(req.params.dossierId);
+    const fichiers = await pieceJustificativeService.listerPiecesJustificativesAvecContenu(req.entite, dossierId);
+    if (fichiers.length === 0) {
+      return res.status(404).json({ erreur: 'Aucune pièce justificative pour ce dossier.' });
+    }
+
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="dossier-${dossierId}-pieces.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    // Une erreur de streaming survient après l'envoi des en-têtes (res.set ci-dessus) : on ne
+    // peut plus renvoyer un JSON d'erreur propre à ce stade, juste couper la réponse — même
+    // limite que n'importe quel flux HTTP déjà commencé.
+    archive.on('error', (erreur) => {
+      console.error(`Échec de génération du ZIP pour le dossier "${dossierId}" :`, erreur.message);
+      res.destroy();
+    });
+    archive.pipe(res);
+
+    for (const fichier of fichiers) {
+      // Préfixé par le type de pièce (même convention que le chemin OneDrive à l'upload, voir
+      // pieceJustificativeService.js) : garantit un nom d'entrée unique dans l'archive même si
+      // deux pièces partageaient autrefois un nom de fichier d'origine identique.
+      archive.append(fichier.contenu, { name: `${fichier.typePieceCode}_${fichier.nomFichier}` });
+    }
+
+    await archive.finalize();
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'pieces_justificatives_export_zip',
+      tableCible: 'pieces_justificatives',
+      // 0 = sentinel "aucune cible unique" (voir journalAudit.js, cible_id NOT NULL en base) :
+      // cet export porte sur plusieurs pièces à la fois, pas une ligne pieces_justificatives
+      // précise.
+      cibleId: 0,
+      donnees: { dossierId, nombrePieces: fichiers.length },
+      adresseIp: req.ip,
+    });
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof ErreurPieceJustificativeInvalide) return res.status(400).json({ erreur: erreur.message });

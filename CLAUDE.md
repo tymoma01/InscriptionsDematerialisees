@@ -63,8 +63,8 @@ Authentification par **session serveur** (pas de JWT) :
 
 **Rôles (RBAC, table `roles` plutôt que des booléens) :**
 - **Accueil / Coordination** : saisie, vérification des pièces, planification des tests, relances, reprogrammations
-- **Recruteur** : back-office complet, validation des profils, décision finale (validé/refusé)
-- **Formateur** : reçoit les notifications de test, évalue les candidats, valide/invalide le test, **exporte les dossiers**
+- **Recruteur** : back-office complet, validation des profils, décision finale (validé/refusé), **export groupé (ZIP) des pièces justificatives d'un candidat** (besoin RH "second contrôle", décision du 2026-07-31 — corrige une attribution erronée précédente de cette capacité au rôle Formateur ci-dessous)
+- **Formateur** : reçoit les notifications de test, évalue les candidats, valide/invalide le test
 - **Admin** : gestion globale, configuration de l'entité (workflow, blocs de formulaire)
 
 HTTPS recommandé même en usage intranet local (reverse proxy avec certificat, même auto-signé).
