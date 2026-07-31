@@ -32,8 +32,12 @@ function libelleValeur(typeQuestion, valeur) {
   return valeur;
 }
 
-function libellePoste(posteCode) {
-  return posteCode ? (POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode) : 'Générique (bureau)';
+// postesCodes : plusieurs postes peuvent avoir été évalués dans une même évaluation (blocs
+// empilés, voir GrilleEvaluation.jsx / backend evaluationEngine.enregistrerEvaluation) — tableau
+// vide = repli générique (dossier bureau, ou poste hôtel sans questionnaire dédié).
+function libellePostes(postesCodes) {
+  if (!postesCodes || postesCodes.length === 0) return 'Générique (bureau)';
+  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode).join(', ');
 }
 
 function libelleResultat(evaluation) {
@@ -94,8 +98,8 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
 
       <dl className="detail-evaluation__meta">
         <div>
-          <dt>Poste évalué</dt>
-          <dd>{libellePoste(evaluation.posteCode)}</dd>
+          <dt>Poste(s) évalué(s)</dt>
+          <dd>{libellePostes(evaluation.postesCodes)}</dd>
         </div>
         <div>
           <dt>Date du test</dt>

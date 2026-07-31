@@ -20,6 +20,24 @@
   color: var(--couleur-texte-secondaire);
 }
 
+/* Un bloc = un poste empilé (voir GrilleEvaluation.jsx, blocsQuestionnaire) — regroupe visuellement
+   ses questions sous un titre de poste, seulement affiché quand plusieurs postes sont empilés
+   (voir `plusieursBlocs`). Bordure plus marquée que .grille-evaluation__question pour distinguer
+   le regroupement par poste du regroupement par question à l'intérieur. */
+.grille-evaluation__bloc-poste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+  border: 2px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-moyen);
+}
+
+.grille-evaluation__bloc-poste-titre {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
 .grille-evaluation__question {
   display: flex;
   flex-direction: column;

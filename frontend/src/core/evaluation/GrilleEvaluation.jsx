@@ -23,6 +23,10 @@ const POSTE_HOTEL_LIBELLES = {
   gouvernant: 'Gouvernant(e)',
 };
 
+function libellePoste(posteCode) {
+  return posteCode ? (POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode) : 'Générique';
+}
+
 // Orientation du candidat en cas de verdict positif (workflow v3, voir backend evaluationEngine.js,
 // ORIENTATIONS_AUTORISEES) — sans objet si le résultat global est "Invalidé", jamais affichée
 // dans ce cas (voir orientationVisible plus bas).
@@ -31,10 +35,22 @@ const ORIENTATIONS = [
   { code: 'pret_embauche', libelle: "Prêt à l'embauche" },
 ];
 
-// Clé interne d'une réponse, unique par (question, item) — item absent pour une question
-// 'texte_libre' (une seule réponse par question, pas par item), voir clesReponses plus bas.
+// Clé interne d'une réponse, unique par (question, item) DANS UN BLOC — item absent pour une
+// question 'texte_libre' (une seule réponse par question, pas par item). Ne contient volontairement
+// pas le poste : chaque bloc a son propre objet `reponses` (voir blocsQuestionnaire plus bas), pas
+// un espace de clés partagé entre postes — questions_evaluation n'étant unique que par
+// (questionnaire_id, code) côté back (migration 037), deux postes différents peuvent réutiliser le
+// même questionCode, et les fusionner créerait des collisions silencieuses.
 function cleReponse(questionCode, itemCode) {
   return `${questionCode}:${itemCode ?? ''}`;
+}
+
+// Identifiant stable d'un bloc (poste), utilisé comme clé React et comme espace de nommage des
+// inputs radio (voir leur `name` plus bas) — '__generique__' pour le repli sans poste dédié
+// (dossier bureau, ou poste hôtel sans questionnaire dédié), posteCode ne pouvant pas servir de
+// clé quand il vaut undefined.
+function cleBloc(posteCode) {
+  return posteCode ?? '__generique__';
 }
 
 // Valeurs par défaut pour un questionnaire fraîchement chargé. choix_multiple part à 'non_coche'
@@ -60,12 +76,61 @@ function valeursParDefaut(questions) {
   return valeurs;
 }
 
-// Grille d'évaluation dynamique selon le poste réellement recherché par le candidat (voir
-// Modularité, CLAUDE.md) : ne connaît aucune question en dur — charge le questionnaire résolu
-// côté serveur pour ce poste (GET /api/evaluations/questionnaire, repli générique si le poste n'a
-// pas de questionnaire dédié) et construit son rendu selon le type de chaque question
-// (grille_qcu / choix_multiple / texte_libre), comme FormulaireInscription compose ses blocs
-// actifs plutôt que de les connaître.
+// Charge un bloc de questionnaire par poste (repli générique côté serveur si posteCode est
+// undefined ou n'a pas de questionnaire dédié, voir backend evaluationEngine.listerQuestionnaire),
+// en parallèle pour tous les postes fournis — c'est cet empilement qui construit
+// `blocsQuestionnaire` (voir plus bas), un bloc = un poste = son propre questionnaire et ses
+// propres réponses.
+async function chargerBlocs(rendezvousId, postesCodes) {
+  const resultats = await Promise.all(
+    postesCodes.map((posteCode) =>
+      obtenirQuestionnaire({ rendezvousId, posteCode }).then((questions) => ({
+        posteCode,
+        questions,
+        reponses: valeursParDefaut(questions),
+      })),
+    ),
+  );
+  return resultats;
+}
+
+function blocGrilleIncomplete(bloc) {
+  return bloc.questions.filter(
+    (question) =>
+      question.type_question === 'grille_qcu' &&
+      question.items.some((item) => !bloc.reponses[cleReponse(question.code, item.code)]),
+  );
+}
+
+function blocTexteLibreIncomplet(bloc) {
+  return bloc.questions.some(
+    (question) =>
+      question.type_question === 'texte_libre' && question.obligatoire && !bloc.reponses[cleReponse(question.code)]?.trim(),
+  );
+}
+
+// reponses envoyées au format attendu par un bloc du payload POST /api/evaluations (voir backend
+// evaluationEngine.enregistrerEvaluation, `blocs: [{ posteCode, reponses }]`).
+function construireReponsesBloc(bloc) {
+  return bloc.questions.flatMap((question) => {
+    if (question.type_question === 'texte_libre') {
+      return [{ questionCode: question.code, valeur: bloc.reponses[cleReponse(question.code)] }];
+    }
+    return question.items.map((item) => ({
+      questionCode: question.code,
+      questionItemCode: item.code,
+      valeur: bloc.reponses[cleReponse(question.code, item.code)],
+    }));
+  });
+}
+
+// Grille d'évaluation dynamique selon le ou les postes réellement recherchés par le candidat (voir
+// Modularité, CLAUDE.md) : ne connaît aucune question en dur — charge, pour chaque poste retenu,
+// le questionnaire résolu côté serveur (GET /api/evaluations/questionnaire, repli générique si le
+// poste n'a pas de questionnaire dédié) et empile un bloc par poste, chacun avec ses propres
+// réponses (voir blocsQuestionnaire), comme FormulaireInscription compose ses blocs actifs plutôt
+// que de les connaître. Un seul verdict global (résultat/orientation/commentaire) couvre
+// l'ensemble des blocs à la soumission (voir gererEnvoi).
 //
 // rendezvous reçu en prop ({ id, dossier_id, candidat_prenom, candidat_nom, postesBureau,
 // postesHotel }, voir ListeEvaluationsAFaire.jsx / backend evaluationEngine.listerRendezvousAEvaluer)
@@ -73,21 +138,20 @@ function valeursParDefaut(questions) {
 export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
   // Plusieurs postes hôtel cochés sur un même dossier : le formulaire d'inscription le permet
   // (case à cocher indépendante par poste, voir BlocDisponibilites.jsx) — sans façon fiable de
-  // deviner lequel des questionnaires dédiés s'applique, c'est le formateur qui choisit avant de
-  // charger la grille (décision actée avec la responsable de projet), plutôt qu'une hypothèse
-  // fausse sur l'intention du candidat.
+  // deviner lesquels des questionnaires dédiés s'appliquent, c'est le formateur qui coche ceux sur
+  // lesquels porte réellement ce test avant de charger les grilles (empilées, un bloc par poste
+  // coché), plutôt qu'une hypothèse fausse sur l'intention du candidat.
   const postesHotel = rendezvous.postesHotel ?? [];
   const postesAmbigus = postesHotel.length > 1;
   const posteResolutionAutomatique = postesHotel.length === 1 ? postesHotel[0] : undefined;
 
-  const [posteChoisi, setPosteChoisi] = useState('');
-  const posteCode = postesAmbigus ? posteChoisi || undefined : posteResolutionAutomatique;
-
-  const [questions, setQuestions] = useState(null);
+  const [postesChoisis, setPostesChoisis] = useState([]);
+  // null tant qu'aucun bloc n'a encore été chargé : sert de garde d'affichage (voir plus bas,
+  // écran de sélection vs formulaire) sans avoir besoin d'un état booléen séparé.
+  const [blocsQuestionnaire, setBlocsQuestionnaire] = useState(null);
   const [chargement, setChargement] = useState(!postesAmbigus);
   const [erreur, setErreur] = useState(null);
 
-  const [reponses, setReponses] = useState({});
   // Pas de présélection (même principe que les items grille_qcu, voir valeursParDefaut) : rien
   // dans le vocabulaire 'valide'/'invalide' ne représente une absence de décision, donc démarrer
   // sur 'valide' par défaut permettait de soumettre une évaluation sans que le formateur ait
@@ -106,22 +170,41 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     if (valeur !== 'valide') setOrientation('');
   };
 
-  // Ne se déclenche qu'une fois le poste connu : soit immédiatement (un seul poste hôtel, ou
-  // aucun — repli générique), soit après le choix du formateur (postesAmbigus).
+  const gererBasculePoste = (code) => {
+    setPostesChoisis((precedent) => (precedent.includes(code) ? precedent.filter((c) => c !== code) : [...precedent, code]));
+  };
+
+  // Charge un bloc par poste coché — déclenché par le clic sur "Continuer" (voir écran de
+  // sélection plus bas), pas automatiquement à chaque case cochée : éviter un rechargement complet
+  // (et donc la perte des réponses déjà saisies dans les blocs déjà chargés) à chaque bascule.
+  const gererValidationSelection = async () => {
+    if (postesChoisis.length === 0) return;
+    setChargement(true);
+    setErreur(null);
+    try {
+      const blocs = await chargerBlocs(rendezvous.id, postesChoisis);
+      setBlocsQuestionnaire(blocs);
+    } catch (erreurChargement) {
+      setErreur(erreurChargement.response?.data?.erreur ?? 'Impossible de récupérer le(s) questionnaire(s).');
+    } finally {
+      setChargement(false);
+    }
+  };
+
+  // Cas non ambigu (un seul poste hôtel, ou aucun — repli générique) : chargement automatique d'un
+  // unique bloc au montage, aucun écran de sélection à afficher (voir postesAmbigus plus bas).
   useEffect(() => {
-    if (postesAmbigus && !posteCode) return undefined;
+    if (postesAmbigus) return undefined;
 
     let annule = false;
     setChargement(true);
     setErreur(null);
-    obtenirQuestionnaire({ rendezvousId: rendezvous.id, posteCode })
-      .then((valeur) => {
-        if (annule) return;
-        setQuestions(valeur);
-        setReponses(valeursParDefaut(valeur));
+    chargerBlocs(rendezvous.id, [posteResolutionAutomatique])
+      .then((blocs) => {
+        if (!annule) setBlocsQuestionnaire(blocs);
       })
-      .catch((erreur) => {
-        if (!annule) setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer le questionnaire.');
+      .catch((erreurChargement) => {
+        if (!annule) setErreur(erreurChargement.response?.data?.erreur ?? 'Impossible de récupérer le questionnaire.');
       })
       .finally(() => {
         if (!annule) setChargement(false);
@@ -129,44 +212,32 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     return () => {
       annule = true;
     };
-  }, [rendezvous.id, posteCode]);
+  }, [rendezvous.id, postesAmbigus, posteResolutionAutomatique]);
+
+  const gererChangementReponse = (indexBloc, cle, valeur) => {
+    setBlocsQuestionnaire((precedent) =>
+      precedent.map((bloc, index) => (index === indexBloc ? { ...bloc, reponses: { ...bloc.reponses, [cle]: valeur } } : bloc)),
+    );
+  };
 
   const gererEnvoi = async (evenement) => {
     evenement.preventDefault();
     if (!resultatGlobal) return;
     if (!commentaire.trim()) return;
     if (orientationVisible && !orientation) return;
-    if (
-      questions.some(
-        (question) =>
-          question.type_question === 'grille_qcu' &&
-          question.items.some((item) => !reponses[cleReponse(question.code, item.code)]),
-      )
-    ) {
-      return;
-    }
-    if (
-      questions.some(
-        (question) =>
-          question.type_question === 'texte_libre' && question.obligatoire && !reponses[cleReponse(question.code)]?.trim(),
-      )
-    ) {
-      return;
-    }
+    if (blocsQuestionnaire.some((bloc) => blocGrilleIncomplete(bloc).length > 0)) return;
+    if (blocsQuestionnaire.some((bloc) => blocTexteLibreIncomplet(bloc))) return;
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
 
-    const reponsesEnvoyees = questions.flatMap((question) => {
-      if (question.type_question === 'texte_libre') {
-        return [{ questionCode: question.code, valeur: reponses[cleReponse(question.code)] }];
-      }
-      return question.items.map((item) => ({
-        questionCode: question.code,
-        questionItemCode: item.code,
-        valeur: reponses[cleReponse(question.code, item.code)],
-      }));
-    });
+    // Un bloc par poste empilé (voir blocsQuestionnaire) — reponses résolues/revalidées côté
+    // serveur bloc par bloc, jamais fusionnées (voir backend evaluationEngine.enregistrerEvaluation
+    // et le commentaire sur cleReponse ci-dessus).
+    const blocsEnvoyes = blocsQuestionnaire.map((bloc) => ({
+      posteCode: bloc.posteCode,
+      reponses: construireReponsesBloc(bloc),
+    }));
 
     try {
       // Le serveur fait avancer le statut du dossier dans la même transaction que l'enregistrement
@@ -176,15 +247,14 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         rendezvousId: rendezvous.id,
         resultatGlobal,
         orientation: orientationVisible ? orientation : undefined,
-        posteCode,
         commentaire,
-        reponses: reponsesEnvoyees,
+        blocs: blocsEnvoyes,
       });
-    } catch (erreur) {
+    } catch (erreurEnvoiRequete) {
       setEnvoiEnCours(false);
       setErreurEnvoi(
-        erreur.response
-          ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer l'évaluation. Merci de réessayer.")
+        erreurEnvoiRequete.response
+          ? (erreurEnvoiRequete.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer l'évaluation. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
       return;
@@ -194,26 +264,41 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
     onTermine();
   };
 
-  if (postesAmbigus && !posteCode) {
+  if (postesAmbigus && blocsQuestionnaire === null) {
     return (
-      <div className="grille-evaluation">
-        <h2>
-          Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-        </h2>
-        <p>
-          Plusieurs postes ont été demandés par ce candidat — choisissez celui sur lequel porte cette évaluation :
-        </p>
-        <div className="grille-evaluation__choix">
-          {postesHotel.map((code) => (
-            <button key={code} type="button" onClick={() => setPosteChoisi(code)}>
-              {POSTE_HOTEL_LIBELLES[code] ?? code}
+      // Fragment plutôt qu'un <div> unique englobant tout : NotesDossier reste un frère de
+      // .grille-evaluation, jamais imbriqué dedans (même patron que le formulaire principal
+      // plus bas) — sinon sa propre carte (bordure/ombre/fond, voir NotesDossier.css) se
+      // retrouverait imbriquée dans celle-ci, agrandie du padding des deux cartes cumulées au
+      // lieu de s'étendre en dessous sur toute la largeur, comme sur VerificationPieces.jsx/
+      // Relances.jsx/Validation.jsx.
+      <>
+        <div className="grille-evaluation">
+          <h2>
+            Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+          </h2>
+          <p>
+            Plusieurs postes ont été demandés par ce candidat — cochez celui ou ceux sur lesquels porte cette évaluation :
+          </p>
+          <div className="grille-evaluation__choix">
+            {postesHotel.map((code) => (
+              <label key={code}>
+                <input type="checkbox" checked={postesChoisis.includes(code)} onChange={() => gererBasculePoste(code)} />
+                {POSTE_HOTEL_LIBELLES[code] ?? code}
+              </label>
+            ))}
+          </div>
+
+          {erreur && <p role="alert">{erreur}</p>}
+
+          <div className="grille-evaluation__actions">
+            <button type="button" onClick={onAnnuler} disabled={chargement}>
+              Annuler
             </button>
-          ))}
-        </div>
-        <div className="grille-evaluation__actions">
-          <button type="button" onClick={onAnnuler}>
-            Annuler
-          </button>
+            <button type="button" onClick={gererValidationSelection} disabled={chargement || postesChoisis.length === 0}>
+              {chargement ? 'Chargement...' : 'Continuer'}
+            </button>
+          </div>
         </div>
 
         {/* Notes de l'accueil/coordination sur ce dossier (ex. "à tester sur les postes de FDC et
@@ -222,42 +307,39 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
             en-tête de fichier) : le formateur fait déjà partie de ROLES_NOTES_DOSSIER côté back
             (notes.routes.js), aucune variante lecture-seule à part. */}
         <NotesDossier dossierId={rendezvous.dossier_id} />
-      </div>
+      </>
     );
   }
 
   if (erreur) {
     return <p role="alert">{erreur}</p>;
   }
-  // Vérifie `questions` (pas seulement `chargement`) : juste après le choix du poste dans le
-  // sélecteur ci-dessus, un rendu intermédiaire est possible avant que l'effet n'ait eu le temps
-  // de repasser `chargement` à true (posteCode change, mais l'effet ne s'exécute qu'après ce
-  // rendu) — sans cette garde, le formulaire plus bas accéderait à `questions` encore `null`.
-  if (chargement || !questions) {
+  // Vérifie `blocsQuestionnaire` (pas seulement `chargement`) : juste après "Continuer" sur l'écran
+  // de sélection ci-dessus, un rendu intermédiaire est possible avant que le chargement n'ait eu
+  // le temps de repasser à true — sans cette garde, le formulaire plus bas accéderait à
+  // `blocsQuestionnaire` encore `null`.
+  if (chargement || !blocsQuestionnaire) {
     return <p>Chargement de la grille…</p>;
   }
+
+  const plusieursBlocs = blocsQuestionnaire.length > 1;
 
   // Un texte_libre obligatoire vide bloque déjà la soumission via l'attribut `required` natif du
   // textarea (même principe que le champ Commentaire), revérifié ici pour désactiver le bouton en
   // amont plutôt que de dépendre uniquement de la validation native du navigateur.
-  const texteLibreIncomplet = questions.some(
-    (question) =>
-      question.type_question === 'texte_libre' && question.obligatoire && !reponses[cleReponse(question.code)]?.trim(),
-  );
+  const texteLibreIncomplet = blocsQuestionnaire.some((bloc) => blocTexteLibreIncomplet(bloc));
 
   // Une question grille_qcu n'a pas d'état "répondu mais vide" légitime (contrairement à
   // texte_libre) : les 3 valeurs de l'échelle ACQUIS sont toutes des jugements réels, aucune ne
   // représente "pas encore répondu" — chaque item doit donc recevoir une réponse avant soumission,
   // quel que soit question.obligatoire (qui ne pilote que l'affichage de l'astérisque ci-dessous).
-  // Le back revaliderait de toute façon : ACQUIS_AUTORISEES (evaluationEngine.js) ne contient
-  // aucune valeur "non répondu", un item resté vide serait rejeté avec un message générique à
-  // l'enregistrement — ce contrôle évite juste à l'agent de le découvrir seulement à l'envoi.
-  const questionsGrilleIncompletes = questions.filter(
-    (question) =>
-      question.type_question === 'grille_qcu' &&
-      question.items.some((item) => !reponses[cleReponse(question.code, item.code)]),
-  );
-  const grilleQcuIncomplete = questionsGrilleIncompletes.length > 0;
+  // Le back revaliderait de toute façon, bloc par bloc (ACQUIS_AUTORISEES, evaluationEngine.js ne
+  // contient aucune valeur "non répondu") — ce contrôle évite juste à l'agent de le découvrir
+  // seulement à l'envoi.
+  const blocsAvecGrilleIncomplete = blocsQuestionnaire
+    .map((bloc) => ({ bloc, questionsIncompletes: blocGrilleIncomplete(bloc) }))
+    .filter(({ questionsIncompletes }) => questionsIncompletes.length > 0);
+  const grilleQcuIncomplete = blocsAvecGrilleIncomplete.length > 0;
 
   return (
     // Fragment plutôt qu'un <form> unique englobant tout : NotesDossier rend lui-même un <form>
@@ -269,70 +351,81 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
           Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
         </h2>
 
-        {questions.length === 0 && (
-          <p className="grille-evaluation__vide">Aucune question configurée pour ce questionnaire.</p>
-        )}
+        {blocsQuestionnaire.map((bloc, indexBloc) => (
+          <section key={cleBloc(bloc.posteCode)} className="grille-evaluation__bloc-poste">
+            {/* Titre de bloc affiché seulement si plusieurs postes sont empilés : pour le cas
+                courant (un seul poste, ou repli générique bureau), aucun changement visuel par
+                rapport à l'écran mono-poste d'origine. */}
+            {plusieursBlocs && <h3 className="grille-evaluation__bloc-poste-titre">{libellePoste(bloc.posteCode)}</h3>}
 
-        {questions.map((question) => (
-          <fieldset key={question.code} className="grille-evaluation__question">
-            <legend>
-              {question.libelle}
-              {question.obligatoire && <span className="champ-obligatoire"> *</span>}
-            </legend>
+            {bloc.questions.length === 0 && (
+              <p className="grille-evaluation__vide">Aucune question configurée pour ce questionnaire.</p>
+            )}
 
-            {question.type_question === 'grille_qcu' &&
-              question.items.map((item) => (
-                <fieldset key={item.code} className="grille-evaluation__critere">
-                  <legend>{item.libelle}</legend>
+            {bloc.questions.map((question) => (
+              <fieldset key={question.code} className="grille-evaluation__question">
+                <legend>
+                  {question.libelle}
+                  {question.obligatoire && <span className="champ-obligatoire"> *</span>}
+                </legend>
+
+                {question.type_question === 'grille_qcu' &&
+                  question.items.map((item) => (
+                    <fieldset key={item.code} className="grille-evaluation__critere">
+                      <legend>{item.libelle}</legend>
+                      <div className="grille-evaluation__choix">
+                        {ACQUIS.map((v) => (
+                          <label key={v.code}>
+                            <input
+                              type="radio"
+                              // Nom d'input préfixé par le bloc (cleBloc) : deux postes différents
+                              // peuvent réutiliser le même questionCode/itemCode (questions_evaluation
+                              // n'est unique que par questionnaire côté back, migration 037) — sans ce
+                              // préfixe, deux radios de blocs distincts partageraient le même `name`
+                              // et le navigateur les grouperait à tort comme mutuellement exclusifs.
+                              name={`${cleBloc(bloc.posteCode)}-${question.code}-${item.code}-${v.code}`}
+                              checked={bloc.reponses[cleReponse(question.code, item.code)] === v.code}
+                              onChange={() => gererChangementReponse(indexBloc, cleReponse(question.code, item.code), v.code)}
+                            />
+                            {v.libelle}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ))}
+
+                {question.type_question === 'choix_multiple' && (
                   <div className="grille-evaluation__choix">
-                    {ACQUIS.map((v) => (
-                      <label key={v.code}>
+                    {question.items.map((item) => (
+                      <label key={item.code}>
                         <input
-                          type="radio"
-                          name={`${question.code}-${item.code}-${v.code}`}
-                          checked={reponses[cleReponse(question.code, item.code)] === v.code}
-                          onChange={() =>
-                            setReponses((precedent) => ({ ...precedent, [cleReponse(question.code, item.code)]: v.code }))
+                          type="checkbox"
+                          checked={bloc.reponses[cleReponse(question.code, item.code)] === 'coche'}
+                          onChange={(evenement) =>
+                            gererChangementReponse(
+                              indexBloc,
+                              cleReponse(question.code, item.code),
+                              evenement.target.checked ? 'coche' : 'non_coche',
+                            )
                           }
                         />
-                        {v.libelle}
+                        {item.libelle}
                       </label>
                     ))}
                   </div>
-                </fieldset>
-              ))}
+                )}
 
-            {question.type_question === 'choix_multiple' && (
-              <div className="grille-evaluation__choix">
-                {question.items.map((item) => (
-                  <label key={item.code}>
-                    <input
-                      type="checkbox"
-                      checked={reponses[cleReponse(question.code, item.code)] === 'coche'}
-                      onChange={(evenement) =>
-                        setReponses((precedent) => ({
-                          ...precedent,
-                          [cleReponse(question.code, item.code)]: evenement.target.checked ? 'coche' : 'non_coche',
-                        }))
-                      }
-                    />
-                    {item.libelle}
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {question.type_question === 'texte_libre' && (
-              <textarea
-                rows={2}
-                value={reponses[cleReponse(question.code)] ?? ''}
-                onChange={(evenement) =>
-                  setReponses((precedent) => ({ ...precedent, [cleReponse(question.code)]: evenement.target.value }))
-                }
-                required={question.obligatoire}
-              />
-            )}
-          </fieldset>
+                {question.type_question === 'texte_libre' && (
+                  <textarea
+                    rows={2}
+                    value={bloc.reponses[cleReponse(question.code)] ?? ''}
+                    onChange={(evenement) => gererChangementReponse(indexBloc, cleReponse(question.code), evenement.target.value)}
+                    required={question.obligatoire}
+                  />
+                )}
+              </fieldset>
+            ))}
+          </section>
         ))}
 
         <fieldset className="grille-evaluation__resultat-global">
@@ -392,7 +485,13 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
         {grilleQcuIncomplete && (
           <p role="alert">
             Répondez à toutes les questions de la grille avant de soumettre :{' '}
-            {questionsGrilleIncompletes.map((question) => question.libelle).join(', ')}.
+            {blocsAvecGrilleIncomplete
+              .map(({ bloc, questionsIncompletes }) => {
+                const libellesQuestions = questionsIncompletes.map((question) => question.libelle).join(', ');
+                return plusieursBlocs ? `${libellePoste(bloc.posteCode)} — ${libellesQuestions}` : libellesQuestions;
+              })
+              .join(' ; ')}
+            .
           </p>
         )}
 
@@ -408,7 +507,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
               envoiEnCours ||
               !resultatGlobal ||
               !commentaire.trim() ||
-              questions.length === 0 ||
+              blocsQuestionnaire.every((bloc) => bloc.questions.length === 0) ||
               (orientationVisible && !orientation) ||
               grilleQcuIncomplete ||
               texteLibreIncomplet

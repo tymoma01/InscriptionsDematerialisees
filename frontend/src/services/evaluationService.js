@@ -19,14 +19,16 @@ export async function listerRendezvousAEvaluer() {
   return data;
 }
 
-export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orientation, posteCode, commentaire, reponses }) {
+// blocs : [{ posteCode, reponses }] — un bloc par poste évalué (questionnaires empilés, voir
+// GrilleEvaluation.jsx), un seul verdict global (resultatGlobal/orientation/commentaire) pour
+// l'ensemble.
+export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orientation, commentaire, blocs }) {
   const { data } = await api.post('/evaluations', {
     rendezvousId,
     resultatGlobal,
     orientation,
-    posteCode,
     commentaire,
-    reponses,
+    blocs,
   });
   return data;
 }

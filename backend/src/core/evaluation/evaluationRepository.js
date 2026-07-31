@@ -86,6 +86,17 @@ function trouverEvaluationParRendezvous(bd, rendezvousId) {
   return bd('evaluations').where({ rendezvous_id: rendezvousId }).first();
 }
 
+// Sous-requête corrélée renvoyant le(s) poste(s) évalués (evaluations_postes, migration 040) sous
+// forme de tableau Postgres, plutôt qu'un JOIN + GROUP BY : évite de devoir regrouper toutes les
+// autres colonnes sélectionnées (candidat, statut...) juste pour cette agrégation. NULL (aucune
+// ligne) si évaluation générique — même sémantique que l'ancienne colonne evaluations.poste_code
+// NULL, voir migration 040.
+const SOUS_REQUETE_POSTES_CODES = `(
+  select array_agg(ep.poste_code order by ep.poste_code)
+  from evaluations_postes ep
+  where ep.evaluation_id = evaluations.id
+) as postes_codes`;
+
 // Historique des évaluations déjà soumises par CE formateur (formateur_id, jamais tous
 // formateurs confondus) — voir evaluationEngine.listerHistorique / HistoriqueEvaluations.jsx.
 // entiteId filtré via la jointure dossiers, même patron que listerRendezvousAEvaluer ci-dessus.
@@ -99,10 +110,10 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId) {
       'evaluations.dossier_id',
       'evaluations.resultat_global',
       'evaluations.orientation',
-      'evaluations.poste_code',
       'evaluations.date_evaluation',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
+      bd.raw(SOUS_REQUETE_POSTES_CODES),
     )
     .orderBy('evaluations.date_evaluation', 'desc');
 }
@@ -115,7 +126,12 @@ function trouverEvaluationParId(bd, entiteId, evaluationId) {
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .where({ 'evaluations.id': evaluationId, 'dossiers.entite_id': entiteId })
-    .select('evaluations.*', 'candidats.prenom as candidat_prenom', 'candidats.nom as candidat_nom')
+    .select(
+      'evaluations.*',
+      'candidats.prenom as candidat_prenom',
+      'candidats.nom as candidat_nom',
+      bd.raw(SOUS_REQUETE_POSTES_CODES),
+    )
     .first();
 }
 
@@ -156,7 +172,10 @@ async function trouverPostesDossier(bd, dossierId) {
   };
 }
 
-async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId, resultatGlobal, orientation, posteCode, commentaire }) {
+async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId, resultatGlobal, orientation, commentaire }) {
+  // Le(s) poste(s) effectivement évalués vivent désormais dans evaluations_postes (migration 040,
+  // un bloc pouvant en empiler plusieurs sous un même verdict) — plus de colonne poste_code
+  // renseignée ici, voir enregistrerPostesEvaluation ci-dessous.
   const [evaluation] = await bd('evaluations')
     .insert({
       dossier_id: dossierId,
@@ -164,15 +183,22 @@ async function enregistrerEvaluation(bd, { dossierId, rendezvousId, formateurId,
       formateur_id: formateurId,
       resultat_global: resultatGlobal,
       orientation: orientation ?? null,
-      // Poste effectivement évalué (voir migration 038) — null pour un repli sur le
-      // questionnaire générique (dossier bureau, ou poste hôtel sans questionnaire dédié).
-      // Toujours le poste résolu/validé côté serveur (evaluationEngine.resoudrePosteCode),
-      // jamais la valeur brute envoyée par le client.
-      poste_code: posteCode ?? null,
       commentaire,
     })
     .returning('id');
   return evaluation.id;
+}
+
+// Un poste évalué = une ligne (evaluations_postes, migration 040) — posteCodes ne contient que
+// les postes réellement résolus par bloc (toujours résolus/validés côté serveur,
+// evaluationEngine.resoudrePosteCode, jamais la valeur brute envoyée par le client) ; un bloc
+// générique (posteCode null) n'a pas de ligne ici, même sémantique que l'ancienne colonne
+// evaluations.poste_code NULL.
+function enregistrerPostesEvaluation(bd, evaluationId, posteCodes) {
+  if (posteCodes.length === 0) return Promise.resolve();
+  return bd('evaluations_postes').insert(
+    posteCodes.map((posteCode) => ({ evaluation_id: evaluationId, poste_code: posteCode })),
+  );
 }
 
 // reponses : [{ questionId, questionItemId, valeur }] — un insert groupé plutôt qu'une par
@@ -197,6 +223,7 @@ module.exports = {
   trouverEvaluationParRendezvous,
   trouverPostesDossier,
   enregistrerEvaluation,
+  enregistrerPostesEvaluation,
   enregistrerReponses,
   listerEvaluationsParFormateur,
   trouverEvaluationParId,

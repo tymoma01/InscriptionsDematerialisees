@@ -138,14 +138,19 @@ async function listerRendezvousAEvaluer(entite, formateurId) {
   }));
 }
 
-// Enregistre une évaluation complète (résultat global + orientation éventuelle + réponses au
-// questionnaire résolu pour le poste choisi) pour un rendez-vous de test. `reponses` est la grille
-// telle que soumise par le formulaire — revalidée intégralement côté serveur (jamais de confiance
-// dans ce qu'un client déclare avoir affiché), et doit couvrir EXACTEMENT le questionnaire résolu,
-// ni plus ni moins — une grille partielle est refusée plutôt qu'enregistrée à moitié.
+// Enregistre une évaluation complète (résultat global + orientation éventuelle + réponses au(x)
+// questionnaire(s) résolu(s) pour le ou les postes choisis) pour un rendez-vous de test. `blocs`
+// (voir GrilleEvaluation.jsx : questionnaires empilés séparément, un bloc par poste sélectionné)
+// est `[{ posteCode, reponses }]` — un seul verdict global (resultatGlobal/orientation/commentaire)
+// couvre l'ensemble des blocs, mais chaque bloc est résolu et revalidé côté serveur contre SON
+// PROPRE questionnaire, jamais fusionné dans un même espace de clés avant validation :
+// questions_evaluation n'est unique que par (questionnaire_id, code) (migration 037), deux postes
+// différents peuvent réutiliser le même questionCode — les fusionner créerait des collisions
+// silencieuses. Chaque bloc doit couvrir EXACTEMENT son questionnaire résolu, ni plus ni moins —
+// une grille partielle est refusée plutôt qu'enregistrée à moitié (resoudreEtValiderReponses).
 async function enregistrerEvaluation(
   entite,
-  { rendezvousId, formateurId, roleCode, resultatGlobal, orientation, posteCode, commentaire, reponses },
+  { rendezvousId, formateurId, roleCode, resultatGlobal, orientation, commentaire, blocs },
 ) {
   if (!RESULTATS_GLOBAUX_AUTORISES.includes(resultatGlobal)) {
     throw new Error(`Résultat global "${resultatGlobal}" invalide (attendu : ${RESULTATS_GLOBAUX_AUTORISES.join(', ')}).`);
@@ -157,6 +162,9 @@ async function enregistrerEvaluation(
   }
   if (!commentaire || !commentaire.trim()) {
     throw new Error('Un commentaire est obligatoire pour toute évaluation.');
+  }
+  if (!Array.isArray(blocs) || blocs.length === 0) {
+    throw new Error('Au moins un bloc de réponses (un par poste évalué) est obligatoire.');
   }
 
   const bd = await db.obtenirKnex();
@@ -180,17 +188,35 @@ async function enregistrerEvaluation(
     throw new Error(`Le rendez-vous "${rendezvousId}" a déjà été évalué.`);
   }
 
-  const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode, rendezvous.postes_selectionnes);
-  const questionnaire = await evaluationRepository.trouverQuestionnairePourPoste(bd, entite.id, posteCodeResolu);
-  if (!questionnaire) {
-    throw new Error(`Aucun questionnaire d'évaluation configuré pour l'entité « ${entite.code} ».`);
-  }
-  const questions = await evaluationRepository.listerQuestionsAvecItems(bd, questionnaire.id);
-  if (questions.length === 0) {
-    throw new Error(`Aucune question configurée pour ce questionnaire (entité « ${entite.code} »).`);
-  }
+  // posteCodesResolus : seulement les postes réellement résolus (jamais le repli générique, sans
+  // objet pour evaluations_postes — voir evaluationRepository.enregistrerPostesEvaluation). Rejette
+  // un même poste résolu dans deux blocs différents : violerait l'unicité (evaluation_id,
+  // poste_code) de la table, et n'a de toute façon aucun sens pour un formateur (voir migration 040).
+  const posteCodesVus = new Set();
+  const posteCodesResolus = [];
+  let reponsesResolues = [];
 
-  const reponsesResolues = resoudreEtValiderReponses(questions, reponses);
+  for (const bloc of blocs) {
+    const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, bloc.posteCode, rendezvous.postes_selectionnes);
+    if (posteCodeResolu) {
+      if (posteCodesVus.has(posteCodeResolu)) {
+        throw new Error(`Le poste "${posteCodeResolu}" est présent dans plusieurs blocs de réponses.`);
+      }
+      posteCodesVus.add(posteCodeResolu);
+      posteCodesResolus.push(posteCodeResolu);
+    }
+
+    const questionnaire = await evaluationRepository.trouverQuestionnairePourPoste(bd, entite.id, posteCodeResolu);
+    if (!questionnaire) {
+      throw new Error(`Aucun questionnaire d'évaluation configuré pour l'entité « ${entite.code} ».`);
+    }
+    const questions = await evaluationRepository.listerQuestionsAvecItems(bd, questionnaire.id);
+    if (questions.length === 0) {
+      throw new Error(`Aucune question configurée pour ce questionnaire (entité « ${entite.code} »).`);
+    }
+
+    reponsesResolues = reponsesResolues.concat(resoudreEtValiderReponses(questions, bloc.reponses));
+  }
 
   return bd.transaction(async (trx) => {
     const evaluationId = await evaluationRepository.enregistrerEvaluation(trx, {
@@ -199,11 +225,10 @@ async function enregistrerEvaluation(
       formateurId,
       resultatGlobal,
       orientation: resultatGlobal === 'valide' ? orientation : null,
-      // posteCodeResolu (résolu/validé plus haut), jamais le posteCode brut reçu du client.
-      posteCode: posteCodeResolu,
       commentaire,
     });
     await evaluationRepository.enregistrerReponses(trx, evaluationId, reponsesResolues);
+    await evaluationRepository.enregistrerPostesEvaluation(trx, evaluationId, posteCodesResolus);
 
     // Fait avancer le dossier dans la même transaction que l'évaluation elle-même (même patron
     // que planificationRendezvousService.planifierRendezvousAvecTransitions) — pas sur le simple
@@ -288,7 +313,9 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
       id: evaluation.id,
       resultatGlobal: evaluation.resultat_global,
       orientation: evaluation.orientation,
-      posteCode: evaluation.poste_code,
+      // Agrégé côté requête (evaluationRepository.trouverEvaluationParId, evaluations_postes,
+      // migration 040) — tableau vide si évaluation générique (aucun poste dédié).
+      postesCodes: evaluation.postes_codes ?? [],
       commentaire: evaluation.commentaire,
       dateEvaluation: evaluation.date_evaluation,
       candidatPrenom: evaluation.candidat_prenom,

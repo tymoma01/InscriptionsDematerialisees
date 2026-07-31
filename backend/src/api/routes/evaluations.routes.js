@@ -29,19 +29,13 @@ const idPositifSchema = z.coerce.number().int().positive();
 // serveur), pas ici (voir Modularité, CLAUDE.md).
 const posteCodeSchema = z.string().trim().min(1).optional();
 
-const evaluationBodySchema = z.object({
-  rendezvousId: idPositifSchema,
-  resultatGlobal: z.enum(['valide', 'invalide']),
-  // Sans objet si resultatGlobal vaut 'invalide' — la présence/validité pour un verdict positif
-  // est revérifiée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md : ce schéma ne fait
-  // que la forme, jamais la règle métier).
-  orientation: z.enum(['envoi_formation', 'pret_embauche']).optional(),
+// Un bloc = un questionnaire empilé pour un poste sélectionné (voir GrilleEvaluation.jsx) — les
+// codes de question/item ne sont volontairement pas figés ici : ils viennent du questionnaire
+// résolu pour CE poste (voir questionnaires_evaluation/questions_evaluation, migration 037),
+// configurable par entité — un code inconnu ou une grille incomplète est rejetée par
+// evaluationEngine, pas ici (voir Modularité, CLAUDE.md), poste par poste.
+const blocReponsesSchema = z.object({
   posteCode: posteCodeSchema,
-  commentaire: z.string().trim().min(1),
-  // Les codes de question/item ne sont volontairement pas figés ici : ils viennent du
-  // questionnaire résolu pour le poste (voir questionnaires_evaluation/questions_evaluation,
-  // migration 037), configurable par entité — un code inconnu ou une grille incomplète est
-  // rejetée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md).
   reponses: z
     .array(
       z.object({
@@ -51,6 +45,20 @@ const evaluationBodySchema = z.object({
       }),
     )
     .min(1),
+});
+
+const evaluationBodySchema = z.object({
+  rendezvousId: idPositifSchema,
+  resultatGlobal: z.enum(['valide', 'invalide']),
+  // Sans objet si resultatGlobal vaut 'invalide' — la présence/validité pour un verdict positif
+  // est revérifiée par evaluationEngine, pas ici (voir Modularité, CLAUDE.md : ce schéma ne fait
+  // que la forme, jamais la règle métier).
+  orientation: z.enum(['envoi_formation', 'pret_embauche']).optional(),
+  commentaire: z.string().trim().min(1),
+  // Un seul verdict global (ci-dessus) pour l'ensemble des blocs — la résolution/dédup des postes
+  // et la validation de chaque bloc contre son propre questionnaire sont revérifiées par
+  // evaluationEngine.enregistrerEvaluation, pas ici.
+  blocs: z.array(blocReponsesSchema).min(1),
 });
 
 function repondreErreurValidation(res, erreurZod) {
@@ -125,12 +133,11 @@ router.get('/historique/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/evaluations — enregistre une évaluation complète pour un rendez-vous de test.
+// POST /api/evaluations — enregistre une évaluation complète (un ou plusieurs blocs de
+// questionnaire empilés, un par poste) pour un rendez-vous de test.
 router.post('/', async (req, res, next) => {
   try {
-    const { rendezvousId, resultatGlobal, orientation, posteCode, commentaire, reponses } = evaluationBodySchema.parse(
-      req.body,
-    );
+    const { rendezvousId, resultatGlobal, orientation, commentaire, blocs } = evaluationBodySchema.parse(req.body);
 
     const resultat = await evaluationEngine.enregistrerEvaluation(req.entite, {
       rendezvousId,
@@ -138,9 +145,8 @@ router.post('/', async (req, res, next) => {
       roleCode: req.utilisateur.roleCode,
       resultatGlobal,
       orientation,
-      posteCode,
       commentaire,
-      reponses,
+      blocs,
     });
 
     const bd = await obtenirKnex();
@@ -150,7 +156,9 @@ router.post('/', async (req, res, next) => {
       action: `evaluation_${resultatGlobal}`,
       tableCible: 'evaluations',
       cibleId: resultat.evaluationId,
-      donnees: { rendezvousId, resultatGlobal, orientation, posteCode },
+      // Postes bruts tels que soumis par le client (pas la résolution serveur) — même principe
+      // qu'avant l'empilement multi-poste, où posteCode brut était déjà loggé tel quel.
+      donnees: { rendezvousId, resultatGlobal, orientation, postesCodes: blocs.map((bloc) => bloc.posteCode ?? null) },
       adresseIp: req.ip,
     });
 

@@ -22,10 +22,13 @@ const POSTE_HOTEL_LIBELLES = {
   gouvernant: 'Gouvernant(e)',
 };
 
-// poste_code NULL = repli sur le questionnaire générique (dossier bureau, ou poste hôtel sans
-// questionnaire dédié) — voir backend evaluationEngine.js, trouverQuestionnairePourPoste.
-function libellePoste(posteCode) {
-  return posteCode ? (POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode) : 'Générique (bureau)';
+// postes_codes : plusieurs postes peuvent avoir été évalués dans une même évaluation (blocs
+// empilés, voir GrilleEvaluation.jsx / backend evaluationEngine.enregistrerEvaluation) — tableau
+// vide/absent = repli sur le questionnaire générique (dossier bureau, ou poste hôtel sans
+// questionnaire dédié), voir backend evaluationEngine.js, trouverQuestionnairePourPoste.
+function libellePostes(postesCodes) {
+  if (!postesCodes || postesCodes.length === 0) return 'Générique (bureau)';
+  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode).join(', ');
 }
 
 // Combine resultat_global + orientation en un seul libellé — mêmes formulations que
@@ -46,17 +49,17 @@ function varianteResultat(evaluation) {
 // Planification.jsx. "Candidat" trie sur le nom de famille, pas la chaîne "prénom nom" affichée.
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (e) => (e.candidat_nom ?? '').toLowerCase() },
-  { cle: 'poste_code', libelle: 'Poste évalué', extraire: (e) => libellePoste(e.poste_code).toLowerCase() },
+  { cle: 'postes_codes', libelle: 'Poste(s) évalué(s)', extraire: (e) => libellePostes(e.postes_codes).toLowerCase() },
   { cle: 'date_evaluation', libelle: 'Date du test', extraire: (e) => new Date(e.date_evaluation).getTime() },
   { cle: 'resultat_global', libelle: 'Résultat', extraire: (e) => libelleResultat(e).toLowerCase() },
 ];
 
 // Historique des évaluations déjà soumises par le formateur connecté (jamais tous formateurs
 // confondus, voir backend evaluationEngine.listerHistorique) — un même candidat peut apparaître
-// plusieurs fois si repassé un test pour un poste différent (poste_code distinct par ligne),
-// volontairement pas dédupliqué. `onSelectionner` laisse à l'appelant la décision d'ouvrir le
-// détail — ce composant ne connaît pas DetailEvaluation.jsx, même patron que
-// ListeEvaluationsAFaire.jsx.
+// plusieurs fois si repassé un test (postes_codes distincts par ligne d'évaluation, une évaluation
+// pouvant elle-même couvrir plusieurs postes empilés), volontairement pas dédupliqué.
+// `onSelectionner` laisse à l'appelant la décision d'ouvrir le détail — ce composant ne connaît pas
+// DetailEvaluation.jsx, même patron que ListeEvaluationsAFaire.jsx.
 export default function HistoriqueEvaluations({ onSelectionner }) {
   const [evaluations, setEvaluations] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -145,7 +148,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
               <td>
                 {evaluation.candidat_prenom} {evaluation.candidat_nom}
               </td>
-              <td>{libellePoste(evaluation.poste_code)}</td>
+              <td>{libellePostes(evaluation.postes_codes)}</td>
               <td>{FORMAT_DATE.format(new Date(evaluation.date_evaluation))}</td>
               <td>
                 <StatutBadge libelle={libelleResultat(evaluation)} variante={varianteResultat(evaluation)} />
