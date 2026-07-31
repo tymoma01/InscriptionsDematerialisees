@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { obtenirQuestionnaire, enregistrerEvaluation } from '../../services/evaluationService';
+import NotesDossier from '../dossier/NotesDossier';
 import './GrilleEvaluation.css';
 
 // Échelle de notation d'une question 'grille_qcu' (voir backend evaluationEngine.js,
@@ -214,6 +215,13 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
             Annuler
           </button>
         </div>
+
+        {/* Notes de l'accueil/coordination sur ce dossier (ex. "à tester sur les postes de FDC et
+            cafetier") — utiles au formateur dès ce choix de poste, pas seulement une fois la
+            grille chargée. Composant générique réutilisé tel quel (lecture + ajout, voir son
+            en-tête de fichier) : le formateur fait déjà partie de ROLES_NOTES_DOSSIER côté back
+            (notes.routes.js), aucune variante lecture-seule à part. */}
+        <NotesDossier dossierId={rendezvous.dossier_id} />
       </div>
     );
   }
@@ -252,159 +260,166 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
   const grilleQcuIncomplete = questionsGrilleIncompletes.length > 0;
 
   return (
-    <form className="grille-evaluation" onSubmit={gererEnvoi}>
-      <h2>
-        Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-      </h2>
+    // Fragment plutôt qu'un <form> unique englobant tout : NotesDossier rend lui-même un <form>
+    // pour l'ajout d'une note (voir son en-tête de fichier) — un <form> imbriqué dans un autre
+    // n'est pas valide en HTML, il doit rester un frère du <form> d'évaluation, pas un enfant.
+    <>
+      <form className="grille-evaluation" onSubmit={gererEnvoi}>
+        <h2>
+          Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+        </h2>
 
-      {questions.length === 0 && (
-        <p className="grille-evaluation__vide">Aucune question configurée pour ce questionnaire.</p>
-      )}
+        {questions.length === 0 && (
+          <p className="grille-evaluation__vide">Aucune question configurée pour ce questionnaire.</p>
+        )}
 
-      {questions.map((question) => (
-        <fieldset key={question.code} className="grille-evaluation__question">
+        {questions.map((question) => (
+          <fieldset key={question.code} className="grille-evaluation__question">
+            <legend>
+              {question.libelle}
+              {question.obligatoire && <span className="champ-obligatoire"> *</span>}
+            </legend>
+
+            {question.type_question === 'grille_qcu' &&
+              question.items.map((item) => (
+                <fieldset key={item.code} className="grille-evaluation__critere">
+                  <legend>{item.libelle}</legend>
+                  <div className="grille-evaluation__choix">
+                    {ACQUIS.map((v) => (
+                      <label key={v.code}>
+                        <input
+                          type="radio"
+                          name={`${question.code}-${item.code}-${v.code}`}
+                          checked={reponses[cleReponse(question.code, item.code)] === v.code}
+                          onChange={() =>
+                            setReponses((precedent) => ({ ...precedent, [cleReponse(question.code, item.code)]: v.code }))
+                          }
+                        />
+                        {v.libelle}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+
+            {question.type_question === 'choix_multiple' && (
+              <div className="grille-evaluation__choix">
+                {question.items.map((item) => (
+                  <label key={item.code}>
+                    <input
+                      type="checkbox"
+                      checked={reponses[cleReponse(question.code, item.code)] === 'coche'}
+                      onChange={(evenement) =>
+                        setReponses((precedent) => ({
+                          ...precedent,
+                          [cleReponse(question.code, item.code)]: evenement.target.checked ? 'coche' : 'non_coche',
+                        }))
+                      }
+                    />
+                    {item.libelle}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {question.type_question === 'texte_libre' && (
+              <textarea
+                rows={2}
+                value={reponses[cleReponse(question.code)] ?? ''}
+                onChange={(evenement) =>
+                  setReponses((precedent) => ({ ...precedent, [cleReponse(question.code)]: evenement.target.value }))
+                }
+                required={question.obligatoire}
+              />
+            )}
+          </fieldset>
+        ))}
+
+        <fieldset className="grille-evaluation__resultat-global">
           <legend>
-            {question.libelle}
-            {question.obligatoire && <span className="champ-obligatoire"> *</span>}
+            Résultat du test <span className="champ-obligatoire">*</span>
           </legend>
+          <div className="grille-evaluation__choix">
+            <label>
+              <input
+                type="radio"
+                name="resultat-global-valide"
+                checked={resultatGlobal === 'valide'}
+                onChange={() => gererChangementResultat('valide')}
+              />
+              Validé
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="resultat-global-invalide"
+                checked={resultatGlobal === 'invalide'}
+                onChange={() => gererChangementResultat('invalide')}
+              />
+              Invalidé
+            </label>
+          </div>
+        </fieldset>
 
-          {question.type_question === 'grille_qcu' &&
-            question.items.map((item) => (
-              <fieldset key={item.code} className="grille-evaluation__critere">
-                <legend>{item.libelle}</legend>
-                <div className="grille-evaluation__choix">
-                  {ACQUIS.map((v) => (
-                    <label key={v.code}>
-                      <input
-                        type="radio"
-                        name={`${question.code}-${item.code}-${v.code}`}
-                        checked={reponses[cleReponse(question.code, item.code)] === v.code}
-                        onChange={() =>
-                          setReponses((precedent) => ({ ...precedent, [cleReponse(question.code, item.code)]: v.code }))
-                        }
-                      />
-                      {v.libelle}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            ))}
-
-          {question.type_question === 'choix_multiple' && (
+        {orientationVisible && (
+          <fieldset className="grille-evaluation__orientation">
+            <legend>
+              Orientation <span className="champ-obligatoire">*</span>
+            </legend>
             <div className="grille-evaluation__choix">
-              {question.items.map((item) => (
-                <label key={item.code}>
+              {ORIENTATIONS.map((o) => (
+                <label key={o.code}>
                   <input
-                    type="checkbox"
-                    checked={reponses[cleReponse(question.code, item.code)] === 'coche'}
-                    onChange={(evenement) =>
-                      setReponses((precedent) => ({
-                        ...precedent,
-                        [cleReponse(question.code, item.code)]: evenement.target.checked ? 'coche' : 'non_coche',
-                      }))
-                    }
+                    type="radio"
+                    name={`orientation-${o.code}`}
+                    checked={orientation === o.code}
+                    onChange={() => setOrientation(o.code)}
                   />
-                  {item.libelle}
+                  {o.libelle}
                 </label>
               ))}
             </div>
-          )}
+          </fieldset>
+        )}
 
-          {question.type_question === 'texte_libre' && (
-            <textarea
-              rows={2}
-              value={reponses[cleReponse(question.code)] ?? ''}
-              onChange={(evenement) =>
-                setReponses((precedent) => ({ ...precedent, [cleReponse(question.code)]: evenement.target.value }))
-              }
-              required={question.obligatoire}
-            />
-          )}
-        </fieldset>
-      ))}
+        <label className="grille-evaluation__commentaire">
+          <span>Commentaire (obligatoire)</span>
+          <textarea value={commentaire} onChange={(evenement) => setCommentaire(evenement.target.value)} rows={3} required />
+        </label>
 
-      <fieldset className="grille-evaluation__resultat-global">
-        <legend>
-          Résultat du test <span className="champ-obligatoire">*</span>
-        </legend>
-        <div className="grille-evaluation__choix">
-          <label>
-            <input
-              type="radio"
-              name="resultat-global-valide"
-              checked={resultatGlobal === 'valide'}
-              onChange={() => gererChangementResultat('valide')}
-            />
-            Validé
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="resultat-global-invalide"
-              checked={resultatGlobal === 'invalide'}
-              onChange={() => gererChangementResultat('invalide')}
-            />
-            Invalidé
-          </label>
+        {!resultatGlobal && <p role="alert">Choisissez un résultat du test (Validé ou Invalidé) avant de soumettre.</p>}
+
+        {grilleQcuIncomplete && (
+          <p role="alert">
+            Répondez à toutes les questions de la grille avant de soumettre :{' '}
+            {questionsGrilleIncompletes.map((question) => question.libelle).join(', ')}.
+          </p>
+        )}
+
+        {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
+
+        <div className="grille-evaluation__actions">
+          <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
+            Annuler
+          </button>
+          <button
+            type="submit"
+            disabled={
+              envoiEnCours ||
+              !resultatGlobal ||
+              !commentaire.trim() ||
+              questions.length === 0 ||
+              (orientationVisible && !orientation) ||
+              grilleQcuIncomplete ||
+              texteLibreIncomplet
+            }
+          >
+            {envoiEnCours ? 'Enregistrement...' : "Enregistrer l'évaluation"}
+          </button>
         </div>
-      </fieldset>
+      </form>
 
-      {orientationVisible && (
-        <fieldset className="grille-evaluation__orientation">
-          <legend>
-            Orientation <span className="champ-obligatoire">*</span>
-          </legend>
-          <div className="grille-evaluation__choix">
-            {ORIENTATIONS.map((o) => (
-              <label key={o.code}>
-                <input
-                  type="radio"
-                  name={`orientation-${o.code}`}
-                  checked={orientation === o.code}
-                  onChange={() => setOrientation(o.code)}
-                />
-                {o.libelle}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      )}
-
-      <label className="grille-evaluation__commentaire">
-        <span>Commentaire (obligatoire)</span>
-        <textarea value={commentaire} onChange={(evenement) => setCommentaire(evenement.target.value)} rows={3} required />
-      </label>
-
-      {!resultatGlobal && <p role="alert">Choisissez un résultat du test (Validé ou Invalidé) avant de soumettre.</p>}
-
-      {grilleQcuIncomplete && (
-        <p role="alert">
-          Répondez à toutes les questions de la grille avant de soumettre :{' '}
-          {questionsGrilleIncompletes.map((question) => question.libelle).join(', ')}.
-        </p>
-      )}
-
-      {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
-
-      <div className="grille-evaluation__actions">
-        <button type="button" onClick={onAnnuler} disabled={envoiEnCours}>
-          Annuler
-        </button>
-        <button
-          type="submit"
-          disabled={
-            envoiEnCours ||
-            !resultatGlobal ||
-            !commentaire.trim() ||
-            questions.length === 0 ||
-            (orientationVisible && !orientation) ||
-            grilleQcuIncomplete ||
-            texteLibreIncomplet
-          }
-        >
-          {envoiEnCours ? 'Enregistrement...' : "Enregistrer l'évaluation"}
-        </button>
-      </div>
-    </form>
+      <NotesDossier dossierId={rendezvous.dossier_id} />
+    </>
   );
 }
