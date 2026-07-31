@@ -60,7 +60,7 @@ export default function ConfirmationInscription({ dossierId }) {
         </span>
         <span className="confirmation-inscription__ligne">
           <IconeTablette />
-          Merci de rendre la tablette à l'agent.
+          Merci de rendre la tablette à l'accueil
         </span>
       </p>
       <button type="button" onClick={chargerPiecesJustificatives} disabled={verificationEnCours}>
