@@ -370,6 +370,18 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
 function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const panneauRef = useRef(null);
+
+  // Défilement automatique vers le panneau au clic sur "Capturer"/"Reprendre" — sans lui, la
+  // liste des pièces (potentiellement longue) laisse ce panneau hors champ en bas de page, l'agent
+  // devant défiler manuellement pour l'atteindre. Dépendance sur type.code (pas juste au montage) :
+  // ce composant reste monté et ne fait que changer de `type` si l'agent clique Reprendre sur une
+  // autre pièce pendant que le panneau est déjà ouvert (pas de `key` posée par CaptureTablette.jsx
+  // sur <PanneauCapture>) — sans cette dépendance, aucun nouveau défilement ne se déclencherait
+  // dans ce cas précis.
+  useEffect(() => {
+    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [type.code]);
 
   const [modeCamera, setModeCamera] = useState(false);
   const [erreurCamera, setErreurCamera] = useState(null);
@@ -497,7 +509,7 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   };
 
   return (
-    <div className="capture-tablette__panneau" role="dialog" aria-label={`Capture — ${type.libelle}`}>
+    <div ref={panneauRef} className="capture-tablette__panneau" role="dialog" aria-label={`Capture — ${type.libelle}`}>
       <div className="capture-tablette__panneau-entete">
         <h3>{type.libelle}</h3>
         <button type="button" onClick={fermer}>
@@ -569,6 +581,15 @@ function PanneauApercuPiece({ dossierId, type, piece, onFermer }) {
   const [erreur, setErreur] = useState(null);
   const [apercuUrl, setApercuUrl] = useState(null);
   const [contentType, setContentType] = useState(null);
+  const panneauRef = useRef(null);
+
+  // Même défilement automatique que PanneauCapture ci-dessus, pour le clic sur "Voir" — même
+  // dépendance sur type.code (pas seulement au montage) et même raison : l'agent peut cliquer
+  // "Voir" sur une autre pièce pendant que ce panneau est déjà ouvert (pas de `key` posée par
+  // CaptureTablette.jsx sur <PanneauApercuPiece>).
+  useEffect(() => {
+    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [type.code]);
 
   // urlObjet (pas apercuUrl directement) dans la fermeture de nettoyage : évite de dépendre d'un
   // state React potentiellement pas encore mis à jour au moment du cleanup (même précaution que
@@ -610,7 +631,12 @@ function PanneauApercuPiece({ dossierId, type, piece, onFermer }) {
   }, [dossierId, piece.id]);
 
   return (
-    <div className="capture-tablette__panneau capture-tablette__panneau-apercu" role="dialog" aria-label={`Aperçu — ${type.libelle}`}>
+    <div
+      ref={panneauRef}
+      className="capture-tablette__panneau capture-tablette__panneau-apercu"
+      role="dialog"
+      aria-label={`Aperçu — ${type.libelle}`}
+    >
       <div className="capture-tablette__panneau-entete">
         <h3>{type.libelle}</h3>
         <button type="button" onClick={onFermer}>
