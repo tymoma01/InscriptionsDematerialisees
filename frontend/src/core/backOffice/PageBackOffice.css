@@ -14,10 +14,48 @@
    raison. */
 .page-back-office {
   --hauteur-entete: 8rem;
+  /* Marges latérales réduites / contenu élargi, propre au back-office (tableaux/cartes/
+     formulaires internes, usage bureau plutôt que tablette candidat) : redéfinit ici la variable
+     globale --largeur-max-formulaire (styles/variables.css, 1100px, toujours utilisée telle
+     quelle côté candidat — InscriptionTablette.css/ConfirmationInscription.jsx, hors périmètre)
+     plutôt que de la changer globalement. Même technique que --hauteur-entete ci-dessus : toutes
+     les pages back-office (.page-back-office__entete-contenu/__contenu/__pied-de-page-contenu
+     ci-dessous, plus GestionRendezvous.css/NotesDossier.css/GestionTransitions.css/
+     DetailEvaluation.css/HistoriqueRelances.css/GrilleEvaluation.css/CaptureTablette.css/
+     Validation.css/Relances.css, toutes rendues à l'intérieur de <PageBackOffice>) référencent
+     déjà cette même variable pour leur max-width : la cascade CSS applique donc ce changement en
+     un seul endroit, sans toucher chaque fichier. FiligraneFormulaire (composant partagé, jamais
+     dupliqué — voir plus bas et son propre commentaire d'en-tête) est lui aussi un enfant direct
+     de .page-back-office : ses logos se repositionnent automatiquement dans la marge résultante
+     (voir son calc()), sans que --largeur-logo-filigrane (leur taille, 150px) ne soit touchée.
+     +200px par rapport aux 1100px d'origine : réduction perceptible de la marge sans l'annuler
+     complètement (voir seuil d'apparition du filigrane ajusté plus bas pour rester cohérent avec
+     ce nouvel écart). */
+  --largeur-max-formulaire: 1300px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   box-sizing: border-box;
+}
+
+/* Le filigrane (FiligraneFormulaire, composant partagé avec le formulaire candidat, jamais
+   dupliqué) n'apparaît, côté candidat, qu'à partir de 1440px de large (voir
+   FiligraneFormulaire.css) — seuil calibré pour laisser ~170px de marge de chaque côté avec
+   --largeur-max-formulaire à 1100px, largement assez pour un logo de 150px. Avec le contenu
+   back-office élargi à 1300px ci-dessus, ce même seuil de 1440px ne laisserait plus que 70px de
+   marge (1440-1300)/2 : le logo (150px) déborderait sur le contenu. Seuil relevé à 1640px
+   spécifiquement ici ((1640-1300)/2 = 170px, même marge de respiration que l'original) via un
+   sélecteur plus spécifique que la règle générique de FiligraneFormulaire.css (qui reste
+   inchangée, toujours valable telle quelle côté candidat) plutôt qu'une duplication du composant.
+*/
+.page-back-office .filigrane-formulaire {
+  display: none;
+}
+
+@media (min-width: 1640px) {
+  .page-back-office .filigrane-formulaire {
+    display: block;
+  }
 }
 
 /* En-tête sticky : dégradé brun foncé -> doré (--couleur-back-office-dore, dérivé du tourbillon

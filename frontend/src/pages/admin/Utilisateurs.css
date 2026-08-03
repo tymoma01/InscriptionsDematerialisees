@@ -1,9 +1,52 @@
 /* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
    (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css) qui enveloppe
    désormais cette page — ne reste que la mise en page interne propre à cet écran. */
+/* Passe d'un empilement (h1 puis EnTeteBackOffice sur toute la largeur) à une seule ligne pour
+   accueillir le lien "Indicateurs" entre les deux — même mise en page que
+   .backoffice-recruteur__entete/.tableau-bord-accueil__entete (voir leur commentaire d'origine,
+   TableauDeBordAccueil.css). */
+.page-utilisateurs__entete {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
 .page-utilisateurs__entete h1 {
-  margin: 0 0 var(--espace-petit);
+  margin: 0;
   color: var(--couleur-back-office);
+}
+
+/* Vers le tableau de bord KPI (Indicateurs.jsx, réservé Recruteur/Admin comme cette page — voir
+   backend/src/api/routes/statistiques.routes.js) — même bouton bordé que
+   .backoffice-recruteur__bouton-indicateurs (dupliqué plutôt que partagé, voir CLAUDE.md,
+   conventions du projet). Pas de margin-left: auto ici : c'est .en-tete-back-office ci-dessous qui
+   reste plaqué à droite. */
+.page-utilisateurs__bouton-indicateurs {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.page-utilisateurs__bouton-indicateurs:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
+}
+
+/* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
+   l'en-tête, maintenant que .page-utilisateurs__entete est passé en flex — même patron que
+   .backoffice-recruteur__entete .en-tete-back-office. */
+.page-utilisateurs__entete .en-tete-back-office {
+  margin-left: auto;
 }
 
 .page-utilisateurs__vide {

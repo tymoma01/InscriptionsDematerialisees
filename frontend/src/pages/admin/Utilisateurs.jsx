@@ -183,6 +183,9 @@ export default function Utilisateurs() {
       <div className="page-utilisateurs">
         <header className="page-utilisateurs__entete">
           <h1>Comptes utilisateurs</h1>
+          <Link to="/tableau-de-bord/indicateurs" className="page-utilisateurs__bouton-indicateurs">
+            Indicateurs
+          </Link>
           <EnTeteBackOffice />
         </header>
 
