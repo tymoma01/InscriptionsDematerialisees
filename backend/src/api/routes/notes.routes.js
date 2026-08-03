@@ -14,8 +14,9 @@ const router = Router({ mergeParams: true });
 // Journal de notes libres, indépendant des relances — ouvert à tous les rôles back-office ayant
 // un accès direct à un dossier (mêmes rôles que ROLES_GESTION_TRANSITIONS, transitions.routes.js :
 // le formateur agit sur un dossier au moment de l'évaluation, il doit pouvoir y laisser une note
-// comme les autres). Pas de distinction lecture/écriture entre rôles : simple journal partagé.
-const ROLES_NOTES_DOSSIER = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.ADMIN];
+// comme les autres — même chose pour l'inspecteur, côté bureau). Pas de distinction lecture/
+// écriture entre rôles : simple journal partagé.
+const ROLES_NOTES_DOSSIER = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
 

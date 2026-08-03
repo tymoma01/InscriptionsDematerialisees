@@ -50,6 +50,39 @@
   color: var(--couleur-texte);
 }
 
+/* Onglets Formateurs/Inspecteurs — même style de bouton pilule que .filtres-statut__statuts
+   button (FiltresStatut.css), dupliqué plutôt que réutilisé : FiltresStatut.jsx impose un bouton
+   "Tous" en plus des options, pas adapté ici où un groupe doit toujours être actif (voir
+   ModalePlanificationTest.jsx, choix du groupe avant la personne). */
+.modale-planification-test__groupes-role {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.modale-planification-test__groupes-role button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--gris-500);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.modale-planification-test__groupes-role button.actif {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+/* Remplace le <select> quand le groupe actif n'a personne (ex. aucun inspecteur configuré pour
+   cette entité) — même style d'alerte que les autres [role='alert'] de ce panneau
+   (.modale-planification-test [role='alert']), margin de <p> par défaut retirée : il vit ici à
+   l'intérieur du <label>, directement sous le texte du label, pas entre deux champs distincts. */
+.modale-planification-test__groupe-vide {
+  margin: 0;
+}
+
 .modale-planification-test__formulaire input,
 .modale-planification-test__formulaire select {
   padding: 0.5rem;

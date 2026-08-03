@@ -26,12 +26,17 @@ async function listerRolesAssignables() {
   return utilisateurRepository.listerRolesAssignables(bd);
 }
 
-// Formateurs actifs de l'entité (CLAUDE.md, section Rôles : "Formateur ... reçoit les
-// notifications de test") — sert à peupler le sélecteur lors de la planification d'un test,
-// accessible à Accueil/Coordination sans lui donner les droits admin de listerUtilisateurs.
-async function listerFormateurs(entite) {
+// Formateurs ET inspecteurs actifs de l'entité (CLAUDE.md, section Rôles : "Formateur ... reçoit
+// les notifications de test" ; Inspecteur : équivalent bureau, voir rbac.js) — sert à peupler le
+// sélecteur unique lors de la planification d'un test (le formulaire ne distingue pas les deux à
+// la sélection, voir ModalePlanificationTest.jsx : c'est le poste du dossier qui indique à
+// Accueil/Coordination lequel des deux assigner), accessible à Accueil/Coordination sans lui
+// donner les droits admin de listerUtilisateurs. Renommé depuis listerFormateurs — l'endpoint
+// GET /api/formateurs (formateurs.routes.js) garde son nom d'origine (pas de raison de le
+// renommer, changement purement interne).
+async function listerFormateursEtInspecteurs(entite) {
   const bd = await db.obtenirKnex();
-  return utilisateurRepository.listerUtilisateursParRole(bd, entite.id, ROLES.FORMATEUR);
+  return utilisateurRepository.listerUtilisateursParRoles(bd, entite.id, [ROLES.FORMATEUR, ROLES.INSPECTEUR]);
 }
 
 async function creerUtilisateur(entite, { nom, prenom, email, motDePasse, roleCode }) {
@@ -106,7 +111,7 @@ async function mettreAJourUtilisateur(entite, utilisateurId, { nom, prenom, role
 module.exports = {
   listerUtilisateurs,
   listerRolesAssignables,
-  listerFormateurs,
+  listerFormateursEtInspecteurs,
   creerUtilisateur,
   mettreAJourUtilisateur,
 };

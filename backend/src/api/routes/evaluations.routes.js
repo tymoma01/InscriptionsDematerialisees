@@ -15,8 +15,9 @@ const router = Router();
 
 // Évaluation du test (CLAUDE.md, section Rôles : "Formateur ... évalue les candidats, valide/
 // invalide le test") — admin inclus par cohérence avec son rôle de gestion globale, comme
-// partout ailleurs dans le projet.
-const ROLES_EVALUATION = [ROLES.FORMATEUR, ROLES.ADMIN];
+// partout ailleurs dans le projet. INSPECTEUR : même accès que FORMATEUR, mais pour les postes
+// bureau (voir evaluationEngine.js, scope procédural — rbac.js pour le détail de cette décision).
+const ROLES_EVALUATION = [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_EVALUATION));

@@ -177,9 +177,14 @@ async function creerRendezvous(
   let formateurIdValide = null;
   if (formateurId != null) {
     const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
-    if (!formateur || formateur.role_code !== ROLES.FORMATEUR) {
+    // INSPECTEUR accepté ici aussi (assignation à un test bureau) — le champ reste nommé
+    // formateur_id en base (colonne historique, voir migration 018), mais porte indifféremment un
+    // formateur (hôtel) ou un inspecteur (bureau) depuis l'ajout de ce second rôle. Aucune
+    // vérification ici que le poste du dossier correspond bien au rôle assigné (scope "bureau
+    // uniquement" de l'inspecteur reste procédural, pas technique — voir rbac.js).
+    if (!formateur || ![ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(formateur.role_code)) {
       throw new ErreurFormateurInvalide(
-        `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur pour l'entité « ${entite.code} ».`,
+        `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur/inspecteur pour l'entité « ${entite.code} ».`,
       );
     }
     formateurIdValide = formateur.id;

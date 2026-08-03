@@ -12,10 +12,19 @@
 // que historique_statuts.utilisateur_id (NOT NULL) reste une valeur qui dit la vérité, plutôt
 // qu'un rôle humain utilisé par convention, ce qui fausserait la traçabilité RGPD ("qui, quoi,
 // quand", voir CLAUDE.md Contraintes RGPD).
+//
+// INSPECTEUR : évalue les candidats sur les postes bureau (nettoyage, vitrerie, machiniste,
+// chef_equipe, autres — voir postesConstantes.js), équivalent de FORMATEUR pour le hôtel mais sur
+// un périmètre distinct. Scope "bureau uniquement" **procédural**, pas techniquement imposé : rien
+// dans le code ne vérifie qu'un Inspecteur n'est assigné qu'à des tests bureau — la garantie tient
+// à ce que Accueil/Coordination ne l'assigne jamais à un test hôtel (voir
+// utilisateurService.listerFormateursEtInspecteurs, rendezvousService.js). Décision actée : audit
+// KPI Dashboard / rôle Inspecteur.
 const ROLES = Object.freeze({
   ACCUEIL_COORDINATION: 'accueil_coordination',
   RECRUTEUR: 'recruteur',
   FORMATEUR: 'formateur',
+  INSPECTEUR: 'inspecteur',
   ADMIN: 'admin',
   SYSTEME: 'systeme',
 });

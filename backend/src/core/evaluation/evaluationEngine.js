@@ -12,7 +12,12 @@ const { ROLES } = require('../auth/rbac');
 // mais la forme même des 2 types de grille (grille_qcu / choix_multiple) — même statut que les
 // canaux de relance (petite énumération fixe, pas de table dédiée).
 const RESULTATS_GLOBAUX_AUTORISES = ['valide', 'invalide'];
-const ACQUIS_AUTORISEES = ['acquis', 'non_acquis', 'a_ameliorer'];
+// aucune_connaissance/excellent : échelle du questionnaire bureau (Inspecteur, voir
+// seedQuestionnairesEvaluation.js, questions savoir_etre/savoir_faire) — a_ameliorer déjà commun
+// aux deux échelles. Union plutôt qu'une échelle configurable par questionnaire : la forme d'une
+// question grille_qcu reste commune à toute entité (voir commentaire d'en-tête de ce fichier),
+// seul le vocabulaire affiché diffère côté front (GrilleEvaluation.jsx, NIVEAUX_BUREAU vs ACQUIS).
+const ACQUIS_AUTORISEES = ['acquis', 'non_acquis', 'a_ameliorer', 'aucune_connaissance', 'excellent'];
 const CHOIX_MULTIPLE_VALEURS = ['coche', 'non_coche'];
 // Orientation du candidat en cas de verdict positif (workflow v3, simplification du parcours
 // décidée avec la responsable de projet : plus d'étape de validation recruteur intermédiaire, le
@@ -31,6 +36,12 @@ const CODE_ACTION_PAR_ORIENTATION = {
   pret_embauche: 'valider_pret_embauche',
 };
 const CODE_ACTION_INVALIDATION = 'invalider_test';
+// Verdict positif d'un Inspecteur (postes bureau) : pas de notion de formation, donc pas de choix
+// d'orientation à traduire — un seul chemin possible, réutilise directement le codeAction hôtel
+// "prêt à l'embauche" (même statut final valide_pret_embauche, voir enregistrerEvaluation
+// ci-dessous). Pas de nouveau statut/codeAction bureau : la sémantique de valider_pret_embauche
+// s'applique déjà exactement à ce cas.
+const CODE_ACTION_VALIDE_BUREAU = 'valider_pret_embauche';
 
 // Vérifie que le poste choisi par le formateur (quand plusieurs postes sont déclarés sur le
 // dossier, voir GrilleEvaluation.jsx) correspond réellement à un poste attendu pour CE rendez-vous
@@ -156,8 +167,12 @@ async function enregistrerEvaluation(
     throw new Error(`Résultat global "${resultatGlobal}" invalide (attendu : ${RESULTATS_GLOBAUX_AUTORISES.join(', ')}).`);
   }
   // Orientation obligatoire uniquement en cas de verdict positif (voir ORIENTATIONS_AUTORISEES
-  // ci-dessus) — sans objet, et ignorée, si le test est invalidé.
-  if (resultatGlobal === 'valide' && !ORIENTATIONS_AUTORISEES.includes(orientation)) {
+  // ci-dessus) — sans objet, et ignorée, si le test est invalidé. Sans objet non plus pour un
+  // Inspecteur (postes bureau) : le bureau n'a pas de notion de formation, l'évaluation reste
+  // binaire (valide/invalide) comme pour un Formateur, sans champ supplémentaire à choisir —
+  // seul le rôle du soumetteur distingue les deux cas, pas une caractéristique du dossier
+  // (scope procédural, voir rbac.js).
+  if (resultatGlobal === 'valide' && roleCode !== ROLES.INSPECTEUR && !ORIENTATIONS_AUTORISEES.includes(orientation)) {
     throw new Error(`Orientation "${orientation}" invalide (attendu : ${ORIENTATIONS_AUTORISEES.join(', ')}).`);
   }
   if (!commentaire || !commentaire.trim()) {
@@ -224,7 +239,9 @@ async function enregistrerEvaluation(
       rendezvousId,
       formateurId,
       resultatGlobal,
-      orientation: resultatGlobal === 'valide' ? orientation : null,
+      // Toujours NULL pour un Inspecteur, quoi qu'un client envoie (jamais de confiance dans le
+      // payload) : le bureau n'a pas de notion d'orientation, voir la validation plus haut.
+      orientation: resultatGlobal === 'valide' && roleCode !== ROLES.INSPECTEUR ? orientation : null,
       commentaire,
     });
     await evaluationRepository.enregistrerReponses(trx, evaluationId, reponsesResolues);
@@ -245,10 +262,24 @@ async function enregistrerEvaluation(
     // ce qui empêche une replanification concurrente de s'appliquer après coup sur un rendez-vous
     // déjà évalué (workflowEngine.appliquerTransition revérifie toujours le statut réel du dossier
     // en base, jamais une valeur mise en cache côté client) sans garde-fou supplémentaire à écrire
-    // ici. roleCode reste celui du formateur connecté (transition_roles l'autorise explicitement
-    // pour FORMATEUR, voir seedTransitionRoles.js).
-    const codeActionFinal =
-      resultatGlobal === 'valide' ? CODE_ACTION_PAR_ORIENTATION[orientation] : CODE_ACTION_INVALIDATION;
+    // ici. roleCode reste celui du formateur/inspecteur connecté (transition_roles l'autorise
+    // explicitement pour FORMATEUR et INSPECTEUR, voir seedTransitionRoles.js).
+    //
+    // Inspecteur (bureau) : CODE_ACTION_PAR_ORIENTATION ne connaît que envoi_formation/
+    // pret_embauche (orientation reste toujours NULL pour un Inspecteur, voir plus haut) —
+    // CODE_ACTION_PAR_ORIENTATION[null] vaudrait undefined et ferait échouer
+    // workflowEngine.appliquerTransition ("Action \"undefined\" non autorisée"). Un verdict positif
+    // bureau va donc directement à valider_pret_embauche, réutilisé tel quel : le bureau n'a pas de
+    // notion de formation, son seul verdict positif correspond exactement à ce que ce statut porte
+    // déjà pour le hôtel — pas de statut/codeAction bureau distinct.
+    let codeActionFinal;
+    if (resultatGlobal !== 'valide') {
+      codeActionFinal = CODE_ACTION_INVALIDATION;
+    } else if (roleCode === ROLES.INSPECTEUR) {
+      codeActionFinal = CODE_ACTION_VALIDE_BUREAU;
+    } else {
+      codeActionFinal = CODE_ACTION_PAR_ORIENTATION[orientation];
+    }
     await workflowEngine.appliquerTransition(
       entite,
       {

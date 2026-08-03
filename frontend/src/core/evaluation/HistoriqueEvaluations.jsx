@@ -21,24 +21,38 @@ const POSTE_HOTEL_LIBELLES = {
   equipier: 'Équipier(ère)',
   gouvernant: 'Gouvernant(e)',
 };
+const POSTE_BUREAU_LIBELLES = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+};
 
 // postes_codes : plusieurs postes peuvent avoir été évalués dans une même évaluation (blocs
 // empilés, voir GrilleEvaluation.jsx / backend evaluationEngine.enregistrerEvaluation) — tableau
-// vide/absent = repli sur le questionnaire générique (dossier bureau, ou poste hôtel sans
-// questionnaire dédié), voir backend evaluationEngine.js, trouverQuestionnairePourPoste.
+// vide/absent = repli sur le questionnaire générique (poste hôtel/bureau sans questionnaire dédié,
+// ou dossier créé avant l'ajout des questionnaires bureau), voir backend evaluationEngine.js,
+// trouverQuestionnairePourPoste. Un dossier bureau évalué par un Inspecteur a désormais un poste
+// résolu comme un dossier hôtel (voir GrilleEvaluation.jsx, postesCandidats) : le libellé
+// "Générique" ne concerne donc plus que ce vrai cas de repli, pas systématiquement le bureau.
 function libellePostes(postesCodes) {
-  if (!postesCodes || postesCodes.length === 0) return 'Générique (bureau)';
-  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode).join(', ');
+  if (!postesCodes || postesCodes.length === 0) return 'Générique';
+  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode).join(', ');
 }
 
 // Combine resultat_global + orientation en un seul libellé — mêmes formulations que
 // workflow.config.json (statuts valide_envoi_formation/valide_pret_embauche/invalide), pour rester
 // cohérent avec le vocabulaire déjà utilisé ailleurs dans le back-office (TableauDeBordAccueil.jsx/
-// Backoffice.jsx, VARIANTE_PAR_CODE_ACCECIT).
+// Backoffice.jsx, VARIANTE_PAR_CODE_ACCECIT). Un verdict positif d'Inspecteur (bureau) a
+// orientation=NULL (pas de notion de formation, voir backend evaluationEngine.js) — repli sur
+// "prêt à l'embauche" plutôt que "envoyé en formation" dans ce cas : le bureau réutilise
+// exactement le statut valide_pret_embauche, jamais valide_envoi_formation (voir
+// CODE_ACTION_VALIDE_BUREAU côté back).
 function libelleResultat(evaluation) {
   if (evaluation.resultat_global === 'invalide') return 'Invalidé';
-  if (evaluation.orientation === 'pret_embauche') return 'Validé — prêt à l\'embauche';
-  return 'Validé — envoyé en formation';
+  if (evaluation.orientation === 'envoi_formation') return 'Validé — envoyé en formation';
+  return 'Validé — prêt à l\'embauche';
 }
 
 function varianteResultat(evaluation) {

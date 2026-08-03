@@ -38,12 +38,14 @@ const ROLES_PAR_ACTION_ACCECIT = {
   replanifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
   // Écrites par evaluationEngine.enregistrerEvaluation (workflow v4 : transition directe depuis
   // test_planifie vers l'issue finale du dossier, plus de verdict intermédiaire ni de passage par
-  // le recruteur) — pas par POST /transitions directement, mais FORMATEUR/ADMIN listés par
-  // cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour
-  // exposée telle quelle via l'API générique.
+  // le recruteur) — pas par POST /transitions directement, mais FORMATEUR/INSPECTEUR/ADMIN listés
+  // par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour
+  // exposée telle quelle via l'API générique. valider_envoi_formation n'a pas d'équivalent bureau
+  // (INSPECTEUR non listé ici) — le bureau n'a pas de notion de formation, un verdict positif y
+  // passe toujours par valider_pret_embauche (voir evaluationEngine.js, codeActionFinal).
   valider_envoi_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
-  valider_pret_embauche: [ROLES.FORMATEUR, ROLES.ADMIN],
-  invalider_test: [ROLES.FORMATEUR, ROLES.ADMIN],
+  valider_pret_embauche: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
+  invalider_test: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   // Décision finale du recruteur — workflow hérité (v2), retiré du parcours actif pour toute
   // nouvelle évaluation depuis le workflow v3 (voir evaluationEngine.js) : conservé uniquement le
   // temps que les derniers dossiers encore en_attente_validation_recruteur soient clos par un

@@ -19,11 +19,25 @@ const POSTE_HOTEL_LIBELLES = {
   equipier: 'Équipier(ère)',
   gouvernant: 'Gouvernant(e)',
 };
+const POSTE_BUREAU_LIBELLES = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+};
 
 // Échelles de réponse — mêmes valeurs que backend evaluationEngine.js (ACQUIS_AUTORISEES /
-// CHOIX_MULTIPLE_VALEURS) et GrilleEvaluation.jsx (ACQUIS), traduites en libellés lisibles pour
-// cet affichage lecture seule.
-const LIBELLES_ACQUIS = { acquis: 'Acquis', non_acquis: 'Non acquis', a_ameliorer: 'A améliorer' };
+// CHOIX_MULTIPLE_VALEURS) et GrilleEvaluation.jsx (ACQUIS / NIVEAUX_BUREAU), traduites en libellés
+// lisibles pour cet affichage lecture seule. aucune_connaissance/excellent : échelle du
+// questionnaire bureau (Inspecteur).
+const LIBELLES_ACQUIS = {
+  acquis: 'Acquis',
+  non_acquis: 'Non acquis',
+  a_ameliorer: 'A améliorer',
+  aucune_connaissance: 'Aucune connaissance',
+  excellent: 'Excellent',
+};
 const LIBELLES_CHOIX_MULTIPLE = { coche: 'Coché', non_coche: 'Non coché' };
 
 function libelleValeur(typeQuestion, valeur) {
@@ -36,14 +50,16 @@ function libelleValeur(typeQuestion, valeur) {
 // empilés, voir GrilleEvaluation.jsx / backend evaluationEngine.enregistrerEvaluation) — tableau
 // vide = repli générique (dossier bureau, ou poste hôtel sans questionnaire dédié).
 function libellePostes(postesCodes) {
-  if (!postesCodes || postesCodes.length === 0) return 'Générique (bureau)';
-  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode).join(', ');
+  if (!postesCodes || postesCodes.length === 0) return 'Générique';
+  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode).join(', ');
 }
 
+// Voir HistoriqueEvaluations.jsx pour le même repli sur "prêt à l'embauche" quand orientation est
+// NULL (verdict positif d'Inspecteur, bureau).
 function libelleResultat(evaluation) {
   if (evaluation.resultatGlobal === 'invalide') return 'Invalidé';
-  if (evaluation.orientation === 'pret_embauche') return 'Validé — prêt à l\'embauche';
-  return 'Validé — envoyé en formation';
+  if (evaluation.orientation === 'envoi_formation') return 'Validé — envoyé en formation';
+  return 'Validé — prêt à l\'embauche';
 }
 
 // Détail en lecture seule d'une évaluation déjà soumise — jamais modifiable depuis cet écran

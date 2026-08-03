@@ -25,7 +25,7 @@ router.use(requireAuth);
 // L'admin est inclus par cohérence avec son rôle de gestion globale.
 const ROLES_GESTION_PIECES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
 // Consultation (liste, téléchargement) ouverte à tous les rôles internes.
-const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR];
+const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 // Export groupé (ZIP) réservé au Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 —
 // besoin RH "second contrôle" : télécharger/exporter les dossiers candidats). Volontairement plus
 // restreint que ROLES_CONSULTATION_PIECES : télécharger le contenu réel de toutes les pièces d'un

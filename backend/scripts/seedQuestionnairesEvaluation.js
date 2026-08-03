@@ -13,8 +13,54 @@
 // Usage : node scripts/seedQuestionnairesEvaluation.js <code_entite>
 
 const { obtenirKnex } = require('../src/db/knex');
+const { POSTES_BUREAU } = require('../src/core/dossier/postesConstantes');
+
+// Grille bureau (Inspecteur, voir rbac.js) — contenu identique dupliqué sur les 5 postes bureau
+// (nettoyage, vitrerie, machiniste, chef_equipe, autres), pas de questionnaire générique bureau
+// unique : la ligne poste_code=NULL existante (voir QUESTIONNAIRES_ACCECIT plus bas) reste le
+// repli de dernier recours, jamais réutilisée directement comme grille bureau. Échelle de réponse
+// propre à ces deux questions (aucune_connaissance/a_ameliorer/excellent, voir evaluationEngine.js
+// ACQUIS_AUTORISEES et frontend GrilleEvaluation.jsx NIVEAUX_BUREAU) — affichée par le front selon
+// le rôle connecté, pas une propriété de la question elle-même côté back (type_question reste
+// 'grille_qcu', comme toute grille existante).
+const QUESTIONS_GRILLE_BUREAU = [
+  {
+    code: 'savoir_etre',
+    libelle: 'Savoir-être',
+    type: 'grille_qcu',
+    obligatoire: true,
+    ordre: 1,
+    items: [
+      { code: 'ponctualite', libelle: 'Ponctualité' },
+      { code: 'presentation', libelle: 'Présentation' },
+      { code: 'attitude', libelle: 'Attitude' },
+      { code: 'comprehension', libelle: 'Compréhension' },
+      { code: 'logique', libelle: 'Logique' },
+    ],
+  },
+  {
+    code: 'savoir_faire',
+    libelle: 'Savoir-faire',
+    type: 'grille_qcu',
+    obligatoire: true,
+    ordre: 2,
+    items: [
+      { code: 'code_couleurs', libelle: 'Code couleurs' },
+      { code: 'respect_etapes', libelle: 'Respect des étapes' },
+      { code: 'respect_produits', libelle: 'Respect des produits' },
+      { code: 'gestes_techniques', libelle: 'Gestes techniques' },
+      { code: 'verification_consommables', libelle: 'Vérification des consommables' },
+    ],
+  },
+];
+
+const QUESTIONNAIRES_BUREAU_ACCECIT = POSTES_BUREAU.map((posteCode) => ({
+  posteCode,
+  questions: QUESTIONS_GRILLE_BUREAU,
+}));
 
 const QUESTIONNAIRES_ACCECIT = [
+  ...QUESTIONNAIRES_BUREAU_ACCECIT,
   {
     posteCode: null,
     questions: [

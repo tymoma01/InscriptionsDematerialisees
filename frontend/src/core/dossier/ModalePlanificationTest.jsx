@@ -26,6 +26,15 @@ const MINUTES_DISPONIBLES = ['00', '15', '30', '45'];
 // peut évaluer jusqu'à 2 candidats sur le même créneau exact, pas seulement 1.
 const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
 
+// Groupes du sélecteur de personne — mêmes codes que backend rbac.js (ROLES.FORMATEUR/
+// ROLES.INSPECTEUR), littéraux en dur plutôt qu'une constante partagée (le projet n'exporte
+// aujourd'hui aucun équivalent front de ROLES, même choix déjà fait par Connexion.jsx/
+// BoutonNouvelleInscription.jsx pour leurs propres comparaisons de rôle).
+const GROUPES_ROLE = [
+  { code: 'formateur', libelle: 'Formateurs' },
+  { code: 'inspecteur', libelle: 'Inspecteurs' },
+];
+
 // Panneau de planification d'un test : choix de la date/heure et du formateur, puis (1) création
 // du rendez-vous, (2) avancement du statut du dossier via le moteur de transitions générique —
 // une seule transaction côté back (voir rendezvousService.creerRendezvousAvecTransitions), pour
@@ -95,6 +104,11 @@ export default function ModalePlanificationTest({
   const [dateTest, setDateTest] = useState('');
   const [heureTest, setHeureTest] = useState('');
   const [minuteTest, setMinuteTest] = useState('');
+  // Groupe affiché avant le choix de la personne précise (voir GROUPES_ROLE ci-dessus) —
+  // présélectionné selon le type de poste déclaré sur le dossier (Inspecteurs pour un dossier
+  // bureau, Formateurs sinon/par défaut) plutôt que toujours le même groupe : évite à l'agent de
+  // devoir cliquer "Inspecteurs" à chaque planification d'un test bureau.
+  const [groupeRole, setGroupeRole] = useState(() => (postesBureau.length > 0 ? 'inspecteur' : 'formateur'));
   const [formateurId, setFormateurId] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
@@ -124,6 +138,14 @@ export default function ModalePlanificationTest({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, JSON.stringify(postesDisponibles)]);
 
+  // Même raison que l'effet ci-dessus (pas de démontage entre deux dossiers sur
+  // TableauDeBordAccueil) : re-présélectionne le bon groupe (Inspecteurs/Formateurs) si l'agent
+  // ouvre ce panneau pour un autre dossier sans l'avoir fermé.
+  useEffect(() => {
+    setGroupeRole(postesBureau.length > 0 ? 'inspecteur' : 'formateur');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossierId, JSON.stringify(postesBureau)]);
+
   const togglerPoste = (code) => {
     setPostesCoches((precedent) => {
       const suivant = new Set(precedent);
@@ -133,13 +155,17 @@ export default function ModalePlanificationTest({
     });
   };
 
+  // Liste combinée formateurs + inspecteurs (voir GET /api/formateurs, role_code désormais inclus
+  // dans chaque ligne) — la sélection de la personne précise, une fois filtrée par groupe, est
+  // gérée par l'effet séparé ci-dessous plutôt qu'ici : ce fetch ne se relance jamais (dossier
+  // changé ou pas, dépendances vides), alors que la personne présélectionnée doit se recalculer à
+  // chaque changement de groupe/dossier.
   useEffect(() => {
     let annule = false;
     listerFormateurs()
       .then((valeur) => {
         if (annule) return;
         setFormateurs(valeur);
-        if (valeur.length > 0) setFormateurId(String(valeur[0].id));
       })
       .catch((erreur) => {
         if (!annule) setErreurFormateurs(erreur.response?.data?.erreur ?? 'Impossible de récupérer la liste des formateurs.');
@@ -151,6 +177,22 @@ export default function ModalePlanificationTest({
       annule = true;
     };
   }, []);
+
+  // Liste filtrée sur le groupe actif — c'est elle qui alimente le <select> plus bas, jamais la
+  // liste combinée brute.
+  const formateursDuGroupe = formateurs.filter((formateur) => formateur.role_code === groupeRole);
+
+  // Présélectionne la première personne du groupe actif, dès que la liste combinée est chargée ET
+  // à chaque changement de groupe (clic sur l'onglet, ou représélection automatique à l'ouverture
+  // sur un autre dossier, voir l'effet dossierId/postesBureau ci-dessus) — même principe que la
+  // sélection initiale d'origine (premier de la liste), appliqué désormais au sous-groupe plutôt
+  // qu'à la liste entière. '' si le groupe est vide (ex. aucun inspecteur configuré pour cette
+  // entité) : le <select> reste alors vide et le bouton de soumission désactivé (voir plus bas,
+  // même garde qu'avant).
+  useEffect(() => {
+    setFormateurId(formateursDuGroupe.length > 0 ? String(formateursDuGroupe[0].id) : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupeRole, formateurs]);
 
   useEffect(() => {
     if (!formateurId || !dateTest) {
@@ -249,11 +291,29 @@ export default function ModalePlanificationTest({
       {erreurFormateurs && <p role="alert">{erreurFormateurs}</p>}
 
       {!chargementFormateurs && !erreurFormateurs && formateurs.length === 0 && (
-        <p role="alert">Aucun formateur disponible pour cette entité — impossible de planifier un test.</p>
+        <p role="alert">Aucun formateur ni inspecteur disponible pour cette entité — impossible de planifier un test.</p>
       )}
 
       {!chargementFormateurs && formateurs.length > 0 && (
         <form className="modale-planification-test__formulaire" onSubmit={soumettre}>
+          {/* Choix du groupe avant la personne précise (voir GROUPES_ROLE) — deux onglets
+              mutuellement exclusifs, pas de "Tous" (contrairement à FiltresStatut.jsx, pensé pour
+              "Tous + N options" : ici un groupe doit toujours être actif, sinon aucune personne
+              à proposer dans le <select> juste en dessous). Placé avant le <select> lui-même,
+              qui ne liste que les personnes du groupe actif. */}
+          <div className="modale-planification-test__groupes-role" role="group" aria-label="Groupe">
+            {GROUPES_ROLE.map((groupe) => (
+              <button
+                key={groupe.code}
+                type="button"
+                className={groupeRole === groupe.code ? 'actif' : ''}
+                onClick={() => setGroupeRole(groupe.code)}
+              >
+                {groupe.libelle}
+              </button>
+            ))}
+          </div>
+
           {/* Texte du label regroupé dans un unique <span> (plutôt que texte + astérisque comme
               deux enfants directs du label) : le label est en display: flex/column pour
               empiler son contenu au-dessus du <select> imbriqué — un texte et un astérisque
@@ -262,20 +322,26 @@ export default function ModalePlanificationTest({
               doit être connu avant d'afficher ses disponibilités. */}
           <label>
             <span>
-              Formateur <span className="champ-obligatoire">*</span>
+              {groupeRole === 'inspecteur' ? 'Inspecteur' : 'Formateur'} <span className="champ-obligatoire">*</span>
             </span>
-            <select
-              id="planification-formateur"
-              value={formateurId}
-              onChange={(evenement) => setFormateurId(evenement.target.value)}
-              required
-            >
-              {formateurs.map((formateur) => (
-                <option key={formateur.id} value={formateur.id}>
-                  {formateur.prenom} {formateur.nom}
-                </option>
-              ))}
-            </select>
+            {formateursDuGroupe.length === 0 ? (
+              <p role="alert" className="modale-planification-test__groupe-vide">
+                Aucun{groupeRole === 'inspecteur' ? ' inspecteur' : ' formateur'} disponible pour cette entité.
+              </p>
+            ) : (
+              <select
+                id="planification-formateur"
+                value={formateurId}
+                onChange={(evenement) => setFormateurId(evenement.target.value)}
+                required
+              >
+                {formateursDuGroupe.map((formateur) => (
+                  <option key={formateur.id} value={formateur.id}>
+                    {formateur.prenom} {formateur.nom}
+                  </option>
+                ))}
+              </select>
+            )}
           </label>
 
           {/* Aide visuelle uniquement (voir commentaire de CalendrierDisponibiliteFormateur) : le

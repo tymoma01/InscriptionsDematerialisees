@@ -61,6 +61,7 @@ export default function Evaluation() {
         {rendezvousSelectionne && (
           <GrilleEvaluation
             rendezvous={rendezvousSelectionne}
+            roleCode={utilisateur.roleCode}
             onTermine={terminerEvaluation}
             onAnnuler={() => setRendezvousSelectionne(null)}
           />

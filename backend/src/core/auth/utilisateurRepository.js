@@ -78,15 +78,23 @@ function listerRolesAssignables(bd) {
   return bd('roles').whereNot('code', 'systeme').orderBy('id', 'asc');
 }
 
-// Utilisateurs actifs d'un rôle donné pour l'entité — sert par ex. à peupler le sélecteur de
-// formateur lors de la planification d'un test (voir rendezvous.routes.js), sans passer par
-// l'écran de gestion des comptes (admin uniquement, voir utilisateurs.routes.js) : un agent
-// Accueil/Coordination doit pouvoir lister les formateurs sans avoir les droits d'administration.
-function listerUtilisateursParRole(bd, entiteId, roleCode) {
+// Utilisateurs actifs d'un ou plusieurs rôles donnés pour l'entité — sert par ex. à peupler le
+// sélecteur de formateur/inspecteur lors de la planification d'un test (voir
+// rendezvous.routes.js), sans passer par l'écran de gestion des comptes (admin uniquement, voir
+// utilisateurs.routes.js) : un agent Accueil/Coordination doit pouvoir lister les formateurs/
+// inspecteurs sans avoir les droits d'administration. rolesCodes en tableau (whereIn) plutôt qu'un
+// seul code : sert à fusionner formateurs et inspecteurs en une seule requête triée
+// (utilisateurService.listerFormateursEtInspecteurs), plutôt que deux appels à fusionner en JS.
+// role_code inclus dans la sélection (absent avant l'ajout du rôle Inspecteur) : nécessaire côté
+// front pour distinguer formateurs/inspecteurs dans la liste combinée (voir
+// ModalePlanificationTest.jsx, filtre par groupe) — sans lui, /api/formateurs renvoyait une liste
+// fusionnée sans aucun moyen de savoir qui appartient à quel rôle.
+function listerUtilisateursParRoles(bd, entiteId, rolesCodes) {
   return bd('utilisateurs')
     .join('roles', 'roles.id', 'utilisateurs.role_id')
-    .where({ 'utilisateurs.entite_id': entiteId, 'roles.code': roleCode, 'utilisateurs.actif': true })
-    .select('utilisateurs.id', 'utilisateurs.nom', 'utilisateurs.prenom')
+    .where({ 'utilisateurs.entite_id': entiteId, 'utilisateurs.actif': true })
+    .whereIn('roles.code', rolesCodes)
+    .select('utilisateurs.id', 'utilisateurs.nom', 'utilisateurs.prenom', 'roles.code as role_code')
     .orderBy('utilisateurs.nom', 'asc');
 }
 
@@ -110,7 +118,7 @@ module.exports = {
   trouverUtilisateurParEmailGlobal,
   trouverRoleParCode,
   listerRolesAssignables,
-  listerUtilisateursParRole,
+  listerUtilisateursParRoles,
   creerUtilisateur,
   mettreAJourUtilisateur,
 };

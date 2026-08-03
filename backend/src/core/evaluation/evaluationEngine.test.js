@@ -1,0 +1,146 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const db = require('../../db/knex');
+const rendezvousRepository = require('../rendezvous/rendezvousRepository');
+const evaluationRepository = require('./evaluationRepository');
+const workflowEngine = require('../workflow/workflowEngine');
+const evaluationEngine = require('./evaluationEngine');
+
+const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
+
+const RENDEZVOUS_TEST = {
+  id: 10,
+  dossier_id: 62,
+  type_rdv: 'test',
+  formateur_id: 5,
+  postes_selectionnes: [],
+};
+
+const QUESTIONNAIRE = { id: 1 };
+// Une seule question grille_qcu à un item, suffisante pour satisfaire
+// resoudreEtValiderReponses (privée, jamais testée directement) sans complexité inutile.
+const QUESTIONS = [
+  {
+    id: 100,
+    code: 'savoir_etre',
+    libelle: 'Savoir-être',
+    type_question: 'grille_qcu',
+    obligatoire: true,
+    items: [{ id: 200, code: 'ponctualite', libelle: 'Ponctualité' }],
+  },
+];
+
+const TRX_FACTICE = { estUnTrx: true };
+
+// Même patron que planificationRendezvousService.test.js (mockerTransaction) : bd.transaction
+// appelle directement le callback avec un trx factice, suffisant au niveau unitaire.
+function mockerKnex(t) {
+  t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (callback) => callback(TRX_FACTICE) }));
+}
+
+function mockerDependances(t, overrides = {}) {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  t.mock.method(evaluationRepository, 'trouverEvaluationParRendezvous', async () => undefined);
+  t.mock.method(evaluationRepository, 'trouverQuestionnairePourPoste', async () => QUESTIONNAIRE);
+  t.mock.method(evaluationRepository, 'listerQuestionsAvecItems', async () => QUESTIONS);
+  t.mock.method(evaluationRepository, 'enregistrerReponses', async () => {});
+  t.mock.method(evaluationRepository, 'enregistrerPostesEvaluation', async () => {});
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+  const enregistrerMock = t.mock.method(evaluationRepository, 'enregistrerEvaluation', overrides.enregistrerEvaluation ?? (async () => 1));
+  return { enregistrerMock };
+}
+
+const BLOC_REPONSES = { posteCode: undefined, reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' }] };
+
+test("enregistrerEvaluation accepte un verdict positif d'Inspecteur sans orientation, la persiste à NULL, et déclenche valider_pret_embauche", async (t) => {
+  mockerKnex(t);
+  const { enregistrerMock } = mockerDependances(t);
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+
+  const resultat = await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'inspecteur',
+    resultatGlobal: 'valide',
+    orientation: undefined,
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.deepEqual(resultat, { evaluationId: 1 });
+  assert.equal(enregistrerMock.mock.calls[0].arguments[1].orientation, null);
+  assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'valider_pret_embauche');
+});
+
+test("enregistrerEvaluation ignore une orientation envoyée par erreur par un Inspecteur (toujours NULL persisté, jamais de confiance dans le payload)", async (t) => {
+  mockerKnex(t);
+  const { enregistrerMock } = mockerDependances(t);
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'inspecteur',
+    resultatGlobal: 'valide',
+    orientation: 'pret_embauche',
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.equal(enregistrerMock.mock.calls[0].arguments[1].orientation, null);
+});
+
+test('enregistrerEvaluation rejette toujours un verdict positif de Formateur sans orientation valide (comportement hôtel inchangé)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 5,
+        roleCode: 'formateur',
+        resultatGlobal: 'valide',
+        orientation: undefined,
+        commentaire: 'Bon candidat.',
+        blocs: [BLOC_REPONSES],
+      }),
+    /Orientation "undefined" invalide/,
+  );
+});
+
+test('enregistrerEvaluation applique invalider_test pour un verdict négatif, quel que soit le rôle (formateur ou inspecteur)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 7 }));
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'inspecteur',
+    resultatGlobal: 'invalide',
+    orientation: undefined,
+    commentaire: 'Insuffisant.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'invalider_test');
+});
+
+test('enregistrerEvaluation accepte les réponses grille_qcu sur l\'échelle bureau (aucune_connaissance/excellent)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+
+  await assert.doesNotReject(() =>
+    evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+      rendezvousId: 10,
+      formateurId: 5,
+      roleCode: 'inspecteur',
+      resultatGlobal: 'invalide',
+      commentaire: 'Insuffisant.',
+      blocs: [
+        { posteCode: undefined, reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'aucune_connaissance' }] },
+      ],
+    }),
+  );
+});

@@ -12,6 +12,7 @@ const ROLES_A_AMORCER = [
   { code: ROLES.ACCUEIL_COORDINATION, libelle: 'Accueil / Coordination' },
   { code: ROLES.RECRUTEUR, libelle: 'Recruteur' },
   { code: ROLES.FORMATEUR, libelle: 'Formateur' },
+  { code: ROLES.INSPECTEUR, libelle: 'Inspecteur' },
   { code: ROLES.ADMIN, libelle: 'Admin' },
   { code: ROLES.SYSTEME, libelle: 'Système (automatisation)' },
 ];

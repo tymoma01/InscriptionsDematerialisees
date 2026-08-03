@@ -1,0 +1,46 @@
+/* Même langage visuel que NotesDossier.css (carte blanche, titre back-office) — pour que
+   Checklist/Notes se lisent comme un seul système cohérent sur l'écran d'évaluation de
+   l'inspecteur. */
+.checklist-inspection {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.checklist-inspection h2 {
+  color: var(--couleur-back-office);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.checklist-inspection__section {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--espace-moyen);
+}
+
+.checklist-inspection__section:last-child {
+  margin-bottom: 0;
+}
+
+.checklist-inspection__section legend {
+  padding: 0;
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-texte);
+  font-weight: 600;
+}
+
+.checklist-inspection__etape {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espace-petit);
+  padding: 0.35rem 0;
+  color: var(--couleur-texte);
+}
+
+.checklist-inspection__etape input {
+  margin-top: 0.2rem;
+}

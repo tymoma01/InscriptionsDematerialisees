@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { obtenirQuestionnaire, enregistrerEvaluation } from '../../services/evaluationService';
 import NotesDossier from '../dossier/NotesDossier';
+import ChecklistInspection from './ChecklistInspection';
 import './GrilleEvaluation.css';
 
 // Échelle de notation d'une question 'grille_qcu' (voir backend evaluationEngine.js,
@@ -12,19 +13,38 @@ const ACQUIS = [
   { code: 'a_ameliorer', libelle: 'A améliorer' },
 ];
 
-// Libellés des postes hôtel pour le sélecteur affiché quand un dossier a coché plusieurs postes
-// (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx (POSTES_HOTEL),
-// dupliqués ici plutôt que partagés : quelques lignes de données, même choix déjà fait pour
-// VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx/Backoffice.jsx).
+// Échelle affichée à un Inspecteur (postes bureau, questions savoir_etre/savoir_faire — voir
+// seedQuestionnairesEvaluation.js) à la place de ACQUIS ci-dessus — mêmes codes que backend
+// evaluationEngine.js (ACQUIS_AUTORISEES, union avec l'échelle hôtel). Rôle qui affiche laquelle
+// des deux échelles, pas le poste du dossier (scope Inspecteur procédural, voir rbac.js) : plus
+// simple et cohérent avec le seul signal déjà utilisé pour masquer Orientation (estInspecteur).
+const NIVEAUX_BUREAU = [
+  { code: 'aucune_connaissance', libelle: 'Aucune connaissance' },
+  { code: 'a_ameliorer', libelle: 'A améliorer' },
+  { code: 'excellent', libelle: 'Excellent' },
+];
+
+// Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
+// postes (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx
+// (POSTES_HOTEL/POSTES_BUREAU), dupliqués ici plutôt que partagés : quelques lignes de données,
+// même choix déjà fait pour VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx/Backoffice.jsx).
 const POSTE_HOTEL_LIBELLES = {
   femme_valet_chambre: 'Femme/Valet de chambre',
   cafetier: 'Cafétier(ère)',
   equipier: 'Équipier(ère)',
   gouvernant: 'Gouvernant(e)',
 };
+const POSTE_BUREAU_LIBELLES = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+};
 
 function libellePoste(posteCode) {
-  return posteCode ? (POSTE_HOTEL_LIBELLES[posteCode] ?? posteCode) : 'Générique';
+  if (!posteCode) return 'Générique';
+  return POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode;
 }
 
 // Orientation du candidat en cas de verdict positif (workflow v3, voir backend evaluationEngine.js,
@@ -134,16 +154,29 @@ function construireReponsesBloc(bloc) {
 //
 // rendezvous reçu en prop ({ id, dossier_id, candidat_prenom, candidat_nom, postesBureau,
 // postesHotel }, voir ListeEvaluationsAFaire.jsx / backend evaluationEngine.listerRendezvousAEvaluer)
-// — ce composant ne connaît pas le routage, même patron que CaptureTablette.jsx.
-export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
-  // Plusieurs postes hôtel cochés sur un même dossier : le formulaire d'inscription le permet
-  // (case à cocher indépendante par poste, voir BlocDisponibilites.jsx) — sans façon fiable de
-  // deviner lesquels des questionnaires dédiés s'appliquent, c'est le formateur qui coche ceux sur
-  // lesquels porte réellement ce test avant de charger les grilles (empilées, un bloc par poste
-  // coché), plutôt qu'une hypothèse fausse sur l'intention du candidat.
-  const postesHotel = rendezvous.postesHotel ?? [];
-  const postesAmbigus = postesHotel.length > 1;
-  const posteResolutionAutomatique = postesHotel.length === 1 ? postesHotel[0] : undefined;
+// — ce composant ne connaît pas le routage, même patron que CaptureTablette.jsx. roleCode reçu en
+// prop pour la même raison (pas de useSession() propre à ce composant) — transmis par
+// Evaluation.jsx, qui l'a déjà via sa propre useSession().
+export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAnnuler }) {
+  // Scope Inspecteur procédural (voir rbac.js) : c'est le rôle connecté qui détermine l'échelle de
+  // réponse affichée (NIVEAUX_BUREAU vs ACQUIS) et masque Orientation (le bureau n'a pas de notion
+  // de formation) — jamais une caractéristique du dossier/poste, cohérent avec le fait qu'aucune
+  // vérification technique de scope bureau n'existe côté serveur non plus.
+  const estInspecteur = roleCode === 'inspecteur';
+
+  // Plusieurs postes (hôtel OU bureau, jamais les deux à la fois sur un même dossier — typePoste
+  // XOR, voir dossierService.js) cochés : le formulaire d'inscription le permet (case à cocher
+  // indépendante par poste, voir BlocDisponibilites.jsx) — sans façon fiable de deviner lesquels
+  // des questionnaires dédiés s'appliquent, c'est l'agent qui coche ceux sur lesquels porte
+  // réellement ce test avant de charger les grilles (empilées, un bloc par poste coché), plutôt
+  // qu'une hypothèse fausse sur l'intention du candidat. postesBureau ajouté ici (absent avant
+  // l'ajout du questionnaire bureau) : sans lui, un dossier bureau résolvait toujours posteCode à
+  // undefined, donc toujours le questionnaire générique de repli (poste_code=NULL), jamais les
+  // questionnaires bureau dédiés (seedQuestionnairesEvaluation.js) — même mécanique de résolution
+  // que côté hôtel, pas un cas particulier.
+  const postesCandidats = [...(rendezvous.postesHotel ?? []), ...(rendezvous.postesBureau ?? [])];
+  const postesAmbigus = postesCandidats.length > 1;
+  const posteResolutionAutomatique = postesCandidats.length === 1 ? postesCandidats[0] : undefined;
 
   const [postesChoisis, setPostesChoisis] = useState([]);
   // null tant qu'aucun bloc n'a encore été chargé : sert de garde d'affichage (voir plus bas,
@@ -163,7 +196,10 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
 
-  const orientationVisible = resultatGlobal === 'valide';
+  // Masqué pour un Inspecteur : le bureau n'a pas de notion de formation, l'évaluation y reste
+  // binaire (valide/invalide) sans champ supplémentaire à choisir — pas de remplacement, juste
+  // absent (voir enregistrerEvaluation côté back, orientation reste NULL dans ce cas).
+  const orientationVisible = resultatGlobal === 'valide' && !estInspecteur;
 
   const gererChangementResultat = (valeur) => {
     setResultatGlobal(valeur);
@@ -281,10 +317,10 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
             Plusieurs postes ont été demandés par ce candidat — cochez celui ou ceux sur lesquels porte cette évaluation :
           </p>
           <div className="grille-evaluation__choix">
-            {postesHotel.map((code) => (
+            {postesCandidats.map((code) => (
               <label key={code}>
                 <input type="checkbox" checked={postesChoisis.includes(code)} onChange={() => gererBasculePoste(code)} />
-                {POSTE_HOTEL_LIBELLES[code] ?? code}
+                {libellePoste(code)}
               </label>
             ))}
           </div>
@@ -374,7 +410,7 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
                     <fieldset key={item.code} className="grille-evaluation__critere">
                       <legend>{item.libelle}</legend>
                       <div className="grille-evaluation__choix">
-                        {ACQUIS.map((v) => (
+                        {(estInspecteur ? NIVEAUX_BUREAU : ACQUIS).map((v) => (
                           <label key={v.code}>
                             <input
                               type="radio"
@@ -519,6 +555,10 @@ export default function GrilleEvaluation({ rendezvous, onTermine, onAnnuler }) {
       </form>
 
       <NotesDossier dossierId={rendezvous.dossier_id} />
+      {/* Aide-mémoire de l'inspecteur (avant/après test) — informative, jamais bloquante ni
+          envoyée avec l'évaluation (voir ChecklistInspection.jsx), montée en frère du <form> comme
+          NotesDossier ci-dessus, pour la même raison (pas de <form> imbriqué). */}
+      {estInspecteur && <ChecklistInspection />}
     </>
   );
 }
