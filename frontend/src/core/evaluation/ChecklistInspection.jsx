@@ -25,9 +25,11 @@ const ETAPES_APRES_TEST = [
   { code: 'orientation_planning', libelle: 'Diriger les candidats favorables vers le service planning' },
 ];
 
-function SectionChecklist({ titre, etapes, coches, onBasculer }) {
+// `variante` pilote la teinte de fond/bordure de chaque sous-bloc (voir ChecklistInspection.css)
+// — seule différence entre les deux appels ci-dessous, tout le reste du rendu reste identique.
+function SectionChecklist({ titre, etapes, coches, onBasculer, variante }) {
   return (
-    <fieldset className="checklist-inspection__section">
+    <fieldset className={`checklist-inspection__section checklist-inspection__section--${variante}`}>
       <legend>{titre}</legend>
       {etapes.map((etape) => (
         <label key={etape.code} className="checklist-inspection__etape">
@@ -54,8 +56,28 @@ export default function ChecklistInspection() {
   return (
     <div className="checklist-inspection">
       <h2>Checklist</h2>
-      <SectionChecklist titre="Avant le test" etapes={ETAPES_AVANT_TEST} coches={coches} onBasculer={basculer} />
-      <SectionChecklist titre="Après le test" etapes={ETAPES_APRES_TEST} coches={coches} onBasculer={basculer} />
+      {/* Deux colonnes côte à côte plutôt qu'empilées (voir ChecklistInspection.css) : occupe
+          toute la largeur du bloc plutôt que de l'étirer verticalement. */}
+      <div className="checklist-inspection__colonnes">
+        <SectionChecklist
+          titre="Avant le test"
+          etapes={ETAPES_AVANT_TEST}
+          coches={coches}
+          onBasculer={basculer}
+          variante="avant"
+        />
+        {/* Séparateur vertical entre les deux sous-blocs, en plus de leur bordure propre à
+            chacun — masqué en colonne unique (voir ChecklistInspection.css), aria-hidden : purement
+            décoratif, la légende de chaque fieldset porte déjà la structure pour un lecteur d'écran. */}
+        <div className="checklist-inspection__separateur" aria-hidden="true" />
+        <SectionChecklist
+          titre="Après le test"
+          etapes={ETAPES_APRES_TEST}
+          coches={coches}
+          onBasculer={basculer}
+          variante="apres"
+        />
+      </div>
     </div>
   );
 }

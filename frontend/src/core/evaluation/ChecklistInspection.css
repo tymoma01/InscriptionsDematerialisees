@@ -13,21 +13,77 @@
 
 .checklist-inspection h2 {
   color: var(--couleur-back-office);
-  margin: 0 0 var(--espace-moyen);
+  margin: 0 0 var(--espace-grand);
 }
 
+/* Deux colonnes côte à côte (Avant/Après le test) plutôt qu'empilées verticalement — repasse en
+   colonne unique sous 640px (tablette en portrait/écran étroit) : à cette largeur, deux colonnes
+   compresseraient trop les libellés les plus longs (ex. "Vérification des disponibilités...").
+   align-items: stretch (valeur par défaut, posée explicitement) : les deux sous-blocs et le
+   séparateur s'étirent à la hauteur du plus grand des deux (4 étapes côté "Après" contre 3 côté
+   "Avant"), pour que la bordure/le fond de chacun couvrent bien toute la hauteur du bloc, pas
+   seulement celle de son propre contenu. */
+.checklist-inspection__colonnes {
+  display: flex;
+  align-items: stretch;
+  gap: var(--espace-moyen);
+}
+
+/* Séparateur vertical fin, en plus de la bordure propre à chaque sous-bloc (voir plus bas) —
+   simple trait, pas un troisième bloc coloré : il marque la limite entre les deux sans ajouter
+   une troisième teinte à l'ensemble. Masqué en colonne unique (rien à séparer verticalement une
+   fois les deux sous-blocs empilés). */
+.checklist-inspection__separateur {
+  flex: 0 0 1px;
+  width: 1px;
+  background-color: var(--couleur-bordure);
+}
+
+@media (max-width: 640px) {
+  .checklist-inspection__colonnes {
+    flex-direction: column;
+    gap: var(--espace-moyen);
+  }
+
+  .checklist-inspection__separateur {
+    display: none;
+  }
+}
+
+/* Bordure + fond teinté propres à chaque sous-bloc (voir les deux variantes plus bas) — teintes
+   très atténuées (fonds déjà utilisés ailleurs dans le projet pour StatutBadge, voir
+   styles/variables.css : contraste AA déjà vérifié sur ces paires fond/bordure) : le texte des
+   étapes reste en --couleur-texte (gris foncé), jamais la couleur de texte du badge lui-même —
+   largement assez de contraste sur un fond aussi clair, pas besoin d'en changer ici. */
 .checklist-inspection__section {
-  border: none;
-  padding: 0;
-  margin: 0 0 var(--espace-moyen);
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+  margin: 0;
 }
 
-.checklist-inspection__section:last-child {
-  margin-bottom: 0;
+/* "Avant le test" — bleu ACCECIT très atténué (variante déjà existante --statut-bleu-*, proche du
+   bleu de marque #1F4E9C demandé) : exception volontaire à la séparation candidat (bleu)/
+   back-office (brun-doré) habituelle de ce projet (voir PageBackOffice.css) — ici purement un
+   repère visuel entre deux sous-blocs d'un même composant interne, pas une confusion avec le
+   formulaire candidat. */
+.checklist-inspection__section--avant {
+  background-color: var(--statut-bleu-fond);
+  border-color: var(--statut-bleu-bordure);
+}
+
+/* "Après le test" — teinte neutre/marron clair de la famille back-office (--statut-dore-*, dérivée
+   de --couleur-back-office-dore) : cohérente avec le reste de l'écran, contraste avec le bleu
+   d'"Avant le test" ci-dessus. */
+.checklist-inspection__section--apres {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--statut-dore-bordure);
 }
 
 .checklist-inspection__section legend {
-  padding: 0;
+  padding: 0 0.3rem;
   margin: 0 0 var(--espace-petit);
   color: var(--couleur-texte);
   font-weight: 600;

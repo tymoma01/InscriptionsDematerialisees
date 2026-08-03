@@ -313,6 +313,12 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           <h2>
             Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
           </h2>
+
+          {/* Même aide-mémoire que sur la grille principale (voir plus bas), positionnée de la
+              même façon — juste sous le titre, avant le reste de l'écran — pour rester visible dès
+              cette étape de sélection de poste, avant même que la grille ne soit chargée. */}
+          {estInspecteur && <ChecklistInspection />}
+
           <p>
             Plusieurs postes ont été demandés par ce candidat — cochez celui ou ceux sur lesquels porte cette évaluation :
           </p>
@@ -386,6 +392,14 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
         <h2>
           Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
         </h2>
+
+        {/* Aide-mémoire de l'inspecteur (avant/après test) — informative, jamais bloquante ni
+            envoyée avec l'évaluation (voir ChecklistInspection.jsx). Remontée ici, juste sous le
+            titre et avant la grille/le formulaire de verdict (demande explicite), plutôt que
+            laissée en bas de page comme au départ. Pas de <form> imbriqué : ChecklistInspection
+            ne rend elle-même aucun <form> (contrairement à NotesDossier plus bas, resté un frère
+            du <form> pour cette raison), donc rien n'empêche de l'imbriquer directement ici. */}
+        {estInspecteur && <ChecklistInspection />}
 
         {blocsQuestionnaire.map((bloc, indexBloc) => (
           <section key={cleBloc(bloc.posteCode)} className="grille-evaluation__bloc-poste">
@@ -555,10 +569,6 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
       </form>
 
       <NotesDossier dossierId={rendezvous.dossier_id} />
-      {/* Aide-mémoire de l'inspecteur (avant/après test) — informative, jamais bloquante ni
-          envoyée avec l'évaluation (voir ChecklistInspection.jsx), montée en frère du <form> comme
-          NotesDossier ci-dessus, pour la même raison (pas de <form> imbriqué). */}
-      {estInspecteur && <ChecklistInspection />}
     </>
   );
 }

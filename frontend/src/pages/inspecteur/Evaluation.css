@@ -1,0 +1,51 @@
+/* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). Même patron que
+   pages/formateur/Evaluation.css, dupliqué plutôt que partagé (une page par rôle). */
+.page-evaluation-inspecteur__entete {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
+/* Titre + bouton empilés (même patron que .page-evaluation__titre-bloc) : le bouton "Historique
+   des évaluations" passe sous le titre plutôt que collé à côté. */
+.page-evaluation-inspecteur__titre-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.page-evaluation-inspecteur__titre-bloc h1 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+/* Même mise en forme bouton bordé que tous les liens de navigation back-office du projet
+   (dupliqué plutôt que partagé, voir CLAUDE.md conventions du projet). */
+.page-evaluation-inspecteur__bouton-historique {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.page-evaluation-inspecteur__bouton-historique:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
+}
+
+.page-evaluation-inspecteur__entete .en-tete-back-office {
+  margin-left: auto;
+}
+
+.page-evaluation-inspecteur [role='alert'] {
+  color: var(--couleur-erreur);
+}

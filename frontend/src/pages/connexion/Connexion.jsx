@@ -3,11 +3,13 @@ import LoginForm from '../../core/auth/LoginForm';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 
 // Redirection après connexion, propre à chaque rôle — le recruteur atterrit sur son back-office,
-// le formateur sur ses évaluations à faire, l'admin sur la gestion des comptes, le reste
-// (accueil/coordination) sur le tableau de bord Accueil.
+// le formateur sur ses évaluations à faire (hôtel), l'inspecteur sur les siennes (bureau, section
+// distincte du formateur — voir GrilleEvaluation.jsx, roleCode), l'admin sur la gestion des
+// comptes, le reste (accueil/coordination) sur le tableau de bord Accueil.
 const DESTINATION_PAR_ROLE = {
   recruteur: '/recruteur/dossiers',
   formateur: '/formateur/evaluations',
+  inspecteur: '/inspecteur/evaluations',
   admin: '/admin/utilisateurs',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
