@@ -1,0 +1,101 @@
+/* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
+   (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css) — même convention que
+   Planification.css. */
+.indicateurs__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
+}
+
+.indicateurs__entete h1 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.indicateurs__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-grand);
+  margin-bottom: var(--espace-grand);
+}
+
+.indicateurs__filtre {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.indicateurs__filtre input,
+.indicateurs__filtre select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.indicateurs [role='alert'] {
+  color: var(--couleur-erreur);
+}
+
+.indicateurs__tuiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-grand);
+}
+
+.indicateurs__tuile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+}
+
+.indicateurs__tuile-valeur {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--couleur-back-office);
+}
+
+.indicateurs__tuile-libelle {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.indicateurs__graphiques {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--espace-grand);
+}
+
+.indicateurs__graphique {
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+}
+
+.indicateurs__graphique h2 {
+  margin: 0 0 var(--espace-petit) 0;
+  font-size: 1rem;
+  color: var(--couleur-back-office);
+}
+
+/* Le graphique "Répartition par poste" occupe toute la largeur de la grille (plus de catégories
+   à afficher que les deux graphiques en camembert voisins). */
+.indicateurs__graphique--large {
+  grid-column: 1 / -1;
+}
+
+.indicateurs__vide {
+  color: var(--couleur-texte-secondaire);
+  padding: var(--espace-grand);
+  text-align: center;
+}

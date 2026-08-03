@@ -14,6 +14,7 @@ const transitionsRoutes = require('./api/routes/transitions.routes');
 const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
 const formateursRoutes = require('./api/routes/formateurs.routes');
+const statistiquesRoutes = require('./api/routes/statistiques.routes');
 const { FRONTEND_URL } = require('./config/env');
 
 // Fabrique asynchrone (plutôt qu'un export synchrone de `app`) : le middleware de session a
@@ -76,6 +77,9 @@ async function creerApp() {
   // (admin uniquement) : sert à assigner un formateur lors de la planification d'un test, voir
   // formateurs.routes.js.
   app.use('/api/formateurs', formateursRoutes);
+  // Tableau de bord KPI (CLAUDE.md, section Tableau de bord : "indicateurs de pilotage et
+  // filtres") — Recruteur/Admin uniquement, voir statistiques.routes.js.
+  app.use('/api/statistiques', statistiquesRoutes);
 
   // Gestionnaire d'erreurs générique : ne jamais renvoyer la stack ni le détail interne au client.
   // eslint-disable-next-line no-unused-vars

@@ -9,14 +9,15 @@ import Validation from './pages/recruteur/Validation';
 import Evaluation from './pages/formateur/Evaluation';
 import HistoriqueEvaluations from './pages/formateur/HistoriqueEvaluations';
 import Utilisateurs from './pages/admin/Utilisateurs';
+import Indicateurs from './pages/tableauDeBord/Indicateurs';
 import Connexion from './pages/connexion/Connexion';
 
 // Table de routes minimale : inscription (candidat, sans authentification), connexion (agent) et
 // les écrans internes — tableau de bord, vérification des pièces justificatives, relances, back-
-// office recruteur, évaluation formateur et gestion des comptes admin — tous protégés côté
-// serveur (requireAuth + requireRole, voir backend/src/api/routes) : pas de garde de route ici,
-// une page sans session valide affiche déjà son propre message (voir TableauDeBordAccueil.jsx /
-// CaptureTablette.jsx), même principe que CaptureTablette avant elle.
+// office recruteur, évaluation formateur, gestion des comptes admin et indicateurs KPI — tous
+// protégés côté serveur (requireAuth + requireRole, voir backend/src/api/routes) : pas de garde
+// de route ici, une page sans session valide affiche déjà son propre message (voir
+// TableauDeBordAccueil.jsx / CaptureTablette.jsx), même principe que CaptureTablette avant elle.
 export default function App() {
   return (
     <BrowserRouter>
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/formateur/evaluations" element={<Evaluation />} />
         <Route path="/formateur/historique" element={<HistoriqueEvaluations />} />
         <Route path="/admin/utilisateurs" element={<Utilisateurs />} />
+        <Route path="/tableau-de-bord/indicateurs" element={<Indicateurs />} />
       </Routes>
     </BrowserRouter>
   );

@@ -2,6 +2,7 @@ const { z } = require('zod');
 const { obtenirKnex } = require('../../db/knex');
 const { chiffrer, hasherNirPourUnicite } = require('../securite/nirCipher');
 const dossierRepository = require('./dossierRepository');
+const { TYPES_POSTE, POSTES_BUREAU, POSTES_HOTEL } = require('./postesConstantes');
 
 // Codes des contraintes UNIQUE posées par la migration 032_ajout_email_nir_hash_candidats —
 // sert de filet de sécurité si deux inscriptions concurrentes passent toutes les deux la
@@ -29,9 +30,6 @@ const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 const CRENEAUX = ['matin', 'midi', 'soir'];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
-const TYPES_POSTE = ['bureau', 'hotel'];
-const POSTES_BUREAU = ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autres'];
-const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 const OUI_NON = ['oui', 'non'];
 const CHOIX_DIFFUSION = ['autorise', 'refuse'];

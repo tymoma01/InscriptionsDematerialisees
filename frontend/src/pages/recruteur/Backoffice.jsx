@@ -154,6 +154,9 @@ export default function Backoffice() {
       <div className="backoffice-recruteur">
         <header className="backoffice-recruteur__entete">
           <h1>Back-office recruteur</h1>
+          <Link to="/tableau-de-bord/indicateurs" className="backoffice-recruteur__bouton-indicateurs">
+            Indicateurs
+          </Link>
           <EnTeteBackOffice />
         </header>
 
