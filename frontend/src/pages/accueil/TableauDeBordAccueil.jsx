@@ -249,7 +249,7 @@ export default function TableauDeBordAccueil() {
           <ModalePlanificationTest
             dossierId={dossierAReplanifier.id}
             codeAction={CODE_ACTION_REPLANIFIER_TEST}
-            titre={`Replanifier un test — ${dossierAReplanifier.candidat_prenom} ${dossierAReplanifier.candidat_nom}`}
+            titre={`Replanifier un test - ${dossierAReplanifier.candidat_prenom} ${dossierAReplanifier.candidat_nom}`}
             postesBureau={dossierAReplanifier.postesBureau}
             postesHotel={dossierAReplanifier.postesHotel}
             libellePoste={libellePoste}

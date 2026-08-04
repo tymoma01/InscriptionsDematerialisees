@@ -509,7 +509,7 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   };
 
   return (
-    <div ref={panneauRef} className="capture-tablette__panneau" role="dialog" aria-label={`Capture — ${type.libelle}`}>
+    <div ref={panneauRef} className="capture-tablette__panneau" role="dialog" aria-label={`Capture - ${type.libelle}`}>
       <div className="capture-tablette__panneau-entete">
         <h3>{type.libelle}</h3>
         <button type="button" onClick={fermer}>
@@ -551,7 +551,7 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
       {captureEnCours && (
         <div className="capture-tablette__apercu">
           {captureEnCours.blob.type?.startsWith('image/') ? (
-            <img src={captureEnCours.url} alt={`Aperçu — ${type.libelle}`} className="capture-tablette__apercu-image" />
+            <img src={captureEnCours.url} alt={`Aperçu - ${type.libelle}`} className="capture-tablette__apercu-image" />
           ) : (
             <p className="capture-tablette__apercu-fichier">📄 {captureEnCours.nomFichier}</p>
           )}
@@ -635,7 +635,7 @@ function PanneauApercuPiece({ dossierId, type, piece, onFermer }) {
       ref={panneauRef}
       className="capture-tablette__panneau capture-tablette__panneau-apercu"
       role="dialog"
-      aria-label={`Aperçu — ${type.libelle}`}
+      aria-label={`Aperçu - ${type.libelle}`}
     >
       <div className="capture-tablette__panneau-entete">
         <h3>{type.libelle}</h3>
@@ -648,13 +648,13 @@ function PanneauApercuPiece({ dossierId, type, piece, onFermer }) {
       {erreur && <p role="alert">{erreur}</p>}
 
       {apercuUrl && contentType?.startsWith('image/') && (
-        <img src={apercuUrl} alt={`Aperçu — ${type.libelle}`} className="capture-tablette__apercu-grand-image" />
+        <img src={apercuUrl} alt={`Aperçu - ${type.libelle}`} className="capture-tablette__apercu-grand-image" />
       )}
 
       {/* Aucune lib PDF : le lecteur natif du navigateur s'affiche automatiquement dans un iframe
           pointant vers un blob de type application/pdf (Chrome/Firefox/Edge/Safari). */}
       {apercuUrl && contentType === 'application/pdf' && (
-        <iframe src={apercuUrl} title={`Aperçu — ${type.libelle}`} className="capture-tablette__apercu-pdf" />
+        <iframe src={apercuUrl} title={`Aperçu - ${type.libelle}`} className="capture-tablette__apercu-pdf" />
       )}
 
       {apercuUrl && contentType && !contentType.startsWith('image/') && contentType !== 'application/pdf' && (

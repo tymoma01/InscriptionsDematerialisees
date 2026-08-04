@@ -51,8 +51,8 @@ function libellePostes(postesCodes) {
 // CODE_ACTION_VALIDE_BUREAU côté back).
 function libelleResultat(evaluation) {
   if (evaluation.resultat_global === 'invalide') return 'Invalidé';
-  if (evaluation.orientation === 'envoi_formation') return 'Validé — envoyé en formation';
-  return 'Validé — prêt à l\'embauche';
+  if (evaluation.orientation === 'envoi_formation') return 'Validé - envoyé en formation';
+  return 'Validé - prêt à l\'embauche';
 }
 
 function varianteResultat(evaluation) {

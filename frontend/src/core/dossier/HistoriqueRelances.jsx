@@ -134,7 +134,7 @@ export default function HistoriqueRelances({ dossierId }) {
       {!chargement && !erreur && derniereRelance && (
         <p className="historique-relances__alerte" role="status">
           Déjà relancé le {FORMAT_DATE.format(new Date(derniereRelance.date_envoi))} par{' '}
-          {derniereRelance.agent_prenom} {derniereRelance.agent_nom} ({libelleCanal(derniereRelance.canal)}) —
+          {derniereRelance.agent_prenom} {derniereRelance.agent_nom} ({libelleCanal(derniereRelance.canal)}) -
           résultat : {libelleResultat(derniereRelance.resultat)}. Vérifiez l’historique avant de relancer à nouveau.
         </p>
       )}
@@ -151,7 +151,7 @@ export default function HistoriqueRelances({ dossierId }) {
                 <span className="historique-relances__canal">{libelleCanal(relance.canal)}</span>
                 <span className="historique-relances__resultat">{libelleResultat(relance.resultat)}</span>
                 <span className="historique-relances__meta">
-                  {FORMAT_DATE.format(new Date(relance.date_envoi))} — {relance.agent_prenom} {relance.agent_nom}
+                  {FORMAT_DATE.format(new Date(relance.date_envoi))} - {relance.agent_prenom} {relance.agent_nom}
                 </span>
               </div>
               {relance.commentaire && <p className="historique-relances__commentaire-texte">{relance.commentaire}</p>}

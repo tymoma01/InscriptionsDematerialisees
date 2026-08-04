@@ -287,12 +287,12 @@ export default function Utilisateurs() {
                       {u.prenom} {u.nom}
                     </td>
                     <td>{u.email}</td>
-                    <td>{u.telephone || '—'}</td>
+                    <td>{u.telephone || '-'}</td>
                     <td>{u.role_libelle}</td>
                     <td>
                       <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
                     </td>
-                    <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '—'}</td>
+                    <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '-'}</td>
                     <td>
                       {/* display: flex sur un <div> interne plutôt que directement sur le <td> :
                           posé sur la cellule elle-même, ça lui ferait perdre son

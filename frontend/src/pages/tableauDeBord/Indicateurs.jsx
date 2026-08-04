@@ -159,7 +159,7 @@ export default function Indicateurs() {
     <PageBackOffice>
       <div className="indicateurs">
         <header className="indicateurs__entete">
-          <h1>Tableau de bord — Indicateurs</h1>
+          <h1>Tableau de bord - Indicateurs</h1>
           <EnTeteBackOffice />
         </header>
 
@@ -219,7 +219,7 @@ export default function Indicateurs() {
               </div>
               <div className="indicateurs__tuile">
                 <span className="indicateurs__tuile-valeur">
-                  {indicateurs.conversion.taux !== null ? FORMAT_POURCENTAGE.format(indicateurs.conversion.taux) : '—'}
+                  {indicateurs.conversion.taux !== null ? FORMAT_POURCENTAGE.format(indicateurs.conversion.taux) : '-'}
                 </span>
                 <span className="indicateurs__tuile-libelle">
                   Taux de validation ({indicateurs.conversion.numerateur}/{indicateurs.conversion.denominateur})
@@ -227,13 +227,13 @@ export default function Indicateurs() {
               </div>
               <div className="indicateurs__tuile">
                 <span className="indicateurs__tuile-valeur">
-                  {indicateurs.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours ?? '—'} j
+                  {indicateurs.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours ?? '-'} j
                 </span>
                 <span className="indicateurs__tuile-libelle">Délai moyen inscription → test planifié</span>
               </div>
               <div className="indicateurs__tuile">
                 <span className="indicateurs__tuile-valeur">
-                  {indicateurs.delaisMoyens.testVersVerdict.moyenneJours ?? '—'} j
+                  {indicateurs.delaisMoyens.testVersVerdict.moyenneJours ?? '-'} j
                 </span>
                 <span className="indicateurs__tuile-libelle">Délai moyen test → verdict</span>
               </div>

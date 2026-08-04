@@ -66,7 +66,7 @@ export default function PageBackOffice({ children }) {
           <img
             className="page-back-office__logo"
             src={logoAccecit}
-            alt="ACCECIT — Nettoyage à visage humain"
+            alt="ACCECIT - Nettoyage à visage humain"
           />
           <div className="page-back-office__logos-marques">
             <LogoSousMarque icone={iconeAccecitHotellerie} nom="Hôtellerie" />

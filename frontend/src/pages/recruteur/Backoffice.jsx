@@ -24,9 +24,6 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
   invalide: 'echec',
-  en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
-  valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
-  rejete: 'echec-fort',
   valide_envoi_formation: 'vert-clair',
   valide_pret_embauche: 'succes',
 };
@@ -51,17 +48,20 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Sous-ensemble des statuts proposés comme filtres sur cette page (recruteur : dossiers du test
-// jusqu'à la décision finale) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
-// reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
-// (workflow hérité, plus jamais atteint) n'y figure volontairement pas.
+// Tous les statuts réellement atteignables aujourd'hui dans le workflow actif (vérifié en base :
+// `est_initial` ou cible d'une transition existante dans `transitions_statut`, entité ACCECIT,
+// 2026-08-04) — même liste complète que CODES_STATUTS_FILTRES_ACCUEIL sur ce point, propre à
+// cette page, pas au moteur générique FiltresStatut.jsx qui reste piloté entièrement par la prop
+// `statuts` qu'on lui passe. "En attente de vérification" (workflow hérité) et
+// en_attente_validation_recruteur/valide/rejete (workflow v3, voir migrerWorkflowAccecitV3.js/
+// migrerWorkflowAccecitV4.js) n'y figurent volontairement pas : plus aucun dossier ne peut les
+// atteindre, les 2 derniers de l'ancien circuit ayant été supprimés le 2026-08-04.
 const CODES_STATUTS_FILTRES_RECRUTEUR = [
+  'nouveau',
+  'en_attente_pieces',
   'test_planifie',
-  // en_attente_validation_recruteur/valide : workflow v3, temporaires (2 dossiers encore en cours
-  // via l'ancien circuit, voir migrerWorkflowAccecitV3.js) — à retirer une fois ces dossiers clos.
-  'en_attente_validation_recruteur',
-  'valide',
-  'rejete',
+  'test_non_realise',
+  'invalide',
   'valide_envoi_formation',
   'valide_pret_embauche',
 ];
@@ -71,9 +71,9 @@ const CODES_STATUTS_FILTRES_RECRUTEUR = [
 // Accueil (DossierList/dossierService).
 // "Étudier le dossier" renvoie vers Validation.jsx : depuis le workflow v3, la décision finale
 // (validé/refusé, orientation formation/embauche) est prise directement par le formateur à
-// l'issue du test — cette page reste une vue de consultation (pièces, historique, notes) pour le
-// recruteur, plus un écran de décision (sauf pour les 2 derniers dossiers de l'ancien circuit,
-// voir migrerWorkflowAccecitV3.js).
+// l'issue du test - cette page reste une vue de consultation (pièces, historique, notes) pour le
+// recruteur, plus un écran de décision (l'ancien circuit valider_dossier/rejeter_dossier a été
+// retiré le 2026-08-04, voir migrerWorkflowAccecitV3.js/migrerWorkflowAccecitV4.js).
 export default function Backoffice() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();

@@ -261,7 +261,7 @@ export default function Planification() {
                         ))}
                       </div>
                     </td>
-                    <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '—'}</td>
+                    <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
                     <td>
                       <StatutBadge
                         libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut}

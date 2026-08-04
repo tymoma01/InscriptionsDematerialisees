@@ -324,7 +324,7 @@ export default function ModalePlanificationTest({
       {erreurFormateurs && <p role="alert">{erreurFormateurs}</p>}
 
       {!chargementFormateurs && !erreurFormateurs && formateurs.length === 0 && (
-        <p role="alert">Aucun formateur ni inspecteur disponible pour cette entité — impossible de planifier un test.</p>
+        <p role="alert">Aucun formateur ni inspecteur disponible pour cette entité - impossible de planifier un test.</p>
       )}
 
       {!chargementFormateurs && formateurs.length > 0 && (
@@ -458,7 +458,7 @@ export default function ModalePlanificationTest({
                 <p className="modale-planification-test__lieu-etat">Aucun lieu configuré pour cette entité.</p>
               ) : (
                 <select id="planification-lieu" value={lieuId} onChange={(evenement) => setLieuId(evenement.target.value)}>
-                  <option value="">—</option>
+                  <option value="">-</option>
                   {lieux.map((lieu) => (
                     <option key={lieu.id} value={lieu.id}>
                       {lieu.libelle}

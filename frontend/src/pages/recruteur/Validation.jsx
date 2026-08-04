@@ -91,7 +91,7 @@ export default function Validation() {
             Dossier #{dossierId}
             {dossier && (
               <>
-                {' — '}
+                {' - '}
                 <span className="page-validation__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
               </>
             )}

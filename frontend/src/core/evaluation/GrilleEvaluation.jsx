@@ -311,7 +311,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
       <>
         <div className="grille-evaluation">
           <h2>
-            Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+            Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
           </h2>
 
           {/* Même aide-mémoire que sur la grille principale (voir plus bas), positionnée de la
@@ -320,7 +320,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           {estInspecteur && <ChecklistInspection />}
 
           <p>
-            Plusieurs postes ont été demandés par ce candidat — cochez celui ou ceux sur lesquels porte cette évaluation :
+            Plusieurs postes ont été demandés par ce candidat - cochez celui ou ceux sur lesquels porte cette évaluation :
           </p>
           <div className="grille-evaluation__choix">
             {postesCandidats.map((code) => (
@@ -390,7 +390,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     <>
       <form className="grille-evaluation" onSubmit={gererEnvoi}>
         <h2>
-          Évaluation — {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+          Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
         </h2>
 
         {/* Aide-mémoire de l'inspecteur (avant/après test) — informative, jamais bloquante ni
@@ -538,7 +538,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
             {blocsAvecGrilleIncomplete
               .map(({ bloc, questionsIncompletes }) => {
                 const libellesQuestions = questionsIncompletes.map((question) => question.libelle).join(', ');
-                return plusieursBlocs ? `${libellePoste(bloc.posteCode)} — ${libellesQuestions}` : libellesQuestions;
+                return plusieursBlocs ? `${libellePoste(bloc.posteCode)} - ${libellesQuestions}` : libellesQuestions;
               })
               .join(' ; ')}
             .

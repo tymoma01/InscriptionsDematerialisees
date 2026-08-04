@@ -51,7 +51,7 @@ export default function Relances() {
             Dossier #{dossierId}
             {dossier && (
               <>
-                {' — '}
+                {' - '}
                 <span className="page-relances__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
               </>
             )}

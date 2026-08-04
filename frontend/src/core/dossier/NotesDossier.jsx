@@ -94,7 +94,7 @@ export default function NotesDossier({ dossierId }) {
             <li key={note.id} className="notes-dossier__item">
               <p className="notes-dossier__contenu">{note.contenu}</p>
               <span className="notes-dossier__meta">
-                {note.auteur_prenom} {note.auteur_nom} — {FORMAT_DATE.format(new Date(note.date_creation))}
+                {note.auteur_prenom} {note.auteur_nom} - {FORMAT_DATE.format(new Date(note.date_creation))}
               </span>
             </li>
           ))}

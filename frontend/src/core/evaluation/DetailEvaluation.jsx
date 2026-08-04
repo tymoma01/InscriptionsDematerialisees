@@ -58,8 +58,8 @@ function libellePostes(postesCodes) {
 // NULL (verdict positif d'Inspecteur, bureau).
 function libelleResultat(evaluation) {
   if (evaluation.resultatGlobal === 'invalide') return 'Invalidé';
-  if (evaluation.orientation === 'envoi_formation') return 'Validé — envoyé en formation';
-  return 'Validé — prêt à l\'embauche';
+  if (evaluation.orientation === 'envoi_formation') return 'Validé - envoyé en formation';
+  return 'Validé - prêt à l\'embauche';
 }
 
 // Détail en lecture seule d'une évaluation déjà soumise — jamais modifiable depuis cet écran
@@ -109,7 +109,7 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
   return (
     <div className="detail-evaluation">
       <h2>
-        Évaluation — {evaluation.candidatPrenom} {evaluation.candidatNom}
+        Évaluation - {evaluation.candidatPrenom} {evaluation.candidatNom}
       </h2>
 
       <dl className="detail-evaluation__meta">
@@ -136,7 +136,7 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
         <fieldset key={question.code} className="detail-evaluation__question">
           <legend>{question.libelle}</legend>
           {question.type_question === 'texte_libre' ? (
-            <p className="detail-evaluation__texte-libre">{question.valeur?.trim() ? question.valeur : '—'}</p>
+            <p className="detail-evaluation__texte-libre">{question.valeur?.trim() ? question.valeur : '-'}</p>
           ) : (
             <ul className="detail-evaluation__items">
               {question.items.map((item) => (

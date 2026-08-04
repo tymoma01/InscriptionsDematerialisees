@@ -63,7 +63,7 @@ export default function VerificationPieces() {
           Dossier #{dossierId}
           {dossier && (
             <>
-              {' — '}
+              {' - '}
               <span className="page-verification-pieces__candidat-nom">{dossier.candidat_nom}</span>{' '}
               {dossier.candidat_prenom}
             </>
