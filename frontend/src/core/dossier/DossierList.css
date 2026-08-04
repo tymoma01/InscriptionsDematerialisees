@@ -139,7 +139,10 @@
 
 .dossier-list tbody tr:hover td.dossier-list__colonne-figee,
 .dossier-list tbody tr:hover td.dossier-list__colonne-numero {
-  background-color: var(--couleur-fond-survol-tableau);
+  /* Équivalent opaque du bleu de survol (voir --couleur-fond-survol-tableau-opaque,
+     variables.css) : ces colonnes restent figées au défilement horizontal et doivent garder un
+     fond plein, jamais transparent (voir leur commentaire plus haut). */
+  background-color: var(--couleur-fond-survol-tableau-opaque);
 }
 
 /* Une puce par poste, empilées verticalement (voir DossierList.jsx) — même forme de "badge" que

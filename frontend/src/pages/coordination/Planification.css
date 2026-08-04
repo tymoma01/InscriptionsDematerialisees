@@ -217,7 +217,10 @@
 .planification__table tbody tr:hover td.planification__colonne-numero,
 .planification__table tbody tr:hover td.planification__colonne-date,
 .planification__table tbody tr:hover td.planification__colonne-figee {
-  background-color: var(--couleur-fond-survol-tableau);
+  /* Équivalent opaque du bleu de survol (voir --couleur-fond-survol-tableau-opaque,
+     variables.css) : ces colonnes restent figées au défilement horizontal et doivent garder un
+     fond plein, jamais transparent (voir leur commentaire plus haut). */
+  background-color: var(--couleur-fond-survol-tableau-opaque);
 }
 
 /* Une puce par poste, empilées verticalement — même patron que .dossier-list__postes/

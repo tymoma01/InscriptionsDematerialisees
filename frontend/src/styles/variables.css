@@ -38,12 +38,19 @@
   --couleur-fond: #ffffff;
   --couleur-fond-secondaire: var(--gris-50);
   /* Fond de survol des lignes de tableau (back-office : DossierList/Planification/Utilisateurs/
-     HistoriqueEvaluations) — délibérément découplé de --couleur-fond-secondaire ci-dessus : les
-     deux variables partageaient la même valeur (--gris-50), quasi indiscernable du blanc, ce qui
-     rendait le survol de ligne à peine visible. --gris-200 reste dans la même palette de gris déjà
-     en place (rien d'ajouté hors charte) et garde un excellent contraste pour le texte
-     (--couleur-texte, gris-800, ~10:1 sur gris-200 — bien au-dessus du minimum WCAG AA 4,5:1). */
-  --couleur-fond-survol-tableau: var(--gris-200);
+     HistoriqueEvaluations) — bleu ACCECIT (#1f4e9c, distinct du bleu --couleur-primaire #2d3c92
+     déjà en place) en version atténuée (15% d'opacité sur fond blanc) plutôt qu'un bleu plein, pour
+     rester lisible : le texte des cellules (--couleur-texte, gris-800) garde un contraste
+     d'environ 11:1 sur ce fond, bien au-dessus du minimum WCAG AA (4,5:1).
+     rgba() plutôt qu'un hex précalculé ici : cette variable ne sert qu'aux cellules ordinaires
+     (fond de <tr>/<td> déjà opaque en dessous, table sur fond blanc). Les colonnes figées
+     (.dossier-list__colonne-figee, .planification__colonne-*, .table-utilisateurs__colonne-*)
+     doivent en revanche rester strictement opaques au survol (voir leurs commentaires : sans fond
+     plein, le texte des colonnes défilées transparaîtrait dessous) — elles utilisent
+     --couleur-fond-survol-tableau-opaque ci-dessous, l'équivalent visuel précalculé en teinte
+     pleine plutôt que ce rgba(). */
+  --couleur-fond-survol-tableau: rgba(31, 78, 156, 0.15);
+  --couleur-fond-survol-tableau-opaque: #dde4f0;
   --couleur-bordure: var(--gris-300);
   --couleur-bordure-legere: var(--gris-200);
   --couleur-texte: var(--gris-800);

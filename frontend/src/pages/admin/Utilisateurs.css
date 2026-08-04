@@ -213,7 +213,10 @@
    au fond de base pendant que le reste de la ligne change de couleur — seam visuel incohérent. */
 .table-utilisateurs tbody tr:hover td.table-utilisateurs__colonne-figee,
 .table-utilisateurs tbody tr:hover td.table-utilisateurs__colonne-numero {
-  background-color: var(--couleur-fond-survol-tableau);
+  /* Équivalent opaque du bleu de survol (voir --couleur-fond-survol-tableau-opaque,
+     variables.css) : ces colonnes restent figées au défilement horizontal et doivent garder un
+     fond plein, jamais transparent (voir leur commentaire plus haut). */
+  background-color: var(--couleur-fond-survol-tableau-opaque);
 }
 
 .table-utilisateurs__actions {
