@@ -91,11 +91,27 @@
   font: inherit;
 }
 
+/* Ligne "Date et heure du test" / "Lieu" : deux fieldsets côte à côte (décision produit) plutôt
+   que l'un dans l'autre — voir ModalePlanificationTest.jsx. flex-wrap : sur une largeur trop
+   étroite (tablette en portrait avec un lieu au libellé long), le lieu repasse sous la date/heure
+   plutôt que de forcer un débordement horizontal. align-items: flex-start : les deux fieldsets
+   n'ont pas la même hauteur naturelle (le lieu n'a qu'un seul contrôle, la date/heure en a trois),
+   un stretch par défaut les aurait étirés à la même hauteur sans raison. */
+.modale-planification-test__ligne-date-heure-lieu {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espace-moyen);
+  flex-wrap: wrap;
+}
+
 /* Groupe date/heure du test : fieldset plutôt qu'un label, trois contrôles distincts (date,
    heure, minute — voir ModalePlanificationTest.jsx, remplace l'ancien input datetime-local dont
    le segment heure/minute s'est révélé peu fiable au tactile). Pas de display: flex ici : la
-   légende doit rester un seul bloc de texte (label + astérisque) sur la même ligne. */
+   légende doit rester un seul bloc de texte (label + astérisque) sur la même ligne. flex: 0 0
+   auto : garde sa largeur naturelle (contenu compact), c'est au fieldset "Lieu" ci-dessous
+   d'absorber l'espace restant sur la ligne. */
 .modale-planification-test__champ-date-heure {
+  flex: 0 0 auto;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   padding: 0.6rem 0.75rem;
@@ -128,24 +144,37 @@
   min-width: 4.5rem;
 }
 
-/* Champ "Lieu" — dans le même fieldset que la date/heure (voir ModalePlanificationTest.jsx), en
-   dessous de la ligne date/heure/minute plutôt qu'à côté : une adresse peut être longue (voir
-   "Hôtel du Cadran — 14 rue de Valadon, 75007 Paris"), l'aligner sur la même ligne que les trois
-   contrôles compacts ci-dessus l'aurait forcée à passer à la ligne de toute façon sur tablette. */
+/* Champ "Lieu" — fieldset séparé, à côté de "Date et heure du test" (voir
+   ModalePlanificationTest.jsx et .modale-planification-test__ligne-date-heure-lieu ci-dessus),
+   même traitement visuel que .modale-planification-test__champ-date-heure (bordure/rayon/
+   padding) pour rester cohérent. flex: 1 1 240px (contrairement à la date/heure ci-dessus, fixée
+   à sa largeur naturelle) : absorbe l'espace restant sur la ligne, utile ici puisqu'une adresse
+   peut être longue (voir "Hôtel du Cadran — 14 rue de Valadon, 75007 Paris"). */
 .modale-planification-test__champ-lieu {
-  margin-top: 0.5rem;
+  flex: 1 1 240px;
+  min-width: 200px;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.6rem 0.75rem;
+  margin: 0;
+}
+
+.modale-planification-test__champ-lieu legend {
+  padding: 0 0.3rem;
+  color: var(--couleur-texte);
 }
 
 .modale-planification-test__champ-lieu select {
   width: 100%;
+  margin-top: 0.3rem;
 }
 
-/* Chargement/erreur/liste vide — même reset de marge que .modale-planification-test__groupe-vide
-   (label parent déjà en gap: 0.3rem, une marge de <p> par défaut créerait un espace double). Le
-   cas erreur (role="alert") reprend sa couleur rouge de la règle générique déjà posée plus haut
+/* Chargement/erreur/liste vide — même margin-top que .modale-planification-test__champ-lieu
+   select ci-dessus (sous la légende), pas une marge de <p> par défaut. Le cas erreur
+   (role="alert") reprend sa couleur rouge de la règle générique déjà posée plus haut
    (.modale-planification-test [role='alert']), pas redéclarée ici. */
 .modale-planification-test__lieu-etat {
-  margin: 0;
+  margin: 0.3rem 0 0;
   font-size: 0.875rem;
   color: var(--couleur-texte-secondaire);
 }

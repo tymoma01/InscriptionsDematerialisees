@@ -386,64 +386,68 @@ export default function ModalePlanificationTest({
             onSelectionnerJour={setDateTest}
           />
 
-          {/* fieldset plutôt qu'un simple label : trois contrôles distincts (date, heure,
-              minute) partagent une seule légende. Le texte de la légende reste un bloc unique
-              (pas de display: flex sur le fieldset/legend ici), donc l'astérisque reste sur la
-              même ligne. */}
-          <fieldset className="modale-planification-test__champ-date-heure">
-            <legend>
-              Date et heure du test <span className="champ-obligatoire">*</span>
-            </legend>
-            <div className="modale-planification-test__date-heure-controles">
-              <input
-                id="planification-date"
-                type="date"
-                value={dateTest}
-                min={dateDuJourParis()}
-                onChange={(evenement) => setDateTest(evenement.target.value)}
-                required
-              />
-              <select
-                id="planification-heure"
-                aria-label="Heure"
-                value={heureTest}
-                onChange={(evenement) => setHeureTest(evenement.target.value)}
-                required
-              >
-                <option value="">--</option>
-                {HEURES_DISPONIBLES.map((heure) => (
-                  <option key={heure} value={heure}>
-                    {heure}
-                  </option>
-                ))}
-              </select>
-              <span aria-hidden="true">:</span>
-              <select
-                id="planification-minute"
-                aria-label="Minutes"
-                value={minuteTest}
-                onChange={(evenement) => setMinuteTest(evenement.target.value)}
-                required
-              >
-                <option value="">--</option>
-                {MINUTES_DISPONIBLES.map((minute) => (
-                  <option key={minute} value={minute}>
-                    {minute}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Date/heure et lieu côte à côte sur la même ligne (décision produit) — deux fieldsets
+              distincts plutôt qu'un seul : le lieu est optionnel et sans rapport direct avec les
+              trois contrôles date/heure/minute qui, eux, partagent une seule légende. */}
+          <div className="modale-planification-test__ligne-date-heure-lieu">
+            {/* fieldset plutôt qu'un simple label : trois contrôles distincts (date, heure,
+                minute) partagent une seule légende. Le texte de la légende reste un bloc unique
+                (pas de display: flex sur le fieldset/legend ici), donc l'astérisque reste sur la
+                même ligne. */}
+            <fieldset className="modale-planification-test__champ-date-heure">
+              <legend>
+                Date et heure du test <span className="champ-obligatoire">*</span>
+              </legend>
+              <div className="modale-planification-test__date-heure-controles">
+                <input
+                  id="planification-date"
+                  type="date"
+                  value={dateTest}
+                  min={dateDuJourParis()}
+                  onChange={(evenement) => setDateTest(evenement.target.value)}
+                  required
+                />
+                <select
+                  id="planification-heure"
+                  aria-label="Heure"
+                  value={heureTest}
+                  onChange={(evenement) => setHeureTest(evenement.target.value)}
+                  required
+                >
+                  <option value="">--</option>
+                  {HEURES_DISPONIBLES.map((heure) => (
+                    <option key={heure} value={heure}>
+                      {heure}
+                    </option>
+                  ))}
+                </select>
+                <span aria-hidden="true">:</span>
+                <select
+                  id="planification-minute"
+                  aria-label="Minutes"
+                  value={minuteTest}
+                  onChange={(evenement) => setMinuteTest(evenement.target.value)}
+                  required
+                >
+                  <option value="">--</option>
+                  {MINUTES_DISPONIBLES.map((minute) => (
+                    <option key={minute} value={minute}>
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </fieldset>
 
-            {/* Dans le même fieldset que la date/heure (aligné visuellement avec elle, décision
-                produit) plutôt qu'un label séparé comme "Formateur" plus haut — même style de
-                composition label/select que lui malgré ce placement différent. Optionnel
-                (contrairement à date/heure/formateur) : un rendez-vous peut rester sans lieu
-                précisé, voir soumettre() ci-dessus et invitationTestService.js côté back (repli
-                sur LIEU_TEST_ACCECIT). Ni le chargement ni une éventuelle erreur ne bloquent le
-                reste du formulaire — contrairement aux formateurs, la liste de lieux n'est pas
-                indispensable pour planifier un test. */}
-            <label className="modale-planification-test__champ-lieu">
-              <span>Lieu</span>
+            {/* Fieldset séparé, à côté de "Date et heure du test" plutôt qu'à l'intérieur
+                (décision produit). Optionnel (contrairement à date/heure/formateur) : un
+                rendez-vous peut rester sans lieu précisé, voir soumettre() ci-dessus et
+                invitationTestService.js côté back (repli sur LIEU_TEST_ACCECIT). Ni le
+                chargement ni une éventuelle erreur ne bloquent le reste du formulaire —
+                contrairement aux formateurs, la liste de lieux n'est pas indispensable pour
+                planifier un test. */}
+            <fieldset className="modale-planification-test__champ-lieu">
+              <legend>Lieu</legend>
               {chargementLieux ? (
                 <p className="modale-planification-test__lieu-etat">Chargement des lieux…</p>
               ) : erreurLieux ? (
@@ -462,8 +466,8 @@ export default function ModalePlanificationTest({
                   ))}
                 </select>
               )}
-            </label>
-          </fieldset>
+            </fieldset>
+          </div>
 
           {/* Phase 1 (informatif uniquement, voir CLAUDE.md/décision produit) : n'apparaît que si
               le dossier a plusieurs postes déclarés — avec un seul poste, rien à choisir, l'afficher
