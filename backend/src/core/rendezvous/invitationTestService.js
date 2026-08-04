@@ -1,5 +1,7 @@
 const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
+const utilisateurRepository = require('../auth/utilisateurRepository');
+const lieuRepository = require('../lieux/lieuRepository');
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
 const { genererIcsInvitationTest, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
 
@@ -9,18 +11,18 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
 });
 
-function construireMessageSms({ candidatPrenom, dateHeure }) {
+function construireMessageSms({ candidatPrenom, dateHeure, lieu }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
-  return `Bonjour ${candidatPrenom}, votre test ACCECIT est prévu le ${date}, au ${LIEU_TEST_ACCECIT}. À bientôt !`;
+  return `Bonjour ${candidatPrenom}, votre test ACCECIT est prévu le ${date}, au ${lieu}. À bientôt !`;
 }
 
-function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure }) {
+function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieu }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Convocation à votre test ACCECIT',
     corps:
       `Bonjour ${candidatPrenom} ${candidatNom},\n\n` +
-      `Votre test est prévu le ${date}, au ${LIEU_TEST_ACCECIT}.\n\n` +
+      `Votre test est prévu le ${date}, au ${lieu}.\n\n` +
       "Vous trouverez en pièce jointe une invitation à ajouter directement à votre calendrier (Outlook, Google Calendar...).\n\n" +
       "À bientôt,\nL'équipe ACCECIT",
   };
@@ -42,15 +44,30 @@ async function envoyerInvitationTest(entite, rendezvous) {
   }
 
   const bd = await db.obtenirKnex();
-  const [dossier, coordonnees] = await Promise.all([
+  // formateur : null si le rendez-vous n'a pas encore de formateur/inspecteur assigné
+  // (rendezvous.formateur_id nullable, voir migration 018) — l'.ics est alors généré sans lui en
+  // participant, voir genererIcsInvitationTest. lieuTrouve : null si aucun lieu précisé
+  // (rendezvous.lieu_id nullable, voir migration 045) — repli sur LIEU_TEST_ACCECIT juste
+  // en dessous.
+  const [dossier, coordonnees, formateur, lieuTrouve] = await Promise.all([
     dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, rendezvous.dossier_id),
     dossierRepository.trouverCoordonneesCandidat(bd, rendezvous.dossier_id),
+    rendezvous.formateur_id
+      ? utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvous.formateur_id)
+      : null,
+    rendezvous.lieu_id ? lieuRepository.trouverLieuParId(bd, entite.id, rendezvous.lieu_id) : null,
   ]);
+
+  // Résolu une seule fois ici, réutilisé pour les trois usages ci-dessous (.ics, SMS, email) —
+  // plutôt que trois lookups séparés (voir infos.lieu, repris tel quel par construireMessageSms/
+  // construireMessageEmail/genererIcsInvitationTest via le spread ...infos).
+  const lieuLibelle = lieuTrouve?.libelle ?? LIEU_TEST_ACCECIT;
 
   const infos = {
     candidatNom: dossier?.candidat_nom,
     candidatPrenom: dossier?.candidat_prenom,
     dateHeure: rendezvous.date_heure,
+    lieu: lieuLibelle,
   };
 
   const notificationProvider = notificationFactory();
@@ -60,7 +77,13 @@ async function envoyerInvitationTest(entite, rendezvous) {
   if (coordonnees?.email) {
     try {
       const { sujet, corps } = construireMessageEmail(infos);
-      const contenuIcs = genererIcsInvitationTest(infos);
+      const contenuIcs = genererIcsInvitationTest({
+        ...infos,
+        candidatEmail: coordonnees.email,
+        formateurNom: formateur?.nom,
+        formateurPrenom: formateur?.prenom,
+        formateurEmail: formateur?.email,
+      });
       await notificationProvider.envoyer(coordonnees.email, 'email', corps, {
         sujet,
         piecesJointes: [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }],

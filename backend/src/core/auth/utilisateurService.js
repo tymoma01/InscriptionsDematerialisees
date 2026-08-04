@@ -39,7 +39,7 @@ async function listerFormateursEtInspecteurs(entite) {
   return utilisateurRepository.listerUtilisateursParRoles(bd, entite.id, [ROLES.FORMATEUR, ROLES.INSPECTEUR]);
 }
 
-async function creerUtilisateur(entite, { nom, prenom, email, motDePasse, roleCode }) {
+async function creerUtilisateur(entite, { nom, prenom, email, telephone, motDePasse, roleCode }) {
   rejeterRoleSysteme(roleCode);
 
   const bd = await db.obtenirKnex();
@@ -63,6 +63,9 @@ async function creerUtilisateur(entite, { nom, prenom, email, motDePasse, roleCo
     nom,
     prenom,
     email,
+    // '' (champ laissé vide au formulaire) doit valoir "pas de numéro", pas une chaîne vide en
+    // base — même choix que mettreAJourUtilisateur ci-dessous.
+    telephone: telephone || null,
     motDePasseHash,
   });
 }
@@ -70,7 +73,12 @@ async function creerUtilisateur(entite, { nom, prenom, email, motDePasse, roleCo
 // utilisateurConnecteId : jamais pris dans le corps de la requête (voir routes) — sert
 // uniquement à interdire à un admin de désactiver son propre compte, seul garde-fou en place
 // contre un verrouillage accidentel (rien n'empêche par ailleurs un autre admin de le faire).
-async function mettreAJourUtilisateur(entite, utilisateurId, { nom, prenom, roleCode, actif, motDePasse }, utilisateurConnecteId) {
+async function mettreAJourUtilisateur(
+  entite,
+  utilisateurId,
+  { nom, prenom, telephone, roleCode, actif, motDePasse },
+  utilisateurConnecteId,
+) {
   if (roleCode !== undefined) {
     rejeterRoleSysteme(roleCode);
   }
@@ -93,6 +101,9 @@ async function mettreAJourUtilisateur(entite, utilisateurId, { nom, prenom, role
   const champs = {};
   if (nom !== undefined) champs.nom = nom;
   if (prenom !== undefined) champs.prenom = prenom;
+  // '' vaut suppression du numéro (champ nullable, voir migration 043) — pas de valeur vide
+  // stockée en base, seulement null ou une vraie chaîne.
+  if (telephone !== undefined) champs.telephone = telephone || null;
   if (actif !== undefined) champs.actif = actif;
   if (roleCode !== undefined) {
     const role = await utilisateurRepository.trouverRoleParCode(bd, roleCode);

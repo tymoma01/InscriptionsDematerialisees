@@ -1,8 +1,13 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
-const { ErreurFormateurInvalide, ErreurCreneauPris, ErreurDatePassee, ErreurReplanificationTropTardive } =
-  rendezvousService;
+const {
+  ErreurFormateurInvalide,
+  ErreurCreneauPris,
+  ErreurDatePassee,
+  ErreurReplanificationTropTardive,
+  ErreurLieuInvalide,
+} = rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -43,6 +48,10 @@ const creationRendezvousSchema = z.object({
   typeRdv: z.string().trim().min(1),
   dateHeure: z.string().trim().datetime({ offset: true }),
   formateurId: idPositifSchema.optional(),
+  // Optionnel comme formateurId ci-dessus : un rendez-vous peut être créé sans lieu précisé,
+  // voir rendezvousService.creerRendezvous (retombe alors sur l'adresse par défaut ACCECIT,
+  // LIEU_TEST_ACCECIT).
+  lieuId: idPositifSchema.optional(),
   postesSelectionnes: z.array(z.string().trim().min(1)).default([]),
 });
 
@@ -89,13 +98,14 @@ router.get('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next)
 router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { typeRdv, dateHeure, formateurId, postesSelectionnes } = creationRendezvousSchema.parse(req.body);
+    const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes } = creationRendezvousSchema.parse(req.body);
 
     const rendezvous = await rendezvousService.creerRendezvous(req.entite, {
       dossierId,
       typeRdv,
       dateHeure,
       formateurId,
+      lieuId,
       postesSelectionnes,
     });
 
@@ -106,7 +116,14 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
       action: 'rendezvous_cree',
       tableCible: 'rendezvous',
       cibleId: rendezvous.id,
-      donnees: { dossierId, typeRdv, dateHeure, formateurId: formateurId ?? null, postesSelectionnes },
+      donnees: {
+        dossierId,
+        typeRdv,
+        dateHeure,
+        formateurId: formateurId ?? null,
+        lieuId: lieuId ?? null,
+        postesSelectionnes,
+      },
       adresseIp: req.ip,
     });
 
@@ -122,6 +139,9 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
     if (erreur instanceof ErreurDatePassee) {
       return res.status(400).json({ erreur: erreur.message });
     }
+    if (erreur instanceof ErreurLieuInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -134,7 +154,7 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
 router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { typeRdv, dateHeure, formateurId, postesSelectionnes, transitions } =
+    const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, transitions } =
       creationAvecTransitionsSchema.parse(req.body);
 
     const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(req.entite, {
@@ -142,6 +162,7 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
       typeRdv,
       dateHeure,
       formateurId,
+      lieuId,
       postesSelectionnes,
       transitions,
       utilisateurId: req.utilisateur.id,
@@ -160,6 +181,7 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
         typeRdv,
         dateHeure,
         formateurId: formateurId ?? null,
+        lieuId: lieuId ?? null,
         postesSelectionnes,
         codesActions: transitions.map((transition) => transition.codeAction),
       },
@@ -180,6 +202,9 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
     }
     if (erreur instanceof ErreurReplanificationTropTardive) {
       return res.status(409).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof ErreurLieuInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
     }
     next(erreur);
   }

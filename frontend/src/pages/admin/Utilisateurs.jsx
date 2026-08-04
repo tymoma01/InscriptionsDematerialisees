@@ -40,6 +40,7 @@ const STATUTS_COMPTE = [
 const COLONNES = [
   { cle: 'nom', libelle: 'Nom', extraire: (u) => (u.nom ?? '').toLowerCase() },
   { cle: 'email', libelle: 'Email', extraire: (u) => (u.email ?? '').toLowerCase() },
+  { cle: 'telephone', libelle: 'Téléphone', extraire: (u) => u.telephone ?? '' },
   { cle: 'role_libelle', libelle: 'Rôle', extraire: (u) => (u.role_libelle ?? '').toLowerCase() },
   { cle: 'actif', libelle: 'Statut', extraire: (u) => (u.actif ? 'actif' : 'desactive') },
   {
@@ -286,6 +287,7 @@ export default function Utilisateurs() {
                       {u.prenom} {u.nom}
                     </td>
                     <td>{u.email}</td>
+                    <td>{u.telephone || '—'}</td>
                     <td>{u.role_libelle}</td>
                     <td>
                       <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
@@ -345,6 +347,7 @@ function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
   const [nom, setNom] = useState(utilisateur?.nom ?? '');
   const [prenom, setPrenom] = useState(utilisateur?.prenom ?? '');
   const [email, setEmail] = useState(utilisateur?.email ?? '');
+  const [telephone, setTelephone] = useState(utilisateur?.telephone ?? '');
   const [roleCode, setRoleCode] = useState(utilisateur?.role_code ?? roles[0]?.code ?? '');
   const [motDePasse, setMotDePasse] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -356,11 +359,11 @@ function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
     setErreur(null);
     try {
       if (modeEdition) {
-        const donnees = { nom, prenom, roleCode };
+        const donnees = { nom, prenom, telephone, roleCode };
         if (motDePasse) donnees.motDePasse = motDePasse;
         await mettreAJourUtilisateur(utilisateur.id, donnees);
       } else {
-        await creerUtilisateur({ nom, prenom, email, motDePasse, roleCode });
+        await creerUtilisateur({ nom, prenom, email, telephone, motDePasse, roleCode });
       }
       onTermine();
     } catch (erreur) {
@@ -417,6 +420,16 @@ function FormulaireUtilisateur({ utilisateur, roles, onTermine, onAnnuler }) {
           </select>
         </label>
       </div>
+
+      <label>
+        <span>Téléphone (optionnel)</span>
+        <input
+          type="tel"
+          autoComplete="tel"
+          value={telephone}
+          onChange={(evenement) => setTelephone(evenement.target.value)}
+        />
+      </label>
 
       <label>
         <span>{modeEdition ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe'}</span>

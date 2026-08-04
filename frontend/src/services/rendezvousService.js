@@ -30,8 +30,8 @@ export async function listerMotifsDesistement() {
 // backend/src/core/rendezvous/rendezvousService.js. Ne change aucun statut de dossier — pour un
 // rendez-vous qui doit s'accompagner d'un changement de statut atomique, voir
 // creerRendezvousAvecTransitions ci-dessous.
-export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateurId }) {
-  const { data } = await api.post(`/dossiers/${dossierId}/rendezvous`, { typeRdv, dateHeure, formateurId });
+export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateurId, lieuId }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/rendezvous`, { typeRdv, dateHeure, formateurId, lieuId });
   return data;
 }
 
@@ -45,12 +45,13 @@ export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateur
 // tableau vide par défaut si omis.
 export async function creerRendezvousAvecTransitions(
   dossierId,
-  { typeRdv, dateHeure, formateurId, postesSelectionnes, transitions },
+  { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, transitions },
 ) {
   const { data } = await api.post(`/dossiers/${dossierId}/rendezvous/avec-transitions`, {
     typeRdv,
     dateHeure,
     formateurId,
+    lieuId,
     postesSelectionnes,
     transitions,
   });

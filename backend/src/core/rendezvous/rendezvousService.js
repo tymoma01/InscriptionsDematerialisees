@@ -3,6 +3,7 @@ const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
+const lieuRepository = require('../lieux/lieuRepository');
 const { ROLES } = require('../auth/rbac');
 
 const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
@@ -61,6 +62,13 @@ class ErreurReplanificationTropTardive extends Error {
   constructor(message) {
     super(message);
     this.name = 'ErreurReplanificationTropTardive';
+  }
+}
+
+class ErreurLieuInvalide extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurLieuInvalide';
   }
 }
 
@@ -157,7 +165,7 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
 // puisque purement informative pour le formateur, jamais utilisée pour une décision d'accès.
 async function creerRendezvous(
   entite,
-  { dossierId, typeRdv, dateHeure, formateurId, postesSelectionnes = [] },
+  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [] },
   bdExistante = null,
 ) {
   // Ne jamais se fier uniquement au front (calendrier grisé + <input min>, voir
@@ -204,11 +212,21 @@ async function creerRendezvous(
     }
   }
 
+  let lieuIdValide = null;
+  if (lieuId != null) {
+    const lieu = await lieuRepository.trouverLieuParId(bd, entite.id, lieuId);
+    if (!lieu || !lieu.actif) {
+      throw new ErreurLieuInvalide(`Lieu "${lieuId}" introuvable ou inactif pour l'entité « ${entite.code} ».`);
+    }
+    lieuIdValide = lieu.id;
+  }
+
   return rendezvousRepository.creerRendezvous(bd, {
     dossierId,
     typeRdv,
     dateHeure,
     formateurId: formateurIdValide,
+    lieuId: lieuIdValide,
     postesSelectionnes,
   });
 }
@@ -257,4 +275,5 @@ module.exports = {
   ErreurCreneauPris,
   ErreurDatePassee,
   ErreurReplanificationTropTardive,
+  ErreurLieuInvalide,
 };

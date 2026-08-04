@@ -37,6 +37,7 @@ function listerUtilisateurs(bd, entiteId) {
       'utilisateurs.nom',
       'utilisateurs.prenom',
       'utilisateurs.email',
+      'utilisateurs.telephone',
       'utilisateurs.actif',
       'utilisateurs.derniere_connexion',
       'utilisateurs.date_creation',
@@ -98,9 +99,9 @@ function listerUtilisateursParRoles(bd, entiteId, rolesCodes) {
     .orderBy('utilisateurs.nom', 'asc');
 }
 
-async function creerUtilisateur(bd, { entiteId, roleId, nom, prenom, email, motDePasseHash }) {
+async function creerUtilisateur(bd, { entiteId, roleId, nom, prenom, email, telephone = null, motDePasseHash }) {
   const [utilisateur] = await bd('utilisateurs')
-    .insert({ entite_id: entiteId, role_id: roleId, nom, prenom, email, mot_de_passe_hash: motDePasseHash })
+    .insert({ entite_id: entiteId, role_id: roleId, nom, prenom, email, telephone, mot_de_passe_hash: motDePasseHash })
     .returning('*');
   return utilisateur;
 }

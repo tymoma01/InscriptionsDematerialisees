@@ -14,6 +14,7 @@ const transitionsRoutes = require('./api/routes/transitions.routes');
 const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
 const formateursRoutes = require('./api/routes/formateurs.routes');
+const lieuxRoutes = require('./api/routes/lieux.routes');
 const statistiquesRoutes = require('./api/routes/statistiques.routes');
 const { FRONTEND_URL } = require('./config/env');
 
@@ -77,6 +78,10 @@ async function creerApp() {
   // (admin uniquement) : sert à assigner un formateur lors de la planification d'un test, voir
   // formateurs.routes.js.
   app.use('/api/formateurs', formateursRoutes);
+  // Liste des lieux de test (Accueil/Coordination/Recruteur/Admin) — même patron que
+  // /api/formateurs ci-dessus : sert à choisir le lieu lors de la planification d'un test, voir
+  // lieux.routes.js.
+  app.use('/api/lieux', lieuxRoutes);
   // Tableau de bord KPI (CLAUDE.md, section Tableau de bord : "indicateurs de pilotage et
   // filtres") — Recruteur/Admin uniquement, voir statistiques.routes.js.
   app.use('/api/statistiques', statistiquesRoutes);

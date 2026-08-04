@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
+import { listerLieux } from '../../services/lieuService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
 import { dateDuJourParis } from './dateDuJourParis';
@@ -71,6 +72,15 @@ export default function ModalePlanificationTest({
   const [formateurs, setFormateurs] = useState([]);
   const [chargementFormateurs, setChargementFormateurs] = useState(true);
   const [erreurFormateurs, setErreurFormateurs] = useState(null);
+
+  // Lieux de test configurés pour l'entité (table `lieux`, migration 044) — contrairement au
+  // formateur, optionnel : un échec de chargement ou une liste vide ne doit pas empêcher de
+  // planifier un test (voir plus bas, le formulaire entier n'est pas gated sur chargementLieux,
+  // contrairement à chargementFormateurs).
+  const [lieux, setLieux] = useState([]);
+  const [chargementLieux, setChargementLieux] = useState(true);
+  const [erreurLieux, setErreurLieux] = useState(null);
+  const [lieuId, setLieuId] = useState('');
 
   // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
   // l'appelant, voir ModalePlanificationTest.css) : sans amener la vue jusqu'à lui, l'agent ne le
@@ -178,6 +188,26 @@ export default function ModalePlanificationTest({
     };
   }, []);
 
+  // Lieux disponibles (voir GET /api/lieux) — fetch indépendant de celui des formateurs
+  // ci-dessus : un échec ici ne doit pas bloquer la planification (voir lieux plus bas, champ
+  // optionnel), contrairement à erreurFormateurs qui empêche l'affichage du formulaire entier.
+  useEffect(() => {
+    let annule = false;
+    listerLieux()
+      .then((valeur) => {
+        if (!annule) setLieux(valeur);
+      })
+      .catch((erreur) => {
+        if (!annule) setErreurLieux(erreur.response?.data?.erreur ?? 'Impossible de récupérer la liste des lieux.');
+      })
+      .finally(() => {
+        if (!annule) setChargementLieux(false);
+      });
+    return () => {
+      annule = true;
+    };
+  }, []);
+
   // Liste filtrée sur le groupe actif — c'est elle qui alimente le <select> plus bas, jamais la
   // liste combinée brute.
   const formateursDuGroupe = formateurs.filter((formateur) => formateur.role_code === groupeRole);
@@ -261,6 +291,9 @@ export default function ModalePlanificationTest({
         typeRdv: 'test',
         dateHeure: dateHeureIso,
         formateurId: Number(formateurId),
+        // '' (aucun lieu choisi, champ optionnel) -> undefined plutôt que NaN/0 : le back retombe
+        // alors sur l'adresse par défaut ACCECIT (voir invitationTestService.js, LIEU_TEST_ACCECIT).
+        lieuId: lieuId ? Number(lieuId) : undefined,
         postesSelectionnes: [...postesCoches],
         transitions,
       });
@@ -400,6 +433,36 @@ export default function ModalePlanificationTest({
                 ))}
               </select>
             </div>
+
+            {/* Dans le même fieldset que la date/heure (aligné visuellement avec elle, décision
+                produit) plutôt qu'un label séparé comme "Formateur" plus haut — même style de
+                composition label/select que lui malgré ce placement différent. Optionnel
+                (contrairement à date/heure/formateur) : un rendez-vous peut rester sans lieu
+                précisé, voir soumettre() ci-dessus et invitationTestService.js côté back (repli
+                sur LIEU_TEST_ACCECIT). Ni le chargement ni une éventuelle erreur ne bloquent le
+                reste du formulaire — contrairement aux formateurs, la liste de lieux n'est pas
+                indispensable pour planifier un test. */}
+            <label className="modale-planification-test__champ-lieu">
+              <span>Lieu</span>
+              {chargementLieux ? (
+                <p className="modale-planification-test__lieu-etat">Chargement des lieux…</p>
+              ) : erreurLieux ? (
+                <p role="alert" className="modale-planification-test__lieu-etat">
+                  {erreurLieux}
+                </p>
+              ) : lieux.length === 0 ? (
+                <p className="modale-planification-test__lieu-etat">Aucun lieu configuré pour cette entité.</p>
+              ) : (
+                <select id="planification-lieu" value={lieuId} onChange={(evenement) => setLieuId(evenement.target.value)}>
+                  <option value="">—</option>
+                  {lieux.map((lieu) => (
+                    <option key={lieu.id} value={lieu.id}>
+                      {lieu.libelle}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
           </fieldset>
 
           {/* Phase 1 (informatif uniquement, voir CLAUDE.md/décision produit) : n'apparaît que si

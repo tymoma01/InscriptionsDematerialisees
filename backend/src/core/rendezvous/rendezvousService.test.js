@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
+const lieuRepository = require('../lieux/lieuRepository');
 const rendezvousService = require('./rendezvousService');
 
 // Le contrôle de date passée intervient avant tout accès DB (voir creerRendezvous) — testable
@@ -93,6 +94,71 @@ test('creerRendezvous rejette un formateur qui a déjà 2 candidats sur ce crén
         formateurId: 8,
       }),
     rendezvousService.ErreurCreneauPris,
+  );
+  assert.equal(creerMock.mock.calls.length, 0);
+});
+
+test('creerRendezvous accepte un lieu actif de l\'entité et transmet son id au repository', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  const trouverLieuMock = t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({
+    id: 3,
+    entite_id: ENTITE_FACTICE.id,
+    code: 'hotel_du_cadran',
+    actif: true,
+  }));
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async (bd, { lieuId }) => ({ id: 4, lieuId }));
+
+  const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: null,
+    lieuId: 3,
+  });
+
+  assert.equal(trouverLieuMock.mock.calls.length, 1);
+  assert.deepEqual(trouverLieuMock.mock.calls[0].arguments.slice(1), [ENTITE_FACTICE.id, 3]);
+  assert.equal(resultat.lieuId, 3);
+  assert.equal(creerMock.mock.calls.length, 1);
+});
+
+test('creerRendezvous rejette un lieu introuvable pour cette entité', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => undefined);
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 5 }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+        dossierId: 42,
+        typeRdv: 'test',
+        dateHeure: DATE_HEURE_FUTURE,
+        formateurId: null,
+        lieuId: 999,
+      }),
+    rendezvousService.ErreurLieuInvalide,
+  );
+  assert.equal(creerMock.mock.calls.length, 0);
+});
+
+test('creerRendezvous rejette un lieu désactivé', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 3, actif: false }));
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 6 }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+        dossierId: 42,
+        typeRdv: 'test',
+        dateHeure: DATE_HEURE_FUTURE,
+        formateurId: null,
+        lieuId: 3,
+      }),
+    rendezvousService.ErreurLieuInvalide,
   );
   assert.equal(creerMock.mock.calls.length, 0);
 });

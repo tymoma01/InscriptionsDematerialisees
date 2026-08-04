@@ -160,15 +160,17 @@ async function compterRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
 
 // Toujours créé au statut 'prevu' (voir rendezvousService.STATUTS_AUTORISES) — un rendez-vous ne
 // naît jamais confirmé/absent/annulé, ces statuts ne se posent qu'après coup via
-// mettreAJourStatutRendezvous. formateurId peut être nul (rendez-vous pas encore assigné) : voir
-// rendezvousService.creerRendezvous pour la validation du rôle formateur en amont.
-async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId, postesSelectionnes = [] }) {
+// mettreAJourStatutRendezvous. formateurId/lieuId peuvent être nuls (rendez-vous pas encore
+// assigné à un formateur, ou sans lieu précisé) : voir rendezvousService.creerRendezvous pour la
+// validation en amont (rôle formateur, lieu actif de l'entité).
+async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [] }) {
   const [rendezvous] = await bd('rendezvous')
     .insert({
       dossier_id: dossierId,
       type_rdv: typeRdv,
       date_heure: dateHeure,
       formateur_id: formateurId,
+      lieu_id: lieuId,
       statut: 'prevu',
       // JSON.stringify explicite (même patron que dossierRepository.enregistrerDonneesBloc) :
       // ne pas laisser le driver pg deviner la sérialisation d'un tableau JS pour une colonne

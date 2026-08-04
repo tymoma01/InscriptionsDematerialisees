@@ -20,10 +20,16 @@ const idPositifSchema = z.coerce.number().int().positive();
 
 const MOT_DE_PASSE_MIN = 8;
 
+// Optionnel dans les deux schémas (contrairement à email) : un compte peut n'avoir aucun usage
+// SMS (voir migration 043, colonne nullable) — chaîne vide acceptée en mise à jour pour permettre
+// d'effacer un numéro déjà saisi (voir utilisateurService.mettreAJourUtilisateur, '' -> null).
+const telephoneSchema = z.string().trim();
+
 const creationSchema = z.object({
   nom: z.string().trim().min(1),
   prenom: z.string().trim().min(1),
   email: z.string().trim().email(),
+  telephone: telephoneSchema.optional(),
   motDePasse: z.string().min(MOT_DE_PASSE_MIN, `Le mot de passe doit contenir au moins ${MOT_DE_PASSE_MIN} caractères.`),
   // Le code de rôle n'est jamais figé ici : il vient de la table `roles` (globale, voir rbac.js)
   // — un code inconnu ou "systeme" est rejeté par utilisateurService, pas ici.
@@ -33,6 +39,7 @@ const creationSchema = z.object({
 const miseAJourSchema = z.object({
   nom: z.string().trim().min(1).optional(),
   prenom: z.string().trim().min(1).optional(),
+  telephone: telephoneSchema.optional(),
   roleCode: z.string().trim().min(1).optional(),
   actif: z.boolean().optional(),
   // Optionnel : ne change le mot de passe que si explicitement fourni, sans quoi une simple
@@ -52,6 +59,7 @@ function serialiserUtilisateur(utilisateur) {
     nom: utilisateur.nom,
     prenom: utilisateur.prenom,
     email: utilisateur.email,
+    telephone: utilisateur.telephone,
     actif: utilisateur.actif,
   };
 }
