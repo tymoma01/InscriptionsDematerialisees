@@ -98,6 +98,10 @@
      plutôt qu'un nombre répété à deux endroits. Assez large pour "28/07/2026 15:00" (format le
      plus long produit par FORMAT_DATE_HEURE) sans jamais être coupé. */
   --planification-largeur-colonne-date: 11rem;
+  /* Largeur fixe de la colonne "N°" — sert aussi de décalage (`left`) à "Date et heure"
+     (.planification__colonne-date), qui n'est donc plus figée à 0 (voir plus bas). Assez large
+     pour trois chiffres sans jamais être coupée. */
+  --planification-largeur-colonne-numero: 3rem;
 }
 
 .planification__table th,
@@ -163,20 +167,28 @@
 }
 
 .planification__table tbody tr:hover {
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-fond-survol-tableau);
 }
 
-/* "Candidat" (2e colonne) figée au défilement horizontal — mais elle n'est pas en 1re position
-   ici (contrairement à .table-utilisateurs__colonne-figee/.dossier-list__colonne-figee), donc
-   "Date et heure" doit être figée aussi, juste devant elle (left: 0), sinon "Candidat" resterait
-   figée à un `left` fixe pendant que "Date et heure" défilerait hors champ derrière elle,
-   laissant un vide béant à gauche une fois cette dernière disparue. Les deux colonnes forment
-   donc un bloc figé de deux colonnes, comme des volets gelés classiques dans un tableur. Fond
-   opaque obligatoire sur les deux (pas transparent) : sans lui, le texte des colonnes qui
-   défilent transparaîtrait dessous. */
-.planification__colonne-date {
+/* "N°"/"Date et heure"/"Candidat" forment ensemble un bloc figé de trois colonnes au défilement
+   horizontal, comme des volets gelés classiques dans un tableur : "N°" reste figée en tout
+   premier (left: 0), "Date et heure" juste derrière elle (left décalé de la largeur de "N°"), et
+   "Candidat" encore derrière (left décalé des deux largeurs cumulées) — sans ce décalage en
+   cascade, chaque colonne suivante resterait figée à un `left` fixe pendant que celle qui la
+   précède défilerait hors champ, laissant un vide béant à gauche. Fond opaque obligatoire sur les
+   trois (pas transparent) : sans lui, le texte des colonnes qui défilent transparaîtrait dessous. */
+.planification__colonne-numero {
   position: sticky;
   left: 0;
+  z-index: 1;
+  width: var(--planification-largeur-colonne-numero);
+  text-align: center;
+  background-color: var(--couleur-fond);
+}
+
+.planification__colonne-date {
+  position: sticky;
+  left: var(--planification-largeur-colonne-numero);
   z-index: 1;
   width: var(--planification-largeur-colonne-date);
   white-space: nowrap;
@@ -185,7 +197,7 @@
 
 .planification__colonne-figee {
   position: sticky;
-  left: var(--planification-largeur-colonne-date);
+  left: calc(var(--planification-largeur-colonne-numero) + var(--planification-largeur-colonne-date));
   z-index: 1;
   background-color: var(--couleur-fond);
   /* Bordure + ombre légère sur le bord droit : seule "Candidat" (dernière colonne du bloc figé)
@@ -195,15 +207,17 @@
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
 }
 
+.planification__table th.planification__colonne-numero,
 .planification__table th.planification__colonne-date,
 .planification__table th.planification__colonne-figee {
   background-color: var(--couleur-fond-secondaire);
   z-index: 2;
 }
 
+.planification__table tbody tr:hover td.planification__colonne-numero,
 .planification__table tbody tr:hover td.planification__colonne-date,
 .planification__table tbody tr:hover td.planification__colonne-figee {
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-fond-survol-tableau);
 }
 
 /* Une puce par poste, empilées verticalement — même patron que .dossier-list__postes/

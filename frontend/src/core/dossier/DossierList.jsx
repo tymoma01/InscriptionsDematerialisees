@@ -92,6 +92,13 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
       <table className="dossier-list">
         <thead>
           <tr>
+            {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas dossier.id — recalculé à chaque
+                tri, purement visuel, aucun lien avec la clé de tri. Figée avec "Candidat" (voir
+                .dossier-list__colonne-numero) pour rester un repère constant même une fois les
+                colonnes suivantes défilées hors champ. */}
+            <th scope="col" className="dossier-list__colonne-numero">
+              N°
+            </th>
             {COLONNES.map((colonne) => {
               const actif = tri.colonne === colonne.cle;
               return (
@@ -118,8 +125,9 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
           </tr>
         </thead>
         <tbody>
-          {dossiersTries.map((dossier) => (
+          {dossiersTries.map((dossier, index) => (
             <tr key={dossier.id}>
+              <td className="dossier-list__colonne-numero">{index + 1}</td>
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>

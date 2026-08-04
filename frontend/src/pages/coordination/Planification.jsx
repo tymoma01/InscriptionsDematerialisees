@@ -207,6 +207,13 @@ export default function Planification() {
             <table className="planification__table">
               <thead>
                 <tr>
+                  {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas rdv.id ni dossier_id —
+                      recalculé à chaque tri, purement visuel. Figée en tête du bloc figé "Date et
+                      heure"/"Candidat" ci-dessous (voir Planification.css,
+                      --planification-largeur-colonne-numero). */}
+                  <th scope="col" className="planification__colonne-numero">
+                    N°
+                  </th>
                   {COLONNES.map((colonne) => {
                     const actif = tri.colonne === colonne.cle;
                     // "Candidat" (2e colonne) figée au défilement horizontal, comme le repère de
@@ -238,8 +245,9 @@ export default function Planification() {
                 </tr>
               </thead>
               <tbody>
-                {rendezvousTries.map((rdv) => (
+                {rendezvousTries.map((rdv, index) => (
                   <tr key={rdv.id}>
+                    <td className="planification__colonne-numero">{index + 1}</td>
                     <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td className="planification__colonne-figee">
                       {rdv.candidat_prenom} {rdv.candidat_nom}

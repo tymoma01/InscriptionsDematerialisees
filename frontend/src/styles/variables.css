@@ -37,6 +37,13 @@
   /* Usages sémantiques dérivés de la palette */
   --couleur-fond: #ffffff;
   --couleur-fond-secondaire: var(--gris-50);
+  /* Fond de survol des lignes de tableau (back-office : DossierList/Planification/Utilisateurs/
+     HistoriqueEvaluations) — délibérément découplé de --couleur-fond-secondaire ci-dessus : les
+     deux variables partageaient la même valeur (--gris-50), quasi indiscernable du blanc, ce qui
+     rendait le survol de ligne à peine visible. --gris-200 reste dans la même palette de gris déjà
+     en place (rien d'ajouté hors charte) et garde un excellent contraste pour le texte
+     (--couleur-texte, gris-800, ~10:1 sur gris-200 — bien au-dessus du minimum WCAG AA 4,5:1). */
+  --couleur-fond-survol-tableau: var(--gris-200);
   --couleur-bordure: var(--gris-300);
   --couleur-bordure-legere: var(--gris-200);
   --couleur-texte: var(--gris-800);

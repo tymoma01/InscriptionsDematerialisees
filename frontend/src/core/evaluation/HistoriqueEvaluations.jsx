@@ -140,6 +140,9 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
       <table className="historique-evaluations">
         <thead>
           <tr>
+            {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas evaluation.id — recalculé à
+                chaque tri, purement visuel, aucun lien avec la clé de tri. */}
+            <th scope="col">N°</th>
             {COLONNES.map((colonne) => {
               const actif = tri.colonne === colonne.cle;
               return (
@@ -157,8 +160,9 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
           </tr>
         </thead>
         <tbody>
-          {evaluationsTriees.map((evaluation) => (
+          {evaluationsTriees.map((evaluation, index) => (
             <tr key={evaluation.id}>
+              <td>{index + 1}</td>
               <td>
                 {evaluation.candidat_prenom} {evaluation.candidat_nom}
               </td>

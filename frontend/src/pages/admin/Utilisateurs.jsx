@@ -246,6 +246,13 @@ export default function Utilisateurs() {
             <table className="table-utilisateurs">
               <thead>
                 <tr>
+                  {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas u.id — recalculé à chaque
+                      tri/filtre, purement visuel. Figée avec "Nom" (voir
+                      .table-utilisateurs__colonne-numero, Utilisateurs.css) pour rester un repère
+                      constant même une fois les colonnes suivantes défilées hors champ. */}
+                  <th scope="col" className="table-utilisateurs__colonne-numero">
+                    N°
+                  </th>
                   {COLONNES.map((colonne) => {
                     const actif = tri.colonne === colonne.cle;
                     return (
@@ -272,8 +279,9 @@ export default function Utilisateurs() {
                 </tr>
               </thead>
               <tbody>
-                {utilisateursTries.map((u) => (
+                {utilisateursTries.map((u, index) => (
                   <tr key={u.id}>
+                    <td className="table-utilisateurs__colonne-numero">{index + 1}</td>
                     <td className="table-utilisateurs__colonne-figee">
                       {u.prenom} {u.nom}
                     </td>

@@ -73,7 +73,7 @@
 }
 
 .historique-evaluations tbody tr:hover {
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-fond-survol-tableau);
 }
 
 .historique-evaluations__vide {

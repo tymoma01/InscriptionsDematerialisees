@@ -90,6 +90,11 @@
   border-collapse: separate;
   border-spacing: 0;
   background-color: var(--couleur-fond);
+  /* Largeur fixe de la colonne "N°" — sert aussi de décalage (`left`) à "Nom" figée juste
+     derrière elle (.table-utilisateurs__colonne-figee), même patron que
+     --planification-largeur-colonne-date (Planification.css). Assez large pour trois chiffres
+     sans jamais être coupée. */
+  --table-utilisateurs-largeur-colonne-numero: 3rem;
 }
 
 .table-utilisateurs th,
@@ -160,7 +165,7 @@
 }
 
 .table-utilisateurs tbody tr:hover {
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-fond-survol-tableau);
 }
 
 /* Colonne "Nom" figée pendant le défilement horizontal (tablette/écran étroit, voir
@@ -170,7 +175,10 @@
    figée au lieu de rester masqué derrière. */
 .table-utilisateurs__colonne-figee {
   position: sticky;
-  left: 0;
+  /* Décalée de la largeur de "N°" (voir --table-utilisateurs-largeur-colonne-numero) : "N°" et
+     "Nom" forment ensemble un bloc figé de deux colonnes, comme .planification__colonne-date/
+     .planification__colonne-figee (Planification.css). */
+  left: var(--table-utilisateurs-largeur-colonne-numero);
   z-index: 1;
   background-color: var(--couleur-fond);
   /* Bordure + ombre légère sur le bord droit : signale que cette colonne est distincte du reste
@@ -179,18 +187,33 @@
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
 }
 
+/* Colonne "N°" figée en première position (left: 0), juste devant "Nom" — sans elle, "Nom"
+   resterait figée à un `left` fixe pendant que "N°" défilerait hors champ derrière elle, laissant
+   un vide béant à gauche une fois "N°" disparue (même raisonnement que .planification__colonne-
+   date, Planification.css). */
+.table-utilisateurs__colonne-numero {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--table-utilisateurs-largeur-colonne-numero);
+  text-align: center;
+  background-color: var(--couleur-fond);
+}
+
 /* L'en-tête a son propre fond (--couleur-fond-secondaire, voir règle `th` plus haut) — la version
    figée doit reprendre ce même fond plutôt que celui du corps du tableau, et rester au-dessus des
    cellules figées du corps (z-index supérieur) si jamais les deux se chevauchent visuellement. */
-.table-utilisateurs th.table-utilisateurs__colonne-figee {
+.table-utilisateurs th.table-utilisateurs__colonne-figee,
+.table-utilisateurs th.table-utilisateurs__colonne-numero {
   background-color: var(--couleur-fond-secondaire);
   z-index: 2;
 }
 
 /* Le survol de ligne (règle ci-dessus) doit aussi teinter la cellule figée, sinon elle resterait
    au fond de base pendant que le reste de la ligne change de couleur — seam visuel incohérent. */
-.table-utilisateurs tbody tr:hover td.table-utilisateurs__colonne-figee {
-  background-color: var(--couleur-fond-secondaire);
+.table-utilisateurs tbody tr:hover td.table-utilisateurs__colonne-figee,
+.table-utilisateurs tbody tr:hover td.table-utilisateurs__colonne-numero {
+  background-color: var(--couleur-fond-survol-tableau);
 }
 
 .table-utilisateurs__actions {
