@@ -5,8 +5,8 @@
     { "code": "test_planifie", "libelle": "Test planifié", "ordre": 3, "estInitial": false, "estFinal": false },
     { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 4, "estInitial": false, "estFinal": false },
     { "code": "invalide", "libelle": "Invalidé", "ordre": 6, "estInitial": false, "estFinal": false },
-    { "code": "valide_envoi_formation", "libelle": "Validé — envoyé en formation", "ordre": 11, "estInitial": false, "estFinal": true },
-    { "code": "valide_pret_embauche", "libelle": "Validé — prêt à l'embauche", "ordre": 12, "estInitial": false, "estFinal": true }
+    { "code": "valide_envoi_formation", "libelle": "Validé - envoyé en formation", "ordre": 11, "estInitial": false, "estFinal": true },
+    { "code": "valide_pret_embauche", "libelle": "Validé - prêt à l'embauche", "ordre": 12, "estInitial": false, "estFinal": true }
   ],
   "transitions": [
     {
