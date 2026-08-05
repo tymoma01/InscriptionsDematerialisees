@@ -46,7 +46,7 @@ Principes à respecter :
   - Adaptel → OVH
   - Le connecteur de stockage doit être un module interchangeable (interface commune upload/download/suppression), pas un appel direct codé en dur à une API de stockage donnée. On développe et teste d'abord avec ACCECIT (Azure OneDrive), mais l'abstraction doit permettre de brancher OVH pour Adaptel sans toucher au reste du code.
 - **Authentification** : sessions serveur (voir section dédiée)
-- **Notifications SMS/email** : **AllMySMS** (compte déjà existant) — à intégrer via ce prestataire
+- **Notifications SMS** : **AllMySMS** (compte déjà existant) — à intégrer via ce prestataire. **Notifications email** : **Microsoft Graph** (`inscriptions@accecit.com`, même app registration que le stockage OneDrive/SharePoint), décision du 2026-08-05 qui corrige le choix initial AllMySMS pour l'email ci-dessus — vérification faite auprès de leur documentation officielle : AllMySMS ne propose pas d'envoi d'email réel (leur seul service proche, Mail2SMS, fait l'inverse). Détails : `docs/architecture-technique.md` §3.3.
 - **Linter** : ESLint
 - **Versioning** : Git / GitHub — dépôt privé `tymoma01/InscriptionsDematerialisees`
 - **Éditeur** : VS Code
@@ -165,7 +165,7 @@ CREATE TABLE signatures_charte (
 ## Intégrations externes
 
 - **API SmartOF** : appelée à la validation du test pour créer le profil candidat côté formation. SmartOF reste le SI de référence pour la gestion des formations ; ce projet ne le remplace pas, il s'y articule. Module à isoler proprement (pas de dépendance dure dans le cœur du moteur de workflow, pour rester compatible avec une entité qui n'utiliserait pas SmartOF).
-- **SMS / Email : AllMySMS** — compte déjà existant, à réutiliser plutôt que d'ouvrir un nouveau prestataire. Cas d'usage : convocation, relance, confirmation de créneau, notification formateur, invitation signature de contrat.
+- **SMS : AllMySMS** — compte déjà existant, à réutiliser plutôt que d'ouvrir un nouveau prestataire. **Email : Microsoft Graph** (`inscriptions@accecit.com`, décision du 2026-08-05 — AllMySMS ne propose pas d'envoi d'email réel, voir plus haut). Cas d'usage (les deux canaux, sélectionnés par `notificationFactory()`) : convocation, relance, confirmation de créneau, notification formateur, invitation signature de contrat.
 - **Stockage documents** : module de connecteur par entité (Azure OneDrive pour ACCECIT, OVH pour Adaptel). Interface commune à définir (upload/download/suppression/liste), implémentations séparées par prestataire, sélection du connecteur pilotée par la configuration de l'entité.
 
 ## Contraintes RGPD (structurantes)

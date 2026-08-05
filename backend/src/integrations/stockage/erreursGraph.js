@@ -1,7 +1,11 @@
 // Traduit une erreur Microsoft Graph (GraphError : statusCode + code, cf. SDK
 // @microsoft/microsoft-graph-client) en erreur métier lisible, pour ne pas remonter du JSON
 // technique jusqu'aux logs/UI. `contexte` situe l'appel concerné (ex. "upload pièce justificative").
-function traduireErreurGraph(erreur, contexte) {
+// `permission` : nom de la permission d'application Graph à vérifier en cas de 403, affiché dans
+// le message pour guider le diagnostic — "Files.ReadWrite.All" par défaut (usage historique
+// SharePoint/OneDrive, voir azureOneDriveConnector.js), à surcharger par tout autre appelant Graph
+// dont la permission requise diffère (ex. "Mail.Send" pour graphMailProvider.js).
+function traduireErreurGraph(erreur, contexte, { permission = 'Files.ReadWrite.All' } = {}) {
   const statut = erreur && erreur.statusCode;
   const code = erreur && erreur.code;
 
@@ -12,10 +16,12 @@ function traduireErreurGraph(erreur, contexte) {
     );
   }
 
-  if (statut === 403 || code === 'AccessDenied' || code === 'Forbidden') {
+  // ErrorAccessDenied : code renvoyé par l'API mail (/users/{id}/sendMail) pour un 403, distinct
+  // d'AccessDenied/Forbidden côté API fichiers (SharePoint/OneDrive) — voir graphMailProvider.js.
+  if (statut === 403 || code === 'AccessDenied' || code === 'Forbidden' || code === 'ErrorAccessDenied') {
     return new Error(
       `Permissions Microsoft Graph insuffisantes (${contexte}) — vérifier que l'app registration dispose bien ` +
-        `de la permission d'application "Files.ReadWrite.All" avec consentement admin accordé.`,
+        `de la permission d'application "${permission}" avec consentement admin accordé.`,
     );
   }
 

@@ -5,10 +5,13 @@ const db = require('../../db/knex');
 const dossierRepository = require('./dossierRepository');
 const relanceRepository = require('./relanceRepository');
 const motifRepository = require('../motifs/motifRepository');
-// notificationFactory() retourne toujours ce même singleton : on mocke ses méthodes directement
-// plutôt que notificationFactory (export de fonction brute), même raison que dans
-// invitationTestService.test.js.
+// notificationFactory() dispatche par canal vers l'un de ces deux singletons (sms -> AllMySMS,
+// email -> Graph, voir notificationFactory.js) : on mocke la méthode `envoyer` du singleton
+// concerné directement plutôt que notificationFactory (export de fonction brute), même raison que
+// dans invitationTestService.test.js. Mocker le mauvais des deux pour un canal donné laisserait
+// passer un vrai appel réseau (Key Vault + Microsoft Graph) au lieu d'un appel simulé.
 const allMySmsProvider = require('../../integrations/notifications/allMySmsProvider');
+const graphMailProvider = require('../../integrations/notifications/graphMailProvider');
 const relanceService = require('./relanceService');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit', sms_actif: true };
@@ -109,8 +112,8 @@ test("enregistrerRelance enregistre resultat='echec_envoi' si le prestataire éc
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({ email: 'sophie@exemple.test', telephone: null }));
   const enregistrerMock = t.mock.method(relanceRepository, 'enregistrerRelance', async () => 12);
-  t.mock.method(allMySmsProvider, 'envoyer', async () => {
-    throw new Error('AllMySMS indisponible');
+  t.mock.method(graphMailProvider, 'envoyer', async () => {
+    throw new Error('Microsoft Graph indisponible');
   });
 
   const resultatAction = await relanceService.enregistrerRelance(ENTITE_ACCECIT, {
