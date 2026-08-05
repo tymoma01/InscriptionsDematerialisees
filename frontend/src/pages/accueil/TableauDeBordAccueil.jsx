@@ -62,8 +62,8 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
   valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
   rejete: 'echec-fort',
-  valide_envoi_formation: 'vert-clair',
-  valide_pret_embauche: 'succes',
+  valide_envoi_formation: 'succes',
+  valide_pret_embauche: 'vert-clair',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

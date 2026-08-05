@@ -24,8 +24,8 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
   invalide: 'echec',
-  valide_envoi_formation: 'vert-clair',
-  valide_pret_embauche: 'succes',
+  valide_envoi_formation: 'succes',
+  valide_pret_embauche: 'vert-clair',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
