@@ -62,6 +62,14 @@ function libelleResultat(evaluation) {
   return 'Validé - prêt à l\'embauche';
 }
 
+// Même distinction que HistoriqueEvaluations.jsx (varianteResultat) — vert-clair pour "prêt à
+// l'embauche", succes pour "envoyé en formation", pour ne pas afficher deux verdicts positifs
+// distincts sous la même couleur.
+function varianteResultat(evaluation) {
+  if (evaluation.resultatGlobal === 'invalide') return 'echec';
+  return evaluation.orientation === 'envoi_formation' ? 'succes' : 'vert-clair';
+}
+
 // Détail en lecture seule d'une évaluation déjà soumise — jamais modifiable depuis cet écran
 // (contrairement à GrilleEvaluation.jsx, qui saisit une évaluation en cours). `evaluationId` reçu
 // en prop (voir HistoriqueEvaluations.jsx, bouton "Voir le détail") — ce composant ne connaît pas
@@ -126,7 +134,7 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
           <dd>
             <StatutBadge
               libelle={libelleResultat(evaluation)}
-              variante={evaluation.resultatGlobal === 'invalide' ? 'echec' : 'succes'}
+              variante={varianteResultat(evaluation)}
             />
           </dd>
         </div>

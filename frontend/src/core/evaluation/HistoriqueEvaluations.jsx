@@ -56,7 +56,8 @@ function libelleResultat(evaluation) {
 }
 
 function varianteResultat(evaluation) {
-  return evaluation.resultat_global === 'invalide' ? 'echec' : 'succes';
+  if (evaluation.resultat_global === 'invalide') return 'echec';
+  return evaluation.orientation === 'envoi_formation' ? 'succes' : 'vert-clair';
 }
 
 // Une entrée par colonne triable, même patron que DossierList.jsx/Utilisateurs.jsx/
