@@ -1,6 +1,11 @@
 const { Router } = require('express');
 const multer = require('multer');
-const archiver = require('archiver');
+// archiver@8 est passé en ESM pur (package.json : "type": "module", plus d'export par défaut
+// callable) : require('archiver') ne renvoie donc plus une factory function comme sur les
+// versions précédentes, mais l'objet des exports nommés (interop CJS/ESM de Node) — d'où
+// `new ZipArchive(...)` ci-dessous plutôt que l'ancien `archiver('zip', ...)`. ZipArchive reste
+// un stream Transform (append/pipe/finalize/on('error') inchangés), seule la construction change.
+const { ZipArchive } = require('archiver');
 const { z } = require('zod');
 const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
 const { ErreurPieceJustificativeInvalide } = pieceJustificativeService;
@@ -151,7 +156,7 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
     res.set('Content-Type', 'application/zip');
     res.set('Content-Disposition', `attachment; filename="dossier-${dossierId}-pieces.zip"`);
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
     // Une erreur de streaming survient après l'envoi des en-têtes (res.set ci-dessus) : on ne
     // peut plus renvoyer un JSON d'erreur propre à ce stade, juste couper la réponse — même
     // limite que n'importe quel flux HTTP déjà commencé.
