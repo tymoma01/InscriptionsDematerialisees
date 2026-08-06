@@ -96,10 +96,24 @@
   font-size: 0.85rem;
 }
 
+/* Deux colonnes fixes plutôt qu'auto-fit(minmax(320px, 1fr)) : avec 3 éléments dans cette grille
+   (2 camemberts + 1 graphique "large" qui occupe toute la ligne suivante, voir
+   .indicateurs__graphique--large plus bas) et un conteneur assez large pour 3 pistes de 320px
+   (~1150-1250px sur un écran de bureau courant), auto-fit calculait 3 colonnes — la 3e restait
+   vide faute d'un 3e élément à y placer en première ligne (le graphique "large" est repoussé à la
+   ligne suivante par son grid-column: 1 / -1), laissant un vide net après les deux camemberts.
+   Deux colonnes explicites garantissent qu'ils se répartissent bien 50/50 de la largeur
+   disponible, quelle que soit la largeur de l'écran au-delà du seuil ci-dessous. */
 .indicateurs__graphiques {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--espace-grand);
+}
+
+@media (min-width: 800px) {
+  .indicateurs__graphiques {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .indicateurs__graphique {

@@ -410,21 +410,23 @@ export default function Indicateurs() {
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={320}>
                     <PieChart>
-                      {/* cx décalé à gauche (au lieu du centrage par défaut à 50%) : laisse la
-                          moitié droite du conteneur à la légende (voir Legend, layout vertical,
-                          ci-dessous) plutôt que de centrer le camembert et laisser un vide
-                          symétrique de chaque côté. outerRadius relatif ("80%" du plus petit des
-                          deux côtés, ici la hauteur) plutôt qu'une valeur fixe en pixels : occupe
-                          mieux le conteneur quelle que soit sa largeur réelle (grille
-                          .indicateurs__graphiques en auto-fit, largeur variable selon l'écran). */}
+                      {/* cx décalé vers la droite du centre (pas 50%, ni le 38% initial — voir
+                          historique) : avec la grille corrigée à deux colonnes fixes
+                          (.indicateurs__graphiques, Indicateurs.css), ce cadre est maintenant
+                          assez large pour qu'un centrage trop à gauche laisse un grand vide entre
+                          le bord droit du camembert et la légende (align="right", voir
+                          ci-dessous) — 45% rapproche les deux plutôt que de les laisser à leurs
+                          extrémités respectives avec un vide entre les deux. outerRadius relevé à
+                          "85%" (plus de hauteur disponible, voir height ci-dessus) : un camembert
+                          plus grand comble aussi une partie de ce vide par lui-même. */}
                       <Pie
                         data={donneesVerdicts}
                         dataKey="total"
                         nameKey="nom"
-                        cx="38%"
-                        outerRadius="80%"
+                        cx="45%"
+                        outerRadius="85%"
                         label
                       >
                         {donneesVerdicts.map((entree, index) => (
@@ -462,14 +464,14 @@ export default function Indicateurs() {
                 {donneesOrientations.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucune orientation sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={280}>
+                  <ResponsiveContainer width="100%" height={320}>
                     <PieChart>
                       <Pie
                         data={donneesOrientations}
                         dataKey="total"
                         nameKey="nom"
-                        cx="38%"
-                        outerRadius="80%"
+                        cx="45%"
+                        outerRadius="85%"
                         label
                       >
                         {donneesOrientations.map((entree, index) => (
