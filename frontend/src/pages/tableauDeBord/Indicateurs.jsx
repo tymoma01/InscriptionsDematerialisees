@@ -410,9 +410,23 @@ export default function Indicateurs() {
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
-                      <Pie data={donneesVerdicts} dataKey="total" nameKey="nom" outerRadius={90} label>
+                      {/* cx décalé à gauche (au lieu du centrage par défaut à 50%) : laisse la
+                          moitié droite du conteneur à la légende (voir Legend, layout vertical,
+                          ci-dessous) plutôt que de centrer le camembert et laisser un vide
+                          symétrique de chaque côté. outerRadius relatif ("80%" du plus petit des
+                          deux côtés, ici la hauteur) plutôt qu'une valeur fixe en pixels : occupe
+                          mieux le conteneur quelle que soit sa largeur réelle (grille
+                          .indicateurs__graphiques en auto-fit, largeur variable selon l'écran). */}
+                      <Pie
+                        data={donneesVerdicts}
+                        dataKey="total"
+                        nameKey="nom"
+                        cx="38%"
+                        outerRadius="80%"
+                        label
+                      >
                         {donneesVerdicts.map((entree, index) => (
                           // Segment cliquable (voir basculerIndicateur) : opacité réduite pour les
                           // segments non sélectionnés dès qu'AU MOINS UN segment (toutes cartes/
@@ -432,7 +446,12 @@ export default function Indicateurs() {
                         ))}
                       </Pie>
                       <Tooltip />
-                      <Legend />
+                      {/* Légende repositionnée à droite (verticale) plutôt qu'en dessous
+                          (horizontale, comportement par défaut) : c'est ce qui laissait le vide
+                          constaté de chaque côté du camembert — toute la largeur du cadre n'était
+                          utilisée ni par le camembert (centré, taille fixe) ni par la légende
+                          (une ligne compacte sous lui). */}
+                      <Legend layout="vertical" align="right" verticalAlign="middle" />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
@@ -443,9 +462,16 @@ export default function Indicateurs() {
                 {donneesOrientations.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucune orientation sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={260}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
-                      <Pie data={donneesOrientations} dataKey="total" nameKey="nom" outerRadius={90} label>
+                      <Pie
+                        data={donneesOrientations}
+                        dataKey="total"
+                        nameKey="nom"
+                        cx="38%"
+                        outerRadius="80%"
+                        label
+                      >
                         {donneesOrientations.map((entree, index) => (
                           <Cell
                             key={entree.nom}
@@ -459,7 +485,7 @@ export default function Indicateurs() {
                         ))}
                       </Pie>
                       <Tooltip />
-                      <Legend />
+                      <Legend layout="vertical" align="right" verticalAlign="middle" />
                     </PieChart>
                   </ResponsiveContainer>
                 )}
