@@ -17,10 +17,16 @@
   flex: 0 0 var(--largeur-label-champ);
 }
 
+/* flex: 1 (grandir) plutôt que 0 (largeur figée) — même raison et même plafond que
+   BlocCoordonnees.css : le champ démarre à --largeur-champ-saisie (flex-basis) puis s'étire dans
+   l'espace regagné par le correctif de largeur du conteneur (InscriptionTablette.css), sans
+   dépasser max-width (saisie longue restant confortable à lire, pas une ligne étirée sur toute
+   la largeur du bloc). */
 .bloc-infos-perso__champ-pleine-largeur > input,
 .bloc-infos-perso__champ-pleine-largeur > select {
-  flex: 0 0 var(--largeur-champ-saisie);
-  width: var(--largeur-champ-saisie);
+  flex: 1 1 var(--largeur-champ-saisie);
+  width: auto;
+  max-width: 32rem;
   box-sizing: border-box;
 }
 

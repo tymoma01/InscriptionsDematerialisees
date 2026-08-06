@@ -44,7 +44,10 @@ body.corps-back-office {
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
-  padding: var(--espace-moyen);
+  /* --espace-grand plutôt que --espace-moyen : un peu plus de respiration maintenant que les
+     blocs sont plus larges (voir InscriptionTablette.css) — reste un padding, pas un étirement
+     des champs eux-mêmes. */
+  padding: var(--espace-grand);
   margin-bottom: var(--espace-grand);
   box-shadow: var(--ombre-bloc);
 }

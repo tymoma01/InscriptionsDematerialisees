@@ -16,9 +16,35 @@
    donc hors du flux normal — ce passage en flex n'a aucun effet sur eux. */
 .page-inscription-tablette {
   --hauteur-entete: 8rem;
+  /* Marges latérales réduites / contenu élargi : même traitement que .page-back-office
+     (PageBackOffice.css) — redéfinit ici la variable globale --largeur-max-formulaire
+     (styles/variables.css, 1100px) plutôt que de la changer globalement, pour que la cascade
+     CSS applique le changement en un seul endroit à tous les descendants qui la référencent déjà
+     pour leur max-width (__entete-contenu/__contenu ci-dessous, PiedDePageFormulaire.css). Même
+     valeur (+200px) que le back-office, pour un traitement identique entre les deux espaces.
+     FiligraneFormulaire (composant partagé) est lui aussi un enfant direct de
+     .page-inscription-tablette : ses logos se repositionnent automatiquement dans la marge
+     résultante (voir son calc()), sans que --largeur-logo-filigrane (leur taille, 150px) ne soit
+     touché — voir le seuil d'apparition ajusté en conséquence plus bas. */
+  --largeur-max-formulaire: 1300px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+}
+
+/* Seuil d'apparition du filigrane relevé en conséquence (1440px -> 1640px), même calcul et même
+   raison que .page-back-office .filigrane-formulaire dans PageBackOffice.css : avec
+   --largeur-max-formulaire élargi à 1300px, le seuil générique de FiligraneFormulaire.css
+   (calibré pour 1100px) ne laisserait plus que 70px de marge de chaque côté, insuffisant pour un
+   logo de 150px. (1640-1300)/2 = 170px, la même marge de respiration que l'originale. */
+.page-inscription-tablette .filigrane-formulaire {
+  display: none;
+}
+
+@media (min-width: 1640px) {
+  .page-inscription-tablette .filigrane-formulaire {
+    display: block;
+  }
 }
 
 /* En-tête de la page d'inscription, en deux couches :
@@ -117,9 +143,24 @@
    (+ une respiration supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape.
    `flex: 1 0 auto` (grandir : oui, rétrécir : non, base : sa taille naturelle) : c'est cet
    élément qui absorbe l'espace vertical restant pour pousser le pied de page en bas de l'écran
-   quand le contenu est court — voir le commentaire sur `.page-inscription-tablette` ci-dessus. */
+   quand le contenu est court — voir le commentaire sur `.page-inscription-tablette` ci-dessus.
+
+   `width: 100%` explicite, indispensable ici : cet élément est un enfant DIRECT d'un conteneur
+   flex (`.page-inscription-tablette`, `display: flex`), et un item flex dont les marges
+   horizontales valent `auto` n'est PAS étiré par `align-items: stretch` — la spec Flexbox donne
+   la priorité aux marges auto, qui absorbent l'espace au lieu de laisser l'étirement s'appliquer
+   (§8.3). Résultat sans `width: 100%` : cet élément se voyait dimensionné à la largeur
+   intrinsèque de son contenu (« rétréci-ajusté », proche de 1000px selon l'étape affichée) au
+   lieu de s'étirer jusqu'à `max-width` — `--largeur-max-formulaire` restait donc en grande
+   partie inatteignable quelle que soit sa valeur, ce qui explique le vide constaté entre les
+   blocs et les marges de page malgré son augmentation. `width: 100%` fixe une largeur non-auto,
+   qui contourne cette règle de priorité aux marges auto : l'élément remplit alors la largeur du
+   conteneur flex, puis `max-width` la plafonne normalement, et `margin: auto` centre le résultat
+   — le patron classique « pleine largeur plafonnée et centrée », robuste indépendamment du
+   parent (flex, grid ou flux normal). */
 .page-inscription-tablette__contenu {
   box-sizing: border-box;
+  width: 100%;
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto;
   padding-top: calc(var(--hauteur-entete) + var(--espace-grand));

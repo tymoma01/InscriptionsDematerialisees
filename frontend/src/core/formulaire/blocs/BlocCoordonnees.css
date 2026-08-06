@@ -12,9 +12,16 @@
   flex: 0 0 var(--largeur-label-champ);
 }
 
+/* flex: 1 (grandir) plutôt que 0 (largeur figée) : le champ démarre à --largeur-champ-saisie
+   (flex-basis) puis s'étire pour occuper le reste de la ligne — le bloc pouvant désormais
+   dépasser largement cette largeur d'origine (voir InscriptionTablette.css, correctif
+   width: 100% sur .page-inscription-tablette__contenu), le laisser figé à 16rem gaspillait tout
+   l'espace regagné. max-width conserve un plafond raisonnable (un champ "Adresse" large mais pas
+   démesuré) plutôt qu'un étirement pleine ligne, qui rendrait la saisie inconfortable à lire. */
 .bloc-coordonnees__champ input {
-  flex: 0 0 var(--largeur-champ-saisie);
-  width: var(--largeur-champ-saisie);
+  flex: 1 1 var(--largeur-champ-saisie);
+  width: auto;
+  max-width: 32rem;
   box-sizing: border-box;
 }
 
