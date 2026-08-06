@@ -136,6 +136,16 @@
   color: var(--couleur-erreur);
 }
 
+/* Distinct de --rejete (rouge, jugement humain "pièce insuffisante") : orange/alerte plutôt que
+   rouge, pour ne pas laisser croire qu'un recruteur a examiné et refusé cette pièce — le fichier a
+   disparu du stockage documentaire avant tout examen humain (voir migration 046). Mêmes teintes
+   que --statut-alerte-* (styles/variables.css, déjà utilisé pour "Test non réalisé" ailleurs dans
+   le back-office) plutôt qu'une nouvelle paire de couleurs, cohérent avec le reste du projet. */
+.page-validation__piece-statut--orpheline {
+  background-color: var(--statut-alerte-fond);
+  color: var(--statut-alerte-texte);
+}
+
 .page-validation__piece-date {
   color: var(--couleur-texte-secondaire);
   font-size: 0.85rem;

@@ -50,6 +50,13 @@ const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'
 // moyen détourné de contourner l'interdiction de "Reprendre" une fois le dossier hors
 // en_attente_pieces (même restriction que STATUTS_SUPPRESSION_AUTORISES côté suppression), donc
 // revérifié explicitement plus bas (dejaPresente), pas seulement masqué côté front.
+//
+// Exception : une pièce déjà présente mais 'orpheline' (migration 046 — fichier disparu du
+// stockage documentaire, constaté par le système, pas un rejet humain remis en cause, voir
+// scripts/marquerPiecesOrphelines.js) PEUT être remplacée même hors STATUTS_UPLOAD_AUTORISES. Ce
+// n'est pas un contournement de la règle ci-dessus : il n'existe déjà plus rien à "Reprendre" côté
+// stockage pour ce type de pièce sur ce dossier, la bloquer reviendrait à rendre la pièce
+// irrécupérable pour de bon sur des dossiers pourtant déjà avancés (test réalisé, verdict rendu).
 const STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS = ['nouveau'];
 
 async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, uploadedBy }) {
@@ -79,7 +86,7 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
       );
     }
     const dejaPresente = await pieceJustificativeRepository.trouverPieceParDossierEtType(bd, dossierId, typePiece.id);
-    if (dejaPresente) {
+    if (dejaPresente && dejaPresente.statut_verification !== 'orpheline') {
       throw new ErreurPieceJustificativeInvalide(
         `Impossible de remplacer une pièce justificative déjà capturée pour le dossier "${dossierId}" : le dossier n'est ` +
           `plus au statut "en attente de pièces".`,
@@ -146,6 +153,17 @@ async function telechargerPieceJustificative(entite, pieceId) {
 // désormais absente de OneDrive (voir le correctif du 2026-07-31 sur azureOneDriveConnector.supprimer).
 // L'assemblage en ZIP est laissé à la route (pieces.routes.js) : c'est une préoccupation de
 // réponse HTTP, pas une règle métier.
+//
+// Tolérance PAR PIÈCE (correctif du 2026-08-06) : `connecteur.download` peut échouer pour une
+// pièce précise (référence OneDrive orpheline, ex. l'une des deux pièces d'un ancien doublon
+// écrasé — voir le correctif du 2026-07-31 sur `supprimer` ; permissions Graph ; etc.) sans que
+// les AUTRES pièces du dossier, elles parfaitement valides, aient une quelconque raison d'être
+// bloquées. Avant ce correctif, `Promise.all` faisait tout échouer d'un coup sur la première
+// pièce en erreur (diagnostic dossier #82, 2026-08-06) : chaque téléchargement est donc
+// maintenant capturé individuellement plutôt que laissé se propager, et le résultat distingue les
+// pièces récupérées des pièces manquantes (avec le message d'erreur traduit par
+// `traduireErreurGraph`, déjà lisible) — à charge de l'appelant (pieces.routes.js) de générer
+// quand même une archive avec ce qui est disponible, en listant clairement ce qui ne l'est pas.
 async function listerPiecesJustificativesAvecContenu(entite, dossierId) {
   const bd = await db.obtenirKnex();
   await verifierDossierAppartientEntite(bd, entite, dossierId);
@@ -159,13 +177,32 @@ async function listerPiecesJustificativesAvecContenu(entite, dossierId) {
   }
 
   const connecteur = storageFactory(entite.connecteur_stockage);
-  return Promise.all(
-    [...dernierePieceParType.values()].map(async (piece) => ({
-      nomFichier: piece.nom_fichier,
-      typePieceCode: piece.type_piece_code,
-      contenu: await connecteur.download(piece.reference_stockage),
-    })),
+  const resultats = await Promise.all(
+    [...dernierePieceParType.values()].map(async (piece) => {
+      try {
+        return {
+          disponible: true,
+          typePieceCode: piece.type_piece_code,
+          nomFichier: piece.nom_fichier,
+          contenu: await connecteur.download(piece.reference_stockage),
+        };
+      } catch (erreur) {
+        return {
+          disponible: false,
+          typePieceCode: piece.type_piece_code,
+          nomFichier: piece.nom_fichier,
+          erreur: erreur.message,
+        };
+      }
+    }),
   );
+
+  return {
+    fichiers: resultats.filter((resultat) => resultat.disponible),
+    manquantes: resultats
+      .filter((resultat) => !resultat.disponible)
+      .map(({ typePieceCode, nomFichier, erreur }) => ({ typePieceCode, nomFichier, erreur })),
+  };
 }
 
 // Suppression permise uniquement tant que le dossier est encore en_attente_pieces : une fois le

@@ -11,7 +11,15 @@ import './Validation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-const LIBELLES_STATUT_VERIFICATION = { en_attente: 'En attente', valide: 'Validée', rejete: 'Rejetée' };
+// 'orpheline' (migration 046) : fichier disparu du stockage documentaire (OneDrive/SharePoint),
+// constaté par le système (export ZIP) — distinct de 'rejete', un jugement humain sur une pièce
+// pourtant bien reçue. Voir Validation.css pour la distinction visuelle (orange, pas rouge).
+const LIBELLES_STATUT_VERIFICATION = {
+  en_attente: 'En attente',
+  valide: 'Validée',
+  rejete: 'Rejetée',
+  orpheline: 'À recapturer (fichier perdu)',
+};
 
 // Écran détail dossier pour le recruteur (CLAUDE.md : "indicateur de complétude") — dossierId
 // vient du paramètre de route (à la différence des composants génériques de core/, cette page

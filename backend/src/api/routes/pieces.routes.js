@@ -140,8 +140,11 @@ router.get('/', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next
 router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const fichiers = await pieceJustificativeService.listerPiecesJustificativesAvecContenu(req.entite, dossierId);
-    if (fichiers.length === 0) {
+    const { fichiers, manquantes } = await pieceJustificativeService.listerPiecesJustificativesAvecContenu(
+      req.entite,
+      dossierId,
+    );
+    if (fichiers.length === 0 && manquantes.length === 0) {
       return res.status(404).json({ erreur: 'Aucune pièce justificative pour ce dossier.' });
     }
 
@@ -165,6 +168,19 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
       archive.append(fichier.contenu, { name: `${fichier.typePieceCode}_${fichier.nomFichier}` });
     }
 
+    // Manifeste texte À L'INTÉRIEUR de l'archive plutôt qu'un en-tête HTTP ou un champ JSON à
+    // côté : ce lien de téléchargement est suivi tel quel par le navigateur (pas un appel
+    // intercepté côté front, voir Validation.jsx), aucun autre canal ne survivrait au
+    // téléchargement du fichier une fois enregistré sur le poste du recruteur. Uniquement si au
+    // moins une pièce manque : pas de fichier vide à expliquer quand tout s'est bien passé.
+    if (manquantes.length > 0) {
+      const lignes = manquantes.map((piece) => `- ${piece.typePieceCode} (${piece.nomFichier}) : ${piece.erreur}`);
+      archive.append(
+        `${manquantes.length} pièce(s) n'ont pas pu être récupérées depuis le stockage documentaire et sont absentes de cette archive :\n\n${lignes.join('\n')}\n`,
+        { name: '_pieces_manquantes.txt' },
+      );
+    }
+
     await archive.finalize();
 
     const bd = await obtenirKnex();
@@ -177,7 +193,15 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
       // cet export porte sur plusieurs pièces à la fois, pas une ligne pieces_justificatives
       // précise.
       cibleId: 0,
-      donnees: { dossierId, nombrePieces: fichiers.length },
+      // typesManquants tracé explicitement (traçabilité RGPD, CLAUDE.md) : permet de repérer en
+      // base, sans dépendre des logs serveur, quels dossiers ont des pièces devenues orphelines
+      // côté stockage documentaire (voir le correctif du 2026-08-06 sur listerPiecesJustificativesAvecContenu).
+      donnees: {
+        dossierId,
+        nombrePieces: fichiers.length,
+        nombrePiecesManquantes: manquantes.length,
+        typesManquants: manquantes.map((piece) => piece.typePieceCode),
+      },
       adresseIp: req.ip,
     });
   } catch (erreur) {

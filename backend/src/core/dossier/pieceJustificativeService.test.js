@@ -202,6 +202,39 @@ test('uploaderPieceJustificative rejette le remplacement d\'une pièce déjà ca
   assert.equal(uploadMock.mock.calls.length, 0);
 });
 
+// Exception ajoutée avec la migration 046 (voir scripts/marquerPiecesOrphelines.js) : une pièce
+// 'orpheline' (fichier disparu du stockage documentaire) doit rester remplaçable même hors
+// STATUTS_UPLOAD_AUTORISES — sinon elle reste irrécupérable pour de bon sur un dossier déjà avancé.
+test("uploaderPieceJustificative autorise le remplacement d'une pièce 'orpheline' même hors en_attente_pieces", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 82,
+    statut_code: 'valide_pret_embauche',
+    statut_libelle: 'Validé - prêt à l\'embauche',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Maes',
+    candidat_prenom: 'Lucie',
+  }));
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'carte_identite' }));
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceParDossierEtType', async () => ({
+    id: 93,
+    statut_verification: 'orpheline',
+  }));
+  const uploadMock = t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-nouvelle');
+  t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 150);
+
+  const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 82,
+    typePieceCode: 'carte_identite',
+    nomFichier: 'cni.pdf',
+    contenu: Buffer.from('x'),
+    uploadedBy: 1,
+  });
+
+  assert.deepEqual(resultat, { pieceId: 150, referenceStockage: 'ref-stockage-nouvelle' });
+  assert.equal(uploadMock.mock.calls.length, 1);
+});
+
 test("uploaderPieceJustificative rejette toute pièce avant la signature de la charte (statut nouveau)", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
@@ -295,12 +328,12 @@ test("listerPiecesJustificativesAvecContenu rejette si le dossier n'appartient p
   );
 });
 
-test("listerPiecesJustificativesAvecContenu retourne un tableau vide si le dossier n'a aucune pièce", async (t) => {
+test("listerPiecesJustificativesAvecContenu retourne fichiers/manquantes vides si le dossier n'a aucune pièce", async (t) => {
   mockerKnex(t);
   t.mock.method(pieceJustificativeRepository, 'listerPiecesAvecReferenceParDossier', async () => []);
 
   const resultat = await service.listerPiecesJustificativesAvecContenu(ENTITE_ACCECIT, 42);
-  assert.deepEqual(resultat, []);
+  assert.deepEqual(resultat, { fichiers: [], manquantes: [] });
 });
 
 // Une seule pièce par type dans l'export, la plus récente (voir diagnostic pièces dupliquées) :
@@ -317,12 +350,45 @@ test('listerPiecesJustificativesAvecContenu récupère le contenu de chaque piè
 
   const resultat = await service.listerPiecesJustificativesAvecContenu(ENTITE_ACCECIT, 42);
 
-  assert.deepEqual(resultat, [
-    { nomFichier: 'cni.pdf', typePieceCode: 'carte_identite', contenu: Buffer.from('contenu-ref-cni-recente') },
-    { nomFichier: 'vitale.pdf', typePieceCode: 'carte_vitale', contenu: Buffer.from('contenu-ref-vitale') },
-  ]);
+  assert.deepEqual(resultat, {
+    fichiers: [
+      { disponible: true, typePieceCode: 'carte_identite', nomFichier: 'cni.pdf', contenu: Buffer.from('contenu-ref-cni-recente') },
+      { disponible: true, typePieceCode: 'carte_vitale', nomFichier: 'vitale.pdf', contenu: Buffer.from('contenu-ref-vitale') },
+    ],
+    manquantes: [],
+  });
   assert.equal(downloadMock.mock.calls.length, 2);
-  assert.deepEqual(downloadMock.mock.calls.map((appel) => appel.arguments[0]).sort(), ['ref-cni-recente', 'ref-vitale']);
+});
+
+// Correctif du 2026-08-06 (diagnostic dossier #82) : une pièce dont le téléchargement échoue
+// (référence OneDrive orpheline, permissions Graph...) ne doit plus faire échouer les autres —
+// elle doit simplement apparaître dans `manquantes` avec le message d'erreur traduit.
+test('listerPiecesJustificativesAvecContenu isole une pièce en échec sans bloquer les autres', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'listerPiecesAvecReferenceParDossier', async () => [
+    { id: 10, nom_fichier: 'cni.pdf', reference_stockage: 'ref-cni', type_piece_code: 'carte_identite' },
+    { id: 11, nom_fichier: 'vitale.pdf', reference_stockage: 'ref-vitale-orpheline', type_piece_code: 'carte_vitale' },
+  ]);
+  const downloadMock = t.mock.method(azureOneDriveConnector, 'download', async (ref) => {
+    if (ref === 'ref-vitale-orpheline') {
+      throw new Error('Fichier ou dossier introuvable sur SharePoint (téléchargement de l\'item "xyz").');
+    }
+    return Buffer.from(`contenu-${ref}`);
+  });
+
+  const resultat = await service.listerPiecesJustificativesAvecContenu(ENTITE_ACCECIT, 42);
+
+  assert.deepEqual(resultat.fichiers, [
+    { disponible: true, typePieceCode: 'carte_identite', nomFichier: 'cni.pdf', contenu: Buffer.from('contenu-ref-cni') },
+  ]);
+  assert.deepEqual(resultat.manquantes, [
+    {
+      typePieceCode: 'carte_vitale',
+      nomFichier: 'vitale.pdf',
+      erreur: 'Fichier ou dossier introuvable sur SharePoint (téléchargement de l\'item "xyz").',
+    },
+  ]);
+  assert.deepEqual(downloadMock.mock.calls.map((appel) => appel.arguments[0]).sort(), ['ref-cni', 'ref-vitale-orpheline']);
 });
 
 test('supprimerPieceJustificative supprime chez le connecteur puis retire la ligne en base', async (t) => {
