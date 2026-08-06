@@ -274,6 +274,180 @@ function delaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, po
     .first();
 }
 
+// --- Variantes "liste de dossiers" des statistiques ci-dessus (dashboard KPI cliquable,
+// tableau consolidé sous les cartes/graphiques, voir Indicateurs.jsx) ---
+//
+// Même WHERE/JOIN que la fonction compterX/listerX correspondante ci-dessus — seule la fin change
+// (SELECT dossier_id + date_cle au lieu de count()/groupBy), pour que la liste affichée reste
+// TOUJOURS cohérente avec le chiffre déjà affiché sur la carte/le segment cliqué. `date_cle` = la
+// date qui a fait entrer ce dossier dans l'indicateur (date de création, de changement de statut
+// ou d'évaluation selon le cas) — affichée telle quelle par le tableau front, pas recalculée.
+//
+// Regroupement par dossier_id (GROUP BY + MIN(date)) uniquement là où plusieurs lignes source
+// peuvent exister pour un même dossier sur la période (ex. deux replanifications) : une ligne par
+// dossier dans le résultat, jamais de doublon, même exigence que le tableau consolidé
+// (statistiquesService.listerDossiersParIndicateurs). Les indicateurs déjà "un dossier = une
+// ligne" par construction (inscrits, conversion, délai inscription→test, qui filtre déjà la
+// première occurrence via NOT EXISTS) n'ont pas besoin de ce regroupement.
+
+function listerInscrits(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('dossiers')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('dossiers.date_creation', '>=', debut)
+    .andWhere('dossiers.date_creation', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.select('dossiers.id as dossier_id', 'dossiers.date_creation as date_cle');
+}
+
+function listerEnvoyesEnTest(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts')
+    .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', 'test_planifie')
+    .andWhere('historique_statuts.date_changement', '>=', debut)
+    .andWhere('historique_statuts.date_changement', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete
+    .groupBy('historique_statuts.dossier_id')
+    .select(
+      'historique_statuts.dossier_id as dossier_id',
+      bd.raw('MIN(historique_statuts.date_changement) as date_cle'),
+    );
+}
+
+// resultatGlobal : 'valide' | 'invalide' — une des deux entrées du camembert "Tests réussis vs
+// ratés" (Indicateurs.jsx).
+function listerVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}, resultatGlobal) {
+  const requete = bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('evaluations.resultat_global', resultatGlobal)
+    .andWhere('evaluations.date_evaluation', '>=', debut)
+    .andWhere('evaluations.date_evaluation', '<', finExclusive);
+  filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
+  return requete
+    .groupBy('evaluations.dossier_id')
+    .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
+}
+
+// orientation : 'envoi_formation' | 'pret_embauche' — une des deux entrées du camembert
+// "Formation vs prêt à l'embauche" (Indicateurs.jsx). Implique déjà resultat_global = 'valide',
+// même condition que compterOrientations.
+function listerOrientations(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}, orientation) {
+  const requete = bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('evaluations.resultat_global', 'valide')
+    .andWhere('evaluations.orientation', orientation)
+    .andWhere('evaluations.date_evaluation', '>=', debut)
+    .andWhere('evaluations.date_evaluation', '<', finExclusive);
+  filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
+  return requete
+    .groupBy('evaluations.dossier_id')
+    .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
+}
+
+function listerDossiersConvertis(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('dossiers')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .whereIn('statuts.code', ['valide_pret_embauche', 'valide_envoi_formation'])
+    .andWhere('dossiers.date_creation', '>=', debut)
+    .andWhere('dossiers.date_creation', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.select('dossiers.id as dossier_id', 'dossiers.date_creation as date_cle');
+}
+
+function listerDelaiInscriptionVersTestPlanifie(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts as premiere_planif')
+    .join('dossiers', 'dossiers.id', 'premiere_planif.dossier_id')
+    .join('statuts', 'statuts.id', 'premiere_planif.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', 'test_planifie')
+    .andWhere('premiere_planif.date_changement', '>=', debut)
+    .andWhere('premiere_planif.date_changement', '<', finExclusive)
+    .whereNotExists(function () {
+      this.select(1)
+        .from('historique_statuts as anterieure')
+        .join('statuts as statut_anterieure', 'statut_anterieure.id', 'anterieure.statut_id')
+        .whereRaw('anterieure.dossier_id = premiere_planif.dossier_id')
+        .andWhere('statut_anterieure.code', 'test_planifie')
+        .andWhereRaw('anterieure.date_changement < premiere_planif.date_changement');
+    });
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.select('premiere_planif.dossier_id as dossier_id', 'premiere_planif.date_changement as date_cle');
+}
+
+// Même JOIN LATERAL que delaiTestVersVerdict ci-dessus, indispensable ici aussi et pas seulement
+// pour le calcul de moyenne : c'est une jointure LATERAL implicitement INNER (ON true), donc tout
+// verdict SANS planification antérieure est déjà exclu par cette jointure — sans elle, la liste
+// inclurait des dossiers que le chiffre affiché sur la carte ne compte pas.
+function listerDelaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts as verdict')
+    .join('dossiers', 'dossiers.id', 'verdict.dossier_id')
+    .join('statuts as statut_verdict', 'statut_verdict.id', 'verdict.statut_id')
+    .joinRaw(
+      `JOIN LATERAL (
+         SELECT hs.date_changement
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = verdict.dossier_id
+           AND s.code = 'test_planifie'
+           AND hs.date_changement < verdict.date_changement
+         ORDER BY hs.date_changement DESC
+         LIMIT 1
+       ) AS planification ON true`,
+    )
+    .where('dossiers.entite_id', entiteId)
+    .whereIn('statut_verdict.code', ['invalide', 'valide_envoi_formation', 'valide_pret_embauche'])
+    .andWhere('verdict.date_changement', '>=', debut)
+    .andWhere('verdict.date_changement', '<', finExclusive);
+
+  if (typePoste || poste) {
+    const sousRequetePostes = poste
+      ? bd('evaluations_postes').select('evaluation_id').where('poste_code', poste)
+      : bd('evaluations_postes').select('evaluation_id').whereIn('poste_code', codesPostesPourTypePoste(typePoste));
+    requete.whereIn(
+      'dossiers.id',
+      bd('evaluations').select('evaluations.dossier_id').whereIn('evaluations.id', sousRequetePostes),
+    );
+  }
+
+  return requete.select('verdict.dossier_id as dossier_id', 'verdict.date_changement as date_cle');
+}
+
+// Un seul poste précis (posteCode) plutôt que le filtre poste/typePoste du tableau de bord — ce
+// dernier reste appliqué en amont sur la période/le typePoste (cohérence avec le reste du
+// dashboard) mais posteCode, plus spécifique (issu du clic sur UNE barre du graphique de
+// répartition), prime toujours. GROUP BY dossier_id : une évaluation avec plusieurs postes
+// n'apparaît qu'une fois par dossier dans la liste, même si listerRepartitionParEvaluation compte
+// l'évaluation (pas le dossier) pour le chiffre affiché sur la barre — la déduplication par
+// dossier demandée pour le tableau consolidé prime ici sur la fidélité exacte au chiffre affiché.
+function listerRepartitionParPosteDossiers(bd, entiteId, { debut, finExclusive } = {}, posteCode) {
+  return bd('evaluations_postes')
+    .join('evaluations', 'evaluations.id', 'evaluations_postes.evaluation_id')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('evaluations_postes.poste_code', posteCode)
+    .andWhere('evaluations.date_evaluation', '>=', debut)
+    .andWhere('evaluations.date_evaluation', '<', finExclusive)
+    .groupBy('evaluations.dossier_id')
+    .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
+}
+
 module.exports = {
   compterInscrits,
   compterEnvoyesEnTest,
@@ -285,4 +459,12 @@ module.exports = {
   compterEvaluationsSansPoste,
   delaiInscriptionVersTestPlanifie,
   delaiTestVersVerdict,
+  listerInscrits,
+  listerEnvoyesEnTest,
+  listerVerdicts,
+  listerOrientations,
+  listerDossiersConvertis,
+  listerDelaiInscriptionVersTestPlanifie,
+  listerDelaiTestVersVerdict,
+  listerRepartitionParPosteDossiers,
 };

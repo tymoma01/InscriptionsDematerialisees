@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const db = require('../../db/knex');
 const statistiquesRepository = require('./statistiquesRepository');
+const dossierRepository = require('../dossier/dossierRepository');
 const statistiquesService = require('./statistiquesService');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
@@ -124,4 +125,99 @@ test('obtenirIndicateursKpi transmet typePoste/poste tels quels à chaque requê
   const filtresRecus = appelInscrits.mock.calls[0].arguments[2];
   assert.equal(filtresRecus.typePoste, 'hotel');
   assert.equal(filtresRecus.poste, 'cafetier');
+});
+
+test('listerDossiersParIndicateurs déduplique un dossier satisfaisant plusieurs indicateurs et annote chacun', async (t) => {
+  mockerKnex(t);
+  t.mock.method(statistiquesRepository, 'listerInscrits', async () => [
+    { dossier_id: 1, date_cle: new Date('2026-07-05') },
+    { dossier_id: 2, date_cle: new Date('2026-07-06') },
+  ]);
+  t.mock.method(statistiquesRepository, 'listerEnvoyesEnTest', async () => [
+    { dossier_id: 1, date_cle: new Date('2026-07-10') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async (bd, entiteId, ids) => {
+    assert.deepEqual([...ids].sort(), [1, 2]);
+    return [
+      { id: 1, date_creation: '2026-07-05', date_maj: '2026-07-10', candidat_nom: 'Martin', donnees_disponibilites: null },
+      { id: 2, date_creation: '2026-07-06', date_maj: '2026-07-06', candidat_nom: 'Dupont', donnees_disponibilites: null },
+    ];
+  });
+
+  const resultat = await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['inscrits', 'envoyes_en_test'],
+  });
+
+  assert.equal(resultat.length, 2, 'le dossier #1 (satisfait aux deux indicateurs) ne doit apparaître qu’une fois');
+  const dossier1 = resultat.find((d) => d.id === 1);
+  assert.deepEqual(
+    dossier1.indicateurs.map((i) => i.code),
+    ['inscrits', 'envoyes_en_test'],
+  );
+  const dossier2 = resultat.find((d) => d.id === 2);
+  assert.deepEqual(
+    dossier2.indicateurs.map((i) => i.code),
+    ['inscrits'],
+  );
+});
+
+test('listerDossiersParIndicateurs rejette un code de poste inconnu', async (t) => {
+  mockerKnex(t);
+  await assert.rejects(
+    () =>
+      statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+        dateDebut: '2026-07-01',
+        dateFin: '2026-07-31',
+        indicateurs: ['poste:code_inexistant'],
+      }),
+    statistiquesService.ErreurStatistiquesInvalide,
+  );
+});
+
+test('listerDossiersParIndicateurs rejette un code d’indicateur inconnu', async (t) => {
+  mockerKnex(t);
+  await assert.rejects(
+    () =>
+      statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+        dateDebut: '2026-07-01',
+        dateFin: '2026-07-31',
+        indicateurs: ['un_code_qui_nexiste_pas'],
+      }),
+    statistiquesService.ErreurStatistiquesInvalide,
+  );
+});
+
+test('listerDossiersParIndicateurs route un code "poste:<code>" vers listerRepartitionParPosteDossiers', async (t) => {
+  mockerKnex(t);
+  const appel = t.mock.method(statistiquesRepository, 'listerRepartitionParPosteDossiers', async () => [
+    { dossier_id: 5, date_cle: new Date('2026-07-12') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 5, date_creation: '2026-07-12', date_maj: '2026-07-12', candidat_nom: 'Leroy', donnees_disponibilites: null },
+  ]);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['poste:cafetier'],
+  });
+
+  assert.equal(appel.mock.calls[0].arguments[3], 'cafetier');
+});
+
+test('listerDossiersParIndicateurs renvoie un tableau vide sans appeler listerDossiersParIds si aucun dossier ne correspond', async (t) => {
+  mockerKnex(t);
+  t.mock.method(statistiquesRepository, 'listerInscrits', async () => []);
+  const appelListerDossiers = t.mock.method(dossierRepository, 'listerDossiersParIds', async () => []);
+
+  const resultat = await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['inscrits'],
+  });
+
+  assert.deepEqual(resultat, []);
+  assert.deepEqual(appelListerDossiers.mock.calls[0].arguments[2], []);
 });

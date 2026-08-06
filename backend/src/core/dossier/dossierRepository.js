@@ -211,6 +211,40 @@ function listerStatuts(bd, entiteId) {
   return bd('statuts').where({ entite_id: entiteId }).orderBy('ordre', 'asc');
 }
 
+// Même select/jointures que listerDossiers ci-dessus, mais filtré par une liste d'ids précise
+// plutôt qu'un statut — sert au tableau consolidé du dashboard KPI (voir
+// statistiquesService.listerDossiersParIndicateurs) : les indicateurs KPI (historique_statuts,
+// evaluations...) déterminent QUELS dossiers afficher, cette fonction se contente ensuite de
+// récupérer leurs informations d'affichage (candidat, poste, statut courant), exactement comme
+// listerDossiers le fait pour un statut donné. []  en entrée renvoie [] sans requête (whereIn([])
+// est valide en SQL mais inutile de solliciter la base pour un résultat déjà connu).
+function listerDossiersParIds(bd, entiteId, dossierIds) {
+  if (dossierIds.length === 0) return Promise.resolve([]);
+  return bd('dossiers')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        bd.raw('?', ['disponibilites']),
+      );
+    })
+    .where('dossiers.entite_id', entiteId)
+    .whereIn('dossiers.id', dossierIds)
+    .select(
+      'dossiers.id',
+      'dossiers.date_creation',
+      'dossiers.date_maj',
+      'candidats.nom as candidat_nom',
+      'candidats.prenom as candidat_prenom',
+      'statuts.code as statut_code',
+      'statuts.libelle as statut_libelle',
+      'statuts.est_final as statut_est_final',
+      'bloc_disponibilites.donnees as donnees_disponibilites',
+    );
+}
+
 // signature_image est un bytea : le tracé doit déjà être un Buffer à ce stade (voir
 // dossierService.js pour la conversion depuis le PNG base64 envoyé par le front).
 // created_at n'est jamais fourni ici — colonne à defaultTo(now()) côté DB, jamais un
@@ -239,5 +273,6 @@ module.exports = {
   trouverUtilisateurSysteme,
   enregistrerChangementStatut,
   listerDossiers,
+  listerDossiersParIds,
   listerStatuts,
 };

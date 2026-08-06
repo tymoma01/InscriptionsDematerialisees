@@ -48,6 +48,9 @@
   margin-bottom: var(--espace-grand);
 }
 
+/* <button> plutôt qu'un <div> statique (voir Indicateurs.jsx, basculerIndicateur) : reset des
+   styles de bouton natifs (font/text-align/cursor) pour rester visuellement identique à l'ancien
+   <div>, plus un état actif pour la sélection multiple du dashboard cliquable. */
 .indicateurs__tuile {
   display: flex;
   flex-direction: column;
@@ -56,6 +59,30 @@
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* border-box : la bordure à 2px de l'état --active (ci-dessous) ne doit pas agrandir la carte
+     de 2px et décaler la grille — seule la couleur/épaisseur perçue change, pas la taille. */
+  box-sizing: border-box;
+}
+
+.indicateurs__tuile:hover {
+  border-color: var(--couleur-back-office);
+}
+
+.indicateurs__tuile:focus-visible {
+  outline: 2px solid var(--couleur-back-office);
+  outline-offset: 2px;
+}
+
+/* Sélectionnée : même teinte dorée que le reste de l'identité back-office
+   (--couleur-back-office-dore, styles/variables.css), pour rester cohérente avec le graphique
+   "Répartition par poste" existant plutôt que d'introduire une nouvelle couleur d'état. */
+.indicateurs__tuile--active {
+  border-color: var(--couleur-back-office-dore);
+  border-width: 2px;
+  background-color: var(--statut-dore-fond);
 }
 
 .indicateurs__tuile-valeur {
@@ -98,4 +125,43 @@
   color: var(--couleur-texte-secondaire);
   padding: var(--espace-grand);
   text-align: center;
+}
+
+/* Tableau consolidé (voir TableauDossiersSelectionnes.jsx) : même cadre que .indicateurs__graphique
+   (bordure légère, fond plein) pour rester visuellement de la même famille que le reste de la
+   page, sous les graphiques plutôt qu'un panneau superposé (voir Indicateurs.jsx). */
+.indicateurs__tableau-consolide {
+  margin-top: var(--espace-grand);
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+}
+
+.indicateurs__tableau-consolide-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+}
+
+.indicateurs__tableau-consolide-entete h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--couleur-back-office);
+}
+
+.indicateurs__tableau-consolide-entete button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  cursor: pointer;
+}
+
+.indicateurs__tableau-consolide-entete button:hover {
+  border-color: var(--couleur-back-office);
+  color: var(--couleur-back-office);
 }

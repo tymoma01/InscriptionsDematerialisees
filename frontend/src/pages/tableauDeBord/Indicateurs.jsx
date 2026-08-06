@@ -15,8 +15,58 @@ import {
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
-import { obtenirIndicateursKpi } from '../../services/statistiqueService';
+import { obtenirIndicateursKpi, listerDossiersParIndicateurs } from '../../services/statistiqueService';
+import TableauDossiersSelectionnes from './TableauDossiersSelectionnes';
 import './Indicateurs.css';
+
+// Même mapping (nettoyé des résidus workflow v3/hérité) que TableauDeBordAccueil.jsx/
+// Backoffice.jsx — dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet), sert ici
+// à la colonne "Statut" du tableau consolidé (voir plus bas, TableauDossiersSelectionnes).
+const VARIANTE_PAR_CODE_STATUT_ACCECIT = {
+  nouveau: 'neutre',
+  en_attente_pieces: 'attente',
+  en_attente_verification: 'attente',
+  test_planifie: 'bleu',
+  test_non_realise: 'alerte',
+  invalide: 'echec',
+  valide_envoi_formation: 'succes',
+  valide_pret_embauche: 'vert-clair',
+};
+function varianteStatut(code) {
+  return VARIANTE_PAR_CODE_STATUT_ACCECIT[code] ?? 'neutre';
+}
+
+// Codes des indicateurs cliquables des cartes/camemberts (statiques — la répartition par poste,
+// dynamique, a son propre préfixe 'poste:<code>', voir libelleIndicateur/varianteIndicateur plus
+// bas) — mêmes 9 codes que backend/src/core/statistiques/statistiquesService.js
+// (CODES_INDICATEURS_STATIQUES), dupliqué plutôt que partagé (voir plus haut).
+const LIBELLES_INDICATEURS = {
+  inscrits: 'Inscrits',
+  envoyes_en_test: 'Envoyés en test',
+  conversion: 'Taux de validation',
+  delai_inscription_test: 'Délai inscription → test',
+  delai_test_verdict: 'Délai test → verdict',
+  verdict_valide: 'Test réussi',
+  verdict_invalide: 'Test raté',
+  orientation_envoi_formation: 'Envoi en formation',
+  orientation_pret_embauche: 'Prêt à l’embauche',
+};
+// Variantes de badge (StatutBadge) par indicateur — regroupées par famille visuelle : succès/échec
+// alignés sur les couleurs déjà utilisées pour les statuts de dossier équivalents (vert pour un
+// verdict/orientation positif, rouge pour un verdict négatif), le reste réparti sur les variantes
+// restantes pour rester distinguable d'un coup d'œil dans la colonne "Indicateurs" du tableau.
+const VARIANTE_PAR_INDICATEUR = {
+  inscrits: 'neutre',
+  envoyes_en_test: 'bleu',
+  conversion: 'dore',
+  delai_inscription_test: 'attente',
+  delai_test_verdict: 'attente',
+  verdict_valide: 'succes',
+  verdict_invalide: 'echec',
+  orientation_envoi_formation: 'violet',
+  orientation_pret_embauche: 'vert-clair',
+};
+const PREFIXE_POSTE = 'poste:';
 
 // Catalogue des postes ACCECIT — même valeurs que backend/src/core/dossier/postesConstantes.js,
 // dupliqué plutôt que partagé entre front et back (pas de mécanisme de partage de code entre les
@@ -40,6 +90,17 @@ const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
 function libellePoste(code) {
   if (code === null) return 'Non spécifié';
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
+// Un code 'poste:<code>' se traduit via libellePoste ci-dessus (même libellé que la colonne
+// "Poste"/le graphique de répartition) plutôt que d'être dupliqué dans LIBELLES_INDICATEURS.
+function libelleIndicateur(code) {
+  if (code.startsWith(PREFIXE_POSTE)) return libellePoste(code.slice(PREFIXE_POSTE.length));
+  return LIBELLES_INDICATEURS[code] ?? code;
+}
+function varianteIndicateur(code) {
+  if (code.startsWith(PREFIXE_POSTE)) return 'dore';
+  return VARIANTE_PAR_INDICATEUR[code] ?? 'neutre';
 }
 
 // Palette dérivée de la charte back-office (--couleur-back-office, --couleur-back-office-dore,
@@ -79,6 +140,24 @@ export default function Indicateurs() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
+  // Sélection multiple des cartes/segments cliqués (Set de codes, voir LIBELLES_INDICATEURS plus
+  // haut) — état séparé de `indicateurs` ci-dessus (les agrégats affichés sur les cartes/
+  // graphiques), qui reste la source de vérité des CHIFFRES ; celui-ci ne pilote que le tableau
+  // consolidé sous les graphiques.
+  const [selectionIndicateurs, setSelectionIndicateurs] = useState(() => new Set());
+  const [dossiersSelectionnes, setDossiersSelectionnes] = useState([]);
+  const [chargementTableau, setChargementTableau] = useState(false);
+  const [erreurTableau, setErreurTableau] = useState(null);
+
+  function basculerIndicateur(code) {
+    setSelectionIndicateurs((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(code)) suivant.delete(code);
+      else suivant.add(code);
+      return suivant;
+    });
+  }
+
   const postesDisponibles = useMemo(() => {
     if (typePoste === 'bureau') return POSTES_BUREAU;
     if (typePoste === 'hotel') return POSTES_HOTEL;
@@ -91,6 +170,23 @@ export default function Indicateurs() {
   useEffect(() => {
     if (poste && !postesDisponibles.includes(poste)) setPoste('');
   }, [postesDisponibles, poste]);
+
+  // Même raisonnement pour un segment de répartition par poste sélectionné ('poste:<code>') :
+  // si le typePoste filtré ne propose plus ce poste, sa sélection n'a plus de sens (le segment
+  // correspondant a d'ailleurs disparu du graphique).
+  useEffect(() => {
+    setSelectionIndicateurs((precedent) => {
+      let modifie = false;
+      const suivant = new Set(precedent);
+      for (const code of suivant) {
+        if (code.startsWith(PREFIXE_POSTE) && !postesDisponibles.includes(code.slice(PREFIXE_POSTE.length))) {
+          suivant.delete(code);
+          modifie = true;
+        }
+      }
+      return modifie ? suivant : precedent;
+    });
+  }, [postesDisponibles]);
 
   useEffect(() => {
     let annule = false;
@@ -118,6 +214,42 @@ export default function Indicateurs() {
     };
   }, [periode, typePoste, poste]);
 
+  // Tableau consolidé : re-fetché à chaque changement de sélection OU de filtres (période/poste/
+  // typePoste) — les dossiers listés doivent toujours correspondre aux mêmes critères que les
+  // chiffres affichés sur les cartes/graphiques au même instant. Sélection vide : pas d'appel
+  // réseau, juste une liste vide (aucune sélection ne peut logiquement rien renvoyer).
+  useEffect(() => {
+    if (selectionIndicateurs.size === 0) {
+      setDossiersSelectionnes([]);
+      setErreurTableau(null);
+      return;
+    }
+    let annule = false;
+    setChargementTableau(true);
+    setErreurTableau(null);
+    listerDossiersParIndicateurs({
+      dateDebut: periode.dateDebut,
+      dateFin: periode.dateFin,
+      typePoste: typePoste || undefined,
+      poste: poste || undefined,
+      indicateurs: selectionIndicateurs,
+    })
+      .then((valeur) => {
+        if (!annule) setDossiersSelectionnes(valeur);
+      })
+      .catch((erreurRequete) => {
+        if (!annule) {
+          setErreurTableau(erreurRequete.response?.data?.erreur ?? 'Impossible de récupérer le détail des dossiers.');
+        }
+      })
+      .finally(() => {
+        if (!annule) setChargementTableau(false);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [selectionIndicateurs, periode, typePoste, poste]);
+
   if (chargementSession) {
     return (
       <PageBackOffice>
@@ -134,17 +266,20 @@ export default function Indicateurs() {
     );
   }
 
+  // `code` : indicateur associé à ce segment (voir LIBELLES_INDICATEURS/basculerIndicateur plus
+  // haut) — absent uniquement pour "Non spécifié" (posteCode null, voir plus bas) : cette
+  // catégorie n'a pas d'indicateur "poste:" valide, donc pas cliquable.
   const donneesVerdicts = indicateurs
     ? [
-        { nom: 'Réussis', total: indicateurs.verdicts.valide },
-        { nom: 'Ratés', total: indicateurs.verdicts.invalide },
+        { nom: 'Réussis', total: indicateurs.verdicts.valide, code: 'verdict_valide' },
+        { nom: 'Ratés', total: indicateurs.verdicts.invalide, code: 'verdict_invalide' },
       ]
     : [];
 
   const donneesOrientations = indicateurs
     ? [
-        { nom: 'Envoi en formation', total: indicateurs.orientations.envoi_formation },
-        { nom: 'Prêt à l’embauche', total: indicateurs.orientations.pret_embauche },
+        { nom: 'Envoi en formation', total: indicateurs.orientations.envoi_formation, code: 'orientation_envoi_formation' },
+        { nom: 'Prêt à l’embauche', total: indicateurs.orientations.pret_embauche, code: 'orientation_pret_embauche' },
       ]
     : [];
 
@@ -152,6 +287,7 @@ export default function Indicateurs() {
     ? indicateurs.repartitionParPoste.parEvaluation.map((ligne) => ({
         nom: libellePoste(ligne.posteCode),
         total: ligne.nbEvaluations,
+        code: ligne.posteCode ? `${PREFIXE_POSTE}${ligne.posteCode}` : null,
       }))
     : [];
 
@@ -209,34 +345,63 @@ export default function Indicateurs() {
         {!chargement && !erreur && indicateurs && (
           <>
             <div className="indicateurs__tuiles">
-              <div className="indicateurs__tuile">
+              {/* Bouton plutôt qu'un <div> statique : sélection multiple des cartes (voir
+                  basculerIndicateur plus haut), accessible au clavier sans rien ajouter. Chaque
+                  carte reste indépendamment sélectionnable (pas un groupe radio) : rien n'empêche
+                  de croiser "Inscrits" et "Envoyés en test" dans le tableau consolidé. */}
+              <button
+                type="button"
+                className={`indicateurs__tuile${selectionIndicateurs.has('inscrits') ? ' indicateurs__tuile--active' : ''}`}
+                aria-pressed={selectionIndicateurs.has('inscrits')}
+                onClick={() => basculerIndicateur('inscrits')}
+              >
                 <span className="indicateurs__tuile-valeur">{indicateurs.inscrits.total}</span>
                 <span className="indicateurs__tuile-libelle">Inscrits</span>
-              </div>
-              <div className="indicateurs__tuile">
+              </button>
+              <button
+                type="button"
+                className={`indicateurs__tuile${selectionIndicateurs.has('envoyes_en_test') ? ' indicateurs__tuile--active' : ''}`}
+                aria-pressed={selectionIndicateurs.has('envoyes_en_test')}
+                onClick={() => basculerIndicateur('envoyes_en_test')}
+              >
                 <span className="indicateurs__tuile-valeur">{indicateurs.envoyesEnTest.total}</span>
                 <span className="indicateurs__tuile-libelle">Envoyés en test</span>
-              </div>
-              <div className="indicateurs__tuile">
+              </button>
+              <button
+                type="button"
+                className={`indicateurs__tuile${selectionIndicateurs.has('conversion') ? ' indicateurs__tuile--active' : ''}`}
+                aria-pressed={selectionIndicateurs.has('conversion')}
+                onClick={() => basculerIndicateur('conversion')}
+              >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.conversion.taux !== null ? FORMAT_POURCENTAGE.format(indicateurs.conversion.taux) : '-'}
                 </span>
                 <span className="indicateurs__tuile-libelle">
                   Taux de validation ({indicateurs.conversion.numerateur}/{indicateurs.conversion.denominateur})
                 </span>
-              </div>
-              <div className="indicateurs__tuile">
+              </button>
+              <button
+                type="button"
+                className={`indicateurs__tuile${selectionIndicateurs.has('delai_inscription_test') ? ' indicateurs__tuile--active' : ''}`}
+                aria-pressed={selectionIndicateurs.has('delai_inscription_test')}
+                onClick={() => basculerIndicateur('delai_inscription_test')}
+              >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours ?? '-'} j
                 </span>
                 <span className="indicateurs__tuile-libelle">Délai moyen inscription → test planifié</span>
-              </div>
-              <div className="indicateurs__tuile">
+              </button>
+              <button
+                type="button"
+                className={`indicateurs__tuile${selectionIndicateurs.has('delai_test_verdict') ? ' indicateurs__tuile--active' : ''}`}
+                aria-pressed={selectionIndicateurs.has('delai_test_verdict')}
+                onClick={() => basculerIndicateur('delai_test_verdict')}
+              >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.testVersVerdict.moyenneJours ?? '-'} j
                 </span>
                 <span className="indicateurs__tuile-libelle">Délai moyen test → verdict</span>
-              </div>
+              </button>
             </div>
 
             <div className="indicateurs__graphiques">
@@ -249,7 +414,21 @@ export default function Indicateurs() {
                     <PieChart>
                       <Pie data={donneesVerdicts} dataKey="total" nameKey="nom" outerRadius={90} label>
                         {donneesVerdicts.map((entree, index) => (
-                          <Cell key={entree.nom} fill={COULEURS_GRAPHIQUE[index % COULEURS_GRAPHIQUE.length]} />
+                          // Segment cliquable (voir basculerIndicateur) : opacité réduite pour les
+                          // segments non sélectionnés dès qu'AU MOINS UN segment (toutes cartes/
+                          // graphiques confondus) est sélectionné, contour renforcé sur les
+                          // segments actifs — même logique de mise en évidence que les tuiles
+                          // ci-dessus (classe --active), adaptée aux props recharts (pas de
+                          // className sur <Cell>).
+                          <Cell
+                            key={entree.nom}
+                            fill={COULEURS_GRAPHIQUE[index % COULEURS_GRAPHIQUE.length]}
+                            cursor="pointer"
+                            opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
+                            stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
+                            strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
+                            onClick={() => basculerIndicateur(entree.code)}
+                          />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -268,7 +447,15 @@ export default function Indicateurs() {
                     <PieChart>
                       <Pie data={donneesOrientations} dataKey="total" nameKey="nom" outerRadius={90} label>
                         {donneesOrientations.map((entree, index) => (
-                          <Cell key={entree.nom} fill={COULEURS_GRAPHIQUE[index % COULEURS_GRAPHIQUE.length]} />
+                          <Cell
+                            key={entree.nom}
+                            fill={COULEURS_GRAPHIQUE[index % COULEURS_GRAPHIQUE.length]}
+                            cursor="pointer"
+                            opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
+                            stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
+                            strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
+                            onClick={() => basculerIndicateur(entree.code)}
+                          />
                         ))}
                       </Pie>
                       <Tooltip />
@@ -289,12 +476,57 @@ export default function Indicateurs() {
                       <XAxis dataKey="nom" interval={0} angle={-20} textAnchor="end" height={80} />
                       <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="total" fill="#2e2013" />
+                      {/* <Cell> par barre (comme pour les camemberts ci-dessus) : chaque barre a
+                          son propre indicateur 'poste:<code>', sauf "Non spécifié" (code null,
+                          voir donneesRepartitionPoste) — pas cliquable, curseur par défaut, jamais
+                          estompée par la sélection des autres. */}
+                      <Bar dataKey="total" fill="#2e2013">
+                        {donneesRepartitionPoste.map((entree) => (
+                          <Cell
+                            key={entree.nom}
+                            cursor={entree.code ? 'pointer' : 'default'}
+                            opacity={
+                              !entree.code || selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code)
+                                ? 1
+                                : 0.35
+                            }
+                            stroke={entree.code && selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
+                            strokeWidth={entree.code && selectionIndicateurs.has(entree.code) ? 2 : undefined}
+                            onClick={() => entree.code && basculerIndicateur(entree.code)}
+                          />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}
               </section>
             </div>
+
+            {/* Tableau consolidé : uniquement visible dès qu'au moins une carte/segment est
+                sélectionné — en dessous des graphiques (pas un panneau superposé) pour garder la
+                sélection visible pendant qu'on consulte le détail, voir l'audit préalable à cette
+                fonctionnalité. */}
+            {selectionIndicateurs.size > 0 && (
+              <section className="indicateurs__tableau-consolide">
+                <div className="indicateurs__tableau-consolide-entete">
+                  <h2>Dossiers sélectionnés ({selectionIndicateurs.size} indicateur(s))</h2>
+                  <button type="button" onClick={() => setSelectionIndicateurs(new Set())}>
+                    Effacer la sélection
+                  </button>
+                </div>
+                {chargementTableau && <p>Chargement des dossiers…</p>}
+                {erreurTableau && <p role="alert">{erreurTableau}</p>}
+                {!chargementTableau && !erreurTableau && (
+                  <TableauDossiersSelectionnes
+                    dossiers={dossiersSelectionnes}
+                    libellePoste={libellePoste}
+                    libelleIndicateur={libelleIndicateur}
+                    varianteIndicateur={varianteIndicateur}
+                    varianteStatut={varianteStatut}
+                  />
+                )}
+              </section>
+            )}
           </>
         )}
       </div>
