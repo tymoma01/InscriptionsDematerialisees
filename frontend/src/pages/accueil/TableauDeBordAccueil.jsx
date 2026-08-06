@@ -49,19 +49,16 @@ const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test
 // base : un code absent de ce mapping (autre entité, nouveau statut) retombe simplement sur un
 // badge neutre plutôt que d'échouer.
 // Une variante distincte par statut (voir styles/variables.css, --statut-*) plutôt que les 4
-// polarités génériques seules : avec seulement neutre/attente/succes/echec, la plupart des 10
-// statuts ACCECIT retombaient sur "neutre" (gris) faute d'entrée dans ce mapping, rendant des
-// statuts pourtant très différents indiscernables au premier coup d'œil sur la liste.
+// polarités génériques seules — même mapping que Backoffice.jsx (dupliqué plutôt que partagé :
+// quelques lignes de données, pas de quoi justifier un module commun, voir CLAUDE.md conventions
+// du projet).
 const VARIANTE_PAR_CODE_ACCECIT = {
   nouveau: 'neutre',
   en_attente_pieces: 'attente',
-  en_attente_verification: 'attente', // workflow hérité, plus jamais atteint (voir CODES_STATUTS_FILTRES_ACCUEIL)
+  en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
   test_planifie: 'bleu',
   test_non_realise: 'alerte',
   invalide: 'echec',
-  en_attente_validation_recruteur: 'dore', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
-  valide: 'succes', // workflow v3, temporaire (voir migrerWorkflowAccecitV3.js)
-  rejete: 'echec-fort',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
 };
@@ -89,20 +86,27 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Sous-ensemble des statuts proposés comme filtres sur cette page (accueil : dossiers à traiter
-// avant l'envoi en test) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui
-// reste piloté entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification"
-// (workflow hérité, plus jamais atteint) n'y figure volontairement pas.
+// Tous les statuts réellement atteignables aujourd'hui dans le workflow actif (vérifié en base :
+// `est_initial` ou cible d'une transition existante dans `transitions_statut`, entité ACCECIT,
+// 2026-08-04) — même liste complète que CODES_STATUTS_FILTRES_RECRUTEUR (Backoffice.jsx) sur ce
+// point, propre à cette page, pas au moteur générique FiltresStatut.jsx qui reste piloté
+// entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification" (workflow
+// hérité) n'y figure volontairement pas : plus aucun dossier ne peut l'atteindre.
 const CODES_STATUTS_FILTRES_ACCUEIL = [
   'nouveau',
   'en_attente_pieces',
   'test_planifie',
-  'test_non_realise',
   // Ajouté avec le bouton "Replanifier" (voir STATUTS_REPLANIFIABLES ci-dessous) : permet à
   // l'accueil d'isoler d'un coup les dossiers en attente de replanification après un test
   // invalidé, sans devoir les repérer dans la liste complète. "invalide" remplace
   // "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif).
+  'test_non_realise',
   'invalide',
+  // Ajoutés pour couvrir les deux verdicts positifs (voir 9778d03) : sans ces deux entrées, les
+  // dossiers validés (embauche directe ou envoi en formation) restaient visibles dans la liste
+  // mais impossibles à isoler par filtre sur cette page, contrairement au back-office recruteur.
+  'valide_envoi_formation',
+  'valide_pret_embauche',
 ];
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
