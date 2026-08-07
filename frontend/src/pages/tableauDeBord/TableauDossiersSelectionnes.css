@@ -44,6 +44,15 @@
   background-color: var(--couleur-fond-survol-tableau);
 }
 
+/* Rang d'affichage (voir TableauDossiersSelectionnes.jsx) — largeur fixe étroite, chiffre centré,
+   même largeur que --dossier-list-largeur-colonne-numero (DossierList.css) pour rester cohérent
+   visuellement, mais sans position: sticky : ce tableau n'a pas de colonne figée au défilement
+   horizontal (voir commentaire d'en-tête de ce fichier). */
+.tableau-dossiers-selectionnes__colonne-numero {
+  width: 3rem;
+  text-align: center;
+}
+
 .tableau-dossiers-selectionnes__postes,
 .tableau-dossiers-selectionnes__indicateurs {
   display: flex;

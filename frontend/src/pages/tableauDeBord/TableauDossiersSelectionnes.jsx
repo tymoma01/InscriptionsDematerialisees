@@ -37,6 +37,13 @@ export default function TableauDossiersSelectionnes({
       <table className="tableau-dossiers-selectionnes">
         <thead>
           <tr>
+            {/* Rang d'affichage (1, 2, 3...), pas dossier.id (déjà affiché juste après, voir
+                "N° dossier") — même distinction et même patron que DossierList.jsx
+                (.dossier-list__colonne-numero), sans la variante figée au défilement horizontal :
+                ce tableau n'a pas de colonne figée (voir TableauDossiersSelectionnes.css). */}
+            <th scope="col" className="tableau-dossiers-selectionnes__colonne-numero">
+              N°
+            </th>
             <th scope="col">N° dossier</th>
             <th scope="col">Candidat</th>
             <th scope="col">Poste</th>
@@ -46,8 +53,9 @@ export default function TableauDossiersSelectionnes({
           </tr>
         </thead>
         <tbody>
-          {dossiers.map((dossier) => (
+          {dossiers.map((dossier, index) => (
             <tr key={dossier.id}>
+              <td className="tableau-dossiers-selectionnes__colonne-numero">{index + 1}</td>
               <td>
                 <Link to={`/recruteur/dossiers/${dossier.id}/validation`}>#{dossier.id}</Link>
               </td>
