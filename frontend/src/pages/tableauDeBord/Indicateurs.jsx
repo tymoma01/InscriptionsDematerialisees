@@ -120,6 +120,59 @@ function estIndicateurPoste(code) {
   return code.startsWith(PREFIXE_POSTE) || code === 'poste_non_specifie';
 }
 
+// Indicateurs redondants avec le STATUT déjà affiché en colonne "Statut" du tableau consolidé
+// (voir TableauDossiersSelectionnes.jsx, colonne "Indicateurs") — mapping validé lors de l'audit
+// de la colonne INDICATEURS (2026-08-07) : un code n'est listé pour un statut que si TOUT dossier
+// à ce statut a nécessairement satisfait cet indicateur (conséquence logique garantie par le
+// graphe de transitions de workflow.config.json ACCECIT, croisée avec le WHERE réel de chaque
+// requête listerX de statistiquesRepository.js — pas une simple corrélation "en général vrai").
+//
+// 'inscrits' : redondant pour TOUS les statuts (exister comme ligne du tableau implique déjà
+// d'être inscrit), donc présent sur chaque entrée ci-dessous.
+//
+// Volontairement PAS de verdict_valide sur test_planifie/test_non_realise, ni de verdict_invalide
+// sur valide_envoi_formation/valide_pret_embauche : un dossier peut avoir échoué une tentative de
+// test puis avoir été replanifié (invalide -> test_planifie, voir workflow.config.json) — le badge
+// reste alors une information réelle sur son historique, pas une redondance avec son statut
+// courant. Même raisonnement pour delai_test_verdict, lié au même fait que verdict_valide/invalide.
+//
+// 'conversion' n'apparaît que sur les deux statuts finaux positifs : listerDossiersConvertis
+// (statistiquesRepository.js) filtre directement sur ces deux codes de statut, cet indicateur ne
+// peut donc JAMAIS apparaître sur un dossier dans un autre statut — 100% redondant dès qu'il est
+// présent.
+//
+// Répartition par poste ('poste:<code>'/'poste_non_specifie') hors périmètre : filtrée séparément
+// par estIndicateurPoste ci-dessus, jamais par ce mapping (voir audit, "sans toucher... à la
+// breakdown par poste").
+const INDICATEURS_REDONDANTS_PAR_STATUT = {
+  nouveau: ['inscrits'],
+  en_attente_pieces: ['inscrits'],
+  test_planifie: ['inscrits', 'envoyes_en_test', 'delai_inscription_test'],
+  test_non_realise: ['inscrits', 'envoyes_en_test', 'delai_inscription_test'],
+  invalide: ['inscrits', 'envoyes_en_test', 'delai_inscription_test', 'verdict_invalide', 'delai_test_verdict'],
+  valide_envoi_formation: [
+    'inscrits',
+    'envoyes_en_test',
+    'delai_inscription_test',
+    'verdict_valide',
+    'delai_test_verdict',
+    'conversion',
+    'orientation_envoi_formation',
+  ],
+  valide_pret_embauche: [
+    'inscrits',
+    'envoyes_en_test',
+    'delai_inscription_test',
+    'verdict_valide',
+    'delai_test_verdict',
+    'conversion',
+    'orientation_pret_embauche',
+  ],
+};
+function estIndicateurRedondant(code, statutCode) {
+  return INDICATEURS_REDONDANTS_PAR_STATUT[statutCode]?.includes(code) ?? false;
+}
+
 // Une palette dédiée par graphique (couleurs fixes, PAR CLÉ — jamais par position/index) plutôt
 // que la teinte unique cyclée sur les 3 graphiques d'avant : plus agréable à l'œil (chaque
 // graphique a sa propre identité visuelle) et surtout stable — colorier par index (voir
@@ -624,6 +677,7 @@ export default function Indicateurs() {
                     varianteIndicateur={varianteIndicateur}
                     varianteStatut={varianteStatut}
                     estIndicateurPoste={estIndicateurPoste}
+                    estIndicateurRedondant={estIndicateurRedondant}
                   />
                 )}
               </section>
