@@ -156,19 +156,33 @@
   color: var(--couleur-back-office);
 }
 
+/* Boutons d'action (mode capture : "Prendre une photo"/"Choisir un fichier" ; mode caméra :
+   "Capturer la photo"/"Annuler" ; mode aperçu : "Reprendre"/"Charger") alignés à droite, sous la
+   zone de contenu — même alignement que le bouton "Fermer" de .capture-tablette__panneau-entete
+   juste au-dessus, pour une bordure droite cohérente sur tout le panneau. */
 .capture-tablette__choix-methode,
 .capture-tablette__apercu-actions,
-.capture-tablette__camera {
+.capture-tablette__camera-actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--espace-moyen);
   align-items: center;
   flex-wrap: wrap;
 }
 
 .capture-tablette__apercu-actions,
-.capture-tablette__camera {
+.capture-tablette__camera-actions {
   gap: var(--espace-petit);
   margin-top: var(--espace-petit);
+}
+
+/* Vidéo puis boutons empilés verticalement (même principe contenu -> actions que
+   choix-methode/apercu-actions ci-dessus), plutôt qu'une seule ligne flex vidéo+boutons : permet
+   d'aligner les boutons à droite indépendamment de la largeur de la vidéo (voir
+   .capture-tablette__camera-actions). */
+.capture-tablette__camera {
+  display: flex;
+  flex-direction: column;
 }
 
 .capture-tablette__bouton-fichier {

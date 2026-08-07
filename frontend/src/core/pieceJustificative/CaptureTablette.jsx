@@ -539,12 +539,14 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
               l'appel explicite à video.play() dans l'effet ci-dessus — sans effet indésirable
               ici puisque srcObject n'est de toute façon assigné qu'après le montage. */}
           <video ref={videoRef} className="capture-tablette__video" autoPlay playsInline muted />
-          <button type="button" onClick={capturerPhoto}>
-            Capturer la photo
-          </button>
-          <button type="button" onClick={annulerCamera}>
-            Annuler
-          </button>
+          <div className="capture-tablette__camera-actions">
+            <button type="button" onClick={capturerPhoto}>
+              Capturer la photo
+            </button>
+            <button type="button" onClick={annulerCamera}>
+              Annuler
+            </button>
+          </div>
         </div>
       )}
 
