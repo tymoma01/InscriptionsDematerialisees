@@ -61,6 +61,17 @@
   white-space: nowrap;
 }
 
+/* Groupe des postes affichés dans la colonne "Indicateurs" (distinct des indicateurs colorés
+   au-dessus, voir TableauDossiersSelectionnes.jsx) : léger espacement + séparateur du groupe
+   précédent pour que les deux natures d'information restent visuellement scindées au sein d'une
+   même cellule, même quand les deux sont présentes en même temps — sans renommer la colonne, qui
+   ferait doublon avec la colonne "Poste" déjà présente. */
+.tableau-dossiers-selectionnes__postes--indicateurs {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--couleur-bordure-legere);
+}
+
 .tableau-dossiers-selectionnes__dates {
   margin: 0;
   padding: 0;

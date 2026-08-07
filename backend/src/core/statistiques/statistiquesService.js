@@ -149,6 +149,10 @@ const CODES_INDICATEURS_STATIQUES = [
   'conversion',
   'delai_inscription_test',
   'delai_test_verdict',
+  // Barre "Non spécifié" du graphique de répartition par poste (Indicateurs.jsx) — statique
+  // (contrairement aux barres 'poste:<code>' ci-dessous) : "aucun poste renseigné" n'est pas un
+  // poste parmi POSTES_BUREAU/POSTES_HOTEL, ne peut donc pas prendre le préfixe 'poste:'.
+  'poste_non_specifie',
 ];
 
 const PREFIXE_POSTE = 'poste:';
@@ -177,6 +181,8 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
       return statistiquesRepository.listerDelaiInscriptionVersTestPlanifie(bd, entiteId, filtres);
     case 'delai_test_verdict':
       return statistiquesRepository.listerDelaiTestVersVerdict(bd, entiteId, filtres);
+    case 'poste_non_specifie':
+      return statistiquesRepository.listerEvaluationsSansPosteDossiers(bd, entiteId, filtres);
     default:
       if (code.startsWith(PREFIXE_POSTE)) {
         const posteCode = code.slice(PREFIXE_POSTE.length);
@@ -191,12 +197,14 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
   }
 }
 
-// Tableau consolidé du dashboard KPI (cartes/segments cliquables, voir Indicateurs.jsx) : pour
-// une sélection d'indicateurs, renvoie les dossiers qui en satisfont AU MOINS UN, dédupliqués (un
-// dossier sélectionné par deux indicateurs à la fois n'apparaît qu'une fois), chacun annoté de la
-// liste des indicateurs demandés qu'il satisfait effectivement (pour les badges + la colonne
-// "dates clés" du tableau). Même bornesPeriode()/filtres que obtenirIndicateursKpi : les deux
-// endpoints doivent toujours s'accorder sur ce qui compte comme "dans la période".
+// Tableau consolidé du dashboard KPI (cartes/segments cliquables, voir Indicateurs.jsx) — ET
+// STRICT : intersection de TOUS les indicateurs sélectionnés, peu importe leur nature (décision
+// utilisateur, 2026-08-07 — remplace un filtrage à facettes catégorisé essayé juste avant, voir
+// historique git, jugé trop implicite : "Inscrits" + "Test réussi" + "Envoi en formation" ne
+// montre désormais que les dossiers qui satisfont les TROIS à la fois). Conséquence acceptée :
+// deux indicateurs mutuellement exclusifs (ex. verdict_valide + verdict_invalide, un dossier n'a
+// qu'un seul verdict par test) donnent un résultat vide — comportement normal d'un ET strict, pas
+// un cas particulier à détecter ni à traiter différemment.
 async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePoste, poste, indicateurs }) {
   const bd = await obtenirKnex();
   const filtres = { ...bornesPeriode(dateDebut, dateFin), typePoste, poste };
@@ -205,19 +213,30 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
     indicateurs.map(async (code) => ({ code, lignes: await resoudreListeIndicateur(bd, entite.id, filtres, code) })),
   );
 
-  // dossierId -> code indicateur -> date_cle (Map imbriquée plutôt qu'un tableau à plat : accès
-  // direct par dossier au moment de fusionner avec les infos d'affichage ci-dessous, sans
-  // reparcourir résultatsParIndicateur à chaque dossier).
+  // dossierId -> code indicateur -> date_cle (pour les badges/dates du tableau, voir plus bas) —
+  // construite en même temps que la liste des ids par indicateur ci-dessous, qui sert elle à
+  // l'intersection.
   const indicateursParDossier = new Map();
-  for (const { code, lignes } of resultatsParIndicateur) {
+  const idsParIndicateur = resultatsParIndicateur.map(({ code, lignes }) => {
+    const ids = new Set();
     for (const ligne of lignes) {
       const dossierId = ligne.dossier_id;
       if (!indicateursParDossier.has(dossierId)) indicateursParDossier.set(dossierId, new Map());
       indicateursParDossier.get(dossierId).set(code, ligne.date_cle);
+      ids.add(dossierId);
     }
-  }
+    return ids;
+  });
 
-  const dossierIds = [...indicateursParDossier.keys()];
+  // Intersection de TOUS les ensembles, y compris ceux vides : un indicateur sans aucun dossier
+  // correspondant vide déjà le résultat final à ce stade, sans traitement particulier (comportement
+  // naturel de l'intersection, pas un cas à détecter séparément comme avec le filtrage à facettes).
+  let dossierIdsRetenus = null; // null = aucune contrainte posée pour l'instant (aucun indicateur encore traité)
+  for (const ids of idsParIndicateur) {
+    dossierIdsRetenus = dossierIdsRetenus === null ? ids : new Set([...dossierIdsRetenus].filter((id) => ids.has(id)));
+  }
+  const dossierIds = dossierIdsRetenus ? [...dossierIdsRetenus] : [];
+
   const dossiers = await dossierRepository.listerDossiersParIds(bd, entite.id, dossierIds);
 
   return dossiers
@@ -227,8 +246,11 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
       postesHotel: donnees_disponibilites?.posteHotel ?? [],
       // Respecte l'ordre de `indicateurs` demandé par l'appelant (pas l'ordre d'insertion dans la
       // Map, qui dépendrait de Promise.all) — affichage des badges stable d'un appel à l'autre.
+      // Avec un ET strict, un dossier retenu satisfait de toute façon TOUS les codes demandés :
+      // ce filtre n'est donc plus qu'une garde de cohérence (utile si jamais indicateursParDossier
+      // et l'intersection divergeaient), pas un tri actif comme du temps du filtrage à facettes.
       indicateurs: indicateurs
-        .filter((code) => indicateursParDossier.get(reste.id).has(code))
+        .filter((code) => indicateursParDossier.get(reste.id)?.has(code))
         .map((code) => ({ code, dateCle: indicateursParDossier.get(reste.id).get(code) })),
     }))
     .sort((a, b) => new Date(b.date_maj) - new Date(a.date_maj));

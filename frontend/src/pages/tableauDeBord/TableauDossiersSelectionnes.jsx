@@ -4,11 +4,12 @@ import './TableauDossiersSelectionnes.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Tableau consolidé du dashboard KPI (Indicateurs.jsx) : une ligne par dossier satisfaisant au
-// moins un des indicateurs sélectionnés (cartes/segments cliqués). La déduplication (un dossier
-// qui satisfait deux indicateurs à la fois n'apparaît qu'une fois) est déjà faite côté back
-// (statistiquesService.listerDossiersParIndicateurs) — ce composant se contente d'afficher ce
-// qu'il reçoit, aucune règle métier propre, même esprit que DossierList.jsx.
+// Tableau consolidé du dashboard KPI (Indicateurs.jsx) : une ligne par dossier satisfaisant TOUS
+// les indicateurs sélectionnés à la fois (ET strict, voir
+// statistiquesService.listerDossiersParIndicateurs — deux indicateurs mutuellement exclusifs, ex.
+// "Test réussi" + "Test raté", donnent donc légitimement un tableau vide). Ce composant se
+// contente d'afficher ce qu'il reçoit — la logique de filtrage vit entièrement côté back, aucune
+// règle métier propre ici, même esprit que DossierList.jsx.
 //
 // Composant dédié plutôt qu'extension de DossierList (core/dossier/DossierList.jsx) : les
 // colonnes diffèrent trop pour justifier d'alourdir un composant déjà utilisé tel quel par
@@ -16,8 +17,8 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // qui n'affiche qu'un rang d'affichage —, badges d'indicateurs, dates clés qui varient selon
 // l'indicateur plutôt qu'une seule "dernière mise à jour").
 //
-// `libelleIndicateur`/`varianteIndicateur`/`varianteStatut` : mêmes principes que
-// `libellePoste`/`varianteStatut` dans DossierList.jsx — ce composant ne connaît aucun code
+// `libelleIndicateur`/`varianteIndicateur`/`varianteStatut`/`estIndicateurPoste` : mêmes principes
+// que `libellePoste`/`varianteStatut` dans DossierList.jsx — ce composant ne connaît aucun code
 // métier propre à ACCECIT, uniquement des fonctions de traduction fournies par l'appelant.
 export default function TableauDossiersSelectionnes({
   dossiers,
@@ -25,6 +26,7 @@ export default function TableauDossiersSelectionnes({
   libelleIndicateur,
   varianteIndicateur,
   varianteStatut,
+  estIndicateurPoste,
 }) {
   if (dossiers.length === 0) {
     return <p className="tableau-dossiers-selectionnes__vide">Aucun dossier pour cette sélection.</p>;
@@ -65,11 +67,29 @@ export default function TableauDossiersSelectionnes({
                 <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
               </td>
               <td>
+                {/* Deux groupes visuellement distincts plutôt qu'une liste unique : un poste
+                    ('poste:<code>'/'poste_non_specifie', issu du graphique de répartition) n'est
+                    pas un indicateur de pilotage au même titre que "Inscrits"/"Test réussi"/... —
+                    même style de puce grise que la colonne "Poste" (badge-poste, pas StatutBadge)
+                    pour que le rapprochement visuel entre les deux colonnes soit immédiat. */}
                 <div className="tableau-dossiers-selectionnes__indicateurs">
-                  {dossier.indicateurs.map(({ code }) => (
-                    <StatutBadge key={code} libelle={libelleIndicateur(code)} variante={varianteIndicateur(code)} />
-                  ))}
+                  {dossier.indicateurs
+                    .filter(({ code }) => !estIndicateurPoste(code))
+                    .map(({ code }) => (
+                      <StatutBadge key={code} libelle={libelleIndicateur(code)} variante={varianteIndicateur(code)} />
+                    ))}
                 </div>
+                {dossier.indicateurs.some(({ code }) => estIndicateurPoste(code)) && (
+                  <div className="tableau-dossiers-selectionnes__postes tableau-dossiers-selectionnes__postes--indicateurs">
+                    {dossier.indicateurs
+                      .filter(({ code }) => estIndicateurPoste(code))
+                      .map(({ code }) => (
+                        <span key={code} className="tableau-dossiers-selectionnes__badge-poste">
+                          {libelleIndicateur(code)}
+                        </span>
+                      ))}
+                  </div>
+                )}
               </td>
               <td>
                 <ul className="tableau-dossiers-selectionnes__dates">

@@ -50,6 +50,9 @@ const LIBELLES_INDICATEURS = {
   verdict_invalide: 'Test raté',
   orientation_envoi_formation: 'Envoi en formation',
   orientation_pret_embauche: 'Prêt à l’embauche',
+  // Barre "Non spécifié" du graphique de répartition par poste — code statique (pas 'poste:<code>',
+  // voir PREFIXE_POSTE/libelleIndicateur plus bas) : "aucun poste renseigné" n'est pas un poste.
+  poste_non_specifie: 'Poste non spécifié',
 };
 // Variantes de badge (StatutBadge) par indicateur — regroupées par famille visuelle : succès/échec
 // alignés sur les couleurs déjà utilisées pour les statuts de dossier équivalents (vert pour un
@@ -65,6 +68,9 @@ const VARIANTE_PAR_INDICATEUR = {
   verdict_invalide: 'echec',
   orientation_envoi_formation: 'violet',
   orientation_pret_embauche: 'vert-clair',
+  // Même variante que les barres 'poste:<code>' (voir varianteIndicateur plus bas) : reste dans
+  // la même famille visuelle "répartition par poste" que les autres barres du même graphique.
+  poste_non_specifie: 'dore',
 };
 const PREFIXE_POSTE = 'poste:';
 
@@ -102,12 +108,58 @@ function varianteIndicateur(code) {
   if (code.startsWith(PREFIXE_POSTE)) return 'dore';
   return VARIANTE_PAR_INDICATEUR[code] ?? 'neutre';
 }
+// Distingue les deux natures de code portées par `dossier.indicateurs` (voir
+// TableauDossiersSelectionnes.jsx, colonne "Indicateurs") : un poste ('poste:<code>' ou
+// 'poste_non_specifie', issus du graphique de répartition) n'est pas un indicateur de pilotage au
+// même titre que "Inscrits"/"Test réussi"/... — mélangés sans distinction dans la même colonne,
+// ils prêtaient à confusion. Pas de renommage de colonne pour autant ("Indicateurs et postes"
+// ferait doublon avec la colonne "Poste" déjà présente, décision utilisateur) : seul le style du
+// badge (puce grise façon colonne "Poste", voir TableauDossiersSelectionnes.jsx) distingue les
+// deux, regroupés séparément dans la même cellule.
+function estIndicateurPoste(code) {
+  return code.startsWith(PREFIXE_POSTE) || code === 'poste_non_specifie';
+}
 
-// Palette dérivée de la charte back-office (--couleur-back-office, --couleur-back-office-dore,
-// --statut-bleu/vert/violet-texte, voir styles/variables.css) — recharts ne lit pas les variables
-// CSS dans ses props `fill`, valeurs recopiées ici en dur (seul point du projet à le faire, voir
-// commentaire ci-dessous sur cette limite).
-const COULEURS_GRAPHIQUE = ['#2e2013', '#7a5a34', '#1a4d8f', '#1e7e34', '#92620a', '#6b21a8', '#a8420c'];
+// Une palette dédiée par graphique (couleurs fixes, PAR CLÉ — jamais par position/index) plutôt
+// que la teinte unique cyclée sur les 3 graphiques d'avant : plus agréable à l'œil (chaque
+// graphique a sa propre identité visuelle) et surtout stable — colorier par index (voir
+// l'ancienne COULEURS_GRAPHIQUE[index % ...]) repeint tous les segments suivants dès qu'un filtre
+// change le nombre de postes affichés, ce qui fait "sauter" des couleurs déjà mémorisées par
+// l'agent d'un chargement à l'autre. recharts ne lit pas les variables CSS dans ses props `fill`,
+// valeurs recopiées ici en dur (seul point du projet à le faire).
+//
+// Couleurs choisies et validées avec le script de la skill dataviz (six checks : bande de
+// luminosité, plancher de chroma, séparation daltonisme, plancher vision normale, contraste) —
+// jamais au jugé. "Réussis/Ratés" reprend la palette de statut dédiée (vert succès / rouge
+// critique, jamais réutilisée comme simple série) plutôt que la palette catégorielle : c'est
+// exactement le cas d'usage d'un statut binaire réussite/échec, pas une simple identité.
+const COULEURS_VERDICT = { verdict_valide: '#0ca30c', verdict_invalide: '#d03b3b' };
+
+// "Formation vs prêt à l'embauche" : deux issues positives, pas un statut bon/mauvais — palette
+// catégorielle (identité), pas la palette de statut. Violet + vert, cohérent avec les variantes de
+// badge déjà choisies pour ces mêmes indicateurs (voir VARIANTE_PAR_INDICATEUR : 'violet'/
+// 'vert-clair') sans reprendre le vert de "Réussis" ci-dessus (nuance différente : #008300 vs
+// #0ca30c) pour ne pas laisser croire aux deux graphiques qu'ils mesurent la même chose.
+const COULEURS_ORIENTATION = { orientation_envoi_formation: '#4a3aa7', orientation_pret_embauche: '#008300' };
+
+// Répartition par poste : une couleur par CODE de poste (stable même si un filtre réduit le
+// nombre de barres affichées), 8 teintes validées ensemble (voir script) + une 9e (cyan) ajoutée
+// et revalidée pour couvrir les 9 postes ACCECIT (5 bureau + 4 hôtel) sans repli sur "Autre" —
+// point à revisiter si l'entité en configure davantage un jour. "Non spécifié" (aucun poste
+// renseigné sur l'évaluation) volontairement HORS de cette palette catégorielle : un gris neutre
+// signale "pas de donnée", jamais confondu avec un vrai poste.
+const COULEURS_POSTE = {
+  nettoyage: '#2a78d6',
+  vitrerie: '#eb6834',
+  machiniste: '#1baf7a',
+  chef_equipe: '#eda100',
+  autres: '#e87ba4',
+  femme_valet_chambre: '#008300',
+  cafetier: '#4a3aa7',
+  equipier: '#e34948',
+  gouvernant: '#0891b2',
+};
+const COULEUR_POSTE_NON_SPECIFIE = '#9ca3af';
 
 const FORMAT_POURCENTAGE = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 });
 
@@ -173,20 +225,27 @@ export default function Indicateurs() {
 
   // Même raisonnement pour un segment de répartition par poste sélectionné ('poste:<code>') :
   // si le typePoste filtré ne propose plus ce poste, sa sélection n'a plus de sens (le segment
-  // correspondant a d'ailleurs disparu du graphique).
+  // correspondant a d'ailleurs disparu du graphique). 'poste_non_specifie' (barre "Non spécifié")
+  // suit la même logique dès qu'un filtre poste OU typePoste est actif : le back-end court-circuite
+  // alors cette catégorie à 0 (voir statistiquesRepository.compterEvaluationsSansPoste/
+  // listerEvaluationsSansPosteDossiers — ces évaluations n'ont par définition aucun poste connu à
+  // comparer au filtre), la barre disparaît donc aussi du graphique dans ce cas.
   useEffect(() => {
     setSelectionIndicateurs((precedent) => {
       let modifie = false;
       const suivant = new Set(precedent);
       for (const code of suivant) {
-        if (code.startsWith(PREFIXE_POSTE) && !postesDisponibles.includes(code.slice(PREFIXE_POSTE.length))) {
+        const posteDevenuIndisponible =
+          code.startsWith(PREFIXE_POSTE) && !postesDisponibles.includes(code.slice(PREFIXE_POSTE.length));
+        const nonSpecifieDevenuIndisponible = code === 'poste_non_specifie' && (typePoste || poste);
+        if (posteDevenuIndisponible || nonSpecifieDevenuIndisponible) {
           suivant.delete(code);
           modifie = true;
         }
       }
       return modifie ? suivant : precedent;
     });
-  }, [postesDisponibles]);
+  }, [postesDisponibles, typePoste, poste]);
 
   useEffect(() => {
     let annule = false;
@@ -267,19 +326,30 @@ export default function Indicateurs() {
   }
 
   // `code` : indicateur associé à ce segment (voir LIBELLES_INDICATEURS/basculerIndicateur plus
-  // haut) — absent uniquement pour "Non spécifié" (posteCode null, voir plus bas) : cette
-  // catégorie n'a pas d'indicateur "poste:" valide, donc pas cliquable.
+  // haut) — toujours présent, y compris pour "Non spécifié" (posteCode null, code
+  // 'poste_non_specifie' plutôt que le préfixe 'poste:<code>', voir plus bas : "aucun poste
+  // renseigné" n'est pas un poste parmi POSTES_BUREAU/POSTES_HOTEL).
   const donneesVerdicts = indicateurs
     ? [
-        { nom: 'Réussis', total: indicateurs.verdicts.valide, code: 'verdict_valide' },
-        { nom: 'Ratés', total: indicateurs.verdicts.invalide, code: 'verdict_invalide' },
+        { nom: 'Réussis', total: indicateurs.verdicts.valide, code: 'verdict_valide', fill: COULEURS_VERDICT.verdict_valide },
+        { nom: 'Ratés', total: indicateurs.verdicts.invalide, code: 'verdict_invalide', fill: COULEURS_VERDICT.verdict_invalide },
       ]
     : [];
 
   const donneesOrientations = indicateurs
     ? [
-        { nom: 'Envoi en formation', total: indicateurs.orientations.envoi_formation, code: 'orientation_envoi_formation' },
-        { nom: 'Prêt à l’embauche', total: indicateurs.orientations.pret_embauche, code: 'orientation_pret_embauche' },
+        {
+          nom: 'Envoi en formation',
+          total: indicateurs.orientations.envoi_formation,
+          code: 'orientation_envoi_formation',
+          fill: COULEURS_ORIENTATION.orientation_envoi_formation,
+        },
+        {
+          nom: 'Prêt à l’embauche',
+          total: indicateurs.orientations.pret_embauche,
+          code: 'orientation_pret_embauche',
+          fill: COULEURS_ORIENTATION.orientation_pret_embauche,
+        },
       ]
     : [];
 
@@ -287,7 +357,8 @@ export default function Indicateurs() {
     ? indicateurs.repartitionParPoste.parEvaluation.map((ligne) => ({
         nom: libellePoste(ligne.posteCode),
         total: ligne.nbEvaluations,
-        code: ligne.posteCode ? `${PREFIXE_POSTE}${ligne.posteCode}` : null,
+        code: ligne.posteCode ? `${PREFIXE_POSTE}${ligne.posteCode}` : 'poste_non_specifie',
+        fill: ligne.posteCode ? (COULEURS_POSTE[ligne.posteCode] ?? COULEUR_POSTE_NON_SPECIFIE) : COULEUR_POSTE_NON_SPECIFIE,
       }))
     : [];
 
@@ -429,16 +500,18 @@ export default function Indicateurs() {
                         outerRadius="85%"
                         label
                       >
-                        {donneesVerdicts.map((entree, index) => (
+                        {donneesVerdicts.map((entree) => (
                           // Segment cliquable (voir basculerIndicateur) : opacité réduite pour les
                           // segments non sélectionnés dès qu'AU MOINS UN segment (toutes cartes/
                           // graphiques confondus) est sélectionné, contour renforcé sur les
                           // segments actifs — même logique de mise en évidence que les tuiles
                           // ci-dessus (classe --active), adaptée aux props recharts (pas de
-                          // className sur <Cell>).
+                          // className sur <Cell>). `fill` porté par la donnée elle-même (voir
+                          // donneesVerdicts, COULEURS_VERDICT) plutôt qu'indexé par position :
+                          // couleur stable par indicateur, pas par rang d'affichage.
                           <Cell
                             key={entree.nom}
-                            fill={COULEURS_GRAPHIQUE[index % COULEURS_GRAPHIQUE.length]}
+                            fill={entree.fill}
                             cursor="pointer"
                             opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
                             stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
@@ -474,10 +547,10 @@ export default function Indicateurs() {
                         outerRadius="85%"
                         label
                       >
-                        {donneesOrientations.map((entree, index) => (
+                        {donneesOrientations.map((entree) => (
                           <Cell
                             key={entree.nom}
-                            fill={COULEURS_GRAPHIQUE[index % COULEURS_GRAPHIQUE.length]}
+                            fill={entree.fill}
                             cursor="pointer"
                             opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
                             stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
@@ -505,22 +578,21 @@ export default function Indicateurs() {
                       <YAxis allowDecimals={false} />
                       <Tooltip />
                       {/* <Cell> par barre (comme pour les camemberts ci-dessus) : chaque barre a
-                          son propre indicateur 'poste:<code>', sauf "Non spécifié" (code null,
-                          voir donneesRepartitionPoste) — pas cliquable, curseur par défaut, jamais
-                          estompée par la sélection des autres. */}
-                      <Bar dataKey="total" fill="#2e2013">
+                          son propre indicateur, "poste:<code>" ou 'poste_non_specifie' pour la
+                          barre "Non spécifié" (voir donneesRepartitionPoste) — toutes cliquables
+                          de façon identique, aucun cas particulier ici. `fill` du <Bar> gardé comme
+                          repli (jamais utilisé en pratique : chaque barre a son propre <Cell fill>,
+                          voir COULEURS_POSTE) plutôt qu'une seule teinte pour toutes les barres. */}
+                      <Bar dataKey="total" fill={COULEUR_POSTE_NON_SPECIFIE}>
                         {donneesRepartitionPoste.map((entree) => (
                           <Cell
                             key={entree.nom}
-                            cursor={entree.code ? 'pointer' : 'default'}
-                            opacity={
-                              !entree.code || selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code)
-                                ? 1
-                                : 0.35
-                            }
-                            stroke={entree.code && selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
-                            strokeWidth={entree.code && selectionIndicateurs.has(entree.code) ? 2 : undefined}
-                            onClick={() => entree.code && basculerIndicateur(entree.code)}
+                            fill={entree.fill}
+                            cursor="pointer"
+                            opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
+                            stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
+                            strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
+                            onClick={() => basculerIndicateur(entree.code)}
                           />
                         ))}
                       </Bar>
@@ -551,6 +623,7 @@ export default function Indicateurs() {
                     libelleIndicateur={libelleIndicateur}
                     varianteIndicateur={varianteIndicateur}
                     varianteStatut={varianteStatut}
+                    estIndicateurPoste={estIndicateurPoste}
                   />
                 )}
               </section>

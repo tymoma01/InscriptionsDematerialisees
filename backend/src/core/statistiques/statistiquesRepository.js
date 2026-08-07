@@ -448,6 +448,26 @@ function listerRepartitionParPosteDossiers(bd, entiteId, { debut, finExclusive }
     .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
 }
 
+// Variante "liste" de compterEvaluationsSansPoste (barre "Non spécifié" du graphique de
+// répartition par poste, voir Indicateurs.jsx) — même WHERE/whereNotExists, même court-circuit à
+// liste vide sous un filtre poste/typePoste actif (ces évaluations n'ont par définition aucun
+// poste connu à comparer au filtre). GROUP BY dossier_id : un dossier avec plusieurs évaluations
+// "sans poste" sur la période (rare, mais possible) n'apparaît qu'une fois dans la liste, même
+// principe que les autres variantes "liste" ci-dessus.
+function listerEvaluationsSansPosteDossiers(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  if (typePoste || poste) return Promise.resolve([]);
+  return bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('evaluations.date_evaluation', '>=', debut)
+    .andWhere('evaluations.date_evaluation', '<', finExclusive)
+    .whereNotExists(function () {
+      this.select(1).from('evaluations_postes').whereRaw('evaluations_postes.evaluation_id = evaluations.id');
+    })
+    .groupBy('evaluations.dossier_id')
+    .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
+}
+
 module.exports = {
   compterInscrits,
   compterEnvoyesEnTest,
@@ -467,4 +487,5 @@ module.exports = {
   listerDelaiInscriptionVersTestPlanifie,
   listerDelaiTestVersVerdict,
   listerRepartitionParPosteDossiers,
+  listerEvaluationsSansPosteDossiers,
 };
