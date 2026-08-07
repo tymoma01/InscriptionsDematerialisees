@@ -1,6 +1,6 @@
 import './FiltresRechercheDossiers.css';
 
-// Recherche par nom/prénom + plage de date de dernière mise à jour, au-dessus de la barre de
+// Recherche par nom/prénom/téléphone/email/poste + plage de date de dernière mise à jour, au-dessus de la barre de
 // filtres de statut (FiltresStatut.jsx) — même patron : composant purement d'affichage, aucune
 // logique de filtrage ici. La liste de dossiers étant déjà entièrement chargée en mémoire côté
 // page appelante (voir TableauDeBordAccueil.jsx / Backoffice.jsx, aucune pagination serveur), le
@@ -20,8 +20,8 @@ export default function FiltresRechercheDossiers({
       <input
         type="search"
         className="filtres-recherche-dossiers__recherche"
-        placeholder="Rechercher un candidat (nom, prénom)"
-        aria-label="Rechercher un candidat par nom ou prénom"
+        placeholder="Rechercher un candidat (nom, prénom, téléphone, email, poste)"
+        aria-label="Rechercher un candidat par nom, prénom, téléphone, email ou poste"
         value={recherche}
         onChange={(evenement) => onChangerRecherche(evenement.target.value)}
       />

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ChampRecherche from '../../core/filtres/ChampRecherche';
+import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -116,13 +117,19 @@ export default function Utilisateurs() {
   };
 
   // Recherche sur le nom complet (prénom + nom, même patron que filtrerDossiers.js) et l'email —
-  // les deux champs où un admin identifie un compte au premier coup d'œil.
+  // les deux champs où un admin identifie un compte au premier coup d'œil. normaliserTexte (voir
+  // core/filtres/normaliserTexte.js, partagé avec filtrerDossiers.js) rend la recherche sur le nom
+  // insensible aux espaces et accents : "jeandupont" retrouve "Jean Dupont", "helene" retrouve
+  // "Hélène".
   const utilisateursFiltres = useMemo(() => {
     const rechercheNormalisee = recherche.trim().toLowerCase();
+    const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
     return utilisateurs.filter((u) => {
       if (rechercheNormalisee) {
-        const nomComplet = `${u.prenom} ${u.nom}`.toLowerCase();
-        if (!nomComplet.includes(rechercheNormalisee) && !u.email.toLowerCase().includes(rechercheNormalisee)) {
+        const nomComplet = normaliserTexte(`${u.prenom} ${u.nom}`.toLowerCase());
+        // Email non passé par normaliserTexte (même choix que filtrerDossiers.js) : une adresse
+        // email n'a ni espaces internes ni accents à normaliser.
+        if (!nomComplet.includes(rechercheNormaliseeTexte) && !u.email.toLowerCase().includes(rechercheNormalisee)) {
           return false;
         }
       }

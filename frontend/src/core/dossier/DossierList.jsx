@@ -20,6 +20,16 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
   {
+    cle: 'candidat_telephone',
+    libelle: 'Téléphone',
+    extraire: (dossier) => dossier.candidat_telephone ?? '',
+  },
+  {
+    cle: 'candidat_email',
+    libelle: 'Email',
+    extraire: (dossier) => (dossier.candidat_email ?? '').toLowerCase(),
+  },
+  {
     cle: 'postes',
     libelle: 'Poste',
     extraire: (dossier) => [...(dossier.postesBureau ?? []), ...(dossier.postesHotel ?? [])].join(', '),
@@ -131,6 +141,8 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
+              <td>{dossier.candidat_telephone}</td>
+              <td>{dossier.candidat_email}</td>
               <td>
                 {/* Une puce par poste, empilées verticalement plutôt qu'une seule chaîne
                     "poste1, poste2" : reste lisible même quand un candidat coche plusieurs postes

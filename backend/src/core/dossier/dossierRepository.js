@@ -172,6 +172,11 @@ function enregistrerChangementStatut(trx, { dossierId, statutId, utilisateurId, 
 // dossierService.listerDossiers pour l'extraction posteBureau/posteHotel) — même patron que
 // evaluationRepository.listerRendezvousAEvaluer. LEFT JOIN : un dossier sans bloc disponibilites
 // enregistré (nouveau, pas encore rempli) ne doit pas disparaître de la liste pour autant.
+//
+// Même patron pour le bloc 'coordonnees' (téléphone/email, colonnes du tableau de bord) : ces
+// champs ne vivent pas sur `candidats` (voir Modularité, CLAUDE.md — candidats.email n'est qu'une
+// dénormalisation technique pour la contrainte UNIQUE, voir migration 032 ; il n'existe d'ailleurs
+// pas de colonne candidats.telephone), la source d'affichage reste le JSONB du bloc.
 function listerDossiers(bd, entiteId, { statutCode } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -181,6 +186,13 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
         'bloc_disponibilites.bloc_code',
         '=',
         bd.raw('?', ['disponibilites']),
+      );
+    })
+    .leftJoin('dossier_donnees_formulaire as bloc_coordonnees', function () {
+      this.on('bloc_coordonnees.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_coordonnees.bloc_code',
+        '=',
+        bd.raw('?', ['coordonnees']),
       );
     })
     .where('dossiers.entite_id', entiteId)
@@ -194,6 +206,7 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
       'statuts.libelle as statut_libelle',
       'statuts.est_final as statut_est_final',
       'bloc_disponibilites.donnees as donnees_disponibilites',
+      'bloc_coordonnees.donnees as donnees_coordonnees',
     )
     .orderBy('dossiers.date_maj', 'desc');
 

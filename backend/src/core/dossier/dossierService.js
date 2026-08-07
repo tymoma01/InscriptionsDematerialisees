@@ -345,13 +345,19 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
 // Postes recherchés exposés à plat (postesBureau/postesHotel) pour la colonne "Poste" des
 // tableaux de bord — même patron que evaluationEngine.listerRendezvousAEvaluer, qui fait la même
 // extraction depuis le même bloc 'disponibilites' (voir dossierRepository.listerDossiers).
+//
+// candidat_telephone/candidat_email extraits du bloc 'coordonnees' au même titre, pour les
+// colonnes "Téléphone"/"Email" du tableau de bord (voir DossierList.jsx) — null si le bloc n'a
+// pas encore été rempli (dossier tout juste créé).
 async function listerDossiers(entite, { statutCode } = {}) {
   const bd = await obtenirKnex();
   const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode });
-  return dossiers.map(({ donnees_disponibilites, ...reste }) => ({
+  return dossiers.map(({ donnees_disponibilites, donnees_coordonnees, ...reste }) => ({
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
+    candidat_telephone: donnees_coordonnees?.telephone ?? null,
+    candidat_email: donnees_coordonnees?.email ?? null,
   }));
 }
 

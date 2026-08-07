@@ -175,7 +175,7 @@ export default function TableauDeBordAccueil() {
   };
 
   const dossiersFiltres = useMemo(
-    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre }),
+    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste }),
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
   );
 
