@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
-import { listerLieux, creerLieu, modifierLieu } from '../../services/lieuService';
+import { listerLieux, creerLieu, modifierLieu, listerRendezvousAssociesLieu, supprimerLieu } from '../../services/lieuService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
 import { dateDuJourParis } from './dateDuJourParis';
@@ -111,6 +111,90 @@ export default function ModalePlanificationTest({
     setLieuFormLibelle('');
     setLieuFormErreur(null);
     setLieuSimilaireDetecte(null);
+  };
+
+  // Suppression de lieu (bouton poubelle, voir plus bas) — panneau distinct de celui de création/
+  // édition ci-dessus (fermé indépendamment, voir cliquerSupprimerLieu) : la suppression a sa
+  // propre étape intermédiaire de chargement (GET des rendez-vous associés) avant même de savoir
+  // quelle UI afficher, contrairement à création/édition qui s'ouvrent immédiatement sur le même
+  // formulaire — les regrouper dans panneauLieuMode aurait forcé un état "ouvert mais en attente
+  // de savoir quoi montrer" que ce mode ne connaît pas aujourd'hui.
+  const [panneauSuppressionOuvert, setPanneauSuppressionOuvert] = useState(false);
+  const [rendezvousAssocies, setRendezvousAssocies] = useState([]);
+  const [chargementRendezvousAssocies, setChargementRendezvousAssocies] = useState(false);
+  const [lieuDestinationMigrationId, setLieuDestinationMigrationId] = useState('');
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
+  const [erreurSuppressionLieu, setErreurSuppressionLieu] = useState(null);
+
+  const fermerPanneauSuppression = () => {
+    setPanneauSuppressionOuvert(false);
+    setRendezvousAssocies([]);
+    setLieuDestinationMigrationId('');
+    setErreurSuppressionLieu(null);
+  };
+
+  // Appel réel de suppression — partagé par les deux chemins (confirmation simple, confirmation
+  // de migration, voir plus bas) : `lieuDestinationId` absent pour le premier, fourni pour le
+  // second. Le back (lieuService.supprimerLieu) revérifie de toute façon les rendez-vous associés
+  // au moment de l'appel plutôt que de faire confiance à ce qu'on lui montre ici (un rendez-vous a
+  // pu être créé entre-temps) — cet appel peut donc échouer même après un GET préalable rassurant,
+  // voir erreurSuppressionLieu.
+  const executerSuppressionLieu = async (lieuASupprimerId, lieuDestinationId) => {
+    setSuppressionEnCours(true);
+    setErreurSuppressionLieu(null);
+    try {
+      await supprimerLieu(lieuASupprimerId, lieuDestinationId ? { lieuDestinationId } : undefined);
+      setLieux((precedent) => precedent.filter((l) => l.id !== lieuASupprimerId));
+      // Le lieu supprimé était sélectionné pour ce rendez-vous : bascule sur le lieu de
+      // destination s'il y en a un (continuité — c'est littéralement le même lieu physique),
+      // sinon revient à "-" plutôt que de garder un id qui ne correspond plus à rien dans le
+      // sélecteur.
+      if (String(lieuASupprimerId) === lieuId) {
+        setLieuId(lieuDestinationId ? String(lieuDestinationId) : '');
+      }
+      fermerPanneauSuppression();
+    } catch (erreur) {
+      setErreurSuppressionLieu(
+        erreur.response?.data?.erreur ?? "Le serveur n'a pas pu supprimer ce lieu. Merci de réessayer.",
+      );
+    } finally {
+      setSuppressionEnCours(false);
+    }
+  };
+
+  // Clic sur le bouton poubelle — vérifie d'abord s'il existe des rendez-vous associés (GET,
+  // lecture seule, pas de confirmation nécessaire pour ce seul appel) avant de décider entre
+  // confirmation native simple (window.confirm, même patron que CaptureTablette.jsx pour la
+  // suppression d'une pièce justificative) et panneau de migration : impossible de savoir laquelle
+  // des deux UI proposer sans connaître d'abord ce compte.
+  const cliquerSupprimerLieu = async () => {
+    if (!lieuSelectionne || chargementRendezvousAssocies) return;
+    fermerPanneauLieu(); // un seul panneau lieu ouvert à la fois (création/édition vs suppression)
+    setChargementRendezvousAssocies(true);
+    setErreurSuppressionLieu(null);
+    try {
+      const associes = await listerRendezvousAssociesLieu(lieuSelectionne.id);
+      if (associes.length === 0) {
+        const confirme = window.confirm(
+          `Supprimer définitivement le lieu « ${lieuSelectionne.libelle} » ? Cette action est irréversible.`,
+        );
+        if (confirme) await executerSuppressionLieu(lieuSelectionne.id);
+      } else {
+        setRendezvousAssocies(associes);
+        setPanneauSuppressionOuvert(true);
+      }
+    } catch (erreur) {
+      setErreurSuppressionLieu(
+        erreur.response?.data?.erreur ?? "Impossible de vérifier les rendez-vous associés à ce lieu. Merci de réessayer.",
+      );
+    } finally {
+      setChargementRendezvousAssocies(false);
+    }
+  };
+
+  const confirmerMigrationEtSuppression = () => {
+    if (!lieuDestinationMigrationId || suppressionEnCours) return;
+    executerSuppressionLieu(lieuSelectionne.id, Number(lieuDestinationMigrationId));
   };
 
   // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
@@ -625,8 +709,26 @@ export default function ModalePlanificationTest({
                       ✎
                     </button>
                   )}
+                  {/* Même visibilité conditionnelle que le crayon ci-dessus — rien à supprimer
+                      tant qu'aucun lieu n'est sélectionné. Désactivé (pas masqué) pendant la
+                      vérification des rendez-vous associés ou une suppression déjà en cours,
+                      même principe que les autres boutons de ce bloc. */}
+                  {lieuSelectionne && (
+                    <button
+                      type="button"
+                      className="modale-planification-test__bouton-ajout-lieu"
+                      aria-label="Supprimer le lieu sélectionné"
+                      title="Supprimer le lieu sélectionné"
+                      disabled={chargementRendezvousAssocies || suppressionEnCours || lieuFormEnCours}
+                      onClick={cliquerSupprimerLieu}
+                    >
+                      {chargementRendezvousAssocies ? '…' : '🗑'}
+                    </button>
+                  )}
                 </div>
               )}
+
+              {erreurSuppressionLieu && !panneauSuppressionOuvert && <p role="alert">{erreurSuppressionLieu}</p>}
 
               {panneauLieuMode && (
                 <div className="modale-planification-test__ajout-lieu">
@@ -679,6 +781,59 @@ export default function ModalePlanificationTest({
                       </button>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Panneau de migration — seulement affiché quand la vérification (GET, voir
+                  cliquerSupprimerLieu) a trouvé au moins un rendez-vous associé ; le cas "aucun
+                  rendez-vous" passe par window.confirm (même patron que la suppression d'une pièce
+                  justificative, CaptureTablette.jsx), pas de panneau dédié pour lui. */}
+              {panneauSuppressionOuvert && (
+                <div className="modale-planification-test__migration-lieu">
+                  <p role="status">
+                    {rendezvousAssocies.length === 1
+                      ? '1 rendez-vous est encore associé à ce lieu.'
+                      : `${rendezvousAssocies.length} rendez-vous sont encore associés à ce lieu.`}{' '}
+                    Choisissez un lieu de destination pour les migrer avant de supprimer «{' '}
+                    {lieuSelectionne?.libelle} ».
+                  </p>
+                  <ul className="modale-planification-test__migration-lieu-liste">
+                    {rendezvousAssocies.map((rendezvousAssocie) => (
+                      <li key={rendezvousAssocie.id}>
+                        {rendezvousAssocie.candidatPrenom} {rendezvousAssocie.candidatNom} —{' '}
+                        {FORMAT_DATE_HEURE.format(new Date(rendezvousAssocie.dateHeure))}
+                      </li>
+                    ))}
+                  </ul>
+                  <label>
+                    <span>Lieu de destination</span>
+                    <select
+                      value={lieuDestinationMigrationId}
+                      onChange={(evenement) => setLieuDestinationMigrationId(evenement.target.value)}
+                    >
+                      <option value="">-</option>
+                      {lieux
+                        .filter((lieu) => lieu.id !== lieuSelectionne?.id)
+                        .map((lieu) => (
+                          <option key={lieu.id} value={lieu.id}>
+                            {lieu.libelle}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  {erreurSuppressionLieu && <p role="alert">{erreurSuppressionLieu}</p>}
+                  <div className="modale-planification-test__ajout-lieu-actions">
+                    <button type="button" onClick={fermerPanneauSuppression} disabled={suppressionEnCours}>
+                      Annuler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmerMigrationEtSuppression}
+                      disabled={!lieuDestinationMigrationId || suppressionEnCours}
+                    >
+                      {suppressionEnCours ? 'Migration...' : 'Confirmer la migration et la suppression'}
+                    </button>
+                  </div>
                 </div>
               )}
             </fieldset>

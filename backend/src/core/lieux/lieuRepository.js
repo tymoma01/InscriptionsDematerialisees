@@ -39,4 +39,13 @@ function modifierLieu(bd, entiteId, lieuId, { libelle }) {
   return bd('lieux').where({ id: lieuId, entite_id: entiteId }).update({ libelle }).returning(['id', 'code', 'libelle', 'actif']);
 }
 
-module.exports = { trouverLieuParId, listerLieuxActifs, trouverLieuParCode, creerLieu, modifierLieu };
+// Suppression depuis la même modale (bouton poubelle) — appelée uniquement après que
+// lieuService.supprimerLieu ait vérifié qu'aucun rendez-vous ne référence plus ce lieu (migrés au
+// préalable dans la même transaction si besoin, voir rendezvousRepository.migrerRendezvousVersLieu)
+// : la FK rendezvous.lieu_id (migration 045, sans ON DELETE CASCADE) romprait sinon l'intégrité
+// référentielle. Scopée par entiteId comme le reste de ce module (IDOR).
+function supprimerLieu(bd, entiteId, lieuId) {
+  return bd('lieux').where({ id: lieuId, entite_id: entiteId }).del();
+}
+
+module.exports = { trouverLieuParId, listerLieuxActifs, trouverLieuParCode, creerLieu, modifierLieu, supprimerLieu };

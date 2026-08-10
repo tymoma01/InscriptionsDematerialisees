@@ -1,5 +1,7 @@
 const db = require('../../db/knex');
 const lieuRepository = require('./lieuRepository');
+const rendezvousRepository = require('../rendezvous/rendezvousRepository');
+const notificationChangementLieuService = require('../rendezvous/notificationChangementLieuService');
 
 // Erreur métier distincte d'une Error générique (500 opaque) — même principe que
 // ErreurStatistiquesInvalide (statistiquesService.js) : lieux.routes.js la traduit en 404 avec un
@@ -9,6 +11,29 @@ class ErreurLieuIntrouvable extends Error {
   constructor(message) {
     super(message);
     this.name = 'ErreurLieuIntrouvable';
+  }
+}
+
+// Suppression demandée sans lieu de destination alors que ce lieu est encore associé à au moins
+// un rendez-vous (voir supprimerLieu plus bas) — porte la liste des rendez-vous concernés
+// (`rendezvousAssocies`, même forme que listerRendezvousAssocies) pour que lieux.routes.js puisse
+// répondre 409 avec de quoi afficher directement le panneau de migration côté front, même si
+// l'agent n'a pas fait l'appel GET de vérification en amont.
+class ErreurMigrationRequise extends Error {
+  constructor(rendezvousAssocies) {
+    super('Ce lieu est encore associé à au moins un rendez-vous — une migration vers un autre lieu est requise avant suppression.');
+    this.name = 'ErreurMigrationRequise';
+    this.rendezvousAssocies = rendezvousAssocies;
+  }
+}
+
+// Lieu de destination invalide à la migration : identique au lieu supprimé, introuvable, ou hors
+// entité — distincte de ErreurLieuIntrouvable (qui vise le lieu À SUPPRIMER) pour que la route
+// puisse renvoyer un message ciblé sur le bon champ.
+class ErreurLieuDestinationInvalide extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurLieuDestinationInvalide';
   }
 }
 
@@ -95,4 +120,105 @@ async function modifierLieu(entite, lieuId, { libelle }) {
   return lieu;
 }
 
-module.exports = { listerLieuxActifs, creerLieu, modifierLieu, ErreurLieuIntrouvable };
+// Forme exposée à l'agent (GET /api/lieux/:lieuId/rendezvous, panneau de suppression
+// ModalePlanificationTest.jsx) — jamais les coordonnées candidat (email/téléphone, portées par
+// rendezvousRepository.listerRendezvousParLieu pour la notification uniquement, voir
+// supprimerLieu ci-dessous) : l'agent n'a besoin que d'identifier le rendez-vous (candidat + date),
+// pas de voir ses coordonnées à cet écran.
+function serialiserRendezvousAssocie(rendezvous) {
+  return {
+    id: rendezvous.id,
+    dateHeure: rendezvous.date_heure,
+    candidatNom: rendezvous.candidat_nom,
+    candidatPrenom: rendezvous.candidat_prenom,
+  };
+}
+
+// Rendez-vous encore associés à ce lieu — sert au panneau de suppression pour décider entre
+// suppression directe (aucun) et migration (au moins un), voir ModalePlanificationTest.jsx.
+async function listerRendezvousAssocies(entite, lieuId) {
+  const bd = await db.obtenirKnex();
+  const lieu = await lieuRepository.trouverLieuParId(bd, entite.id, lieuId);
+  if (!lieu) {
+    throw new ErreurLieuIntrouvable(`Lieu "${lieuId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  const rendezvousAssocies = await rendezvousRepository.listerRendezvousParLieu(bd, entite.id, lieuId);
+  return rendezvousAssocies.map(serialiserRendezvousAssocie);
+}
+
+// Suppression d'un lieu (bouton poubelle, ModalePlanificationTest.jsx) — deux chemins :
+//  - aucun rendez-vous associé : suppression directe, `lieuDestinationId` ignoré s'il est fourni
+//    (rien à migrer).
+//  - au moins un rendez-vous associé : `lieuDestinationId` obligatoire — migration puis
+//    suppression dans une seule transaction (rendezvousRepository.migrerRendezvousVersLieu avant
+//    lieuRepository.supprimerLieu : la FK rendezvous.lieu_id, migration 045, n'a pas de ON DELETE
+//    CASCADE/SET NULL, la migration doit donc précéder la suppression pour ne pas violer la
+//    contrainte référentielle).
+//
+// Re-vérifie les rendez-vous associés à l'intérieur de cette fonction plutôt que de faire
+// confiance à un comptage déjà fait côté agent (voir listerRendezvousAssocies) : un rendez-vous a
+// pu être créé entre les deux appels, le back reste seul juge au moment de l'action — même
+// principe que rendezvousService.creerRendezvous/compterRendezvousFormateurAuCreneau.
+//
+// Notifications (email + SMS aux candidats migrés) envoyées APRÈS la transaction, jamais dedans —
+// même principe que planificationRendezvousService.js : un envoi lent ne doit pas garder une
+// connexion DB ouverte, et un échec d'envoi ne doit jamais faire échouer une migration/suppression
+// déjà actée en base. journal_audit n'est PAS écrit ici : convention du projet (voir
+// rendezvous.routes.js/utilisateurs.routes.js) — c'est la route qui journalise, après l'appel au
+// service, avec `bd` (jamais `trx`), pas cette couche.
+async function supprimerLieu(entite, lieuId, { lieuDestinationId } = {}) {
+  const bd = await db.obtenirKnex();
+
+  const lieu = await lieuRepository.trouverLieuParId(bd, entite.id, lieuId);
+  if (!lieu) {
+    throw new ErreurLieuIntrouvable(`Lieu "${lieuId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+
+  const rendezvousAssocies = await rendezvousRepository.listerRendezvousParLieu(bd, entite.id, lieuId);
+
+  if (rendezvousAssocies.length === 0) {
+    await lieuRepository.supprimerLieu(bd, entite.id, lieuId);
+    return { lieu, lieuDestination: null, rendezvousMigres: 0, rendezvousAssocies: [], notifications: [] };
+  }
+
+  if (!lieuDestinationId) {
+    throw new ErreurMigrationRequise(rendezvousAssocies.map(serialiserRendezvousAssocie));
+  }
+  if (Number(lieuDestinationId) === Number(lieuId)) {
+    throw new ErreurLieuDestinationInvalide('Le lieu de destination doit être différent du lieu supprimé.');
+  }
+  const lieuDestination = await lieuRepository.trouverLieuParId(bd, entite.id, lieuDestinationId);
+  if (!lieuDestination) {
+    throw new ErreurLieuDestinationInvalide(`Lieu de destination "${lieuDestinationId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+
+  await bd.transaction(async (trx) => {
+    await rendezvousRepository.migrerRendezvousVersLieu(trx, { lieuIdOrigine: lieuId, lieuIdDestination: lieuDestination.id });
+    await lieuRepository.supprimerLieu(trx, entite.id, lieuId);
+  });
+
+  const notifications = await Promise.all(
+    rendezvousAssocies.map((rendezvous) =>
+      notificationChangementLieuService.envoyerNotificationChangementLieu(entite, rendezvous, lieuDestination.libelle),
+    ),
+  );
+
+  return {
+    lieu,
+    lieuDestination,
+    rendezvousMigres: rendezvousAssocies.length,
+    rendezvousAssocies: rendezvousAssocies.map(serialiserRendezvousAssocie),
+    notifications,
+  };
+}
+
+module.exports = {
+  listerLieuxActifs,
+  creerLieu,
+  modifierLieu,
+  listerRendezvousAssocies,
+  supprimerLieu,
+  ErreurLieuIntrouvable,
+  ErreurMigrationRequise,
+  ErreurLieuDestinationInvalide,
+};

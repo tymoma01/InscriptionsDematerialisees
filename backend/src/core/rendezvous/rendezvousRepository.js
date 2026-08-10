@@ -181,6 +181,46 @@ async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId,
   return rendezvous;
 }
 
+// Rendez-vous référençant un lieu donné, tous statuts/dates confondus (passés ET futurs, voir
+// lieuService.supprimerLieu — la suppression d'un lieu doit tenir compte de tout l'historique, pas
+// seulement des créneaux à venir, contrairement à listerRendezvousTest ci-dessus). Jointure vers
+// dossier_donnees_formulaire (bloc 'coordonnees') en plus de candidats : email/téléphone
+// nécessaires pour la notification de changement d'adresse (voir
+// notificationChangementLieuService.js), résolus ici en une seule requête plutôt qu'un lookup par
+// rendez-vous (même raisonnement que dossierRepository.listerDossiers pour ce même bloc).
+function listerRendezvousParLieu(bd, entiteId, lieuId) {
+  return bd('rendezvous')
+    .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .leftJoin('dossier_donnees_formulaire as bloc_coordonnees', function () {
+      this.on('bloc_coordonnees.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_coordonnees.bloc_code',
+        '=',
+        bd.raw('?', ['coordonnees']),
+      );
+    })
+    .where({ 'dossiers.entite_id': entiteId, 'rendezvous.lieu_id': lieuId })
+    .select(
+      'rendezvous.id',
+      'rendezvous.dossier_id',
+      'rendezvous.date_heure',
+      'rendezvous.statut',
+      'candidats.prenom as candidat_prenom',
+      'candidats.nom as candidat_nom',
+      'bloc_coordonnees.donnees as donnees_coordonnees',
+    )
+    .orderBy('rendezvous.date_heure', 'asc');
+}
+
+// Migration en masse (voir lieuService.supprimerLieu, appelée dans la même transaction que la
+// suppression du lieu d'origine — la FK rendezvous.lieu_id, migration 045, n'a pas de ON DELETE
+// CASCADE/SET NULL, la migration doit donc précéder la suppression). Pas de filtre entiteId ici :
+// lieuIdOrigine/lieuIdDestination sont déjà vérifiés comme appartenant à l'entité courante par
+// l'appelant (lieuRepository.trouverLieuParId) avant que cette fonction ne soit invoquée.
+function migrerRendezvousVersLieu(trx, { lieuIdOrigine, lieuIdDestination }) {
+  return trx('rendezvous').where({ lieu_id: lieuIdOrigine }).update({ lieu_id: lieuIdDestination });
+}
+
 module.exports = {
   listerRendezvousARappeler,
   trouverRendezvousParId,
@@ -190,4 +230,6 @@ module.exports = {
   compterRendezvousFormateurAuCreneau,
   trouverRendezvousTestActifDossier,
   creerRendezvous,
+  listerRendezvousParLieu,
+  migrerRendezvousVersLieu,
 };

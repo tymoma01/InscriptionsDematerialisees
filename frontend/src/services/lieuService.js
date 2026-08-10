@@ -24,3 +24,22 @@ export async function modifierLieu(lieuId, { libelle }) {
   const { data } = await api.patch(`/lieux/${lieuId}`, { libelle });
   return data;
 }
+
+// Rendez-vous encore associés à ce lieu (bouton poubelle, ModalePlanificationTest.jsx) — appelé
+// avant toute tentative de suppression pour décider entre confirmation simple (tableau vide) et
+// panneau de migration (au moins une entrée). Forme : { id, dateHeure, candidatNom,
+// candidatPrenom }[] — jamais les coordonnées candidat (email/téléphone), inutiles à cet écran.
+export async function listerRendezvousAssociesLieu(lieuId) {
+  const { data } = await api.get(`/lieux/${lieuId}/rendezvous`);
+  return data;
+}
+
+// Suppression d'un lieu — `lieuDestinationId` requis seulement si des rendez-vous y sont encore
+// associés (voir listerRendezvousAssociesLieu ci-dessus) ; omis sinon. axios : le corps d'un
+// DELETE se passe via `{ data }` dans la config, pas en 2e argument positionnel comme post/patch.
+export async function supprimerLieu(lieuId, { lieuDestinationId } = {}) {
+  const { data } = await api.delete(`/lieux/${lieuId}`, {
+    data: lieuDestinationId ? { lieuDestinationId } : undefined,
+  });
+  return data;
+}
