@@ -17,18 +17,17 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // qui n'affiche qu'un rang d'affichage —, badges d'indicateurs, dates clés qui varient selon
 // l'indicateur plutôt qu'une seule "dernière mise à jour").
 //
-// `libelleIndicateur`/`varianteIndicateur`/`varianteStatut`/`estIndicateurPoste`/
-// `estIndicateurRedondant` : mêmes principes que `libellePoste`/`varianteStatut` dans
-// DossierList.jsx — ce composant ne connaît aucun code métier propre à ACCECIT, uniquement des
-// fonctions de traduction fournies par l'appelant.
+// `libelleIndicateur`/`varianteIndicateur`/`varianteStatut`/`estIndicateurPoste` : mêmes
+// principes que `libellePoste`/`varianteStatut` dans DossierList.jsx — ce composant ne connaît
+// aucun code métier propre à ACCECIT, uniquement des fonctions de traduction fournies par
+// l'appelant.
 //
-// `estIndicateurRedondant(code, statutCode)` : masque un badge de la colonne "Indicateurs" quand
-// il n'apporte aucune information non déjà déductible du badge "Statut" affiché juste à côté (ex.
-// "Envoyés en test" sur une ligne déjà au statut "Validé - prêt à l'embauche", voir audit
-// redondance colonne INDICATEURS/STATUT, 2026-08-07) — n'affecte QUE cette colonne, jamais
-// `dossier.indicateurs` lui-même (liste de vérité pour la sélection ET-stricte côté
-// Indicateurs.jsx) ni la colonne "Dates clés" plus bas, qui continue d'itérer sur la liste
-// complète, non filtrée.
+// Pas de filtrage des badges "redondants" avec le statut de la ligne (essayé puis retiré,
+// 2026-08-10) : la colonne affiche systématiquement tous les indicateurs sélectionnés qui
+// s'appliquent au dossier — y compris quand un seul indicateur reste pertinent et qu'il est
+// redondant avec le statut affiché à côté (voir décision Option A). Pas de risque de doublon
+// visuel : `dossier.indicateurs` vient de `selectionIndicateurs`, un Set côté Indicateurs.jsx,
+// donc déjà sans code dupliqué par construction.
 export default function TableauDossiersSelectionnes({
   dossiers,
   libellePoste,
@@ -36,7 +35,6 @@ export default function TableauDossiersSelectionnes({
   varianteIndicateur,
   varianteStatut,
   estIndicateurPoste,
-  estIndicateurRedondant,
 }) {
   if (dossiers.length === 0) {
     return <p className="tableau-dossiers-selectionnes__vide">Aucun dossier pour cette sélection.</p>;
@@ -92,7 +90,7 @@ export default function TableauDossiersSelectionnes({
                     pour que le rapprochement visuel entre les deux colonnes soit immédiat. */}
                 <div className="tableau-dossiers-selectionnes__indicateurs">
                   {dossier.indicateurs
-                    .filter(({ code }) => !estIndicateurPoste(code) && !estIndicateurRedondant(code, dossier.statut_code))
+                    .filter(({ code }) => !estIndicateurPoste(code))
                     .map(({ code }) => (
                       <StatutBadge key={code} libelle={libelleIndicateur(code)} variante={varianteIndicateur(code)} />
                     ))}
