@@ -7,11 +7,21 @@
   gap: var(--espace-petit);
 }
 
+/* Bandeau distinct de la grille en dessous (décision produit, 2026-08-10) : fond crème
+   --couleur-back-office-clair (identité back-office déjà en place ailleurs, libéré ici de son
+   ancien usage sur la case sélectionnée — voir .calendrier-disponibilite__case--selectionne plus
+   bas, qui passe à un fond bleu ACCECIT plein) + coins arrondis uniquement en haut. Marge négative
+   égale au padding du conteneur parent (var(--espace-petit)) pour faire déborder le bandeau
+   jusqu'aux bords de la carte, sans avoir à changer la structure JSX pour ça. */
 .calendrier-disponibilite__entete {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--espace-petit);
+  background: var(--couleur-back-office-clair);
+  margin: calc(-1 * var(--espace-petit)) calc(-1 * var(--espace-petit)) 0;
+  padding: 0.5rem var(--espace-petit);
+  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
 }
 
 .calendrier-disponibilite__entete > button {
@@ -29,7 +39,11 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
+  /* 700 (était 600) + taille légèrement relevée : le bandeau ayant désormais son propre fond
+     (voir .calendrier-disponibilite__entete), un poids plus marqué confirme la hiérarchie
+     visuelle plutôt que de compter uniquement sur le changement de couleur. */
+  font-weight: 700;
+  font-size: 0.95rem;
   color: var(--couleur-texte);
 }
 
@@ -53,7 +67,7 @@
 .calendrier-disponibilite__grille {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.25rem;
+  gap: 0.2rem;
 }
 
 .calendrier-disponibilite__entete-jour {
@@ -64,8 +78,14 @@
   padding-bottom: 0.2rem;
 }
 
+/* aspect-ratio retiré (était 1:1) : forçait chaque case à être aussi haute que large, donc
+   d'autant plus haute que la grille est large — c'est la véritable cause du grand vide sous le
+   numéro du jour (bien plus que le padding, déjà minime avant ce correctif). La hauteur suit
+   maintenant le contenu réel (numéro + éventuels badges) + min-height ci-dessous, qui GARDE la
+   même valeur qu'avant (2.75rem = 44px, seuil tactile usuel) : la zone cliquable ne rétrécit pas,
+   seul l'espace vide disparaît. justify-content: center évite un empilement collé en haut sur les
+   jours sans badge, où le contenu (juste le numéro) est plus court que min-height. */
 .calendrier-disponibilite__case {
-  aspect-ratio: 1;
   min-height: 2.75rem;
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
@@ -73,8 +93,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.2rem;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.15rem 0.2rem;
   cursor: pointer;
   overflow: hidden;
 }
@@ -83,8 +104,12 @@
   border-color: var(--couleur-back-office);
 }
 
+/* Case vide (avant le 1er du mois) désormais visuellement distincte des vrais jours du mois —
+   gris très léger plutôt que le même blanc uniforme partout (cursor: default déjà en place,
+   seul le fond change). */
 .calendrier-disponibilite__case--vide {
   border-color: transparent;
+  background: var(--gris-50);
   cursor: default;
 }
 
@@ -92,9 +117,21 @@
   border-color: var(--couleur-back-office-dore);
 }
 
+/* Fond plein bleu ACCECIT (#1f4e9c — même teinte que --couleur-fond-survol-tableau/-opaque dans
+   variables.css, déjà utilisée ailleurs en back-office) plutôt que l'ancien fond quasi invisible
+   (--couleur-back-office-clair, #f7f3ee, à peine distinct du blanc) + simple bordure : le jour
+   sélectionné doit se voir immédiatement, pas seulement en s'approchant. Posée en dur ici (pas de
+   nouvelle variable globale) : seul site d'usage de ce bleu en fond plein, même principe que
+   --badge--complet plus bas (#7b2314 posé localement en toute connaissance de cause). Numéro de
+   jour repassé en blanc juste après, sinon illisible sur ce fond foncé. */
 .calendrier-disponibilite__case--selectionne {
-  background: var(--couleur-back-office-clair);
-  border-color: var(--couleur-back-office);
+  background: #1f4e9c;
+  border-color: #1f4e9c;
+}
+
+.calendrier-disponibilite__case--selectionne .calendrier-disponibilite__jour-numero {
+  color: #ffffff;
+  font-weight: 700;
 }
 
 /* Jour antérieur à aujourd'hui (Europe/Paris, voir CalendrierDisponibiliteFormateur.jsx) : grisé
