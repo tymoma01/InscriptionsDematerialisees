@@ -58,3 +58,28 @@ test('creerLieu retombe sur le code "lieu" si le libellé ne contient aucun cara
 
   assert.equal(codeRecu, 'lieu');
 });
+
+test('modifierLieu met à jour le libellé sans toucher au code', async (t) => {
+  mockerKnex(t);
+  let argsRecus;
+  t.mock.method(lieuRepository, 'modifierLieu', async (bd, entiteId, lieuId, donnees) => {
+    argsRecus = { entiteId, lieuId, donnees };
+    return [{ id: lieuId, code: 'hotel_du_cadran', libelle: donnees.libelle, actif: true }];
+  });
+
+  const lieu = await lieuService.modifierLieu(ENTITE_ACCECIT, 1, { libelle: 'Nouvelle adresse' });
+
+  assert.deepEqual(argsRecus, { entiteId: 1, lieuId: 1, donnees: { libelle: 'Nouvelle adresse' } });
+  assert.equal(lieu.libelle, 'Nouvelle adresse');
+  assert.equal(lieu.code, 'hotel_du_cadran');
+});
+
+test("modifierLieu lève ErreurLieuIntrouvable si le lieu n'existe pas pour cette entité (id inconnu, ou d'une autre entité)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(lieuRepository, 'modifierLieu', async () => []);
+
+  await assert.rejects(
+    () => lieuService.modifierLieu(ENTITE_ACCECIT, 999, { libelle: 'Adresse' }),
+    (erreur) => erreur instanceof lieuService.ErreurLieuIntrouvable,
+  );
+});

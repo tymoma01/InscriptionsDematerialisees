@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
-import { listerLieux, creerLieu } from '../../services/lieuService';
+import { listerLieux, creerLieu, modifierLieu } from '../../services/lieuService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
 import { dateDuJourParis } from './dateDuJourParis';
@@ -82,14 +82,28 @@ export default function ModalePlanificationTest({
   const [erreurLieux, setErreurLieux] = useState(null);
   const [lieuId, setLieuId] = useState('');
 
-  // Création de lieu à la volée (bouton "+" à côté du sélecteur, voir plus bas) — formulaire
-  // inline plutôt qu'une sous-modale séparée : un seul champ (libelle, voir creerNouveauLieu),
-  // pas besoin d'un second panneau superposé pour ça. `ajoutLieuOuvert` réinitialisé à la
-  // fermeture (annulation ou succès), jamais laissé ouvert avec un champ résiduel.
-  const [ajoutLieuOuvert, setAjoutLieuOuvert] = useState(false);
-  const [nouveauLieuLibelle, setNouveauLieuLibelle] = useState('');
-  const [creationLieuEnCours, setCreationLieuEnCours] = useState(false);
-  const [erreurCreationLieu, setErreurCreationLieu] = useState(null);
+  // Création ET modification de lieu à la volée (boutons "+"/crayon à côté du sélecteur, voir plus
+  // bas) — un seul formulaire inline partagé entre les deux (même champ, mêmes actions), pas deux
+  // panneaux séparés : `panneauLieuMode` distingue 'creation' de 'edition' (null = fermé), plutôt
+  // que deux booléens indépendants qui pourraient en théorie être vrais tous les deux à la fois.
+  // `lieuIdEnEdition` retient QUEL lieu est modifié en mode 'edition' — distinct de `lieuId`
+  // (celui sélectionné pour le rendez-vous en cours) : l'agent peut ouvrir l'édition du lieu
+  // actuellement sélectionné, mais rien n'empêche que la modale évolue un jour vers l'édition d'un
+  // lieu non sélectionné (ex. depuis un futur écran d'admin) sans que ce state ait à changer de
+  // forme. Réinitialisés à la fermeture (annulation ou succès), jamais laissés ouverts avec un
+  // champ résiduel.
+  const [panneauLieuMode, setPanneauLieuMode] = useState(null);
+  const [lieuIdEnEdition, setLieuIdEnEdition] = useState(null);
+  const [lieuFormLibelle, setLieuFormLibelle] = useState('');
+  const [lieuFormEnCours, setLieuFormEnCours] = useState(false);
+  const [lieuFormErreur, setLieuFormErreur] = useState(null);
+
+  const fermerPanneauLieu = () => {
+    setPanneauLieuMode(null);
+    setLieuIdEnEdition(null);
+    setLieuFormLibelle('');
+    setLieuFormErreur(null);
+  };
 
   // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
   // l'appelant, voir ModalePlanificationTest.css) : sans amener la vue jusqu'à lui, l'agent ne le
@@ -217,30 +231,36 @@ export default function ModalePlanificationTest({
     };
   }, []);
 
-  // Soumission du formulaire inline "+" (voir plus bas) — POST /api/lieux (lieuService.js front,
-  // lieux.routes.js back), puis le lieu créé est ajouté à la liste locale ET sélectionné
-  // immédiatement (setLieuId), sans refetch de la liste entière : ce lieu est déjà persisté en
-  // base à ce stade (voir lieuRepository.creerLieu côté back), donc bien disponible pour toute
-  // planification future, pas seulement celle en cours — juste inutile de recharger la liste
-  // complète alors que la réponse de la création la contient déjà.
-  const creerNouveauLieu = async () => {
-    const libelle = nouveauLieuLibelle.trim();
-    if (!libelle || creationLieuEnCours) return;
+  // Soumission du formulaire inline "+"/crayon (voir plus bas) — POST ou PATCH /api/lieux
+  // (lieuService.js front, lieux.routes.js back) selon `panneauLieuMode`, puis la liste locale est
+  // mise à jour directement (ajout ou remplacement de l'entrée), sans refetch : dans les deux cas
+  // le lieu est déjà persisté en base à ce stade (voir lieuRepository.js côté back), donc bien
+  // disponible pour toute planification future — juste inutile de recharger la liste complète
+  // alors que la réponse contient déjà la version à jour. En création, le nouveau lieu est aussi
+  // sélectionné immédiatement (setLieuId) ; en édition, `lieuId` ne bouge pas puisque c'est déjà le
+  // lieu en cours d'édition qui reste sélectionné.
+  const soumettreLieu = async () => {
+    const libelle = lieuFormLibelle.trim();
+    if (!libelle || lieuFormEnCours) return;
 
-    setCreationLieuEnCours(true);
-    setErreurCreationLieu(null);
+    setLieuFormEnCours(true);
+    setLieuFormErreur(null);
     try {
-      const lieu = await creerLieu({ libelle });
-      setLieux((precedent) => [...precedent, lieu]);
-      setLieuId(String(lieu.id));
-      setAjoutLieuOuvert(false);
-      setNouveauLieuLibelle('');
+      if (panneauLieuMode === 'edition') {
+        const lieu = await modifierLieu(lieuIdEnEdition, { libelle });
+        setLieux((precedent) => precedent.map((l) => (l.id === lieu.id ? lieu : l)));
+      } else {
+        const lieu = await creerLieu({ libelle });
+        setLieux((precedent) => [...precedent, lieu]);
+        setLieuId(String(lieu.id));
+      }
+      fermerPanneauLieu();
     } catch (erreur) {
-      setErreurCreationLieu(
-        erreur.response?.data?.erreur ?? "Le serveur n'a pas pu créer ce lieu. Merci de réessayer.",
+      setLieuFormErreur(
+        erreur.response?.data?.erreur ?? "Le serveur n'a pas pu enregistrer ce lieu. Merci de réessayer.",
       );
     } finally {
-      setCreationLieuEnCours(false);
+      setLieuFormEnCours(false);
     }
   };
 
@@ -290,6 +310,12 @@ export default function ModalePlanificationTest({
   const dateHeureChoisieIso = dateTest && heureTest && minuteTest
     ? new Date(`${dateTest}T${heureTest}:${minuteTest}`).toISOString()
     : null;
+
+  // Lieu couramment choisi pour ce rendez-vous (pas celui en cours d'édition, voir
+  // lieuIdEnEdition plus haut) — sert à savoir si le bouton crayon a un sens (rien à modifier tant
+  // qu'aucun lieu n'est sélectionné) et à préremplir le formulaire d'édition avec son libellé
+  // actuel au clic.
+  const lieuSelectionne = lieux.find((lieu) => String(lieu.id) === lieuId);
 
   const nombreDejaPresentsSurCreneau = dateHeureChoisieIso === null
     ? 0
@@ -511,45 +537,71 @@ export default function ModalePlanificationTest({
                   <button
                     type="button"
                     className="modale-planification-test__bouton-ajout-lieu"
-                    aria-expanded={ajoutLieuOuvert}
+                    aria-expanded={panneauLieuMode === 'creation'}
                     aria-label="Ajouter un lieu"
                     onClick={() => {
-                      setAjoutLieuOuvert((precedent) => !precedent);
-                      setErreurCreationLieu(null);
+                      if (panneauLieuMode === 'creation') {
+                        fermerPanneauLieu();
+                        return;
+                      }
+                      setPanneauLieuMode('creation');
+                      setLieuIdEnEdition(null);
+                      setLieuFormLibelle('');
+                      setLieuFormErreur(null);
                     }}
                   >
                     +
                   </button>
+                  {/* Visible seulement si un lieu est sélectionné (rien à modifier sinon, voir
+                      lieuSelectionne plus haut) — désactivé plutôt que masqué pendant la
+                      soumission, cohérent avec les autres boutons de ce formulaire (Annuler ci-
+                      dessous, Fermer dans l'en-tête). */}
+                  {lieuSelectionne && (
+                    <button
+                      type="button"
+                      className="modale-planification-test__bouton-ajout-lieu"
+                      aria-expanded={panneauLieuMode === 'edition'}
+                      aria-label="Modifier le lieu sélectionné"
+                      title="Modifier le lieu sélectionné"
+                      disabled={lieuFormEnCours}
+                      onClick={() => {
+                        if (panneauLieuMode === 'edition') {
+                          fermerPanneauLieu();
+                          return;
+                        }
+                        setPanneauLieuMode('edition');
+                        setLieuIdEnEdition(lieuSelectionne.id);
+                        setLieuFormLibelle(lieuSelectionne.libelle);
+                        setLieuFormErreur(null);
+                      }}
+                    >
+                      ✎
+                    </button>
+                  )}
                 </div>
               )}
 
-              {ajoutLieuOuvert && (
+              {panneauLieuMode && (
                 <div className="modale-planification-test__ajout-lieu">
                   <label>
-                    <span>Nom et adresse du nouveau lieu</span>
+                    <span>{panneauLieuMode === 'edition' ? 'Nom et adresse du lieu' : 'Nom et adresse du nouveau lieu'}</span>
                     <input
                       type="text"
-                      value={nouveauLieuLibelle}
-                      onChange={(evenement) => setNouveauLieuLibelle(evenement.target.value)}
+                      value={lieuFormLibelle}
+                      onChange={(evenement) => setLieuFormLibelle(evenement.target.value)}
                       placeholder="Ex. Hôtel du Cadran - 14 rue de Valadon, 75007 Paris"
                       autoFocus
                     />
                   </label>
-                  {erreurCreationLieu && <p role="alert">{erreurCreationLieu}</p>}
+                  {lieuFormErreur && <p role="alert">{lieuFormErreur}</p>}
                   <div className="modale-planification-test__ajout-lieu-actions">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAjoutLieuOuvert(false);
-                        setNouveauLieuLibelle('');
-                        setErreurCreationLieu(null);
-                      }}
-                      disabled={creationLieuEnCours}
-                    >
+                    <button type="button" onClick={fermerPanneauLieu} disabled={lieuFormEnCours}>
                       Annuler
                     </button>
-                    <button type="button" onClick={creerNouveauLieu} disabled={!nouveauLieuLibelle.trim() || creationLieuEnCours}>
-                      {creationLieuEnCours ? 'Création...' : 'Créer'}
+                    <button type="button" onClick={soumettreLieu} disabled={!lieuFormLibelle.trim() || lieuFormEnCours}>
+                      {lieuFormEnCours
+                        ? (panneauLieuMode === 'edition' ? 'Enregistrement...' : 'Création...')
+                        : (panneauLieuMode === 'edition' ? 'Enregistrer' : 'Créer')}
                     </button>
                   </div>
                 </div>

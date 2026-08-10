@@ -50,4 +50,33 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+const idPositifSchema = z.coerce.number().int().positive();
+
+// Même schéma que la création (seul champ modifiable) — voir lieuService.modifierLieu.
+const modificationLieuSchema = z.object({
+  libelle: z.string().trim().min(1),
+});
+
+// PATCH /api/lieux/:lieuId — modifie le libellé d'un lieu existant de l'entité courante et le
+// renvoie ({ id, code, libelle, actif }), utilisé par le bouton crayon de
+// ModalePlanificationTest.jsx pour l'appliquer et le refléter immédiatement dans le sélecteur sans
+// recharger la liste. 404 si le lieu n'existe pas ou appartient à une autre entité (voir
+// lieuService.ErreurLieuIntrouvable, même IDOR-guard que le reste de lieuRepository.js).
+router.patch('/:lieuId', async (req, res, next) => {
+  try {
+    const lieuId = idPositifSchema.parse(req.params.lieuId);
+    const { libelle } = modificationLieuSchema.parse(req.body);
+    const lieu = await lieuService.modifierLieu(req.entite, lieuId, { libelle });
+    res.json(lieu);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+    }
+    if (erreur instanceof lieuService.ErreurLieuIntrouvable) {
+      return res.status(404).json({ erreur: erreur.message });
+    }
+    next(erreur);
+  }
+});
+
 module.exports = router;

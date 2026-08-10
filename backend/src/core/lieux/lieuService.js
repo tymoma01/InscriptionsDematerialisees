@@ -1,6 +1,17 @@
 const db = require('../../db/knex');
 const lieuRepository = require('./lieuRepository');
 
+// Erreur métier distincte d'une Error générique (500 opaque) — même principe que
+// ErreurStatistiquesInvalide (statistiquesService.js) : lieux.routes.js la traduit en 404 avec un
+// message directement affichable à l'agent plutôt que de laisser un lieuId inexistant (ou d'une
+// autre entité, voir modifierLieu ci-dessous) tomber dans le gestionnaire d'erreurs générique.
+class ErreurLieuIntrouvable extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurLieuIntrouvable';
+  }
+}
+
 // Sert le sélecteur de lieu de ModalePlanificationTest.jsx (voir lieux.routes.js) — même patron
 // que utilisateurService.listerFormateursEtInspecteurs pour le sélecteur de formateur.
 async function listerLieuxActifs(entite) {
@@ -55,4 +66,33 @@ async function creerLieu(entite, { libelle }) {
   return lieu;
 }
 
-module.exports = { listerLieuxActifs, creerLieu };
+// Modification à la volée depuis la même modale (bouton crayon à côté du sélecteur, voir
+// ModalePlanificationTest.jsx) — seul `libelle` est modifiable, `code` reste inchangé (pas
+// regénéré depuis le nouveau libellé : c'est un identifiant technique de repli/debug, pas une
+// information qui a besoin de suivre une correction de texte, voir slugifier ci-dessus).
+//
+// Impact sur les rendez-vous déjà planifiés à ce lieu (point vérifié avant d'écrire cette
+// fonction) : `rendezvous.lieu_id` est une FK vers `lieux` (migration 045), jamais une copie du
+// libellé — invitationTestService.envoyerInvitationTest résout `lieu.libelle` à la volée à partir
+// de cet id à CHAQUE appel, il n'existe nulle part de snapshot de l'adresse au moment de la
+// planification. Concrètement : modifier un lieu ici change immédiatement l'adresse vue sur toute
+// planification FUTURE utilisant ce lieu, et sur l'affichage back-office d'un rendez-vous existant
+// s'il re-résout le lieu (même mécanisme). Mais envoyerInvitationTest n'est appelé qu'UNE SEULE
+// fois, au moment de la création du rendez-vous (voir planificationRendezvousService.js) — une
+// convocation SMS/email déjà envoyée à un candidat est un message déjà délivré, rien ne la
+// régénère ni ne la renvoie automatiquement après coup. Donc : si l'adresse d'un lieu change après
+// qu'une convocation a déjà été envoyée pour un rendez-vous à ce lieu, ce candidat garde l'ancienne
+// adresse dans sa boîte mail/SMS tant que personne ne le relance manuellement — à signaler à
+// l'agent Accueil comme point de vigilance opérationnel, pas quelque chose que ce correctif peut
+// résoudre côté code (aucun mécanisme de renvoi automatique de convocation n'existe dans ce
+// projet).
+async function modifierLieu(entite, lieuId, { libelle }) {
+  const bd = await db.obtenirKnex();
+  const [lieu] = await lieuRepository.modifierLieu(bd, entite.id, lieuId, { libelle });
+  if (!lieu) {
+    throw new ErreurLieuIntrouvable(`Lieu "${lieuId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  return lieu;
+}
+
+module.exports = { listerLieuxActifs, creerLieu, modifierLieu, ErreurLieuIntrouvable };

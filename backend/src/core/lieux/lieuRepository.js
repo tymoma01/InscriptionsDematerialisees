@@ -30,4 +30,13 @@ function creerLieu(bd, entiteId, { code, libelle }) {
   return bd('lieux').insert({ entite_id: entiteId, code, libelle }).returning(['id', 'code', 'libelle', 'actif']);
 }
 
-module.exports = { trouverLieuParId, listerLieuxActifs, trouverLieuParCode, creerLieu };
+// Modification à la volée depuis la même modale (bouton crayon) — seul `libelle` est modifiable
+// (voir lieuService.modifierLieu : `code` reste l'identifiant technique du lieu, jamais montré ni
+// resaisi par l'agent, aucune raison de le regénérer sur une simple correction de texte). Scopé
+// par entiteId comme trouverLieuParId : un lieuId d'une autre entité ne matche aucune ligne, la
+// mise à jour est alors un no-op (tableau vide en retour, voir lieuService qui traduit ça en 404).
+function modifierLieu(bd, entiteId, lieuId, { libelle }) {
+  return bd('lieux').where({ id: lieuId, entite_id: entiteId }).update({ libelle }).returning(['id', 'code', 'libelle', 'actif']);
+}
+
+module.exports = { trouverLieuParId, listerLieuxActifs, trouverLieuParCode, creerLieu, modifierLieu };

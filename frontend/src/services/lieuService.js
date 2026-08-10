@@ -16,3 +16,11 @@ export async function creerLieu({ libelle }) {
   const { data } = await api.post('/lieux', { libelle });
   return data;
 }
+
+// Modification à la volée (bouton crayon à côté du sélecteur de lieu, ModalePlanificationTest.jsx)
+// — même forme de réponse que creerLieu ci-dessus, pour que l'appelant mette à jour sa liste
+// locale sans refetch.
+export async function modifierLieu(lieuId, { libelle }) {
+  const { data } = await api.patch(`/lieux/${lieuId}`, { libelle });
+  return data;
+}
