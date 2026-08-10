@@ -6,11 +6,18 @@
 
 const { obtenirKnex } = require('../src/db/knex');
 
+// obligatoire : true uniquement sur carte_identite/carte_vitale (décision produit, 2026-08-10) —
+// même changement que frontend/src/core/pieceJustificative/donneesTest/typesPiecesConfig.accecit.js,
+// répercuté ici pour rester cohérent même si `types_pieces.obligatoire` n'est aujourd'hui lu par
+// aucune validation backend (voir le commentaire de ce fichier front). Ce script est idempotent
+// sur l'existence d'une ligne (voir seedTypesPieces ci-dessous), donc sans effet sur une ligne déjà
+// insérée en base avec l'ancienne valeur : à corriger manuellement (UPDATE) sur un environnement
+// déjà seedé, pas quelque chose que ré-exécuter ce script fera pour vous.
 const TYPES_PIECES_ACCECIT = [
   { code: 'carte_identite', libelle: "Pièce d'identité", obligatoire: true },
   { code: 'carte_vitale', libelle: 'Carte vitale', obligatoire: true },
-  { code: 'rib', libelle: 'RIB', obligatoire: true },
-  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: true },
+  { code: 'rib', libelle: 'RIB', obligatoire: false },
+  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: false },
   { code: 'justificatif_experience', libelle: "Justificatif d'expérience", obligatoire: false },
   { code: 'attestation_mutuelle', libelle: 'Attestation mutuelle', obligatoire: false },
 ];

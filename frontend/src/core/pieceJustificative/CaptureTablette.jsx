@@ -158,12 +158,15 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
 
   const nombreCapturees = typesPieces.filter((type) => piecesCapturees.has(type.code)).length;
 
-  // Seules les pièces obligatoires conditionnent le bouton de planification — les 2 pièces
-  // optionnelles (justificatif d'expérience, attestation mutuelle) n'ont jamais besoin d'être
-  // capturées pour avancer le dossier.
-  const piecesObligatoiresCompletes = typesPieces
-    .filter((type) => type.obligatoire)
-    .every((type) => piecesCapturees.has(type.code));
+  // Seules les pièces obligatoires conditionnent le bouton de planification — les pièces
+  // optionnelles (RIB, justificatif de domicile, justificatif d'expérience, attestation mutuelle,
+  // voir typesPiecesConfig.accecit.js) n'ont jamais besoin d'être capturées pour avancer le
+  // dossier. `nombrePiecesObligatoires` dérivé de la même liste (pas une constante séparée) : le
+  // texte d'indication plus bas (voir piecesObligatoiresCompletes) reste juste si la config change
+  // à nouveau, sans autre modification à faire ici.
+  const piecesObligatoires = typesPieces.filter((type) => type.obligatoire);
+  const nombrePiecesObligatoires = piecesObligatoires.length;
+  const piecesObligatoiresCompletes = piecesObligatoires.every((type) => piecesCapturees.has(type.code));
 
   if (chargementSession) {
     return <p>Chargement de la session…</p>;
@@ -242,6 +245,10 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
               </span>
               <span className="capture-tablette__libelle">
                 {type.libelle}
+                {/* Même pattern que "Date et heure du test *" (ModalePlanificationTest.jsx) —
+                    .champ-obligatoire est une classe globale (blocFormulaire.css), pas propre à
+                    ce composant. */}
+                {type.obligatoire && <span className="champ-obligatoire"> *</span>}
                 {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
               </span>
               {dejaCapturee ? (
@@ -338,7 +345,9 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
           </button>
           {!piecesObligatoiresCompletes && (
             <p className="capture-tablette__pied-indication">
-              Capturez les 4 pièces obligatoires pour activer ce bouton.
+              {nombrePiecesObligatoires === 1
+                ? 'Capturez la pièce obligatoire pour activer ce bouton.'
+                : `Capturez les ${nombrePiecesObligatoires} pièces obligatoires pour activer ce bouton.`}
             </p>
           )}
         </div>
