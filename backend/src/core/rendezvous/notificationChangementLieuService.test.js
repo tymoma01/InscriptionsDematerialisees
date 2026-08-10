@@ -57,7 +57,7 @@ test('envoyerNotificationChangementLieu envoie un email et un SMS mentionnant la
 
   const appelEmail = mailMock.mock.calls[0];
   assert.equal(appelEmail.arguments[0], 'sophie.martin@exemple.test');
-  const { sujet } = appelEmail.arguments[3];
+  const { sujet, piecesJointes } = appelEmail.arguments[3];
   assert.equal(sujet, 'Changement de lieu pour votre test ACCECIT');
   const corpsEmail = appelEmail.arguments[2];
   assert.ok(corpsEmail.includes('Bonjour Sophie Martin'));
@@ -66,6 +66,42 @@ test('envoyerNotificationChangementLieu envoie un email et un SMS mentionnant la
   const appelSms = smsMock.mock.calls[0];
   assert.equal(appelSms.arguments[0], '0601020304');
   assert.ok(appelSms.arguments[2].includes('Salle Annexe - 3 rue des Tests, 75001 Paris'));
+
+  // Bug corrigé : l'email de changement de lieu doit joindre le .ics, comme la convocation
+  // initiale (invitationTestService.js) — voir generateurIcs.js pour la génération partagée.
+  assert.equal(piecesJointes.length, 1);
+  assert.equal(piecesJointes[0].nom, 'convocation-test-accecit.ics');
+  assert.equal(piecesJointes[0].typeMime, 'text/calendar');
+  const contenuIcs = piecesJointes[0].contenu.toString('utf8');
+  assert.ok(contenuIcs.includes('BEGIN:VCALENDAR'));
+  assert.ok(contenuIcs.includes('LOCATION:Salle Annexe - 3 rue des Tests\\, 75001 Paris'));
+  // Date/heure du rendez-vous INCHANGÉE (seul le lieu change) — 10:00 UTC = 2099-01-01T10:00:00Z.
+  assert.ok(contenuIcs.includes('DTSTART:20990101T100000Z'));
+  // UID identique à celui que produirait invitationTestService.js pour ce même rendez-vous
+  // (rendezvous.id = 55, voir RENDEZVOUS plus haut) : un client calendrier doit reconnaître une
+  // mise à jour du même événement, pas un second événement en doublon. SEQUENCE:1 (>0) confirme
+  // qu'il s'agit bien d'une révision, pas de la version initiale.
+  assert.ok(contenuIcs.includes('UID:rendezvous-55@accecit.com'));
+  assert.ok(contenuIcs.includes('SEQUENCE:1'));
+});
+
+test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comme participant de l'.ics, comme la convocation initiale", async (t) => {
+  const { mailMock } = mockerProviders(t);
+
+  const rendezvousAvecFormateur = {
+    ...RENDEZVOUS,
+    formateur_nom: 'Dupont',
+    formateur_prenom: 'Marc',
+    formateur_email: 'marc.dupont@exemple.test',
+  };
+  await notificationChangementLieuService.envoyerNotificationChangementLieu(
+    ENTITE_SMS_ACTIF,
+    rendezvousAvecFormateur,
+    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+  );
+
+  const contenuIcs = mailMock.mock.calls[0].arguments[3].piecesJointes[0].contenu.toString('utf8');
+  assert.ok(contenuIcs.includes('marc.dupont@exemple.test'));
 });
 
 // Exigence explicite : les identifiants AllMySMS ne sont pas encore configurés dans ce projet —

@@ -85,3 +85,38 @@ test('genererIcsInvitationTest ne pose jamais de ligne ORGANIZER (aucune adresse
 
   assert.ok(!ics.includes('ORGANIZER'));
 });
+
+// Sans rendezvousId (appelant qui ne régénère jamais cet .ics pour le même rendez-vous) :
+// comportement d'origine, un UID aléatoire par appel, aucune ligne SEQUENCE — ne doit surtout pas
+// planter (voir le bug corrigé : passer `uid`/`sequence` à `undefined` explicitement à la lib
+// `ics` la fait planter, ces deux clés doivent être absentes de l'objet, pas juste undefined).
+test("genererIcsInvitationTest génère un UID aléatoire et omet SEQUENCE quand rendezvousId n'est pas fourni", () => {
+  const ics = deplierIcs(genererIcsInvitationTest(INFOS_BASE));
+
+  assert.ok(/UID:\S+/.test(ics));
+  assert.ok(!ics.includes('SEQUENCE'));
+});
+
+// rendezvousId : UID stable et prévisible, pour qu'un appel ultérieur portant le même
+// rendezvousId (voir notificationChangementLieuService.js, changement de lieu) produise le MÊME
+// UID — c'est ce qui permet à un client calendrier de reconnaître une mise à jour du même
+// événement plutôt que d'importer un second événement en doublon (voir RFC 5545).
+test('genererIcsInvitationTest dérive un UID stable de rendezvousId, identique à chaque appel pour le même rendez-vous', () => {
+  const ics1 = genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 55 });
+  const ics2 = genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 55, lieu: 'Une autre adresse' });
+
+  const uid1 = ics1.match(/UID:(\S+)/)[1];
+  const uid2 = ics2.match(/UID:(\S+)/)[1];
+  assert.equal(uid1, uid2);
+  assert.equal(uid1, 'rendezvous-55@accecit.com');
+});
+
+// sequence : posé tel quel (0, 1, ...) quand fourni — c'est ce compteur, avec l'UID identique
+// ci-dessus, qui signale au client calendrier qu'une version plus récente remplace la précédente.
+test("genererIcsInvitationTest pose SEQUENCE quand fourni, même à 0 (valeur falsy mais valide)", () => {
+  const icsSequence0 = deplierIcs(genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 1, sequence: 0 }));
+  const icsSequence1 = deplierIcs(genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 1, sequence: 1 }));
+
+  assert.ok(icsSequence0.includes('SEQUENCE:0'));
+  assert.ok(icsSequence1.includes('SEQUENCE:1'));
+});

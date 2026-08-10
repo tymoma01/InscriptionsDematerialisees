@@ -5,9 +5,19 @@
 // transaction qui a fait la migration/suppression — voir lieuService.supprimerLieu, notifications
 // envoyées après coup) : pas de fusion des deux fichiers, celui-ci reste dédié à cet unique
 // événement pour ne pas alourdir invitationTestService.js d'un cas qui n'a rien à voir avec la
-// planification initiale (pas de pièce jointe .ics ici, pas de formateur à résoudre).
+// planification initiale. Génération du .ics factorisée avec la convocation initiale (voir
+// generateurIcs.js, seul générateur du projet) — même UID que la convocation d'origine
+// (rendezvousId) + SEQUENCE incrémenté : un client calendrier (Outlook, Google Calendar) met
+// alors à jour l'événement existant du candidat plutôt que d'en créer un second en doublon.
 
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
+const { genererIcsInvitationTest } = require('../../integrations/notifications/generateurIcs');
+
+// Toujours 1 ici : ce service ne gère qu'UN SEUL changement de lieu par rendez-vous (pas de
+// compteur persistant de versions successives) — une migration ultérieure du même rendez-vous
+// resterait détectée par le même UID mais écraserait ce SEQUENCE plutôt que de l'incrémenter
+// encore, cas jugé assez rare pour ne pas justifier une colonne dédiée aujourd'hui.
+const SEQUENCE_CHANGEMENT_LIEU = 1;
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   dateStyle: 'long',
@@ -68,7 +78,27 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
   if (coordonnees?.email) {
     try {
       const { sujet, corps } = construireMessageEmail(infos);
-      await notificationProvider.envoyer(coordonnees.email, 'email', corps, { sujet });
+      // Même générateur que la convocation initiale (invitationTestService.js) — date/heure et
+      // participants (candidat + formateur/inspecteur assigné, si déjà connu) inchangés, seul
+      // `lieu` reflète la nouvelle adresse. rendezvousId+sequence : voir SEQUENCE_CHANGEMENT_LIEU
+      // et generateurIcs.js pour le rôle exact de ces deux champs (mise à jour du même événement
+      // calendrier plutôt qu'un doublon).
+      const contenuIcs = genererIcsInvitationTest({
+        dateHeure: rendezvous.date_heure,
+        candidatNom: rendezvous.candidat_nom,
+        candidatPrenom: rendezvous.candidat_prenom,
+        candidatEmail: coordonnees.email,
+        formateurNom: rendezvous.formateur_nom,
+        formateurPrenom: rendezvous.formateur_prenom,
+        formateurEmail: rendezvous.formateur_email,
+        lieu: nouveauLieuLibelle,
+        rendezvousId: rendezvous.id,
+        sequence: SEQUENCE_CHANGEMENT_LIEU,
+      });
+      await notificationProvider.envoyer(coordonnees.email, 'email', corps, {
+        sujet,
+        piecesJointes: [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }],
+      });
       emailEnvoye = true;
     } catch (erreur) {
       console.error(

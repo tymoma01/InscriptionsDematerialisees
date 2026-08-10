@@ -83,6 +83,12 @@ async function envoyerInvitationTest(entite, rendezvous) {
         formateurNom: formateur?.nom,
         formateurPrenom: formateur?.prenom,
         formateurEmail: formateur?.email,
+        // UID stable dérivé de rendezvous.id (voir generateurIcs.js) : c'est cette convocation
+        // initiale qui pose la valeur que notificationChangementLieuService.js devra reprendre à
+        // l'identique pour qu'un changement de lieu ultérieur mette à jour cet événement dans le
+        // calendrier du candidat plutôt que d'en créer un second. sequence omis (première
+        // version, RFC 5545 la traite comme 0 par défaut).
+        rendezvousId: rendezvous.id,
       });
       await notificationProvider.envoyer(coordonnees.email, 'email', corps, {
         sujet,

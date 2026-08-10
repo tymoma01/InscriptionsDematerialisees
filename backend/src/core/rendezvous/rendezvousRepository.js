@@ -187,11 +187,16 @@ async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId,
 // dossier_donnees_formulaire (bloc 'coordonnees') en plus de candidats : email/téléphone
 // nécessaires pour la notification de changement d'adresse (voir
 // notificationChangementLieuService.js), résolus ici en une seule requête plutôt qu'un lookup par
-// rendez-vous (même raisonnement que dossierRepository.listerDossiers pour ce même bloc).
+// rendez-vous (même raisonnement que dossierRepository.listerDossiers pour ce même bloc). Jointure
+// gauche vers utilisateurs (formateur_id, nullable) en plus — même patron que listerRendezvousTest
+// ci-dessus : sert à ce que le .ics regénéré pour cette notification (voir generateurIcs.js)
+// reprenne le même participant formateur que l'.ics de la convocation initiale, pas seulement le
+// candidat.
 function listerRendezvousParLieu(bd, entiteId, lieuId) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
     .leftJoin('dossier_donnees_formulaire as bloc_coordonnees', function () {
       this.on('bloc_coordonnees.dossier_id', '=', 'dossiers.id').andOn(
         'bloc_coordonnees.bloc_code',
@@ -208,6 +213,9 @@ function listerRendezvousParLieu(bd, entiteId, lieuId) {
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       'bloc_coordonnees.donnees as donnees_coordonnees',
+      'utilisateurs.prenom as formateur_prenom',
+      'utilisateurs.nom as formateur_nom',
+      'utilisateurs.email as formateur_email',
     )
     .orderBy('rendezvous.date_heure', 'asc');
 }

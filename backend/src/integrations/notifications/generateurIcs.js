@@ -29,7 +29,9 @@ function composantsDateUtc(date) {
 }
 
 // Génère le contenu texte d'un fichier .ics pour la convocation au test (voir
-// invitationTestService.js).
+// invitationTestService.js) — et pour toute notification qui doit REFLÉTER une mise à jour du
+// même rendez-vous (voir notificationChangementLieuService.js, changement de lieu) plutôt que
+// créer un doublon dans le calendrier du destinataire.
 //
 // candidatEmail : toujours fourni en pratique (voir invitationTestService.js, l'envoi lui-même
 // est déjà conditionné à sa présence) — reste optionnel ici pour que ce générateur ne partage pas
@@ -46,6 +48,21 @@ function composantsDateUtc(date) {
 // invitationTestService.js) et transmis tel quel ici. Repli défensif sur LIEU_TEST_ACCECIT si
 // absent : ce générateur reste utilisable seul (voir generateurIcs.test.js), sans dépendre de ce
 // que fait précisément son unique appelant actuel.
+//
+// rendezvousId : sert à dériver un UID iCalendar STABLE (RFC 5545 — un événement se met à jour
+// dans le calendrier du destinataire uniquement si le second .ics envoyé porte le MÊME UID que le
+// premier ; sans ça, chaque appel génère un UID aléatoire — voir eventDefaults dans `ics`, nanoid()
+// — et un client calendrier (Outlook, Google Calendar) importe l'.ics suivant comme un DEUXIÈME
+// événement séparé plutôt que de mettre à jour le premier). Optionnel : si absent, `createEvent`
+// retombe sur son UID aléatoire par défaut — un appelant qui n'a jamais besoin de régénérer cet
+// .ics pour le même rendez-vous (aucun cas de ce genre avant notificationChangementLieuService.js)
+// n'a pas à s'en soucier.
+//
+// sequence : à incrémenter (0 -> 1 -> ...) à chaque régénération d'un .ics pour un rendez-vous déjà
+// notifié une première fois — c'est ce compteur, en plus de l'UID identique, qui indique au client
+// calendrier qu'il s'agit d'une mise à jour plus récente plutôt que d'un doublon ou d'une version
+// obsolète reçue en retard. Absent (undefined) pour la toute première convocation d'un rendez-vous
+// (voir invitationTestService.js) : RFC 5545 traite un SEQUENCE omis comme 0, la valeur initiale.
 function genererIcsInvitationTest({
   dateHeure,
   candidatNom,
@@ -55,6 +72,8 @@ function genererIcsInvitationTest({
   formateurPrenom,
   formateurEmail,
   lieu,
+  rendezvousId,
+  sequence,
 }) {
   const attendees = [];
   if (candidatEmail) {
@@ -76,6 +95,23 @@ function genererIcsInvitationTest({
     });
   }
 
+  // `ics` (createEvent) plante si `uid`/`sequence` sont présents dans l'objet d'attributs avec la
+  // valeur `undefined` (vérifié : removeUndefined, dans ics/dist/pipeline/build.js, retire alors
+  // la clé — y compris la valeur par défaut déjà posée par eventDefaults() juste avant — et
+  // format.js tente ensuite un .replace() sur ce uid devenu absent, TypeError). Ces deux clés ne
+  // doivent donc être présentes DANS L'OBJET que quand elles ont une vraie valeur, jamais posées à
+  // `undefined` à la place d'omises.
+  const optionsRendezvous = {};
+  if (rendezvousId) {
+    // Format resemblant un identifiant d'email (convention iCalendar usuelle pour un UID lisible/
+    // debuggable), pas une adresse réellement destinée à recevoir du courrier — voir commentaire
+    // rendezvousId plus haut pour le rôle de ce champ.
+    optionsRendezvous.uid = `rendezvous-${rendezvousId}@accecit.com`;
+  }
+  if (sequence !== undefined) {
+    optionsRendezvous.sequence = sequence;
+  }
+
   const { error, value } = createEvent({
     start: composantsDateUtc(new Date(dateHeure)),
     startInputType: 'utc',
@@ -85,6 +121,7 @@ function genererIcsInvitationTest({
     description: `Convocation au test ACCECIT pour ${candidatPrenom} ${candidatNom}.`,
     location: lieu ?? LIEU_TEST_ACCECIT,
     status: 'CONFIRMED',
+    ...optionsRendezvous,
     // Pas d'email ORGANIZER : aucune adresse d'expédition ACCECIT n'est à ce jour documentée nulle
     // part dans le projet (voir docs/architecture-technique.md, point ouvert remonté séparément) —
     // et la librairie `ics` émet une ligne ORGANIZER invalide (`ORGANIZER;CN=ACCECIT` sans valeur
