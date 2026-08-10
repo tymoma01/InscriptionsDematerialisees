@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { z } = require('zod');
 const lieuService = require('../../core/lieux/lieuService');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
@@ -7,12 +8,15 @@ const { ROLES } = require('../../core/auth/rbac');
 // Monté sur '/api/lieux' (voir app.js) — top-level, même patron que formateurs.routes.js : un
 // agent Accueil/Coordination ou Recruteur doit pouvoir lister les lieux pour planifier un
 // rendez-vous de test (voir ModalePlanificationTest.jsx) sans avoir de droits d'administration.
+// Mêmes rôles pour la création (voir POST ci-dessous) : c'est justement l'agent Accueil qui a
+// besoin de créer un lieu à la volée pendant la planification, pas seulement l'Admin — voir bouton
+// "+" à côté du sélecteur de lieu, ModalePlanificationTest.jsx.
 const router = Router();
 
-const ROLES_LECTURE_LIEUX = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+const ROLES_GESTION_LIEUX = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_LECTURE_LIEUX));
+router.use(requireRole(...ROLES_GESTION_LIEUX));
 
 // GET /api/lieux — lieux actifs de l'entité courante ({ id, code, libelle }).
 router.get('/', async (req, res, next) => {
@@ -20,6 +24,28 @@ router.get('/', async (req, res, next) => {
     const lieux = await lieuService.listerLieuxActifs(req.entite);
     res.json(lieux);
   } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// libelle porte l'adresse en texte libre (voir lieuService.creerLieu) : pas de champ adresse
+// séparé, la table `lieux` (migration 044) n'en a pas.
+const creationLieuSchema = z.object({
+  libelle: z.string().trim().min(1),
+});
+
+// POST /api/lieux — crée un lieu pour l'entité courante et le renvoie ({ id, code, libelle,
+// actif }), utilisé par ModalePlanificationTest.jsx pour l'ajouter et le sélectionner
+// immédiatement sans recharger la liste.
+router.post('/', async (req, res, next) => {
+  try {
+    const { libelle } = creationLieuSchema.parse(req.body);
+    const lieu = await lieuService.creerLieu(req.entite, { libelle });
+    res.status(201).json(lieu);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+    }
     next(erreur);
   }
 });

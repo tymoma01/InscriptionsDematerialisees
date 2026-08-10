@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
-import { listerLieux } from '../../services/lieuService';
+import { listerLieux, creerLieu } from '../../services/lieuService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
 import { dateDuJourParis } from './dateDuJourParis';
@@ -81,6 +81,15 @@ export default function ModalePlanificationTest({
   const [chargementLieux, setChargementLieux] = useState(true);
   const [erreurLieux, setErreurLieux] = useState(null);
   const [lieuId, setLieuId] = useState('');
+
+  // Création de lieu à la volée (bouton "+" à côté du sélecteur, voir plus bas) — formulaire
+  // inline plutôt qu'une sous-modale séparée : un seul champ (libelle, voir creerNouveauLieu),
+  // pas besoin d'un second panneau superposé pour ça. `ajoutLieuOuvert` réinitialisé à la
+  // fermeture (annulation ou succès), jamais laissé ouvert avec un champ résiduel.
+  const [ajoutLieuOuvert, setAjoutLieuOuvert] = useState(false);
+  const [nouveauLieuLibelle, setNouveauLieuLibelle] = useState('');
+  const [creationLieuEnCours, setCreationLieuEnCours] = useState(false);
+  const [erreurCreationLieu, setErreurCreationLieu] = useState(null);
 
   // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
   // l'appelant, voir ModalePlanificationTest.css) : sans amener la vue jusqu'à lui, l'agent ne le
@@ -207,6 +216,33 @@ export default function ModalePlanificationTest({
       annule = true;
     };
   }, []);
+
+  // Soumission du formulaire inline "+" (voir plus bas) — POST /api/lieux (lieuService.js front,
+  // lieux.routes.js back), puis le lieu créé est ajouté à la liste locale ET sélectionné
+  // immédiatement (setLieuId), sans refetch de la liste entière : ce lieu est déjà persisté en
+  // base à ce stade (voir lieuRepository.creerLieu côté back), donc bien disponible pour toute
+  // planification future, pas seulement celle en cours — juste inutile de recharger la liste
+  // complète alors que la réponse de la création la contient déjà.
+  const creerNouveauLieu = async () => {
+    const libelle = nouveauLieuLibelle.trim();
+    if (!libelle || creationLieuEnCours) return;
+
+    setCreationLieuEnCours(true);
+    setErreurCreationLieu(null);
+    try {
+      const lieu = await creerLieu({ libelle });
+      setLieux((precedent) => [...precedent, lieu]);
+      setLieuId(String(lieu.id));
+      setAjoutLieuOuvert(false);
+      setNouveauLieuLibelle('');
+    } catch (erreur) {
+      setErreurCreationLieu(
+        erreur.response?.data?.erreur ?? "Le serveur n'a pas pu créer ce lieu. Merci de réessayer.",
+      );
+    } finally {
+      setCreationLieuEnCours(false);
+    }
+  };
 
   // Liste filtrée sur le groupe actif — c'est elle qui alimente le <select> plus bas, jamais la
   // liste combinée brute.
@@ -454,17 +490,69 @@ export default function ModalePlanificationTest({
                 <p role="alert" className="modale-planification-test__lieu-etat">
                   {erreurLieux}
                 </p>
-              ) : lieux.length === 0 ? (
-                <p className="modale-planification-test__lieu-etat">Aucun lieu configuré pour cette entité.</p>
               ) : (
-                <select id="planification-lieu" value={lieuId} onChange={(evenement) => setLieuId(evenement.target.value)}>
-                  <option value="">-</option>
-                  {lieux.map((lieu) => (
-                    <option key={lieu.id} value={lieu.id}>
-                      {lieu.libelle}
-                    </option>
-                  ))}
-                </select>
+                <div className="modale-planification-test__lieu-select-ligne">
+                  {lieux.length === 0 ? (
+                    <p className="modale-planification-test__lieu-etat">Aucun lieu configuré pour cette entité.</p>
+                  ) : (
+                    <select id="planification-lieu" value={lieuId} onChange={(evenement) => setLieuId(evenement.target.value)}>
+                      <option value="">-</option>
+                      {lieux.map((lieu) => (
+                        <option key={lieu.id} value={lieu.id}>
+                          {lieu.libelle}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {/* Toujours affiché, y compris liste vide/en erreur : c'est justement le moyen de
+                      sortir de ces deux cas sans quitter la modale. aria-expanded plutôt qu'un
+                      simple aria-label : annonce l'état ouvert/fermé du formulaire inline
+                      ci-dessous aux lecteurs d'écran. */}
+                  <button
+                    type="button"
+                    className="modale-planification-test__bouton-ajout-lieu"
+                    aria-expanded={ajoutLieuOuvert}
+                    aria-label="Ajouter un lieu"
+                    onClick={() => {
+                      setAjoutLieuOuvert((precedent) => !precedent);
+                      setErreurCreationLieu(null);
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+
+              {ajoutLieuOuvert && (
+                <div className="modale-planification-test__ajout-lieu">
+                  <label>
+                    <span>Nom et adresse du nouveau lieu</span>
+                    <input
+                      type="text"
+                      value={nouveauLieuLibelle}
+                      onChange={(evenement) => setNouveauLieuLibelle(evenement.target.value)}
+                      placeholder="Ex. Hôtel du Cadran - 14 rue de Valadon, 75007 Paris"
+                      autoFocus
+                    />
+                  </label>
+                  {erreurCreationLieu && <p role="alert">{erreurCreationLieu}</p>}
+                  <div className="modale-planification-test__ajout-lieu-actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAjoutLieuOuvert(false);
+                        setNouveauLieuLibelle('');
+                        setErreurCreationLieu(null);
+                      }}
+                      disabled={creationLieuEnCours}
+                    >
+                      Annuler
+                    </button>
+                    <button type="button" onClick={creerNouveauLieu} disabled={!nouveauLieuLibelle.trim() || creationLieuEnCours}>
+                      {creationLieuEnCours ? 'Création...' : 'Créer'}
+                    </button>
+                  </div>
+                </div>
               )}
             </fieldset>
           </div>

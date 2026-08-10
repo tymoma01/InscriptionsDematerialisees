@@ -179,6 +179,65 @@
   color: var(--couleur-texte-secondaire);
 }
 
+/* Ligne select + bouton "+" (voir ModalePlanificationTest.jsx) — le select (ou le message liste
+   vide/état) absorbe l'espace disponible, le bouton "+" garde sa taille naturelle carrée à côté,
+   jamais étiré par align-items: stretch par défaut du select (flex: 1 le laisse remplir la
+   hauteur de la ligne, cohérent avec le bouton lui aussi en hauteur fixe). */
+.modale-planification-test__lieu-select-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.modale-planification-test__lieu-select-ligne select,
+.modale-planification-test__lieu-select-ligne p {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+/* Carré plutôt qu'un bouton texte "Ajouter" — reste compact à côté du select sur la largeur déjà
+   contrainte de ce fieldset (flex: 1 1 240px, voir .modale-planification-test__champ-lieu),
+   cohérent avec le style bordé/rayon déjà utilisé par les autres boutons de cette modale (voir
+   .modale-planification-test__formulaire-actions button, pas redéclaré ici — hérite du style de
+   bouton générique du projet). */
+.modale-planification-test__bouton-ajout-lieu {
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* Formulaire inline de création de lieu — même traitement bordure/rayon que
+   .modale-planification-test__champ-lieu (cohérence visuelle : un sous-cadre à l'intérieur du
+   cadre "Lieu"), sous la ligne select + "+" plutôt qu'une sous-modale superposée (décision
+   produit : rester dans le flux de la modale de planification déjà ouverte). */
+.modale-planification-test__ajout-lieu {
+  margin-top: var(--espace-petit);
+  padding: var(--espace-petit);
+  border: 1px dashed var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+}
+
+.modale-planification-test__ajout-lieu label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.modale-planification-test__ajout-lieu input {
+  width: 100%;
+}
+
+.modale-planification-test__ajout-lieu-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: var(--espace-petit);
+}
+
 /* Sélection du/des poste(s) testé(s) (Phase 1, informatif) — même patron visuel que
    .modale-planification-test__champ-date-heure (fieldset/legend). */
 /* Ligne plutôt que colonne (row + wrap), même patron que .bloc-disponibilites__options
