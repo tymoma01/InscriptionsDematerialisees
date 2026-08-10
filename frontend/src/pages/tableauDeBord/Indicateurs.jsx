@@ -183,6 +183,36 @@ const COULEUR_POSTE_NON_SPECIFIE = '#9ca3af';
 
 const FORMAT_POURCENTAGE = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 });
 
+// Label directement lisible sur chaque part des deux camemberts ("Réussis vs ratés",
+// "Formation vs prêt à l'embauche") — remplace le label par défaut de recharts (petit chiffre
+// excentré + trait de rappel) par le total EN GROS suivi du pourcentage, centré à mi-rayon de la
+// part, sans ligne de rappel (voir labelLine={false} sur les <Pie> plus bas) : à seulement 2
+// parts par camembert, l'anneau est large, la valeur tient largement à l'intérieur. Le nom de la
+// part n'est volontairement pas repris ici (déjà porté par la légende et le Tooltip au survol) —
+// "Envoi en formation"/"Prêt à l'embauche" déborderait la part sur un partage très inégal.
+// Fonction top-level (pas de dépendance au composant) : reçoit cx/cy/midAngle/rayons/percent/value
+// directement de recharts (voir doc `label` en fonction), les calculs de position sont donc ceux
+// de la lib, pas une estimation manuelle indépendante.
+const RADIAN = Math.PI / 180;
+function labelPartCamembert({ cx, cy, midAngle, innerRadius, outerRadius, percent, value }) {
+  // Part à 0 masquée plutôt qu'un "0 (0%)" illisible collé au centre (angle nul) — reste visible
+  // via la légende, qui liste toujours les deux parts indépendamment de leur valeur.
+  if (!value) return null;
+  const rayon = innerRadius + (outerRadius - innerRadius) * 0.62;
+  const x = cx + rayon * Math.cos(-midAngle * RADIAN);
+  const y = cy + rayon * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fill="#fff">
+      <tspan x={x} dy="-0.35em" fontSize={18} fontWeight={700}>
+        {value}
+      </tspan>
+      <tspan x={x} dy="1.3em" fontSize={12} fontWeight={500}>
+        {`(${Math.round(percent * 100)}%)`}
+      </tspan>
+    </text>
+  );
+}
+
 function formatDateISO(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -510,7 +540,7 @@ export default function Indicateurs() {
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={320}>
+                  <ResponsiveContainer width="100%" height={380}>
                     <PieChart>
                       {/* cx décalé vers la droite du centre (pas 50%, ni le 38% initial — voir
                           historique) : avec la grille corrigée à deux colonnes fixes
@@ -519,15 +549,18 @@ export default function Indicateurs() {
                           le bord droit du camembert et la légende (align="right", voir
                           ci-dessous) — 45% rapproche les deux plutôt que de les laisser à leurs
                           extrémités respectives avec un vide entre les deux. outerRadius relevé à
-                          "85%" (plus de hauteur disponible, voir height ci-dessus) : un camembert
-                          plus grand comble aussi une partie de ce vide par lui-même. */}
+                          "92%" (plus de hauteur disponible, voir height ci-dessus, et labels
+                          désormais À L'INTÉRIEUR de la part — labelPartCamembert plus haut — donc
+                          plus besoin de marge extérieure pour un label+ligne de rappel) : un
+                          camembert plus grand comble aussi une partie de ce vide par lui-même. */}
                       <Pie
                         data={donneesVerdicts}
                         dataKey="total"
                         nameKey="nom"
                         cx="45%"
-                        outerRadius="85%"
-                        label
+                        outerRadius="92%"
+                        label={labelPartCamembert}
+                        labelLine={false}
                       >
                         {donneesVerdicts.map((entree) => (
                           // Segment cliquable (voir basculerIndicateur) : opacité réduite pour les
@@ -566,15 +599,19 @@ export default function Indicateurs() {
                 {donneesOrientations.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucune orientation sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={320}>
+                  <ResponsiveContainer width="100%" height={380}>
                     <PieChart>
+                      {/* Même camembert que "Tests réussis vs ratés" ci-dessus — taille et style
+                          volontairement identiques (cx, outerRadius, label, légende) : cohérence
+                          visuelle entre les deux graphiques du même écran, voir CLAUDE.md. */}
                       <Pie
                         data={donneesOrientations}
                         dataKey="total"
                         nameKey="nom"
                         cx="45%"
-                        outerRadius="85%"
-                        label
+                        outerRadius="92%"
+                        label={labelPartCamembert}
+                        labelLine={false}
                       >
                         {donneesOrientations.map((entree) => (
                           <Cell
