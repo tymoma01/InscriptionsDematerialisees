@@ -75,6 +75,14 @@ router.get('/kpi', async (req, res, next) => {
     if (erreur instanceof z.ZodError) {
       return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
     }
+    // Manquait sur cette route (présent seulement sur /kpi/dossiers ci-dessous) : sans ce
+    // branchement, une erreur métier (ex. poste incohérent avec typePoste, voir
+    // statistiquesService.validerCoherencePosteTypePoste) tombait dans le gestionnaire générique
+    // de app.js ("Une erreur est survenue. Merci de réessayer.") au lieu du message clair porté
+    // par erreur.message.
+    if (erreur instanceof statistiquesService.ErreurStatistiquesInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

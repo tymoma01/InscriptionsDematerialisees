@@ -127,6 +127,72 @@ test('obtenirIndicateursKpi transmet typePoste/poste tels quels à chaque requê
   assert.equal(filtresRecus.poste, 'cafetier');
 });
 
+// validerCoherencePosteTypePoste (statistiquesService.js) : un poste Tertiaire (bureau) avec
+// typePoste="hotel" est incohérent — sans cette validation, statistiquesRepository.
+// filtrerPosteDossier ignorerait typePoste silencieusement ("poste prime"), donnant des résultats
+// trompeurs plutôt qu'une erreur claire (voir bug /tableau-de-bord/indicateurs, filtre Entité +
+// Poste, 2026-08-10).
+test("obtenirIndicateursKpi rejette une combinaison poste/typePoste incohérente (poste Tertiaire avec typePoste 'hotel')", async (t) => {
+  mockerKnex(t);
+  mockerRepository(t);
+
+  await assert.rejects(
+    () =>
+      statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+        dateDebut: '2026-07-01',
+        dateFin: '2026-07-31',
+        typePoste: 'hotel',
+        poste: 'nettoyage',
+      }),
+    (erreur) => erreur instanceof statistiquesService.ErreurStatistiquesInvalide,
+  );
+});
+
+test('obtenirIndicateursKpi accepte poste seul, typePoste seul, et une combinaison cohérente des deux', async (t) => {
+  mockerKnex(t);
+  mockerRepository(t);
+
+  await assert.doesNotReject(() =>
+    statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+      dateDebut: '2026-07-01',
+      dateFin: '2026-07-31',
+      poste: 'nettoyage',
+    }),
+  );
+  await assert.doesNotReject(() =>
+    statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+      dateDebut: '2026-07-01',
+      dateFin: '2026-07-31',
+      typePoste: 'bureau',
+    }),
+  );
+  await assert.doesNotReject(() =>
+    statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+      dateDebut: '2026-07-01',
+      dateFin: '2026-07-31',
+      typePoste: 'bureau',
+      poste: 'nettoyage',
+    }),
+  );
+});
+
+test('listerDossiersParIndicateurs rejette la même combinaison poste/typePoste incohérente', async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => []);
+
+  await assert.rejects(
+    () =>
+      statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+        dateDebut: '2026-07-01',
+        dateFin: '2026-07-31',
+        typePoste: 'hotel',
+        poste: 'nettoyage',
+        indicateurs: ['inscrits'],
+      }),
+    (erreur) => erreur instanceof statistiquesService.ErreurStatistiquesInvalide,
+  );
+});
+
 // ET strict (voir statistiquesService.js) : le dossier #2, qui ne satisfait que "inscrits" et pas
 // "envoyes_en_test", doit désormais être EXCLU du résultat — seul le dossier #1 (les deux à la
 // fois) ressort. Avant le passage à l'ET strict, les deux dossiers apparaissaient (union) ; ce

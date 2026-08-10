@@ -21,6 +21,25 @@ class ErreurStatistiquesInvalide extends Error {
   }
 }
 
+// Un poste précis implique déjà son typePoste (voir statistiquesRepository.filtrerPosteDossier,
+// commentaire "poste prime sur typePoste s'ils sont fournis tous les deux") : quand les deux sont
+// fournis ET incohérents (ex. poste="nettoyage", un poste Tertiaire, avec typePoste="hotel"), le
+// repository ignore typePoste silencieusement plutôt que de lever une erreur — un filtre "Entité"
+// silencieusement ignoré donnerait des résultats trompeurs (tous les dossiers "nettoyage", pas
+// seulement ceux d'Hôtellerie) sans que rien ne le signale à l'agent. Validé une seule fois ici,
+// avant toute requête au repository, plutôt que dupliqué dans chaque fonction de
+// statistiquesRepository.js — même principe que la validation des codes d'indicateurs plus bas
+// (résoudreListeIndicateur), qui lève déjà ErreurStatistiquesInvalide pour la même raison.
+function validerCoherencePosteTypePoste({ typePoste, poste }) {
+  if (!typePoste || !poste) return;
+  const postesAttendus = typePoste === 'bureau' ? POSTES_BUREAU : POSTES_HOTEL;
+  if (!postesAttendus.includes(poste)) {
+    throw new ErreurStatistiquesInvalide(
+      `Le poste "${poste}" n'appartient pas au type de poste "${typePoste}" filtré.`,
+    );
+  }
+}
+
 // dateFin est une borne incluse côté utilisateur (jour calendaire) — convertie ici en borne
 // exclusive du lendemain, même convention que rendezvousTestQuerySchema (dossiers.routes.js) :
 // simplifie chaque requête du repository à une seule paire >= / < plutôt que whereBetween (qui
@@ -46,6 +65,7 @@ function versMoyenneJours(valeur) {
 }
 
 async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, poste }) {
+  validerCoherencePosteTypePoste({ typePoste, poste });
   const bd = await obtenirKnex();
   const filtres = { ...bornesPeriode(dateDebut, dateFin), typePoste, poste };
 
@@ -206,6 +226,7 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
 // qu'un seul verdict par test) donnent un résultat vide — comportement normal d'un ET strict, pas
 // un cas particulier à détecter ni à traiter différemment.
 async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePoste, poste, indicateurs }) {
+  validerCoherencePosteTypePoste({ typePoste, poste });
   const bd = await obtenirKnex();
   const filtres = { ...bornesPeriode(dateDebut, dateFin), typePoste, poste };
 

@@ -42,7 +42,12 @@ function filtrerPosteDossier(requete, { typePoste, poste } = {}) {
         .orWhereRaw("bloc_disponibilites.donnees -> 'posteHotel' @> ?::jsonb", [JSON.stringify([poste])]);
     });
   } else if (typePoste) {
-    requete.andWhere("bloc_disponibilites.donnees ->> 'typePoste'", typePoste);
+    // .andWhere(expr, valeur) traite `expr` comme un identifiant de colonne (knex la quote telle
+    // quelle) plutôt que comme du SQL — whereRaw ici, même pattern que la branche `poste`
+    // ci-dessus, pour que l'opérateur ->> soit bien interprété comme du SQL et non comme un nom de
+    // colonne littéral (voir bug /tableau-de-bord/indicateurs, filtre Entité, 2026-08-10 : erreur
+    // 42703 "column bloc_disponibilites.donnees ->> 'typePoste' does not exist").
+    requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
   }
   return requete;
 }

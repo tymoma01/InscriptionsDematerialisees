@@ -107,6 +107,17 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
+// Libellé de l'option par défaut (value="") du filtre "Poste" — purement affichage, le
+// comportement de filtrage reste inchangé (poste vide = aucun filtre poste, scope = l'entité déjà
+// sélectionnée via typePoste, voir posteEffectif plus bas). Reflète l'entité choisie dans le
+// filtre "Entité" juste au-dessus pour éviter l'ambiguïté "tous les postes" alors qu'un filtre
+// Hôtellerie/Tertiaire est déjà actif.
+function libelleOptionTousLesPostes(typePosteFiltre) {
+  if (typePosteFiltre === 'hotel') return 'Tous les postes Hôtellerie';
+  if (typePosteFiltre === 'bureau') return 'Tous les postes Tertiaire';
+  return 'Tous les postes';
+}
+
 // Un code 'poste:<code>' se traduit via libellePoste ci-dessus (même libellé que la colonne
 // "Poste"/le graphique de répartition) plutôt que d'être dupliqué dans LIBELLES_INDICATEURS.
 function libelleIndicateur(code) {
@@ -232,6 +243,15 @@ export default function Indicateurs() {
     if (poste && !postesDisponibles.includes(poste)) setPoste('');
   }, [postesDisponibles, poste]);
 
+  // Dérivé de façon SYNCHRONE (pas seulement via l'effet ci-dessus, qui ne réinitialise `poste`
+  // qu'au rendu suivant) : sur le rendu où `typePoste` vient de changer, `poste` peut encore
+  // porter la valeur incompatible de l'entité précédente pendant un instant — sans cette valeur
+  // dérivée, les appels API ci-dessous (effets suivants, mêmes dépendances) partiraient avec cette
+  // combinaison typePoste/poste incohérente le temps d'un aller-retour réseau inutile, avant que
+  // l'effet de réinitialisation ne rattrape `poste` au rendu suivant. `posteEffectif` élimine cette
+  // fenêtre : jamais transmis au back tant qu'il ne correspond pas à `postesDisponibles`.
+  const posteEffectif = poste && postesDisponibles.includes(poste) ? poste : '';
+
   // Même raisonnement pour un segment de répartition par poste sélectionné ('poste:<code>') :
   // si le typePoste filtré ne propose plus ce poste, sa sélection n'a plus de sens (le segment
   // correspondant a d'ailleurs disparu du graphique). 'poste_non_specifie' (barre "Non spécifié")
@@ -264,7 +284,7 @@ export default function Indicateurs() {
       dateDebut: periode.dateDebut,
       dateFin: periode.dateFin,
       typePoste: typePoste || undefined,
-      poste: poste || undefined,
+      poste: posteEffectif || undefined,
     })
       .then((valeur) => {
         if (!annule) setIndicateurs(valeur);
@@ -280,7 +300,7 @@ export default function Indicateurs() {
     return () => {
       annule = true;
     };
-  }, [periode, typePoste, poste]);
+  }, [periode, typePoste, posteEffectif]);
 
   // Tableau consolidé : re-fetché à chaque changement de sélection OU de filtres (période/poste/
   // typePoste) — les dossiers listés doivent toujours correspondre aux mêmes critères que les
@@ -299,7 +319,7 @@ export default function Indicateurs() {
       dateDebut: periode.dateDebut,
       dateFin: periode.dateFin,
       typePoste: typePoste || undefined,
-      poste: poste || undefined,
+      poste: posteEffectif || undefined,
       indicateurs: selectionIndicateurs,
     })
       .then((valeur) => {
@@ -316,7 +336,7 @@ export default function Indicateurs() {
     return () => {
       annule = true;
     };
-  }, [selectionIndicateurs, periode, typePoste, poste]);
+  }, [selectionIndicateurs, periode, typePoste, posteEffectif]);
 
   if (chargementSession) {
     return (
@@ -409,7 +429,7 @@ export default function Indicateurs() {
           <label className="indicateurs__filtre">
             <span>Poste</span>
             <select value={poste} onChange={(evenement) => setPoste(evenement.target.value)}>
-              <option value="">Tous les postes</option>
+              <option value="">{libelleOptionTousLesPostes(typePoste)}</option>
               {postesDisponibles.map((code) => (
                 <option key={code} value={code}>
                   {libellePoste(code)}
