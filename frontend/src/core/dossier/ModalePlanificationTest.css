@@ -238,6 +238,28 @@
   margin-top: var(--espace-petit);
 }
 
+/* Avertissement anti-doublon (voir detectionLieuSimilaire.js/soumettreLieu, ModalePlanificationTest.jsx)
+   — palette ambre "attente" du projet (variables.css, déjà utilisée pour les statuts en attente),
+   pas le rouge [role='alert'] générique de cette modale : ce n'est pas une erreur, juste une
+   question à trancher avant de continuer. */
+.modale-planification-test__avertissement-doublon {
+  margin-top: var(--espace-petit);
+  padding: var(--espace-petit);
+  background: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  border-radius: var(--rayon-bordure);
+}
+
+.modale-planification-test__avertissement-doublon p {
+  margin: 0;
+  color: var(--statut-attente-texte);
+  font-size: 0.875rem;
+}
+
+.modale-planification-test__avertissement-doublon .modale-planification-test__ajout-lieu-actions {
+  margin-top: var(--espace-petit);
+}
+
 /* Sélection du/des poste(s) testé(s) (Phase 1, informatif) — même patron visuel que
    .modale-planification-test__champ-date-heure (fieldset/legend). */
 /* Ligne plutôt que colonne (row + wrap), même patron que .bloc-disponibilites__options

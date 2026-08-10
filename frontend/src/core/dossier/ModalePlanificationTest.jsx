@@ -4,6 +4,7 @@ import { listerLieux, creerLieu, modifierLieu } from '../../services/lieuService
 import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
 import { dateDuJourParis } from './dateDuJourParis';
+import { trouverLieuSimilaire } from './detectionLieuSimilaire';
 import './ModalePlanificationTest.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -97,12 +98,19 @@ export default function ModalePlanificationTest({
   const [lieuFormLibelle, setLieuFormLibelle] = useState('');
   const [lieuFormEnCours, setLieuFormEnCours] = useState(false);
   const [lieuFormErreur, setLieuFormErreur] = useState(null);
+  // Avertissement anti-doublon (voir soumettreLieu plus bas) — uniquement en création, jamais en
+  // édition (modifier un lieu existant n'a pas de raison de se comparer à lui-même) : le lieu
+  // existant détecté comme similaire, ou null tant qu'aucune tentative de création ne l'a
+  // déclenché. Jamais un blocage (voir detectionLieuSimilaire.js) : juste de quoi proposer
+  // "Utiliser ce lieu" / "Créer quand même" à l'agent avant l'appel réseau réel.
+  const [lieuSimilaireDetecte, setLieuSimilaireDetecte] = useState(null);
 
   const fermerPanneauLieu = () => {
     setPanneauLieuMode(null);
     setLieuIdEnEdition(null);
     setLieuFormLibelle('');
     setLieuFormErreur(null);
+    setLieuSimilaireDetecte(null);
   };
 
   // Ce panneau s'ouvre en bas de page (sous la liste de pièces ou la liste de dossiers selon
@@ -231,18 +239,17 @@ export default function ModalePlanificationTest({
     };
   }, []);
 
-  // Soumission du formulaire inline "+"/crayon (voir plus bas) — POST ou PATCH /api/lieux
-  // (lieuService.js front, lieux.routes.js back) selon `panneauLieuMode`, puis la liste locale est
-  // mise à jour directement (ajout ou remplacement de l'entrée), sans refetch : dans les deux cas
-  // le lieu est déjà persisté en base à ce stade (voir lieuRepository.js côté back), donc bien
-  // disponible pour toute planification future — juste inutile de recharger la liste complète
-  // alors que la réponse contient déjà la version à jour. En création, le nouveau lieu est aussi
-  // sélectionné immédiatement (setLieuId) ; en édition, `lieuId` ne bouge pas puisque c'est déjà le
-  // lieu en cours d'édition qui reste sélectionné.
-  const soumettreLieu = async () => {
-    const libelle = lieuFormLibelle.trim();
-    if (!libelle || lieuFormEnCours) return;
-
+  // Appel réseau réel — POST ou PATCH /api/lieux (lieuService.js front, lieux.routes.js back)
+  // selon `panneauLieuMode`, puis la liste locale est mise à jour directement (ajout ou
+  // remplacement de l'entrée), sans refetch : dans les deux cas le lieu est déjà persisté en base
+  // à ce stade (voir lieuRepository.js côté back), donc bien disponible pour toute planification
+  // future — juste inutile de recharger la liste complète alors que la réponse contient déjà la
+  // version à jour. En création, le nouveau lieu est aussi sélectionné immédiatement (setLieuId) ;
+  // en édition, `lieuId` ne bouge pas puisque c'est déjà le lieu en cours d'édition qui reste
+  // sélectionné. Séparée de soumettreLieu ci-dessous : c'est elle qu'on appelle directement quand
+  // l'agent confirme "Créer quand même" malgré l'avertissement de doublon, sans repasser par la
+  // vérification qui vient de le déclencher.
+  const envoyerLieu = async (libelle) => {
     setLieuFormEnCours(true);
     setLieuFormErreur(null);
     try {
@@ -262,6 +269,44 @@ export default function ModalePlanificationTest({
     } finally {
       setLieuFormEnCours(false);
     }
+  };
+
+  // Soumission du formulaire inline "+"/crayon (voir plus bas) — en CRÉATION uniquement (une
+  // édition ne se compare pas à elle-même), compare d'abord le libellé saisi aux lieux déjà
+  // chargés (detectionLieuSimilaire.js, purement local — pas de round-trip serveur juste pour ça)
+  // avant d'appeler l'API : une correspondance forte n'empêche jamais la création (voir
+  // lieuSimilaireDetecte plus haut), elle affiche seulement l'avertissement "Utiliser ce lieu" /
+  // "Créer quand même" à la place de l'envoi immédiat — c'est le clic sur l'un de ces deux boutons
+  // (voir plus bas) qui décide de la suite, pas cette fonction.
+  const soumettreLieu = () => {
+    const libelle = lieuFormLibelle.trim();
+    if (!libelle || lieuFormEnCours) return;
+
+    if (panneauLieuMode === 'creation') {
+      const similaire = trouverLieuSimilaire(lieux, libelle);
+      if (similaire) {
+        setLieuSimilaireDetecte(similaire);
+        return;
+      }
+    }
+
+    envoyerLieu(libelle);
+  };
+
+  // "Utiliser ce lieu" (voir l'avertissement de doublon) — sélectionne le lieu existant détecté à
+  // la place de créer un nouveau, comme si l'agent l'avait choisi directement dans le sélecteur.
+  const utiliserLieuSimilaire = () => {
+    setLieuId(String(lieuSimilaireDetecte.id));
+    fermerPanneauLieu();
+  };
+
+  // "Créer quand même" — l'agent confirme qu'il s'agit bien d'un lieu distinct malgré la
+  // ressemblance (ex. deux structures différentes à la même adresse) : appelle directement
+  // envoyerLieu, sans repasser par soumettreLieu (qui redéclencherait le même avertissement).
+  const creerLieuMalgreSimilarite = () => {
+    const libelle = lieuFormLibelle.trim();
+    setLieuSimilaireDetecte(null);
+    envoyerLieu(libelle);
   };
 
   // Liste filtrée sur le groupe actif — c'est elle qui alimente le <select> plus bas, jamais la
@@ -548,6 +593,7 @@ export default function ModalePlanificationTest({
                       setLieuIdEnEdition(null);
                       setLieuFormLibelle('');
                       setLieuFormErreur(null);
+                      setLieuSimilaireDetecte(null);
                     }}
                   >
                     +
@@ -573,6 +619,7 @@ export default function ModalePlanificationTest({
                         setLieuIdEnEdition(lieuSelectionne.id);
                         setLieuFormLibelle(lieuSelectionne.libelle);
                         setLieuFormErreur(null);
+                        setLieuSimilaireDetecte(null);
                       }}
                     >
                       ✎
@@ -588,22 +635,50 @@ export default function ModalePlanificationTest({
                     <input
                       type="text"
                       value={lieuFormLibelle}
-                      onChange={(evenement) => setLieuFormLibelle(evenement.target.value)}
+                      onChange={(evenement) => {
+                        setLieuFormLibelle(evenement.target.value);
+                        // Toute nouvelle saisie invalide l'avertissement affiché pour l'ancien
+                        // texte — l'agent doit pouvoir cliquer "Créer" à nouveau pour re-vérifier
+                        // le texte modifié, pas rester bloqué sur une comparaison obsolète.
+                        setLieuSimilaireDetecte(null);
+                      }}
                       placeholder="Ex. Hôtel du Cadran - 14 rue de Valadon, 75007 Paris"
                       autoFocus
                     />
                   </label>
                   {lieuFormErreur && <p role="alert">{lieuFormErreur}</p>}
-                  <div className="modale-planification-test__ajout-lieu-actions">
-                    <button type="button" onClick={fermerPanneauLieu} disabled={lieuFormEnCours}>
-                      Annuler
-                    </button>
-                    <button type="button" onClick={soumettreLieu} disabled={!lieuFormLibelle.trim() || lieuFormEnCours}>
-                      {lieuFormEnCours
-                        ? (panneauLieuMode === 'edition' ? 'Enregistrement...' : 'Création...')
-                        : (panneauLieuMode === 'edition' ? 'Enregistrer' : 'Créer')}
-                    </button>
-                  </div>
+
+                  {lieuSimilaireDetecte ? (
+                    // Avertissement, pas un blocage (voir soumettreLieu/detectionLieuSimilaire.js)
+                    // : role="status" plutôt que "alert" — c'est une question à trancher, pas une
+                    // erreur, d'où aussi un style ambre dédié (.avertissement-doublon) plutôt que
+                    // le rouge générique [role='alert'] de cette modale.
+                    <div className="modale-planification-test__avertissement-doublon">
+                      <p role="status">
+                        Un lieu similaire existe déjà : <strong>{lieuSimilaireDetecte.libelle}</strong>. Voulez-vous
+                        l&rsquo;utiliser à la place ?
+                      </p>
+                      <div className="modale-planification-test__ajout-lieu-actions">
+                        <button type="button" onClick={utiliserLieuSimilaire} disabled={lieuFormEnCours}>
+                          Utiliser ce lieu
+                        </button>
+                        <button type="button" onClick={creerLieuMalgreSimilarite} disabled={lieuFormEnCours}>
+                          {lieuFormEnCours ? 'Création...' : 'Créer quand même'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="modale-planification-test__ajout-lieu-actions">
+                      <button type="button" onClick={fermerPanneauLieu} disabled={lieuFormEnCours}>
+                        Annuler
+                      </button>
+                      <button type="button" onClick={soumettreLieu} disabled={!lieuFormLibelle.trim() || lieuFormEnCours}>
+                        {lieuFormEnCours
+                          ? (panneauLieuMode === 'edition' ? 'Enregistrement...' : 'Création...')
+                          : (panneauLieuMode === 'edition' ? 'Enregistrer' : 'Créer')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </fieldset>
