@@ -261,10 +261,31 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
   const dossiers = await dossierRepository.listerDossiersParIds(bd, entite.id, dossierIds);
 
   return dossiers
-    .map(({ donnees_disponibilites, ...reste }) => ({
+    .map(({ donnees_disponibilites, date_test_planifie, date_verdict, verdict_resultat_global, verdict_orientation, ...reste }) => ({
       ...reste,
       postesBureau: donnees_disponibilites?.posteBureau ?? [],
       postesHotel: donnees_disponibilites?.posteHotel ?? [],
+      // Colonne "Dates clés" du tableau consolidé (TableauDossiersSelectionnes.jsx) : TOUJOURS
+      // toutes les dates du parcours du dossier atteintes à ce jour (inscription/test planifié/
+      // verdict/orientation), indépendamment des indicateurs sélectionnés par l'utilisateur —
+      // contrairement à `indicateurs` ci-dessous, qui reste scopé à la sélection KPI.
+      // `reste.date_creation` existe toujours (colonne NOT NULL) ; test_planifie/verdict sont NULL
+      // tant que le dossier n'a pas atteint cette étape — filtrées ici plutôt que laissées à `null`
+      // pour que le front n'ait qu'à itérer, sans condition (pas de date vide/placeholder, décision
+      // utilisateur 2026-08-11). Codes 'verdict_valide'/'verdict_invalide' et 'orientation_
+      // envoi_formation'/'orientation_pret_embauche' repris tels quels de CODES_INDICATEURS_
+      // STATIQUES ci-dessus (même événement, une évaluation) — permet au front de réutiliser
+      // directement varianteIndicateur pour la couleur de cette colonne, sans palette dupliquée
+      // (voir Indicateurs.jsx, varianteDateCle). orientation absente (NULL) quand le verdict est
+      // invalide (colonne nullable, migration 036) : pas de ligne "Orientation" dans ce cas.
+      datesCles: [
+        { code: 'inscription', date: reste.date_creation },
+        date_test_planifie ? { code: 'test_planifie', date: date_test_planifie } : null,
+        date_verdict
+          ? { code: verdict_resultat_global === 'invalide' ? 'verdict_invalide' : 'verdict_valide', date: date_verdict }
+          : null,
+        date_verdict && verdict_orientation ? { code: `orientation_${verdict_orientation}`, date: date_verdict } : null,
+      ].filter(Boolean),
       // Respecte l'ordre de `indicateurs` demandé par l'appelant (pas l'ordre d'insertion dans la
       // Map, qui dépendrait de Promise.all) — affichage des badges stable d'un appel à l'autre.
       // Avec un ET strict, un dossier retenu satisfait de toute façon TOUS les codes demandés :

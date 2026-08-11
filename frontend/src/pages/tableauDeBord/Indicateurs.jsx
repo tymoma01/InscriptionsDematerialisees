@@ -140,6 +140,45 @@ function estIndicateurPoste(code) {
   return code.startsWith(PREFIXE_POSTE) || code === 'poste_non_specifie';
 }
 
+// Colonne "Dates clés" du tableau consolidé (TableauDossiersSelectionnes.jsx) — mêmes codes que
+// `datesCles` côté back (statistiquesService.listerDossiersParIndicateurs), toujours tous présents
+// (selon l'avancement réel du dossier) quel que soit l'indicateur sélectionné sur les tuiles KPI
+// (contrairement à LIBELLES_INDICATEURS ci-dessus, qui ne couvre que les codes présents dans la
+// sélection KPI courante). `verdict_valide`/`verdict_invalide` et `orientation_envoi_formation`/
+// `orientation_pret_embauche` reprennent VOLONTAIREMENT les mêmes codes que les indicateurs
+// homonymes (voir LIBELLES_INDICATEURS/VARIANTE_PAR_INDICATEUR plus haut) : ce sont le même
+// événement (une évaluation, voir evaluations.resultat_global/orientation), la colonne "Dates
+// clés" ne fait qu'en afficher la date sans dupliquer la connaissance de sa couleur — seul le
+// libellé diffère ("Verdict"/"Orientation", pas "Test réussi"/"Orienté formation" : cette colonne
+// nomme des ÉTAPES du parcours du dossier, pas des indicateurs de pilotage, décision utilisateur
+// 2026-08-11 — l'ancien affichage ne montrait qu'une seule date liée à l'indicateur sélectionné
+// sans dire de quelle date il s'agissait). `verdict_valide`/`verdict_invalide` partagent le même
+// libellé "Verdict" (seule la couleur distingue réussi/échoué, voir varianteDateCle) ; même
+// principe pour les deux codes `orientation_*` avec "Orientation".
+const LIBELLES_DATES_CLES = {
+  inscription: 'Inscription',
+  test_planifie: 'Test planifié',
+  verdict_valide: 'Verdict',
+  verdict_invalide: 'Verdict',
+  orientation_envoi_formation: 'Orientation',
+  orientation_pret_embauche: 'Orientation',
+};
+function libelleDateCle(code) {
+  return LIBELLES_DATES_CLES[code] ?? code;
+}
+// Couleurs : `--statut-<variante>-*` (variables.css), MÊME variante que le badge de statut/
+// indicateur correspondant — inscription: neutre (comme le statut "Nouveau", VARIANTE_PAR_CODE_
+// STATUT_ACCECIT.nouveau) ; test_planifie: bleu (comme le badge de statut "Test planifié",
+// VARIANTE_PAR_CODE_STATUT_ACCECIT.test_planifie) ; verdict_valide/invalide et orientation_* :
+// exactement VARIANTE_PAR_INDICATEUR (même code, réutilisé tel quel, pas dupliqué).
+const VARIANTE_PAR_DATE_CLE = {
+  inscription: 'neutre',
+  test_planifie: 'bleu',
+};
+function varianteDateCle(code) {
+  return VARIANTE_PAR_DATE_CLE[code] ?? VARIANTE_PAR_INDICATEUR[code] ?? 'neutre';
+}
+
 // Une palette dédiée par graphique (couleurs fixes, PAR CLÉ — jamais par position/index) plutôt
 // que la teinte unique cyclée sur les 3 graphiques d'avant : plus agréable à l'œil (chaque
 // graphique a sa propre identité visuelle) et surtout stable — colorier par index (voir
@@ -690,6 +729,8 @@ export default function Indicateurs() {
                     varianteIndicateur={varianteIndicateur}
                     varianteStatut={varianteStatut}
                     estIndicateurPoste={estIndicateurPoste}
+                    libelleDateCle={libelleDateCle}
+                    varianteDateCle={varianteDateCle}
                   />
                 )}
               </section>

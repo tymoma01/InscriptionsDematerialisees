@@ -12,6 +12,14 @@
   width: 100%;
   border-collapse: collapse;
   background-color: var(--couleur-fond);
+  /* Hauteur de ligne partagée par les colonnes "Indicateurs" (.indicateur-ligne) et "Dates clés"
+     (.date-ligne) — condition nécessaire à l'alignement ligne à ligne des badges/valeurs de délai
+     (voir TableauDossiersSelectionnes.jsx, construireColonnesAlignees) : sans une hauteur MINIMALE
+     identique des deux côtés, deux lignes au même index (badge vs texte, natures différentes)
+     n'auraient pas la même hauteur réelle et l'alignement calculé en JS se perdrait visuellement.
+     Généreuse (couvre confortablement un badge StatutBadge ET une ligne de date) plutôt que pile
+     ajustée à l'un des deux, pour laisser une marge de respiration identique de chaque côté. */
+  --tableau-dossiers-hauteur-ligne: 1.75rem;
 }
 
 .tableau-dossiers-selectionnes th,
@@ -53,12 +61,37 @@
   text-align: center;
 }
 
-.tableau-dossiers-selectionnes__postes,
-.tableau-dossiers-selectionnes__indicateurs {
+.tableau-dossiers-selectionnes__postes {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   align-items: flex-start;
+}
+
+/* Même `gap` que .tableau-dossiers-selectionnes__dates ci-dessous (0.3rem, pas 0.25rem comme
+   .postes ci-dessus) — deuxième condition de l'alignement ligne à ligne avec "Dates clés" (voir
+   --tableau-dossiers-hauteur-ligne un peu plus haut) : un espacement différent entre les lignes
+   des deux colonnes ferait dériver l'alignement au fil des lignes, même avec des hauteurs de ligne
+   identiques. */
+.tableau-dossiers-selectionnes__indicateurs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: stretch;
+}
+
+/* Une ligne par badge (ou ligne vide de compensation, voir modificateur --vide plus bas) dans la
+   colonne "Indicateurs" — même hauteur minimale que .date-ligne (colonne "Dates clés"), seule
+   condition manquante pour que construireColonnesAlignees (TableauDossiersSelectionnes.jsx)
+   produise un résultat visuellement aligné plutôt que juste correct en théorie. */
+.tableau-dossiers-selectionnes__indicateur-ligne {
+  display: flex;
+  align-items: center;
+  min-height: var(--tableau-dossiers-hauteur-ligne);
+}
+
+.tableau-dossiers-selectionnes__indicateur-ligne--vide {
+  visibility: hidden;
 }
 
 .tableau-dossiers-selectionnes__badge-poste {
@@ -82,12 +115,96 @@
 }
 
 .tableau-dossiers-selectionnes__dates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: 0.85rem;
-  color: var(--couleur-texte-secondaire);
   white-space: nowrap;
+}
+
+/* Une ligne par date clé — libellé à gauche, date alignée à droite sur la même ligne (flex +
+   space-between, pas d'espaces/tabulations manuelles : voir TableauDossiersSelectionnes.jsx,
+   colonne "Dates clés"). Couleur par `--date-cle-ligne--<variante>`, MÊME palette et MÊMES
+   variables --statut-<variante>-* que StatutBadge.css (colonnes "Statut"/"Indicateurs" du même
+   tableau) — pas de couleur codée en dur ici, décision utilisateur 2026-08-11 : la couleur d'une
+   étape doit rester cohérente d'une colonne à l'autre pour le même dossier (ex. "Test planifié"
+   ici et le badge de statut "Test planifié" partagent --statut-bleu-*). */
+.tableau-dossiers-selectionnes__date-ligne {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--espace-petit);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  /* Même hauteur minimale que .indicateur-ligne (colonne "Indicateurs") — voir
+     --tableau-dossiers-hauteur-ligne, .tableau-dossiers-selectionnes ci-dessus. */
+  min-height: var(--tableau-dossiers-hauteur-ligne);
+  box-sizing: border-box;
+}
+
+.tableau-dossiers-selectionnes__date-libelle {
+  font-weight: 600;
+}
+
+/* Ligne vide de compensation (voir construireColonnesAlignees, TableauDossiersSelectionnes.jsx) :
+   décale les lignes suivantes de la hauteur d'une ligne normale sans rien afficher — c'est ce qui
+   permet à "Délai inscription → test"/"Délai test → verdict" de tomber exactement à la hauteur de
+   leur badge dans "Indicateurs" quand cette colonne a moins de contenu au-dessus à ce moment-là. */
+.tableau-dossiers-selectionnes__date-ligne--vide {
+  visibility: hidden;
+}
+
+/* Valeur de délai seule ("X J", SANS le libellé "Délai inscription → test"/"Délai test → verdict"
+   — déjà porté par le badge de la colonne "Indicateurs" à la même hauteur, décision utilisateur
+   2026-08-11 : plus de répétition du libellé). Alignée à droite (flex-end, pas space-between :
+   il n'y a plus qu'un seul élément dans cette ligne) pour rester dans la même colonne visuelle que
+   les valeurs de date au-dessus/dessous. SANS couleur de statut : ce n'est pas une étape du
+   parcours mais une mesure dérivée de deux dates déjà colorées ailleurs, un fond plein ferait
+   doublon. Texte plus petit + couleur secondaire pour rester visuellement en retrait des dates. */
+.tableau-dossiers-selectionnes__date-ligne--delai {
+  justify-content: flex-end;
+  font-size: 0.78rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+.tableau-dossiers-selectionnes__date-ligne--neutre {
+  background-color: var(--statut-neutre-fond);
+  color: var(--statut-neutre-texte);
+  border-color: var(--statut-neutre-bordure);
+}
+
+.tableau-dossiers-selectionnes__date-ligne--bleu {
+  background-color: var(--statut-bleu-fond);
+  color: var(--statut-bleu-texte);
+  border-color: var(--statut-bleu-bordure);
+}
+
+.tableau-dossiers-selectionnes__date-ligne--succes {
+  background-color: var(--statut-succes-fond);
+  color: var(--statut-succes-texte);
+  border-color: var(--statut-succes-bordure);
+}
+
+.tableau-dossiers-selectionnes__date-ligne--echec {
+  background-color: var(--statut-echec-fond);
+  color: var(--statut-echec-texte);
+  border-color: var(--statut-echec-bordure);
+}
+
+.tableau-dossiers-selectionnes__date-ligne--violet {
+  background-color: var(--statut-violet-fond);
+  color: var(--statut-violet-texte);
+  border-color: var(--statut-violet-bordure);
+}
+
+.tableau-dossiers-selectionnes__date-ligne--vert-clair {
+  background-color: var(--statut-vert-clair-fond);
+  color: var(--statut-vert-clair-texte);
+  border-color: var(--statut-vert-clair-bordure);
 }
 
 .tableau-dossiers-selectionnes__vide {

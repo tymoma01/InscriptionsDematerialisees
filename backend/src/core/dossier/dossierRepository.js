@@ -231,6 +231,27 @@ function listerStatuts(bd, entiteId) {
 // récupérer leurs informations d'affichage (candidat, poste, statut courant), exactement comme
 // listerDossiers le fait pour un statut donné. []  en entrée renvoie [] sans requête (whereIn([])
 // est valide en SQL mais inutile de solliciter la base pour un résultat déjà connu).
+//
+// date_test_planifie/date_verdict/verdict_resultat_global/verdict_orientation : dates clés du
+// dossier (colonne "Dates clés" du tableau consolidé, voir TableauDossiersSelectionnes.jsx) —
+// TOUJOURS calculées, indépendamment des indicateurs sélectionnés par l'utilisateur et de la
+// période filtrée sur l'écran (contrairement à statistiquesRepository.listerEnvoyesEnTest/
+// listerVerdicts, qui bornent par date_cle pour déterminer QUELS dossiers afficher) : une fois
+// qu'un dossier fait partie du résultat, sa colonne "Dates clés" doit refléter son historique réel
+// complet, pas seulement ce qui tombe dans la période KPI en cours. MIN() : premier passage en
+// "test_planifie"/première évaluation, cohérent avec listerEnvoyesEnTest/listerVerdicts (mêmes
+// dates que les indicateurs KPI correspondants, juste sans le filtre de période). NULL si l'étape
+// n'a pas encore été atteinte — laissé tel quel, c'est justement ce qui permet au front de
+// n'afficher que les lignes pertinentes (pas de date vide/placeholder, voir
+// statistiquesService.listerDossiersParIndicateurs).
+//
+// evaluation_verdict : deuxième jointure sur `evaluations`, cette fois pour récupérer
+// resultat_global/orientation de LA évaluation dont la date correspond exactement à date_verdict
+// (jointure sur dossier_id + date_evaluation, pas un second MIN/GROUP BY) — nécessaires pour
+// colorer la ligne "Verdict" en vert/rouge et ajouter la ligne "Orientation" quand applicable
+// (voir statistiquesService.listerDossiersParIndicateurs). orientation est NULL quand
+// resultat_global = 'invalide' (colonne nullable, voir migration 036) : pas de ligne "Orientation"
+// dans ce cas, géré côté service.
 function listerDossiersParIds(bd, entiteId, dossierIds) {
   if (dossierIds.length === 0) return Promise.resolve([]);
   return bd('dossiers')
@@ -241,6 +262,34 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
         'bloc_disponibilites.bloc_code',
         '=',
         bd.raw('?', ['disponibilites']),
+      );
+    })
+    .leftJoin(
+      bd('historique_statuts')
+        .join('statuts as statuts_test_planifie', 'statuts_test_planifie.id', 'historique_statuts.statut_id')
+        .where('statuts_test_planifie.code', 'test_planifie')
+        .groupBy('historique_statuts.dossier_id')
+        .select(
+          'historique_statuts.dossier_id',
+          bd.raw('MIN(historique_statuts.date_changement) as date_test_planifie'),
+        )
+        .as('dates_test_planifie'),
+      'dates_test_planifie.dossier_id',
+      'dossiers.id',
+    )
+    .leftJoin(
+      bd('evaluations')
+        .groupBy('evaluations.dossier_id')
+        .select('evaluations.dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_verdict'))
+        .as('dates_verdict'),
+      'dates_verdict.dossier_id',
+      'dossiers.id',
+    )
+    .leftJoin('evaluations as evaluation_verdict', function () {
+      this.on('evaluation_verdict.dossier_id', '=', 'dossiers.id').andOn(
+        'evaluation_verdict.date_evaluation',
+        '=',
+        'dates_verdict.date_verdict',
       );
     })
     .where('dossiers.entite_id', entiteId)
@@ -255,6 +304,10 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'statuts.libelle as statut_libelle',
       'statuts.est_final as statut_est_final',
       'bloc_disponibilites.donnees as donnees_disponibilites',
+      'dates_test_planifie.date_test_planifie',
+      'dates_verdict.date_verdict',
+      'evaluation_verdict.resultat_global as verdict_resultat_global',
+      'evaluation_verdict.orientation as verdict_orientation',
     );
 }
 
