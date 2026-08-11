@@ -140,18 +140,34 @@
   color: var(--statut-violet-texte);
 }
 
-/* Sélectionnée : même teinte dorée que le reste de l'identité back-office
-   (--couleur-back-office-dore, styles/variables.css — un bronze saturé, jamais confondu avec les
-   bordures pastel des variantes ci-dessus), pour rester cohérente avec le graphique "Répartition
-   par poste" existant plutôt que d'introduire une nouvelle couleur d'état. Déclarée APRÈS les
-   variantes ci-dessus (même spécificité CSS, l'ordre dans la feuille de style tranche) : la
-   sélection doit rester visible par-dessus n'importe quelle couleur de tuile, y compris la tuile
-   dorée elle-même (son fond ne change alors pas, mais la bordure bronze 2px reste un signal net —
-   contrairement à sa bordure dorée pastel 1px au repos). */
+/* Sélectionnée : plein bronze (--couleur-back-office-dore) + texte crème (--couleur-back-office-
+   clair) — MÊME paire déjà utilisée pour l'identité back-office (en-tête/pied de page), pas une
+   nouvelle couleur inventée pour l'occasion (décision utilisateur, 2026-08-12 : l'ancienne version
+   ne changeait que la bordure, avec un fond `--statut-dore-fond` qui restait visuellement identique
+   au repos de la tuile "Taux de dossiers validés" — trop proche des 5 teintes pastel déjà utilisées
+   pour distinguer l'état sélectionné). `--couleur-back-office-clair` (crème, #f7f3ee) est ÉCARTÉE
+   comme fond ici précisément parce qu'elle EST déjà le fond de page de tout le back-office
+   (PageBackOffice.css) — une tuile sélectionnée s'y fondrait au lieu de ressortir ; elle sert donc
+   de texte, pas de fond. Contraste bronze/crème déjà vérifié dans variables.css (c'est la raison
+   documentée du choix de #7a5a34 plutôt que le doré pur du logo, "au-dessus de 6:1"). Déclarée
+   APRÈS les variantes ci-dessus (même spécificité CSS, l'ordre dans la feuille de style tranche) :
+   la sélection doit rester visible par-dessus n'importe quelle couleur de tuile, y compris la tuile
+   "dore" elle-même — ici un contraste fort (fond sombre plein vs pastel clair), pas seulement une
+   bordure plus épaisse comme avant. */
 .indicateurs__tuile--active {
   border-color: var(--couleur-back-office-dore);
   border-width: 2px;
-  background-color: var(--statut-dore-fond);
+  background-color: var(--couleur-back-office-dore);
+}
+.indicateurs__tuile--active .indicateurs__tuile-valeur,
+.indicateurs__tuile--active .indicateurs__tuile-libelle {
+  color: var(--couleur-back-office-clair);
+}
+/* Opacité plutôt qu'un nouveau token de couleur : garde la hiérarchie visuelle (note secondaire en
+   retrait du libellé) sans coder une couleur crème "atténuée" en dur. */
+.indicateurs__tuile--active .indicateurs__tuile-precision {
+  color: var(--couleur-back-office-clair);
+  opacity: 0.85;
 }
 
 .indicateurs__tuile-valeur {
