@@ -252,6 +252,27 @@ function listerStatuts(bd, entiteId) {
 // (voir statistiquesService.listerDossiersParIndicateurs). orientation est NULL quand
 // resultat_global = 'invalide' (colonne nullable, voir migration 036) : pas de ligne "Orientation"
 // dans ce cas, géré côté service.
+//
+// derniere_planification.date_derniere_planification_avant_verdict : correctif audit 2026-08-11 —
+// sert UNIQUEMENT au calcul du délai "test → verdict" affiché dans "Dates clés"
+// (TableauDossiersSelectionnes.jsx, construireColonnesAlignees), PAS à `date_test_planifie`
+// ci-dessus (qui reste la PREMIÈRE planification — correct tel quel pour la ligne "Test planifié"
+// et pour le délai "inscription → test", voir statistiquesRepository.listerDelaiInscriptionVers
+// TestPlanifie, qui utilise aussi la première occurrence). Avant ce correctif, le délai
+// "test → verdict" par dossier appariait MIN(test_planifie) (première planification) avec
+// MIN(evaluations.date_evaluation) (première évaluation) — incohérent avec la définition validée
+// de cet indicateur (statistiquesRepository.delaiTestVersVerdict/listerDelaiTestVersVerdict, seule
+// source de vérité pour la tuile ET sa liste de dossiers), qui apparie chaque verdict à la
+// planification la PLUS RÉCENTE qui le précède, via JOIN LATERAL — nécessaire pour bien gérer les
+// reprogrammations après échec/absence (démontré sur les dossiers #74/#88, tous deux reprogrammés
+// plusieurs fois : l'ancien calcul affichait 13 J/5 J au lieu de ~0 J). Reproduit ici EXACTEMENT le
+// même JOIN LATERAL, mais borné par `dates_verdict.date_verdict` (déjà calculé ci-dessus) plutôt
+// que par une transition historique_statuts distincte : les deux coïncident au sein d'une même
+// transaction Postgres (`now()` figé pour toute la transaction — évaluation et transition de
+// statut sont insérées ensemble par evaluationEngine), vérifié bit à bit sur les dossiers #74/#88.
+// LEFT JOIN LATERAL (pas INNER) : un dossier sans verdict encore (date_verdict NULL) doit rester
+// dans le résultat, simplement sans ligne de délai "test → verdict" (filtré côté front, voir
+// TableauDossiersSelectionnes.jsx).
 function listerDossiersParIds(bd, entiteId, dossierIds) {
   if (dossierIds.length === 0) return Promise.resolve([]);
   return bd('dossiers')
@@ -292,6 +313,20 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
         'dates_verdict.date_verdict',
       );
     })
+    // Même patron que statistiquesRepository.delaiTestVersVerdict (JOIN LATERAL, dernière
+    // planification AVANT le verdict) — voir commentaire ci-dessus.
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT hs.date_changement AS date_derniere_planification_avant_verdict
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = dossiers.id
+           AND s.code = 'test_planifie'
+           AND hs.date_changement < dates_verdict.date_verdict
+         ORDER BY hs.date_changement DESC
+         LIMIT 1
+       ) AS derniere_planification ON true`,
+    )
     .where('dossiers.entite_id', entiteId)
     .whereIn('dossiers.id', dossierIds)
     .select(
@@ -308,6 +343,7 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'dates_verdict.date_verdict',
       'evaluation_verdict.resultat_global as verdict_resultat_global',
       'evaluation_verdict.orientation as verdict_orientation',
+      'derniere_planification.date_derniere_planification_avant_verdict',
     );
 }
 

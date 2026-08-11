@@ -66,12 +66,20 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
     });
   }
   const indexDelai2Badge = badges.findIndex((b) => b.code === CODE_DELAI_TEST_VERDICT);
-  if (indexDelai2Badge !== -1 && indexVerdict !== -1 && indexTestPlanifie !== -1) {
+  if (indexDelai2Badge !== -1 && indexVerdict !== -1 && dossier.dateDernierTestPlanifieAvantVerdict) {
     ancres.push({
       code: CODE_DELAI_TEST_VERDICT,
       indexBadge: indexDelai2Badge,
       indexDateInsertion: indexVerdict + 1,
-      jours: joursCalendairesEntre(dates[indexTestPlanifie].date, dates[indexVerdict].date),
+      // dossier.dateDernierTestPlanifieAvantVerdict (PAS dates[indexTestPlanifie].date, la
+      // PREMIÈRE planification) — correctif audit 2026-08-11 : la définition validée de ce délai
+      // (statistiquesRepository.delaiTestVersVerdict/listerDelaiTestVersVerdict, seule source de
+      // vérité pour la tuile ET sa liste de dossiers) mesure depuis la planification la PLUS
+      // RÉCENTE avant le verdict, pas depuis la première — sinon un dossier reprogrammé après
+      // échec/absence affiche un délai gonflé, sans rapport avec le délai réel entre la dernière
+      // tentative et son issue (démontré sur les dossiers #74/#88 : 13 J/5 J affichés à tort au
+      // lieu de ~0 J).
+      jours: joursCalendairesEntre(dossier.dateDernierTestPlanifieAvantVerdict, dates[indexVerdict].date),
     });
   }
   // Ordre chronologique fixe (voir commentaire ci-dessus) — pas l'ordre des badges.
