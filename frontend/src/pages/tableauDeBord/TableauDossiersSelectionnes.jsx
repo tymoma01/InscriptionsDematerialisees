@@ -23,67 +23,117 @@ function joursCalendairesEntre(dateDebut, dateFin) {
   return Math.round((finMinuit - debutMinuit) / UN_JOUR_MS);
 }
 
-// "Délai inscription → test"/"Délai test → verdict" : les deux SEULS codes alignés entre les
-// colonnes "Indicateurs" et "Dates clés" (décision utilisateur, 2026-08-11) — badge (libellé seul)
-// dans "Indicateurs" à la même hauteur que sa valeur ("X J", sans libellé répété) dans "Dates
-// clés". Tous les autres badges (Inscrit, Mis en test, Retenu, Verdict, Orientation) gardent
-// leur ordre/position actuels dans "Indicateurs" (celui de `dossier.indicateurs`, piloté par
-// l'ordre de sélection des tuiles côté Indicateurs.jsx) SANS tentative d'alignement avec "Dates
-// clés" — seul construireColonnesAlignees ci-dessous s'occupe des deux codes de délai.
 const [CODE_DELAI_INSCRIPTION_TEST, CODE_DELAI_TEST_VERDICT] = ['delai_inscription_test', 'delai_test_verdict'];
 
+// Codes de "Dates clés" (dossier.datesCles, toujours inscription/test_planifie?/orientation_*? —
+// plus de "verdict_*", retiré le 2026-08-11 car redondant avec la colonne "Statut") dont le badge
+// "Indicateurs" correspondant porte EXACTEMENT le même sens (même événement, juste vu depuis deux
+// colonnes différentes) — sert à aligner ces lignes de date sur leur badge, au même titre que les
+// deux délais ci-dessous : chaque ligne de "Dates clés" garde son libellé texte visible (retour en
+// arrière du 2026-08-11 — un retrait tenté juste avant, en s'appuyant uniquement sur cet
+// alignement, a été jugé moins lisible), mais l'alignement lui-même reste utile en soi : la même
+// information lue à la même hauteur dans les deux colonnes, plutôt qu'à des hauteurs disjointes
+// selon l'ordre de clic des tuiles. `orientation_envoi_formation`/`orientation_pret_embauche` ont
+// déjà le même code des deux côtés (voir statistiquesService.listerDossiersParIndicateurs) —
+// inutile de les lister ici en plus, CODE_DATE === CODE_BADGE pour ces deux-là, gérés par le filet
+// `codeBadge ?? d.code` plus bas.
+const CODE_BADGE_PAR_CODE_DATE = {
+  inscription: 'inscrits',
+  test_planifie: 'envoyes_en_test',
+};
+
 // Construit, pour UN dossier, les deux colonnes ("Indicateurs" hors postes / "Dates clés") déjà
-// alignées ligne à ligne pour les deux indicateurs de délai — structure de données commune lue par
-// les DEUX colonnes au même index (décision utilisateur, 2026-08-11), pour ne plus dépendre d'un
-// calcul indépendant de chaque côté : l'ordre des badges dans "Indicateurs" suit l'ordre de clic
-// des tuiles (imprévisible), alors que "Dates clés" a un ordre chronologique fixe (inscription →
-// test planifié → verdict) — les deux ne peuvent physiquement coïncider sans concertation.
+// alignées ligne à ligne — structure de données commune lue par les DEUX colonnes au même index
+// (décision utilisateur, 2026-08-11), pour ne plus dépendre d'un calcul indépendant de chaque
+// côté : l'ordre des badges dans "Indicateurs" suit l'ordre de clic des tuiles (imprévisible),
+// alors que "Dates clés" a un ordre chronologique fixe (inscription → test planifié → orientation)
+// — les deux ne peuvent physiquement coïncider sans concertation.
 //
-// Principe : on parcourt les deux listes (badges non-poste, dates simples) EN PARALLÈLE, dans
-// l'ordre chronologique des deux ancres de délai (inscription→test avant test→verdict — c'est
-// l'ordre imposé par "Dates clés", fixe ; celui des badges peut différer selon les clics, cas rare
-// laissé tel quel plutôt que de réordonner les badges — voir "Ne touche à aucun autre badge").
+// Deux natures d'"ancre", unifiées dans une seule liste triée par position chronologique
+// (`positionDate`) puis traitées par la même boucle :
+// - "existante" (Inscrit↔Inscription, Envoyé en test↔Test planifié, Orienté formation/embauche↔
+//   Orientation) : la ligne de date existe déjà dans `dates`, on se contente de CONTRÔLER QUAND
+//   elle est consommée pour qu'elle tombe à la hauteur de son badge — rien n'est inséré.
+// - "délai" (les deux indicateurs de délai) : aucune ligne de date n'existe pour ce badge, une
+//   valeur ("X J") est INSÉRÉE À la position choisie, sans consommer d'entrée de `dates`.
+// Un badge dont le code n'a pas d'ancre (Retenu, Test réussi/échoué — plus de contrepartie datée
+// depuis le retrait de "Verdict" — segments "Répartition par poste") reste affiché tel quel, sans
+// ligne "Dates clés" dédiée ni tentative d'alignement (pas concerné par cette fonction).
 // Devant chaque ancre, on recopie tel quel tout ce qui la précède dans chaque colonne, puis on
 // COMBLE l'écart de hauteur (nombre de lignes déjà posées) avec des lignes vides du côté le plus
 // court, avant de poser l'ancre elle-même — qui tombe donc forcément à la même hauteur des deux
-// côtés. Après la dernière ancre, le reste de chaque colonne est recopié tel quel, sans tentative
-// d'alignement (item 4 : Verdict/Orientation ne sont pas concernés).
+// côtés. Après la dernière ancre, le reste de chaque colonne est recopié tel quel.
+//
+// "Dates clés" strictement calée sur la sélection des tuiles (décision utilisateur, 2026-08-12 —
+// revient sur le "toujours tout l'historique" du 2026-08-11) : une ligne de `dates` dont le badge
+// correspondant n'est PAS actuellement sélectionné n'est PLUS émise du tout (ni comme ancre, ni en
+// repli) — seulement "consommée" silencieusement par le curseur pour ne pas décaler les ancres
+// suivantes. `dates` (positions/dates brutes) reste néanmoins lu SANS filtrage préalable : les deux
+// délais continuent de se positionner/calculer sur l'historique COMPLET du dossier (première
+// planification, dernière planification avant verdict...), indépendamment de la sélection des
+// tuiles "Inscrit"/"Envoyé en test"/"Orienté ..." — comportement déjà validé, à ne pas coupler à ce
+// changement (voir estDateBadgeSelectionne, utilisée uniquement au moment d'ÉMETTRE une ligne, pas
+// pour le calcul des positions/valeurs de délai).
 function construireColonnesAlignees(dossier, estIndicateurPoste) {
   const badges = dossier.indicateurs.filter(({ code }) => !estIndicateurPoste(code));
-  const dates = dossier.datesCles; // dates simples uniquement, ordre chronologique fixe
+  const dates = dossier.datesCles; // historique complet, non filtré (voir commentaire ci-dessus)
 
-  const indexTestPlanifie = dates.findIndex((d) => d.code === 'test_planifie');
-  const indexVerdict = dates.findIndex((d) => d.code.startsWith('verdict_'));
+  function estDateBadgeSelectionne(d) {
+    const codeBadge = CODE_BADGE_PAR_CODE_DATE[d.code] ?? d.code;
+    return badges.some((b) => b.code === codeBadge);
+  }
 
   const ancres = [];
+
+  // Ancres "existante" : une par ligne de `dates`, si son badge correspondant est affiché.
+  // `codeBadge` (rendu dans "Indicateurs") et `codeDate` (rendu/consommé dans "Dates clés")
+  // gardés DISTINCTS : ce sont deux codes différents pour inscrits/inscription et envoyes_en_test/
+  // test_planifie (seuls orientation_* partagent le même code des deux côtés).
+  dates.forEach((d, indexDate) => {
+    const codeBadge = CODE_BADGE_PAR_CODE_DATE[d.code] ?? d.code; // orientation_* : même code des 2 côtés
+    const indexBadge = badges.findIndex((b) => b.code === codeBadge);
+    if (indexBadge !== -1) {
+      ancres.push({ codeBadge, codeDate: d.code, type: 'existante', indexBadge, positionDate: indexDate });
+    }
+  });
+
+  // Ancre "délai inscription → test" : insérée juste après "Test planifié" (comme avant).
+  const indexTestPlanifie = dates.findIndex((d) => d.code === 'test_planifie');
   const indexDelai1Badge = badges.findIndex((b) => b.code === CODE_DELAI_INSCRIPTION_TEST);
   if (indexDelai1Badge !== -1 && indexTestPlanifie !== -1) {
     ancres.push({
-      code: CODE_DELAI_INSCRIPTION_TEST,
+      codeBadge: CODE_DELAI_INSCRIPTION_TEST,
+      codeDate: CODE_DELAI_INSCRIPTION_TEST,
+      type: 'delai',
       indexBadge: indexDelai1Badge,
-      indexDateInsertion: indexTestPlanifie + 1,
+      positionDate: indexTestPlanifie + 1,
       jours: joursCalendairesEntre(trouverDateCle(dossier, 'inscription'), dates[indexTestPlanifie].date),
     });
   }
+
+  // Ancre "délai test → verdict" : plus de ligne "Verdict" à laquelle s'accrocher (retirée) — en
+  // fin de liste (`dates.length`, après "Orientation" si présente, sinon juste après "Test
+  // planifié") : c'est de toute façon la dernière étape connue de "Dates clés" à ce stade du
+  // parcours. Dates de calcul via les champs dédiés `dossier.dateDernierTestPlanifieAvantVerdict`/
+  // `dossier.dateVerdict` (pas `dates[...]`, qui ne porte plus l'info verdict) — correctif audit
+  // 2026-08-11 : la planification retenue est la PLUS RÉCENTE avant le verdict (définition
+  // validée de statistiquesRepository.delaiTestVersVerdict), pas la première.
   const indexDelai2Badge = badges.findIndex((b) => b.code === CODE_DELAI_TEST_VERDICT);
-  if (indexDelai2Badge !== -1 && indexVerdict !== -1 && dossier.dateDernierTestPlanifieAvantVerdict) {
+  if (indexDelai2Badge !== -1 && dossier.dateDernierTestPlanifieAvantVerdict && dossier.dateVerdict) {
     ancres.push({
-      code: CODE_DELAI_TEST_VERDICT,
+      codeBadge: CODE_DELAI_TEST_VERDICT,
+      codeDate: CODE_DELAI_TEST_VERDICT,
+      type: 'delai',
       indexBadge: indexDelai2Badge,
-      indexDateInsertion: indexVerdict + 1,
-      // dossier.dateDernierTestPlanifieAvantVerdict (PAS dates[indexTestPlanifie].date, la
-      // PREMIÈRE planification) — correctif audit 2026-08-11 : la définition validée de ce délai
-      // (statistiquesRepository.delaiTestVersVerdict/listerDelaiTestVersVerdict, seule source de
-      // vérité pour la tuile ET sa liste de dossiers) mesure depuis la planification la PLUS
-      // RÉCENTE avant le verdict, pas depuis la première — sinon un dossier reprogrammé après
-      // échec/absence affiche un délai gonflé, sans rapport avec le délai réel entre la dernière
-      // tentative et son issue (démontré sur les dossiers #74/#88 : 13 J/5 J affichés à tort au
-      // lieu de ~0 J).
-      jours: joursCalendairesEntre(dossier.dateDernierTestPlanifieAvantVerdict, dates[indexVerdict].date),
+      positionDate: dates.length,
+      jours: joursCalendairesEntre(dossier.dateDernierTestPlanifieAvantVerdict, dossier.dateVerdict),
     });
   }
-  // Ordre chronologique fixe (voir commentaire ci-dessus) — pas l'ordre des badges.
-  ancres.sort((a, b) => a.indexDateInsertion - b.indexDateInsertion);
+
+  // Tri stable par position chronologique — à égalité (délai test→verdict sans orientation,
+  // positionDate = dates.length pour lui ET pour un éventuel dernier élément "existante"), l'ordre
+  // de construction ci-dessus (délai1 avant délai2, "existante" avant "délai") fait déjà foi.
+  ancres.sort((a, b) => a.positionDate - b.positionDate);
 
   const indicateurRows = [];
   const dateRows = [];
@@ -95,28 +145,41 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
       indicateurRows.push({ type: 'badge', code: badges[curseurBadge].code });
       curseurBadge += 1;
     }
-    while (curseurDate < ancre.indexDateInsertion) {
-      dateRows.push({ type: 'date', code: dates[curseurDate].code, date: dates[curseurDate].date });
+    while (curseurDate < ancre.positionDate) {
+      // Ne pousse une ligne QUE si son badge est sélectionné (voir commentaire de la fonction) —
+      // ne devrait normalement jamais se produire ici : toute date dont le badge est sélectionné a
+      // déjà sa propre ancre, traitée à son tour par ce même for. Garde défensive plutôt qu'une
+      // hypothèse silencieuse.
+      if (estDateBadgeSelectionne(dates[curseurDate])) {
+        dateRows.push({ type: 'date', code: dates[curseurDate].code, date: dates[curseurDate].date });
+      }
       curseurDate += 1;
     }
     const ecart = indicateurRows.length - dateRows.length;
     if (ecart > 0) {
-      for (let k = 0; k < ecart; k += 1) dateRows.push({ type: 'blank', code: `blank-date-${ancre.code}-${k}` });
+      for (let k = 0; k < ecart; k += 1) dateRows.push({ type: 'blank', code: `blank-date-${ancre.codeBadge}-${k}` });
     } else if (ecart < 0) {
-      for (let k = 0; k < -ecart; k += 1) indicateurRows.push({ type: 'blank', code: `blank-badge-${ancre.code}-${k}` });
+      for (let k = 0; k < -ecart; k += 1) indicateurRows.push({ type: 'blank', code: `blank-badge-${ancre.codeBadge}-${k}` });
     }
-    indicateurRows.push({ type: 'badge', code: ancre.code });
-    dateRows.push({ type: 'delai-valeur', code: ancre.code, jours: ancre.jours });
+    indicateurRows.push({ type: 'badge', code: ancre.codeBadge });
+    if (ancre.type === 'delai') {
+      dateRows.push({ type: 'delai-valeur', code: ancre.codeDate, jours: ancre.jours });
+      // curseurDate ne bouge pas : l'ancre s'insère AVANT dates[ancre.positionDate] (ou en fin de
+      // liste), qui reste à consommer par le segment suivant (ou la boucle de fin ci-dessous).
+    } else {
+      dateRows.push({ type: 'date', code: dates[ancre.positionDate].code, date: dates[ancre.positionDate].date });
+      curseurDate = ancre.positionDate + 1; // celle-ci est bien consommée (ligne existante posée).
+    }
     curseurBadge = ancre.indexBadge + 1;
-    // curseurDate ne bouge pas : l'ancre s'insère AVANT dates[ancre.indexDateInsertion], qui reste
-    // à consommer par le segment suivant (ou la boucle de fin ci-dessous).
   }
   while (curseurBadge < badges.length) {
     indicateurRows.push({ type: 'badge', code: badges[curseurBadge].code });
     curseurBadge += 1;
   }
   while (curseurDate < dates.length) {
-    dateRows.push({ type: 'date', code: dates[curseurDate].code, date: dates[curseurDate].date });
+    if (estDateBadgeSelectionne(dates[curseurDate])) {
+      dateRows.push({ type: 'date', code: dates[curseurDate].code, date: dates[curseurDate].date });
+    }
     curseurDate += 1;
   }
 
@@ -246,15 +309,18 @@ export default function TableauDossiersSelectionnes({
                   )}
                 </td>
                 <td>
-                  {/* Dates simples (inscription/test planifié/verdict/orientation) : toujours
-                      affichées quelle que soit la sélection des tuiles KPI (décision utilisateur,
-                      2026-08-11, inchangé). Valeurs de délai ("X J", SANS le libellé — déjà porté
-                      par le badge de la colonne "Indicateurs" à la même hauteur, pas de répétition,
-                      décision utilisateur 2026-08-11) : affichées seulement si leur tuile est
-                      sélectionnée, à la même position verticale que leur badge — voir
-                      `dateRows`/construireColonnesAlignees plus haut, qui insère aussi les lignes
-                      vides nécessaires à cet alignement (aucun rapport avec les dates simples,
-                      toujours complètes ici). */}
+                  {/* Dates simples (inscription/test planifié/orientation — plus de "verdict_*",
+                      redondant avec la colonne "Statut", retiré le 2026-08-11) : depuis le
+                      2026-08-12, affichées SEULEMENT si leur tuile est sélectionnée, exactement
+                      comme les badges de la colonne "Indicateurs" — revient sur le "toujours tout
+                      l'historique" du 2026-08-11 (voir construireColonnesAlignees,
+                      estDateBadgeSelectionne, ci-dessus). AVEC leur libellé texte (revenu le
+                      2026-08-11, inchangé par ce nouveau changement). Valeurs de délai ("X J", sans
+                      libellé — déjà porté par le badge "Indicateurs" à la même hauteur) : déjà
+                      conditionnées à la sélection de leur propre tuile depuis un précédent
+                      changement, non affectées ici — toujours à la même position verticale que
+                      leur badge, voir `dateRows`/construireColonnesAlignees plus haut, qui insère
+                      aussi les lignes vides nécessaires à cet alignement. */}
                   <ul className="tableau-dossiers-selectionnes__dates">
                     {dateRows.map((ligne) =>
                       ligne.type === 'blank' ? (
@@ -267,6 +333,7 @@ export default function TableauDossiersSelectionnes({
                         <li
                           key={ligne.code}
                           className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--delai"
+                          aria-label={libelleIndicateur(ligne.code)}
                         >
                           <span className="tableau-dossiers-selectionnes__date-valeur">{ligne.jours} J</span>
                         </li>

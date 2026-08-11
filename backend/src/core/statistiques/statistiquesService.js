@@ -155,7 +155,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
 
 // Codes d'indicateurs statiques exposés par le dashboard (cartes + segments de camemberts) —
 // PAS les libellés : ils restent une responsabilité d'affichage du front (Indicateurs.jsx connaît
-// déjà "Inscrits"/"Mis en test"/... pour les cartes, pas de raison de les dupliquer ici).
+// déjà "Inscrits"/"Envoyé en test"/... pour les cartes, pas de raison de les dupliquer ici).
 // Les segments du graphique de répartition par poste ne sont pas dans cette liste : leur code est
 // dynamique, 'poste:<code>' (voir résoudreListeIndicateur ci-dessous), un par poste réellement
 // configuré pour l'entité (POSTES_BUREAU/POSTES_HOTEL) plutôt qu'une énumération figée ici.
@@ -266,6 +266,9 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         donnees_disponibilites,
         date_test_planifie,
         date_verdict,
+        // eslint-disable-next-line no-unused-vars -- extrait pour l'exclure de `...reste` (fuite
+        // d'un champ interne de requête), plus utilisé depuis le retrait de la ligne "Verdict" de
+        // "Dates clés" (2026-08-11, redondante avec la colonne "Statut" — voir décision ci-dessous).
         verdict_resultat_global,
         verdict_orientation,
         date_derniere_planification_avant_verdict,
@@ -275,32 +278,37 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         postesBureau: donnees_disponibilites?.posteBureau ?? [],
         postesHotel: donnees_disponibilites?.posteHotel ?? [],
         // Colonne "Dates clés" du tableau consolidé (TableauDossiersSelectionnes.jsx) : TOUJOURS
-        // toutes les dates du parcours du dossier atteintes à ce jour (inscription/test planifié/
-        // verdict/orientation), indépendamment des indicateurs sélectionnés par l'utilisateur —
+        // toutes les dates SIMPLES du parcours du dossier atteintes à ce jour (inscription/test
+        // planifié/orientation), indépendamment des indicateurs sélectionnés par l'utilisateur —
         // contrairement à `indicateurs` ci-dessous, qui reste scopé à la sélection KPI.
-        // `reste.date_creation` existe toujours (colonne NOT NULL) ; test_planifie/verdict sont NULL
-        // tant que le dossier n'a pas atteint cette étape — filtrées ici plutôt que laissées à `null`
-        // pour que le front n'ait qu'à itérer, sans condition (pas de date vide/placeholder, décision
-        // utilisateur 2026-08-11). Codes 'verdict_valide'/'verdict_invalide' et 'orientation_
-        // envoi_formation'/'orientation_pret_embauche' repris tels quels de CODES_INDICATEURS_
-        // STATIQUES ci-dessus (même événement, une évaluation) — permet au front de réutiliser
-        // directement varianteIndicateur pour la couleur de cette colonne, sans palette dupliquée
-        // (voir Indicateurs.jsx, varianteDateCle). orientation absente (NULL) quand le verdict est
-        // invalide (colonne nullable, migration 036) : pas de ligne "Orientation" dans ce cas.
+        // `reste.date_creation` existe toujours (colonne NOT NULL) ; test_planifie/orientation sont
+        // NULL tant que le dossier n'a pas atteint cette étape — filtrées ici plutôt que laissées à
+        // `null` pour que le front n'ait qu'à itérer, sans condition (pas de date vide/placeholder,
+        // décision utilisateur 2026-08-11).
+        //
+        // PAS de ligne "verdict_valide"/"verdict_invalide" ici (retirée, décision utilisateur
+        // 2026-08-11) : cette information est déjà visible dans la colonne "Statut" (ex. "Validé -
+        // prêt à l'embauche"), une ligne dédiée dans "Dates clés" était redondante. `orientation_*`
+        // reste : ce n'est PAS la même information que le statut (formation vs embauche directe,
+        // une nuance que la colonne "Statut" ne porte pas seule) — code repris tel quel de
+        // CODES_INDICATEURS_STATIQUES ci-dessus (même événement, une évaluation), permet au front
+        // de réutiliser directement varianteIndicateur pour la couleur de cette colonne, sans
+        // palette dupliquée (voir Indicateurs.jsx, varianteDateCle).
         datesCles: [
           { code: 'inscription', date: reste.date_creation },
           date_test_planifie ? { code: 'test_planifie', date: date_test_planifie } : null,
-          date_verdict
-            ? { code: verdict_resultat_global === 'invalide' ? 'verdict_invalide' : 'verdict_valide', date: date_verdict }
-            : null,
           date_verdict && verdict_orientation ? { code: `orientation_${verdict_orientation}`, date: date_verdict } : null,
         ].filter(Boolean),
-        // Ancre du délai "test → verdict" (colonne "Dates clés", construireColonnesAlignees) —
-        // DISTINCTE de `date_test_planifie` ci-dessus (première planification, correcte pour la
-        // ligne "Test planifié"/le délai "inscription → test") : correctif audit 2026-08-11, voir
-        // dossierRepository.listerDossiersParIds. Champ dédié plutôt qu'une entrée dans `datesCles`
-        // : ce n'est pas une ligne à afficher telle quelle, seulement une donnée d'entrée du calcul
-        // de délai.
+        // Ancre de FIN du délai "test → verdict" (colonne "Dates clés", construireColonnesAlignees)
+        // — la ligne "Verdict" elle-même n'existant plus dans `datesCles` ci-dessus, ce champ dédié
+        // reste le seul moyen pour le front de connaître la date exacte du verdict (nécessaire au
+        // calcul du délai, indépendamment de son affichage). NULL tant qu'aucune évaluation.
+        dateVerdict: date_verdict ?? null,
+        // Ancre de DÉPART du délai "test → verdict" — DISTINCTE de `date_test_planifie` ci-dessus
+        // (première planification, correcte pour la ligne "Test planifié"/le délai "inscription →
+        // test") : correctif audit 2026-08-11, voir dossierRepository.listerDossiersParIds. Champ
+        // dédié plutôt qu'une entrée dans `datesCles` : ce n'est pas une ligne à afficher telle
+        // quelle, seulement une donnée d'entrée du calcul de délai.
         dateDernierTestPlanifieAvantVerdict: date_derniere_planification_avant_verdict ?? null,
         // Respecte l'ordre de `indicateurs` demandé par l'appelant (pas l'ordre d'insertion dans la
         // Map, qui dépendrait de Promise.all) — affichage des badges stable d'un appel à l'autre.

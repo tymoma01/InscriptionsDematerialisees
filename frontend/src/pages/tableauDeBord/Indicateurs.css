@@ -50,17 +50,23 @@
 
 /* <button> plutôt qu'un <div> statique (voir Indicateurs.jsx, basculerIndicateur) : reset des
    styles de bouton natifs (font/text-align/cursor) pour rester visuellement identique à l'ancien
-   <div>, plus un état actif pour la sélection multiple du dashboard cliquable. */
+   <div>, plus un état actif pour la sélection multiple du dashboard cliquable. Contenu centré
+   (valeur + libellé, décision utilisateur 2026-08-11 — le libellé agrandi ci-dessous serait
+   déséquilibré collé à gauche sous un gros chiffre lui aussi centré) : `align-items: center` en
+   plus de `text-align` (les <span> enfants sont étirés en pleine largeur par le flex-column,
+   `text-align` seul suffirait déjà à centrer leur texte, `align-items` ajouté par cohérence si un
+   enfant non textuel s'ajoutait un jour). */
 .indicateurs__tuile {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.25rem;
   padding: var(--espace-moyen);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
   font: inherit;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   /* border-box : la bordure à 2px de l'état --active (ci-dessous) ne doit pas agrandir la carte
      de 2px et décaler la grille — seule la couleur/épaisseur perçue change, pas la taille. */
@@ -76,9 +82,72 @@
   outline-offset: 2px;
 }
 
+/* Une couleur distincte par tuile (décision utilisateur, 2026-08-11) — fond + bordure + texte via
+   les variantes `--statut-<variante>-*` DÉJÀ définies dans styles/variables.css (jamais de couleur
+   codée en dur ici), pas de nouvelle palette : chaque variante reprend celle déjà attribuée au
+   même code dans VARIANTE_PAR_INDICATEUR (Indicateurs.jsx) — la tuile "Inscrits" et le badge
+   "Inscrit" de la colonne "Indicateurs" partagent ainsi la même couleur partout sur l'écran, même
+   principe que "Dates clés"/StatutBadge plus tôt dans cette conversation. Exception : la tuile
+   "Délai moyen test → verdict" prend `violet` (pas `attente`, sa variante de badge) — les deux
+   tuiles de délai partagent la même variante `attente` côté badge, ce qui les aurait rendues
+   indiscernables l'une de l'autre une fois en tuile colorée ; `violet` n'est utilisée par aucune
+   autre tuile. Fond pastel clair (`-fond`) + texte fortement contrasté (`-texte`, déjà vérifié
+   WCAG AA dans variables.css) : la lisibilité du gros chiffre ET du libellé reste bonne sur
+   n'importe laquelle des 5 tuiles. Ni dégradé ni ombre (style plat, cohérent avec le reste du
+   dashboard) — seulement fond/bordure/texte en aplat. */
+.indicateurs__tuile--neutre {
+  background-color: var(--statut-neutre-fond);
+  border-color: var(--statut-neutre-bordure);
+}
+.indicateurs__tuile--neutre .indicateurs__tuile-valeur,
+.indicateurs__tuile--neutre .indicateurs__tuile-libelle {
+  color: var(--statut-neutre-texte);
+}
+
+.indicateurs__tuile--bleu {
+  background-color: var(--statut-bleu-fond);
+  border-color: var(--statut-bleu-bordure);
+}
+.indicateurs__tuile--bleu .indicateurs__tuile-valeur,
+.indicateurs__tuile--bleu .indicateurs__tuile-libelle {
+  color: var(--statut-bleu-texte);
+}
+
+.indicateurs__tuile--dore {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--statut-dore-bordure);
+}
+.indicateurs__tuile--dore .indicateurs__tuile-valeur,
+.indicateurs__tuile--dore .indicateurs__tuile-libelle {
+  color: var(--statut-dore-texte);
+}
+
+.indicateurs__tuile--attente {
+  background-color: var(--statut-attente-fond);
+  border-color: var(--statut-attente-bordure);
+}
+.indicateurs__tuile--attente .indicateurs__tuile-valeur,
+.indicateurs__tuile--attente .indicateurs__tuile-libelle {
+  color: var(--statut-attente-texte);
+}
+
+.indicateurs__tuile--violet {
+  background-color: var(--statut-violet-fond);
+  border-color: var(--statut-violet-bordure);
+}
+.indicateurs__tuile--violet .indicateurs__tuile-valeur,
+.indicateurs__tuile--violet .indicateurs__tuile-libelle {
+  color: var(--statut-violet-texte);
+}
+
 /* Sélectionnée : même teinte dorée que le reste de l'identité back-office
-   (--couleur-back-office-dore, styles/variables.css), pour rester cohérente avec le graphique
-   "Répartition par poste" existant plutôt que d'introduire une nouvelle couleur d'état. */
+   (--couleur-back-office-dore, styles/variables.css — un bronze saturé, jamais confondu avec les
+   bordures pastel des variantes ci-dessus), pour rester cohérente avec le graphique "Répartition
+   par poste" existant plutôt que d'introduire une nouvelle couleur d'état. Déclarée APRÈS les
+   variantes ci-dessus (même spécificité CSS, l'ordre dans la feuille de style tranche) : la
+   sélection doit rester visible par-dessus n'importe quelle couleur de tuile, y compris la tuile
+   dorée elle-même (son fond ne change alors pas, mais la bordure bronze 2px reste un signal net —
+   contrairement à sa bordure dorée pastel 1px au repos). */
 .indicateurs__tuile--active {
   border-color: var(--couleur-back-office-dore);
   border-width: 2px;
@@ -91,9 +160,14 @@
   color: var(--couleur-back-office);
 }
 
+/* Agrandi (0.85rem → 1rem) et en semi-gras (décision utilisateur, 2026-08-11 : jugé trop petit/peu
+   lisible) — la couleur par défaut (--couleur-texte-secondaire) n'est visible que tant qu'aucune
+   variante `.indicateurs__tuile--<couleur>` ci-dessus ne la surcharge (les 5 tuiles en ont
+   désormais toutes une). */
 .indicateurs__tuile-libelle {
   color: var(--couleur-texte-secondaire);
-  font-size: 0.85rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 /* Précision "Moyenne, jours écoulés" sur les deux tuiles de délai (voir Indicateurs.jsx,

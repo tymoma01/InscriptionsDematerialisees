@@ -127,11 +127,14 @@
 
 /* Une ligne par date clé — libellé à gauche, date alignée à droite sur la même ligne (flex +
    space-between, pas d'espaces/tabulations manuelles : voir TableauDossiersSelectionnes.jsx,
-   colonne "Dates clés"). Couleur par `--date-cle-ligne--<variante>`, MÊME palette et MÊMES
-   variables --statut-<variante>-* que StatutBadge.css (colonnes "Statut"/"Indicateurs" du même
-   tableau) — pas de couleur codée en dur ici, décision utilisateur 2026-08-11 : la couleur d'une
-   étape doit rester cohérente d'une colonne à l'autre pour le même dossier (ex. "Test planifié"
-   ici et le badge de statut "Test planifié" partagent --statut-bleu-*). */
+   colonne "Dates clés"). Libellé texte revenu le 2026-08-11 (un retrait tenté juste avant, en
+   s'appuyant uniquement sur l'alignement avec le badge "Indicateurs", a été jugé moins lisible —
+   voir CODE_BADGE_PAR_CODE_DATE/construireColonnesAlignees, TableauDossiersSelectionnes.jsx,
+   l'alignement lui-même reste en place). Couleur par `--date-cle-ligne--<variante>`, MÊME palette
+   et MÊMES variables --statut-<variante>-* que StatutBadge.css (colonnes "Statut"/"Indicateurs" du
+   même tableau) — pas de couleur codée en dur ici : la couleur d'une étape doit rester cohérente
+   d'une colonne à l'autre pour le même dossier (ex. "Test planifié" ici et le badge de statut
+   "Test planifié" partagent --statut-bleu-*). */
 .tableau-dossiers-selectionnes__date-ligne {
   display: flex;
   justify-content: space-between;
@@ -152,19 +155,20 @@
 
 /* Ligne vide de compensation (voir construireColonnesAlignees, TableauDossiersSelectionnes.jsx) :
    décale les lignes suivantes de la hauteur d'une ligne normale sans rien afficher — c'est ce qui
-   permet à "Délai inscription → test"/"Délai test → verdict" de tomber exactement à la hauteur de
-   leur badge dans "Indicateurs" quand cette colonne a moins de contenu au-dessus à ce moment-là. */
+   permet aux badges/valeurs alignés (Inscrit, Envoyé en test, les deux délais, Orienté formation/
+   embauche) de tomber exactement à la hauteur de leur pendant dans l'autre colonne quand celle-ci a
+   moins de contenu au-dessus à ce moment-là. */
 .tableau-dossiers-selectionnes__date-ligne--vide {
   visibility: hidden;
 }
 
-/* Valeur de délai seule ("X J", SANS le libellé "Délai inscription → test"/"Délai test → verdict"
-   — déjà porté par le badge de la colonne "Indicateurs" à la même hauteur, décision utilisateur
-   2026-08-11 : plus de répétition du libellé). Alignée à droite (flex-end, pas space-between :
-   il n'y a plus qu'un seul élément dans cette ligne) pour rester dans la même colonne visuelle que
-   les valeurs de date au-dessus/dessous. SANS couleur de statut : ce n'est pas une étape du
-   parcours mais une mesure dérivée de deux dates déjà colorées ailleurs, un fond plein ferait
-   doublon. Texte plus petit + couleur secondaire pour rester visuellement en retrait des dates. */
+/* Valeur de délai seule ("X J", SANS libellé — inchangé par le retour en arrière du 2026-08-11 :
+   ce n'était déjà plus du texte répété, contrairement aux dates simples ci-dessus). Alignée à
+   droite (flex-end, pas l'space-between de la règle de base : il n'y a qu'un seul élément dans
+   cette ligne) pour rester dans la même colonne visuelle que les valeurs de date au-dessus/
+   dessous. SANS couleur de statut : ce n'est pas une étape du parcours mais une mesure dérivée de
+   deux dates déjà colorées ailleurs, un fond plein ferait doublon. Texte plus petit + couleur
+   secondaire pour rester visuellement en retrait des dates. */
 .tableau-dossiers-selectionnes__date-ligne--delai {
   justify-content: flex-end;
   font-size: 0.78rem;

@@ -53,20 +53,17 @@ function varianteStatut(code) {
 //   visuel avec la colonne "Statut", qui affiche déjà "Validé - prêt à l'embauche"/"Validé - envoyé
 //   en formation" ; "Recruté" sur-affirmerait pour la branche "envoyé en formation" (pas encore
 //   embauché à ce stade du parcours) — "Retenu" couvre les deux sans ambiguïté.
-// - `envoyes_en_test` : "Mis en test" plutôt que "Test envoyé" — évite de laisser croire que le
-//   test a eu lieu (l'indicateur ne mesure qu'une PLANIFICATION, voir listerEnvoyesEnTest,
-//   statistiquesRepository.js), sans reprendre mot pour mot le badge de STATUT "Test planifié"
-//   déjà existant (même mot, sens différent : statut actuel du dossier vs événement de
-//   planification survenu pendant la période — les deux pouvaient sinon se lire comme la même
-//   information, alors qu'un dossier "Mis en test" pendant la période peut très bien avoir un
-//   statut actuel tout autre, ex. "Invalidé" après le test).
+// - `envoyes_en_test` : "Envoyé en test" (revenu du "Mis en test" choisi juste après l'audit du
+//   2026-08-11, décision utilisateur ultérieure du même jour) — reste distinct du badge de STATUT
+//   "Test planifié" déjà existant (mots différents), sans reprendre "Test envoyé"/"Envoyés en
+//   test" (libellé d'origine, plus ambigu sur "test réalisé ou non").
 // `delai_inscription_test`/`delai_test_verdict` : libellés laissés inchangés (confirmé) — jamais
 // ambigus vis-à-vis du statut affiché à côté, contrairement aux indicateurs renommés ci-dessus.
 // Leur ambiguïté à eux est d'une autre nature (moyenne de période vs valeur par dossier) — traitée
 // au niveau des TUILES agrégées (voir `title`/`.indicateurs__tuile-precision` plus bas), pas ici.
 const LIBELLES_INDICATEURS = {
   inscrits: 'Inscrit',
-  envoyes_en_test: 'Mis en test',
+  envoyes_en_test: 'Envoyé en test',
   conversion: 'Retenu',
   delai_inscription_test: 'Délai inscription → test',
   delai_test_verdict: 'Délai test → verdict',
@@ -546,10 +543,19 @@ export default function Indicateurs() {
               {/* Bouton plutôt qu'un <div> statique : sélection multiple des cartes (voir
                   basculerIndicateur plus haut), accessible au clavier sans rien ajouter. Chaque
                   carte reste indépendamment sélectionnable (pas un groupe radio) : rien n'empêche
-                  de croiser "Inscrits" et "Mis en test" dans le tableau consolidé. */}
+                  de croiser "Inscrits" et "Envoyé en test" dans le tableau consolidé.
+                  Modificateur `indicateurs__tuile--<variante>` (voir Indicateurs.css) : une couleur
+                  distincte par tuile, décision utilisateur 2026-08-11 — réutilise EXACTEMENT les
+                  variantes déjà attribuées à ces mêmes codes dans VARIANTE_PAR_INDICATEUR plus haut
+                  (badges de la colonne "Indicateurs"), pour que la couleur d'une tuile et celle de
+                  son badge restent cohérentes partout sur l'écran. Exception : `delai_test_verdict`
+                  prend `violet` ici (pas `attente`, son variante de badge) — les deux tuiles de
+                  délai partagent la même variante `attente` côté badge, ce qui les aurait rendues
+                  indiscernables l'une de l'autre en tuile ; `violet` n'est déjà utilisée par aucune
+                  autre tuile. */}
               <button
                 type="button"
-                className={`indicateurs__tuile${selectionIndicateurs.has('inscrits') ? ' indicateurs__tuile--active' : ''}`}
+                className={`indicateurs__tuile indicateurs__tuile--neutre${selectionIndicateurs.has('inscrits') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('inscrits')}
                 onClick={() => basculerIndicateur('inscrits')}
               >
@@ -558,19 +564,16 @@ export default function Indicateurs() {
               </button>
               <button
                 type="button"
-                className={`indicateurs__tuile${selectionIndicateurs.has('envoyes_en_test') ? ' indicateurs__tuile--active' : ''}`}
+                className={`indicateurs__tuile indicateurs__tuile--bleu${selectionIndicateurs.has('envoyes_en_test') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('envoyes_en_test')}
                 onClick={() => basculerIndicateur('envoyes_en_test')}
               >
                 <span className="indicateurs__tuile-valeur">{indicateurs.envoyesEnTest.total}</span>
-                {/* "Mis en test" (pas "Test envoyé"/"Test planifié") : clarification d'audit
-                    2026-08-11, voir LIBELLES_INDICATEURS.envoyes_en_test — mesure une planification,
-                    pas un test réalisé, et distinct du badge de statut "Test planifié". */}
-                <span className="indicateurs__tuile-libelle">Mis en test</span>
+                <span className="indicateurs__tuile-libelle">Envoyé en test</span>
               </button>
               <button
                 type="button"
-                className={`indicateurs__tuile${selectionIndicateurs.has('conversion') ? ' indicateurs__tuile--active' : ''}`}
+                className={`indicateurs__tuile indicateurs__tuile--dore${selectionIndicateurs.has('conversion') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('conversion')}
                 onClick={() => basculerIndicateur('conversion')}
               >
@@ -590,7 +593,7 @@ export default function Indicateurs() {
               </button>
               <button
                 type="button"
-                className={`indicateurs__tuile${selectionIndicateurs.has('delai_inscription_test') ? ' indicateurs__tuile--active' : ''}`}
+                className={`indicateurs__tuile indicateurs__tuile--attente${selectionIndicateurs.has('delai_inscription_test') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_inscription_test')}
                 onClick={() => basculerIndicateur('delai_inscription_test')}
                 title={PRECISION_DELAI_MOYEN}
@@ -603,7 +606,7 @@ export default function Indicateurs() {
               </button>
               <button
                 type="button"
-                className={`indicateurs__tuile${selectionIndicateurs.has('delai_test_verdict') ? ' indicateurs__tuile--active' : ''}`}
+                className={`indicateurs__tuile indicateurs__tuile--violet${selectionIndicateurs.has('delai_test_verdict') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_test_verdict')}
                 onClick={() => basculerIndicateur('delai_test_verdict')}
                 title={PRECISION_DELAI_MOYEN}
