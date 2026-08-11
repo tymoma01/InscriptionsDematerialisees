@@ -112,17 +112,44 @@ function compterVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste }
   return requete.groupBy('evaluations.resultat_global').select('evaluations.resultat_global').count('evaluations.id as total');
 }
 
-// Stat 4 — orientation (evaluations.orientation), uniquement pour les verdicts positifs, groupée,
-// sur la période.
+// Orientation EFFECTIVE d'une évaluation valide — règle générale, pas un correctif ponctuel sur
+// des dossiers précis (audit du 2026-08-12, dossiers #89/#74 : evaluations.orientation reste
+// TOUJOURS NULL pour une évaluation soumise par le rôle Inspecteur, par conception, voir
+// evaluationEngine.js.enregistrerEvaluation : "le bureau n'a pas de notion de formation, son seul
+// verdict positif correspond exactement à ce que [le statut valide_pret_embauche] porte déjà" —
+// ces dossiers passent directement à valide_pret_embauche sans jamais passer par un choix
+// d'orientation explicite). COALESCE : la valeur enregistrée prime si elle existe (rôle Formateur,
+// envoi_formation OU pret_embauche) ; sinon, un dossier dont le STATUT COURANT est
+// valide_pret_embauche est déduit "pret_embauche" (rôle Inspecteur) — jamais "envoi_formation" par
+// déduction, ce statut n'existant que pour la filière hôtel/Formateur, qui renseigne toujours
+// orientation explicitement. S'applique automatiquement à tout dossier futur évalué par un
+// Inspecteur, sans intervention manuelle — nécessite un JOIN vers `statuts` (voir compterOrientations/
+// listerOrientations ci-dessous), absent des autres stats de ce fichier. Dupliqué (pas partagé) dans
+// dossierRepository.listerDossiersParIds, même règle, pour la colonne "Dates clés"/le badge
+// "Indicateurs" du tableau détaillé — même principe que les autres duplications back/back de ce
+// projet (voir CLAUDE.md, conventions de code).
+const ORIENTATION_EFFECTIVE_SQL = `
+  COALESCE(
+    evaluations.orientation,
+    CASE WHEN statuts.code = 'valide_pret_embauche' THEN 'pret_embauche' END
+  )
+`;
+
+// Stat 4 — orientation EFFECTIVE (voir ORIENTATION_EFFECTIVE_SQL ci-dessus), uniquement pour les
+// verdicts positifs, groupée, sur la période.
 function compterOrientations(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .where('dossiers.entite_id', entiteId)
     .andWhere('evaluations.resultat_global', 'valide')
     .andWhere('evaluations.date_evaluation', '>=', debut)
     .andWhere('evaluations.date_evaluation', '<', finExclusive);
   filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
-  return requete.groupBy('evaluations.orientation').select('evaluations.orientation').count('evaluations.id as total');
+  return requete
+    .groupByRaw(ORIENTATION_EFFECTIVE_SQL)
+    .select(bd.raw(`${ORIENTATION_EFFECTIVE_SQL} as orientation`))
+    .count('evaluations.id as total');
 }
 
 // Stat 5 (numérateur) — dossiers dont le statut COURANT est l'un des deux statuts finaux positifs
@@ -344,13 +371,18 @@ function listerVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste } 
 
 // orientation : 'envoi_formation' | 'pret_embauche' — une des deux entrées du camembert
 // "Formation vs prêt à l'embauche" (Indicateurs.jsx). Implique déjà resultat_global = 'valide',
-// même condition que compterOrientations.
+// même condition que compterOrientations. Filtre sur l'orientation EFFECTIVE (voir
+// ORIENTATION_EFFECTIVE_SQL ci-dessus), pas evaluations.orientation seule — comparer `orientation`
+// (paramètre, 'envoi_formation' ou 'pret_embauche') à l'expression COALESCE reste sans effet pour
+// 'envoi_formation' (jamais produit par la déduction bureau, seulement par la valeur enregistrée),
+// et inclut désormais les dossiers Inspecteur pour 'pret_embauche'.
 function listerOrientations(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}, orientation) {
   const requete = bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .where('dossiers.entite_id', entiteId)
     .andWhere('evaluations.resultat_global', 'valide')
-    .andWhere('evaluations.orientation', orientation)
+    .andWhereRaw(`${ORIENTATION_EFFECTIVE_SQL} = ?`, [orientation])
     .andWhere('evaluations.date_evaluation', '>=', debut)
     .andWhere('evaluations.date_evaluation', '<', finExclusive);
   filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });

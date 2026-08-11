@@ -342,7 +342,24 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'dates_test_planifie.date_test_planifie',
       'dates_verdict.date_verdict',
       'evaluation_verdict.resultat_global as verdict_resultat_global',
-      'evaluation_verdict.orientation as verdict_orientation',
+      // Orientation EFFECTIVE, pas evaluation_verdict.orientation seule — règle générale (audit
+      // 2026-08-12, dossiers #89/#74) : evaluations.orientation reste TOUJOURS NULL pour une
+      // évaluation soumise par le rôle Inspecteur, par conception (voir evaluationEngine.js.
+      // enregistrerEvaluation — "le bureau n'a pas de notion de formation, son seul verdict
+      // positif correspond exactement à ce que [valide_pret_embauche] porte déjà"). Un dossier au
+      // statut COURANT valide_pret_embauche (déjà joint ci-dessus, `statuts.code`) sans orientation
+      // enregistrée est donc déduit "pret_embauche" — jamais "envoi_formation" par déduction, ce
+      // statut n'existant que pour la filière Formateur, qui renseigne toujours orientation
+      // explicitement. Même règle EXACTE que statistiquesRepository.ORIENTATION_EFFECTIVE_SQL
+      // (dupliquée, pas partagée entre les deux modules — même convention que le reste du projet),
+      // pour que le badge "Indicateurs"/la ligne "Dates clés" du tableau détaillé restent cohérents
+      // avec le camembert "Formation vs prêt à l'embauche" qu'ils accompagnent.
+      bd.raw(`
+        COALESCE(
+          evaluation_verdict.orientation,
+          CASE WHEN statuts.code = 'valide_pret_embauche' THEN 'pret_embauche' END
+        ) as verdict_orientation
+      `),
       'derniere_planification.date_derniere_planification_avant_verdict',
     );
 }
