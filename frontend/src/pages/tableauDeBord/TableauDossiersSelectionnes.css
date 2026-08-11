@@ -155,7 +155,7 @@
 
 /* Ligne vide de compensation (voir construireColonnesAlignees, TableauDossiersSelectionnes.jsx) :
    décale les lignes suivantes de la hauteur d'une ligne normale sans rien afficher — c'est ce qui
-   permet aux badges/valeurs alignés (Inscrit, Envoyé en test, les deux délais, Orienté formation/
+   permet aux badges/valeurs alignés (Inscrit, Envoyé en test, les deux délais, Envoyé en formation/
    embauche) de tomber exactement à la hauteur de leur pendant dans l'autre colonne quand celle-ci a
    moins de contenu au-dessus à ce moment-là. */
 .tableau-dossiers-selectionnes__date-ligne--vide {

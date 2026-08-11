@@ -61,6 +61,10 @@ function varianteStatut(code) {
 // ambigus vis-à-vis du statut affiché à côté, contrairement aux indicateurs renommés ci-dessus.
 // Leur ambiguïté à eux est d'une autre nature (moyenne de période vs valeur par dossier) — traitée
 // au niveau des TUILES agrégées (voir `title`/`.indicateurs__tuile-precision` plus bas), pas ici.
+// `orientation_envoi_formation`/`orientation_pret_embauche` : "Envoyé en formation"/"Prêt à
+// l'embauche" (décision utilisateur, 2026-08-12) — remplace "Orienté formation"/"Orienté embauche"
+// pour rester au plus près du texte déjà utilisé ailleurs sur l'écran (légende du camembert
+// "Formation vs prêt à l'embauche", et le statut "Validé - prêt à l'embauche").
 const LIBELLES_INDICATEURS = {
   inscrits: 'Inscrit',
   envoyes_en_test: 'Envoyé en test',
@@ -69,8 +73,8 @@ const LIBELLES_INDICATEURS = {
   delai_test_verdict: 'Délai test → verdict',
   verdict_valide: 'Test réussi',
   verdict_invalide: 'Test échoué',
-  orientation_envoi_formation: 'Orienté formation',
-  orientation_pret_embauche: 'Orienté embauche',
+  orientation_envoi_formation: 'Envoyé en formation',
+  orientation_pret_embauche: 'Prêt à l’embauche',
   // Barre "Non spécifié" du graphique de répartition par poste — code statique (pas 'poste:<code>',
   // voir PREFIXE_POSTE/libelleIndicateur plus bas) : "aucun poste renseigné" n'est pas un poste.
   poste_non_specifie: 'Poste non spécifié',
@@ -108,6 +112,19 @@ const VARIANTE_PAR_INDICATEUR = {
   poste_non_specifie: 'dore',
 };
 const PREFIXE_POSTE = 'poste:';
+
+// Paires d'indicateurs mutuellement exclusifs (décision utilisateur, 2026-08-12) — les deux parts
+// d'un même camembert cliquable ("Tests réussis vs ratés"/"Formation vs prêt à l'embauche")
+// représentent des résultats contraires pour un même événement (un dossier n'a qu'un seul verdict/
+// une seule orientation par test) : sélectionner l'une désélectionne automatiquement l'autre, voir
+// basculerIndicateur plus bas. Scope volontairement limité à ces deux paires — n'affecte ni les
+// tuiles KPI (Inscrits, Envoyé en test, Converti, les deux délais), ni les segments "Répartition
+// par poste" (postes cumulables sur une même évaluation, pas des résultats contraires), qui
+// restent librement combinables comme avant.
+const PAIRES_INDICATEURS_EXCLUSIFS = [
+  ['verdict_valide', 'verdict_invalide'],
+  ['orientation_envoi_formation', 'orientation_pret_embauche'],
+];
 
 // Catalogue des postes ACCECIT — même valeurs que backend/src/core/dossier/postesConstantes.js,
 // dupliqué plutôt que partagé entre front et back (pas de mécanisme de partage de code entre les
@@ -167,27 +184,28 @@ function estIndicateurPoste(code) {
 }
 
 // Colonne "Dates clés" du tableau consolidé (TableauDossiersSelectionnes.jsx) — mêmes codes que
-// `datesCles` côté back (statistiquesService.listerDossiersParIndicateurs), toujours tous présents
-// (selon l'avancement réel du dossier) quel que soit l'indicateur sélectionné sur les tuiles KPI
-// (contrairement à LIBELLES_INDICATEURS ci-dessus, qui ne couvre que les codes présents dans la
-// sélection KPI courante). `verdict_valide`/`verdict_invalide` et `orientation_envoi_formation`/
-// `orientation_pret_embauche` reprennent VOLONTAIREMENT les mêmes codes que les indicateurs
-// homonymes (voir LIBELLES_INDICATEURS/VARIANTE_PAR_INDICATEUR plus haut) : ce sont le même
-// événement (une évaluation, voir evaluations.resultat_global/orientation), la colonne "Dates
-// clés" ne fait qu'en afficher la date sans dupliquer la connaissance de sa couleur — seul le
-// libellé diffère ("Verdict"/"Orientation", pas "Test réussi"/"Orienté formation" : cette colonne
-// nomme des ÉTAPES du parcours du dossier, pas des indicateurs de pilotage, décision utilisateur
-// 2026-08-11 — l'ancien affichage ne montrait qu'une seule date liée à l'indicateur sélectionné
-// sans dire de quelle date il s'agissait). `verdict_valide`/`verdict_invalide` partagent le même
-// libellé "Verdict" (seule la couleur distingue réussi/échoué, voir varianteDateCle) ; même
-// principe pour les deux codes `orientation_*` avec "Orientation".
+// `datesCles` côté back (statistiquesService.listerDossiersParIndicateurs). Depuis le 2026-08-12,
+// chaque ligne n'apparaît que si l'indicateur/la tuile correspondant est sélectionné (comme la
+// colonne "Indicateurs" — voir construireColonnesAlignees, TableauDossiersSelectionnes.jsx), plus
+// systématiquement quel que soit l'avancement du dossier. `verdict_valide`/`verdict_invalide` et
+// `orientation_envoi_formation`/`orientation_pret_embauche` reprennent VOLONTAIREMENT les mêmes
+// codes que les indicateurs homonymes (voir LIBELLES_INDICATEURS/VARIANTE_PAR_INDICATEUR plus
+// haut) : ce sont le même événement (une évaluation, voir evaluations.resultat_global/
+// orientation), la colonne "Dates clés" ne fait qu'en afficher la date sans dupliquer la
+// connaissance de sa couleur. Chacun des 4 codes a son PROPRE libellé, distinct de son homologue
+// "Indicateurs" (cette colonne nomme des ÉTAPES du parcours du dossier, pas des indicateurs de
+// pilotage, décision utilisateur 2026-08-11) : "Validé"/"Invalidé" pour verdict_valide/invalide
+// (décision 2026-08-12 — corrige un "Verdict" générique commun aux deux qui ne disait pas lequel
+// des deux cas s'appliquait, la couleur seule ne suffisant pas) ; "Orienté-formation"/"Orienté-
+// embauche" pour orientation_envoi_formation/pret_embauche (même décision, même raison — un
+// "Orientation" commun aux deux ne disait pas laquelle des deux orientations).
 const LIBELLES_DATES_CLES = {
   inscription: 'Inscription',
   test_planifie: 'Test planifié',
-  verdict_valide: 'Verdict',
-  verdict_invalide: 'Verdict',
-  orientation_envoi_formation: 'Orientation',
-  orientation_pret_embauche: 'Orientation',
+  verdict_valide: 'Validé',
+  verdict_invalide: 'Invalidé',
+  orientation_envoi_formation: 'Orienté-formation',
+  orientation_pret_embauche: 'Orienté-embauche',
 };
 function libelleDateCle(code) {
   return LIBELLES_DATES_CLES[code] ?? code;
@@ -316,11 +334,20 @@ export default function Indicateurs() {
   const [chargementTableau, setChargementTableau] = useState(false);
   const [erreurTableau, setErreurTableau] = useState(null);
 
+  // Active `code` en retirant d'abord son opposé exclusif s'il y en a un et qu'il est
+  // actuellement sélectionné (voir PAIRES_INDICATEURS_EXCLUSIFS plus haut) — seul l'AJOUT déclenche
+  // cette exclusion ; désélectionner `code` (déjà actif) n'a aucun effet sur son opposé.
   function basculerIndicateur(code) {
     setSelectionIndicateurs((precedent) => {
       const suivant = new Set(precedent);
-      if (suivant.has(code)) suivant.delete(code);
-      else suivant.add(code);
+      if (suivant.has(code)) {
+        suivant.delete(code);
+      } else {
+        const paire = PAIRES_INDICATEURS_EXCLUSIFS.find((p) => p.includes(code));
+        const oppose = paire?.find((c) => c !== code);
+        if (oppose) suivant.delete(oppose);
+        suivant.add(code);
+      }
       return suivant;
     });
   }

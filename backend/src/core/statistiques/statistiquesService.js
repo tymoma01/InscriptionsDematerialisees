@@ -266,9 +266,6 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         donnees_disponibilites,
         date_test_planifie,
         date_verdict,
-        // eslint-disable-next-line no-unused-vars -- extrait pour l'exclure de `...reste` (fuite
-        // d'un champ interne de requête), plus utilisé depuis le retrait de la ligne "Verdict" de
-        // "Dates clés" (2026-08-11, redondante avec la colonne "Statut" — voir décision ci-dessous).
         verdict_resultat_global,
         verdict_orientation,
         date_derniere_planification_avant_verdict,
@@ -277,26 +274,31 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         ...reste,
         postesBureau: donnees_disponibilites?.posteBureau ?? [],
         postesHotel: donnees_disponibilites?.posteHotel ?? [],
-        // Colonne "Dates clés" du tableau consolidé (TableauDossiersSelectionnes.jsx) : TOUJOURS
-        // toutes les dates SIMPLES du parcours du dossier atteintes à ce jour (inscription/test
-        // planifié/orientation), indépendamment des indicateurs sélectionnés par l'utilisateur —
-        // contrairement à `indicateurs` ci-dessous, qui reste scopé à la sélection KPI.
-        // `reste.date_creation` existe toujours (colonne NOT NULL) ; test_planifie/orientation sont
-        // NULL tant que le dossier n'a pas atteint cette étape — filtrées ici plutôt que laissées à
-        // `null` pour que le front n'ait qu'à itérer, sans condition (pas de date vide/placeholder,
-        // décision utilisateur 2026-08-11).
-        //
-        // PAS de ligne "verdict_valide"/"verdict_invalide" ici (retirée, décision utilisateur
-        // 2026-08-11) : cette information est déjà visible dans la colonne "Statut" (ex. "Validé -
-        // prêt à l'embauche"), une ligne dédiée dans "Dates clés" était redondante. `orientation_*`
-        // reste : ce n'est PAS la même information que le statut (formation vs embauche directe,
-        // une nuance que la colonne "Statut" ne porte pas seule) — code repris tel quel de
-        // CODES_INDICATEURS_STATIQUES ci-dessus (même événement, une évaluation), permet au front
-        // de réutiliser directement varianteIndicateur pour la couleur de cette colonne, sans
-        // palette dupliquée (voir Indicateurs.jsx, varianteDateCle).
+        // Colonne "Dates clés" du tableau consolidé (TableauDossiersSelectionnes.jsx) : la ligne
+        // "verdict_valide"/"verdict_invalide" avait été retirée le 2026-08-11 (jugée redondante
+        // avec la colonne "Statut", affichée alors INCONDITIONNELLEMENT) — puis "Dates clés" est
+        // devenue, le 2026-08-12, strictement calée sur la sélection des tuiles/segments (comme la
+        // colonne "Indicateurs" : voir construireColonnesAlignees, TableauDossiersSelectionnes.jsx)
+        // : la redondance ne se pose plus de la même façon, une ligne "Verdict" n'apparaît
+        // désormais QUE si l'utilisateur a explicitement sélectionné "Test réussi"/"Test raté" (clic
+        // sur le camembert "Tests réussis vs ratés", même mécanisme `basculerIndicateur` que les
+        // tuiles) — remise en place le 2026-08-12 pour ce cas précis. `reste.date_creation` existe
+        // toujours (colonne NOT NULL) ; test_planifie/verdict/orientation sont NULL tant que le
+        // dossier n'a pas atteint cette étape — filtrées ici plutôt que laissées à `null` pour que
+        // le front n'ait qu'à itérer, sans condition (pas de date vide/placeholder). Codes
+        // 'verdict_valide'/'verdict_invalide'/'orientation_envoi_formation'/'orientation_
+        // pret_embauche' repris tels quels de CODES_INDICATEURS_STATIQUES ci-dessus (même
+        // événement, une évaluation) — permet au front de réutiliser directement varianteIndicateur
+        // pour la couleur de cette colonne, sans palette dupliquée (voir Indicateurs.jsx,
+        // varianteDateCle), et à construireColonnesAlignees de reconnaître directement la
+        // correspondance badge↔date (même code des deux côtés, pas d'entrée supplémentaire
+        // nécessaire dans CODE_BADGE_PAR_CODE_DATE).
         datesCles: [
           { code: 'inscription', date: reste.date_creation },
           date_test_planifie ? { code: 'test_planifie', date: date_test_planifie } : null,
+          date_verdict
+            ? { code: verdict_resultat_global === 'invalide' ? 'verdict_invalide' : 'verdict_valide', date: date_verdict }
+            : null,
           date_verdict && verdict_orientation ? { code: `orientation_${verdict_orientation}`, date: date_verdict } : null,
         ].filter(Boolean),
         // Ancre de FIN du délai "test → verdict" (colonne "Dates clés", construireColonnesAlignees)

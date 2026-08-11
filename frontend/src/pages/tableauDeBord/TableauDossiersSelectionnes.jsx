@@ -51,14 +51,19 @@ const CODE_BADGE_PAR_CODE_DATE = {
 //
 // Deux natures d'"ancre", unifiées dans une seule liste triée par position chronologique
 // (`positionDate`) puis traitées par la même boucle :
-// - "existante" (Inscrit↔Inscription, Envoyé en test↔Test planifié, Orienté formation/embauche↔
-//   Orientation) : la ligne de date existe déjà dans `dates`, on se contente de CONTRÔLER QUAND
-//   elle est consommée pour qu'elle tombe à la hauteur de son badge — rien n'est inséré.
+// - "existante" (Inscrit↔Inscription, Envoyé en test↔Test planifié, Test réussi/échoué↔Validé/
+//   Invalidé, Envoyé en formation/Prêt à l'embauche↔Orienté-formation/Orienté-embauche) : la
+//   ligne de date existe déjà dans `dates`, on se contente de CONTRÔLER QUAND elle est consommée
+//   pour qu'elle tombe à la hauteur de son badge — rien n'est inséré. `verdict_valide`/
+//   `verdict_invalide` (remis en place le 2026-08-12, clic sur
+//   le camembert "Tests réussis vs ratés" — même `basculerIndicateur` que les tuiles) : même code
+//   des deux côtés, comme `orientation_*`, géré par le filet `codeBadge ?? d.code` plus bas, pas
+//   besoin d'entrée dans CODE_BADGE_PAR_CODE_DATE.
 // - "délai" (les deux indicateurs de délai) : aucune ligne de date n'existe pour ce badge, une
 //   valeur ("X J") est INSÉRÉE À la position choisie, sans consommer d'entrée de `dates`.
-// Un badge dont le code n'a pas d'ancre (Retenu, Test réussi/échoué — plus de contrepartie datée
-// depuis le retrait de "Verdict" — segments "Répartition par poste") reste affiché tel quel, sans
-// ligne "Dates clés" dédiée ni tentative d'alignement (pas concerné par cette fonction).
+// Un badge dont le code n'a pas d'ancre (Retenu, segments "Répartition par poste") reste affiché
+// tel quel, sans ligne "Dates clés" dédiée ni tentative d'alignement (pas concerné par cette
+// fonction) — pas de date unique associable à un simple statut courant.
 // Devant chaque ancre, on recopie tel quel tout ce qui la précède dans chaque colonne, puis on
 // COMBLE l'écart de hauteur (nombre de lignes déjà posées) avec des lignes vides du côté le plus
 // court, avant de poser l'ancre elle-même — qui tombe donc forcément à la même hauteur des deux
@@ -140,9 +145,29 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
   let curseurBadge = 0;
   let curseurDate = 0;
 
+  // Bug corrigé le 2026-08-12 : avec PLUSIEURS ancres "existante" sélectionnées, l'ordre de
+  // clic (indexBadge) et l'ordre chronologique (positionDate, qui pilote le tri des `ancres`)
+  // peuvent diverger — ex. "Prêt à l'embauche" (positionDate tardive) cliqué AVANT "Test réussi"
+  // (positionDate plus précoce, mais indexBadge plus tardif). La boucle de rattrapage "while
+  // (curseurBadge < ancre.indexBadge)" pousse alors un badge dont l'ancre n'a pas encore été
+  // traitée à son tour de boucle — quand ce tour arrive, l'ancre le repoussait UNE SECONDE FOIS,
+  // sans aucune garde. `indexBadgesEmis` empêche tout indexBadge d'être poussé plus d'une fois,
+  // quel que soit l'endroit d'où provient la tentative (rattrapage, ancre elle-même, ou reliquat
+  // final) — condition suffisante pour garantir l'unicité demandée, quelle que soit la
+  // combinaison de clics (tuiles + parts de camembert). Quand une ancre "existante" se retrouve
+  // ainsi déjà émise, sa ligne de date n'est PAS poussée non plus (retourne tôt) : une ligne de
+  // date sans badge en face serait aussi trompeuse qu'un badge en double.
+  const indexBadgesEmis = new Set();
+  function emettreBadge(indexBadge) {
+    if (indexBadgesEmis.has(indexBadge)) return false;
+    indexBadgesEmis.add(indexBadge);
+    indicateurRows.push({ type: 'badge', code: badges[indexBadge].code });
+    return true;
+  }
+
   for (const ancre of ancres) {
     while (curseurBadge < ancre.indexBadge) {
-      indicateurRows.push({ type: 'badge', code: badges[curseurBadge].code });
+      emettreBadge(curseurBadge);
       curseurBadge += 1;
     }
     while (curseurDate < ancre.positionDate) {
@@ -161,19 +186,24 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
     } else if (ecart < 0) {
       for (let k = 0; k < -ecart; k += 1) indicateurRows.push({ type: 'blank', code: `blank-badge-${ancre.codeBadge}-${k}` });
     }
-    indicateurRows.push({ type: 'badge', code: ancre.codeBadge });
+    const badgeEmis = emettreBadge(ancre.indexBadge);
     if (ancre.type === 'delai') {
       dateRows.push({ type: 'delai-valeur', code: ancre.codeDate, jours: ancre.jours });
       // curseurDate ne bouge pas : l'ancre s'insère AVANT dates[ancre.positionDate] (ou en fin de
       // liste), qui reste à consommer par le segment suivant (ou la boucle de fin ci-dessous).
-    } else {
+    } else if (badgeEmis) {
       dateRows.push({ type: 'date', code: dates[ancre.positionDate].code, date: dates[ancre.positionDate].date });
       curseurDate = ancre.positionDate + 1; // celle-ci est bien consommée (ligne existante posée).
+    } else {
+      // Badge déjà émis par un rattrapage antérieur (voir commentaire au-dessus de la boucle) :
+      // sa ligne de date n'est pas non plus émise, mais l'entrée `dates` reste consommée pour ne
+      // pas décaler la suite.
+      curseurDate = ancre.positionDate + 1;
     }
-    curseurBadge = ancre.indexBadge + 1;
+    curseurBadge = Math.max(curseurBadge, ancre.indexBadge + 1);
   }
   while (curseurBadge < badges.length) {
-    indicateurRows.push({ type: 'badge', code: badges[curseurBadge].code });
+    emettreBadge(curseurBadge);
     curseurBadge += 1;
   }
   while (curseurDate < dates.length) {
