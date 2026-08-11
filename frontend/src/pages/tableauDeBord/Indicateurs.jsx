@@ -43,16 +43,31 @@ function varianteStatut(code) {
 // Libellés pensés pour rester compréhensibles isolément, sans dépendre du statut affiché juste à
 // côté (colonne "Indicateurs" de TableauDossiersSelectionnes.jsx) — un badge peut désormais rester
 // visible même quand il est redondant avec ce statut (décision Option A, 2026-08-10 : plus de
-// filtrage de redondance, voir TableauDossiersSelectionnes.jsx). `conversion` : "Converti" plutôt
-// que "Taux de validation" (repris tel quel de la tuile agrégée, confirmé 2026-08-10) — un dossier
-// individuel n'a pas "un taux", ce badge signale son appartenance au numérateur du taux de
-// conversion de la période (voir listerDossiersConvertis, statistiquesRepository.js).
+// filtrage de redondance, voir TableauDossiersSelectionnes.jsx).
+//
+// Clarifications d'audit, 2026-08-11 (pas de changement de comportement, uniquement de libellé) :
+// - `conversion` : "Retenu" plutôt que "Converti" — l'audit a relevé que cet indicateur est un
+//   INSTANTANÉ du statut ACTUEL d'une cohorte d'inscrits (valide_pret_embauche OU
+//   valide_envoi_formation), pas un événement daté dans la période (voir aussi la tuile "Taux de
+//   dossiers validés à ce jour" plus bas, même clarification). "Validé" seul aurait fait doublon
+//   visuel avec la colonne "Statut", qui affiche déjà "Validé - prêt à l'embauche"/"Validé - envoyé
+//   en formation" ; "Recruté" sur-affirmerait pour la branche "envoyé en formation" (pas encore
+//   embauché à ce stade du parcours) — "Retenu" couvre les deux sans ambiguïté.
+// - `envoyes_en_test` : "Mis en test" plutôt que "Test envoyé" — évite de laisser croire que le
+//   test a eu lieu (l'indicateur ne mesure qu'une PLANIFICATION, voir listerEnvoyesEnTest,
+//   statistiquesRepository.js), sans reprendre mot pour mot le badge de STATUT "Test planifié"
+//   déjà existant (même mot, sens différent : statut actuel du dossier vs événement de
+//   planification survenu pendant la période — les deux pouvaient sinon se lire comme la même
+//   information, alors qu'un dossier "Mis en test" pendant la période peut très bien avoir un
+//   statut actuel tout autre, ex. "Invalidé" après le test).
 // `delai_inscription_test`/`delai_test_verdict` : libellés laissés inchangés (confirmé) — jamais
 // ambigus vis-à-vis du statut affiché à côté, contrairement aux indicateurs renommés ci-dessus.
+// Leur ambiguïté à eux est d'une autre nature (moyenne de période vs valeur par dossier) — traitée
+// au niveau des TUILES agrégées (voir `title`/`.indicateurs__tuile-precision` plus bas), pas ici.
 const LIBELLES_INDICATEURS = {
   inscrits: 'Inscrit',
-  envoyes_en_test: 'Test envoyé',
-  conversion: 'Converti',
+  envoyes_en_test: 'Mis en test',
+  conversion: 'Retenu',
   delai_inscription_test: 'Délai inscription → test',
   delai_test_verdict: 'Délai test → verdict',
   verdict_valide: 'Test réussi',
@@ -63,6 +78,20 @@ const LIBELLES_INDICATEURS = {
   // voir PREFIXE_POSTE/libelleIndicateur plus bas) : "aucun poste renseigné" n'est pas un poste.
   poste_non_specifie: 'Poste non spécifié',
 };
+
+// Tuiles "Délai moyen inscription → test planifié"/"Délai moyen test → verdict" — clarification
+// d'audit, 2026-08-11 : le chiffre affiché ici est une MOYENNE en jours ÉCOULÉS (temps réel,
+// valeur fractionnaire arrondie à 1 décimale, voir statistiquesService.versMoyenneJours) sur TOUS
+// les dossiers de la période, alors que la même mesure affichée PAR DOSSIER dans la colonne
+// "Dates clés" (TableauDossiersSelectionnes.jsx) est un nombre de jours CALENDAIRES entiers pour
+// UN dossier — deux échelles différentes pour un intitulé proche, d'où le risque de confusion
+// relevé par l'audit. `title` (tooltip natif au survol/focus clavier) plutôt qu'un composant de
+// tooltip dédié : pas d'autre tooltip dans ce projet, un attribut natif suffit ici. Complété par
+// `.indicateurs__tuile-precision` (texte visible, pas seulement au survol) sur les deux tuiles
+// concernées, pour que la nuance reste lisible même sans interaction (tactile/tablette).
+const PRECISION_DELAI_MOYEN =
+  'Moyenne en jours écoulés (temps réel) sur l’ensemble des dossiers de la période — distincte des valeurs en jours calendaires entiers affichées par dossier dans la colonne "Dates clés".';
+
 // Variantes de badge (StatutBadge) par indicateur — regroupées par famille visuelle : succès/échec
 // alignés sur les couleurs déjà utilisées pour les statuts de dossier équivalents (vert pour un
 // verdict/orientation positif, rouge pour un verdict négatif), le reste réparti sur les variantes
@@ -517,7 +546,7 @@ export default function Indicateurs() {
               {/* Bouton plutôt qu'un <div> statique : sélection multiple des cartes (voir
                   basculerIndicateur plus haut), accessible au clavier sans rien ajouter. Chaque
                   carte reste indépendamment sélectionnable (pas un groupe radio) : rien n'empêche
-                  de croiser "Inscrits" et "Envoyés en test" dans le tableau consolidé. */}
+                  de croiser "Inscrits" et "Mis en test" dans le tableau consolidé. */}
               <button
                 type="button"
                 className={`indicateurs__tuile${selectionIndicateurs.has('inscrits') ? ' indicateurs__tuile--active' : ''}`}
@@ -534,7 +563,10 @@ export default function Indicateurs() {
                 onClick={() => basculerIndicateur('envoyes_en_test')}
               >
                 <span className="indicateurs__tuile-valeur">{indicateurs.envoyesEnTest.total}</span>
-                <span className="indicateurs__tuile-libelle">Envoyés en test</span>
+                {/* "Mis en test" (pas "Test envoyé"/"Test planifié") : clarification d'audit
+                    2026-08-11, voir LIBELLES_INDICATEURS.envoyes_en_test — mesure une planification,
+                    pas un test réalisé, et distinct du badge de statut "Test planifié". */}
+                <span className="indicateurs__tuile-libelle">Mis en test</span>
               </button>
               <button
                 type="button"
@@ -545,8 +577,15 @@ export default function Indicateurs() {
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.conversion.taux !== null ? FORMAT_POURCENTAGE.format(indicateurs.conversion.taux) : '-'}
                 </span>
+                {/* "Taux de dossiers validés à ce jour" (pas "Taux de validation") : clarification
+                    d'audit 2026-08-11 — l'indicateur est un instantané du statut ACTUEL de la
+                    cohorte d'inscrits de la période, pas les validations survenues PENDANT la
+                    période ; revisiter ce même dashboard plus tard pour la même période passée
+                    donnerait un chiffre différent (voir LIBELLES_INDICATEURS.conversion, badge
+                    "Retenu" associé). */}
                 <span className="indicateurs__tuile-libelle">
-                  Taux de validation ({indicateurs.conversion.numerateur}/{indicateurs.conversion.denominateur})
+                  Taux de dossiers validés à ce jour ({indicateurs.conversion.numerateur}/
+                  {indicateurs.conversion.denominateur})
                 </span>
               </button>
               <button
@@ -554,22 +593,26 @@ export default function Indicateurs() {
                 className={`indicateurs__tuile${selectionIndicateurs.has('delai_inscription_test') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_inscription_test')}
                 onClick={() => basculerIndicateur('delai_inscription_test')}
+                title={PRECISION_DELAI_MOYEN}
               >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours ?? '-'} j
                 </span>
                 <span className="indicateurs__tuile-libelle">Délai moyen inscription → test planifié</span>
+                <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
               <button
                 type="button"
                 className={`indicateurs__tuile${selectionIndicateurs.has('delai_test_verdict') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_test_verdict')}
                 onClick={() => basculerIndicateur('delai_test_verdict')}
+                title={PRECISION_DELAI_MOYEN}
               >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.testVersVerdict.moyenneJours ?? '-'} j
                 </span>
                 <span className="indicateurs__tuile-libelle">Délai moyen test → verdict</span>
+                <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
             </div>
 

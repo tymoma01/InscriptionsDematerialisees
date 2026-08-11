@@ -155,7 +155,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
 
 // Codes d'indicateurs statiques exposés par le dashboard (cartes + segments de camemberts) —
 // PAS les libellés : ils restent une responsabilité d'affichage du front (Indicateurs.jsx connaît
-// déjà "Inscrits"/"Envoyés en test"/... pour les cartes, pas de raison de les dupliquer ici).
+// déjà "Inscrits"/"Mis en test"/... pour les cartes, pas de raison de les dupliquer ici).
 // Les segments du graphique de répartition par poste ne sont pas dans cette liste : leur code est
 // dynamique, 'poste:<code>' (voir résoudreListeIndicateur ci-dessous), un par poste réellement
 // configuré pour l'entité (POSTES_BUREAU/POSTES_HOTEL) plutôt qu'une énumération figée ici.

@@ -26,7 +26,7 @@ function joursCalendairesEntre(dateDebut, dateFin) {
 // "Délai inscription → test"/"Délai test → verdict" : les deux SEULS codes alignés entre les
 // colonnes "Indicateurs" et "Dates clés" (décision utilisateur, 2026-08-11) — badge (libellé seul)
 // dans "Indicateurs" à la même hauteur que sa valeur ("X J", sans libellé répété) dans "Dates
-// clés". Tous les autres badges (Inscrit, Envoyés en test, Converti, Verdict, Orientation) gardent
+// clés". Tous les autres badges (Inscrit, Mis en test, Retenu, Verdict, Orientation) gardent
 // leur ordre/position actuels dans "Indicateurs" (celui de `dossier.indicateurs`, piloté par
 // l'ordre de sélection des tuiles côté Indicateurs.jsx) SANS tentative d'alignement avec "Dates
 // clés" — seul construireColonnesAlignees ci-dessous s'occupe des deux codes de délai.

@@ -96,6 +96,17 @@
   font-size: 0.85rem;
 }
 
+/* Précision "Moyenne, jours écoulés" sur les deux tuiles de délai (voir Indicateurs.jsx,
+   PRECISION_DELAI_MOYEN) — texte TOUJOURS visible (pas seulement au survol via `title`) : la
+   confusion entre cette moyenne et les valeurs par dossier en jours calendaires (colonne "Dates
+   clés") doit rester lisible sur tablette/tactile, pas seulement au clic droit/hover souris.
+   Italique + plus petit que .tuile-libelle : une note secondaire, pas une deuxième légende. */
+.indicateurs__tuile-precision {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
 /* Deux colonnes fixes plutôt qu'auto-fit(minmax(320px, 1fr)) : avec 3 éléments dans cette grille
    (2 camemberts + 1 graphique "large" qui occupe toute la ligne suivante, voir
    .indicateurs__graphique--large plus bas) et un conteneur assez large pour 3 pistes de 320px
