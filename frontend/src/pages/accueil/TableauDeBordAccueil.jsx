@@ -132,6 +132,23 @@ export default function TableauDeBordAccueil() {
   const [dateDebutFiltre, setDateDebutFiltre] = useState('');
   const [dateFinFiltre, setDateFinFiltre] = useState('');
 
+  // Filtre "Entité" (Hôtellerie/Tertiaire) — même patron que Backoffice.jsx (recruteur) : deux
+  // boutons indépendamment activables, jamais d'option "Toutes" dédiée (ferait doublon avec le
+  // bouton "Tous" déjà porté par FiltresStatut ci-dessous), Set vide = aucune restriction.
+  // Filtrage entièrement client (dossier.postesHotel/postesBureau déjà présents sur chaque
+  // dossier renvoyé par GET /api/dossiers, voir filtrerDossiers.js), même mécanisme que
+  // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
+  const [entitesFiltre, setEntitesFiltre] = useState(() => new Set());
+
+  function basculerEntiteFiltre(code) {
+    setEntitesFiltre((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(code)) suivant.delete(code);
+      else suivant.add(code);
+      return suivant;
+    });
+  }
+
   // Dossier sélectionné pour une replanification, ou null si le panneau est fermé — voir bouton
   // "Replanifier" plus bas et ModalePlanificationTest.jsx.
   const [dossierAReplanifier, setDossierAReplanifier] = useState(null);
@@ -175,8 +192,8 @@ export default function TableauDeBordAccueil() {
   };
 
   const dossiersFiltres = useMemo(
-    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste }),
-    [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
+    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }),
+    [dossiers, recherche, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
   const statutsFiltres = useMemo(
@@ -223,7 +240,31 @@ export default function TableauDeBordAccueil() {
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
-        <FiltresStatut statuts={statutsFiltres} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
+        <FiltresStatut
+          statuts={statutsFiltres}
+          statutFiltre={statutFiltre}
+          onChangerStatutFiltre={setStatutFiltre}
+          filtresSupplementaires={
+            <div className="tableau-bord-accueil__filtre-entite" role="group" aria-label="Filtrer par entité">
+              <button
+                type="button"
+                className={entitesFiltre.has('hotel') ? 'actif' : ''}
+                aria-pressed={entitesFiltre.has('hotel')}
+                onClick={() => basculerEntiteFiltre('hotel')}
+              >
+                Hôtellerie
+              </button>
+              <button
+                type="button"
+                className={entitesFiltre.has('bureau') ? 'actif' : ''}
+                aria-pressed={entitesFiltre.has('bureau')}
+                onClick={() => basculerEntiteFiltre('bureau')}
+              >
+                Tertiaire
+              </button>
+            </div>
+          }
+        />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}
