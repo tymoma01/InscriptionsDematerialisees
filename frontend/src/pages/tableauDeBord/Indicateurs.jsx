@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ResponsiveContainer,
   BarChart,
@@ -626,7 +627,16 @@ export default function Indicateurs() {
     <PageBackOffice>
       <div className="indicateurs">
         <header className="indicateurs__entete">
-          <h1>Tableau de bord - Indicateurs</h1>
+          {/* Devant le titre, sur la même ligne (décision utilisateur, 2026-08-13) — aucun autre
+              écran back-office n'a ce patron précis (voir HistoriqueEvaluations.jsx, titre+bouton
+              empilés en colonne, ou Validation.jsx/Planification.jsx, bouton sous le header aligné
+              à droite) : .indicateurs__titre-bloc reste local à cette page. */}
+          <div className="indicateurs__titre-bloc">
+            <Link to="/recruteur/dossiers" className="indicateurs__bouton-retour">
+              Retour backoffice recruteur
+            </Link>
+            <h1>Tableau de bord - Indicateurs</h1>
+          </div>
           <EnTeteBackOffice />
         </header>
 
