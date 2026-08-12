@@ -161,16 +161,17 @@ export default function Planification() {
     <PageBackOffice>
       <div className="planification">
         <header className="planification__entete">
-          <h1>Planification des tests</h1>
+          {/* Devant le titre, sur la même ligne (décision utilisateur, 2026-08-13 — revient sur le
+              patron "aligné à droite sous le header" de .capture-tablette__retour-ligne, toujours
+              utilisé tel quel ailleurs). */}
+          <div className="planification__titre-bloc">
+            <Link to="/accueil/tableau-de-bord" className="planification__bouton-retour">
+              Retour Dossier Candidat
+            </Link>
+            <h1>Planification des tests</h1>
+          </div>
           <EnTeteBackOffice />
         </header>
-        {/* Aligné à droite, juste sous Déconnexion — même patron que
-            .capture-tablette__retour-ligne (CaptureTablette.css). */}
-        <div className="planification__retour-ligne">
-          <Link to="/accueil/tableau-de-bord" className="planification__bouton-retour">
-            Retour au tableau de bord
-          </Link>
-        </div>
 
         <div className="planification__filtres">
           <label className="planification__filtre-case">

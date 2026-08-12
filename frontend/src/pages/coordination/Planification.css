@@ -15,12 +15,14 @@
   color: var(--couleur-back-office);
 }
 
-/* Aligné à droite, juste sous Déconnexion — même patron que .capture-tablette__retour-ligne
-   (CaptureTablette.css). */
-.planification__retour-ligne {
+/* Lien "retour" devant le titre, sur la même ligne (décision utilisateur, 2026-08-13 — voir même
+   patron introduit sur Indicateurs.css/.indicateurs__titre-bloc) — row plutôt que column,
+   align-items: center aligne la bordure du bouton sur la ligne de base du texte du h1 malgré
+   leurs tailles de police différentes. */
+.planification__titre-bloc {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--espace-moyen);
+  align-items: center;
+  gap: var(--espace-moyen);
 }
 
 .planification__bouton-retour {
