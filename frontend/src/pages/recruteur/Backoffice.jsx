@@ -91,6 +91,25 @@ export default function Backoffice() {
   const [dateDebutFiltre, setDateDebutFiltre] = useState('');
   const [dateFinFiltre, setDateFinFiltre] = useState('');
 
+  // Filtre "Entité" (Hôtellerie/Tertiaire) — même principe que le filtre Entité du tableau de bord
+  // Indicateurs (typePoste), mais à choix MULTIPLE plutôt qu'un <select> à une seule valeur : deux
+  // boutons indépendamment activables, jamais d'option "Toutes" dédiée (ferait doublon avec le
+  // bouton "Tous" déjà porté par FiltresStatut ci-dessous) — Set vide = aucune restriction, les
+  // deux à la fois équivaut au même résultat (voir filtrerDossiers.js). Filtrage entièrement
+  // client comme recherche/dateDebutFiltre/dateFinFiltre ci-dessus : dossier.postesHotel/
+  // postesBureau sont déjà présents sur chaque dossier renvoyé par GET /api/dossiers (voir
+  // DossierList.jsx, colonne "Poste"), pas besoin d'un aller-retour serveur supplémentaire.
+  const [entitesFiltre, setEntitesFiltre] = useState(() => new Set());
+
+  function basculerEntiteFiltre(code) {
+    setEntitesFiltre((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(code)) suivant.delete(code);
+      else suivant.add(code);
+      return suivant;
+    });
+  }
+
   useEffect(() => {
     listerStatuts()
       .then(setStatuts)
@@ -120,8 +139,8 @@ export default function Backoffice() {
   }, [statutFiltre]);
 
   const dossiersFiltres = useMemo(
-    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste }),
-    [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
+    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }),
+    [dossiers, recherche, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
   const statutsFiltres = useMemo(
@@ -168,7 +187,31 @@ export default function Backoffice() {
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
-        <FiltresStatut statuts={statutsFiltres} statutFiltre={statutFiltre} onChangerStatutFiltre={setStatutFiltre} />
+        <FiltresStatut
+          statuts={statutsFiltres}
+          statutFiltre={statutFiltre}
+          onChangerStatutFiltre={setStatutFiltre}
+          filtresSupplementaires={
+            <div className="backoffice-recruteur__filtre-entite" role="group" aria-label="Filtrer par entité">
+              <button
+                type="button"
+                className={entitesFiltre.has('hotel') ? 'actif' : ''}
+                aria-pressed={entitesFiltre.has('hotel')}
+                onClick={() => basculerEntiteFiltre('hotel')}
+              >
+                Hôtellerie
+              </button>
+              <button
+                type="button"
+                className={entitesFiltre.has('bureau') ? 'actif' : ''}
+                aria-pressed={entitesFiltre.has('bureau')}
+                onClick={() => basculerEntiteFiltre('bureau')}
+              >
+                Tertiaire
+              </button>
+            </div>
+          }
+        />
 
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}

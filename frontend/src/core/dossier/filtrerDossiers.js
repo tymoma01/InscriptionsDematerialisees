@@ -19,7 +19,16 @@ function normaliserTelephone(valeur) {
 // bruts (dossier.postesBureau/postesHotel) sont un vocabulaire propre à ACCECIT, ce module
 // générique ne les traduit pas lui-même — sans traducteur fourni, la recherche matche sur le code
 // brut plutôt que d'échouer.
-export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste }) {
+//
+// `entitesFiltre` optionnel (Set de 'hotel'/'bureau', voir Backoffice.jsx) : même détermination de
+// l'entité d'un dossier que le filtre "Entité" (typePoste) du tableau de bord Indicateurs — via
+// les postes déclarés sur le dossier (dossier.postesHotel/postesBureau), pas un champ entité_id
+// distinct (un dossier n'a qu'une seule entité_id, celle de l'agence ACCECIT/Adaptel qui l'a créé
+// — voir CLAUDE.md, section Modularité — sans rapport avec Hôtellerie/Tertiaire, qui distingue
+// deux FAMILLES DE POSTES au sein d'une même entité). Set vide/absent : aucune restriction, tous
+// les dossiers passent — même sémantique que recherche/dateDebutFiltre/dateFinFiltre vides
+// ci-dessus.
+export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }) {
   const rechercheNormalisee = recherche.trim().toLowerCase();
   const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
   const rechercheTelephone = normaliserTelephone(rechercheNormalisee);
@@ -53,6 +62,12 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
       const dateMaj = new Date(dossier.date_maj);
       if (debut && dateMaj < debut) return false;
       if (fin && dateMaj > fin) return false;
+    }
+    if (entitesFiltre && entitesFiltre.size > 0) {
+      const aPosteHotel = (dossier.postesHotel ?? []).length > 0;
+      const aPosteBureau = (dossier.postesBureau ?? []).length > 0;
+      const correspondEntite = (entitesFiltre.has('hotel') && aPosteHotel) || (entitesFiltre.has('bureau') && aPosteBureau);
+      if (!correspondEntite) return false;
     }
     return true;
   });

@@ -51,3 +51,15 @@
 .backoffice-recruteur [role='alert'] {
   color: var(--couleur-erreur);
 }
+
+/* Filtre "Entité" (Hôtellerie/Tertiaire), inséré via la prop `filtresSupplementaires` de
+   FiltresStatut.jsx — entre le bouton "Tous" et la boîte de statuts (même ligne, voir
+   .filtres-statut, FiltresStatut.css). flex-shrink: 0 comme .filtres-statut__tous voisin :
+   ce bloc ne doit jamais se comprimer, c'est la boîte de statuts (flex: 1) qui absorbe le
+   manque de place. Boutons non stylés ici : ils héritent de `.filtres-statut button`/`.actif`
+   (FiltresStatut.css), étant rendus à l'intérieur du même <nav>. */
+.backoffice-recruteur__filtre-entite {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--espace-petit);
+}

@@ -11,7 +11,20 @@ import './FiltresStatut.css';
 // `ariaLabel` optionnel (défaut : "Filtrer par statut", comportement historique inchangé) : les
 // nouveaux appelants d'un autre domaine (rôle, statut de compte) passent un libellé adapté pour
 // que le lecteur d'écran annonce la bonne barre de filtres.
-export default function FiltresStatut({ statuts = [], statutFiltre, onChangerStatutFiltre, ariaLabel = 'Filtrer par statut' }) {
+// `filtresSupplementaires` optionnel (ReactNode) : rendu entre "Tous" et la boîte de statuts —
+// permet à une page appelante d'insérer ses propres filtres complémentaires (ex. Backoffice.jsx,
+// filtre "Entité" Hôtellerie/Tertiaire) sur la même ligne sans que ce composant générique n'ait à
+// connaître leur vocabulaire (voir Modularité, CLAUDE.md) : le contenu, sa mise en page et son
+// état restent entièrement à la charge de l'appelant, ce composant se contente de lui réserver un
+// emplacement. Les boutons qu'il contient héritent malgré tout du style `.filtres-statut
+// button`/`.actif` ci-dessous (descendants du même <nav>), sans code CSS dupliqué.
+export default function FiltresStatut({
+  statuts = [],
+  statutFiltre,
+  onChangerStatutFiltre,
+  ariaLabel = 'Filtrer par statut',
+  filtresSupplementaires,
+}) {
   return (
     <nav className="filtres-statut" aria-label={ariaLabel}>
       <div className="filtres-statut__tous">
@@ -23,6 +36,7 @@ export default function FiltresStatut({ statuts = [], statutFiltre, onChangerSta
           Tous
         </button>
       </div>
+      {filtresSupplementaires}
       <div className="filtres-statut__statuts">
         {statuts.map((statut) => (
           <button
