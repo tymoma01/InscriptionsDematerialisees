@@ -230,6 +230,55 @@
   color: var(--couleur-back-office);
 }
 
+/* Titre centré, propre aux deux camemberts (pas à "Répartition par poste", laissé aligné à gauche
+   comme les autres titres du dashboard) — plus d'espace sous le titre qu'ailleurs (--espace-moyen
+   plutôt que --espace-petit) pour que le camembert ne colle pas dessous, cohérent avec l'espacement
+   déjà généreux entre padding/gap du reste de l'écran (.indicateurs__graphiques, .indicateurs__tuiles). */
+.indicateurs__graphique--camembert h2 {
+  text-align: center;
+  margin-bottom: var(--espace-moyen);
+  /* Plus grand que le 1rem partagé par défaut (.indicateurs__graphique h2 ci-dessus, toujours
+     valable pour "Répartition par poste") : ces deux titres portent des sections aussi importantes
+     que les tuiles KPI juste au-dessus (elles-mêmes en 1.8rem/1rem, voir .indicateurs__tuile-valeur/
+     -libelle) — 1.3rem les rapproche de ce poids visuel sans rivaliser avec le gros chiffre des
+     tuiles. */
+  font-size: 1.3rem;
+}
+
+/* Une couleur distincte par camembert (pas juste --couleur-back-office, la même que tous les
+   autres titres de la page) — même palette --statut-* / --couleur-back-office-dore déjà utilisée
+   par les tuiles KPI juste au-dessus (.indicateurs__tuile--dore/--violet), jamais une couleur inventée
+   pour l'occasion. Doré pour "Tests réussis vs ratés" (écho direct de l'identité ACCECIT — le
+   même token que le dégradé de l'en-tête back-office, voir PageBackOffice.css) ; violet pour
+   "Formation vs prêt à l'embauche" (déjà la couleur de la tuile "Délai moyen test → verdict"
+   ci-dessus) : les deux se distinguent nettement l'un de l'autre sans réutiliser les couleurs des
+   parts elles-mêmes (vert/rouge, violet/vert clair — un titre à cheval sur deux issues opposées
+   n'a pas de couleur de part unique à hériter). Déclarées après .indicateurs__graphique--camembert
+   ci-dessus (même spécificité qu'un simple sélecteur de classe + h2) : l'ordre dans la feuille de
+   style tranche. */
+.indicateurs__graphique--verdicts h2 {
+  color: var(--couleur-back-office-dore);
+}
+.indicateurs__graphique--orientations h2 {
+  color: var(--statut-violet-texte);
+}
+
+/* Hiérarchie visuelle à l'intérieur du tooltip des deux camemberts (libellé "Réussis" en poids
+   normal, valeur "4 (80%)" en semi-gras) — impossible à obtenir via le seul itemStyle de <Tooltip>
+   (STYLE_TOOLTIP_ITEM_CAMEMBERT, Indicateurs.jsx) : recharts l'applique globalement sur le <li>
+   entier (DefaultTooltipContent.js), jamais séparément sur ses deux <span> enfants. Ceux-ci portent
+   en revanche des classNames stables (.recharts-tooltip-item-name/-value) et aucun style inline
+   propre — une règle CSS classique suffit donc à les cibler, sans !important. Scopée à
+   .indicateurs__graphique--camembert (donc jamais au tooltip du graphique en barres, non demandé
+   ici) : le wrapper du tooltip est bien un descendant DOM de cette section (ResponsiveContainer
+   rendu à l'intérieur), pas un portail détaché ailleurs dans le document. */
+.indicateurs__graphique--camembert .recharts-tooltip-item-name {
+  font-weight: 400;
+}
+.indicateurs__graphique--camembert .recharts-tooltip-item-value {
+  font-weight: 600;
+}
+
 /* Le graphique "Répartition par poste" occupe toute la largeur de la grille (plus de catégories
    à afficher que les deux graphiques en camembert voisins). */
 .indicateurs__graphique--large {

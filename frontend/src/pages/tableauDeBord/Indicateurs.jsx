@@ -80,6 +80,15 @@ const LIBELLES_INDICATEURS = {
   poste_non_specifie: 'Poste non spécifié',
 };
 
+// Ordre de lecture canonique des indicateurs statiques (tuiles + segments de camembert), dérivé de
+// l'ordre de déclaration de LIBELLES_INDICATEURS ci-dessus — transmis à TableauDossiersSelectionnes
+// pour construire la colonne "Indicateurs" (et aligner "Dates clés" dessus) dans un ordre TOUJOURS
+// identique pour un même ensemble d'indicateurs sélectionnés, quel que soit l'ordre des clics (voir
+// audit "Dates clés dépend de l'ordre de sélection", TableauDossiersSelectionnes.jsx,
+// construireColonnesAlignees) — avant ce correctif, cet ordre suivait `dossier.indicateurs`, lui-
+// même hérité de l'ordre du Set `selectionIndicateurs` (ordre d'insertion = ordre de clic).
+const ORDRE_CANONIQUE_INDICATEURS = Object.keys(LIBELLES_INDICATEURS);
+
 // Tuiles "Délai moyen inscription → test planifié"/"Délai moyen test → verdict" — clarification
 // d'audit, 2026-08-11 : le chiffre affiché ici est une MOYENNE en jours ÉCOULÉS (temps réel,
 // valeur fractionnaire arrondie à 1 décimale, voir statistiquesService.versMoyenneJours) sur TOUS
@@ -276,14 +285,55 @@ const COULEUR_POSTE_NON_SPECIFIE = '#9ca3af';
 // .indicateurs__graphique/.indicateurs__tuile juste au-dessus (--rayon-bordure,
 // --couleur-bordure-legere, --couleur-fond) plus --ombre-bloc (déjà utilisé pour
 // .bloc-formulaire/.historique-relances) pour détacher visuellement le tooltip du graphique.
+// fontSize : aucune variable --taille-* de police n'existe dans variables.css (seule --police-base,
+// la famille) — valeur alignée sur .indicateurs__tuile-libelle juste au-dessus (1rem), plus lisible
+// que la taille par défaut (trop petite) de DefaultTooltipContent. Posée à la fois sur le wrapper
+// (contentStyle, hérite dans les enfants) et sur chaque ligne (itemStyle) : DefaultTooltipContent
+// applique itemStyle directement sur le <li>, qui gagnerait sinon sur l'héritage si jamais recharts
+// lui fixait sa propre taille par défaut.
 const STYLE_TOOLTIP_GRAPHIQUE = {
   backgroundColor: 'var(--couleur-fond)',
   border: '1px solid var(--couleur-bordure-legere)',
   borderRadius: 'var(--rayon-bordure)',
   boxShadow: 'var(--ombre-bloc)',
   padding: '0.75rem 1rem',
+  fontSize: '1rem',
+  // Explicite plutôt que compté sur l'héritage depuis <body> (styles/blocFormulaire.css) : le
+  // wrapper du tooltip reste dans l'arbre DOM sous <html> (voir plus haut), donc hérite déjà
+  // --police-base en pratique, mais un contentStyle qui fixe tout le reste (fond/bordure/ombre/
+  // padding/taille) sans jamais mentionner la police laisse planer le doute pour le prochain
+  // lecteur — posé ici une fois pour les trois graphiques.
+  fontFamily: 'var(--police-base)',
 };
-const STYLE_TOOLTIP_ITEM_GRAPHIQUE = { color: 'var(--couleur-texte)' };
+const STYLE_TOOLTIP_ITEM_GRAPHIQUE = { color: 'var(--couleur-texte)', fontSize: '1rem' };
+
+// Couleur de texte propre aux DEUX camemberts (pas au graphique en barres, qui garde
+// STYLE_TOOLTIP_ITEM_GRAPHIQUE/--couleur-texte gris ci-dessus, non demandé ici) — --couleur-texte
+// est une couleur neutre "par défaut", peu travaillée ; --couleur-back-office est la teinte
+// d'identité déjà portée par le gros chiffre des tuiles KPI (.indicateurs__tuile-valeur) et les
+// titres de ces deux graphiques eux-mêmes (.indicateurs__graphique--verdicts/--orientations h2,
+// pour le doré ; le brun --couleur-back-office reste la couleur de texte "de travail" du dashboard,
+// contraste largement suffisant sur le fond blanc du tooltip). La hiérarchie libellé/valeur (poids
+// normal vs semi-gras) ne peut pas passer par ce style JS unique — itemStyle s'applique sur tout le
+// <li>, pas séparément sur `.recharts-tooltip-item-name`/`-value` — voir les règles dédiées dans
+// Indicateurs.css.
+const STYLE_TOOLTIP_ITEM_CAMEMBERT = { color: 'var(--couleur-back-office)', fontSize: '1rem' };
+
+// Corrige le tooltip des camemberts qui remplaçait, au survol, le texte "4 (80%)" affiché en
+// permanence dans la part (labelPartCamembert) par un simple "Réussis : 4" — le pourcentage
+// disparaissait. recharts ne l'expose pourtant pas via le payload du tooltip par défaut : Pie.js
+// calcule bien un `percent` par part (utilisé par labelPartCamembert), mais seulement sur l'objet
+// secteur interne — le `tooltipPayload` transmis au Tooltip ne porte que { name, value, payload:
+// <donnée brute> }, sans percent (voir recharts/lib/polar/Pie.js, tooltipPayload vs `prev`). D'où
+// ce formatter dédié, qui recalcule le total sur le même tableau que le camembert (mêmes valeurs,
+// donc même pourcentage arrondi que labelPartCamembert) plutôt que de dépendre d'un champ absent.
+function creerFormatteurTooltipCamembert(donnees) {
+  const total = donnees.reduce((somme, entree) => somme + entree.total, 0);
+  // Une chaîne simple (pas un tableau [valeur, nom]) : seule la valeur affichée est remplacée,
+  // recharts garde le nom (libellé) transmis tel quel — voir DefaultTooltipContent.js, `formatted`
+  // n'écrase `finalName` que si le formatter renvoie un tableau.
+  return (valeur) => `${valeur} (${total > 0 ? Math.round((valeur / total) * 100) : 0}%)`;
+}
 
 // Décalage (px) entre le curseur et le coin du tooltip une fois affiché : reste juste à côté du
 // pointeur sans jamais être masqué par lui. Appliqué ici, à la coordonnée elle-même, car le prop
@@ -543,6 +593,7 @@ export default function Indicateurs() {
         { nom: 'Ratés', total: indicateurs.verdicts.invalide, code: 'verdict_invalide', fill: COULEURS_VERDICT.verdict_invalide },
       ]
     : [];
+  const formatteurTooltipVerdicts = creerFormatteurTooltipCamembert(donneesVerdicts);
 
   const donneesOrientations = indicateurs
     ? [
@@ -560,6 +611,7 @@ export default function Indicateurs() {
         },
       ]
     : [];
+  const formatteurTooltipOrientations = creerFormatteurTooltipCamembert(donneesOrientations);
 
   const donneesRepartitionPoste = indicateurs
     ? indicateurs.repartitionParPoste.parEvaluation.map((ligne) => ({
@@ -704,13 +756,13 @@ export default function Indicateurs() {
             </div>
 
             <div className="indicateurs__graphiques">
-              <section className="indicateurs__graphique">
+              <section className="indicateurs__graphique indicateurs__graphique--camembert indicateurs__graphique--verdicts">
                 <h2>Tests réussis vs ratés</h2>
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
                   <div ref={suiviCurseurVerdicts.conteneurRef}>
-                    <ResponsiveContainer width="100%" height={380}>
+                    <ResponsiveContainer width="100%" height={320}>
                       <PieChart>
                         {/* cx décalé vers la droite du centre (pas 50%, ni le 38% initial — voir
                             historique) : avec la grille corrigée à deux colonnes fixes
@@ -719,10 +771,12 @@ export default function Indicateurs() {
                             le bord droit du camembert et la légende (align="right", voir
                             ci-dessous) — 45% rapproche les deux plutôt que de les laisser à leurs
                             extrémités respectives avec un vide entre les deux. outerRadius relevé à
-                            "92%" (plus de hauteur disponible, voir height ci-dessus, et labels
-                            désormais À L'INTÉRIEUR de la part — labelPartCamembert plus haut — donc
-                            plus besoin de marge extérieure pour un label+ligne de rappel) : un
-                            camembert plus grand comble aussi une partie de ce vide par lui-même. */}
+                            "92%" (labels désormais À L'INTÉRIEUR de la part — labelPartCamembert
+                            plus haut — donc plus besoin de marge extérieure pour un label+ligne de
+                            rappel) : un camembert plus grand comble aussi une partie de ce vide par
+                            lui-même. height du ResponsiveContainer réduite à 320 (bloc ~60px moins
+                            haut, décision utilisateur) : outerRadius restant un pourcentage, le
+                            camembert rétrécit proportionnellement sans autre changement ici. */}
                         <Pie
                           data={donneesVerdicts}
                           dataKey="total"
@@ -756,28 +810,29 @@ export default function Indicateurs() {
                         </Pie>
                         <Tooltip
                           contentStyle={STYLE_TOOLTIP_GRAPHIQUE}
-                          itemStyle={STYLE_TOOLTIP_ITEM_GRAPHIQUE}
+                          itemStyle={STYLE_TOOLTIP_ITEM_CAMEMBERT}
                           position={suiviCurseurVerdicts.position ?? undefined}
+                          formatter={formatteurTooltipVerdicts}
                         />
-                        {/* Légende repositionnée à droite (verticale) plutôt qu'en dessous
-                            (horizontale, comportement par défaut) : c'est ce qui laissait le vide
-                            constaté de chaque côté du camembert — toute la largeur du cadre n'était
-                            utilisée ni par le camembert (centré, taille fixe) ni par la légende
-                            (une ligne compacte sous lui). */}
-                        <Legend layout="vertical" align="right" verticalAlign="middle" />
+                        {/* Légende en bas à droite du cadre (pas au centre vertical) : reste posée
+                            dans le même coin que la légende repositionnée à droite (voir plus haut),
+                            sans couper la moitié supérieure du camembert en deux zones visuelles
+                            distinctes — le bloc légende se lit comme une seule unité avec le
+                            camembert au lieu de flotter au milieu. */}
+                        <Legend layout="vertical" align="right" verticalAlign="bottom" />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
                 )}
               </section>
 
-              <section className="indicateurs__graphique">
+              <section className="indicateurs__graphique indicateurs__graphique--camembert indicateurs__graphique--orientations">
                 <h2>Formation vs prêt à l’embauche</h2>
                 {donneesOrientations.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucune orientation sur la période.</p>
                 ) : (
                   <div ref={suiviCurseurOrientations.conteneurRef}>
-                    <ResponsiveContainer width="100%" height={380}>
+                    <ResponsiveContainer width="100%" height={320}>
                       <PieChart>
                         {/* Même camembert que "Tests réussis vs ratés" ci-dessus — taille et style
                             volontairement identiques (cx, outerRadius, label, légende) : cohérence
@@ -807,10 +862,11 @@ export default function Indicateurs() {
                         </Pie>
                         <Tooltip
                           contentStyle={STYLE_TOOLTIP_GRAPHIQUE}
-                          itemStyle={STYLE_TOOLTIP_ITEM_GRAPHIQUE}
+                          itemStyle={STYLE_TOOLTIP_ITEM_CAMEMBERT}
                           position={suiviCurseurOrientations.position ?? undefined}
+                          formatter={formatteurTooltipOrientations}
                         />
-                        <Legend layout="vertical" align="right" verticalAlign="middle" />
+                        <Legend layout="vertical" align="right" verticalAlign="bottom" />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -877,6 +933,7 @@ export default function Indicateurs() {
                     estIndicateurPoste={estIndicateurPoste}
                     libelleDateCle={libelleDateCle}
                     varianteDateCle={varianteDateCle}
+                    ordreCanoniqueIndicateurs={ORDRE_CANONIQUE_INDICATEURS}
                   />
                 )}
               </section>

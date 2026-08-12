@@ -45,9 +45,11 @@ const CODE_BADGE_PAR_CODE_DATE = {
 // Construit, pour UN dossier, les deux colonnes ("Indicateurs" hors postes / "Dates clés") déjà
 // alignées ligne à ligne — structure de données commune lue par les DEUX colonnes au même index
 // (décision utilisateur, 2026-08-11), pour ne plus dépendre d'un calcul indépendant de chaque
-// côté : l'ordre des badges dans "Indicateurs" suit l'ordre de clic des tuiles (imprévisible),
-// alors que "Dates clés" a un ordre chronologique fixe (inscription → test planifié → orientation)
-// — les deux ne peuvent physiquement coïncider sans concertation.
+// côté : "Indicateurs" est construite dans un ordre canonique (voir le correctif du 2026-08-13
+// plus bas — plus l'ordre de clic des tuiles, imprévisible, source du bug corrigé), alors que
+// "Dates clés" a un ordre chronologique fixe (inscription → test planifié → orientation) — les
+// deux ne coïncident pas naturellement (un badge tardif chronologiquement peut être canonique-
+// ment avant un badge précoce, ex. "Retenu" avant "Test réussi") sans cette reconciliation.
 //
 // Deux natures d'"ancre", unifiées dans une seule liste triée par position chronologique
 // (`positionDate`) puis traitées par la même boucle :
@@ -79,15 +81,42 @@ const CODE_BADGE_PAR_CODE_DATE = {
 // tuiles "Inscrit"/"Envoyé en test"/"Orienté ..." — comportement déjà validé, à ne pas coupler à ce
 // changement (voir estDateBadgeSelectionne, utilisée uniquement au moment d'ÉMETTRE une ligne, pas
 // pour le calcul des positions/valeurs de délai).
-function construireColonnesAlignees(dossier, estIndicateurPoste) {
-  const badges = dossier.indicateurs.filter(({ code }) => !estIndicateurPoste(code));
+// Bug corrigé le 2026-08-13 (voir audit) : `badges` venait jusqu'ici de `dossier.indicateurs`
+// TEL QUEL, dont l'ordre reflète l'ordre de SÉLECTION (Set `selectionIndicateurs`,
+// Indicateurs.jsx, puis `indicateurs.filter(...).map(...)` côté backend qui « respecte l'ordre
+// demandé par l'appelant » — statistiquesService.js) — donc l'ordre de CLIC, imprévisible.
+// `indexBadge` (position dans `badges`) pilotait pourtant tout le calcul d'alignement ci-dessous
+// (boucle de rattrapage, unicité `indexBadgesEmis`...), en supposant implicitement qu'il croît de
+// concert avec `positionDate` (l'ordre chronologique des ancres, lui STABLE). Cliquer d'abord une
+// part de camembert (ex. "Test réussi", chronologiquement TARDIF) puis une tuile (ex. "Inscrit",
+// chronologiquement PRÉCOCE) inversait cette relation : la boucle de rattrapage de la tuile
+// "Inscrit" balayait alors "Test réussi" comme un badge SANS ancre (repli générique), avant même
+// que son ancre à lui n'ait été traitée — quand son tour arrivait, `indexBadgesEmis` la
+// court-circuitait silencieusement, perdant sa ligne de date sans jamais toucher au badge
+// lui-même (déjà émis) : exactement le symptôme observé (badge visible, date disparue).
+// Correctif : ne plus jamais dériver `indexBadge` de l'ordre de sélection. `badges` est
+// désormais reconstruit dans un ordre CANONIQUE, indépendant du clic : les badges ANCRÉS
+// (correspondant à une ligne de `dates`, ou à un délai valide) suivent strictement l'ordre
+// chronologique de leurs ancres (`positionDate`) — la même relation croissante qu'exploite déjà
+// la boucle plus bas, mais garantie PAR CONSTRUCTION plutôt que rattrapée au cas par cas. Les
+// badges NON ancrés (ex. "Retenu", sans ligne de date associée) s'intercalent selon
+// `ordreCanoniqueIndicateurs` (ordre de lecture fixe du dashboard — Indicateurs.jsx,
+// LIBELLES_INDICATEURS), jamais leur ordre de clic. Résultat : pour un même ENSEMBLE
+// d'indicateurs sélectionnés, badges et dates sont désormais TOUJOURS construits dans le même
+// ordre, quel que soit l'ordre des clics.
+function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueIndicateurs) {
+  const badgesParCode = new Map(
+    dossier.indicateurs.filter(({ code }) => !estIndicateurPoste(code)).map((badge) => [badge.code, badge]),
+  );
   const dates = dossier.datesCles; // historique complet, non filtré (voir commentaire ci-dessus)
 
   function estDateBadgeSelectionne(d) {
     const codeBadge = CODE_BADGE_PAR_CODE_DATE[d.code] ?? d.code;
-    return badges.some((b) => b.code === codeBadge);
+    return badgesParCode.has(codeBadge);
   }
 
+  // Ancres construites SANS indexBadge à ce stade (l'ordre canonique des badges n'est pas encore
+  // connu — voir plus bas) : uniquement codeBadge/codeDate/type/positionDate/jours.
   const ancres = [];
 
   // Ancres "existante" : une par ligne de `dates`, si son badge correspondant est affiché.
@@ -96,21 +125,18 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
   // test_planifie (seuls orientation_* partagent le même code des deux côtés).
   dates.forEach((d, indexDate) => {
     const codeBadge = CODE_BADGE_PAR_CODE_DATE[d.code] ?? d.code; // orientation_* : même code des 2 côtés
-    const indexBadge = badges.findIndex((b) => b.code === codeBadge);
-    if (indexBadge !== -1) {
-      ancres.push({ codeBadge, codeDate: d.code, type: 'existante', indexBadge, positionDate: indexDate });
+    if (badgesParCode.has(codeBadge)) {
+      ancres.push({ codeBadge, codeDate: d.code, type: 'existante', positionDate: indexDate });
     }
   });
 
   // Ancre "délai inscription → test" : insérée juste après "Test planifié" (comme avant).
   const indexTestPlanifie = dates.findIndex((d) => d.code === 'test_planifie');
-  const indexDelai1Badge = badges.findIndex((b) => b.code === CODE_DELAI_INSCRIPTION_TEST);
-  if (indexDelai1Badge !== -1 && indexTestPlanifie !== -1) {
+  if (badgesParCode.has(CODE_DELAI_INSCRIPTION_TEST) && indexTestPlanifie !== -1) {
     ancres.push({
       codeBadge: CODE_DELAI_INSCRIPTION_TEST,
       codeDate: CODE_DELAI_INSCRIPTION_TEST,
       type: 'delai',
-      indexBadge: indexDelai1Badge,
       positionDate: indexTestPlanifie + 1,
       jours: joursCalendairesEntre(trouverDateCle(dossier, 'inscription'), dates[indexTestPlanifie].date),
     });
@@ -123,13 +149,11 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
   // `dossier.dateVerdict` (pas `dates[...]`, qui ne porte plus l'info verdict) — correctif audit
   // 2026-08-11 : la planification retenue est la PLUS RÉCENTE avant le verdict (définition
   // validée de statistiquesRepository.delaiTestVersVerdict), pas la première.
-  const indexDelai2Badge = badges.findIndex((b) => b.code === CODE_DELAI_TEST_VERDICT);
-  if (indexDelai2Badge !== -1 && dossier.dateDernierTestPlanifieAvantVerdict && dossier.dateVerdict) {
+  if (badgesParCode.has(CODE_DELAI_TEST_VERDICT) && dossier.dateDernierTestPlanifieAvantVerdict && dossier.dateVerdict) {
     ancres.push({
       codeBadge: CODE_DELAI_TEST_VERDICT,
       codeDate: CODE_DELAI_TEST_VERDICT,
       type: 'delai',
-      indexBadge: indexDelai2Badge,
       positionDate: dates.length,
       jours: joursCalendairesEntre(dossier.dateDernierTestPlanifieAvantVerdict, dossier.dateVerdict),
     });
@@ -140,23 +164,53 @@ function construireColonnesAlignees(dossier, estIndicateurPoste) {
   // de construction ci-dessus (délai1 avant délai2, "existante" avant "délai") fait déjà foi.
   ancres.sort((a, b) => a.positionDate - b.positionDate);
 
+  // Ordre canonique des badges (voir commentaire de fonction) : fusion à deux curseurs entre
+  // - les codes ANCRÉS, dans l'ordre chronologique déjà obtenu ci-dessus (`ancres`, trié par
+  //   positionDate) — jamais réordonnés : c'est cet ordre, garanti croissant, qui rend la
+  //   divergence à l'origine du bug impossible ;
+  // - les codes NON ancrés (aucune ligne de date associée, ex. "Retenu"), placés selon leur rang
+  //   dans `ordreCanoniqueIndicateurs` (ordre de lecture fixe du dashboard) — un code non ancré
+  //   s'intercale juste avant le premier code ancré qui le suit dans cet ordre de référence (ou en
+  //   fin de liste, s'il n'y en a aucun), pour rester lisible (ex. "Retenu" reste visuellement
+  //   proche d'"Envoyé en test") sans jamais influencer l'ordre relatif des codes ancrés entre eux.
+  const codesAncres = new Set(ancres.map((a) => a.codeBadge));
+  const codesNonAncresTries = [...badgesParCode.keys()]
+    .filter((code) => !codesAncres.has(code))
+    .sort((a, b) => ordreCanoniqueIndicateurs.indexOf(a) - ordreCanoniqueIndicateurs.indexOf(b));
+
+  const ordreBadges = [];
+  let curseurNonAncre = 0;
+  for (const ancre of ancres) {
+    const rangAncre = ordreCanoniqueIndicateurs.indexOf(ancre.codeBadge);
+    while (
+      curseurNonAncre < codesNonAncresTries.length &&
+      ordreCanoniqueIndicateurs.indexOf(codesNonAncresTries[curseurNonAncre]) < rangAncre
+    ) {
+      ordreBadges.push(codesNonAncresTries[curseurNonAncre]);
+      curseurNonAncre += 1;
+    }
+    ordreBadges.push(ancre.codeBadge);
+  }
+  while (curseurNonAncre < codesNonAncresTries.length) {
+    ordreBadges.push(codesNonAncresTries[curseurNonAncre]);
+    curseurNonAncre += 1;
+  }
+
+  const badges = ordreBadges.map((code) => badgesParCode.get(code));
+  const indexBadgeParCode = new Map(ordreBadges.map((code, index) => [code, index]));
+  for (const ancre of ancres) ancre.indexBadge = indexBadgeParCode.get(ancre.codeBadge);
+
   const indicateurRows = [];
   const dateRows = [];
   let curseurBadge = 0;
   let curseurDate = 0;
 
-  // Bug corrigé le 2026-08-12 : avec PLUSIEURS ancres "existante" sélectionnées, l'ordre de
-  // clic (indexBadge) et l'ordre chronologique (positionDate, qui pilote le tri des `ancres`)
-  // peuvent diverger — ex. "Prêt à l'embauche" (positionDate tardive) cliqué AVANT "Test réussi"
-  // (positionDate plus précoce, mais indexBadge plus tardif). La boucle de rattrapage "while
-  // (curseurBadge < ancre.indexBadge)" pousse alors un badge dont l'ancre n'a pas encore été
-  // traitée à son tour de boucle — quand ce tour arrive, l'ancre le repoussait UNE SECONDE FOIS,
-  // sans aucune garde. `indexBadgesEmis` empêche tout indexBadge d'être poussé plus d'une fois,
-  // quel que soit l'endroit d'où provient la tentative (rattrapage, ancre elle-même, ou reliquat
-  // final) — condition suffisante pour garantir l'unicité demandée, quelle que soit la
-  // combinaison de clics (tuiles + parts de camembert). Quand une ancre "existante" se retrouve
-  // ainsi déjà émise, sa ligne de date n'est PAS poussée non plus (retourne tôt) : une ligne de
-  // date sans badge en face serait aussi trompeuse qu'un badge en double.
+  // `indexBadgesEmis` : garde défensive héritée du correctif du 2026-08-12 (avant que `badges` ne
+  // soit reconstruit dans un ordre canonique ci-dessus, l'ordre de clic pouvait faire diverger
+  // `indexBadge` de `positionDate`). Cette divergence ne devrait plus se produire — `indexBadge`
+  // croît désormais avec `positionDate` par construction pour toute ancre — mais la garde reste en
+  // place : coût nul, et elle empêche silencieusement toute régression future de dupliquer un
+  // badge plutôt que de casser bruyamment.
   const indexBadgesEmis = new Set();
   function emettreBadge(indexBadge) {
     if (indexBadgesEmis.has(indexBadge)) return false;
@@ -249,6 +303,7 @@ export default function TableauDossiersSelectionnes({
   estIndicateurPoste,
   libelleDateCle,
   varianteDateCle,
+  ordreCanoniqueIndicateurs,
 }) {
   if (dossiers.length === 0) {
     return <p className="tableau-dossiers-selectionnes__vide">Aucun dossier pour cette sélection.</p>;
@@ -278,7 +333,7 @@ export default function TableauDossiersSelectionnes({
           {dossiers.map((dossier, index) => {
             // Calculée UNE fois par dossier, lue par les deux colonnes ci-dessous (Indicateurs
             // hors postes / Dates clés) au même index — voir construireColonnesAlignees plus haut.
-            const { indicateurRows, dateRows } = construireColonnesAlignees(dossier, estIndicateurPoste);
+            const { indicateurRows, dateRows } = construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueIndicateurs);
             return (
               <tr key={dossier.id}>
                 <td className="tableau-dossiers-selectionnes__colonne-numero">{index + 1}</td>
