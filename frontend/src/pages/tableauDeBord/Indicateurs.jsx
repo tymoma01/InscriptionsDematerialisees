@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -264,6 +264,58 @@ const COULEURS_POSTE = {
 };
 const COULEUR_POSTE_NON_SPECIFIE = '#9ca3af';
 
+// Tooltip au survol des trois graphiques (les deux camemberts ET la répartition par poste en
+// barres) — UNE seule constante partagée, pas une par graphique : le tooltip du graphique en
+// barres utilisait encore le style par défaut de recharts (<Tooltip /> sans contentStyle/itemStyle,
+// oubli lors de l'harmonisation des camemberts) — bordures carrées, pas d'ombre, padding recharts
+// par défaut, donc visuellement différent des deux autres alors que c'est la MÊME bibliothèque et
+// le MÊME composant <Tooltip> ; jamais un souci de bibliothèque différente. contentStyle/itemStyle
+// passés en `style` React classique, recharts ne lit pas de classe CSS ici : les valeurs `var(--...)`
+// restent malgré tout résolues par le navigateur (le wrapper du tooltip reste dans l'arbre DOM sous
+// <html>, où :root est défini), donc pas de couleur recopiée en dur — mêmes tokens que
+// .indicateurs__graphique/.indicateurs__tuile juste au-dessus (--rayon-bordure,
+// --couleur-bordure-legere, --couleur-fond) plus --ombre-bloc (déjà utilisé pour
+// .bloc-formulaire/.historique-relances) pour détacher visuellement le tooltip du graphique.
+const STYLE_TOOLTIP_GRAPHIQUE = {
+  backgroundColor: 'var(--couleur-fond)',
+  border: '1px solid var(--couleur-bordure-legere)',
+  borderRadius: 'var(--rayon-bordure)',
+  boxShadow: 'var(--ombre-bloc)',
+  padding: '0.75rem 1rem',
+};
+const STYLE_TOOLTIP_ITEM_GRAPHIQUE = { color: 'var(--couleur-texte)' };
+
+// Décalage (px) entre le curseur et le coin du tooltip une fois affiché : reste juste à côté du
+// pointeur sans jamais être masqué par lui. Appliqué ici, à la coordonnée elle-même, car le prop
+// `position` du <Tooltip> ci-dessous (une fois renseigné) court-circuite entièrement le calcul de
+// décalage automatique de recharts (voir getTooltipTranslateXY, `if (position && isNumber(...))
+// return position[key]` — recharts/lib/util/tooltip/translate.js).
+const DECALAGE_TOOLTIP_CURSEUR = 14;
+
+// recharts ne fait PAS suivre le curseur au tooltip d'un camembert par défaut, contrairement à un
+// graphique à axes (Bar/Line) : pour un <Pie> (tooltipEventType 'item'), la position du tooltip est
+// figée au centroïde de la part dès le survol (Pie.js, tooltipPosition = polarToCartesian(...)) et
+// ne bouge plus tant qu'on reste sur la même part — aucun gestionnaire de mousemove continu n'est
+// branché pour ce type de graphique (generateCategoricalChart.js, handleItemMouseEnter). recharts
+// transmet malgré tout n'importe quel gestionnaire `onMouseMove`/`onMouseEnter` posé sur <Pie> à
+// chaque <Sector> avec l'évènement DOM réel (adaptEventsOfChild, onMouseMove fait partie des
+// EventKeys reconnus) : c'est ce mécanisme, natif à recharts, qu'on utilise ici pour calculer la
+// position réelle du curseur et la transmettre au <Tooltip position={...}>, plutôt que de
+// réimplémenter un tooltip positionné à la main en dehors de recharts.
+function useSuiviCurseurCamembert() {
+  const conteneurRef = useRef(null);
+  const [position, setPosition] = useState(null);
+  const gererSurvol = (_donnee, _index, evenement) => {
+    if (!conteneurRef.current) return;
+    const cadre = conteneurRef.current.getBoundingClientRect();
+    setPosition({
+      x: evenement.clientX - cadre.left + DECALAGE_TOOLTIP_CURSEUR,
+      y: evenement.clientY - cadre.top + DECALAGE_TOOLTIP_CURSEUR,
+    });
+  };
+  return { conteneurRef, position, gererSurvol };
+}
+
 const FORMAT_POURCENTAGE = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 });
 
 // Label directement lisible sur chaque part des deux camemberts ("Réussis vs ratés",
@@ -324,6 +376,11 @@ export default function Indicateurs() {
   const [indicateurs, setIndicateurs] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
+
+  // Un suivi de curseur indépendant par camembert (voir useSuiviCurseurCamembert plus haut) :
+  // chacun a son propre conteneur DOM et sa propre dernière position connue.
+  const suiviCurseurVerdicts = useSuiviCurseurCamembert();
+  const suiviCurseurOrientations = useSuiviCurseurCamembert();
 
   // Sélection multiple des cartes/segments cliqués (Set de codes, voir LIBELLES_INDICATEURS plus
   // haut) — état séparé de `indicateurs` ci-dessus (les agrégats affichés sur les cartes/
@@ -652,57 +709,65 @@ export default function Indicateurs() {
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={380}>
-                    <PieChart>
-                      {/* cx décalé vers la droite du centre (pas 50%, ni le 38% initial — voir
-                          historique) : avec la grille corrigée à deux colonnes fixes
-                          (.indicateurs__graphiques, Indicateurs.css), ce cadre est maintenant
-                          assez large pour qu'un centrage trop à gauche laisse un grand vide entre
-                          le bord droit du camembert et la légende (align="right", voir
-                          ci-dessous) — 45% rapproche les deux plutôt que de les laisser à leurs
-                          extrémités respectives avec un vide entre les deux. outerRadius relevé à
-                          "92%" (plus de hauteur disponible, voir height ci-dessus, et labels
-                          désormais À L'INTÉRIEUR de la part — labelPartCamembert plus haut — donc
-                          plus besoin de marge extérieure pour un label+ligne de rappel) : un
-                          camembert plus grand comble aussi une partie de ce vide par lui-même. */}
-                      <Pie
-                        data={donneesVerdicts}
-                        dataKey="total"
-                        nameKey="nom"
-                        cx="45%"
-                        outerRadius="92%"
-                        label={labelPartCamembert}
-                        labelLine={false}
-                      >
-                        {donneesVerdicts.map((entree) => (
-                          // Segment cliquable (voir basculerIndicateur) : opacité réduite pour les
-                          // segments non sélectionnés dès qu'AU MOINS UN segment (toutes cartes/
-                          // graphiques confondus) est sélectionné, contour renforcé sur les
-                          // segments actifs — même logique de mise en évidence que les tuiles
-                          // ci-dessus (classe --active), adaptée aux props recharts (pas de
-                          // className sur <Cell>). `fill` porté par la donnée elle-même (voir
-                          // donneesVerdicts, COULEURS_VERDICT) plutôt qu'indexé par position :
-                          // couleur stable par indicateur, pas par rang d'affichage.
-                          <Cell
-                            key={entree.nom}
-                            fill={entree.fill}
-                            cursor="pointer"
-                            opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
-                            stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
-                            strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
-                            onClick={() => basculerIndicateur(entree.code)}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      {/* Légende repositionnée à droite (verticale) plutôt qu'en dessous
-                          (horizontale, comportement par défaut) : c'est ce qui laissait le vide
-                          constaté de chaque côté du camembert — toute la largeur du cadre n'était
-                          utilisée ni par le camembert (centré, taille fixe) ni par la légende
-                          (une ligne compacte sous lui). */}
-                      <Legend layout="vertical" align="right" verticalAlign="middle" />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div ref={suiviCurseurVerdicts.conteneurRef}>
+                    <ResponsiveContainer width="100%" height={380}>
+                      <PieChart>
+                        {/* cx décalé vers la droite du centre (pas 50%, ni le 38% initial — voir
+                            historique) : avec la grille corrigée à deux colonnes fixes
+                            (.indicateurs__graphiques, Indicateurs.css), ce cadre est maintenant
+                            assez large pour qu'un centrage trop à gauche laisse un grand vide entre
+                            le bord droit du camembert et la légende (align="right", voir
+                            ci-dessous) — 45% rapproche les deux plutôt que de les laisser à leurs
+                            extrémités respectives avec un vide entre les deux. outerRadius relevé à
+                            "92%" (plus de hauteur disponible, voir height ci-dessus, et labels
+                            désormais À L'INTÉRIEUR de la part — labelPartCamembert plus haut — donc
+                            plus besoin de marge extérieure pour un label+ligne de rappel) : un
+                            camembert plus grand comble aussi une partie de ce vide par lui-même. */}
+                        <Pie
+                          data={donneesVerdicts}
+                          dataKey="total"
+                          nameKey="nom"
+                          cx="45%"
+                          outerRadius="92%"
+                          label={labelPartCamembert}
+                          labelLine={false}
+                          onMouseEnter={suiviCurseurVerdicts.gererSurvol}
+                          onMouseMove={suiviCurseurVerdicts.gererSurvol}
+                        >
+                          {donneesVerdicts.map((entree) => (
+                            // Segment cliquable (voir basculerIndicateur) : opacité réduite pour les
+                            // segments non sélectionnés dès qu'AU MOINS UN segment (toutes cartes/
+                            // graphiques confondus) est sélectionné, contour renforcé sur les
+                            // segments actifs — même logique de mise en évidence que les tuiles
+                            // ci-dessus (classe --active), adaptée aux props recharts (pas de
+                            // className sur <Cell>). `fill` porté par la donnée elle-même (voir
+                            // donneesVerdicts, COULEURS_VERDICT) plutôt qu'indexé par position :
+                            // couleur stable par indicateur, pas par rang d'affichage.
+                            <Cell
+                              key={entree.nom}
+                              fill={entree.fill}
+                              cursor="pointer"
+                              opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
+                              stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
+                              strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
+                              onClick={() => basculerIndicateur(entree.code)}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={STYLE_TOOLTIP_GRAPHIQUE}
+                          itemStyle={STYLE_TOOLTIP_ITEM_GRAPHIQUE}
+                          position={suiviCurseurVerdicts.position ?? undefined}
+                        />
+                        {/* Légende repositionnée à droite (verticale) plutôt qu'en dessous
+                            (horizontale, comportement par défaut) : c'est ce qui laissait le vide
+                            constaté de chaque côté du camembert — toute la largeur du cadre n'était
+                            utilisée ni par le camembert (centré, taille fixe) ni par la légende
+                            (une ligne compacte sous lui). */}
+                        <Legend layout="vertical" align="right" verticalAlign="middle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </section>
 
@@ -711,36 +776,44 @@ export default function Indicateurs() {
                 {donneesOrientations.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucune orientation sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={380}>
-                    <PieChart>
-                      {/* Même camembert que "Tests réussis vs ratés" ci-dessus — taille et style
-                          volontairement identiques (cx, outerRadius, label, légende) : cohérence
-                          visuelle entre les deux graphiques du même écran, voir CLAUDE.md. */}
-                      <Pie
-                        data={donneesOrientations}
-                        dataKey="total"
-                        nameKey="nom"
-                        cx="45%"
-                        outerRadius="92%"
-                        label={labelPartCamembert}
-                        labelLine={false}
-                      >
-                        {donneesOrientations.map((entree) => (
-                          <Cell
-                            key={entree.nom}
-                            fill={entree.fill}
-                            cursor="pointer"
-                            opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
-                            stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
-                            strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
-                            onClick={() => basculerIndicateur(entree.code)}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend layout="vertical" align="right" verticalAlign="middle" />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div ref={suiviCurseurOrientations.conteneurRef}>
+                    <ResponsiveContainer width="100%" height={380}>
+                      <PieChart>
+                        {/* Même camembert que "Tests réussis vs ratés" ci-dessus — taille et style
+                            volontairement identiques (cx, outerRadius, label, légende) : cohérence
+                            visuelle entre les deux graphiques du même écran, voir CLAUDE.md. */}
+                        <Pie
+                          data={donneesOrientations}
+                          dataKey="total"
+                          nameKey="nom"
+                          cx="45%"
+                          outerRadius="92%"
+                          label={labelPartCamembert}
+                          labelLine={false}
+                          onMouseEnter={suiviCurseurOrientations.gererSurvol}
+                          onMouseMove={suiviCurseurOrientations.gererSurvol}
+                        >
+                          {donneesOrientations.map((entree) => (
+                            <Cell
+                              key={entree.nom}
+                              fill={entree.fill}
+                              cursor="pointer"
+                              opacity={selectionIndicateurs.size === 0 || selectionIndicateurs.has(entree.code) ? 1 : 0.35}
+                              stroke={selectionIndicateurs.has(entree.code) ? '#1a1a1a' : undefined}
+                              strokeWidth={selectionIndicateurs.has(entree.code) ? 2 : undefined}
+                              onClick={() => basculerIndicateur(entree.code)}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={STYLE_TOOLTIP_GRAPHIQUE}
+                          itemStyle={STYLE_TOOLTIP_ITEM_GRAPHIQUE}
+                          position={suiviCurseurOrientations.position ?? undefined}
+                        />
+                        <Legend layout="vertical" align="right" verticalAlign="middle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                 )}
               </section>
 
@@ -754,7 +827,7 @@ export default function Indicateurs() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="nom" interval={0} angle={-20} textAnchor="end" height={80} />
                       <YAxis allowDecimals={false} />
-                      <Tooltip />
+                      <Tooltip contentStyle={STYLE_TOOLTIP_GRAPHIQUE} itemStyle={STYLE_TOOLTIP_ITEM_GRAPHIQUE} />
                       {/* <Cell> par barre (comme pour les camemberts ci-dessus) : chaque barre a
                           son propre indicateur, "poste:<code>" ou 'poste_non_specifie' pour la
                           barre "Non spécifié" (voir donneesRepartitionPoste) — toutes cliquables
