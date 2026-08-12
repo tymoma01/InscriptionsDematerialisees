@@ -6,10 +6,13 @@
    halo bleu diffus + reflet doré sous le bloc) mais intensifiée ici plutôt que la variable
    partagée telle quelle, pour un effet de profondeur plus visible sur ce fond très peu chargé. */
 .login-form {
-  max-width: 34rem;
+  /* Largeur de carte fixée en px (décision utilisateur) plutôt qu'en rem comme le reste du
+     fichier — valeur absolue demandée telle quelle, pas dérivée d'un multiple de la taille de
+     police de base. */
+  max-width: 800px;
   width: 100%;
   margin: 5rem auto;
-  padding: 3.25rem 3.5rem;
+  padding: 3.25rem 5rem;
   background-color: var(--couleur-fond);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
