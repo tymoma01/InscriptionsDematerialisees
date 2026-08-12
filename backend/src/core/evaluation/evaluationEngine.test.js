@@ -9,12 +9,16 @@ const evaluationEngine = require('./evaluationEngine');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
 
+// postes_selectionnes non vide : évite un appel réel à evaluationRepository.trouverPostesDossier
+// (non mocké ici, voir resoudrePosteCode) tout en satisfaisant la validation "au moins un poste
+// résolu" ajoutée à enregistrerEvaluation — la valeur exacte du poste n'a pas d'importance pour ces
+// tests, qui portent sur la logique de verdict/orientation, pas sur la résolution de poste.
 const RENDEZVOUS_TEST = {
   id: 10,
   dossier_id: 62,
   type_rdv: 'test',
   formateur_id: 5,
-  postes_selectionnes: [],
+  postes_selectionnes: ['nettoyage'],
 };
 
 const QUESTIONNAIRE = { id: 1 };
@@ -51,7 +55,7 @@ function mockerDependances(t, overrides = {}) {
   return { enregistrerMock };
 }
 
-const BLOC_REPONSES = { posteCode: undefined, reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' }] };
+const BLOC_REPONSES = { posteCode: 'nettoyage', reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' }] };
 
 test("enregistrerEvaluation accepte un verdict positif d'Inspecteur sans orientation, la persiste à NULL, et déclenche valider_pret_embauche", async (t) => {
   mockerKnex(t);
@@ -139,8 +143,35 @@ test('enregistrerEvaluation accepte les réponses grille_qcu sur l\'échelle bur
       resultatGlobal: 'invalide',
       commentaire: 'Insuffisant.',
       blocs: [
-        { posteCode: undefined, reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'aucune_connaissance' }] },
+        { posteCode: 'nettoyage', reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'aucune_connaissance' }] },
       ],
     }),
+  );
+});
+
+// Voir audit "Poste non spécifié" (tableau de bord KPI) : une évaluation sans aucun poste résolu
+// (repli générique de resoudrePosteCode pour un bloc sans posteCode, jamais rejeté avant ce test)
+// pouvait s'enregistrer sans jamais écrire de ligne evaluations_postes — corrigé dans
+// enregistrerEvaluation, juste après la résolution des blocs.
+test('enregistrerEvaluation rejette une évaluation dont aucun bloc ne résout à un poste réel (posteCode absent, plus de repli générique silencieux)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 5,
+        roleCode: 'inspecteur',
+        resultatGlobal: 'invalide',
+        commentaire: 'Insuffisant.',
+        blocs: [
+          {
+            posteCode: undefined,
+            reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'aucune_connaissance' }],
+          },
+        ],
+      }),
+    /Au moins un poste doit être sélectionné/,
   );
 });

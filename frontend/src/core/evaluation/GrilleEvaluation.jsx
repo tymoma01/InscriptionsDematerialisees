@@ -177,12 +177,19 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   const postesCandidats = [...(rendezvous.postesHotel ?? []), ...(rendezvous.postesBureau ?? [])];
   const postesAmbigus = postesCandidats.length > 1;
   const posteResolutionAutomatique = postesCandidats.length === 1 ? postesCandidats[0] : undefined;
+  // Dossier sans aucun poste déclaré (bloc "disponibilités" vide côté candidat) : bloquant plutôt
+  // que le repli générique silencieux d'avant (voir audit — un formateur pouvait soumettre une
+  // évaluation entière sans qu'aucun poste ne soit jamais rattaché, evaluations_postes restant
+  // vide, le backend refuse désormais ce cas — evaluationEngine.enregistrerEvaluation). Distinct de
+  // postesAmbigus (qui gère le cas ≥2 postes) : ici il n'y a littéralement rien à choisir, donc pas
+  // d'écran de sélection possible, seulement un message explicite.
+  const aucunPosteDeclare = postesCandidats.length === 0;
 
   const [postesChoisis, setPostesChoisis] = useState([]);
   // null tant qu'aucun bloc n'a encore été chargé : sert de garde d'affichage (voir plus bas,
   // écran de sélection vs formulaire) sans avoir besoin d'un état booléen séparé.
   const [blocsQuestionnaire, setBlocsQuestionnaire] = useState(null);
-  const [chargement, setChargement] = useState(!postesAmbigus);
+  const [chargement, setChargement] = useState(!postesAmbigus && !aucunPosteDeclare);
   const [erreur, setErreur] = useState(null);
 
   // Pas de présélection (même principe que les items grille_qcu, voir valeursParDefaut) : rien
@@ -227,10 +234,12 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     }
   };
 
-  // Cas non ambigu (un seul poste hôtel, ou aucun — repli générique) : chargement automatique d'un
+  // Cas non ambigu (exactement un poste hôtel ou bureau déclaré) : chargement automatique d'un
   // unique bloc au montage, aucun écran de sélection à afficher (voir postesAmbigus plus bas).
+  // aucunPosteDeclare exclu ici (contrairement à avant) : plus de chargement automatique du bloc
+  // générique dans ce cas, voir l'écran bloquant dédié plus bas.
   useEffect(() => {
-    if (postesAmbigus) return undefined;
+    if (postesAmbigus || aucunPosteDeclare) return undefined;
 
     let annule = false;
     setChargement(true);
@@ -248,7 +257,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     return () => {
       annule = true;
     };
-  }, [rendezvous.id, postesAmbigus, posteResolutionAutomatique]);
+  }, [rendezvous.id, postesAmbigus, aucunPosteDeclare, posteResolutionAutomatique]);
 
   const gererChangementReponse = (indexBloc, cle, valeur) => {
     setBlocsQuestionnaire((precedent) =>
@@ -299,6 +308,32 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     setEnvoiEnCours(false);
     onTermine();
   };
+
+  // Aucun poste déclaré sur ce dossier : rien à évaluer, écran bloquant plutôt que le repli
+  // générique silencieux d'avant (voir aucunPosteDeclare plus haut) — seule action possible,
+  // "Annuler" (retour à la liste), le backend rejetterait de toute façon une soumission sans poste
+  // résolu (evaluationEngine.enregistrerEvaluation).
+  if (aucunPosteDeclare) {
+    return (
+      <>
+        <div className="grille-evaluation">
+          <h2>
+            Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+          </h2>
+          <p role="alert">
+            Aucun poste n'est déclaré sur ce dossier — impossible d'évaluer sans poste. Complétez d'abord le poste
+            recherché sur le dossier du candidat avant de reprendre cette évaluation.
+          </p>
+          <div className="grille-evaluation__actions">
+            <button type="button" onClick={onAnnuler}>
+              Annuler
+            </button>
+          </div>
+        </div>
+        <NotesDossier dossierId={rendezvous.dossier_id} />
+      </>
+    );
+  }
 
   if (postesAmbigus && blocsQuestionnaire === null) {
     return (

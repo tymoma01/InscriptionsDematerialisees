@@ -233,6 +233,17 @@ async function enregistrerEvaluation(
     reponsesResolues = reponsesResolues.concat(resoudreEtValiderReponses(questions, bloc.reponses));
   }
 
+  // Au moins un poste réellement résolu (jamais seulement le repli générique) — voir audit :
+  // resoudrePosteCode retourne `null` silencieusement pour un bloc sans posteCode (ligne 58), ce
+  // qui permettait jusqu'ici d'enregistrer une évaluation valide sans aucune ligne
+  // evaluations_postes (dossier sans poste déclaré, cas GrilleEvaluation.jsx traité juste au-dessus
+  // de son écran de sélection). Vérifié ici plutôt que dans la boucle : le repli générique reste
+  // légitime PENDANT la résolution (questionnaire générique, voir trouverQuestionnairePourPoste),
+  // seul le résultat global (aucun poste résolu sur l'ensemble des blocs) doit être rejeté.
+  if (posteCodesResolus.length === 0) {
+    throw new Error('Au moins un poste doit être sélectionné pour évaluer ce dossier.');
+  }
+
   return bd.transaction(async (trx) => {
     const evaluationId = await evaluationRepository.enregistrerEvaluation(trx, {
       dossierId: rendezvous.dossier_id,
