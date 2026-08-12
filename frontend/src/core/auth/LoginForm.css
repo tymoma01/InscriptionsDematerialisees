@@ -1,34 +1,55 @@
+/* Carte volontairement plus grande et plus marquée que .bloc-formulaire standard : contrairement
+   aux blocs du formulaire d'inscription (entourés d'autres blocs, d'une en-tête, d'un pied de
+   page), cette carte est seule au centre d'un écran par ailleurs vide (juste le bandeau
+   PageBackOffice) — elle a besoin de plus de présence propre pour ne pas paraître perdue.
+   Ombre à deux couches reprenant la même construction que --ombre-bloc (styles/variables.css :
+   halo bleu diffus + reflet doré sous le bloc) mais intensifiée ici plutôt que la variable
+   partagée telle quelle, pour un effet de profondeur plus visible sur ce fond très peu chargé. */
 .login-form {
-  max-width: 22rem;
-  margin: 4rem auto;
-  padding: var(--espace-grand);
+  max-width: 34rem;
+  width: 100%;
+  margin: 5rem auto;
+  padding: 3.25rem 3.5rem;
   background-color: var(--couleur-fond);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
-  box-shadow: var(--ombre-bloc);
+  box-shadow: 0 8px 24px rgba(45, 60, 146, 0.18), 0 20px 36px -16px rgba(122, 90, 52, 0.45);
   display: flex;
   flex-direction: column;
-  gap: var(--espace-moyen);
+  gap: var(--espace-grand);
+  box-sizing: border-box;
 }
 
 .login-form h1 {
   margin: 0;
   color: var(--couleur-back-office);
-  font-size: 1.4rem;
+  font-size: 1.75rem;
 }
 
 .login-form__champ {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.4rem;
   color: var(--couleur-texte);
+  font-size: 1rem;
 }
 
 .login-form__champ input {
-  padding: 0.6rem;
+  padding: 0.9rem 1.1rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   font: inherit;
+  font-size: 1.1rem;
+}
+
+/* Anneau de focus doré plutôt que le bleu --couleur-primaire-clair utilisé côté formulaire
+   candidat (blocFormulaire.css) : ce formulaire est réservé aux agents internes (voir
+   CLAUDE.md, section Authentification), l'accent doit donc suivre l'identité back-office
+   (--couleur-back-office-dore), pas l'identité candidat. */
+.login-form__champ input:focus {
+  outline: none;
+  border-color: var(--couleur-back-office-dore);
+  box-shadow: 0 0 0 3px rgba(122, 90, 52, 0.2);
 }
 
 .login-form [role='alert'] {
@@ -38,11 +59,12 @@
 }
 
 .login-form button {
-  padding: 0.7rem;
+  padding: 1rem;
   border: none;
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-back-office);
   color: #ffffff;
+  font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
 }

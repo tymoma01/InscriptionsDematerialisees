@@ -127,12 +127,12 @@
 }
 
 .page-validation__piece-statut--valide {
-  background-color: #e6f4ea;
-  color: #1e7e34;
+  background-color: var(--statut-succes-fond);
+  color: var(--statut-succes-texte);
 }
 
 .page-validation__piece-statut--rejete {
-  background-color: #fbeae8;
+  background-color: var(--statut-echec-fond);
   color: var(--couleur-erreur);
 }
 

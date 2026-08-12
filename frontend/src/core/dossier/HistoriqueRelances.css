@@ -17,9 +17,9 @@
    volontairement mis en avant plutôt que noyé dans la liste — fond ambré, pas rouge (--couleur-
    erreur) : ce n'est pas une erreur, juste une information à vérifier avant d'agir. */
 .historique-relances__alerte {
-  background-color: #fdf3e2;
-  border: 1px solid #f3d9a4;
-  color: #6b4a0a;
+  background-color: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  color: var(--statut-attente-texte);
   padding: var(--espace-moyen);
   border-radius: var(--rayon-bordure);
   margin: 0 0 var(--espace-moyen);

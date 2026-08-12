@@ -83,8 +83,8 @@
 }
 
 .capture-tablette__statut--ok {
-  border-color: #1e7e34;
-  background-color: #1e7e34;
+  border-color: var(--statut-succes-texte);
+  background-color: var(--statut-succes-texte);
   color: #ffffff;
 }
 
