@@ -16,21 +16,25 @@ function echapperHtml(valeur) {
     .replace(/'/g, '&#39;');
 }
 
-// `lieux.libelle` (migration 044) est un champ libre unique — pas de colonnes séparées
-// adresse/accès/instructions : une convention (pas une contrainte du schéma) consiste à saisir
-// plusieurs informations dans ce même champ, séparées par " | " (voir scripts/seedLieux.js pour
-// le cas simple à un seul segment). Affiche chaque segment sur sa propre ligne plutôt que
-// concaténé, quel que soit leur nombre — le premier segment (l'adresse) est préfixé "Lieu :", les
-// segments suivants (accès, instructions...) sont affichés tels quels : ce générateur ne peut pas
-// savoir à l'avance combien de segments une entité choisira de renseigner, ni ce qu'ils
-// représentent précisément.
-function formaterLignesLieuHtml(lieu) {
-  const segments = String(lieu ?? '')
-    .split('|')
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  const [adresse, ...complement] = segments;
-  const lignes = [`Lieu : ${echapperHtml(adresse)}`, ...complement.map((segment) => echapperHtml(segment))];
+// `lieux` porte désormais trois champs structurés (migration 047 — remplace l'ancien `libelle`
+// texte libre formaté à la main avec des séparateurs " | ", voir audit du 2026-08-13) :
+// `adresse` (obligatoire), `metroAcces`/`instructions` (optionnels). Affiche chaque champ renseigné
+// sur sa propre ligne plutôt que concaténé — seul ce générateur d'email inclut `metroAcces`/
+// `instructions` en plus de l'adresse (arbitrage : SMS/.ics restent volontairement plus courts,
+// voir generateurIcs.composerAdresseCourte).
+//
+// inclureInstructions (défaut true, voir invitationTestService.construireMessageEmail/
+// notificationChangementLieuService.construireMessageEmail — l'appel candidat ne le précise pas) :
+// `instructions` porte des consignes destinées au candidat qui se présente sur place ("munissez-
+// vous de votre pièce d'identité", "sonnez et dites TEST") — sans objet pour un formateur/
+// inspecteur, qui n'a pas à suivre ces consignes d'accueil (voir construireMessageEmailFormateur
+// dans les deux fichiers ci-dessus, qui passe `{ inclureInstructions: false }`). `metroAcces` reste
+// inclus dans les deux cas : utile aussi bien au candidat qu'au formateur/inspecteur pour se rendre
+// sur place.
+function formaterLignesLieuHtml({ adresse, metroAcces, instructions }, { inclureInstructions = true } = {}) {
+  const lignes = [`Lieu : ${echapperHtml(adresse)}`];
+  if (metroAcces) lignes.push(echapperHtml(metroAcces));
+  if (inclureInstructions && instructions) lignes.push(echapperHtml(instructions));
   return lignes.join('<br>\n');
 }
 

@@ -23,20 +23,33 @@ function trouverLieuParCode(bd, entiteId, code) {
   return bd('lieux').where({ entite_id: entiteId, code }).first();
 }
 
+// Colonnes renvoyées par creerLieu/modifierLieu — `libelle` n'y figure plus (migration 047, champs
+// structurés) : ni l'un ni l'autre ne l'écrit plus, elle resterait NULL sur toute ligne créée
+// après la bascule, sans intérêt pour l'appelant.
+const COLONNES_LIEU = ['id', 'code', 'adresse', 'metro_acces', 'instructions', 'actif'];
+
 // Création à la volée depuis la modale de planification de test (voir ModalePlanificationTest.jsx,
 // bouton "+" à côté du sélecteur de lieu) — `actif` non transmis, la colonne a déjà `true` en
-// valeur par défaut (migration 044).
-function creerLieu(bd, entiteId, { code, libelle }) {
-  return bd('lieux').insert({ entite_id: entiteId, code, libelle }).returning(['id', 'code', 'libelle', 'actif']);
+// valeur par défaut (migration 044). `metroAcces`/`instructions` optionnels (migration 047) :
+// reçus déjà normalisés en `null` par lieuService (jamais `undefined`) — knex/pg lève une erreur
+// "Undefined binding(s)" sur un binding `undefined` dans un insert/update, contrairement à `null`
+// qui s'écrit sans problème.
+function creerLieu(bd, entiteId, { code, adresse, metroAcces, instructions }) {
+  return bd('lieux')
+    .insert({ entite_id: entiteId, code, adresse, metro_acces: metroAcces, instructions })
+    .returning(COLONNES_LIEU);
 }
 
-// Modification à la volée depuis la même modale (bouton crayon) — seul `libelle` est modifiable
-// (voir lieuService.modifierLieu : `code` reste l'identifiant technique du lieu, jamais montré ni
-// resaisi par l'agent, aucune raison de le regénérer sur une simple correction de texte). Scopé
-// par entiteId comme trouverLieuParId : un lieuId d'une autre entité ne matche aucune ligne, la
-// mise à jour est alors un no-op (tableau vide en retour, voir lieuService qui traduit ça en 404).
-function modifierLieu(bd, entiteId, lieuId, { libelle }) {
-  return bd('lieux').where({ id: lieuId, entite_id: entiteId }).update({ libelle }).returning(['id', 'code', 'libelle', 'actif']);
+// Modification à la volée depuis la même modale (bouton crayon) — `code` n'est jamais modifiable
+// (voir lieuService.modifierLieu : c'est l'identifiant technique du lieu, jamais montré ni resaisi
+// par l'agent, aucune raison de le regénérer sur une simple correction de texte). Scopé par
+// entiteId comme trouverLieuParId : un lieuId d'une autre entité ne matche aucune ligne, la mise à
+// jour est alors un no-op (tableau vide en retour, voir lieuService qui traduit ça en 404).
+function modifierLieu(bd, entiteId, lieuId, { adresse, metroAcces, instructions }) {
+  return bd('lieux')
+    .where({ id: lieuId, entite_id: entiteId })
+    .update({ adresse, metro_acces: metroAcces, instructions })
+    .returning(COLONNES_LIEU);
 }
 
 // Suppression depuis la même modale (bouton poubelle) — appelée uniquement après que

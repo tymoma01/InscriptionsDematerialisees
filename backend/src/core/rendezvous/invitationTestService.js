@@ -3,7 +3,7 @@ const dossierRepository = require('../dossier/dossierRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
-const { genererIcsInvitationTest, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
+const { genererIcsInvitationTest, composerAdresseCourte, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
 const { echapperHtml, formaterLignesLieuHtml } = require('../../integrations/notifications/formatageEmail');
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -12,37 +12,45 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
 });
 
-function construireMessageSms({ candidatPrenom, dateHeure, lieu }) {
+// adresse + metroAcces uniquement (pas `instructions`, plus long et réservé à l'email HTML, voir
+// formaterLignesLieuHtml) — arbitrage acté au passage aux champs structurés (migration 047).
+function construireMessageSms({ candidatPrenom, dateHeure, lieuAdresse, lieuMetroAcces }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
+  const lieu = composerAdresseCourte({ adresse: lieuAdresse, metroAcces: lieuMetroAcces });
   return `Bonjour ${candidatPrenom}, votre test ACCECIT est prévu le ${date}, au ${lieu}. À bientôt !`;
 }
 
 // Corps HTML (voir graphMailProvider.js, options.html) — un \n littéral serait ignoré par un
 // client mail en HTML, d'où <p>/<br> explicites plutôt que la ponctuation par \n utilisée pour le
-// SMS ci-dessus. formaterLignesLieuHtml éclate `lieu` (adresse + éventuels compléments — accès,
-// instructions — séparés par " | " dans lieux.libelle) sur autant de lignes, plutôt que de tout
-// concaténer sur une seule ligne difficile à lire.
-function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieu }) {
+// SMS ci-dessus. formaterLignesLieuHtml affiche adresse/metroAcces/instructions (champs structurés,
+// migration 047) chacun sur sa propre ligne, plutôt que de tout concaténer sur une seule ligne
+// difficile à lire — seul ce canal inclut aussi `instructions` (voir construireMessageSms
+// ci-dessus, plus court).
+function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieuAdresse, lieuMetroAcces, lieuInstructions }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Convocation à votre test ACCECIT',
     corps:
       `<p>Bonjour ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)},</p>` +
       `<p>Votre test est prévu le ${echapperHtml(date)}.</p>` +
-      `<p>${formaterLignesLieuHtml(lieu)}</p>` +
+      `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces, instructions: lieuInstructions })}</p>` +
       '<p>Vous trouverez en pièce jointe une invitation à ajouter directement à votre calendrier (Outlook, Google Calendar...).</p>' +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
 
-function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, lieu }) {
+// `instructions` volontairement exclu ici (voir formatageEmail.formaterLignesLieuHtml,
+// inclureInstructions: false) : ce sont des consignes d'accueil destinées au candidat qui se
+// présente sur place ("munissez-vous de votre pièce d'identité", "sonnez et dites TEST"), sans
+// objet pour le formateur/inspecteur qui les évalue — seul metroAcces reste utile aux deux.
+function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, lieuAdresse, lieuMetroAcces }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Nouveau candidat à évaluer',
     corps:
       `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
       `<p>Vous êtes assigné(e) à l'évaluation du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)}.</p>` +
-      `<p>${formaterLignesLieuHtml(lieu)}</p>` +
+      `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces }, { inclureInstructions: false })}</p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
@@ -78,15 +86,18 @@ async function envoyerInvitationTest(entite, rendezvous) {
   ]);
 
   // Résolu une seule fois ici, réutilisé pour les trois usages ci-dessous (.ics, SMS, email) —
-  // plutôt que trois lookups séparés (voir infos.lieu, repris tel quel par construireMessageSms/
-  // construireMessageEmail/genererIcsInvitationTest via le spread ...infos).
-  const lieuLibelle = lieuTrouve?.libelle ?? LIEU_TEST_ACCECIT;
-
+  // plutôt que trois lookups séparés (voir infos.lieuAdresse/lieuMetroAcces/lieuInstructions,
+  // repris tels quels par construireMessageSms/construireMessageEmail/genererIcsInvitationTest via
+  // le spread ...infos). Champs structurés depuis la migration 047 (remplace l'ancien `libelle`
+  // texte libre) — repli sur LIEU_TEST_ACCECIT (adresse seule, pas de métro/instructions) quand
+  // aucun lieu n'est précisé sur le rendez-vous.
   const infos = {
     candidatNom: dossier?.candidat_nom,
     candidatPrenom: dossier?.candidat_prenom,
     dateHeure: rendezvous.date_heure,
-    lieu: lieuLibelle,
+    lieuAdresse: lieuTrouve?.adresse ?? LIEU_TEST_ACCECIT,
+    lieuMetroAcces: lieuTrouve?.metro_acces,
+    lieuInstructions: lieuTrouve?.instructions,
   };
 
   const notificationProvider = notificationFactory();

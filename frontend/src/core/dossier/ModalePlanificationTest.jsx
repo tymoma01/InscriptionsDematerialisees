@@ -95,7 +95,12 @@ export default function ModalePlanificationTest({
   // champ résiduel.
   const [panneauLieuMode, setPanneauLieuMode] = useState(null);
   const [lieuIdEnEdition, setLieuIdEnEdition] = useState(null);
-  const [lieuFormLibelle, setLieuFormLibelle] = useState('');
+  // Trois champs structurés depuis la migration 047 (remplace l'ancien champ unique `lieuFormLibelle`
+  // texte libre, voir audit du 2026-08-13) : `lieuFormAdresse` obligatoire, `lieuFormMetroAcces`/
+  // `lieuFormInstructions` optionnels — mêmes trois champs que la table `lieux` côté back.
+  const [lieuFormAdresse, setLieuFormAdresse] = useState('');
+  const [lieuFormMetroAcces, setLieuFormMetroAcces] = useState('');
+  const [lieuFormInstructions, setLieuFormInstructions] = useState('');
   const [lieuFormEnCours, setLieuFormEnCours] = useState(false);
   const [lieuFormErreur, setLieuFormErreur] = useState(null);
   // Avertissement anti-doublon (voir soumettreLieu plus bas) — uniquement en création, jamais en
@@ -108,7 +113,9 @@ export default function ModalePlanificationTest({
   const fermerPanneauLieu = () => {
     setPanneauLieuMode(null);
     setLieuIdEnEdition(null);
-    setLieuFormLibelle('');
+    setLieuFormAdresse('');
+    setLieuFormMetroAcces('');
+    setLieuFormInstructions('');
     setLieuFormErreur(null);
     setLieuSimilaireDetecte(null);
   };
@@ -176,7 +183,7 @@ export default function ModalePlanificationTest({
       const associes = await listerRendezvousAssociesLieu(lieuSelectionne.id);
       if (associes.length === 0) {
         const confirme = window.confirm(
-          `Supprimer définitivement le lieu « ${lieuSelectionne.libelle} » ? Cette action est irréversible.`,
+          `Supprimer définitivement le lieu « ${lieuSelectionne.adresse} » ? Cette action est irréversible.`,
         );
         if (confirme) await executerSuppressionLieu(lieuSelectionne.id);
       } else {
@@ -333,15 +340,15 @@ export default function ModalePlanificationTest({
   // sélectionné. Séparée de soumettreLieu ci-dessous : c'est elle qu'on appelle directement quand
   // l'agent confirme "Créer quand même" malgré l'avertissement de doublon, sans repasser par la
   // vérification qui vient de le déclencher.
-  const envoyerLieu = async (libelle) => {
+  const envoyerLieu = async ({ adresse, metroAcces, instructions }) => {
     setLieuFormEnCours(true);
     setLieuFormErreur(null);
     try {
       if (panneauLieuMode === 'edition') {
-        const lieu = await modifierLieu(lieuIdEnEdition, { libelle });
+        const lieu = await modifierLieu(lieuIdEnEdition, { adresse, metroAcces, instructions });
         setLieux((precedent) => precedent.map((l) => (l.id === lieu.id ? lieu : l)));
       } else {
-        const lieu = await creerLieu({ libelle });
+        const lieu = await creerLieu({ adresse, metroAcces, instructions });
         setLieux((precedent) => [...precedent, lieu]);
         setLieuId(String(lieu.id));
       }
@@ -363,18 +370,18 @@ export default function ModalePlanificationTest({
   // "Créer quand même" à la place de l'envoi immédiat — c'est le clic sur l'un de ces deux boutons
   // (voir plus bas) qui décide de la suite, pas cette fonction.
   const soumettreLieu = () => {
-    const libelle = lieuFormLibelle.trim();
-    if (!libelle || lieuFormEnCours) return;
+    const adresse = lieuFormAdresse.trim();
+    if (!adresse || lieuFormEnCours) return;
 
     if (panneauLieuMode === 'creation') {
-      const similaire = trouverLieuSimilaire(lieux, libelle);
+      const similaire = trouverLieuSimilaire(lieux, adresse);
       if (similaire) {
         setLieuSimilaireDetecte(similaire);
         return;
       }
     }
 
-    envoyerLieu(libelle);
+    envoyerLieu({ adresse, metroAcces: lieuFormMetroAcces.trim(), instructions: lieuFormInstructions.trim() });
   };
 
   // "Utiliser ce lieu" (voir l'avertissement de doublon) — sélectionne le lieu existant détecté à
@@ -388,9 +395,9 @@ export default function ModalePlanificationTest({
   // ressemblance (ex. deux structures différentes à la même adresse) : appelle directement
   // envoyerLieu, sans repasser par soumettreLieu (qui redéclencherait le même avertissement).
   const creerLieuMalgreSimilarite = () => {
-    const libelle = lieuFormLibelle.trim();
+    const adresse = lieuFormAdresse.trim();
     setLieuSimilaireDetecte(null);
-    envoyerLieu(libelle);
+    envoyerLieu({ adresse, metroAcces: lieuFormMetroAcces.trim(), instructions: lieuFormInstructions.trim() });
   };
 
   // Liste filtrée sur le groupe actif — c'est elle qui alimente le <select> plus bas, jamais la
@@ -652,9 +659,12 @@ export default function ModalePlanificationTest({
                   ) : (
                     <select id="planification-lieu" value={lieuId} onChange={(evenement) => setLieuId(evenement.target.value)}>
                       <option value="">-</option>
+                      {/* Adresse seule dans la liste déroulante (pas metroAcces/instructions,
+                          voir migration 047) — une ligne par option, le détail complet reste
+                          visible dans le formulaire de création/édition ci-dessous. */}
                       {lieux.map((lieu) => (
                         <option key={lieu.id} value={lieu.id}>
-                          {lieu.libelle}
+                          {lieu.adresse}
                         </option>
                       ))}
                     </select>
@@ -675,7 +685,9 @@ export default function ModalePlanificationTest({
                       }
                       setPanneauLieuMode('creation');
                       setLieuIdEnEdition(null);
-                      setLieuFormLibelle('');
+                      setLieuFormAdresse('');
+                      setLieuFormMetroAcces('');
+                      setLieuFormInstructions('');
                       setLieuFormErreur(null);
                       setLieuSimilaireDetecte(null);
                     }}
@@ -701,7 +713,9 @@ export default function ModalePlanificationTest({
                         }
                         setPanneauLieuMode('edition');
                         setLieuIdEnEdition(lieuSelectionne.id);
-                        setLieuFormLibelle(lieuSelectionne.libelle);
+                        setLieuFormAdresse(lieuSelectionne.adresse);
+                        setLieuFormMetroAcces(lieuSelectionne.metro_acces ?? '');
+                        setLieuFormInstructions(lieuSelectionne.instructions ?? '');
                         setLieuFormErreur(null);
                         setLieuSimilaireDetecte(null);
                       }}
@@ -732,13 +746,18 @@ export default function ModalePlanificationTest({
 
               {panneauLieuMode && (
                 <div className="modale-planification-test__ajout-lieu">
+                  {/* Trois champs structurés depuis la migration 047 (remplace l'ancien champ
+                      unique texte libre où adresse/accès/instructions étaient concaténés à la
+                      main avec des " | ", voir audit du 2026-08-13) — seule l'adresse est
+                      obligatoire, cohérent avec detectionLieuSimilaire.js qui ne compare
+                      qu'elle. */}
                   <label>
-                    <span>{panneauLieuMode === 'edition' ? 'Nom et adresse du lieu' : 'Nom et adresse du nouveau lieu'}</span>
+                    <span>Adresse <span className="champ-obligatoire">*</span></span>
                     <input
                       type="text"
-                      value={lieuFormLibelle}
+                      value={lieuFormAdresse}
                       onChange={(evenement) => {
-                        setLieuFormLibelle(evenement.target.value);
+                        setLieuFormAdresse(evenement.target.value);
                         // Toute nouvelle saisie invalide l'avertissement affiché pour l'ancien
                         // texte — l'agent doit pouvoir cliquer "Créer" à nouveau pour re-vérifier
                         // le texte modifié, pas rester bloqué sur une comparaison obsolète.
@@ -746,6 +765,24 @@ export default function ModalePlanificationTest({
                       }}
                       placeholder="Ex. Hôtel du Cadran - 14 rue de Valadon, 75007 Paris"
                       autoFocus
+                    />
+                  </label>
+                  <label>
+                    <span>Métro / Accès</span>
+                    <input
+                      type="text"
+                      value={lieuFormMetroAcces}
+                      onChange={(evenement) => setLieuFormMetroAcces(evenement.target.value)}
+                      placeholder="Ex. Métro Ecole Militaire - Ligne 8"
+                    />
+                  </label>
+                  <label>
+                    <span>Instructions</span>
+                    <input
+                      type="text"
+                      value={lieuFormInstructions}
+                      onChange={(evenement) => setLieuFormInstructions(evenement.target.value)}
+                      placeholder="Ex. Munissez-vous de votre pièce d'identité originale. Appuyez sur l'interphone et dites « TEST » pour ACCECIT."
                     />
                   </label>
                   {lieuFormErreur && <p role="alert">{lieuFormErreur}</p>}
@@ -757,7 +794,7 @@ export default function ModalePlanificationTest({
                     // le rouge générique [role='alert'] de cette modale.
                     <div className="modale-planification-test__avertissement-doublon">
                       <p role="status">
-                        Un lieu similaire existe déjà : <strong>{lieuSimilaireDetecte.libelle}</strong>. Voulez-vous
+                        Un lieu similaire existe déjà : <strong>{lieuSimilaireDetecte.adresse}</strong>. Voulez-vous
                         l&rsquo;utiliser à la place ?
                       </p>
                       <div className="modale-planification-test__ajout-lieu-actions">
@@ -774,7 +811,7 @@ export default function ModalePlanificationTest({
                       <button type="button" onClick={fermerPanneauLieu} disabled={lieuFormEnCours}>
                         Annuler
                       </button>
-                      <button type="button" onClick={soumettreLieu} disabled={!lieuFormLibelle.trim() || lieuFormEnCours}>
+                      <button type="button" onClick={soumettreLieu} disabled={!lieuFormAdresse.trim() || lieuFormEnCours}>
                         {lieuFormEnCours
                           ? (panneauLieuMode === 'edition' ? 'Enregistrement...' : 'Création...')
                           : (panneauLieuMode === 'edition' ? 'Enregistrer' : 'Créer')}
@@ -795,7 +832,7 @@ export default function ModalePlanificationTest({
                       ? '1 rendez-vous est encore associé à ce lieu.'
                       : `${rendezvousAssocies.length} rendez-vous sont encore associés à ce lieu.`}{' '}
                     Choisissez un lieu de destination pour les migrer avant de supprimer «{' '}
-                    {lieuSelectionne?.libelle} ».
+                    {lieuSelectionne?.adresse} ».
                   </p>
                   <ul className="modale-planification-test__migration-lieu-liste">
                     {rendezvousAssocies.map((rendezvousAssocie) => (
@@ -816,7 +853,7 @@ export default function ModalePlanificationTest({
                         .filter((lieu) => lieu.id !== lieuSelectionne?.id)
                         .map((lieu) => (
                           <option key={lieu.id} value={lieu.id}>
-                            {lieu.libelle}
+                            {lieu.adresse}
                           </option>
                         ))}
                     </select>

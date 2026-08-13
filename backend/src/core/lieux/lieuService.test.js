@@ -13,22 +13,22 @@ function mockerKnex(t) {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
 }
 
-test('creerLieu dérive un code à partir du libellé (accents retirés, tout non-alphanumérique réduit à "_")', async (t) => {
+test('creerLieu dérive un code à partir de l\'adresse (accents retirés, tout non-alphanumérique réduit à "_")', async (t) => {
   mockerKnex(t);
   t.mock.method(lieuRepository, 'trouverLieuParCode', async () => undefined);
   let codeRecu;
-  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, { code, libelle }) => {
+  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, { code, adresse, metroAcces, instructions }) => {
     codeRecu = code;
-    return [{ id: 42, code, libelle, actif: true }];
+    return [{ id: 42, code, adresse, metro_acces: metroAcces, instructions, actif: true }];
   });
 
   const lieu = await lieuService.creerLieu(ENTITE_ACCECIT, {
-    libelle: 'Hôtel du Cadran - 14 rue de Valadon, 75007 Paris',
+    adresse: 'Hôtel du Cadran - 14 rue de Valadon, 75007 Paris',
   });
 
   assert.equal(codeRecu, 'hotel_du_cadran_14_rue_de_valadon_75007_paris');
   assert.equal(lieu.id, 42);
-  assert.equal(lieu.libelle, 'Hôtel du Cadran - 14 rue de Valadon, 75007 Paris');
+  assert.equal(lieu.adresse, 'Hôtel du Cadran - 14 rue de Valadon, 75007 Paris');
 });
 
 test("creerLieu ajoute un suffixe numérique si le code généré est déjà pris par un lieu de l'entité", async (t) => {
@@ -37,42 +37,65 @@ test("creerLieu ajoute un suffixe numérique si le code généré est déjà pri
     code === 'agence' ? { id: 1, code } : undefined,
   );
   let codeRecu;
-  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, { code, libelle }) => {
+  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, { code, adresse }) => {
     codeRecu = code;
-    return [{ id: 43, code, libelle, actif: true }];
+    return [{ id: 43, code, adresse, actif: true }];
   });
 
-  await lieuService.creerLieu(ENTITE_ACCECIT, { libelle: 'Agence' });
+  await lieuService.creerLieu(ENTITE_ACCECIT, { adresse: 'Agence' });
 
   assert.equal(codeRecu, 'agence_2');
 });
 
-test('creerLieu retombe sur le code "lieu" si le libellé ne contient aucun caractère alphanumérique', async (t) => {
+test('creerLieu retombe sur le code "lieu" si l\'adresse ne contient aucun caractère alphanumérique', async (t) => {
   mockerKnex(t);
   t.mock.method(lieuRepository, 'trouverLieuParCode', async () => undefined);
   let codeRecu;
-  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, { code, libelle }) => {
+  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, { code, adresse }) => {
     codeRecu = code;
-    return [{ id: 44, code, libelle, actif: true }];
+    return [{ id: 44, code, adresse, actif: true }];
   });
 
-  await lieuService.creerLieu(ENTITE_ACCECIT, { libelle: '---' });
+  await lieuService.creerLieu(ENTITE_ACCECIT, { adresse: '---' });
 
   assert.equal(codeRecu, 'lieu');
 });
 
-test('modifierLieu met à jour le libellé sans toucher au code', async (t) => {
+test('creerLieu normalise metroAcces/instructions vides ou blancs en null avant écriture', async (t) => {
+  mockerKnex(t);
+  t.mock.method(lieuRepository, 'trouverLieuParCode', async () => undefined);
+  let donneesRecues;
+  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, donnees) => {
+    donneesRecues = donnees;
+    return [{ id: 45, code: donnees.code, adresse: donnees.adresse, actif: true }];
+  });
+
+  await lieuService.creerLieu(ENTITE_ACCECIT, { adresse: 'Bureau ACCECIT', metroAcces: '   ', instructions: undefined });
+
+  assert.equal(donneesRecues.metroAcces, null);
+  assert.equal(donneesRecues.instructions, null);
+});
+
+test('modifierLieu met à jour adresse/metroAcces/instructions sans toucher au code', async (t) => {
   mockerKnex(t);
   let argsRecus;
   t.mock.method(lieuRepository, 'modifierLieu', async (bd, entiteId, lieuId, donnees) => {
     argsRecus = { entiteId, lieuId, donnees };
-    return [{ id: lieuId, code: 'hotel_du_cadran', libelle: donnees.libelle, actif: true }];
+    return [{ id: lieuId, code: 'hotel_du_cadran', adresse: donnees.adresse, metro_acces: donnees.metroAcces, instructions: donnees.instructions, actif: true }];
   });
 
-  const lieu = await lieuService.modifierLieu(ENTITE_ACCECIT, 1, { libelle: 'Nouvelle adresse' });
+  const lieu = await lieuService.modifierLieu(ENTITE_ACCECIT, 1, {
+    adresse: 'Nouvelle adresse',
+    metroAcces: 'Métro Corentin Celton',
+    instructions: '',
+  });
 
-  assert.deepEqual(argsRecus, { entiteId: 1, lieuId: 1, donnees: { libelle: 'Nouvelle adresse' } });
-  assert.equal(lieu.libelle, 'Nouvelle adresse');
+  assert.deepEqual(argsRecus, {
+    entiteId: 1,
+    lieuId: 1,
+    donnees: { adresse: 'Nouvelle adresse', metroAcces: 'Métro Corentin Celton', instructions: null },
+  });
+  assert.equal(lieu.adresse, 'Nouvelle adresse');
   assert.equal(lieu.code, 'hotel_du_cadran');
 });
 
@@ -81,7 +104,7 @@ test("modifierLieu lève ErreurLieuIntrouvable si le lieu n'existe pas pour cett
   t.mock.method(lieuRepository, 'modifierLieu', async () => []);
 
   await assert.rejects(
-    () => lieuService.modifierLieu(ENTITE_ACCECIT, 999, { libelle: 'Adresse' }),
+    () => lieuService.modifierLieu(ENTITE_ACCECIT, 999, { adresse: 'Adresse' }),
     (erreur) => erreur instanceof lieuService.ErreurLieuIntrouvable,
   );
 });
@@ -118,7 +141,7 @@ function mockerKnexAvecTransaction(t) {
 
 test('listerRendezvousAssocies renvoie la forme candidat/date, jamais les coordonnées (email/téléphone)', async (t) => {
   mockerKnex(t);
-  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, libelle: 'Hôtel du Cadran' }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, adresse: 'Hôtel du Cadran' }));
   t.mock.method(rendezvousRepository, 'listerRendezvousParLieu', async () => RENDEZVOUS_ASSOCIES);
 
   const resultat = await lieuService.listerRendezvousAssocies(ENTITE_ACCECIT, 1);
@@ -142,7 +165,7 @@ test("listerRendezvousAssocies lève ErreurLieuIntrouvable si le lieu n'existe p
 
 test('supprimerLieu sans rendez-vous associé supprime directement, sans migration ni notification', async (t) => {
   mockerKnex(t);
-  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, libelle: 'Salle vide' }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, adresse: 'Salle vide' }));
   t.mock.method(rendezvousRepository, 'listerRendezvousParLieu', async () => []);
   const migrerMock = t.mock.method(rendezvousRepository, 'migrerRendezvousVersLieu', async () => {
     throw new Error('ne doit pas être appelé');
@@ -155,7 +178,7 @@ test('supprimerLieu sans rendez-vous associé supprime directement, sans migrati
   const resultat = await lieuService.supprimerLieu(ENTITE_ACCECIT, 1);
 
   assert.deepEqual(resultat, {
-    lieu: { id: 1, libelle: 'Salle vide' },
+    lieu: { id: 1, adresse: 'Salle vide' },
     lieuDestination: null,
     rendezvousMigres: 0,
     rendezvousAssocies: [],
@@ -168,7 +191,7 @@ test('supprimerLieu sans rendez-vous associé supprime directement, sans migrati
 
 test('supprimerLieu avec rendez-vous associés mais sans lieuDestinationId lève ErreurMigrationRequise (porte la liste, ne supprime rien)', async (t) => {
   mockerKnex(t);
-  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, libelle: 'Salle occupée' }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, adresse: 'Salle occupée' }));
   t.mock.method(rendezvousRepository, 'listerRendezvousParLieu', async () => RENDEZVOUS_ASSOCIES);
   const supprimerMock = t.mock.method(lieuRepository, 'supprimerLieu', async () => {
     throw new Error('ne doit pas être appelé');
@@ -188,7 +211,7 @@ test('supprimerLieu avec rendez-vous associés mais sans lieuDestinationId lève
 
 test('supprimerLieu rejette une destination identique au lieu supprimé', async (t) => {
   mockerKnex(t);
-  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, libelle: 'Salle occupée' }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 1, adresse: 'Salle occupée' }));
   t.mock.method(rendezvousRepository, 'listerRendezvousParLieu', async () => RENDEZVOUS_ASSOCIES);
 
   await assert.rejects(
@@ -199,7 +222,7 @@ test('supprimerLieu rejette une destination identique au lieu supprimé', async 
 
 test("supprimerLieu rejette une destination introuvable pour l'entité", async (t) => {
   mockerKnex(t);
-  t.mock.method(lieuRepository, 'trouverLieuParId', async (bd, entiteId, lieuId) => (lieuId === 1 ? { id: 1, libelle: 'Salle occupée' } : undefined));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async (bd, entiteId, lieuId) => (lieuId === 1 ? { id: 1, adresse: 'Salle occupée' } : undefined));
   t.mock.method(rendezvousRepository, 'listerRendezvousParLieu', async () => RENDEZVOUS_ASSOCIES);
 
   await assert.rejects(
@@ -211,7 +234,14 @@ test("supprimerLieu rejette une destination introuvable pour l'entité", async (
 test('supprimerLieu avec destination valide migre puis supprime dans une transaction, puis notifie chaque candidat migré', async (t) => {
   const trx = mockerKnexAvecTransaction(t);
   t.mock.method(lieuRepository, 'trouverLieuParId', async (bd, entiteId, lieuId) =>
-    lieuId === 1 ? { id: 1, libelle: 'Salle occupée' } : { id: 2, libelle: 'Salle Annexe - 3 rue des Tests, 75001 Paris' },
+    lieuId === 1
+      ? { id: 1, adresse: 'Salle occupée' }
+      : {
+          id: 2,
+          adresse: 'Salle Annexe - 3 rue des Tests, 75001 Paris',
+          metro_acces: 'Métro Corentin Celton',
+          instructions: null,
+        },
   );
   t.mock.method(rendezvousRepository, 'listerRendezvousParLieu', async () => RENDEZVOUS_ASSOCIES);
   const migrerMock = t.mock.method(rendezvousRepository, 'migrerRendezvousVersLieu', async (bdRecu, args) => {
@@ -234,10 +264,12 @@ test('supprimerLieu avec destination valide migre puis supprime dans une transac
   assert.equal(migrerMock.mock.calls.length, 1);
   assert.equal(supprimerMock.mock.calls.length, 1);
   assert.equal(notifierMock.mock.calls.length, 2, 'une notification par rendez-vous migré');
+  // Objet structuré depuis la migration 047 (remplace l'ancien libelle string unique) — construit
+  // par lieuService.supprimerLieu à partir de lieuDestination (adresse/metro_acces/instructions).
   assert.deepEqual(notifierMock.mock.calls[0].arguments, [
     ENTITE_ACCECIT,
     RENDEZVOUS_ASSOCIES[0],
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    { adresse: 'Salle Annexe - 3 rue des Tests, 75001 Paris', metroAcces: 'Métro Corentin Celton', instructions: null },
   ]);
 
   assert.equal(resultat.rendezvousMigres, 2);

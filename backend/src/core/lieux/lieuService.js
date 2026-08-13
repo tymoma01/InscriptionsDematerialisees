@@ -46,9 +46,12 @@ async function listerLieuxActifs(entite) {
 
 // `code` (migration 044) sert d'identifiant stable de repli/debug (voir seedLieux.js : 'accecit',
 // 'hotel_du_cadran') — un lieu créé à la volée depuis la modale de planification n'en a pas, ce
-// slug le dérive du libellé saisi (accents retirés, tout ce qui n'est pas alphanumérique réduit à
-// un seul '_', bornes coupées) plutôt que de laisser l'agent en saisir un : ce n'est pas une
-// information qu'un utilisateur d'Accueil a de raison de connaître ou de choisir.
+// slug le dérive de l'ADRESSE saisie (accents retirés, tout ce qui n'est pas alphanumérique réduit
+// à un seul '_', bornes coupées) plutôt que de laisser l'agent en saisir un : ce n'est pas une
+// information qu'un utilisateur d'Accueil a de raison de connaître ou de choisir. Dérivé de
+// `adresse` seule depuis la migration 047 (champs structurés) — jamais de `metroAcces`/
+// `instructions` : ce sont des compléments, pas ce qui identifie le lieu, un slug qui les inclurait
+// deviendrait un pavé de texte illisible pour un simple identifiant de repli/debug.
 function slugifier(texte) {
   return texte
     .normalize('NFD')
@@ -63,11 +66,11 @@ function slugifier(texte) {
 const TENTATIVES_MAX_CODE_UNIQUE = 50;
 
 // `code` n'a pas de contrainte UNIQUE en base (voir lieuRepository.trouverLieuParCode) — vérifié
-// ici plutôt que de laisser deux lieux au libellé proche collisionner silencieusement sur le même
+// ici plutôt que de laisser deux lieux à l'adresse proche collisionner silencieusement sur le même
 // code. Suffixe numérique (_2, _3, ...) en cas de collision, même principe que la désambiguïsation
 // de fichiers dupliqués (voir azureOneDriveConnector.js).
-async function obtenirCodeUnique(bd, entiteId, libelle) {
-  const base = slugifier(libelle) || 'lieu';
+async function obtenirCodeUnique(bd, entiteId, adresse) {
+  const base = slugifier(adresse) || 'lieu';
   for (let tentative = 1; tentative <= TENTATIVES_MAX_CODE_UNIQUE; tentative += 1) {
     const code = tentative === 1 ? base : `${base}_${tentative}`;
     // eslint-disable-next-line no-await-in-loop -- tentatives séquentielles nécessaires : chaque
@@ -75,45 +78,64 @@ async function obtenirCodeUnique(bd, entiteId, libelle) {
     const existant = await lieuRepository.trouverLieuParCode(bd, entiteId, code);
     if (!existant) return code;
   }
-  throw new Error(`Impossible de générer un code de lieu unique pour "${libelle}" après ${TENTATIVES_MAX_CODE_UNIQUE} tentatives.`);
+  throw new Error(`Impossible de générer un code de lieu unique pour "${adresse}" après ${TENTATIVES_MAX_CODE_UNIQUE} tentatives.`);
+}
+
+// '' (champ optionnel laissé vide côté formulaire) -> null, jamais une chaîne vide stockée en
+// base ni transmise à un `undefined` (voir lieuRepository.js : knex/pg lève une erreur sur un
+// binding `undefined`) — même logique que le repli lieuId '' -> undefined déjà fait côté front
+// (ModalePlanificationTest.jsx) pour un champ optionnel.
+function normaliserChampOptionnel(valeur) {
+  const nettoyee = typeof valeur === 'string' ? valeur.trim() : valeur;
+  return nettoyee ? nettoyee : null;
 }
 
 // Création à la volée depuis la modale de planification de test (voir ModalePlanificationTest.jsx,
-// lieuService.js front, lieux.routes.js) — `libelle` est le seul champ saisi par l'agent (la
-// table `lieux`, migration 044, n'a pas de colonne adresse séparée : le libellé porte déjà
-// l'adresse complète en texte libre, voir seedLieux.js — "Hôtel du Cadran - 14 rue de Valadon,
-// 75007 Paris" — et c'est ce texte qui est réutilisé tel quel comme location de l'invitation .ics,
-// voir generateurIcs.js).
-async function creerLieu(entite, { libelle }) {
+// lieuService.js front, lieux.routes.js) — trois champs structurés depuis la migration 047 :
+// `adresse` (obligatoire, identifie le lieu physique), `metroAcces`/`instructions` (optionnels,
+// compléments d'accès). Avant cette migration, un seul champ `libelle` texte libre portait les
+// trois informations concaténées à la main (voir audit du 2026-08-13) — remplacé ici par des
+// colonnes dédiées, plus besoin de convention de formatage côté agent.
+async function creerLieu(entite, { adresse, metroAcces, instructions }) {
   const bd = await db.obtenirKnex();
-  const code = await obtenirCodeUnique(bd, entite.id, libelle);
-  const [lieu] = await lieuRepository.creerLieu(bd, entite.id, { code, libelle });
+  const code = await obtenirCodeUnique(bd, entite.id, adresse);
+  const [lieu] = await lieuRepository.creerLieu(bd, entite.id, {
+    code,
+    adresse,
+    metroAcces: normaliserChampOptionnel(metroAcces),
+    instructions: normaliserChampOptionnel(instructions),
+  });
   return lieu;
 }
 
 // Modification à la volée depuis la même modale (bouton crayon à côté du sélecteur, voir
-// ModalePlanificationTest.jsx) — seul `libelle` est modifiable, `code` reste inchangé (pas
-// regénéré depuis le nouveau libellé : c'est un identifiant technique de repli/debug, pas une
-// information qui a besoin de suivre une correction de texte, voir slugifier ci-dessus).
+// ModalePlanificationTest.jsx) — `adresse`/`metroAcces`/`instructions` modifiables, `code` reste
+// inchangé (pas regénéré depuis la nouvelle adresse : c'est un identifiant technique de repli/
+// debug, pas une information qui a besoin de suivre une correction de texte, voir slugifier
+// ci-dessus).
 //
 // Impact sur les rendez-vous déjà planifiés à ce lieu (point vérifié avant d'écrire cette
-// fonction) : `rendezvous.lieu_id` est une FK vers `lieux` (migration 045), jamais une copie du
-// libellé — invitationTestService.envoyerInvitationTest résout `lieu.libelle` à la volée à partir
-// de cet id à CHAQUE appel, il n'existe nulle part de snapshot de l'adresse au moment de la
-// planification. Concrètement : modifier un lieu ici change immédiatement l'adresse vue sur toute
-// planification FUTURE utilisant ce lieu, et sur l'affichage back-office d'un rendez-vous existant
-// s'il re-résout le lieu (même mécanisme). Mais envoyerInvitationTest n'est appelé qu'UNE SEULE
-// fois, au moment de la création du rendez-vous (voir planificationRendezvousService.js) — une
-// convocation SMS/email déjà envoyée à un candidat est un message déjà délivré, rien ne la
-// régénère ni ne la renvoie automatiquement après coup. Donc : si l'adresse d'un lieu change après
-// qu'une convocation a déjà été envoyée pour un rendez-vous à ce lieu, ce candidat garde l'ancienne
-// adresse dans sa boîte mail/SMS tant que personne ne le relance manuellement — à signaler à
-// l'agent Accueil comme point de vigilance opérationnel, pas quelque chose que ce correctif peut
-// résoudre côté code (aucun mécanisme de renvoi automatique de convocation n'existe dans ce
-// projet).
-async function modifierLieu(entite, lieuId, { libelle }) {
+// fonction, toujours valable depuis la migration 047) : `rendezvous.lieu_id` est une FK vers
+// `lieux` (migration 045), jamais une copie de l'adresse — invitationTestService.
+// envoyerInvitationTest résout adresse/metroAcces/instructions à la volée à partir de cet id à
+// CHAQUE appel, il n'existe nulle part de snapshot au moment de la planification. Concrètement :
+// modifier un lieu ici change immédiatement l'adresse vue sur toute planification FUTURE utilisant
+// ce lieu, et sur l'affichage back-office d'un rendez-vous existant s'il re-résout le lieu (même
+// mécanisme). Mais envoyerInvitationTest n'est appelé qu'UNE SEULE fois, au moment de la création
+// du rendez-vous (voir planificationRendezvousService.js) — une convocation SMS/email déjà envoyée
+// à un candidat est un message déjà délivré, rien ne la régénère ni ne la renvoie automatiquement
+// après coup. Donc : si l'adresse d'un lieu change après qu'une convocation a déjà été envoyée pour
+// un rendez-vous à ce lieu, ce candidat garde l'ancienne adresse dans sa boîte mail/SMS tant que
+// personne ne le relance manuellement — à signaler à l'agent Accueil comme point de vigilance
+// opérationnel, pas quelque chose que ce correctif peut résoudre côté code (aucun mécanisme de
+// renvoi automatique de convocation n'existe dans ce projet).
+async function modifierLieu(entite, lieuId, { adresse, metroAcces, instructions }) {
   const bd = await db.obtenirKnex();
-  const [lieu] = await lieuRepository.modifierLieu(bd, entite.id, lieuId, { libelle });
+  const [lieu] = await lieuRepository.modifierLieu(bd, entite.id, lieuId, {
+    adresse,
+    metroAcces: normaliserChampOptionnel(metroAcces),
+    instructions: normaliserChampOptionnel(instructions),
+  });
   if (!lieu) {
     throw new ErreurLieuIntrouvable(`Lieu "${lieuId}" introuvable pour l'entité « ${entite.code} ».`);
   }
@@ -197,9 +219,17 @@ async function supprimerLieu(entite, lieuId, { lieuDestinationId } = {}) {
     await lieuRepository.supprimerLieu(trx, entite.id, lieuId);
   });
 
+  // Objet structuré depuis la migration 047 (plus un simple libelle string) — voir
+  // notificationChangementLieuService.js pour ce qui est fait de chacun des trois champs (SMS/.ics
+  // limités à adresse+metroAcces, email HTML seul à inclure aussi instructions).
+  const nouveauLieu = {
+    adresse: lieuDestination.adresse,
+    metroAcces: lieuDestination.metro_acces,
+    instructions: lieuDestination.instructions,
+  };
   const notifications = await Promise.all(
     rendezvousAssocies.map((rendezvous) =>
-      notificationChangementLieuService.envoyerNotificationChangementLieu(entite, rendezvous, lieuDestination.libelle),
+      notificationChangementLieuService.envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu),
     ),
   );
 

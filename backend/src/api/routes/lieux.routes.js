@@ -20,7 +20,8 @@ const ROLES_GESTION_LIEUX = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.
 router.use(requireAuth);
 router.use(requireRole(...ROLES_GESTION_LIEUX));
 
-// GET /api/lieux — lieux actifs de l'entité courante ({ id, code, libelle }).
+// GET /api/lieux — lieux actifs de l'entité courante ({ id, code, adresse, metro_acces,
+// instructions, actif }).
 router.get('/', async (req, res, next) => {
   try {
     const lieux = await lieuService.listerLieuxActifs(req.entite);
@@ -30,19 +31,22 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// libelle porte l'adresse en texte libre (voir lieuService.creerLieu) : pas de champ adresse
-// séparé, la table `lieux` (migration 044) n'en a pas.
+// Trois champs structurés depuis la migration 047 (remplace l'ancien `libelle` texte libre, voir
+// audit du 2026-08-13) : `adresse` identifie le lieu physique (seul champ obligatoire),
+// `metroAcces`/`instructions` sont des compléments optionnels — voir lieuService.creerLieu.
 const creationLieuSchema = z.object({
-  libelle: z.string().trim().min(1),
+  adresse: z.string().trim().min(1),
+  metroAcces: z.string().trim().optional(),
+  instructions: z.string().trim().optional(),
 });
 
-// POST /api/lieux — crée un lieu pour l'entité courante et le renvoie ({ id, code, libelle,
-// actif }), utilisé par ModalePlanificationTest.jsx pour l'ajouter et le sélectionner
-// immédiatement sans recharger la liste.
+// POST /api/lieux — crée un lieu pour l'entité courante et le renvoie ({ id, code, adresse,
+// metro_acces, instructions, actif }), utilisé par ModalePlanificationTest.jsx pour l'ajouter et
+// le sélectionner immédiatement sans recharger la liste.
 router.post('/', async (req, res, next) => {
   try {
-    const { libelle } = creationLieuSchema.parse(req.body);
-    const lieu = await lieuService.creerLieu(req.entite, { libelle });
+    const { adresse, metroAcces, instructions } = creationLieuSchema.parse(req.body);
+    const lieu = await lieuService.creerLieu(req.entite, { adresse, metroAcces, instructions });
     res.status(201).json(lieu);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {
@@ -54,21 +58,23 @@ router.post('/', async (req, res, next) => {
 
 const idPositifSchema = z.coerce.number().int().positive();
 
-// Même schéma que la création (seul champ modifiable) — voir lieuService.modifierLieu.
+// Même schéma que la création (mêmes champs modifiables) — voir lieuService.modifierLieu.
 const modificationLieuSchema = z.object({
-  libelle: z.string().trim().min(1),
+  adresse: z.string().trim().min(1),
+  metroAcces: z.string().trim().optional(),
+  instructions: z.string().trim().optional(),
 });
 
-// PATCH /api/lieux/:lieuId — modifie le libellé d'un lieu existant de l'entité courante et le
-// renvoie ({ id, code, libelle, actif }), utilisé par le bouton crayon de
+// PATCH /api/lieux/:lieuId — modifie un lieu existant de l'entité courante et le renvoie ({ id,
+// code, adresse, metro_acces, instructions, actif }), utilisé par le bouton crayon de
 // ModalePlanificationTest.jsx pour l'appliquer et le refléter immédiatement dans le sélecteur sans
 // recharger la liste. 404 si le lieu n'existe pas ou appartient à une autre entité (voir
 // lieuService.ErreurLieuIntrouvable, même IDOR-guard que le reste de lieuRepository.js).
 router.patch('/:lieuId', async (req, res, next) => {
   try {
     const lieuId = idPositifSchema.parse(req.params.lieuId);
-    const { libelle } = modificationLieuSchema.parse(req.body);
-    const lieu = await lieuService.modifierLieu(req.entite, lieuId, { libelle });
+    const { adresse, metroAcces, instructions } = modificationLieuSchema.parse(req.body);
+    const lieu = await lieuService.modifierLieu(req.entite, lieuId, { adresse, metroAcces, instructions });
     res.json(lieu);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {
@@ -129,11 +135,19 @@ router.delete('/:lieuId', async (req, res, next) => {
         action: 'rendezvous_migration_masse',
         tableCible: 'rendezvous',
         cibleId: resultat.lieuDestination.id,
+        // Champs séparés depuis la migration 047 (remplace le "Libelle" combiné) — cohérent avec
+        // la traçabilité RGPD déjà en place ailleurs (qui/quoi/quand) : conserve la même
+        // granularité que les colonnes réellement modifiées, plutôt qu'une chaîne reconstruite qui
+        // masquerait quel champ précis a changé.
         donnees: {
           lieuOrigineId: lieuId,
-          lieuOrigineLibelle: resultat.lieu.libelle,
+          lieuOrigineAdresse: resultat.lieu.adresse,
+          lieuOrigineMetroAcces: resultat.lieu.metro_acces,
+          lieuOrigineInstructions: resultat.lieu.instructions,
           lieuDestinationId: resultat.lieuDestination.id,
-          lieuDestinationLibelle: resultat.lieuDestination.libelle,
+          lieuDestinationAdresse: resultat.lieuDestination.adresse,
+          lieuDestinationMetroAcces: resultat.lieuDestination.metro_acces,
+          lieuDestinationInstructions: resultat.lieuDestination.instructions,
           rendezvousMigres: resultat.rendezvousAssocies,
           notifications: resultat.notifications,
         },
@@ -147,7 +161,9 @@ router.delete('/:lieuId', async (req, res, next) => {
       tableCible: 'lieux',
       cibleId: lieuId,
       donnees: {
-        libelle: resultat.lieu.libelle,
+        adresse: resultat.lieu.adresse,
+        metroAcces: resultat.lieu.metro_acces,
+        instructions: resultat.lieu.instructions,
         migreVersLieuId: resultat.lieuDestination?.id ?? null,
         rendezvousMigres: resultat.rendezvousMigres,
       },

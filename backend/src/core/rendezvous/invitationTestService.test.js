@@ -17,12 +17,20 @@ const allMySmsProvider = require('../../integrations/notifications/allMySmsProvi
 const graphMailProvider = require('../../integrations/notifications/graphMailProvider');
 const invitationTestService = require('./invitationTestService');
 
+// RFC 5545 replie toute ligne dépassant 75 octets sur une ligne suivante commençant par une
+// espace/tabulation (voir generateurIcs.test.js) — sans ce dépliage, un .includes() sur une ligne
+// longue (LOCATION avec metroAcces, voir ci-dessous) pourrait couper au milieu du texte attendu.
+function deplierIcs(ics) {
+  return ics.replace(/\r\n[ \t]/g, '');
+}
+
 const ENTITE_SMS_ACTIF = { id: 1, code: 'accecit', sms_actif: true };
 const ENTITE_SMS_INACTIF = { id: 1, code: 'accecit', sms_actif: false };
 
 const RENDEZVOUS = { id: 55, dossier_id: 42, date_heure: '2099-01-01T10:00:00.000Z' };
 const RENDEZVOUS_AVEC_FORMATEUR = { ...RENDEZVOUS, formateur_id: 7 };
 const RENDEZVOUS_AVEC_LIEU = { ...RENDEZVOUS, lieu_id: 3 };
+const RENDEZVOUS_AVEC_FORMATEUR_ET_LIEU = { ...RENDEZVOUS, formateur_id: 7, lieu_id: 3 };
 
 function mockerKnex(t) {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
@@ -197,7 +205,7 @@ test("envoyerInvitationTest ne recherche aucun formateur quand rendezvous.format
   assert.equal(trouverUtilisateurMock.mock.calls.length, 0);
 });
 
-test("envoyerInvitationTest résout rendezvous.lieu_id en libellé une seule fois, réutilisé pour l'.ics et le SMS", async (t) => {
+test("envoyerInvitationTest résout rendezvous.lieu_id en champs structurés (adresse/metroAcces/instructions, migration 047) une seule fois, réutilisés pour l'.ics/le SMS (adresse+metroAcces) et l'email (les trois)", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
     email: 'sophie.martin@exemple.test',
@@ -206,7 +214,9 @@ test("envoyerInvitationTest résout rendezvous.lieu_id en libellé une seule foi
   const trouverLieuMock = t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({
     id: 3,
     code: 'hotel_du_cadran',
-    libelle: 'Hôtel du Cadran — 14 rue de Valadon, 75007 Paris',
+    adresse: 'Hôtel du Cadran — 14 rue de Valadon, 75007 Paris',
+    metro_acces: 'Métro Ecole Militaire - Ligne 8',
+    instructions: "Munissez-vous de votre pièce d'identité originale.",
   }));
   const { mailMock, smsMock } = mockerProviders(t);
 
@@ -216,10 +226,52 @@ test("envoyerInvitationTest résout rendezvous.lieu_id en libellé une seule foi
   assert.equal(trouverLieuMock.mock.calls.length, 1);
   assert.deepEqual(trouverLieuMock.mock.calls[0].arguments.slice(1), [ENTITE_SMS_ACTIF.id, 3]);
 
-  const contenuIcs = mailMock.mock.calls[0].arguments[3].piecesJointes[0].contenu.toString('utf8');
-  assert.ok(contenuIcs.includes('LOCATION:Hôtel du Cadran — 14 rue de Valadon\\, 75007 Paris'));
+  // .ics et SMS : adresse + metroAcces uniquement (jamais instructions, voir
+  // generateurIcs.composerAdresseCourte).
+  const contenuIcs = deplierIcs(mailMock.mock.calls[0].arguments[3].piecesJointes[0].contenu.toString('utf8'));
+  assert.ok(contenuIcs.includes('LOCATION:Hôtel du Cadran — 14 rue de Valadon\\, 75007 Paris (Métro Ecole Militaire - Ligne 8)'));
+  assert.ok(!contenuIcs.includes("pièce d'identité"));
 
-  assert.ok(smsMock.mock.calls[0].arguments[2].includes('Hôtel du Cadran — 14 rue de Valadon, 75007 Paris'));
+  assert.ok(smsMock.mock.calls[0].arguments[2].includes('Hôtel du Cadran — 14 rue de Valadon, 75007 Paris (Métro Ecole Militaire - Ligne 8)'));
+
+  // Email HTML : seul canal à inclure aussi les instructions (voir formatageEmail.formaterLignesLieuHtml).
+  const corpsEmail = mailMock.mock.calls[0].arguments[2];
+  assert.ok(corpsEmail.includes('Métro Ecole Militaire - Ligne 8'));
+  assert.ok(corpsEmail.includes("Munissez-vous de votre pièce d&#39;identité originale."));
+});
+
+test("envoyerInvitationTest inclut les instructions dans l'email candidat mais PAS dans l'email formateur (consignes d'accueil sans objet pour le personnel)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({
+    id: 3,
+    code: 'hotel_du_cadran',
+    adresse: 'Hôtel du Cadran — 14 rue de Valadon, 75007 Paris',
+    metro_acces: 'Métro Ecole Militaire - Ligne 8',
+    instructions: "Munissez-vous de votre pièce d'identité originale.",
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR_ET_LIEU);
+
+  assert.equal(mailMock.mock.calls.length, 2);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(corpsCandidat.includes('Métro Ecole Militaire - Ligne 8'));
+  assert.ok(corpsCandidat.includes("Munissez-vous de votre pièce d&#39;identité originale."));
+
+  const corpsFormateur = mailMock.mock.calls[1].arguments[2];
+  assert.ok(corpsFormateur.includes('Métro Ecole Militaire - Ligne 8'));
+  assert.ok(!corpsFormateur.includes('identité'));
 });
 
 test("envoyerInvitationTest retombe sur LIEU_TEST_ACCECIT quand rendezvous.lieu_id est absent", async (t) => {

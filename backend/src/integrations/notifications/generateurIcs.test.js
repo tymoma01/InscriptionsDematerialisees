@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { genererIcsInvitationTest, LIEU_TEST_ACCECIT } = require('./generateurIcs');
+const { genererIcsInvitationTest, composerAdresseCourte, LIEU_TEST_ACCECIT } = require('./generateurIcs');
 
 const INFOS_BASE = {
   dateHeure: '2099-06-15T09:00:00.000Z',
@@ -24,6 +24,31 @@ test('genererIcsInvitationTest ne pose aucun ATTENDEE sans email connu', () => {
   assert.ok(ics.includes('SUMMARY:Test ACCECIT'));
   assert.ok(ics.includes(`LOCATION:${LIEU_TEST_ACCECIT.replace(',', '\\,')}`));
   assert.ok(!ics.includes('ATTENDEE'));
+});
+
+// composerAdresseCourte (voir generateurIcs.js) : réutilisée pour `location` ci-dessous ET pour le
+// SMS (invitationTestService.js/notificationChangementLieuService.js) — jamais `instructions`,
+// réservé à l'email HTML (formatageEmail.formaterLignesLieuHtml).
+test("composerAdresseCourte compose 'adresse (metroAcces)' quand l'accès est renseigné, l'adresse seule sinon", () => {
+  assert.equal(
+    composerAdresseCourte({ adresse: 'Hôtel du Cadran - 14 Rue de Valadon, 75007 Paris', metroAcces: 'Métro Ecole Militaire - Ligne 8' }),
+    'Hôtel du Cadran - 14 Rue de Valadon, 75007 Paris (Métro Ecole Militaire - Ligne 8)',
+  );
+  assert.equal(composerAdresseCourte({ adresse: 'Bureau ACCECIT' }), 'Bureau ACCECIT');
+});
+
+test("genererIcsInvitationTest pose LOCATION avec l'adresse et le métro/accès du lieu structuré (champs lieuAdresse/lieuMetroAcces), jamais les instructions", () => {
+  const ics = deplierIcs(
+    genererIcsInvitationTest({
+      ...INFOS_BASE,
+      lieuAdresse: 'Hôtel du Cadran - 14 Rue de Valadon, 75007 Paris',
+      lieuMetroAcces: 'Métro Ecole Militaire - Ligne 8',
+      lieuInstructions: "Munissez-vous de votre pièce d'identité originale.",
+    }),
+  );
+
+  assert.ok(ics.includes('LOCATION:Hôtel du Cadran - 14 Rue de Valadon\\, 75007 Paris (Métro Ecole Militaire - Ligne 8)'));
+  assert.ok(!ics.includes("pièce d'identité"));
 });
 
 // DTSTART doit porter le suffixe Z (instant UTC absolu), jamais une heure "flottante" sans fuseau
@@ -103,7 +128,7 @@ test("genererIcsInvitationTest génère un UID aléatoire et omet SEQUENCE quand
 // événement plutôt que d'importer un second événement en doublon (voir RFC 5545).
 test('genererIcsInvitationTest dérive un UID stable de rendezvousId, identique à chaque appel pour le même rendez-vous', () => {
   const ics1 = genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 55 });
-  const ics2 = genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 55, lieu: 'Une autre adresse' });
+  const ics2 = genererIcsInvitationTest({ ...INFOS_BASE, rendezvousId: 55, lieuAdresse: 'Une autre adresse' });
 
   const uid1 = ics1.match(/UID:(\S+)/)[1];
   const uid2 = ics2.match(/UID:(\S+)/)[1];

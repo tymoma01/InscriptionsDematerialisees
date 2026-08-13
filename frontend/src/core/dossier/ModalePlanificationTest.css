@@ -213,8 +213,13 @@
 /* Formulaire inline de création de lieu — même traitement bordure/rayon que
    .modale-planification-test__champ-lieu (cohérence visuelle : un sous-cadre à l'intérieur du
    cadre "Lieu"), sous la ligne select + "+" plutôt qu'une sous-modale superposée (décision
-   produit : rester dans le flux de la modale de planification déjà ouverte). */
+   produit : rester dans le flux de la modale de planification déjà ouverte). display: flex/column
+   + gap (migration 047, 3 champs Adresse/Métro-Accès/Instructions empilés au lieu d'un seul) :
+   sans ça, les <label> successifs se retrouveraient collés les uns aux autres. */
 .modale-planification-test__ajout-lieu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
   margin-top: var(--espace-petit);
   padding: var(--espace-petit);
   border: 1px dashed var(--couleur-bordure);

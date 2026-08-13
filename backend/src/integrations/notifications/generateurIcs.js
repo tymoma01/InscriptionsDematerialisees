@@ -11,6 +11,16 @@ const DUREE_TEST_MINUTES = 60;
 // Adaptel a un jour besoin d'une adresse différente pour ses propres tests.
 const LIEU_TEST_ACCECIT = '47 avenue Paul Vaillant Couturier, 94250 Gentilly';
 
+// Compose "adresse (metroAcces)" quand l'accès est renseigné, l'adresse seule sinon — réutilisée
+// pour `location` ci-dessous ET pour le SMS (invitationTestService.js/
+// notificationChangementLieuService.js, voir construireMessageSms) : SMS et .ics restent
+// volontairement plus courts que l'email, qui seul inclut aussi `instructions` (voir
+// formatageEmail.formaterLignesLieuHtml) — arbitrage acté lors du passage aux champs structurés
+// (migration 047, audit du 2026-08-13).
+function composerAdresseCourte({ adresse, metroAcces }) {
+  return metroAcces ? `${adresse} (${metroAcces})` : adresse;
+}
+
 // Décompose une date en ses composants UTC (année, mois, jour, heure, minute) — la version
 // précédente décomposait en composants Europe/Paris "muets" (startOutputType: 'local'), ce qui
 // produit en ICS une heure dite "flottante" (DTSTART:20990615T110000, SANS suffixe Z ni TZID —
@@ -43,11 +53,14 @@ function composantsDateUtc(date) {
 // ne les fournit alors simplement pas, cette fonction n'a besoin d'aucune logique conditionnelle
 // supplémentaire pour ce cas.
 //
-// lieu : libellé du lieu réellement choisi sur le rendez-vous (`rendezvous.lieu_id`, table
-// `lieux`, migrations 044/045) — résolu une seule fois par l'appelant (voir
-// invitationTestService.js) et transmis tel quel ici. Repli défensif sur LIEU_TEST_ACCECIT si
-// absent : ce générateur reste utilisable seul (voir generateurIcs.test.js), sans dépendre de ce
-// que fait précisément son unique appelant actuel.
+// lieuAdresse/lieuMetroAcces : champs structurés du lieu réellement choisi sur le rendez-vous
+// (`rendezvous.lieu_id`, table `lieux`, migrations 044/045/047) — résolus une seule fois par
+// l'appelant (voir invitationTestService.js) et transmis tels quels ici. `instructions` n'est
+// volontairement PAS repris dans `location` (arbitrage : SMS/.ics limités à adresse+metroAcces,
+// voir composerAdresseCourte ci-dessus — seul l'email HTML inclut aussi les instructions). Repli
+// défensif sur LIEU_TEST_ACCECIT si `lieuAdresse` absent : ce générateur reste utilisable seul
+// (voir generateurIcs.test.js), sans dépendre de ce que fait précisément son unique appelant
+// actuel.
 //
 // rendezvousId : sert à dériver un UID iCalendar STABLE (RFC 5545 — un événement se met à jour
 // dans le calendrier du destinataire uniquement si le second .ics envoyé porte le MÊME UID que le
@@ -71,7 +84,8 @@ function genererIcsInvitationTest({
   formateurNom,
   formateurPrenom,
   formateurEmail,
-  lieu,
+  lieuAdresse,
+  lieuMetroAcces,
   rendezvousId,
   sequence,
 }) {
@@ -119,7 +133,7 @@ function genererIcsInvitationTest({
     duration: { minutes: DUREE_TEST_MINUTES },
     title: 'Test ACCECIT',
     description: `Convocation au test ACCECIT pour ${candidatPrenom} ${candidatNom}.`,
-    location: lieu ?? LIEU_TEST_ACCECIT,
+    location: composerAdresseCourte({ adresse: lieuAdresse ?? LIEU_TEST_ACCECIT, metroAcces: lieuMetroAcces }),
     status: 'CONFIRMED',
     ...optionsRendezvous,
     // Pas d'email ORGANIZER : aucune adresse d'expédition ACCECIT n'est à ce jour documentée nulle
@@ -141,4 +155,4 @@ function genererIcsInvitationTest({
   return value;
 }
 
-module.exports = { genererIcsInvitationTest, DUREE_TEST_MINUTES, LIEU_TEST_ACCECIT };
+module.exports = { genererIcsInvitationTest, composerAdresseCourte, DUREE_TEST_MINUTES, LIEU_TEST_ACCECIT };

@@ -9,19 +9,20 @@ export async function listerLieux() {
 }
 
 // Création à la volée (bouton "+" à côté du sélecteur de lieu, ModalePlanificationTest.jsx) —
-// `libelle` porte l'adresse en texte libre, pas de champ adresse séparé (voir lieuService.js
-// côté back, table `lieux` sans colonne dédiée). Renvoie le lieu créé ({ id, code, libelle,
-// actif }) pour que l'appelant l'ajoute à sa liste locale et le présélectionne sans refetch.
-export async function creerLieu({ libelle }) {
-  const { data } = await api.post('/lieux', { libelle });
+// trois champs structurés depuis la migration 047 (remplace l'ancien `libelle` texte libre unique,
+// voir audit du 2026-08-13) : `adresse` (obligatoire), `metroAcces`/`instructions` (optionnels).
+// Renvoie le lieu créé ({ id, code, adresse, metro_acces, instructions, actif }) pour que
+// l'appelant l'ajoute à sa liste locale et le présélectionne sans refetch.
+export async function creerLieu({ adresse, metroAcces, instructions }) {
+  const { data } = await api.post('/lieux', { adresse, metroAcces, instructions });
   return data;
 }
 
 // Modification à la volée (bouton crayon à côté du sélecteur de lieu, ModalePlanificationTest.jsx)
 // — même forme de réponse que creerLieu ci-dessus, pour que l'appelant mette à jour sa liste
 // locale sans refetch.
-export async function modifierLieu(lieuId, { libelle }) {
-  const { data } = await api.patch(`/lieux/${lieuId}`, { libelle });
+export async function modifierLieu(lieuId, { adresse, metroAcces, instructions }) {
+  const { data } = await api.patch(`/lieux/${lieuId}`, { adresse, metroAcces, instructions });
   return data;
 }
 

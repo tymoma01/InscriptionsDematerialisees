@@ -9,6 +9,13 @@ const allMySmsProvider = require('../../integrations/notifications/allMySmsProvi
 const graphMailProvider = require('../../integrations/notifications/graphMailProvider');
 const notificationChangementLieuService = require('./notificationChangementLieuService');
 
+// RFC 5545 replie toute ligne dépassant 75 octets sur une ligne suivante commençant par une
+// espace/tabulation (voir generateurIcs.test.js) — sans ce dépliage, un .includes() sur une ligne
+// longue (LOCATION avec metroAcces, voir plus bas) pourrait couper au milieu du texte attendu.
+function deplierIcs(ics) {
+  return ics.replace(/\r\n[ \t]/g, '');
+}
+
 const ENTITE_SMS_ACTIF = { id: 1, code: 'accecit', sms_actif: true };
 const ENTITE_SMS_INACTIF = { id: 1, code: 'accecit', sms_actif: false };
 
@@ -20,6 +27,10 @@ const RENDEZVOUS = {
   candidat_prenom: 'Sophie',
   donnees_coordonnees: { email: 'sophie.martin@exemple.test', telephone: '0601020304' },
 };
+
+// Objet structuré depuis la migration 047 (remplace l'ancien libelle string unique, voir audit du
+// 2026-08-13) — troisième argument de envoyerNotificationChangementLieu.
+const NOUVEAU_LIEU = { adresse: 'Salle Annexe - 3 rue des Tests, 75001 Paris' };
 
 function mockerProviders(t, { email = async () => {}, sms = async () => {} } = {}) {
   return {
@@ -34,7 +45,7 @@ test("envoyerNotificationChangementLieu n'envoie rien si sms_actif est faux pour
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_INACTIF,
     RENDEZVOUS,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: false, formateurEmailEnvoye: false, desactive: true });
@@ -48,7 +59,7 @@ test('envoyerNotificationChangementLieu envoie un email et un SMS mentionnant la
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     RENDEZVOUS,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: true, formateurEmailEnvoye: false });
@@ -85,6 +96,55 @@ test('envoyerNotificationChangementLieu envoie un email et un SMS mentionnant la
   assert.ok(contenuIcs.includes('SEQUENCE:1'));
 });
 
+test("envoyerNotificationChangementLieu limite le SMS/.ics à adresse+metroAcces, et n'inclut les instructions que dans l'email HTML", async (t) => {
+  const { mailMock, smsMock } = mockerProviders(t);
+
+  const nouveauLieuAvecAcces = {
+    adresse: 'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    metroAcces: 'Métro Corentin Celton',
+    instructions: 'Sonnez à « Annexe ACCECIT ».',
+  };
+  await notificationChangementLieuService.envoyerNotificationChangementLieu(ENTITE_SMS_ACTIF, RENDEZVOUS, nouveauLieuAvecAcces);
+
+  const appelSms = smsMock.mock.calls[0];
+  assert.ok(appelSms.arguments[2].includes('Salle Annexe - 3 rue des Tests, 75001 Paris (Métro Corentin Celton)'));
+  assert.ok(!appelSms.arguments[2].includes('Annexe ACCECIT'));
+
+  const contenuIcs = deplierIcs(mailMock.mock.calls[0].arguments[3].piecesJointes[0].contenu.toString('utf8'));
+  assert.ok(contenuIcs.includes('Corentin Celton'));
+  assert.ok(!contenuIcs.includes('Annexe ACCECIT'));
+
+  const corpsEmail = mailMock.mock.calls[0].arguments[2];
+  assert.ok(corpsEmail.includes('Métro Corentin Celton'));
+  assert.ok(corpsEmail.includes('Sonnez à'));
+});
+
+test("envoyerNotificationChangementLieu inclut les instructions dans l'email candidat mais PAS dans l'email formateur (consignes d'accueil sans objet pour le personnel)", async (t) => {
+  const { mailMock } = mockerProviders(t);
+
+  const rendezvousAvecFormateur = {
+    ...RENDEZVOUS,
+    formateur_nom: 'Dupont',
+    formateur_prenom: 'Marc',
+    formateur_email: 'marc.dupont@exemple.test',
+  };
+  const nouveauLieuAvecAcces = {
+    adresse: 'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    metroAcces: 'Métro Corentin Celton',
+    instructions: 'Sonnez à « Annexe ACCECIT ».',
+  };
+  await notificationChangementLieuService.envoyerNotificationChangementLieu(ENTITE_SMS_ACTIF, rendezvousAvecFormateur, nouveauLieuAvecAcces);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(corpsCandidat.includes('Métro Corentin Celton'));
+  assert.ok(corpsCandidat.includes('Sonnez à'));
+
+  const corpsFormateur = mailMock.mock.calls[1].arguments[2];
+  assert.ok(corpsFormateur.includes('Métro Corentin Celton'));
+  assert.ok(!corpsFormateur.includes('Sonnez'));
+  assert.ok(!corpsFormateur.includes('Annexe ACCECIT'));
+});
+
 test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comme participant de l'.ics et lui envoie sa propre notification, comme la convocation initiale", async (t) => {
   const { mailMock } = mockerProviders(t);
 
@@ -97,7 +157,7 @@ test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comm
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     rendezvousAvecFormateur,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.equal(resultat.formateurEmailEnvoye, true);
@@ -125,7 +185,7 @@ test("envoyerNotificationChangementLieu ignore la notification formateur quand l
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     rendezvousFormateurSansEmail,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.equal(resultat.formateurEmailEnvoye, false);
@@ -152,7 +212,7 @@ test("envoyerNotificationChangementLieu n'échoue pas si l'envoi de l'email form
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     rendezvousAvecFormateur,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.equal(resultat.emailEnvoye, true);
@@ -173,7 +233,7 @@ test("envoyerNotificationChangementLieu n'échoue pas et envoie quand même l'em
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     RENDEZVOUS,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });
@@ -189,7 +249,7 @@ test("envoyerNotificationChangementLieu tente quand même le SMS si l'email éch
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     RENDEZVOUS,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: true, formateurEmailEnvoye: false });
@@ -202,7 +262,7 @@ test('envoyerNotificationChangementLieu ignore un canal sans coordonnée sans fa
   const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     rendezvousSansTelephone,
-    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+    NOUVEAU_LIEU,
   );
 
   assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });

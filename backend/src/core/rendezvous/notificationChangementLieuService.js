@@ -11,7 +11,7 @@
 // alors à jour l'événement existant du candidat plutôt que d'en créer un second en doublon.
 
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
-const { genererIcsInvitationTest } = require('../../integrations/notifications/generateurIcs');
+const { genererIcsInvitationTest, composerAdresseCourte } = require('../../integrations/notifications/generateurIcs');
 const { echapperHtml, formaterLignesLieuHtml } = require('../../integrations/notifications/formatageEmail');
 
 // Toujours 1 ici : ce service ne gère qu'UN SEUL changement de lieu par rendez-vous (pas de
@@ -26,26 +26,29 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
 });
 
-function construireMessageSms({ candidatPrenom, dateHeure, nouveauLieu }) {
+// adresse + metroAcces uniquement (pas `instructions`, voir formaterLignesLieuHtml ci-dessous) —
+// même arbitrage que invitationTestService.construireMessageSms.
+function construireMessageSms({ candidatPrenom, dateHeure, nouveauLieuAdresse, nouveauLieuMetroAcces }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
+  const nouveauLieu = composerAdresseCourte({ adresse: nouveauLieuAdresse, metroAcces: nouveauLieuMetroAcces });
   return `Bonjour ${candidatPrenom}, le lieu de votre test ACCECIT prévu le ${date} a changé : nouvelle adresse au ${nouveauLieu}. À bientôt !`;
 }
 
 // Corps HTML (voir graphMailProvider.js, options.html) — même principe que
 // invitationTestService.construireMessageEmail : <p>/<br> explicites (un \n littéral serait
-// ignoré par un client mail en HTML), et formaterLignesLieuHtml éclate `nouveauLieu` (adresse +
-// éventuels compléments séparés par " | " dans lieux.libelle) sur autant de lignes. Même ton/
-// structure que construireMessageEmail (invitationTestService.js) — salutation, paragraphe
+// ignoré par un client mail en HTML), et formaterLignesLieuHtml affiche les champs structurés du
+// nouveau lieu (adresse/metroAcces/instructions, migration 047) chacun sur sa propre ligne. Même
+// ton/structure que construireMessageEmail (invitationTestService.js) — salutation, paragraphe
 // factuel, formule de clôture identique — pour rester cohérent aux yeux d'un candidat qui aurait
 // déjà reçu la convocation initiale.
-function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, nouveauLieu }) {
+function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, nouveauLieuAdresse, nouveauLieuMetroAcces, nouveauLieuInstructions }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Changement de lieu pour votre test ACCECIT',
     corps:
       `<p>Bonjour ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)},</p>` +
       `<p>Le lieu de votre test prévu le ${echapperHtml(date)} a changé. Il se déroulera désormais :</p>` +
-      `<p>${formaterLignesLieuHtml(nouveauLieu)}</p>` +
+      `<p>${formaterLignesLieuHtml({ adresse: nouveauLieuAdresse, metroAcces: nouveauLieuMetroAcces, instructions: nouveauLieuInstructions })}</p>` +
       "<p>Merci de noter ce changement d'adresse.</p>" +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
@@ -54,14 +57,17 @@ function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, nouvea
 // Même contenu role-neutre que invitationTestService.construireMessageEmailFormateur (le
 // destinataire peut être un formateur hôtel ou un inspecteur bureau, voir rendezvous.formateur_id,
 // migration 018) — adapté au cas "changement de lieu" plutôt que "convocation initiale".
-function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, nouveauLieu }) {
+// `instructions` volontairement exclu (voir formatageEmail.formaterLignesLieuHtml,
+// inclureInstructions: false) : consignes d'accueil destinées au candidat, sans objet pour le
+// formateur/inspecteur — même arbitrage que construireMessageEmailFormateur (invitationTestService.js).
+function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, nouveauLieuAdresse, nouveauLieuMetroAcces }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Changement de lieu pour un test à évaluer',
     corps:
       `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
       `<p>Le lieu du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)}, a changé. Il se déroulera désormais :</p>` +
-      `<p>${formaterLignesLieuHtml(nouveauLieu)}</p>` +
+      `<p>${formaterLignesLieuHtml({ adresse: nouveauLieuAdresse, metroAcces: nouveauLieuMetroAcces }, { inclureInstructions: false })}</p>` +
       "<p>Merci de noter ce changement d'adresse.</p>" +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
@@ -70,13 +76,14 @@ function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, cand
 // `rendezvous` attendu ici est déjà enrichi de candidat_nom/candidat_prenom/donnees_coordonnees
 // (voir rendezvousRepository.listerRendezvousParLieu) — pas de requête supplémentaire ici,
 // contrairement à envoyerInvitationTest qui part d'un rendez-vous "nu" (créé à l'instant, sans
-// jointure préalable). `nouveauLieuLibelle` transmis tel quel par l'appelant (lieuService.
-// supprimerLieu connaît déjà le lieu de destination, pas la peine de le re-résoudre ici).
+// jointure préalable). `nouveauLieu` (objet { adresse, metroAcces, instructions }, migration 047)
+// transmis tel quel par l'appelant (lieuService.supprimerLieu connaît déjà le lieu de destination,
+// pas la peine de le re-résoudre ici).
 //
 // Gate sur entite.sms_actif : même convention que invitationTestService.js/rappelService.js/
 // relanceService.js — c'est l'interrupteur général notifications de l'entité, pas un réglage
 // spécifique au SMS malgré son nom (voir CLAUDE.md §3.3, config/env.js).
-async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieuLibelle) {
+async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu) {
   if (!entite.sms_actif) {
     return { emailEnvoye: false, smsEnvoye: false, formateurEmailEnvoye: false, desactive: true };
   }
@@ -86,7 +93,9 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
     candidatNom: rendezvous.candidat_nom,
     candidatPrenom: rendezvous.candidat_prenom,
     dateHeure: rendezvous.date_heure,
-    nouveauLieu: nouveauLieuLibelle,
+    nouveauLieuAdresse: nouveauLieu.adresse,
+    nouveauLieuMetroAcces: nouveauLieu.metroAcces,
+    nouveauLieuInstructions: nouveauLieu.instructions,
   };
 
   const notificationProvider = notificationFactory();
@@ -101,8 +110,9 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
     try {
       const { sujet, corps } = construireMessageEmail(infos);
       // Même générateur que la convocation initiale (invitationTestService.js) — date/heure et
-      // participants (candidat + formateur/inspecteur assigné, si déjà connu) inchangés, seul
-      // `lieu` reflète la nouvelle adresse. rendezvousId+sequence : voir SEQUENCE_CHANGEMENT_LIEU
+      // participants (candidat + formateur/inspecteur assigné, si déjà connu) inchangés, seul le
+      // lieu reflète la nouvelle adresse (adresse+metroAcces, pas instructions — voir
+      // generateurIcs.composerAdresseCourte). rendezvousId+sequence : voir SEQUENCE_CHANGEMENT_LIEU
       // et generateurIcs.js pour le rôle exact de ces deux champs (mise à jour du même événement
       // calendrier plutôt qu'un doublon).
       const contenuIcs = genererIcsInvitationTest({
@@ -113,7 +123,8 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
         formateurNom: rendezvous.formateur_nom,
         formateurPrenom: rendezvous.formateur_prenom,
         formateurEmail: rendezvous.formateur_email,
-        lieu: nouveauLieuLibelle,
+        lieuAdresse: nouveauLieu.adresse,
+        lieuMetroAcces: nouveauLieu.metroAcces,
         rendezvousId: rendezvous.id,
         sequence: SEQUENCE_CHANGEMENT_LIEU,
       });
