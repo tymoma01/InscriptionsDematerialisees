@@ -46,7 +46,7 @@ test("envoyerInvitationTest n'envoie rien si sms_actif est faux pour l'entité",
 
   const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_INACTIF, RENDEZVOUS);
 
-  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: false, desactive: true });
+  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: false, formateurEmailEnvoye: false, desactive: true });
   assert.equal(mailMock.mock.calls.length, 0);
   assert.equal(smsMock.mock.calls.length, 0);
 });
@@ -61,7 +61,7 @@ test('envoyerInvitationTest envoie un email avec .ics joint et un SMS quand emai
 
   const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS);
 
-  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: true });
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: true, formateurEmailEnvoye: false });
   assert.equal(mailMock.mock.calls.length, 1);
   assert.equal(smsMock.mock.calls.length, 1);
 
@@ -76,7 +76,7 @@ test('envoyerInvitationTest envoie un email avec .ics joint et un SMS quand emai
   assert.equal(appelSms.arguments[0], '0601020304');
 });
 
-test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participant de l'.ics quand rendezvous.formateur_id est renseigné", async (t) => {
+test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participant de l'.ics et lui envoie sa propre notification quand rendezvous.formateur_id est renseigné", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
     email: 'sophie.martin@exemple.test',
@@ -92,12 +92,93 @@ test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participa
 
   const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
 
-  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false });
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: true });
   assert.equal(trouverUtilisateurMock.mock.calls.length, 1);
   assert.deepEqual(trouverUtilisateurMock.mock.calls[0].arguments.slice(1), [ENTITE_SMS_ACTIF.id, 7]);
 
+  assert.equal(mailMock.mock.calls.length, 2);
+
   const contenuIcs = mailMock.mock.calls[0].arguments[3].piecesJointes[0].contenu.toString('utf8');
   assert.ok(contenuIcs.includes('marc.dupont@exemple.test'));
+
+  const appelFormateur = mailMock.mock.calls[1];
+  assert.equal(appelFormateur.arguments[0], 'marc.dupont@exemple.test');
+  assert.equal(appelFormateur.arguments[3].sujet, 'Nouveau candidat à évaluer');
+  assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
+  assert.ok(appelFormateur.arguments[2].includes('Sophie Martin'));
+});
+
+test("envoyerInvitationTest notifie aussi bien un inspecteur (test bureau) qu'un formateur (test hôtel) — le service ne distingue pas le role_code, voir rendezvous.formateur_id : colonne unique partagée par les deux rôles (migration 018)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 9,
+    nom: 'Lefevre',
+    prenom: 'Julie',
+    email: 'julie.lefevre@exemple.test',
+    role_code: 'inspecteur',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: true });
+  assert.equal(mailMock.mock.calls.length, 2);
+
+  const appelInspecteur = mailMock.mock.calls[1];
+  assert.equal(appelInspecteur.arguments[0], 'julie.lefevre@exemple.test');
+  assert.ok(appelInspecteur.arguments[2].includes('Bonjour Julie'));
+});
+
+test("envoyerInvitationTest ignore la notification formateur quand le formateur assigné n'a pas d'email renseigné", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: null,
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });
+  assert.equal(mailMock.mock.calls.length, 1);
+});
+
+test("envoyerInvitationTest n'échoue pas si l'envoi de l'email formateur échoue", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  let appels = 0;
+  mockerProviders(t, {
+    email: async (destinataire) => {
+      appels += 1;
+      if (destinataire === 'marc.dupont@exemple.test') {
+        throw new Error('Microsoft Graph indisponible');
+      }
+    },
+  });
+
+  const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });
+  assert.equal(appels, 2);
 });
 
 test("envoyerInvitationTest ne recherche aucun formateur quand rendezvous.formateur_id est absent (rendez-vous pas encore assigné)", async (t) => {
@@ -168,7 +249,7 @@ test("envoyerInvitationTest ignore un canal sans coordonnée sans faire échouer
 
   const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS);
 
-  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false });
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });
   assert.equal(mailMock.mock.calls.length, 1);
   assert.equal(smsMock.mock.calls.length, 0);
 });
@@ -187,5 +268,5 @@ test("envoyerInvitationTest tente quand même le sms si l'envoi de l'email écho
 
   const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS);
 
-  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: true });
+  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: true, formateurEmailEnvoye: false });
 });

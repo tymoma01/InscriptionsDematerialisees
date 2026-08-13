@@ -37,7 +37,7 @@ test("envoyerNotificationChangementLieu n'envoie rien si sms_actif est faux pour
     'Salle Annexe - 3 rue des Tests, 75001 Paris',
   );
 
-  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: false, desactive: true });
+  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: false, formateurEmailEnvoye: false, desactive: true });
   assert.equal(mailMock.mock.calls.length, 0);
   assert.equal(smsMock.mock.calls.length, 0);
 });
@@ -51,7 +51,7 @@ test('envoyerNotificationChangementLieu envoie un email et un SMS mentionnant la
     'Salle Annexe - 3 rue des Tests, 75001 Paris',
   );
 
-  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: true });
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: true, formateurEmailEnvoye: false });
   assert.equal(mailMock.mock.calls.length, 1);
   assert.equal(smsMock.mock.calls.length, 1);
 
@@ -85,7 +85,7 @@ test('envoyerNotificationChangementLieu envoie un email et un SMS mentionnant la
   assert.ok(contenuIcs.includes('SEQUENCE:1'));
 });
 
-test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comme participant de l'.ics, comme la convocation initiale", async (t) => {
+test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comme participant de l'.ics et lui envoie sa propre notification, comme la convocation initiale", async (t) => {
   const { mailMock } = mockerProviders(t);
 
   const rendezvousAvecFormateur = {
@@ -94,14 +94,70 @@ test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comm
     formateur_prenom: 'Marc',
     formateur_email: 'marc.dupont@exemple.test',
   };
-  await notificationChangementLieuService.envoyerNotificationChangementLieu(
+  const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
     ENTITE_SMS_ACTIF,
     rendezvousAvecFormateur,
     'Salle Annexe - 3 rue des Tests, 75001 Paris',
   );
 
+  assert.equal(resultat.formateurEmailEnvoye, true);
+  assert.equal(mailMock.mock.calls.length, 2);
+
   const contenuIcs = mailMock.mock.calls[0].arguments[3].piecesJointes[0].contenu.toString('utf8');
   assert.ok(contenuIcs.includes('marc.dupont@exemple.test'));
+
+  const appelFormateur = mailMock.mock.calls[1];
+  assert.equal(appelFormateur.arguments[0], 'marc.dupont@exemple.test');
+  assert.equal(appelFormateur.arguments[3].sujet, 'Changement de lieu pour un test à évaluer');
+  assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
+  assert.ok(appelFormateur.arguments[2].includes('Salle Annexe - 3 rue des Tests, 75001 Paris'));
+});
+
+test("envoyerNotificationChangementLieu ignore la notification formateur quand le formateur assigné n'a pas d'email renseigné", async (t) => {
+  const { mailMock } = mockerProviders(t);
+
+  const rendezvousFormateurSansEmail = {
+    ...RENDEZVOUS,
+    formateur_nom: 'Dupont',
+    formateur_prenom: 'Marc',
+    formateur_email: null,
+  };
+  const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
+    ENTITE_SMS_ACTIF,
+    rendezvousFormateurSansEmail,
+    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+  );
+
+  assert.equal(resultat.formateurEmailEnvoye, false);
+  assert.equal(mailMock.mock.calls.length, 1);
+});
+
+test("envoyerNotificationChangementLieu n'échoue pas si l'envoi de l'email formateur échoue", async (t) => {
+  const rendezvousAvecFormateur = {
+    ...RENDEZVOUS,
+    formateur_nom: 'Dupont',
+    formateur_prenom: 'Marc',
+    formateur_email: 'marc.dupont@exemple.test',
+  };
+  let appels = 0;
+  mockerProviders(t, {
+    email: async (destinataire) => {
+      appels += 1;
+      if (destinataire === 'marc.dupont@exemple.test') {
+        throw new Error('Microsoft Graph indisponible');
+      }
+    },
+  });
+
+  const resultat = await notificationChangementLieuService.envoyerNotificationChangementLieu(
+    ENTITE_SMS_ACTIF,
+    rendezvousAvecFormateur,
+    'Salle Annexe - 3 rue des Tests, 75001 Paris',
+  );
+
+  assert.equal(resultat.emailEnvoye, true);
+  assert.equal(resultat.formateurEmailEnvoye, false);
+  assert.equal(appels, 2);
 });
 
 // Exigence explicite : les identifiants AllMySMS ne sont pas encore configurés dans ce projet —
@@ -120,7 +176,7 @@ test("envoyerNotificationChangementLieu n'échoue pas et envoie quand même l'em
     'Salle Annexe - 3 rue des Tests, 75001 Paris',
   );
 
-  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false });
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });
 });
 
 test("envoyerNotificationChangementLieu tente quand même le SMS si l'email échoue", async (t) => {
@@ -136,7 +192,7 @@ test("envoyerNotificationChangementLieu tente quand même le SMS si l'email éch
     'Salle Annexe - 3 rue des Tests, 75001 Paris',
   );
 
-  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: true });
+  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: true, formateurEmailEnvoye: false });
 });
 
 test('envoyerNotificationChangementLieu ignore un canal sans coordonnée sans faire échouer ni planter', async (t) => {
@@ -149,7 +205,7 @@ test('envoyerNotificationChangementLieu ignore un canal sans coordonnée sans fa
     'Salle Annexe - 3 rue des Tests, 75001 Paris',
   );
 
-  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false });
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: false, formateurEmailEnvoye: false });
   assert.equal(mailMock.mock.calls.length, 1);
   assert.equal(smsMock.mock.calls.length, 0);
 });

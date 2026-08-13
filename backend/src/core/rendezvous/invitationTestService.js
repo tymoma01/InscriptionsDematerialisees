@@ -4,6 +4,7 @@ const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
 const { genererIcsInvitationTest, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
+const { echapperHtml, formaterLignesLieuHtml } = require('../../integrations/notifications/formatageEmail');
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   dateStyle: 'long',
@@ -16,15 +17,33 @@ function construireMessageSms({ candidatPrenom, dateHeure, lieu }) {
   return `Bonjour ${candidatPrenom}, votre test ACCECIT est prévu le ${date}, au ${lieu}. À bientôt !`;
 }
 
+// Corps HTML (voir graphMailProvider.js, options.html) — un \n littéral serait ignoré par un
+// client mail en HTML, d'où <p>/<br> explicites plutôt que la ponctuation par \n utilisée pour le
+// SMS ci-dessus. formaterLignesLieuHtml éclate `lieu` (adresse + éventuels compléments — accès,
+// instructions — séparés par " | " dans lieux.libelle) sur autant de lignes, plutôt que de tout
+// concaténer sur une seule ligne difficile à lire.
 function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieu }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Convocation à votre test ACCECIT',
     corps:
-      `Bonjour ${candidatPrenom} ${candidatNom},\n\n` +
-      `Votre test est prévu le ${date}, au ${lieu}.\n\n` +
-      "Vous trouverez en pièce jointe une invitation à ajouter directement à votre calendrier (Outlook, Google Calendar...).\n\n" +
-      "À bientôt,\nL'équipe ACCECIT",
+      `<p>Bonjour ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)},</p>` +
+      `<p>Votre test est prévu le ${echapperHtml(date)}.</p>` +
+      `<p>${formaterLignesLieuHtml(lieu)}</p>` +
+      '<p>Vous trouverez en pièce jointe une invitation à ajouter directement à votre calendrier (Outlook, Google Calendar...).</p>' +
+      "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
+  };
+}
+
+function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, lieu }) {
+  const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
+  return {
+    sujet: 'Nouveau candidat à évaluer',
+    corps:
+      `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
+      `<p>Vous êtes assigné(e) à l'évaluation du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)}.</p>` +
+      `<p>${formaterLignesLieuHtml(lieu)}</p>` +
+      "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
 
@@ -40,7 +59,7 @@ function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieu }
 // l'API non vérifiée pour les pièces jointes, à confirmer avant la mise en production réelle).
 async function envoyerInvitationTest(entite, rendezvous) {
   if (!entite.sms_actif) {
-    return { emailEnvoye: false, smsEnvoye: false, desactive: true };
+    return { emailEnvoye: false, smsEnvoye: false, formateurEmailEnvoye: false, desactive: true };
   }
 
   const bd = await db.obtenirKnex();
@@ -92,6 +111,7 @@ async function envoyerInvitationTest(entite, rendezvous) {
       });
       await notificationProvider.envoyer(coordonnees.email, 'email', corps, {
         sujet,
+        html: true,
         piecesJointes: [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }],
       });
       emailEnvoye = true;
@@ -113,7 +133,25 @@ async function envoyerInvitationTest(entite, rendezvous) {
     console.error(`Invitation SMS ignorée pour le rendez-vous ${rendezvous.id} : pas de téléphone renseigné.`);
   }
 
-  return { emailEnvoye, smsEnvoye };
+  // Notification du formateur/inspecteur assigné (si déjà connu, voir formateur ci-dessus) —
+  // même best-effort indépendant que les blocs candidat au-dessus : un échec ici ne doit ni faire
+  // échouer la planification, ni empêcher les envois déjà tentés côté candidat.
+  let formateurEmailEnvoye = false;
+  if (formateur) {
+    if (formateur.email) {
+      try {
+        const { sujet, corps } = construireMessageEmailFormateur({ ...infos, formateurPrenom: formateur.prenom });
+        await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
+        formateurEmailEnvoye = true;
+      } catch (erreur) {
+        console.error(`Échec de l'envoi de l'email de notification formateur pour le rendez-vous ${rendezvous.id} :`, erreur.message);
+      }
+    } else {
+      console.error(`Notification formateur ignorée pour le rendez-vous ${rendezvous.id} : pas d'email renseigné pour le formateur.`);
+    }
+  }
+
+  return { emailEnvoye, smsEnvoye, formateurEmailEnvoye };
 }
 
 module.exports = { envoyerInvitationTest };

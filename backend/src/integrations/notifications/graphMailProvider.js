@@ -44,9 +44,12 @@ class GraphMailProvider extends NotificationProvider {
 
     const messageGraph = {
       subject: options.sujet ?? '',
-      // 'Text' et non 'HTML' : tous les corps d'email de ce projet (construireMessageEmail,
-      // construireMessageRelance...) sont du texte brut avec des \n littéraux, jamais du HTML.
-      body: { contentType: 'Text', content: message },
+      // 'Text' par défaut (comportement historique — relanceService.js/rappelService.js envoient
+      // du texte brut avec des \n littéraux, jamais interprétés en HTML) ; 'HTML' seulement si
+      // l'appelant le demande explicitement via options.html (voir invitationTestService.js/
+      // notificationChangementLieuService.js : un \n littéral est ignoré par un client mail en
+      // HTML, d'où le besoin de <br>/<p> explicites dans `message` dans ce cas).
+      body: { contentType: options.html ? 'HTML' : 'Text', content: message },
       toRecipients: [{ emailAddress: { address: destinataire } }],
     };
 

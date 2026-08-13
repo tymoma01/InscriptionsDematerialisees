@@ -79,6 +79,37 @@ test('envoyer construit un message Graph correct (sujet, corps texte, destinatai
   });
 });
 
+// options.html (voir invitationTestService.js/notificationChangementLieuService.js, mise en forme
+// avec retours à la ligne) : contentType doit basculer sur 'HTML', jamais rester 'Text' sinon les
+// <br>/<p> du corps s'afficheraient littéralement chez le destinataire plutôt que d'être rendus.
+test("envoyer avec options.html à true bascule contentType sur 'HTML'", async (t) => {
+  let corpsEnvoye;
+  const client = creerClientMock({
+    [`POST ${CHEMIN_SEND_MAIL}`]: { valeur: undefined, capture: (corps) => (corpsEnvoye = corps) },
+  });
+  const provider = chargerProviderAvecClient(t, client);
+
+  await provider.envoyer('candidat@exemple.test', 'email', '<p>Bonjour,</p><p>À bientôt.</p>', {
+    sujet: 'Convocation',
+    html: true,
+  });
+
+  assert.equal(corpsEnvoye.message.body.contentType, 'HTML');
+  assert.equal(corpsEnvoye.message.body.content, '<p>Bonjour,</p><p>À bientôt.</p>');
+});
+
+test('envoyer sans options.html reste en contentType Text (comportement historique rappelService.js/relanceService.js)', async (t) => {
+  let corpsEnvoye;
+  const client = creerClientMock({
+    [`POST ${CHEMIN_SEND_MAIL}`]: { valeur: undefined, capture: (corps) => (corpsEnvoye = corps) },
+  });
+  const provider = chargerProviderAvecClient(t, client);
+
+  await provider.envoyer('candidat@exemple.test', 'email', 'Contenu.');
+
+  assert.equal(corpsEnvoye.message.body.contentType, 'Text');
+});
+
 test('envoyer sans sujet fourni envoie une chaîne vide plutôt que undefined', async (t) => {
   let corpsEnvoye;
   const client = creerClientMock({

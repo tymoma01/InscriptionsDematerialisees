@@ -9,11 +9,14 @@ class NotificationProvider {
    * @param {string} destinataire — numéro de téléphone (canal 'sms') ou adresse email (canal 'email')
    * @param {'sms'|'email'} canal
    * @param {string} message
-   * @param {{ sujet?: string, piecesJointes?: Array<{ nom: string, contenu: Buffer, typeMime: string }> }} [options]
-   *   — sujet et piecesJointes n'ont de sens que pour le canal 'email' (ex. invitation au test
-   *   avec un fichier .ics joint, voir invitationTestService.js) ; une implémentation doit les
-   *   ignorer silencieusement pour le canal 'sms'. Paramètre optionnel : les appelants existants
-   *   (ex. rappelService.js) restent valides sans le fournir.
+   * @param {{ sujet?: string, piecesJointes?: Array<{ nom: string, contenu: Buffer, typeMime: string }>, html?: boolean }} [options]
+   *   — sujet, piecesJointes et html n'ont de sens que pour le canal 'email' (ex. invitation au
+   *   test avec un fichier .ics joint, voir invitationTestService.js) ; une implémentation doit
+   *   les ignorer silencieusement pour le canal 'sms'. `html: true` indique que `message` est déjà
+   *   du HTML (balises <p>/<br>, voir formatageEmail.js) plutôt que du texte brut avec des \n
+   *   littéraux — par défaut (`html` absent/false), `message` reste interprété comme texte brut,
+   *   comportement historique de rappelService.js/relanceService.js. Paramètre optionnel : les
+   *   appelants existants restent valides sans le fournir.
    * @returns {Promise<void>}
    */
   async envoyer(destinataire, canal, message, options = {}) {
