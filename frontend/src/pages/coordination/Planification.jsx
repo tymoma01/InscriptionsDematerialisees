@@ -6,6 +6,7 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
+import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
 import './Planification.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -87,6 +88,19 @@ export default function Planification() {
   // premier), préservé tant qu'aucun en-tête n'a été cliqué.
   const [tri, setTri] = useState({ colonne: 'date_heure', ordre: 'asc' });
 
+  // Sélection de candidats (case à cocher, une par ligne) — indexée sur dossier_id, pas
+  // rendezvous.id : un candidat n'a qu'un seul dossier, "sélectionner ce candidat" a donc un sens
+  // stable même si plusieurs lignes de rendez-vous du même dossier apparaissaient dans la liste
+  // (filtre "À venir uniquement" décoché). Volontairement PAS réinitialisée quand le filtre ou le
+  // tri changent (voir dossierIdsVisibles ci-dessous, recalculé à chaque rendu) : un agent qui
+  // change de filtre pour regarder autre chose ne doit pas perdre une sélection déjà faite.
+  const [dossiersSelectionnes, setDossiersSelectionnes] = useState(new Set());
+  const [panneauHistoriqueOuvert, setPanneauHistoriqueOuvert] = useState(false);
+  // Figé au moment du clic sur "Voir l'historique..." (voir PanneauHistoriqueRendezvous.jsx,
+  // dossierIds ne se recalcule pas après ouverture) — décocher un candidat pendant que le panneau
+  // est déjà ouvert n'en fait donc pas disparaître l'historique tant que l'agent ne rouvre pas.
+  const [dossierIdsHistorique, setDossierIdsHistorique] = useState([]);
+
   useEffect(() => {
     listerFormateurs()
       .then(setFormateurs)
@@ -139,6 +153,44 @@ export default function Planification() {
       }
       return { colonne, ordre: 'asc' };
     });
+  };
+
+  // dossier_id distincts de la liste actuellement affichée (filtrée + triée) — sert à la case
+  // "tout sélectionner" de l'en-tête : coche/décoche uniquement ce qui est visible maintenant,
+  // sans toucher à une éventuelle sélection faite sous un autre filtre (voir dossiersSelectionnes
+  // ci-dessus).
+  const dossierIdsVisibles = useMemo(
+    () => [...new Set(rendezvousTries.map((rdv) => rdv.dossier_id))],
+    [rendezvousTries],
+  );
+  const tousVisiblesSelectionnes =
+    dossierIdsVisibles.length > 0 && dossierIdsVisibles.every((id) => dossiersSelectionnes.has(id));
+
+  const togglerSelectionDossier = (dossierId) => {
+    setDossiersSelectionnes((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(dossierId)) suivant.delete(dossierId);
+      else suivant.add(dossierId);
+      return suivant;
+    });
+  };
+
+  const togglerSelectionnerTout = () => {
+    setDossiersSelectionnes((precedent) => {
+      const suivant = new Set(precedent);
+      if (tousVisiblesSelectionnes) {
+        dossierIdsVisibles.forEach((id) => suivant.delete(id));
+      } else {
+        dossierIdsVisibles.forEach((id) => suivant.add(id));
+      }
+      return suivant;
+    });
+  };
+
+  const ouvrirHistorique = () => {
+    if (dossiersSelectionnes.size === 0) return;
+    setDossierIdsHistorique([...dossiersSelectionnes]);
+    setPanneauHistoriqueOuvert(true);
   };
 
   if (chargementSession) {
@@ -196,6 +248,13 @@ export default function Planification() {
           </label>
         </div>
 
+        <div className="planification__actions-selection">
+          <button type="button" disabled={dossiersSelectionnes.size === 0} onClick={ouvrirHistorique}>
+            Voir l&rsquo;historique des rendez-vous sélectionnés
+            {dossiersSelectionnes.size > 0 ? ` (${dossiersSelectionnes.size})` : ''}
+          </button>
+        </div>
+
         {chargement && <p>Chargement des rendez-vous…</p>}
         {erreur && <p role="alert">{erreur}</p>}
 
@@ -208,6 +267,19 @@ export default function Planification() {
             <table className="planification__table">
               <thead>
                 <tr>
+                  {/* Sélection de candidats (voir dossiersSelectionnes) — première colonne, figée
+                      au défilement horizontal comme "N°"/"Date et heure"/"Candidat" juste après
+                      elle (voir Planification.css, --planification-largeur-colonne-case décale
+                      maintenant les trois autres). Case "tout sélectionner" : coche/décoche les
+                      seuls candidats actuellement visibles (voir togglerSelectionnerTout). */}
+                  <th scope="col" className="planification__colonne-case">
+                    <input
+                      type="checkbox"
+                      checked={tousVisiblesSelectionnes}
+                      onChange={togglerSelectionnerTout}
+                      aria-label="Tout sélectionner"
+                    />
+                  </th>
                   {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas rdv.id ni dossier_id —
                       recalculé à chaque tri, purement visuel. Figée en tête du bloc figé "Date et
                       heure"/"Candidat" ci-dessous (voir Planification.css,
@@ -248,6 +320,14 @@ export default function Planification() {
               <tbody>
                 {rendezvousTries.map((rdv, index) => (
                   <tr key={rdv.id}>
+                    <td className="planification__colonne-case">
+                      <input
+                        type="checkbox"
+                        checked={dossiersSelectionnes.has(rdv.dossier_id)}
+                        onChange={() => togglerSelectionDossier(rdv.dossier_id)}
+                        aria-label={`Sélectionner ${rdv.candidat_prenom} ${rdv.candidat_nom}`}
+                      />
+                    </td>
                     <td className="planification__colonne-numero">{index + 1}</td>
                     <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td className="planification__colonne-figee">
@@ -282,6 +362,13 @@ export default function Planification() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {panneauHistoriqueOuvert && (
+          <PanneauHistoriqueRendezvous
+            dossierIds={dossierIdsHistorique}
+            onFermer={() => setPanneauHistoriqueOuvert(false)}
+          />
         )}
       </div>
     </PageBackOffice>

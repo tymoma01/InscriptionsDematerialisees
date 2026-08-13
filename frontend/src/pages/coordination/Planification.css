@@ -74,6 +74,13 @@
   color: var(--couleur-erreur);
 }
 
+/* Barre du bouton "Voir l'historique des rendez-vous sélectionnés" — au-dessus du tableau, sous
+   les filtres (décision produit) ; désactivé tant qu'aucune case n'est cochée (voir
+   Planification.jsx, dossiersSelectionnes). */
+.planification__actions-selection {
+  margin-bottom: var(--espace-moyen);
+}
+
 .planification__vide {
   color: var(--couleur-texte-secondaire);
   padding: var(--espace-grand);
@@ -104,6 +111,10 @@
      (.planification__colonne-date), qui n'est donc plus figée à 0 (voir plus bas). Assez large
      pour trois chiffres sans jamais être coupée. */
   --planification-largeur-colonne-numero: 3rem;
+  /* Largeur fixe de la colonne "case à cocher" (sélection de candidats, voir Planification.jsx) —
+     désormais la première colonne figée (left: 0), "N°" décalée d'autant derrière elle. Assez
+     large pour une case à cocher seule, centrée. */
+  --planification-largeur-colonne-case: 2.5rem;
 }
 
 .planification__table th,
@@ -172,16 +183,26 @@
   background-color: var(--couleur-fond-survol-tableau);
 }
 
-/* "N°"/"Date et heure"/"Candidat" forment ensemble un bloc figé de trois colonnes au défilement
-   horizontal, comme des volets gelés classiques dans un tableur : "N°" reste figée en tout
-   premier (left: 0), "Date et heure" juste derrière elle (left décalé de la largeur de "N°"), et
-   "Candidat" encore derrière (left décalé des deux largeurs cumulées) — sans ce décalage en
-   cascade, chaque colonne suivante resterait figée à un `left` fixe pendant que celle qui la
-   précède défilerait hors champ, laissant un vide béant à gauche. Fond opaque obligatoire sur les
-   trois (pas transparent) : sans lui, le texte des colonnes qui défilent transparaîtrait dessous. */
-.planification__colonne-numero {
+/* "Case à cocher"/"N°"/"Date et heure"/"Candidat" forment ensemble un bloc figé de quatre colonnes
+   au défilement horizontal, comme des volets gelés classiques dans un tableur : la case à cocher
+   reste figée en tout premier (left: 0), "N°" juste derrière elle (left décalé de sa largeur),
+   "Date et heure" encore derrière (left décalé des deux largeurs cumulées), et "Candidat" en
+   dernier (les trois largeurs cumulées) — sans ce décalage en cascade, chaque colonne suivante
+   resterait figée à un `left` fixe pendant que celle qui la précède défilerait hors champ,
+   laissant un vide béant à gauche. Fond opaque obligatoire sur les quatre (pas transparent) : sans
+   lui, le texte des colonnes qui défilent transparaîtrait dessous. */
+.planification__colonne-case {
   position: sticky;
   left: 0;
+  z-index: 1;
+  width: var(--planification-largeur-colonne-case);
+  text-align: center;
+  background-color: var(--couleur-fond);
+}
+
+.planification__colonne-numero {
+  position: sticky;
+  left: var(--planification-largeur-colonne-case);
   z-index: 1;
   width: var(--planification-largeur-colonne-numero);
   text-align: center;
@@ -190,7 +211,7 @@
 
 .planification__colonne-date {
   position: sticky;
-  left: var(--planification-largeur-colonne-numero);
+  left: calc(var(--planification-largeur-colonne-case) + var(--planification-largeur-colonne-numero));
   z-index: 1;
   width: var(--planification-largeur-colonne-date);
   white-space: nowrap;
@@ -199,7 +220,10 @@
 
 .planification__colonne-figee {
   position: sticky;
-  left: calc(var(--planification-largeur-colonne-numero) + var(--planification-largeur-colonne-date));
+  left: calc(
+    var(--planification-largeur-colonne-case) + var(--planification-largeur-colonne-numero) +
+      var(--planification-largeur-colonne-date)
+  );
   z-index: 1;
   background-color: var(--couleur-fond);
   /* Bordure + ombre légère sur le bord droit : seule "Candidat" (dernière colonne du bloc figé)
@@ -209,6 +233,7 @@
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
 }
 
+.planification__table th.planification__colonne-case,
 .planification__table th.planification__colonne-numero,
 .planification__table th.planification__colonne-date,
 .planification__table th.planification__colonne-figee {
@@ -216,6 +241,7 @@
   z-index: 2;
 }
 
+.planification__table tbody tr:hover td.planification__colonne-case,
 .planification__table tbody tr:hover td.planification__colonne-numero,
 .planification__table tbody tr:hover td.planification__colonne-date,
 .planification__table tbody tr:hover td.planification__colonne-figee {

@@ -60,6 +60,8 @@ router.get('/relances/motifs-resultat', requireRole(...ROLES_CONSULTATION_DOSSIE
   }
 });
 
+const idPositifSchema = z.coerce.number().int().positive();
+
 const rendezvousTestQuerySchema = z.object({
   aVenir: z.enum(['true', 'false']).optional(),
   formateurId: z.coerce.number().int().positive().optional(),
@@ -86,6 +88,40 @@ router.get('/rendezvous', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (re
       dateFin,
     });
     res.json(rendezvous);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+    }
+    next(erreur);
+  }
+});
+
+// dossierIds="12,45,67" (CSV, pas de tableau répété en query string — plus simple à construire
+// côté front, voir services/rendezvousService.js) — transformé puis validé comme un tableau
+// d'entiers positifs non vide via .pipe().
+const historiqueRendezvousQuerySchema = z.object({
+  dossierIds: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((valeur) => valeur.split(','))
+    .pipe(z.array(idPositifSchema).min(1)),
+});
+
+// GET /api/dossiers/rendezvous/historique?dossierIds=12,45,67 — historique COMPLET (passé et
+// futur, tous statuts, catégorisés) des rendez-vous de test d'un ou plusieurs dossiers (bouton
+// "Voir l'historique des rendez-vous sélectionnés", page Planification côté Coordination) — voir
+// rendezvousService.listerHistoriqueRendezvousDossiers pour la logique de catégorisation
+// (À venir/Honoré/Manqué/Annulé/Replanifié/À traiter). Distinct de GET /api/dossiers/rendezvous
+// ci-dessus (rendez-vous À VENIR uniquement, tous dossiers confondus) : ici c'est l'inverse,
+// TOUT l'historique mais seulement des dossiers demandés. Déclarée avant '/rendezvous/
+// motifs-desistement' ci-dessous : simple ordre de lecture, aucune collision possible entre
+// segments littéraux distincts.
+router.get('/rendezvous/historique', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+  try {
+    const { dossierIds } = historiqueRendezvousQuerySchema.parse(req.query);
+    const historique = await rendezvousService.listerHistoriqueRendezvousDossiers(req.entite, dossierIds);
+    res.json(historique);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {
       return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });

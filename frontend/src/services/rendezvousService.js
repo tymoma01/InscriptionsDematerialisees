@@ -66,3 +66,13 @@ export async function listerRendezvousTest({ aVenir, formateurId, dateDebut, dat
   const { data } = await api.get('/dossiers/rendezvous', { params: { aVenir, formateurId, dateDebut, dateFin } });
   return data;
 }
+
+// Historique COMPLET (passé et futur, tous statuts, catégorisés) des rendez-vous de test d'un ou
+// plusieurs dossiers (bouton "Voir l'historique des rendez-vous sélectionnés", Planification.jsx)
+// — distinct de listerRendezvousTest ci-dessus (rendez-vous à venir uniquement, tous dossiers).
+// dossierIds envoyé en CSV (voir backend/src/api/routes/dossiers.routes.js) plutôt qu'un tableau
+// répété en query string, plus simple à construire ici.
+export async function listerHistoriqueRendezvousDossiers(dossierIds) {
+  const { data } = await api.get('/dossiers/rendezvous/historique', { params: { dossierIds: dossierIds.join(',') } });
+  return data;
+}

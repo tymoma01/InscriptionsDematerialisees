@@ -122,6 +122,51 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
   return requete;
 }
 
+// Historique complet (passé ET futur, tous statuts) des rendez-vous de test d'un ou plusieurs
+// dossiers (voir rendezvousService.listerHistoriqueRendezvousDossiers, page Planification côté
+// Coordination) — contrairement à listerRendezvousTest ci-dessus, aucun filtre `aVenirSeulement`
+// ni whereIn sur statut : c'est justement tout l'historique, y compris les tentatives passées
+// (replanifiées, manquées, honorées), qui intéresse cet écran. Jointure gauche vers `evaluations`
+// (migration 020) : c'est la présence d'une ligne évaluation, pas rendezvous.statut, qui indique
+// qu'un test a réellement eu lieu (voir rendezvousService.categoriserStatutRendezvous) —
+// `evaluations.rendezvous_id` n'a pas de contrainte UNIQUE mais un rendez-vous n'est en pratique
+// jamais évalué deux fois (evaluationEngine.enregistrerEvaluation rejette une évaluation déjà
+// existante), donc ce leftJoin ne duplique jamais une ligne rendez-vous.
+//
+// motif_libelle/evaluation_commentaire : les deux seules sources de "note" réellement rattachées
+// à CE rendez-vous précis (contrairement aux notes_dossier, jamais liées à un rendez-vous — voir
+// notesDossierRepository.listerNotesParDossiers, affichées séparément par
+// rendezvousService.listerHistoriqueRendezvousDossiers). Mutuellement exclusifs en pratique : un
+// motif n'existe que sur un rendez-vous 'absent'/'annule' (migration 031), un commentaire
+// d'évaluation seulement s'il existe une évaluation liée — jamais les deux en même temps, voir
+// rendezvousService.categoriserStatutRendezvous (l'évaluation prime toujours sur le statut brut).
+function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
+  return bd('rendezvous')
+    .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
+    .leftJoin('motifs', 'motifs.id', 'rendezvous.motif_id')
+    .leftJoin('evaluations', 'evaluations.rendezvous_id', 'rendezvous.id')
+    .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
+    .whereIn('rendezvous.dossier_id', dossierIds)
+    .select(
+      'rendezvous.id',
+      'rendezvous.dossier_id',
+      'rendezvous.date_heure',
+      'rendezvous.statut',
+      'motifs.code as motif_code',
+      'motifs.libelle as motif_libelle',
+      'candidats.prenom as candidat_prenom',
+      'candidats.nom as candidat_nom',
+      'utilisateurs.prenom as formateur_prenom',
+      'utilisateurs.nom as formateur_nom',
+      'evaluations.id as evaluation_id',
+      'evaluations.resultat_global as evaluation_resultat',
+      'evaluations.commentaire as evaluation_commentaire',
+    )
+    .orderBy([{ column: 'rendezvous.dossier_id' }, { column: 'rendezvous.date_heure', order: 'asc' }]);
+}
+
 // Rendez-vous de test actuellement "actif" d'un dossier (voir rendezvousService.
 // verifierDelaiAvantReplanification) : le plus récent par date_heure parmi les rendez-vous 'test'
 // encore 'prevu'/'confirme' — un rendez-vous 'absent'/'annule' a déjà été traité par le formateur
@@ -143,6 +188,25 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
     .update({ statut, motif_id: motifId })
     .returning('*')
     .then(([rendezvous]) => rendezvous);
+}
+
+// Neutralise le(s) rendez-vous du même dossier+type encore actif(s) ('prevu'/'confirme') — voir
+// rendezvousService.creerRendezvous, appelée juste avant la création d'un nouveau rendez-vous pour
+// corriger la cause racine des doublons (audit du 2026-08-13, dossier #88 rendez-vous 61-65) :
+// jusqu'ici, rien ne referme l'ancien rendez-vous lors d'une replanification, les deux restaient
+// 'prevu' en parallèle. Ne touche QUE `statut` (contrairement à mettreAJourStatutRendezvous
+// ci-dessus, pensée pour un agent qui choisit aussi `motif_id`) : toutes les autres colonnes
+// (date_heure, formateur_id, motif_id existant...) restent intactes, aucune suppression — la
+// traçabilité/l'historique par dossier (listerHistoriqueRendezvousParDossiers) continue de les
+// exposer avec leurs données d'origine. `whereIn('statut', ...)` plutôt qu'un seul id récupéré via
+// trouverRendezvousTestActifDossier : neutralise tout doublon déjà présent (auto-cicatrisation
+// d'un dossier ayant accumulé plusieurs rendez-vous actifs avant ce correctif), pas seulement le
+// plus récent.
+function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, statutRemplace }) {
+  return bd('rendezvous')
+    .where({ dossier_id: dossierId, type_rdv: typeRdv })
+    .whereIn('statut', ['prevu', 'confirme'])
+    .update({ statut: statutRemplace });
 }
 
 // Nombre de candidats déjà assignés à ce formateur au même horaire exact (voir
@@ -234,9 +298,11 @@ module.exports = {
   trouverRendezvousParId,
   listerRendezvousParDossier,
   listerRendezvousTest,
+  listerHistoriqueRendezvousParDossiers,
   mettreAJourStatutRendezvous,
   compterRendezvousFormateurAuCreneau,
   trouverRendezvousTestActifDossier,
+  neutraliserRendezvousActifsDossier,
   creerRendezvous,
   listerRendezvousParLieu,
   migrerRendezvousVersLieu,

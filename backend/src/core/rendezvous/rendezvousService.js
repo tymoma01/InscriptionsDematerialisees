@@ -1,5 +1,6 @@
 const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
+const notesDossierRepository = require('../dossier/notesDossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
@@ -33,6 +34,18 @@ const STATUTS_AUTORISES = ['prevu', 'confirme', 'absent', 'annule'];
 // tableau de bord") — 'absent' (non présenté le jour J) et 'annule' (désistement annoncé à
 // l'avance) sont les deux façons dont un candidat ne donne pas suite à un rendez-vous.
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
+
+// Statut technique posé automatiquement (jamais choisi par un agent — absent de
+// STATUTS_AUTORISES/statutBodySchema ci-dessus, changerStatutRendezvous le rejetterait) sur
+// l'ancien rendez-vous actif d'un dossier quand un nouveau rendez-vous du même type est créé (voir
+// creerRendezvous ci-dessous) — corrige la cause racine des doublons observés en base (audit du
+// 2026-08-13, dossier #88, rendez-vous 61-65) : jusqu'ici, aucune transition ne referme jamais
+// l'ancien rendez-vous lors d'une replanification, les deux restaient 'prevu' en parallèle.
+// N'a AUCUN effet sur categoriserStatutRendezvous/le panneau historique (voir plus bas) : "Replanifié"
+// y était déjà déduit de "ce n'est pas le plus récent actif", jamais de la valeur exacte de
+// `statut` — un rendez-vous à STATUT_REMPLACE continue donc de s'afficher "Replanifié" sans aucun
+// changement de ce côté.
+const STATUT_REMPLACE = 'remplace';
 
 // Erreurs métier distinctes d'une Error générique (500 opaque) : rendezvous.routes.js les
 // traduit en 400/409 avec un message directement affichable à l'agent — même principe que
@@ -148,6 +161,99 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
   }));
 }
 
+// Historique des rendez-vous de test, pour un ou plusieurs dossiers (page Planification côté
+// Coordination, bouton "Voir l'historique des rendez-vous sélectionnés") — contrairement à
+// listerRendezvousTest ci-dessus (une ligne par rendez-vous À VENIR, tous dossiers confondus),
+// couvre TOUT l'historique (passé et futur) des dossiers demandés, utile pour visualiser d'un
+// coup d'œil les tentatives de test successives d'un candidat (cas de replanification multiple,
+// ex. dossiers #74/#88 identifiés lors de l'audit du 2026-08-13).
+//
+// `rendezvous.statut` (colonne DB : 'prevu'|'confirme'|'absent'|'annule', voir
+// rendezvousService.STATUTS_AUTORISES) ne porte AUCUNE valeur "honoré"/"réalisé" — un test conduit
+// se déduit uniquement de l'EXISTENCE d'une ligne `evaluations` liée (evaluations.rendezvous_id,
+// migration 020), jamais mise à jour sur `rendezvous.statut` lui-même (voir
+// evaluationEngine.enregistrerEvaluation, qui n'écrit que dans `evaluations` + la transition de
+// statut du DOSSIER, jamais rendezvous.statut). Et aucune transition ne referme non plus
+// automatiquement un ancien rendez-vous encore 'prevu'/'confirme' lors d'une replanification (voir
+// trouverRendezvousTestActifDossier ci-dessus, déjà commenté sur ce point) : un dossier replanifié
+// plusieurs fois accumule donc plusieurs lignes 'prevu' pour un même dossier, dont une seule
+// (la plus récente) représente réellement le créneau attendu — les autres sont implicitement
+// "Replanifié", sans qu'aucune colonne ne le dise explicitement en base.
+const CATEGORIES_STATUT_HISTORIQUE = Object.freeze({
+  A_VENIR: 'a_venir',
+  HONORE: 'honore',
+  MANQUE: 'manque',
+  ANNULE: 'annule',
+  REPLANIFIE: 'replanifie',
+  // Rendez-vous 'prevu'/'confirme' encore actif (le plus récent de son dossier) mais dont la date
+  // est déjà passée sans qu'aucune évaluation n'ait été enregistrée ni qu'un statut 'absent' n'ait
+  // été posé — ni "à venir" (date passée) ni "manqué"/"honoré" (aucune action enregistrée) : reste
+  // une action en attente côté Accueil/Coordination ou formateur, distincte des 5 catégories
+  // demandées mais nécessaire pour ne pas mentir sur une date passée en l'affichant "à venir".
+  A_TRAITER: 'a_traiter',
+});
+
+// `estRendezvousActif` : vrai si CE rendez-vous est le plus récent parmi les 'prevu'/'confirme'
+// sans évaluation de son dossier (voir trouverRendezvousTestActifDossier) — calculé une fois par
+// dossier par l'appelant, pas ici (cette fonction reste une pure fonction de catégorisation).
+function categoriserStatutRendezvous(rendezvous, estRendezvousActif) {
+  if (rendezvous.evaluation_id) return CATEGORIES_STATUT_HISTORIQUE.HONORE;
+  if (rendezvous.statut === 'annule') return CATEGORIES_STATUT_HISTORIQUE.ANNULE;
+  if (rendezvous.statut === 'absent') return CATEGORIES_STATUT_HISTORIQUE.MANQUE;
+  if (!estRendezvousActif) return CATEGORIES_STATUT_HISTORIQUE.REPLANIFIE;
+  return new Date(rendezvous.date_heure).getTime() > Date.now()
+    ? CATEGORIES_STATUT_HISTORIQUE.A_VENIR
+    : CATEGORIES_STATUT_HISTORIQUE.A_TRAITER;
+}
+
+// Renvoie { rendezvous, notes } plutôt qu'un simple tableau de rendez-vous — `notes` (notes_dossier,
+// voir notesDossierRepository.listerNotesParDossiers) est une liste à part, PAS rattachée à un
+// rendez-vous précis (aucune colonne rendezvous_id sur notes_dossier) : impossible de savoir avec
+// certitude à quel rendez-vous une note donnée se rapporte. Décision utilisateur du 2026-08-13 :
+// affichées séparément, une fois par candidat (PanneauHistoriqueRendezvous.jsx, bloc "Notes du
+// dossier"), plutôt que sous une ligne de rendez-vous précise en devinant un rattachement — le
+// motif (annulé/absent) et le commentaire d'évaluation, eux, sont bien rattachés à un rendez-vous
+// exact (voir rendezvousRepository.listerHistoriqueRendezvousParDossiers) et restent donc portés
+// par chaque ligne de `rendezvous` (motif_libelle/evaluation_commentaire).
+async function listerHistoriqueRendezvousDossiers(entite, dossierIds) {
+  if (dossierIds.length === 0) return { rendezvous: [], notes: [] };
+
+  const bd = await db.obtenirKnex();
+  const [rendezvous, notes] = await Promise.all([
+    rendezvousRepository.listerHistoriqueRendezvousParDossiers(bd, entite.id, dossierIds),
+    notesDossierRepository.listerNotesParDossiers(bd, entite.id, dossierIds),
+  ]);
+
+  // Regroupe par dossier pour déterminer, par dossier, quel rendez-vous est "actif" (voir
+  // catégorisation ci-dessus) — même définition que trouverRendezvousTestActifDossier (le plus
+  // récent parmi 'prevu'/'confirme' sans évaluation), appliquée ici en mémoire sur la liste déjà
+  // chargée plutôt que par un aller-retour DB supplémentaire par dossier.
+  const parDossier = new Map();
+  for (const rdv of rendezvous) {
+    if (!parDossier.has(rdv.dossier_id)) parDossier.set(rdv.dossier_id, []);
+    parDossier.get(rdv.dossier_id).push(rdv);
+  }
+
+  const idActifParDossier = new Map();
+  for (const [dossierId, rendezvousDuDossier] of parDossier) {
+    const actif = rendezvousDuDossier
+      .filter((rdv) => !rdv.evaluation_id && ['prevu', 'confirme'].includes(rdv.statut))
+      .reduce(
+        (plusRecent, rdv) => (!plusRecent || new Date(rdv.date_heure) > new Date(plusRecent.date_heure) ? rdv : plusRecent),
+        null,
+      );
+    idActifParDossier.set(dossierId, actif?.id ?? null);
+  }
+
+  return {
+    rendezvous: rendezvous.map((rdv) => ({
+      ...rdv,
+      statutCategorise: categoriserStatutRendezvous(rdv, rdv.id === idActifParDossier.get(rdv.dossier_id)),
+    })),
+    notes,
+  };
+}
+
 // Planifie un nouveau rendez-vous pour un dossier (ex. rendez-vous de test, CLAUDE.md étape
 // "Envoi en test" : "attribution selon poste et disponibilité, date fixée, notification envoyée
 // au formateur concerné"). Ne déclenche aucune transition de statut du dossier ici — c'est une
@@ -221,14 +327,41 @@ async function creerRendezvous(
     lieuIdValide = lieu.id;
   }
 
-  return rendezvousRepository.creerRendezvous(bd, {
-    dossierId,
-    typeRdv,
-    dateHeure,
-    formateurId: formateurIdValide,
-    lieuId: lieuIdValide,
-    postesSelectionnes,
-  });
+  // Neutralise l'éventuel rendez-vous du même type déjà actif ('prevu'/'confirme') pour ce
+  // dossier, puis crée le nouveau — les deux dans la MÊME transaction, jamais l'un sans l'autre.
+  // Corrige la cause racine des doublons observés (audit du 2026-08-13, dossier #88, rendez-vous
+  // 61-65) : jusqu'ici, replanifier ne referme jamais l'ancien rendez-vous, les deux restaient
+  // 'prevu' en parallèle, avec un statut/formateur/motif identique dans certains cas. Règle métier
+  // validée avec Florence : la replanification reste libre et sans restriction tant que le dossier
+  // est en test_planifie — ce correctif ne bloque JAMAIS la création, il neutralise seulement ce
+  // qui devient obsolète UNE FOIS que la nouvelle création a de toute façon déjà réussi les
+  // vérifications ci-dessus. Aucune suppression : seul `statut` passe à STATUT_REMPLACE (voir
+  // rendezvousRepository.neutraliserRendezvousActifsDossier), toutes les autres colonnes (date,
+  // formateur, motif éventuel) restent intactes pour la traçabilité et l'historique par dossier —
+  // categoriserStatutRendezvous continue de l'afficher "Replanifié" dans le panneau historique
+  // sans aucun changement de ce côté (il ne teste que "est-ce le plus récent actif ?", jamais la
+  // valeur exacte de `statut`).
+  const executerCreation = (trx) =>
+    rendezvousRepository
+      .neutraliserRendezvousActifsDossier(trx, { dossierId, typeRdv, statutRemplace: STATUT_REMPLACE })
+      .then(() =>
+        rendezvousRepository.creerRendezvous(trx, {
+          dossierId,
+          typeRdv,
+          dateHeure,
+          formateurId: formateurIdValide,
+          lieuId: lieuIdValide,
+          postesSelectionnes,
+        }),
+      );
+
+  // bdExistante : déjà une transaction ouverte par l'appelant (voir planificationRendezvousService.js,
+  // qui enchaîne création + transitions de statut dans une seule transaction) — la réutiliser telle
+  // quelle plutôt que d'en ouvrir une seconde imbriquée. Sinon (appel direct, POST /api/dossiers/
+  // :dossierId/rendezvous sans transitions), ouvrir sa propre transaction ici : neutraliser
+  // l'ancien et créer le nouveau doivent réussir ou échouer ensemble, même hors du flux
+  // "avec-transitions".
+  return bdExistante ? executerCreation(bdExistante) : bd.transaction(executerCreation);
 }
 
 // Appelée par planificationRendezvousService AVANT de créer le nouveau rendez-vous, pour toute
@@ -269,6 +402,9 @@ module.exports = {
   changerStatutRendezvous,
   listerMotifsDesistement,
   listerRendezvousTest,
+  listerHistoriqueRendezvousDossiers,
+  CATEGORIES_STATUT_HISTORIQUE,
+  STATUT_REMPLACE,
   creerRendezvous,
   verifierDelaiAvantReplanification,
   ErreurFormateurInvalide,

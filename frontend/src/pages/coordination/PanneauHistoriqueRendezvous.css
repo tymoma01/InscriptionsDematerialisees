@@ -1,0 +1,144 @@
+/* Panneau générique de consultation, extrait de Planification.jsx — même patron que
+   .modale-planification-test (ModalePlanificationTest.css) : reste sur le même écran, fond
+   légèrement distinct pour se détacher visuellement de la liste au-dessus. */
+.panneau-historique-rendezvous {
+  margin-top: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+  /* Compense l'en-tête ACCECIT en position: fixed — même valeur/raison que
+     .modale-planification-test (ModalePlanificationTest.css). */
+  scroll-margin-top: calc(var(--hauteur-entete) + var(--espace-grand));
+}
+
+.panneau-historique-rendezvous__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--espace-moyen);
+}
+
+.panneau-historique-rendezvous__entete h2 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.panneau-historique-rendezvous__vide {
+  color: var(--couleur-texte-secondaire);
+  padding: var(--espace-grand);
+  text-align: center;
+}
+
+.panneau-historique-rendezvous__candidat {
+  margin-top: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+}
+
+.panneau-historique-rendezvous__candidat:first-of-type {
+  margin-top: 0;
+}
+
+.panneau-historique-rendezvous__candidat h3 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--espace-petit);
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-back-office);
+}
+
+.panneau-historique-rendezvous__compteur {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: var(--couleur-texte-secondaire);
+}
+
+.panneau-historique-rendezvous__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.panneau-historique-rendezvous__table th,
+.panneau-historique-rendezvous__table td {
+  padding: 0.5rem var(--espace-petit);
+  text-align: left;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.panneau-historique-rendezvous__table th {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panneau-historique-rendezvous__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Colonne "Notes / Motif" — texte tronqué (voir tronquer(), PanneauHistoriqueRendezvous.jsx), le
+   texte complet reste consultable via l'attribut title (tooltip natif). white-space: nowrap sur
+   la cellule : évite qu'un texte tronqué (donc déjà court) ne s'étire sur plusieurs lignes et
+   déséquilibre la hauteur de la ligne par rapport aux autres colonnes. */
+.panneau-historique-rendezvous__cellule-note {
+  max-width: 16rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Notes du dossier (notes_dossier) — bloc distinct sous le tableau de rendez-vous du candidat, PAS
+   une ligne du tableau (voir PanneauHistoriqueRendezvous.jsx : jamais rattachées à un rendez-vous
+   précis en base). Fond légèrement teinté pour se distinguer visuellement du tableau juste
+   au-dessus. */
+.panneau-historique-rendezvous__notes-dossier {
+  margin-top: var(--espace-petit);
+  padding: var(--espace-petit);
+  border: 1px dashed var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.panneau-historique-rendezvous__notes-dossier h4 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--espace-petit);
+  margin: 0 0 var(--espace-petit);
+  font-size: 0.85rem;
+  color: var(--couleur-back-office);
+}
+
+.panneau-historique-rendezvous__notes-dossier-precision {
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--couleur-texte-secondaire);
+}
+
+.panneau-historique-rendezvous__notes-dossier ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.panneau-historique-rendezvous__notes-dossier li:not(:last-child) {
+  padding-bottom: var(--espace-petit);
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.panneau-historique-rendezvous__notes-dossier-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+.panneau-historique-rendezvous__notes-dossier p {
+  margin: 0.2rem 0 0;
+  white-space: pre-wrap;
+}
