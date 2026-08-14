@@ -97,6 +97,31 @@
   margin-bottom: var(--espace-moyen);
 }
 
+/* Bouton plein, même convention que .notes-dossier__formulaire button/.historique-relances__
+   formulaire button (fond --couleur-back-office, texte blanc, hover -hover, disabled en
+   opacité) — remplace le bouton par défaut du navigateur (texte minuscule sur fond blanc),
+   jugé trop discret pour une action aussi visible (ouvre le panneau d'historique). Police
+   agrandie (1rem, poids 600) par rapport à la taille par défaut d'un bouton natif. */
+.planification__actions-selection button {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planification__actions-selection button:hover:not(:disabled) {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.planification__actions-selection button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .planification__vide {
   color: var(--couleur-texte-secondaire);
   padding: var(--espace-grand);
@@ -149,6 +174,19 @@
   border-right: none;
 }
 
+/* .planification__colonne-case/-numero (plus bas) posent déjà text-align: center, mais perdaient
+   face à la règle .planification__table td ci-dessus : même "poids" de classe, mais celle-ci
+   ajoute le type d'élément (td) à sa spécificité, ce qui suffit à l'emporter sur une simple classe
+   seule — la case à cocher et le N° de chaque ligne restaient donc collés à gauche de leur
+   cellule au lieu d'être centrés, contrairement à leur en-tête (déjà centré via
+   .planification__table th, qui n'entre pas en conflit puisqu'il cible <th>, pas <td>).
+   Qualifiée ici par table + td pour regagner la priorité (2 classes battent 1 classe + 1 type),
+   largeur de colonne inchangée (portée par .planification__colonne-case/-numero, non affectée). */
+.planification__table td.planification__colonne-case,
+.planification__table td.planification__colonne-numero {
+  text-align: center;
+}
+
 .planification__table th {
   background-color: var(--couleur-fond-secondaire);
   color: var(--couleur-texte-secondaire);
@@ -161,6 +199,19 @@
   /* Le padding vit sur le bouton interne (voir .planification__entete-tri), pas ici : sinon la
      zone cliquable ne couvrirait pas toute la cellule. Même patron que DossierList.css. */
   padding: 0;
+}
+
+/* "Case à cocher"/"N°" n'ont pas de bouton .planification__entete-tri interne (pas de tri sur ces
+   deux colonnes) : contrairement aux en-têtes triables ci-dessous, dont le bouton porte lui-même
+   le padding (0.75rem var(--espace-moyen), voir .planification__entete-tri), ces deux <th>
+   hériteraient du padding: 0 de la règle générale ci-dessus sans le restaurer explicitement ici —
+   d'où la case à cocher de l'en-tête (icône collée au bord de la cellule) décalée par rapport à
+   celles du corps du tableau (.planification__table td, padding 0.75rem var(--espace-moyen)
+   normal). Même padding que td restauré ici pour un alignement horizontal ET vertical identique
+   entre l'en-tête "tout sélectionner" et chaque case à cocher de ligne. */
+.planification__table th.planification__colonne-case,
+.planification__table th.planification__colonne-numero {
+  padding: 0.75rem var(--espace-moyen);
 }
 
 .planification__entete-tri {
