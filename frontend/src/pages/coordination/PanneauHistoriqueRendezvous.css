@@ -91,6 +91,21 @@
   color: var(--couleur-texte-secondaire);
 }
 
+/* Colonne "Créé par" — même style que .cellule-note (texte secondaire, échelle réduite), mais pas
+   de troncature/nowrap : "Créé par Prénom Nom le JJ/MM/AAAA HH:mm" reste généralement plus court
+   que la largeur de colonne réservée aux notes, un retour à la ligne éventuel reste lisible. */
+.panneau-historique-rendezvous__cellule-createur {
+  font-size: 0.8rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Italique pour se distinguer visuellement d'un "Créé par ..." réel — signale explicitement une
+   absence de traçabilité (voir libelleCreation, PanneauHistoriqueRendezvous.jsx), jamais une
+   simple valeur manquante rendue en "-". */
+.panneau-historique-rendezvous__non-trace {
+  font-style: italic;
+}
+
 /* Notes du dossier (notes_dossier) — bloc distinct sous le tableau de rendez-vous du candidat, PAS
    une ligne du tableau (voir PanneauHistoriqueRendezvous.jsx : jamais rattachées à un rendez-vous
    précis en base). Fond légèrement teinté pour se distinguer visuellement du tableau juste

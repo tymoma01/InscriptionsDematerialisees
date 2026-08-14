@@ -140,6 +140,18 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
 // motif n'existe que sur un rendez-vous 'absent'/'annule' (migration 031), un commentaire
 // d'évaluation seulement s'il existe une évaluation liée — jamais les deux en même temps, voir
 // rendezvousService.categoriserStatutRendezvous (l'évaluation prime toujours sur le statut brut).
+// leftJoin vers journal_audit pour exposer qui a créé ce rendez-vous (colonnes cree_le/
+// cree_par_prenom/cree_par_nom) — rendezvous n'a lui-même aucune colonne auteur (voir migration
+// 018), la seule trace existante est l'entrée journal_audit écrite par rendezvous.routes.js à la
+// création (action 'rendezvous_cree' ou 'rendezvous_cree_avec_transitions', voir journalAudit.js).
+// table_cible/cible_id (pas de colonne rendezvous_id dédiée sur journal_audit) identifient la
+// ligne au même titre qu'une FK classique. Un même rendezvous.id ne peut correspondre qu'à UNE
+// seule de ces deux actions (routes POST / et POST /avec-transitions mutuellement exclusives) :
+// ce leftJoin ne duplique donc jamais une ligne rendez-vous, comme le leftJoin evaluations plus
+// haut. cree_le/cree_par_* restent NULL (jamais '-' ni une valeur devinée) pour tout rendez-vous
+// sans entrée correspondante — notamment ceux insérés hors API (scripts de dev type
+// backend/scripts/creerRendezvousTest.js) — à l'appelant (PanneauHistoriqueRendezvous.jsx)
+// d'afficher explicitement "non tracé" plutôt que de laisser croire à une création anonyme.
 function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
@@ -147,6 +159,12 @@ function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
     .leftJoin('motifs', 'motifs.id', 'rendezvous.motif_id')
     .leftJoin('evaluations', 'evaluations.rendezvous_id', 'rendezvous.id')
+    .leftJoin('journal_audit as audit_creation', function () {
+      this.on('audit_creation.cible_id', '=', 'rendezvous.id')
+        .andOn('audit_creation.table_cible', '=', bd.raw('?', ['rendezvous']))
+        .andOnIn('audit_creation.action', ['rendezvous_cree', 'rendezvous_cree_avec_transitions']);
+    })
+    .leftJoin('utilisateurs as agent_createur', 'agent_createur.id', 'audit_creation.utilisateur_id')
     .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
     .whereIn('rendezvous.dossier_id', dossierIds)
     .select(
@@ -163,8 +181,11 @@ function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
       'evaluations.id as evaluation_id',
       'evaluations.resultat_global as evaluation_resultat',
       'evaluations.commentaire as evaluation_commentaire',
+      'audit_creation.date_action as cree_le',
+      'agent_createur.prenom as cree_par_prenom',
+      'agent_createur.nom as cree_par_nom',
     )
-    .orderBy([{ column: 'rendezvous.dossier_id' }, { column: 'rendezvous.date_heure', order: 'asc' }]);
+    .orderBy([{ column: 'rendezvous.dossier_id' }, { column: 'rendezvous.date_heure', order: 'desc' }]);
 }
 
 // Rendez-vous de test actuellement "actif" d'un dossier (voir rendezvousService.

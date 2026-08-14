@@ -42,6 +42,19 @@ function noteDuRendezvous(rdv) {
   return rdv.evaluation_commentaire || rdv.motif_libelle || null;
 }
 
+// Colonne "Créé par" : seule trace disponible de l'agent Accueil/Coordination à l'origine du
+// rendez-vous, portée par journal_audit (pas par rendezvous lui-même, qui n'a aucune colonne
+// auteur — voir rendezvousRepository.listerHistoriqueRendezvousParDossiers). cree_le reste NULL
+// pour tout rendez-vous sans entrée journal_audit correspondante (créé avant la mise en place de
+// cette traçabilité applicative, ou hors interface — ex. script de développement) : afficher "Non
+// tracé" explicitement dans ce cas plutôt qu'une cellule vide, qui laisserait croire à une
+// création anonyme alors que l'information est simplement absente.
+function libelleCreation(rdv) {
+  if (!rdv.cree_le) return null;
+  const date = FORMAT_DATE_HEURE.format(new Date(rdv.cree_le));
+  return rdv.cree_par_nom ? `Créé par ${rdv.cree_par_prenom} ${rdv.cree_par_nom} le ${date}` : `Créé le ${date} (agent non renseigné)`;
+}
+
 // Tronque un texte long pour la cellule "Notes/Motif" — le texte complet reste consultable via
 // l'attribut title (tooltip natif au survol, même patron que CaptureTablette.jsx/
 // CalendrierDisponibiliteFormateur.jsx), pas de composant tooltip dédié pour ce seul usage.
@@ -94,9 +107,10 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
     // sans rapport avec la sélection.
   }, []);
 
-  // Un groupe par dossier (= un candidat), ses rendez-vous triés du plus ancien au plus récent —
-  // lecture "historique" naturelle : la première tentative en haut, la plus récente en bas (voir
-  // CLAUDE.md, besoin "historique complet de ses tentatives de test").
+  // Un groupe par dossier (= un candidat), ses rendez-vous triés du plus récent au plus ancien —
+  // la dernière tentative (celle qui compte le plus pour la décision en cours) en haut, la
+  // première en bas (voir rendezvousRepository.listerHistoriqueRendezvousParDossiers côté back,
+  // même ordre que le bloc "Notes du dossier" plus bas — décision utilisateur, 2026-08-14).
   const groupesParCandidat = useMemo(() => {
     const groupes = new Map();
     for (const rdv of historique.rendezvous) {
@@ -159,11 +173,13 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                   <th scope="col">Statut</th>
                   <th scope="col">Formateur / Inspecteur</th>
                   <th scope="col">Notes / Motif</th>
+                  <th scope="col">Créé par</th>
                 </tr>
               </thead>
               <tbody>
                 {groupe.rendezvous.map((rdv) => {
                   const note = noteDuRendezvous(rdv);
+                  const creation = libelleCreation(rdv);
                   return (
                     <tr key={rdv.id}>
                       <td>{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
@@ -179,6 +195,21 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                           cellule elle-même le texte tronqué s'il dépasse LONGUEUR_TRONCATURE_NOTE. */}
                       <td className="panneau-historique-rendezvous__cellule-note">
                         {note && <span title={note}>{tronquer(note)}</span>}
+                      </td>
+                      {/* "Non tracé" explicite (pas de "-"/cellule vide) quand journal_audit n'a
+                          aucune entrée pour ce rendez-vous — voir libelleCreation ci-dessus : ne
+                          jamais laisser croire à une création anonyme faute d'information. */}
+                      <td className="panneau-historique-rendezvous__cellule-createur">
+                        {creation ? (
+                          creation
+                        ) : (
+                          <span
+                            className="panneau-historique-rendezvous__non-trace"
+                            title="Aucune entrée journal_audit pour ce rendez-vous (créé avant la mise en place de cette traçabilité, ou hors interface) : l'agent créateur ne peut pas être affiché de façon fiable."
+                          >
+                            Non tracé
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
