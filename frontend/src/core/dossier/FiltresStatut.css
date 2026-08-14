@@ -14,6 +14,17 @@
   font-weight: 700;
 }
 
+/* Sans min-width, ce bouton était mécaniquement plus étroit que ses voisins immédiats
+   (Hôtellerie/Tertiaire, filtresSupplementaires) : les trois partagent le même padding
+   (.filtres-statut button ci-dessous) et leur largeur ne dépend donc que de la longueur du
+   texte affiché, "Tous" étant le plus court des trois. box-sizing: border-box pour que ce
+   min-width s'entende comme la largeur totale du bouton (comme celle des boutons voisins),
+   pas seulement celle de sa zone de texte. */
+.filtres-statut__tous button {
+  box-sizing: border-box;
+  min-width: 6.75rem;
+}
+
 /* Fond ivoire de la charte back-office (--couleur-back-office-clair, dérivé du doré du logo —
    voir variables.css) plutôt que le gris neutre --couleur-fond-secondaire utilisé ailleurs
    (tableaux, survol) : ce bloc doit se lire comme une zone de filtres à part entière, dans la
@@ -24,26 +35,29 @@
 .filtres-statut__statuts {
   display: flex;
   flex: 1;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: var(--espace-petit);
   padding: var(--espace-petit);
   background-color: var(--couleur-back-office-clair);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
-  /* flex: 1 sur ce bloc (et non plus wrap) : il occupe toute la largeur restante à côté
-     du bloc "Tous", pour donner le plus de place possible à une seule ligne de boutons.
-     min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous
-     la largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait au lieu
-     de se resserrer. overflow-x en ultime filet de sécurité si, malgré les réductions de
-     gap/padding/police ci-dessous, la largeur réelle de l'écran restait insuffisante.
-     justify-content: flex-start (plutôt que l'ancien space-between) : avec flex:1 sur un
-     nombre variable de boutons, space-between étirait le "gap" réel bien au-delà du gap posé
-     ci-dessus dès qu'il restait de la place libre, d'où l'aspect trop espacé signalé. */
+  /* flex: 1 sur ce bloc : il occupe toute la largeur restante à côté du bloc "Tous"/du filtre
+     Entité, pour répartir les boutons de statut sur toute la largeur du cadre plutôt que de les
+     laisser tassés à gauche avec du vide à droite. justify-content: space-between (plutôt que
+     flex-start) répartit précisément cet espace restant entre les boutons, en plus du gap de
+     base ci-dessus — sur une seule ligne quand elle tient, ou ligne par ligne une fois repassé
+     en flex-wrap: wrap ci-dessous.
+     flex-wrap: wrap (plutôt que nowrap + overflow-x précédemment) : sur une fenêtre étroite, les
+     boutons qui ne tiennent plus passent proprement à la ligne au lieu d'imposer un défilement
+     horizontal — chaque bouton garde sa largeur (flex-shrink: 0 ci-dessous, comme avant), aucun
+     chevauchement possible.
+     min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous la
+     largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait au lieu de
+     passer ses boutons à la ligne au bon moment. */
   min-width: 0;
-  overflow-x: auto;
 }
 
 .filtres-statut button {
