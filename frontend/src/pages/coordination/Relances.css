@@ -1,42 +1,36 @@
 /* GestionRendezvous.css / HistoriqueRelances.css centrent déjà chacun leur propre carte
-   (max-width + margin: auto) — cette règle ne fait que donner à EnTeteBackOffice le même
-   traitement, pour que la barre d'en-tête s'aligne visuellement avec les cartes en dessous
-   plutôt que de s'étirer sur toute la largeur de l'écran. */
-.page-relances > .en-tete-back-office {
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto var(--espace-moyen);
-  padding: 0 var(--espace-moyen);
-  box-sizing: border-box;
-}
-
-/* Même traitement que EnTeteBackOffice ci-dessus : centré/plafonné à la largeur des cartes en
-   dessous (GestionRendezvous.css / HistoriqueRelances.css), plutôt que de s'étirer sur toute la
-   largeur de l'écran. */
-.page-relances__retour-ligne,
-.page-relances__titre-ligne {
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: 0 var(--espace-moyen);
-  box-sizing: border-box;
-}
-
-.page-relances__retour-ligne {
+   (max-width + margin: auto) — cette règle donne le même traitement à l'en-tête (retour + titre +
+   EnTeteBackOffice, tous regroupés dans .page-relances__entete ci-dessous), pour qu'elle s'aligne
+   visuellement avec les cartes en dessous plutôt que de s'étirer sur toute la largeur de l'écran
+   (contrairement à Planification.css/Indicateurs.css, où c'est .page-back-office__contenu qui
+   plafonne déjà toute la page). */
+.page-relances__entete {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--espace-petit);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: 0 var(--espace-moyen);
+  box-sizing: border-box;
 }
 
-.page-relances__titre-ligne {
-  margin-bottom: var(--espace-grand);
-}
-
-.page-relances__titre-ligne h1 {
+.page-relances__entete h1 {
   margin: 0;
   color: var(--couleur-back-office);
 }
 
-/* Aligné à droite, juste sous Déconnexion — même patron que .capture-tablette__bouton-retour
-   (CaptureTablette.css). */
+/* Lien "retour" devant le titre, sur la même ligne — même patron que
+   .planification__titre-bloc/.indicateurs__titre-bloc (décision utilisateur, 2026-08-13) :
+   align-items: center aligne la bordure du bouton sur la ligne de base du texte du h1 malgré
+   leurs tailles de police différentes. */
+.page-relances__titre-bloc {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
 .page-relances__bouton-retour {
   display: inline-flex;
   align-items: center;

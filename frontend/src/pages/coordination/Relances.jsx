@@ -38,25 +38,27 @@ export default function Relances() {
   return (
     <PageBackOffice>
       <div className="page-relances">
-        <EnTeteBackOffice />
-        {/* Aligné à droite, juste sous Déconnexion — même patron que
-            .capture-tablette__retour-ligne (CaptureTablette.css). */}
-        <div className="page-relances__retour-ligne">
-          <Link to="/accueil/tableau-de-bord" className="page-relances__bouton-retour">
-            Retour au tableau de bord
-          </Link>
-        </div>
-        <div className="page-relances__titre-ligne">
-          <h1>
-            Dossier #{dossierId}
-            {dossier && (
-              <>
-                {' - '}
-                <span className="page-relances__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-              </>
-            )}
-          </h1>
-        </div>
+        {/* Lien "Retour" + titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à
+            droite, même ligne — même patron que Planification.jsx/Indicateurs.jsx (décision
+            utilisateur, 2026-08-13), remplace l'ancien empilement EnTeteBackOffice / retour aligné
+            à droite / titre. */}
+        <header className="page-relances__entete">
+          <div className="page-relances__titre-bloc">
+            <Link to="/accueil/tableau-de-bord" className="page-relances__bouton-retour">
+              Retour au tableau de bord
+            </Link>
+            <h1>
+              Dossier #{dossierId}
+              {dossier && (
+                <>
+                  {' - '}
+                  <span className="page-relances__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+                </>
+              )}
+            </h1>
+          </div>
+          <EnTeteBackOffice />
+        </header>
         <GestionRendezvous dossierId={dossierId} />
         <HistoriqueRelances dossierId={dossierId} />
         <NotesDossier dossierId={dossierId} />
