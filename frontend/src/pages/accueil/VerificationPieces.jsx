@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import CaptureTablette from '../../core/pieceJustificative/CaptureTablette';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
 import './VerificationPieces.css';
 
@@ -59,16 +60,30 @@ export default function VerificationPieces() {
   return (
     <PageBackOffice>
       <div className="page-verification-pieces">
-        <h1>
-          Dossier #{dossierId}
-          {dossier && (
-            <>
-              {' - '}
-              <span className="page-verification-pieces__candidat-nom">{dossier.candidat_nom}</span>{' '}
-              {dossier.candidat_prenom}
-            </>
-          )}
-        </h1>
+        {/* Lien "Retour" + titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à
+            droite, même ligne — même patron que Relances.jsx/Planification.jsx (décision
+            utilisateur, 2026-08-13/14). Remplace l'ancien EnTeteBackOffice + bouton "Retour"
+            portés par CaptureTablette.jsx lui-même (voir son commentaire d'en-tête) : déplacés
+            ici pour que "Retour" précède bien le titre du dossier, que CaptureTablette.jsx ne
+            connaît pas (dossierId lui est transmis en prop, voir son en-tête). */}
+        <header className="page-verification-pieces__entete">
+          <div className="page-verification-pieces__titre-bloc">
+            <Link to="/accueil/tableau-de-bord" className="page-verification-pieces__bouton-retour">
+              Retour au tableau de bord
+            </Link>
+            <h1>
+              Dossier #{dossierId}
+              {dossier && (
+                <>
+                  {' - '}
+                  <span className="page-verification-pieces__candidat-nom">{dossier.candidat_nom}</span>{' '}
+                  {dossier.candidat_prenom}
+                </>
+              )}
+            </h1>
+          </div>
+          <EnTeteBackOffice />
+        </header>
         <CaptureTablette
           dossierId={dossierId}
           typesPieces={typesPiecesConfigAccecitTest}

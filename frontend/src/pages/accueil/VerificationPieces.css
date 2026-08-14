@@ -1,26 +1,66 @@
-/* Titre sticky : reste visible en permanence pendant que l'agent scrolle la liste de pièces
+/* En-tête sticky : reste visible en permanence pendant que l'agent scrolle la liste de pièces
    plus bas (reprend le besoin de l'ancien bandeau de CaptureTablette.jsx, retiré car redondant
    avec ce titre — CLAUDE.md, besoin Accueil : "l'accueil est engorgé par des candidats aux
-   objectifs hétérogènes", pour s'assurer qu'on manipule toujours le bon dossier).
+   objectifs hétérogènes", pour s'assurer qu'on manipule toujours le bon dossier). Porte
+   maintenant aussi le lien "Retour" et EnTeteBackOffice (déplacés depuis CaptureTablette.jsx,
+   voir VerificationPieces.jsx) : rester visible en permanence a autant de sens pour "Déconnexion"
+   que pour le titre du dossier.
    top: var(--hauteur-entete) plutôt que top: 0 : cette variable est définie par .page-back-office
-   (PageBackOffice.css) et héritée jusqu'ici par la cascade CSS — coller ce titre au tout haut du
-   viewport le placerait sous l'en-tête ACCECIT, qui est en position: fixed avec z-index: 10 (donc
-   toujours par-dessus, d'où le z-index inférieur ci-dessous). Fond/bordure/coins arrondis ajoutés
-   uniquement à cause du sticky : une fois collé en haut, le contenu qui défile en dessous (carte
-   Pièces justificatives) doit rester caché derrière plutôt que transparaître à travers le texte —
-   absent du même titre non sticky sur Validation.jsx/Relances.jsx (voir leur CSS respectif). Pas
-   de max-width/margin horizontal propre : ce titre occupe déjà toute la largeur du conteneur
-   commun PageBackOffice (.page-back-office__contenu), qui l'aligne avec la carte en dessous. */
-.page-verification-pieces h1 {
+   (PageBackOffice.css) et héritée jusqu'ici par la cascade CSS — coller cet en-tête au tout haut
+   du viewport le placerait sous l'en-tête ACCECIT, qui est en position: fixed avec z-index: 10
+   (donc toujours par-dessus, d'où le z-index inférieur ci-dessous). Fond/bordure/coins arrondis
+   ajoutés uniquement à cause du sticky : une fois collé en haut, le contenu qui défile en dessous
+   (carte Pièces justificatives) doit rester caché derrière plutôt que transparaître à travers le
+   texte — absent du même en-tête non sticky sur Validation.jsx/Relances.jsx (voir leur CSS
+   respectif). Pas de max-width/margin horizontal propre : cet en-tête occupe déjà toute la
+   largeur du conteneur commun PageBackOffice (.page-back-office__contenu), qui l'aligne avec la
+   carte en dessous. */
+.page-verification-pieces__entete {
   position: sticky;
   top: var(--hauteur-entete);
   z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
   margin: 0 0 var(--espace-grand);
   padding: var(--espace-petit) var(--espace-moyen);
   background-color: var(--couleur-back-office-clair);
   border-bottom: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
+}
+
+.page-verification-pieces__entete h1 {
+  margin: 0;
   color: var(--couleur-back-office);
+}
+
+/* Même patron que .planification__titre-bloc/.page-relances__titre-bloc : row plutôt que
+   column, align-items: center aligne la bordure du bouton sur la ligne de base du texte du h1
+   malgré leurs tailles de police différentes. */
+.page-verification-pieces__titre-bloc {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+.page-verification-pieces__bouton-retour {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.page-verification-pieces__bouton-retour:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
 }
 
 /* Format "NOM Prénom" classique, même convention que .page-validation__candidat-nom

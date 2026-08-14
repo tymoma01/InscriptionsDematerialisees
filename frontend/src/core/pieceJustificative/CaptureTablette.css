@@ -18,15 +18,9 @@
   margin: 0 0 var(--espace-petit);
 }
 
-/* Aligné à droite, juste sous Déconnexion (voir EnTeteBackOffice juste au-dessus, dont le
-   bouton Déconnexion est lui-même à droite grâce à son propre space-between interne) — sur sa
-   propre ligne plutôt que dans l'en-tête de titre, pour ne pas dépendre de la largeur du titre. */
-.capture-tablette__retour-ligne {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--espace-petit);
-}
-
+/* Reste utilisé par le bouton "Retour au tableau de bord" de l'écran de confirmation
+   (planificationReussie, CaptureTablette.jsx) — l'en-tête de la page (EnTeteBackOffice +
+   lien "Retour") vit désormais dans VerificationPieces.jsx, voir son commentaire d'en-tête. */
 .capture-tablette__bouton-retour {
   padding: 0.4rem 0.8rem;
   border: 1px solid var(--couleur-back-office-dore);
