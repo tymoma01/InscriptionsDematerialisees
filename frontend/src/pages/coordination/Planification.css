@@ -70,6 +70,22 @@
   font: inherit;
 }
 
+/* Même patron que .planification__filtre-formateur ci-dessus (label + champ, même padding/
+   bordure/rayon que le select voisin) — recherche candidat par nom/prénom, à côté du filtre
+   Formateur existant (voir candidatCorrespond, Planification.jsx). */
+.planification__filtre-recherche {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.planification__filtre-recherche input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
 .planification [role='alert'] {
   color: var(--couleur-erreur);
 }

@@ -32,6 +32,13 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
   const rechercheNormalisee = recherche.trim().toLowerCase();
   const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
   const rechercheTelephone = normaliserTelephone(rechercheNormalisee);
+  // Mots de la recherche nom/prénom, normalisés individuellement (accents retirés) mais PAS
+  // reconcaténés en un seul bloc comme rechercheNormaliseeTexte ci-dessus — matcher chaque mot
+  // indépendamment contre nomComplet (voir plus bas) rend la recherche insensible à l'ordre de
+  // saisie : "ETEST TEST" retrouve désormais le candidat "TEST ETEST", pas seulement "TEST ETEST"
+  // saisi dans le même ordre que prénom+nom. Reste propre au nom/prénom : postes ci-dessous garde
+  // rechercheNormaliseeTexte (bloc unique), aucun bug équivalent signalé sur ce champ.
+  const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
   // Bornes en heure locale (pas de découpage de chaîne ISO en UTC) : dateDebutFiltre/dateFinFiltre
   // viennent d'un <input type="date"> et représentent des jours calendaires tels que l'agent les
   // lit sur la tablette, pas des instants UTC.
@@ -50,7 +57,7 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
           .toLowerCase(),
       );
       const correspond =
-        nomComplet.includes(rechercheNormaliseeTexte) ||
+        motsRechercheNom.every((mot) => nomComplet.includes(mot)) ||
         email.includes(rechercheNormalisee) ||
         postes.includes(rechercheNormaliseeTexte) ||
         // rechercheTelephone vide (recherche sans chiffre, ex. juste des espaces/tirets) ne doit

@@ -4,6 +4,7 @@ import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
+import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
@@ -45,6 +46,19 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
+// Recherche candidat par nom/prénom, filtrage entièrement client (comme aVenirSeulement/
+// formateurFiltre sont eux filtrés côté back — voir listerRendezvousTest — cette recherche
+// s'applique en plus, sur la liste déjà renvoyée par l'API, sans aller-retour serveur
+// supplémentaire). Même logique mots-par-mots que filtrerDossiers.js (core/dossier/
+// filtrerDossiers.js, corrigée pour l'ordre des mots de saisie) : chaque mot de la recherche doit
+// se retrouver dans "prénom nom" concaténé (normaliserTexte retire accents/espaces), peu importe
+// l'ordre de saisie — "ETEST TEST" retrouve "TEST ETEST" comme "TEST ETEST" le fait déjà.
+function candidatCorrespond(rdv, motsRecherche) {
+  if (motsRecherche.length === 0) return true;
+  const nomComplet = normaliserTexte(`${rdv.candidat_prenom} ${rdv.candidat_nom}`.toLowerCase());
+  return motsRecherche.every((mot) => nomComplet.includes(mot));
+}
+
 // Une entrée par colonne triable, même patron que DossierList.jsx (core/dossier/DossierList.jsx)
 // — "Candidat" trie sur candidats.nom (nom de famille), pas la chaîne "prénom nom" affichée.
 // "Statut" trie sur le libellé affiché (LIBELLES_STATUT), plus lisible pour l'utilisateur qu'un
@@ -81,6 +95,7 @@ export default function Planification() {
   const [aVenirSeulement, setAVenirSeulement] = useState(true);
   const [formateurFiltre, setFormateurFiltre] = useState(''); // '' = tous les formateurs
   const [formateurs, setFormateurs] = useState([]);
+  const [rechercheCandidat, setRechercheCandidat] = useState('');
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -129,9 +144,19 @@ export default function Planification() {
     };
   }, [aVenirSeulement, formateurFiltre]);
 
+  // Filtrage client par nom/prénom candidat, appliqué en plus des filtres serveur (aVenirSeulement/
+  // formateurFiltre, voir l'effet ci-dessus) sur la liste déjà reçue — se combine donc naturellement
+  // avec eux sans logique de composition supplémentaire : moins de résultats servis par le back à
+  // filtrer davantage ici, jamais l'inverse.
+  const rendezvousFiltres = useMemo(() => {
+    const motsRecherche = rechercheCandidat.trim().toLowerCase().split(/\s+/).filter(Boolean).map(normaliserTexte);
+    if (motsRecherche.length === 0) return rendezvous;
+    return rendezvous.filter((rdv) => candidatCorrespond(rdv, motsRecherche));
+  }, [rendezvous, rechercheCandidat]);
+
   const rendezvousTries = useMemo(() => {
     const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
-    const copie = [...rendezvous];
+    const copie = [...rendezvousFiltres];
     copie.sort((a, b) => {
       const valeurA = colonneTri.extraire(a);
       const valeurB = colonneTri.extraire(b);
@@ -140,7 +165,7 @@ export default function Planification() {
       return 0;
     });
     return copie;
-  }, [rendezvous, tri]);
+  }, [rendezvousFiltres, tri]);
 
   // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Date et heure"
   // repart croissant (le prochain rendez-vous en premier reste le repère le plus utile), les
@@ -246,6 +271,19 @@ export default function Planification() {
               ))}
             </select>
           </label>
+
+          {/* Filtrage client (voir candidatCorrespond/rendezvousFiltres ci-dessus) : se combine
+              avec aVenirSeulement/formateurFiltre sans logique dédiée, ceux-ci étant déjà
+              appliqués côté back avant que cette recherche ne s'exécute sur le résultat. */}
+          <label className="planification__filtre-recherche">
+            <span>Candidat</span>
+            <input
+              type="search"
+              value={rechercheCandidat}
+              onChange={(evenement) => setRechercheCandidat(evenement.target.value)}
+              placeholder="Nom ou prénom"
+            />
+          </label>
         </div>
 
         <div className="planification__actions-selection">
@@ -258,11 +296,11 @@ export default function Planification() {
         {chargement && <p>Chargement des rendez-vous…</p>}
         {erreur && <p role="alert">{erreur}</p>}
 
-        {!chargement && !erreur && rendezvous.length === 0 && (
+        {!chargement && !erreur && rendezvousTries.length === 0 && (
           <p className="planification__vide">Aucun rendez-vous de test à afficher.</p>
         )}
 
-        {!chargement && !erreur && rendezvous.length > 0 && (
+        {!chargement && !erreur && rendezvousTries.length > 0 && (
           <div className="planification__scroll">
             <table className="planification__table">
               <thead>
