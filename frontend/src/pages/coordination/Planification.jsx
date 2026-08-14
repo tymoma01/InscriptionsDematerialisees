@@ -59,6 +59,15 @@ function candidatCorrespond(rdv, motsRecherche) {
   return motsRecherche.every((mot) => nomComplet.includes(mot));
 }
 
+// "À venir" au sens de cette page : même définition que le filtre serveur aVenirSeulement
+// (rendezvousRepository.listerRendezvousTest — date_heure future ET statut encore actif) —
+// reprise ici pour choisir, parmi les rendez-vous d'un même candidat, celui à afficher sur sa
+// ligne unique du tableau (voir rendezvousParCandidat plus bas) : le prochain rendez-vous à venir
+// s'il y en a un, sinon le plus récent déjà passé (décision utilisateur).
+function estRendezvousAVenir(rdv) {
+  return ['prevu', 'confirme'].includes(rdv.statut) && new Date(rdv.date_heure).getTime() >= Date.now();
+}
+
 // Une entrée par colonne triable, même patron que DossierList.jsx (core/dossier/DossierList.jsx)
 // — "Candidat" trie sur candidats.nom (nom de famille), pas la chaîne "prénom nom" affichée.
 // "Statut" trie sur le libellé affiché (LIBELLES_STATUT), plus lisible pour l'utilisateur qu'un
@@ -84,6 +93,9 @@ const COLONNES = [
 // GestionRendezvous.jsx qui reste scopé à un seul dossier. Ne crée ni ne modifie aucun
 // rendez-vous ici : chaque ligne renvoie vers la page du dossier concerné
 // (/coordination/dossiers/:id/relances, où vit déjà GestionRendezvous) pour agir dessus.
+// Une ligne par candidat, pas par rendez-vous (voir rendezvousParCandidat) : le détail complet
+// des tentatives d'un candidat reste consultable via "Voir l'historique des rendez-vous
+// sélectionnés" (PanneauHistoriqueRendezvous.jsx), inchangé par ce regroupement.
 export default function Planification() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();
@@ -105,16 +117,26 @@ export default function Planification() {
 
   // Sélection de candidats (case à cocher, une par ligne) — indexée sur dossier_id, pas
   // rendezvous.id : un candidat n'a qu'un seul dossier, "sélectionner ce candidat" a donc un sens
-  // stable même si plusieurs lignes de rendez-vous du même dossier apparaissaient dans la liste
-  // (filtre "À venir uniquement" décoché). Volontairement PAS réinitialisée quand le filtre ou le
-  // tri changent (voir dossierIdsVisibles ci-dessous, recalculé à chaque rendu) : un agent qui
-  // change de filtre pour regarder autre chose ne doit pas perdre une sélection déjà faite.
+  // stable indépendamment du rendez-vous affiché sur sa ligne (voir rendezvousParCandidat plus
+  // bas — une seule ligne par dossier_id désormais, ce Set était déjà dossier_id-keyed avant ce
+  // changement, donc déjà "un candidat = une sélection" même quand plusieurs lignes de
+  // rendez-vous du même dossier apparaissaient). Volontairement PAS réinitialisée quand le filtre
+  // ou le tri changent (voir dossierIdsVisibles ci-dessous, recalculé à chaque rendu) : un agent
+  // qui change de filtre pour regarder autre chose ne doit pas perdre une sélection déjà faite.
   const [dossiersSelectionnes, setDossiersSelectionnes] = useState(new Set());
   const [panneauHistoriqueOuvert, setPanneauHistoriqueOuvert] = useState(false);
   // Figé au moment du clic sur "Voir l'historique..." (voir PanneauHistoriqueRendezvous.jsx,
   // dossierIds ne se recalcule pas après ouverture) — décocher un candidat pendant que le panneau
   // est déjà ouvert n'en fait donc pas disparaître l'historique tant que l'agent ne rouvre pas.
   const [dossierIdsHistorique, setDossierIdsHistorique] = useState([]);
+  // Incrémenté à chaque clic sur "Voir l'historique..." (voir ouvrirHistorique), posé comme `key`
+  // sur <PanneauHistoriqueRendezvous> plus bas — force React à démonter/remonter ce composant à
+  // chaque clic, même si le panneau était déjà ouvert sur une sélection différente : dossierIds
+  // étant figé à l'ouverture (voir son commentaire d'en-tête), un simple changement de prop sans
+  // remontage ne relançait ni le chargement des données ni le scrollIntoView interne du panneau
+  // (tous deux dans des useEffect à dépendances vides, déclenchés une seule fois au montage).
+  // Remonter le composant réutilise ces deux effets existants tels quels, sans y toucher.
+  const [compteurHistorique, setCompteurHistorique] = useState(0);
 
   useEffect(() => {
     listerFormateurs()
@@ -154,9 +176,35 @@ export default function Planification() {
     return rendezvous.filter((rdv) => candidatCorrespond(rdv, motsRecherche));
   }, [rendezvous, rechercheCandidat]);
 
+  // Une ligne par candidat (dossier_id), pas par rendez-vous (décision utilisateur) : un candidat
+  // avec plusieurs tentatives de test (replanifications, absences...) n'apparaissait jusqu'ici
+  // qu'en autant de lignes que de rendez-vous, ce tableau devenant illisible pour un candidat
+  // souvent replanifié — le détail complet de ses tentatives reste consultable via "Voir
+  // l'historique des rendez-vous sélectionnés" ci-dessous (PanneauHistoriqueRendezvous.jsx,
+  // inchangé, déjà groupé par candidat). Rendez-vous représentatif choisi par candidat : le
+  // prochain à venir s'il y en a un (estRendezvousAVenir), sinon le plus récent par date_heure —
+  // c'est cette seule ligne qui alimente Poste/Formateur/Statut affichés, comme n'importe quelle
+  // ligne de rendez-vous unique avant ce changement.
+  const rendezvousParCandidat = useMemo(() => {
+    const parDossier = new Map();
+    for (const rdv of rendezvousFiltres) {
+      if (!parDossier.has(rdv.dossier_id)) parDossier.set(rdv.dossier_id, []);
+      parDossier.get(rdv.dossier_id).push(rdv);
+    }
+    return [...parDossier.values()].map((rdvsDuCandidat) => {
+      const aVenir = rdvsDuCandidat.filter(estRendezvousAVenir);
+      if (aVenir.length > 0) {
+        // Le PROCHAIN à venir (date la plus proche), pas le plus lointain.
+        return aVenir.reduce((lePlusProche, rdv) => (new Date(rdv.date_heure) < new Date(lePlusProche.date_heure) ? rdv : lePlusProche));
+      }
+      // Aucun rendez-vous à venir : le plus récent par date_heure, quel que soit son statut.
+      return rdvsDuCandidat.reduce((lePlusRecent, rdv) => (new Date(rdv.date_heure) > new Date(lePlusRecent.date_heure) ? rdv : lePlusRecent));
+    });
+  }, [rendezvousFiltres]);
+
   const rendezvousTries = useMemo(() => {
     const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
-    const copie = [...rendezvousFiltres];
+    const copie = [...rendezvousParCandidat];
     copie.sort((a, b) => {
       const valeurA = colonneTri.extraire(a);
       const valeurB = colonneTri.extraire(b);
@@ -165,7 +213,7 @@ export default function Planification() {
       return 0;
     });
     return copie;
-  }, [rendezvousFiltres, tri]);
+  }, [rendezvousParCandidat, tri]);
 
   // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Date et heure"
   // repart croissant (le prochain rendez-vous en premier reste le repère le plus utile), les
@@ -216,6 +264,10 @@ export default function Planification() {
     if (dossiersSelectionnes.size === 0) return;
     setDossierIdsHistorique([...dossiersSelectionnes]);
     setPanneauHistoriqueOuvert(true);
+    // Voir compteurHistorique ci-dessus : incrémenté à CHAQUE clic (pas seulement à la première
+    // ouverture), pour que le panneau se remonte — et donc rescrolle + recharge ses données — même
+    // reclic sur une sélection différente pendant qu'il est déjà affiché.
+    setCompteurHistorique((precedent) => precedent + 1);
   };
 
   if (chargementSession) {
@@ -403,7 +455,12 @@ export default function Planification() {
         )}
 
         {panneauHistoriqueOuvert && (
+          // key={compteurHistorique} : voir son commentaire de déclaration — force un remontage à
+          // chaque clic sur "Voir l'historique...", même si le panneau était déjà affiché, pour que
+          // son scrollIntoView interne et son chargement de données se redéclenchent sur la
+          // nouvelle sélection plutôt que de rester figés sur la précédente.
           <PanneauHistoriqueRendezvous
+            key={compteurHistorique}
             dossierIds={dossierIdsHistorique}
             onFermer={() => setPanneauHistoriqueOuvert(false)}
           />
