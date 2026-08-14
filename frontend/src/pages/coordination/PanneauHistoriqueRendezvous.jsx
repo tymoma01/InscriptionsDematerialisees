@@ -49,10 +49,12 @@ function noteDuRendezvous(rdv) {
 // cette traçabilité applicative, ou hors interface — ex. script de développement) : afficher "Non
 // tracé" explicitement dans ce cas plutôt qu'une cellule vide, qui laisserait croire à une
 // création anonyme alors que l'information est simplement absente.
+// Pas de préfixe "Créé par" dans le texte lui-même (décision utilisateur) : l'en-tête de colonne
+// "CRÉÉ PAR" le porte déjà juste au-dessus, le répéter sur chaque ligne était redondant.
 function libelleCreation(rdv) {
   if (!rdv.cree_le) return null;
   const date = FORMAT_DATE_HEURE.format(new Date(rdv.cree_le));
-  return rdv.cree_par_nom ? `Créé par ${rdv.cree_par_prenom} ${rdv.cree_par_nom} le ${date}` : `Créé le ${date} (agent non renseigné)`;
+  return rdv.cree_par_nom ? `${rdv.cree_par_prenom} ${rdv.cree_par_nom} le ${date}` : `${date} (agent non renseigné)`;
 }
 
 // Tronque un texte long pour la cellule "Notes/Motif" — le texte complet reste consultable via
@@ -68,9 +70,13 @@ function tronquer(texte, longueurMax = LONGUEUR_TRONCATURE_NOTE) {
 // rendez-vous sélectionnés") — même patron en flux (pas d'overlay/backdrop) que
 // ModalePlanificationTest.jsx, pour rester sur le même écran sans perdre le contexte de la liste
 // filtrée au-dessus. `dossierIds` figé à l'ouverture (tableau reçu tel quel en prop, jamais
-// recalculé depuis la sélection courante) : cocher/décocher des candidats après ouverture du
-// panneau ne doit pas faire disparaître silencieusement des lignes déjà affichées — l'agent doit
-// fermer puis rouvrir pour rafraîchir sur une nouvelle sélection.
+// recalculé depuis la sélection courante au sein d'une même instance de ce composant) : cocher/
+// décocher des candidats après ouverture du panneau ne fait donc pas disparaître silencieusement
+// des lignes déjà affichées. Un reclic sur "Voir l'historique..." avec une sélection différente
+// pendant que le panneau est déjà ouvert RE-déclenche bien un rafraîchissement (chargement des
+// données + scrollIntoView ci-dessous) : Planification.jsx pose une `key` qui change à chaque
+// clic sur <PanneauHistoriqueRendezvous>, ce qui force React à démonter puis remonter une
+// instance neuve de ce composant plutôt que de réutiliser l'ancienne avec de nouvelles props.
 export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
   const panneauRef = useRef(null);
   // { rendezvous, notes } — voir services/rendezvousService.js et backend/src/core/rendezvous/
@@ -80,9 +86,19 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
+  // Scrolle une fois le chargement terminé (succès ou erreur), pas au montage : au montage, le
+  // panneau n'affiche encore que "Chargement de l'historique…" (une ligne de texte) — le
+  // scrollIntoView calculait alors sa cible contre un document bien plus court qu'une fois les
+  // lignes chargées, et s'arrêtait trop tôt (le panneau grandit ensuite SOUS la position déjà
+  // atteinte, sans que le navigateur ne rescrolle pour compenser) : le titre du panneau finissait
+  // visuellement bien plus bas dans le viewport qu'attendu, au lieu d'arriver en haut. Dépendre de
+  // `chargement` garantit que cet effet ne s'exécute qu'après le rendu du contenu définitif
+  // (React ne relance un effet qu'après que le DOM du rendu correspondant a été commité).
   useEffect(() => {
-    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+    if (!chargement) {
+      panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [chargement]);
 
   useEffect(() => {
     let annule = false;
@@ -169,11 +185,26 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
             <table className="panneau-historique-rendezvous__table">
               <thead>
                 <tr>
-                  <th scope="col">Date et heure</th>
-                  <th scope="col">Statut</th>
-                  <th scope="col">Formateur / Inspecteur</th>
-                  <th scope="col">Notes / Motif</th>
-                  <th scope="col">Créé par</th>
+                  {/* Une classe __colonne-X par en-tête (voir PanneauHistoriqueRendezvous.css) : fixe
+                      la largeur de chaque colonne en pourcentage (table-layout: fixed) pour occuper
+                      toute la largeur du tableau, réparti selon le contenu réel de chaque colonne —
+                      même classe reprise sur le <td> correspondant ci-dessous, même patron que
+                      .planification__colonne-case/-numero (Planification.jsx/css). */}
+                  <th scope="col" className="panneau-historique-rendezvous__colonne-date">
+                    Date et heure
+                  </th>
+                  <th scope="col" className="panneau-historique-rendezvous__colonne-statut">
+                    Statut
+                  </th>
+                  <th scope="col" className="panneau-historique-rendezvous__colonne-formateur">
+                    Formateur / Inspecteur
+                  </th>
+                  <th scope="col" className="panneau-historique-rendezvous__colonne-notes">
+                    Notes / Motif
+                  </th>
+                  <th scope="col" className="panneau-historique-rendezvous__colonne-createur">
+                    Créé par
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -182,24 +213,28 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                   const creation = libelleCreation(rdv);
                   return (
                     <tr key={rdv.id}>
-                      <td>{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
-                      <td>
+                      <td className="panneau-historique-rendezvous__colonne-date">
+                        {FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}
+                      </td>
+                      <td className="panneau-historique-rendezvous__colonne-statut">
                         <StatutBadge
                           libelle={LIBELLES_STATUT_HISTORIQUE[rdv.statutCategorise] ?? rdv.statutCategorise}
                           variante={VARIANTES_STATUT_HISTORIQUE[rdv.statutCategorise]}
                         />
                       </td>
-                      <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
+                      <td className="panneau-historique-rendezvous__colonne-formateur">
+                        {rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}
+                      </td>
                       {/* Rien si aucune note/motif (pas de "-" ni de cellule vide décorée, voir
                           décision produit) — title porte le texte complet pour un survol, la
                           cellule elle-même le texte tronqué s'il dépasse LONGUEUR_TRONCATURE_NOTE. */}
-                      <td className="panneau-historique-rendezvous__cellule-note">
+                      <td className="panneau-historique-rendezvous__colonne-notes panneau-historique-rendezvous__cellule-note">
                         {note && <span title={note}>{tronquer(note)}</span>}
                       </td>
                       {/* "Non tracé" explicite (pas de "-"/cellule vide) quand journal_audit n'a
                           aucune entrée pour ce rendez-vous — voir libelleCreation ci-dessus : ne
                           jamais laisser croire à une création anonyme faute d'information. */}
-                      <td className="panneau-historique-rendezvous__cellule-createur">
+                      <td className="panneau-historique-rendezvous__colonne-createur panneau-historique-rendezvous__cellule-createur">
                         {creation ? (
                           creation
                         ) : (

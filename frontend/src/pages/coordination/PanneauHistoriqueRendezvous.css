@@ -56,8 +56,15 @@
   color: var(--couleur-texte-secondaire);
 }
 
+/* table-layout: fixed : les largeurs en % posées sur chaque .colonne-X ci-dessous (portées par le
+   <th>, voir PanneauHistoriqueRendezvous.jsx) deviennent la seule source de vérité pour la largeur
+   des colonnes — sans lui, l'algorithme "auto" par défaut aurait pu retasser le contenu et laisser
+   du vide à droite du tableau malgré le width: 100% ci-dessous (ex. Notes/Motif plafonné par
+   max-width plus bas alors que les colonnes voisines, au contenu naturellement court, n'auraient
+   rien récupéré de cet espace libéré). */
 .panneau-historique-rendezvous__table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 
@@ -68,9 +75,16 @@
   border-bottom: 1px solid var(--couleur-bordure-legere);
 }
 
+/* Même convention que .planification__table th (Planification.css, tableau juste au-dessus de ce
+   panneau) : fond --couleur-fond-secondaire + texte --couleur-texte-secondaire (contraste déjà
+   vérifié là-bas, gris-600 sur gris-50), majuscules + letter-spacing identiques. Police légèrement
+   agrandie (0.8rem -> 0.85rem) par rapport à ce même tableau de référence : les en-têtes de ce
+   panneau, plus dense (5 colonnes sur une largeur de carte plus étroite), étaient jugés trop
+   discrets tels quels. */
 .panneau-historique-rendezvous__table th {
+  background-color: var(--couleur-fond-secondaire);
   color: var(--couleur-texte-secondaire);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -79,12 +93,52 @@
   border-bottom: none;
 }
 
+/* Largeurs en pourcentage réparties selon le contenu réel de chaque colonne (décision utilisateur) :
+   Notes/Motif (texte libre, parfois long — commentaire d'évaluation) et Créé par ("Créé par Prénom
+   NOM le JJ/MM/AAAA HH:mm", ~40 caractères) sont les deux colonnes au contenu le plus variable/long,
+   donc les plus larges ; Statut (un badge court) la plus étroite. Somme = 100%, occupe tout le
+   tableau sans laisser de vide à droite (voir table-layout: fixed ci-dessus). */
+.panneau-historique-rendezvous__colonne-date {
+  width: 13%;
+}
+
+.panneau-historique-rendezvous__colonne-statut {
+  width: 11%;
+}
+
+.panneau-historique-rendezvous__colonne-formateur {
+  width: 18%;
+}
+
+/* 40% (était 36%, +4% repris sur .colonne-createur ci-dessous, lui-même réduit après la
+   suppression du préfixe "Créé par " du texte — voir libelleCreation, PanneauHistoriqueRendezvous.jsx)
+   — Notes/Motif contient le texte le plus variable du tableau (commentaire d'évaluation libre, ex.
+   "Non recommandé"), c'est elle qui profite le plus de la largeur reprise sur Créé par, dont le
+   contenu est au contraire de longueur quasi fixe (voir commentaire de .colonne-createur ci-dessous). */
+.panneau-historique-rendezvous__colonne-notes {
+  width: 40%;
+}
+
+/* Réduite à la largeur réelle de son contenu, mesurée dans le navigateur (pas estimée à vue) :
+   "Prénom NOM le JJ/MM/AAAA HH:mm" (sans le préfixe "Créé par ", retiré du texte — décision
+   utilisateur, redondant avec l'en-tête de colonne) ne dépasse jamais ~179px de texte à la taille
+   de police de cette colonne sur un tableau de 1200px de large. table-layout: fixed répartit
+   chaque colonne déclarée en % en réduisant sa largeur de contenu du padding de la cellule (8px de
+   chaque côté) : 18% donne ~202px de contenu utile, soit ~20px de marge de chaque côté du texte le
+   plus long observé. Recalculée depuis 22% (dimensionnée pour l'ancien texte avec préfixe, ~232px)
+   plutôt que laissée telle quelle : sans ce recalcul, le retrait du préfixe aurait rouvert le même
+   vide visuel que celui déjà corrigé dans cette colonne. */
+.panneau-historique-rendezvous__colonne-createur {
+  width: 18%;
+}
+
 /* Colonne "Notes / Motif" — texte tronqué (voir tronquer(), PanneauHistoriqueRendezvous.jsx), le
    texte complet reste consultable via l'attribut title (tooltip natif). white-space: nowrap sur
    la cellule : évite qu'un texte tronqué (donc déjà court) ne s'étire sur plusieurs lignes et
-   déséquilibre la hauteur de la ligne par rapport aux autres colonnes. */
+   déséquilibre la hauteur de la ligne par rapport aux autres colonnes. Plus de max-width ici
+   (largeur déjà fixée en % par .colonne-notes ci-dessus, table-layout: fixed) : ne servirait plus
+   qu'à doubler cette même contrainte. */
 .panneau-historique-rendezvous__cellule-note {
-  max-width: 16rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -92,11 +146,15 @@
 }
 
 /* Colonne "Créé par" — même style que .cellule-note (texte secondaire, échelle réduite), mais pas
-   de troncature/nowrap : "Créé par Prénom Nom le JJ/MM/AAAA HH:mm" reste généralement plus court
-   que la largeur de colonne réservée aux notes, un retour à la ligne éventuel reste lisible. */
+   de troncature/nowrap : sa largeur (.colonne-createur ci-dessus) suffit à "Créé par Prénom Nom le
+   JJ/MM/AAAA HH:mm" sur une seule ligne dans la plupart des cas, un retour à la ligne occasionnel
+   reste lisible plutôt que tronqué. Alignée à droite (dernière colonne du tableau) plutôt qu'à
+   gauche comme les autres : évite le grand vide visuel entre un texte relativement court et la
+   bordure droite du tableau, contre laquelle il vient maintenant se caler. */
 .panneau-historique-rendezvous__cellule-createur {
   font-size: 0.8rem;
   color: var(--couleur-texte-secondaire);
+  text-align: right;
 }
 
 /* Italique pour se distinguer visuellement d'un "Créé par ..." réel — signale explicitement une
