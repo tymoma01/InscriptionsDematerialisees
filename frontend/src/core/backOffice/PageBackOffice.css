@@ -14,6 +14,16 @@
    raison. */
 .page-back-office {
   --hauteur-entete: 8rem;
+  /* Hauteur occupée par BarreNavigation (BarreNavigation.jsx/.css), elle-même en position: sticky
+     juste sous l'en-tête ci-dessus (2026-08-17) — mesurée dans le navigateur (boîte + marge
+     inférieure, une seule ligne de liens, largeur desktop) : sert aux quelques en-têtes propres à
+     une page qui sont eux-mêmes sticky (ex. .page-verification-pieces__entete,
+     VerificationPieces.css) à se coller PROPREMENT sous cette barre plutôt que de se superposer à
+     elle. Sur un écran assez étroit pour que BarreNavigation passe sur plusieurs lignes (rare en
+     usage back-office desktop, voir --largeur-max-formulaire plus bas), le décalage devient
+     insuffisant — dégradation mineure acceptée plutôt qu'un calcul dynamique (ResizeObserver) pour
+     un cas limite. */
+  --hauteur-barre-navigation: 3.3125rem;
   /* Marges latérales réduites / contenu élargi, propre au back-office (tableaux/cartes/
      formulaires internes, usage bureau plutôt que tablette candidat) : redéfinit ici la variable
      globale --largeur-max-formulaire (styles/variables.css, 1100px, toujours utilisée telle

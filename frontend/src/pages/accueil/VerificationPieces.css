@@ -5,20 +5,23 @@
    maintenant aussi le lien "Retour" et EnTeteBackOffice (déplacés depuis CaptureTablette.jsx,
    voir VerificationPieces.jsx) : rester visible en permanence a autant de sens pour "Déconnexion"
    que pour le titre du dossier.
-   top: var(--hauteur-entete) plutôt que top: 0 : cette variable est définie par .page-back-office
-   (PageBackOffice.css) et héritée jusqu'ici par la cascade CSS — coller cet en-tête au tout haut
-   du viewport le placerait sous l'en-tête ACCECIT, qui est en position: fixed avec z-index: 10
-   (donc toujours par-dessus, d'où le z-index inférieur ci-dessous). Fond/bordure/coins arrondis
-   ajoutés uniquement à cause du sticky : une fois collé en haut, le contenu qui défile en dessous
-   (carte Pièces justificatives) doit rester caché derrière plutôt que transparaître à travers le
-   texte — absent du même en-tête non sticky sur Validation.jsx/Relances.jsx (voir leur CSS
-   respectif). Pas de max-width/margin horizontal propre : cet en-tête occupe déjà toute la
+   top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation)) plutôt que top: 0 : ces deux
+   variables sont définies par .page-back-office (PageBackOffice.css) et héritées jusqu'ici par la
+   cascade CSS — coller cet en-tête au tout haut du viewport le placerait sous l'en-tête ACCECIT
+   (position: fixed, z-index: 10, toujours par-dessus) ET sous BarreNavigation (elle-même
+   sticky juste en dessous, voir BarreNavigation.css) ; l'empiler juste sous BarreNavigation
+   plutôt que de s'y superposer nécessite d'ajouter sa hauteur, pas seulement celle de l'en-tête
+   (d'où le z-index inférieur ci-dessous, sous celui de BarreNavigation aussi). Fond/bordure/coins
+   arrondis ajoutés uniquement à cause du sticky : une fois collé en haut, le contenu qui défile en
+   dessous (carte Pièces justificatives) doit rester caché derrière plutôt que transparaître à
+   travers le texte — absent du même en-tête non sticky sur Validation.jsx/Relances.jsx (voir leur
+   CSS respectif). Pas de max-width/margin horizontal propre : cet en-tête occupe déjà toute la
    largeur du conteneur commun PageBackOffice (.page-back-office__contenu), qui l'aligne avec la
    carte en dessous. */
 .page-verification-pieces__entete {
   position: sticky;
-  top: var(--hauteur-entete);
-  z-index: 5;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;

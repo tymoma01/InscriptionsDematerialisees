@@ -1,8 +1,24 @@
 /* Barre de navigation commune back-office (BarreNavigation.jsx) — rendue en tout premier dans
-   .page-back-office__contenu (voir PageBackOffice.jsx), juste sous l'en-tête sticky. Fond clair
-   distinct du blanc de page pour se détacher visuellement sans reprendre le dégradé brun/doré de
-   l'en-tête (réservé à l'identité de marque, pas à un composant de navigation secondaire). */
+   .page-back-office__contenu (voir PageBackOffice.jsx), juste sous l'en-tête fixe ACCECIT. Fond
+   clair distinct du blanc de page pour se détacher visuellement sans reprendre le dégradé
+   brun/doré de l'en-tête (réservé à l'identité de marque, pas à un composant de navigation
+   secondaire).
+   position: sticky (2026-08-17) : reste visible en permanence pendant le défilement de la page,
+   sur TOUTES les pages back-office (montée une seule fois dans PageBackOffice.jsx, voir son
+   commentaire — se propage donc automatiquement partout, aucune page ne la monte elle-même).
+   top: var(--hauteur-entete) : colle juste sous l'en-tête ACCECIT, qui est lui en position: fixed
+   (PageBackOffice.css) — cette variable est définie par .page-back-office et héritée jusqu'ici
+   par la cascade CSS, même technique que .page-verification-pieces__entete (VerificationPieces.css),
+   seul autre endroit du back-office avec un en-tête sticky propre à sa page : voir son commentaire
+   pour le décalage supplémentaire qu'il applique afin de s'empiler PROPREMENT sous cette barre
+   plutôt que de se superposer à elle. z-index: 5 (au-dessus du contenu de page normal, en dessous
+   du z-index: 10 de l'en-tête ACCECIT, voir PageBackOffice.css) : même valeur que ce même en-tête
+   de page (VerificationPieces.css), qui doit à son tour rester au-dessus du contenu qui défile
+   sous LUI. */
 .barre-navigation {
+  position: sticky;
+  top: var(--hauteur-entete);
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   gap: var(--espace-petit);
@@ -11,6 +27,11 @@
   background-color: var(--couleur-back-office-clair);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
+  /* Ombre légère au bord inférieur : une fois collée sous l'en-tête, le contenu qui défile en
+     dessous doit se lire comme passant SOUS elle, pas à travers (même principe que
+     box-shadow sur .page-verification-pieces__entete, bien qu'ici le fond opaque ci-dessus
+     suffise déjà à masquer ce contenu — l'ombre reste un repère visuel de profondeur). */
+  box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.15);
 }
 
 .barre-navigation__lien {
