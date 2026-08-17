@@ -49,8 +49,9 @@
 }
 
 /* Même patron que .planification__filtre-formateur ci-dessus (label + champ, même padding/
-   bordure/rayon que le select voisin) — recherche candidat par nom/prénom, à côté du filtre
-   Formateur existant (voir candidatCorrespond, Planification.jsx). */
+   bordure/rayon que le select voisin) — recherche élargie (nom/prénom, n° dossier, poste), à
+   côté des filtres "À venir uniquement"/Formateur existants (voir rechercheCorrespond,
+   Planification.jsx). */
 .planification__filtre-recherche {
   display: flex;
   align-items: center;
@@ -58,6 +59,9 @@
 }
 
 .planification__filtre-recherche input {
+  /* Élargi (2026-08-17) pour le nouveau placeholder, plus long que l'ancien "Nom ou prénom" —
+     sans largeur minimale, le champ par défaut du navigateur (~20 caractères) le tronquait. */
+  min-width: 18rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);

@@ -46,17 +46,29 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Recherche candidat par nom/prénom, filtrage entièrement client (comme aVenirSeulement/
-// formateurFiltre sont eux filtrés côté back — voir listerRendezvousTest — cette recherche
-// s'applique en plus, sur la liste déjà renvoyée par l'API, sans aller-retour serveur
-// supplémentaire). Même logique mots-par-mots que filtrerDossiers.js (core/dossier/
-// filtrerDossiers.js, corrigée pour l'ordre des mots de saisie) : chaque mot de la recherche doit
-// se retrouver dans "prénom nom" concaténé (normaliserTexte retire accents/espaces), peu importe
-// l'ordre de saisie — "ETEST TEST" retrouve "TEST ETEST" comme "TEST ETEST" le fait déjà.
-function candidatCorrespond(rdv, motsRecherche) {
-  if (motsRecherche.length === 0) return true;
+// Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s)), filtrage
+// entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back — voir
+// listerRendezvousTest — cette recherche s'applique en plus, sur la liste déjà renvoyée par
+// l'API, sans aller-retour serveur supplémentaire). Même approche que filtrerDossiers.js
+// (core/dossier/filtrerDossiers.js, réutilisé tel quel par Dossiers candidats/Back-office
+// recruteur) : nom/prénom comparés mot par mot, insensible à l'ordre de saisie ("ETEST TEST"
+// retrouve "TEST ETEST") ; n° de dossier et poste comparés par simple inclusion, comme
+// téléphone/poste le sont déjà là-bas. Dupliqué plutôt que partagé : `rdv` (rendez-vous +
+// candidat + postes) n'a pas la même forme qu'un `dossier` de filtrerDossiers.js, et cette page
+// n'a de toute façon ni téléphone ni email à chercher (absents de GET /api/dossiers/rendezvous).
+function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormalisee, rechercheNormaliseeTexte }) {
+  if (motsRechercheNom.length === 0) return true;
   const nomComplet = normaliserTexte(`${rdv.candidat_prenom} ${rdv.candidat_nom}`.toLowerCase());
-  return motsRecherche.every((mot) => nomComplet.includes(mot));
+  const correspondNom = motsRechercheNom.every((mot) => nomComplet.includes(mot));
+  const correspondNumeroDossier = String(rdv.dossier_id).includes(rechercheNormalisee);
+  const postes = normaliserTexte(
+    [...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])]
+      .map(libellePoste)
+      .join(' ')
+      .toLowerCase(),
+  );
+  const correspondPoste = postes.includes(rechercheNormaliseeTexte);
+  return correspondNom || correspondNumeroDossier || correspondPoste;
 }
 
 // "À venir" au sens de cette page : même définition que le filtre serveur aVenirSeulement
@@ -107,7 +119,8 @@ export default function Planification() {
   const [aVenirSeulement, setAVenirSeulement] = useState(true);
   const [formateurFiltre, setFormateurFiltre] = useState(''); // '' = tous les formateurs
   const [formateurs, setFormateurs] = useState([]);
-  const [rechercheCandidat, setRechercheCandidat] = useState('');
+  // Recherche élargie (nom/prénom, n° dossier, poste) — voir rechercheCorrespond ci-dessus.
+  const [recherche, setRecherche] = useState('');
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -166,15 +179,20 @@ export default function Planification() {
     };
   }, [aVenirSeulement, formateurFiltre]);
 
-  // Filtrage client par nom/prénom candidat, appliqué en plus des filtres serveur (aVenirSeulement/
-  // formateurFiltre, voir l'effet ci-dessus) sur la liste déjà reçue — se combine donc naturellement
-  // avec eux sans logique de composition supplémentaire : moins de résultats servis par le back à
-  // filtrer davantage ici, jamais l'inverse.
+  // Filtrage client élargi (nom/prénom, n° dossier, poste — voir rechercheCorrespond), appliqué
+  // en plus des filtres serveur (aVenirSeulement/formateurFiltre, voir l'effet ci-dessus) sur la
+  // liste déjà reçue — se combine donc naturellement avec eux sans logique de composition
+  // supplémentaire : moins de résultats servis par le back à filtrer davantage ici, jamais
+  // l'inverse. Même découpage recherche/motsRecherche que filtrerDossiers.js.
   const rendezvousFiltres = useMemo(() => {
-    const motsRecherche = rechercheCandidat.trim().toLowerCase().split(/\s+/).filter(Boolean).map(normaliserTexte);
-    if (motsRecherche.length === 0) return rendezvous;
-    return rendezvous.filter((rdv) => candidatCorrespond(rdv, motsRecherche));
-  }, [rendezvous, rechercheCandidat]);
+    const rechercheNormalisee = recherche.trim().toLowerCase();
+    const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
+    const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
+    if (motsRechercheNom.length === 0) return rendezvous;
+    return rendezvous.filter((rdv) =>
+      rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormalisee, rechercheNormaliseeTexte }),
+    );
+  }, [rendezvous, recherche]);
 
   // Une ligne par candidat (dossier_id), pas par rendez-vous (décision utilisateur) : un candidat
   // avec plusieurs tentatives de test (replanifications, absences...) n'apparaissait jusqu'ici
@@ -325,16 +343,16 @@ export default function Planification() {
             </select>
           </label>
 
-          {/* Filtrage client (voir candidatCorrespond/rendezvousFiltres ci-dessus) : se combine
+          {/* Filtrage client (voir rechercheCorrespond/rendezvousFiltres ci-dessus) : se combine
               avec aVenirSeulement/formateurFiltre sans logique dédiée, ceux-ci étant déjà
               appliqués côté back avant que cette recherche ne s'exécute sur le résultat. */}
           <label className="planification__filtre-recherche">
-            <span>Candidat</span>
+            <span>Rechercher</span>
             <input
               type="search"
-              value={rechercheCandidat}
-              onChange={(evenement) => setRechercheCandidat(evenement.target.value)}
-              placeholder="Nom ou prénom"
+              value={recherche}
+              onChange={(evenement) => setRecherche(evenement.target.value)}
+              placeholder="Nom, prénom, N° dossier ou poste"
             />
           </label>
         </div>
