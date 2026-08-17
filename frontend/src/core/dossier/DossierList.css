@@ -131,6 +131,17 @@
   background-color: var(--couleur-fond);
 }
 
+/* text-align: center ci-dessus reste sans effet sur les <td> (pas sur les <th>, déjà centrés par
+   `.dossier-list th`, ligne 43) : `.dossier-list td` (une classe + un type, ligne 23) l'emporte
+   sur `.dossier-list__colonne-numero` seule (une classe) à spécificité égale de nombre de
+   classes — le type ajouté par `td` fait pencher la balance vers `text-align: left`. Même bug de
+   spécificité déjà rencontré et corrigé sur les colonnes figées de Planification.css
+   (.planification__table td.planification__colonne-case/-numero) : qualifier ici aussi par
+   `.dossier-list td` pour regagner la priorité. */
+.dossier-list td.dossier-list__colonne-numero {
+  text-align: center;
+}
+
 .dossier-list th.dossier-list__colonne-figee,
 .dossier-list th.dossier-list__colonne-numero {
   background-color: var(--couleur-fond-secondaire);
