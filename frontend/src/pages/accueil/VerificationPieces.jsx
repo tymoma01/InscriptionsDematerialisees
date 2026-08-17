@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import CaptureTablette from '../../core/pieceJustificative/CaptureTablette';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
@@ -60,17 +60,13 @@ export default function VerificationPieces() {
   return (
     <PageBackOffice>
       <div className="page-verification-pieces">
-        {/* Lien "Retour" + titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à
-            droite, même ligne — même patron que Relances.jsx/Planification.jsx (décision
-            utilisateur, 2026-08-13/14). Remplace l'ancien EnTeteBackOffice + bouton "Retour"
-            portés par CaptureTablette.jsx lui-même (voir son commentaire d'en-tête) : déplacés
-            ici pour que "Retour" précède bien le titre du dossier, que CaptureTablette.jsx ne
-            connaît pas (dossierId lui est transmis en prop, voir son en-tête). */}
+        {/* Titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à droite, même ligne
+            — même patron que Relances.jsx/Planification.jsx (décision utilisateur, 2026-08-13/14).
+            Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17) : couvert
+            par le lien "Dossiers candidats" de la barre de navigation commune, voir
+            BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
         <header className="page-verification-pieces__entete">
           <div className="page-verification-pieces__titre-bloc">
-            <Link to="/accueil/tableau-de-bord" className="page-verification-pieces__bouton-retour">
-              Retour au tableau de bord
-            </Link>
             <h1>
               Dossier #{dossierId}
               {dossier && (

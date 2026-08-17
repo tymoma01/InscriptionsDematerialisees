@@ -13,35 +13,6 @@
   color: var(--couleur-back-office);
 }
 
-/* Même mise en forme que .page-evaluation__bouton-historique (voir son commentaire) : tous les
-   liens de navigation back-office reprennent l'apparence bouton bordé, plus de lien texte nu
-   souligné au survol. */
-.tableau-bord-accueil__bouton-planification {
-  /* Pas de margin-left: auto ici (contrairement à une version précédente) : ça poussait le bouton
-     tout à droite, collé contre EnTeteBackOffice ("Agent connecté : ..."). C'est EnTeteBackOffice
-     ci-dessous qui porte le margin-left: auto, pour rester plaqué à droite. Décalage explicite de
-     1cm (unité physique CSS, cohérent avec l'usage tablette uniquement de cet écran — voir
-     CLAUDE.md) plutôt qu'une valeur de l'échelle --espace-* du projet, aucune n'approchant cet
-     ordre de grandeur. */
-  margin-left: 1cm;
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.tableau-bord-accueil__bouton-planification:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
-}
-
 /* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
    l'en-tête — scopé à ce conteneur précis (pas dans EnTeteBackOffice.css lui-même, qui est
    réutilisé par d'autres pages avec des besoins de mise en page différents, ex.

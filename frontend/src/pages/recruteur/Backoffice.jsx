@@ -173,9 +173,9 @@ export default function Backoffice() {
       <div className="backoffice-recruteur">
         <header className="backoffice-recruteur__entete">
           <h1>Back-office recruteur</h1>
-          <Link to="/tableau-de-bord/indicateurs" className="backoffice-recruteur__bouton-indicateurs">
-            Indicateurs
-          </Link>
+          {/* Bouton "Indicateurs" retiré (refonte navigation, 2026-08-17) : couvert par le lien
+              "Tableau de bord" de la barre de navigation commune, voir BarreNavigation.jsx (montée
+              dans PageBackOffice.jsx). */}
           <EnTeteBackOffice />
         </header>
 

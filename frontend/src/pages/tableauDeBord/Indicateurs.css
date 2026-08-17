@@ -15,33 +15,10 @@
   color: var(--couleur-back-office);
 }
 
-/* Lien "retour" devant le titre, sur la même ligne (décision utilisateur, 2026-08-13 — revient sur
-   le patron "aligné à droite sous le header" de Validation.css/Planification.css, qui reste
-   inchangé ailleurs) : row plutôt que column (contrairement à .page-historique-evaluations__titre-
-   bloc, où le bouton passe SOUS le titre) — align-items: center aligne la bordure du bouton sur la
-   ligne de base du texte du h1 malgré leurs tailles de police différentes. */
 .indicateurs__titre-bloc {
   display: flex;
   align-items: center;
   gap: var(--espace-moyen);
-}
-
-.indicateurs__bouton-retour {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.indicateurs__bouton-retour:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
 }
 
 .indicateurs__filtres {

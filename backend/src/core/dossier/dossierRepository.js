@@ -364,6 +364,45 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
     );
 }
 
+// Informations saisies par le candidat à l'inscription, réunies pour la section repliable
+// "Informations d'inscription complètes" de la fiche dossier (Validation.jsx/Relances.jsx,
+// CLAUDE.md — besoin RH/recruteur de retrouver le détail du formulaire d'origine sans revenir au
+// dossier papier). Exclut délibérément nir/nir_iv/nir_hash de la sélection candidats : le NIR ne
+// doit jamais être déchiffré pour un affichage back-office générique (voir CLAUDE.md, section
+// Contraintes RGPD — déchiffrement serveur réservé aux usages qui en ont explicitement besoin,
+// aucun aujourd'hui côté consultation de dossier). Scopé par entiteId, même filtre IDOR que
+// trouverDossierAvecStatutParId : renvoie undefined si le dossier n'appartient pas à l'entité
+// courante.
+async function trouverInscriptionCompleteParDossierId(bd, entiteId, dossierId) {
+  const candidat = await bd('dossiers')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
+    .select(
+      'candidats.civilite',
+      'candidats.nom',
+      'candidats.nom_naissance as nomNaissance',
+      'candidats.prenom',
+      'candidats.date_naissance as dateNaissance',
+      'candidats.lieu_naissance as lieuNaissance',
+      'candidats.nationalite',
+      'candidats.situation_familiale as situationFamiliale',
+      'candidats.email',
+      'candidats.date_creation as dateInscription',
+    )
+    .first();
+  if (!candidat) return undefined;
+
+  // Tous les blocs déjà enregistrés pour ce dossier (coordonnees/disponibilites/mutuelle/
+  // consentement_rgpd — voir dossierService.inscrireCandidat) : pas de filtre bloc_code, cette
+  // vue est volontairement exhaustive, contrairement à trouverCoordonneesCandidat (un seul bloc).
+  const blocs = await bd('dossier_donnees_formulaire').where({ dossier_id: dossierId }).select('bloc_code', 'donnees');
+
+  return {
+    candidat,
+    blocs: Object.fromEntries(blocs.map(({ bloc_code: blocCode, donnees }) => [blocCode, donnees])),
+  };
+}
+
 // signature_image est un bytea : le tracé doit déjà être un Buffer à ce stade (voir
 // dossierService.js pour la conversion depuis le PNG base64 envoyé par le front).
 // created_at n'est jamais fourni ici — colonne à defaultTo(now()) côté DB, jamais un
@@ -384,6 +423,7 @@ module.exports = {
   creerDossier,
   trouverDossierParId,
   trouverDossierAvecStatutParId,
+  trouverInscriptionCompleteParDossierId,
   trouverCoordonneesCandidat,
   enregistrerDonneesBloc,
   trouverCharteActive,

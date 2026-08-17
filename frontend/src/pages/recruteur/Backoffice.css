@@ -15,30 +15,6 @@
   color: var(--couleur-back-office);
 }
 
-/* Vers le tableau de bord KPI (Indicateurs.jsx, réservé Recruteur/Admin comme cette page — voir
-   backend/src/api/routes/statistiques.routes.js) — même mise en forme bouton bordé que tous les
-   liens de navigation back-office (voir .tableau-bord-accueil__bouton-planification pour le
-   commentaire d'origine de cette convention), dupliqué plutôt que partagé (CLAUDE.md, conventions
-   du projet). Pas de margin-left: auto ici : c'est .en-tete-back-office ci-dessous qui reste
-   plaqué à droite. */
-.backoffice-recruteur__bouton-indicateurs {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.backoffice-recruteur__bouton-indicateurs:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
-}
 
 /* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
    l'en-tête — scopé à ce conteneur précis (pas dans EnTeteBackOffice.css lui-même, réutilisé

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import FiligraneFormulaire from '../../pages/accueil/FiligraneFormulaire';
 import BoutonNouvelleInscription from './BoutonNouvelleInscription';
+import BarreNavigation from './BarreNavigation';
 import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
 import iconeAccecitTertiaire from '../../assets/icone-accecit-tertiaire.png';
@@ -75,7 +76,14 @@ export default function PageBackOffice({ children }) {
         </div>
       </header>
 
-      <div className="page-back-office__contenu">{children}</div>
+      <div className="page-back-office__contenu">
+        {/* Barre de navigation commune (Dossiers candidats/Suivi des tests/Back-office recruteur/
+            Tableau de bord/Comptes utilisateurs) — auto-gating par rôle et par session, voir son
+            propre commentaire d'en-tête (BarreNavigation.jsx) pour le détail, même patron que
+            BoutonNouvelleInscription ci-dessus. */}
+        <BarreNavigation />
+        {children}
+      </div>
 
       <footer className="page-back-office__pied-de-page">
         <div className="page-back-office__pied-de-page-contenu">

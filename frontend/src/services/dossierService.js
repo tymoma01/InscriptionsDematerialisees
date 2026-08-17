@@ -23,3 +23,10 @@ export async function obtenirDossier(dossierId) {
   const { data } = await api.get(`/dossiers/${dossierId}`);
   return data;
 }
+
+// Candidat (hors NIR) + tous les blocs du formulaire d'inscription — section repliable
+// "Informations d'inscription complètes" de la fiche dossier (voir InformationsInscription.jsx).
+export async function obtenirInscriptionComplete(dossierId) {
+  const { data } = await api.get(`/dossiers/${dossierId}/inscription`);
+  return data;
+}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import GestionTransitions from '../../core/dossier/GestionTransitions';
 import NotesDossier from '../../core/dossier/NotesDossier';
+import InformationsInscription from '../../core/dossier/InformationsInscription';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
@@ -87,13 +88,9 @@ export default function Validation() {
     <PageBackOffice>
       <div className="page-validation">
         <EnTeteBackOffice />
-        {/* Aligné à droite, juste sous Déconnexion — même patron que
-            .capture-tablette__retour-ligne (CaptureTablette.css). */}
-        <div className="page-validation__retour-ligne">
-          <Link to="/recruteur/dossiers" className="page-validation__bouton-retour">
-            Retour au tableau de bord
-          </Link>
-        </div>
+        {/* Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17) : couvert
+            par le lien "Back-office recruteur" de la barre de navigation commune, voir
+            BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
         <div className="page-validation__titre-ligne">
           <h1>
             Dossier #{dossierId}
@@ -153,6 +150,7 @@ export default function Validation() {
 
         <GestionTransitions dossierId={dossierId} />
         <NotesDossier dossierId={dossierId} />
+        <InformationsInscription dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );

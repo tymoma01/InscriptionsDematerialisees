@@ -387,11 +387,20 @@ async function listerStatuts(entite) {
   return dossierRepository.listerStatuts(bd, entite.id);
 }
 
+// Section repliable "Informations d'inscription complètes" de la fiche dossier (Validation.jsx/
+// Relances.jsx) — undefined si le dossier n'existe pas pour cette entité, à la route d'appel de
+// traduire ça en 404 (même contrat que obtenirDossier ci-dessus).
+async function obtenirInscriptionComplete(entite, dossierId) {
+  const bd = await obtenirKnex();
+  return dossierRepository.trouverInscriptionCompleteParDossierId(bd, entite.id, dossierId);
+}
+
 module.exports = {
   inscrireCandidat,
   verifierDisponibilite,
   listerDossiers,
   listerStatuts,
   obtenirDossier,
+  obtenirInscriptionComplete,
   ErreurInscriptionConflit,
 };

@@ -1,0 +1,73 @@
+/* Section repliable "Informations d'inscription complètes" (InformationsInscription.jsx) — même
+   habillage carte que HistoriqueRelances.css/NotesDossier.css (fond blanc, bordure légère,
+   coins arrondis), pour rester visuellement cohérente avec les autres sections de la fiche
+   dossier. */
+.informations-inscription {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.informations-inscription summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--couleur-back-office);
+}
+
+.informations-inscription summary:hover {
+  text-decoration: underline;
+}
+
+.informations-inscription__contenu {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--espace-grand);
+  margin-top: var(--espace-moyen);
+}
+
+.informations-inscription__groupe h3 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-back-office);
+  font-size: 1rem;
+}
+
+.informations-inscription__ligne {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  font-size: 0.9rem;
+}
+
+.informations-inscription__libelle {
+  color: var(--couleur-texte-secondaire);
+}
+
+.informations-inscription__valeur {
+  text-align: right;
+  font-weight: 600;
+}
+
+.informations-inscription__vide {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+}
+
+.informations-inscription__pieces {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.informations-inscription__pieces li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  font-size: 0.9rem;
+}

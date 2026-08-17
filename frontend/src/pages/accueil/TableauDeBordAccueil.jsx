@@ -226,9 +226,9 @@ export default function TableauDeBordAccueil() {
       <div className="tableau-bord-accueil">
         <header className="tableau-bord-accueil__entete">
           <h1>Dossiers candidats</h1>
-          <Link to="/coordination/planification" className="tableau-bord-accueil__bouton-planification">
-            Planification des tests
-          </Link>
+          {/* Bouton "Planification des tests" retiré (refonte navigation, 2026-08-17) : couvert
+              par le lien "Suivi des tests" de la barre de navigation commune, voir
+              BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
           <EnTeteBackOffice />
         </header>
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import HistoriqueRelances from '../../core/dossier/HistoriqueRelances';
 import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import NotesDossier from '../../core/dossier/NotesDossier';
+import InformationsInscription from '../../core/dossier/InformationsInscription';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
@@ -38,15 +39,13 @@ export default function Relances() {
   return (
     <PageBackOffice>
       <div className="page-relances">
-        {/* Lien "Retour" + titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à
-            droite, même ligne — même patron que Planification.jsx/Indicateurs.jsx (décision
-            utilisateur, 2026-08-13), remplace l'ancien empilement EnTeteBackOffice / retour aligné
-            à droite / titre. */}
+        {/* Titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à droite, même ligne
+            — même patron que Planification.jsx/Indicateurs.jsx (décision utilisateur, 2026-08-13).
+            Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17) : couvert
+            par le lien "Dossiers candidats" de la barre de navigation commune, voir
+            BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
         <header className="page-relances__entete">
           <div className="page-relances__titre-bloc">
-            <Link to="/accueil/tableau-de-bord" className="page-relances__bouton-retour">
-              Retour au tableau de bord
-            </Link>
             <h1>
               Dossier #{dossierId}
               {dossier && (
@@ -62,6 +61,7 @@ export default function Relances() {
         <GestionRendezvous dossierId={dossierId} />
         <HistoriqueRelances dossierId={dossierId} />
         <NotesDossier dossierId={dossierId} />
+        <InformationsInscription dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );

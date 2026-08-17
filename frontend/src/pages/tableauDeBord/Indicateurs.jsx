@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   ResponsiveContainer,
   BarChart,
@@ -632,9 +631,9 @@ export default function Indicateurs() {
               empilés en colonne, ou Validation.jsx/Planification.jsx, bouton sous le header aligné
               à droite) : .indicateurs__titre-bloc reste local à cette page. */}
           <div className="indicateurs__titre-bloc">
-            <Link to="/recruteur/dossiers" className="indicateurs__bouton-retour">
-              Retour backoffice recruteur
-            </Link>
+            {/* Bouton "Retour backoffice recruteur" retiré (refonte navigation, 2026-08-17) :
+                couvert par le lien "Back-office recruteur" de la barre de navigation commune,
+                voir BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
             <h1>Tableau de bord - Indicateurs</h1>
           </div>
           <EnTeteBackOffice />

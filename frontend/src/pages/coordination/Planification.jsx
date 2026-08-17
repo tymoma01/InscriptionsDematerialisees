@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -294,10 +294,11 @@ export default function Planification() {
               patron "aligné à droite sous le header" de .capture-tablette__retour-ligne, toujours
               utilisé tel quel ailleurs). */}
           <div className="planification__titre-bloc">
-            <Link to="/accueil/tableau-de-bord" className="planification__bouton-retour">
-              Retour Dossier Candidat
-            </Link>
-            <h1>Planification des tests</h1>
+            {/* Bouton "Retour Dossier Candidat" retiré (refonte navigation, 2026-08-17) : couvert
+                par le lien "Dossiers candidats" de la barre de navigation commune, voir
+                BarreNavigation.jsx (montée dans PageBackOffice.jsx). Titre harmonisé avec le
+                libellé "Suivi des tests" de cette même barre (ex-"Planification des tests"). */}
+            <h1>Suivi des tests</h1>
           </div>
           <EnTeteBackOffice />
         </header>

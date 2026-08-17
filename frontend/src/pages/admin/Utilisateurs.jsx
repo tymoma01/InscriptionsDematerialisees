@@ -191,9 +191,9 @@ export default function Utilisateurs() {
       <div className="page-utilisateurs">
         <header className="page-utilisateurs__entete">
           <h1>Comptes utilisateurs</h1>
-          <Link to="/tableau-de-bord/indicateurs" className="page-utilisateurs__bouton-indicateurs">
-            Indicateurs
-          </Link>
+          {/* Bouton "Indicateurs" retiré (refonte navigation, 2026-08-17) : couvert par le lien
+              "Tableau de bord" de la barre de navigation commune, voir BarreNavigation.jsx (montée
+              dans PageBackOffice.jsx). */}
           <EnTeteBackOffice />
         </header>
 

@@ -180,4 +180,22 @@ router.get('/:dossierId', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (re
   }
 });
 
+// GET /api/dossiers/:dossierId/inscription — candidat (hors NIR, jamais déchiffré pour un
+// affichage back-office générique, voir dossierRepository.trouverInscriptionCompleteParDossierId)
+// + tous les blocs de dossier_donnees_formulaire déjà enregistrés pour ce dossier, pour la
+// section repliable "Informations d'inscription complètes" (Validation.jsx/Relances.jsx). Mêmes
+// rôles que la consultation de dossier ci-dessus : ce n'est qu'une vue plus détaillée du même
+// dossier, pas une capacité supplémentaire.
+router.get('/:dossierId/inscription', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+  try {
+    const inscription = await dossierService.obtenirInscriptionComplete(req.entite, req.params.dossierId);
+    if (!inscription) {
+      return res.status(404).json({ erreur: `Dossier "${req.params.dossierId}" introuvable.` });
+    }
+    res.json(inscription);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
 module.exports = router;

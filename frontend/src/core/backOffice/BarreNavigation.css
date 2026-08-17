@@ -1,0 +1,39 @@
+/* Barre de navigation commune back-office (BarreNavigation.jsx) — rendue en tout premier dans
+   .page-back-office__contenu (voir PageBackOffice.jsx), juste sous l'en-tête sticky. Fond clair
+   distinct du blanc de page pour se détacher visuellement sans reprendre le dégradé brun/doré de
+   l'en-tête (réservé à l'identité de marque, pas à un composant de navigation secondaire). */
+.barre-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-grand);
+  padding: var(--espace-petit);
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.barre-navigation__lien {
+  padding: 0.5rem 1rem;
+  border-radius: var(--rayon-bordure);
+  color: var(--couleur-back-office);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.barre-navigation__lien:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* Lien actif : fond plein plutôt qu'un simple soulignement, pour rester repérable au premier
+   coup d'œil même sur un petit écran où le texte peut passer à la ligne. */
+.barre-navigation__lien--actif {
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.barre-navigation__lien--actif:hover {
+  background-color: var(--couleur-back-office-hover);
+}

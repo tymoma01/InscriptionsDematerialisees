@@ -45,24 +45,6 @@
   gap: var(--espace-moyen);
 }
 
-.page-verification-pieces__bouton-retour {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-fond);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.page-verification-pieces__bouton-retour:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
-}
-
 /* Format "NOM Prénom" classique, même convention que .page-validation__candidat-nom
    (Validation.css) / .capture-tablette__candidat-nom (CaptureTablette.css). */
 .page-verification-pieces__candidat-nom {
