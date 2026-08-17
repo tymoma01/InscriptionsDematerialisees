@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-const CRENEAUX = ['matin', 'midi', 'soir'];
+// Deux vocabulaires de créneaux distincts selon le type de poste (hôtel : services classiques du
+// secteur ; bureau : plages horaires de nettoyage/entretien) — un seul des deux sous-blocs
+// affiché à la fois côté BlocDisponibilites.jsx, jamais les deux ensemble. `creneaux` reste un
+// champ unique (pas creneauxHotel/creneauxBureau séparés) : voir le .refine ci-dessous, qui
+// interdit un code du mauvais vocabulaire pour le typePoste choisi — la validation porte donc
+// aussi bien sur "au moins un créneau" que sur "dans le bon référentiel".
+const CRENEAUX_HOTEL = ['matin', 'midi', 'soir'];
+const CRENEAUX_BUREAU = ['6h-9h', '9h-18h', '18h-21h'];
+const CRENEAUX = [...CRENEAUX_HOTEL, ...CRENEAUX_BUREAU];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
 const TYPES_POSTE = ['bureau', 'hotel'];
@@ -53,6 +61,32 @@ export const blocDisponibilitesSchema = z
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
   })
+  // Les créneaux cochés doivent appartenir au vocabulaire du type de poste actuellement
+  // sélectionné (voir CRENEAUX_HOTEL/CRENEAUX_BUREAU ci-dessus) — ne devrait normalement jamais
+  // se déclencher via l'UI (BlocDisponibilites.jsx vide `creneaux` dès que le candidat change de
+  // poste, et n'expose que les cases du bon sous-bloc), garde défensive contre un payload
+  // manipulé plutôt qu'un cas d'usage normal, d'où l'absence de message affiché dédié (même
+  // logique que les autres .refine() de ce fichier, dont le message ne remonte pas dans `errors`
+  // ici — voir BlocDisponibilites.jsx).
+  .refine(
+    (valeurs) => {
+      const codesAutorises = valeurs.typePoste === 'bureau' ? CRENEAUX_BUREAU : CRENEAUX_HOTEL;
+      return valeurs.creneaux.every((code) => codesAutorises.includes(code));
+    },
+    { message: 'Créneaux invalides pour le type de poste sélectionné', path: ['creneaux'] },
+  )
+  // Côté bureau, "9h-18h" ne peut jamais être coché seul : au moins "6h-9h" ou "18h-21h" est
+  // obligatoire (couvre aussi le cas rien-coché-du-tout, déjà bloqué par le .min(1) ci-dessus,
+  // mais avec son propre message plus précis affiché quand ce .min(1) est déjà satisfait — voir
+  // erreurCreneauxBureau, BlocDisponibilites.jsx).
+  .refine(
+    (valeurs) =>
+      valeurs.typePoste !== 'bureau' || valeurs.creneaux.includes('6h-9h') || valeurs.creneaux.includes('18h-21h'),
+    {
+      message: 'Sélectionnez au moins un créneau 6h-9h ou 18h-21h (9h-18h seul ne suffit pas)',
+      path: ['creneaux'],
+    },
+  )
   // Disponibilité samedi ET dimanche obligatoire pour l'hôtellerie (activité du week-end) —
   // n'ajoute pas ces jours automatiquement si le candidat change de "Hôtel" vers "Bureau" (voir
   // BlocDisponibilites.jsx, aucun reset sur joursDisponibles) : uniquement la validation qui se

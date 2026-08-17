@@ -1,14 +1,23 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { blocDisponibilitesSchema } from './BlocDisponibilites.schema';
 import { propsRadioAccessible } from '../radioAccessible';
 import './BlocDisponibilites.css';
 
-const CRENEAUX = [
+// Deux sous-blocs "Créneaux souhaités" distincts selon le type de poste (voir
+// BlocDisponibilites.schema.js pour le vocabulaire de codes correspondant, CRENEAUX_HOTEL/
+// CRENEAUX_BUREAU) — un seul affiché à la fois, jamais les deux ensemble (voir typePosteSelectionne
+// plus bas), même patron que Poste recherché (bureau)/(hôtel).
+const CRENEAUX_HOTEL = [
   { code: 'matin', libelle: 'Matin' },
   { code: 'midi', libelle: 'Midi' },
   { code: 'soir', libelle: 'Soir' },
+];
+const CRENEAUX_BUREAU = [
+  { code: '6h-9h', libelle: '6h-9h' },
+  { code: '9h-18h', libelle: '9h-18h' },
+  { code: '18h-21h', libelle: '18h-21h' },
 ];
 
 const JOURS = [
@@ -115,6 +124,18 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
     !(joursDisponiblesSaisis.includes('samedi') && joursDisponiblesSaisis.includes('dimanche'))
       ? 'Les postes en hôtellerie nécessitent une disponibilité le week-end (samedi et dimanche)'
       : null;
+  // Même contournement que erreurWeekEndHotel ci-dessus (le .refine() correspondant,
+  // BlocDisponibilites.schema.js, bloque déjà correctement isValid/"Suivant" mais ne remonte pas
+  // dans errors.creneaux) — couvre ici aussi bien "rien coché" que "9h-18h seul" (pas de garde
+  // sur creneauxSaisis.length, contrairement à erreurWeekEndHotel) : errors.creneaux (base
+  // .min(1)) s'est révélé peu fiable pour afficher son propre message dans ce cas précis (constaté
+  // en test manuel), ce message-ci reste donc la seule source fiable pour "rien coché" côté bureau.
+  const creneauxSaisis = valeursSaisies.creneaux ?? [];
+  const erreurCreneauxBureau =
+    typePosteSelectionne === 'bureau' &&
+    !(creneauxSaisis.includes('6h-9h') || creneauxSaisis.includes('18h-21h'))
+      ? 'Sélectionnez au moins un créneau 6h-9h ou 18h-21h (9h-18h seul ne suffit pas)'
+      : null;
   const autrePosteBureauCoche = (valeursSaisies.posteBureau ?? []).includes('autres');
   const commentConnuSelectionne = valeursSaisies.commentConnu;
   // Visible et obligatoire pour les 3 mêmes options (voir BlocDisponibilites.schema.js) :
@@ -126,6 +147,22 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       setValue('autrePosteBureauPrecision', '');
     }
   }, [autrePosteBureauCoche]);
+
+  // Vide les créneaux déjà cochés dès que le candidat CHANGE réellement de type de poste
+  // (bureau <-> hôtel) : les deux vocabulaires (Matin/Midi/Soir vs 6h-9h/9h-18h/18h-21h) n'ont pas
+  // le même sens, ne doivent jamais cohabiter en mémoire (voir le .refine dédié,
+  // BlocDisponibilites.schema.js). Le ref se réconcilie avec la valeur courante au tout premier
+  // rendu : une transition undefined -> 'bureau'/'hotel' (premier choix du candidat, ou remontage
+  // de ce bloc en revenant sur une étape précédente avec un typePoste déjà enregistré) ne
+  // déclenche donc jamais ce reset — seul un changement qui survient PENDANT que ce composant est
+  // déjà monté (l'utilisateur bascule effectivement son choix) le fait.
+  const typePostePrecedentRef = useRef(typePosteSelectionne);
+  useEffect(() => {
+    if (typePostePrecedentRef.current != null && typePostePrecedentRef.current !== typePosteSelectionne) {
+      setValue('creneaux', [], { shouldValidate: true });
+    }
+    typePostePrecedentRef.current = typePosteSelectionne;
+  }, [typePosteSelectionne]);
 
   return (
     <fieldset className="bloc-formulaire bloc-disponibilites">
@@ -199,25 +236,53 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
         </div>
       )}
 
-      <fieldset>
-        <legend>
-          Créneaux souhaités <span className="champ-obligatoire">*</span>
-        </legend>
-        <div className="bloc-disponibilites__options">
-          {CRENEAUX.map((creneau) => (
-            <label key={creneau.code} htmlFor={`creneau-${creneau.code}`}>
-              <input
-                id={`creneau-${creneau.code}`}
-                type="checkbox"
-                value={creneau.code}
-                {...register('creneaux')}
-              />
-              {creneau.libelle}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {/* Un seul des deux sous-blocs à la fois, selon le type de poste — jamais les deux
+          ensemble, et aucun tant qu'aucun poste n'est encore sélectionné (même patron que Poste
+          recherché (bureau)/(hôtel) plus bas). Les créneaux déjà cochés sont vidés à chaque
+          changement réel de poste (voir l'effet dédié ci-dessus) : pas de risque de cohabitation
+          entre les deux vocabulaires en mémoire. */}
+      {typePosteSelectionne === 'hotel' && (
+        <fieldset>
+          <legend>
+            Créneaux souhaités <span className="champ-obligatoire">*</span>
+          </legend>
+          <div className="bloc-disponibilites__options">
+            {CRENEAUX_HOTEL.map((creneau) => (
+              <label key={creneau.code} htmlFor={`creneau-${creneau.code}`}>
+                <input
+                  id={`creneau-${creneau.code}`}
+                  type="checkbox"
+                  value={creneau.code}
+                  {...register('creneaux')}
+                />
+                {creneau.libelle}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {typePosteSelectionne === 'bureau' && (
+        <fieldset>
+          <legend>
+            Créneaux souhaités <span className="champ-obligatoire">*</span>
+          </legend>
+          <div className="bloc-disponibilites__options">
+            {CRENEAUX_BUREAU.map((creneau) => (
+              <label key={creneau.code} htmlFor={`creneau-${creneau.code}`}>
+                <input
+                  id={`creneau-${creneau.code}`}
+                  type="checkbox"
+                  value={creneau.code}
+                  {...register('creneaux')}
+                />
+                {creneau.libelle}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
       {errors.creneaux && <p role="alert">{errors.creneaux.message}</p>}
+      {!errors.creneaux && erreurCreneauxBureau && <p role="alert">{erreurCreneauxBureau}</p>}
 
       <fieldset>
         <legend>

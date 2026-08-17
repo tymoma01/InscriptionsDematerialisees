@@ -27,7 +27,11 @@ class ErreurInscriptionConflit extends Error {
 const TELEPHONE_REGEX = /^0[1-9](\s?\d{2}){4}$/;
 const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
-const CRENEAUX = ['matin', 'midi', 'soir'];
+// Deux vocabulaires de créneaux distincts selon le type de poste — même contrat que
+// BlocDisponibilites.schema.js (CRENEAUX_HOTEL/CRENEAUX_BUREAU) côté front, revalidé ici.
+const CRENEAUX_HOTEL = ['matin', 'midi', 'soir'];
+const CRENEAUX_BUREAU = ['6h-9h', '9h-18h', '18h-21h'];
+const CRENEAUX = [...CRENEAUX_HOTEL, ...CRENEAUX_BUREAU];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
@@ -116,6 +120,26 @@ const donneesInscriptionSchema = z
     {
       message: 'Les postes en hôtellerie nécessitent une disponibilité le week-end (samedi et dimanche)',
       path: ['joursDisponibles'],
+    },
+  )
+  // Les créneaux soumis doivent appartenir au vocabulaire du type de poste (voir
+  // CRENEAUX_HOTEL/CRENEAUX_BUREAU ci-dessus) — même garde défensive que le front
+  // (BlocDisponibilites.schema.js) contre un payload manipulé.
+  .refine(
+    (donnees) => {
+      const codesAutorises = donnees.typePoste === 'bureau' ? CRENEAUX_BUREAU : CRENEAUX_HOTEL;
+      return donnees.creneaux.every((code) => codesAutorises.includes(code));
+    },
+    { message: 'Créneaux invalides pour le type de poste sélectionné', path: ['creneaux'] },
+  )
+  // Côté bureau, "9h-18h" ne peut jamais être coché seul : au moins "6h-9h" ou "18h-21h" est
+  // obligatoire — même règle que BlocDisponibilites.schema.js côté front, revalidée ici.
+  .refine(
+    (donnees) =>
+      donnees.typePoste !== 'bureau' || donnees.creneaux.includes('6h-9h') || donnees.creneaux.includes('18h-21h'),
+    {
+      message: 'Sélectionnez au moins un créneau 6h-9h ou 18h-21h (9h-18h seul ne suffit pas)',
+      path: ['creneaux'],
     },
   )
   // Précision obligatoire uniquement si "Internet" ou "Autre" est sélectionné
