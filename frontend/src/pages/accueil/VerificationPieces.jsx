@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import CaptureTablette from '../../core/pieceJustificative/CaptureTablette';
 import NotesDossier from '../../core/dossier/NotesDossier';
+import InformationsInscription from '../../core/dossier/InformationsInscription';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -89,6 +90,7 @@ export default function VerificationPieces() {
           libellePoste={libellePoste}
         />
         <NotesDossier dossierId={dossierId} />
+        <InformationsInscription dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );
