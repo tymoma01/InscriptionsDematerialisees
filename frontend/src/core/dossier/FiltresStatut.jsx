@@ -18,12 +18,23 @@ import './FiltresStatut.css';
 // état restent entièrement à la charge de l'appelant, ce composant se contente de lui réserver un
 // emplacement. Les boutons qu'il contient héritent malgré tout du style `.filtres-statut
 // button`/`.actif` ci-dessous (descendants du même <nav>), sans code CSS dupliqué.
+//
+// `compteurTous`/`compteurs` optionnels (refonte compteurs, 2026-08-17) : nombre affiché entre
+// parenthèses après chaque libellé ("Test planifié (5)"). `compteurs` est un objet/Map code ->
+// nombre — un code qui n'y figure pas (aucun dossier ne le satisfait actuellement, vu les autres
+// filtres actifs) affiche "(0)" plutôt que de ne rien afficher : omettre le compteur laisserait
+// croire qu'il n'a pas encore été calculé, alors que 0 est une réponse à part entière. Seule
+// l'ABSENCE totale de la prop `compteurs` (undefined) désactive l'affichage des compteurs :
+// comportement historique inchangé pour Utilisateurs.jsx, qui réutilise ce même composant pour
+// filtrer par rôle/statut de compte, sans compteur.
 export default function FiltresStatut({
   statuts = [],
   statutFiltre,
   onChangerStatutFiltre,
   ariaLabel = 'Filtrer par statut',
   filtresSupplementaires,
+  compteurTous,
+  compteurs,
 }) {
   return (
     <nav className="filtres-statut" aria-label={ariaLabel}>
@@ -33,7 +44,7 @@ export default function FiltresStatut({
           className={statutFiltre === null ? 'actif' : ''}
           onClick={() => onChangerStatutFiltre(null)}
         >
-          Tous
+          Tous{compteurTous != null ? ` (${compteurTous})` : ''}
         </button>
       </div>
       {filtresSupplementaires}
@@ -46,6 +57,7 @@ export default function FiltresStatut({
             onClick={() => onChangerStatutFiltre(statut.code)}
           >
             {statut.libelle}
+            {compteurs ? ` (${compteurs[statut.code] ?? 0})` : ''}
           </button>
         ))}
       </div>

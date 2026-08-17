@@ -371,10 +371,11 @@ export default function Planification() {
                       aria-label="Tout sélectionner"
                     />
                   </th>
-                  {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas rdv.id ni dossier_id —
-                      recalculé à chaque tri, purement visuel. Figée en tête du bloc figé "Date et
-                      heure"/"Candidat" ci-dessous (voir Planification.css,
-                      --planification-largeur-colonne-numero). */}
+                  {/* N° de dossier = rdv.dossier_id, identifiant métier déjà utilisé partout
+                      ailleurs dans l'app (en-tête "Dossier #id", colonne "N° dossier" du tableau
+                      KPI) — plus un simple rang d'affichage recalculé à chaque tri (comportement
+                      précédent). Figée en tête du bloc figé "Date et heure"/"Candidat" ci-dessous
+                      (voir Planification.css, --planification-largeur-colonne-numero). */}
                   <th scope="col" className="planification__colonne-numero">
                     N°
                   </th>
@@ -409,7 +410,7 @@ export default function Planification() {
                 </tr>
               </thead>
               <tbody>
-                {rendezvousTries.map((rdv, index) => (
+                {rendezvousTries.map((rdv) => (
                   <tr key={rdv.id}>
                     <td className="planification__colonne-case">
                       <input
@@ -419,7 +420,7 @@ export default function Planification() {
                         aria-label={`Sélectionner ${rdv.candidat_prenom} ${rdv.candidat_nom}`}
                       />
                     </td>
-                    <td className="planification__colonne-numero">{index + 1}</td>
+                    <td className="planification__colonne-numero">{rdv.dossier_id}</td>
                     <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td className="planification__colonne-figee">
                       {rdv.candidat_prenom} {rdv.candidat_nom}

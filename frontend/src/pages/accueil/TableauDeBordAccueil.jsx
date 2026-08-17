@@ -162,11 +162,17 @@ export default function TableauDeBordAccueil() {
       });
   }, []);
 
+  // Un seul chargement, tous statuts confondus (statutFiltre n'est plus un paramètre de requête,
+  // voir son commentaire de déclaration) : le filtrage par statut se fait désormais entièrement
+  // client, comme recherche/dateDebutFiltre/dateFinFiltre/entitesFiltre ci-dessous — nécessaire
+  // pour calculer le compteur de CHAQUE bouton de statut (dossiersFiltresSansStatut ci-dessous) à
+  // partir de la même liste en mémoire, plutôt que de ne connaître que le statut actuellement
+  // sélectionné.
   useEffect(() => {
     let annule = false;
     setChargementDossiers(true);
     setErreur(null);
-    listerDossiers({ statut: statutFiltre })
+    listerDossiers()
       .then((valeur) => {
         if (!annule) setDossiers(valeur);
       })
@@ -179,21 +185,66 @@ export default function TableauDeBordAccueil() {
     return () => {
       annule = true;
     };
-  }, [statutFiltre]);
+  }, []);
 
   // Rechargement manuel après une replanification réussie (voir plus bas) : le dossier a changé
-  // de statut (→ test_planifie), il doit soit disparaître de la vue filtrée courante, soit voir
-  // son badge de statut mis à jour — un simple retrait local serait incorrect si le filtre actif
-  // est justement "Test planifié".
+  // de statut (→ test_planifie), la vue filtrée par statut ainsi que les compteurs doivent
+  // refléter ce changement.
   const rechargerDossiers = () => {
-    listerDossiers({ statut: statutFiltre })
+    listerDossiers()
       .then(setDossiers)
       .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les dossiers.'));
   };
 
-  const dossiersFiltres = useMemo(
+  // Recherche/dates uniquement (pas encore l'entité ni le statut) : base commune aux compteurs
+  // "Hôtellerie"/"Tertiaire" ci-dessous, qui doivent chacun ignorer l'état courant du filtre
+  // entité (Set) pour répondre à la question "combien de dossiers dans CETTE entité si je clique
+  // ce bouton", indépendamment de l'autre bouton entité déjà actif ou non.
+  const dossiersRechercheDate = useMemo(
+    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre: new Set() }),
+    [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
+  );
+
+  // Recherche/dates/entité (pas encore le statut) : c'est cette liste, group par statut_code, qui
+  // donne le compteur de CHAQUE bouton de statut (y compris "Tous") — le nombre de résultats qu'on
+  // obtiendrait en cliquant ce bouton compte tenu des autres filtres actifs.
+  const dossiersFiltresSansStatut = useMemo(
     () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }),
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre, entitesFiltre],
+  );
+
+  const dossiersFiltres = useMemo(
+    () =>
+      statutFiltre
+        ? dossiersFiltresSansStatut.filter((dossier) => dossier.statut_code === statutFiltre)
+        : dossiersFiltresSansStatut,
+    [dossiersFiltresSansStatut, statutFiltre],
+  );
+
+  const compteursParStatut = useMemo(() => {
+    const compte = {};
+    dossiersFiltresSansStatut.forEach((dossier) => {
+      compte[dossier.statut_code] = (compte[dossier.statut_code] ?? 0) + 1;
+    });
+    return compte;
+  }, [dossiersFiltresSansStatut]);
+
+  // Compteur des boutons "Hôtellerie"/"Tertiaire" : recherche/dates/statut appliqués, entité
+  // ignorée (voir dossiersRechercheDate ci-dessus) — chaque bouton compte comme si LUI SEUL était
+  // sélectionné, pour rester cohérent avec le comportement de clic (Set, indépendamment activable).
+  const compteurHotel = useMemo(
+    () =>
+      dossiersRechercheDate.filter(
+        (dossier) => (!statutFiltre || dossier.statut_code === statutFiltre) && (dossier.postesHotel ?? []).length > 0,
+      ).length,
+    [dossiersRechercheDate, statutFiltre],
+  );
+  const compteurBureau = useMemo(
+    () =>
+      dossiersRechercheDate.filter(
+        (dossier) => (!statutFiltre || dossier.statut_code === statutFiltre) && (dossier.postesBureau ?? []).length > 0,
+      ).length,
+    [dossiersRechercheDate, statutFiltre],
   );
 
   const statutsFiltres = useMemo(
@@ -244,6 +295,8 @@ export default function TableauDeBordAccueil() {
           statuts={statutsFiltres}
           statutFiltre={statutFiltre}
           onChangerStatutFiltre={setStatutFiltre}
+          compteurTous={dossiersFiltresSansStatut.length}
+          compteurs={compteursParStatut}
           filtresSupplementaires={
             <div className="tableau-bord-accueil__filtre-entite" role="group" aria-label="Filtrer par entité">
               <button
@@ -252,7 +305,7 @@ export default function TableauDeBordAccueil() {
                 aria-pressed={entitesFiltre.has('hotel')}
                 onClick={() => basculerEntiteFiltre('hotel')}
               >
-                Hôtellerie
+                Hôtellerie ({compteurHotel})
               </button>
               <button
                 type="button"
@@ -260,7 +313,7 @@ export default function TableauDeBordAccueil() {
                 aria-pressed={entitesFiltre.has('bureau')}
                 onClick={() => basculerEntiteFiltre('bureau')}
               >
-                Tertiaire
+                Tertiaire ({compteurBureau})
               </button>
             </div>
           }

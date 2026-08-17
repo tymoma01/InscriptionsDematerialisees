@@ -102,10 +102,12 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
       <table className="dossier-list">
         <thead>
           <tr>
-            {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas dossier.id — recalculé à chaque
-                tri, purement visuel, aucun lien avec la clé de tri. Figée avec "Candidat" (voir
-                .dossier-list__colonne-numero) pour rester un repère constant même une fois les
-                colonnes suivantes défilées hors champ. */}
+            {/* N° de dossier = dossier.id, identifiant métier déjà utilisé partout ailleurs dans
+                l'app (en-tête "Dossier #id" de Validation.jsx/Relances.jsx/VerificationPieces.jsx,
+                colonne "N° dossier" de TableauDossiersSelectionnes.jsx) — plus un simple rang
+                d'affichage recalculé à chaque tri (comportement précédent). Figée avec "Candidat"
+                (voir .dossier-list__colonne-numero) pour rester un repère constant même une fois
+                les colonnes suivantes défilées hors champ. */}
             <th scope="col" className="dossier-list__colonne-numero">
               N°
             </th>
@@ -135,9 +137,9 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
           </tr>
         </thead>
         <tbody>
-          {dossiersTries.map((dossier, index) => (
+          {dossiersTries.map((dossier) => (
             <tr key={dossier.id}>
-              <td className="dossier-list__colonne-numero">{index + 1}</td>
+              <td className="dossier-list__colonne-numero">{dossier.id}</td>
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
