@@ -106,6 +106,49 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
     <fieldset className="bloc-formulaire bloc-disponibilites">
       <legend>Disponibilités</legend>
 
+      {/* Type de poste recherché en tout début de bloc, juste au-dessus de "Disponible
+          immédiatement" (décision utilisateur, 2026-08-17) — inchangé par ailleurs (contenu,
+          validation, options Poste recherché (bureau)/(hôtel) qui restent conditionnées à ce
+          choix et affichées plus bas, après Langues parlées, comme avant ce déplacement). */}
+      <fieldset>
+        <legend>
+          Type de poste recherché <span className="champ-obligatoire">*</span>
+        </legend>
+        <div className="bloc-disponibilites__options">
+          <label htmlFor="typePoste-bureau">
+            <input
+              id="typePoste-bureau"
+              type="radio"
+              value="bureau"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: 'typePoste',
+                valeur: 'bureau',
+                valeurCourante: typePosteSelectionne,
+              })}
+            />
+            Bureau
+          </label>
+          <label htmlFor="typePoste-hotel">
+            <input
+              id="typePoste-hotel"
+              type="radio"
+              value="hotel"
+              {...propsRadioAccessible({
+                register,
+                setValue,
+                champ: 'typePoste',
+                valeur: 'hotel',
+                valeurCourante: typePosteSelectionne,
+              })}
+            />
+            Hôtel
+          </label>
+        </div>
+      </fieldset>
+      {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
+
       <label htmlFor="disponibiliteImmediate" className="bloc-disponibilites__case-immediate">
         <input id="disponibiliteImmediate" type="checkbox" {...register('disponibiliteImmediate')} />
         Disponible immédiatement
@@ -197,45 +240,6 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
           {errors.autreLanguePrecision && <p role="alert">{errors.autreLanguePrecision.message}</p>}
         </div>
       )}
-
-      <fieldset>
-        <legend>
-          Type de poste recherché <span className="champ-obligatoire">*</span>
-        </legend>
-        <div className="bloc-disponibilites__options">
-          <label htmlFor="typePoste-bureau">
-            <input
-              id="typePoste-bureau"
-              type="radio"
-              value="bureau"
-              {...propsRadioAccessible({
-                register,
-                setValue,
-                champ: 'typePoste',
-                valeur: 'bureau',
-                valeurCourante: typePosteSelectionne,
-              })}
-            />
-            Bureau
-          </label>
-          <label htmlFor="typePoste-hotel">
-            <input
-              id="typePoste-hotel"
-              type="radio"
-              value="hotel"
-              {...propsRadioAccessible({
-                register,
-                setValue,
-                champ: 'typePoste',
-                valeur: 'hotel',
-                valeurCourante: typePosteSelectionne,
-              })}
-            />
-            Hôtel
-          </label>
-        </div>
-      </fieldset>
-      {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
 
       {typePosteSelectionne === 'bureau' && (
         <>
