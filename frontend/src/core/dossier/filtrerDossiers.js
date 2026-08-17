@@ -9,11 +9,11 @@ function normaliserTelephone(valeur) {
   return valeur.replace(/[\s-]/g, '');
 }
 
-// Filtrage client (recherche nom/prénom/téléphone/email/poste + plage de date de dernière mise à
-// jour) sur une liste de dossiers déjà chargée en mémoire — voir FiltresRechercheDossiers.jsx
-// pour le pourquoi (pas de pagination serveur, filtrage instantané). Fonction pure, partagée par
-// TableauDeBordAccueil.jsx et Backoffice.jsx (recruteur), pour ne pas dupliquer deux fois la même
-// logique de comparaison de dates.
+// Filtrage client (recherche nom/prénom/téléphone/email/poste/n° de dossier + plage de date de
+// dernière mise à jour) sur une liste de dossiers déjà chargée en mémoire — voir
+// FiltresRechercheDossiers.jsx pour le pourquoi (pas de pagination serveur, filtrage instantané).
+// Fonction pure, partagée par TableauDeBordAccueil.jsx et Backoffice.jsx (recruteur), pour ne pas
+// dupliquer deux fois la même logique de comparaison de dates.
 //
 // `libellePoste` optionnel, même patron que DossierList.jsx (voir sa colonne "Poste") : les codes
 // bruts (dossier.postesBureau/postesHotel) sont un vocabulaire propre à ACCECIT, ce module
@@ -62,7 +62,11 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
         postes.includes(rechercheNormaliseeTexte) ||
         // rechercheTelephone vide (recherche sans chiffre, ex. juste des espaces/tirets) ne doit
         // jamais matcher un dossier sans téléphone saisi — .includes('') serait toujours vrai.
-        (rechercheTelephone && telephone.includes(rechercheTelephone));
+        (rechercheTelephone && telephone.includes(rechercheTelephone)) ||
+        // N° de dossier (dossier.id, identifiant métier déjà affiché dans la colonne "N°" de
+        // DossierList.jsx — voir son commentaire) : correspondance partielle comme le téléphone
+        // ci-dessus ("9" retrouve le dossier 9 mais aussi 19, 91...), pas une égalité stricte.
+        String(dossier.id).includes(rechercheNormalisee);
       if (!correspond) return false;
     }
     if (debut || fin) {
