@@ -31,9 +31,19 @@
    (Backoffice.css). flex-shrink: 0 comme .filtres-statut__tous voisin : ce bloc ne doit jamais
    se comprimer, c'est la boîte de statuts (flex: 1) qui absorbe le manque de place. Boutons non
    stylés ici : ils héritent de `.filtres-statut button`/`.actif` (FiltresStatut.css), étant
-   rendus à l'intérieur du même <nav>. */
+   rendus à l'intérieur du même <nav>.
+   align-items: center indispensable (bug corrigé le 2026-08-17) : sans lui, ce conteneur flex
+   étire ses boutons enfants sur toute sa propre hauteur (stretch, valeur par défaut d'un flex
+   container pour ses propres enfants) — hauteur elle-même dictée par celle, plus grande, de
+   `.filtres-statut` (align-items: stretch, FiltresStatut.css) une fois `.filtres-statut__statuts`
+   passé sur deux lignes (beaucoup de boutons de statut). Résultat observé : Hôtellerie/Tertiaire
+   nettement plus hauts que "Tous"/les boutons de statut, presque ronds (border-radius: 999px sur
+   un bouton dont la hauteur approche sa largeur). `.filtres-statut__tous`/`.filtres-statut__statuts`
+   (FiltresStatut.css) déclarent déjà explicitement ce même align-items: center pour la même
+   raison — ce conteneur-ci l'avait toujours omis. */
 .tableau-bord-accueil__filtre-entite {
   display: flex;
   flex-shrink: 0;
+  align-items: center;
   gap: var(--espace-petit);
 }
