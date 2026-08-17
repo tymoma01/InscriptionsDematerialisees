@@ -53,6 +53,19 @@ export const blocDisponibilitesSchema = z
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
   })
+  // Disponibilité samedi ET dimanche obligatoire pour l'hôtellerie (activité du week-end) —
+  // n'ajoute pas ces jours automatiquement si le candidat change de "Hôtel" vers "Bureau" (voir
+  // BlocDisponibilites.jsx, aucun reset sur joursDisponibles) : uniquement la validation qui se
+  // relâche, les jours déjà cochés restent tels quels.
+  .refine(
+    (valeurs) =>
+      valeurs.typePoste !== 'hotel' ||
+      (valeurs.joursDisponibles.includes('samedi') && valeurs.joursDisponibles.includes('dimanche')),
+    {
+      message: 'Les postes en hôtellerie nécessitent une disponibilité le week-end (samedi et dimanche)',
+      path: ['joursDisponibles'],
+    },
+  )
   // Précision obligatoire pour "Internet", "Autre" et "Cooptation" — les 3 options où le champ
   // "Précisez" est affiché (voir commentConnuPrecisionVisible, BlocDisponibilites.jsx)
   .refine(

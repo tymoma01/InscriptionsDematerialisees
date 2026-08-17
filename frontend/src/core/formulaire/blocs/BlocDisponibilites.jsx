@@ -21,6 +21,11 @@ const JOURS = [
   { code: 'dimanche', libelle: 'Dimanche' },
 ];
 
+// Jours dont la présence est obligatoire côté hôtellerie (activité du week-end) — même paire que
+// le .refine dédié de BlocDisponibilites.schema.js, dupliqué ici tel quel plutôt que partagé
+// (deux codes, pas de quoi justifier un import croisé composant/schéma).
+const JOURS_WEEK_END_HOTEL = ['samedi', 'dimanche'];
+
 const LANGUES = [
   { code: 'francais', libelle: 'Français' },
   { code: 'anglais', libelle: 'Anglais' },
@@ -90,6 +95,26 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   const disponibleImmediatement = valeursSaisies.disponibiliteImmediate;
   const autreLangueCochee = (valeursSaisies.languesParlees ?? []).includes('autre');
   const typePosteSelectionne = valeursSaisies.typePoste;
+  // Vide dès que le candidat repasse à "Bureau" (ou n'a encore rien choisi) : purement dérivé de
+  // typePosteSelectionne, jamais stocké — aucun jour déjà coché n'est donc jamais décoché par ce
+  // changement, seuls cet astérisque et la validation associée (voir schéma) se relâchent.
+  const jourWeekEndObligatoire = typePosteSelectionne === 'hotel' ? JOURS_WEEK_END_HOTEL : [];
+  // Recalculé en dérivé plutôt que lu depuis errors.joursDisponibles : le .refine() correspondant
+  // (BlocDisponibilites.schema.js) bloque déjà correctement isValid/"Suivant" (confirmé), mais
+  // react-hook-form + zodResolver ne remonte jamais le message d'un .refine() au niveau objet
+  // dans `errors` ici (constaté aussi bien sur ce refine que sur les refines déjà en place avant
+  // lui — posteBureau/posteHotel/dateDebut/dateFin... — donc pas une régression propre à ce
+  // changement) — même contournement déjà adopté dans ce projet pour un problème de fiabilité
+  // react-hook-form/zod équivalent, voir calculerErreurCoherenceNir (BlocInfosPerso.jsx).
+  // Neutralisé tant qu'aucun jour n'est encore coché : l'erreur de base (`errors.joursDisponibles`,
+  // "Sélectionnez au moins un jour disponible") reste seule affichée dans ce cas (voir le rendu).
+  const joursDisponiblesSaisis = valeursSaisies.joursDisponibles ?? [];
+  const erreurWeekEndHotel =
+    typePosteSelectionne === 'hotel' &&
+    joursDisponiblesSaisis.length > 0 &&
+    !(joursDisponiblesSaisis.includes('samedi') && joursDisponiblesSaisis.includes('dimanche'))
+      ? 'Les postes en hôtellerie nécessitent une disponibilité le week-end (samedi et dimanche)'
+      : null;
   const autrePosteBureauCoche = (valeursSaisies.posteBureau ?? []).includes('autres');
   const commentConnuSelectionne = valeursSaisies.commentConnu;
   // Visible et obligatoire pour les 3 mêmes options (voir BlocDisponibilites.schema.js) :
@@ -208,11 +233,18 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
                 {...register('joursDisponibles')}
               />
               {jour.libelle}
+              {/* Astérisque supplémentaire sur Samedi/Dimanche uniquement pour l'hôtellerie (voir
+                  le .refine dédié, BlocDisponibilites.schema.js) — les autres jours restent
+                  couverts par le seul astérisque générique du <legend> ("au moins un jour"). Ne
+                  décoche jamais rien si le candidat repasse de Hôtel à Bureau (aucun setValue
+                  ici) : seuls cet astérisque et la validation associée disparaissent. */}
+              {jourWeekEndObligatoire.includes(jour.code) && <span className="champ-obligatoire"> *</span>}
             </label>
           ))}
         </div>
       </fieldset>
       {errors.joursDisponibles && <p role="alert">{errors.joursDisponibles.message}</p>}
+      {!errors.joursDisponibles && erreurWeekEndHotel && <p role="alert">{erreurWeekEndHotel}</p>}
 
       <fieldset>
         <legend>Langues parlées</legend>

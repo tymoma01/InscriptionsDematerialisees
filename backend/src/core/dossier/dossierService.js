@@ -108,6 +108,16 @@ const donneesInscriptionSchema = z
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
   })
+  // Disponibilité samedi ET dimanche obligatoire pour l'hôtellerie (activité du week-end) — même
+  // règle que BlocDisponibilites.schema.js côté front, revalidée ici : la validation front ne
+  // suffit jamais à sécuriser une écriture en base.
+  .refine(
+    (donnees) => donnees.typePoste !== 'hotel' || (donnees.joursDisponibles.includes('samedi') && donnees.joursDisponibles.includes('dimanche')),
+    {
+      message: 'Les postes en hôtellerie nécessitent une disponibilité le week-end (samedi et dimanche)',
+      path: ['joursDisponibles'],
+    },
+  )
   // Précision obligatoire uniquement si "Internet" ou "Autre" est sélectionné
   .refine(
     (donnees) => !['internet', 'autre'].includes(donnees.commentConnu) || donnees.commentConnuPrecision !== '',
