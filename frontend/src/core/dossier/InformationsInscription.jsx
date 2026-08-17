@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { obtenirInscriptionComplete } from '../../services/dossierService';
-import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
+import { listerPiecesJustificatives, obtenirApercuPiece } from '../../services/pieceJustificativeService';
 import './InformationsInscription.css';
+
+// Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
+// — pièce obligatoire, capturée uniquement à la caméra (jamais un fichier existant, voir
+// CaptureTablette.jsx). Dupliqué ici tel quel plutôt que partagé (deux fichiers, même convention
+// que le reste du projet).
+const CODE_PHOTO_IDENTITE = 'photo_identite';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -96,6 +102,26 @@ export default function InformationsInscription({ dossierId }) {
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState(null);
 
+  // Vignette de la photo d'identité (voir CODE_PHOTO_IDENTITE) — même route/service que
+  // "Voir" sur CaptureTablette.jsx (obtenirApercuPiece, GET .../pieces/:pieceId/apercu), donc le
+  // même connecteur de stockage par entité (OneDrive/Microsoft Graph pour ACCECIT, voir
+  // storageFactory côté back) que n'importe quelle autre pièce justificative — aucune route ni
+  // logique de récupération propre à cette section. null tant qu'aucune photo n'est trouvée dans
+  // `pieces` (dossier en cours, pas encore capturée) : distinct de chargement/erreur, sert de
+  // condition "Non fournie" dans le rendu.
+  const [photoIdentiteUrl, setPhotoIdentiteUrl] = useState(null);
+  const [photoIdentiteChargement, setPhotoIdentiteChargement] = useState(false);
+  const [photoIdentiteErreur, setPhotoIdentiteErreur] = useState(null);
+  const [photoAgrandie, setPhotoAgrandie] = useState(false);
+
+  // Révoque l'URL locale (blob) au démontage ou si elle change — même précaution que
+  // CaptureTablette.jsx (PanneauApercuPiece) pour ne pas fuiter de mémoire.
+  useEffect(() => {
+    return () => {
+      if (photoIdentiteUrl) URL.revokeObjectURL(photoIdentiteUrl);
+    };
+  }, [photoIdentiteUrl]);
+
   const gererOuverture = (evenement) => {
     if (!evenement.target.open || inscription) return;
     setChargement(true);
@@ -104,6 +130,14 @@ export default function InformationsInscription({ dossierId }) {
       .then(([inscriptionValeur, piecesValeur]) => {
         setInscription(inscriptionValeur);
         setPieces(piecesValeur);
+
+        const photoIdentite = piecesValeur.find((piece) => piece.type_piece_code === CODE_PHOTO_IDENTITE);
+        if (!photoIdentite) return;
+        setPhotoIdentiteChargement(true);
+        obtenirApercuPiece(dossierId, photoIdentite.id)
+          .then((blob) => setPhotoIdentiteUrl(URL.createObjectURL(blob)))
+          .catch(() => setPhotoIdentiteErreur("Impossible de récupérer la photo d'identité."))
+          .finally(() => setPhotoIdentiteChargement(false));
       })
       .catch((erreurRequete) => {
         setErreur(
@@ -132,6 +166,38 @@ export default function InformationsInscription({ dossierId }) {
           <div className="informations-inscription__contenu">
             <div className="informations-inscription__groupe">
               <h3>Informations personnelles</h3>
+
+              {/* Vignette cliquable, même route de récupération (obtenirApercuPiece) que "Voir"
+                  sur CaptureTablette.jsx — voir son commentaire d'en-tête pour le détail du
+                  stockage. "Non fournie" plutôt qu'un espace vide/une erreur tant que la pièce
+                  (obligatoire mais capturée par l'accueil, pas par le candidat lui-même) n'a pas
+                  encore été prise. */}
+              <div className="informations-inscription__photo-identite">
+                <span className="informations-inscription__libelle">Photo d'identité</span>
+                {photoIdentiteChargement && <span className="informations-inscription__valeur">Chargement…</span>}
+                {!photoIdentiteChargement && photoIdentiteErreur && (
+                  <span className="informations-inscription__valeur" role="alert">
+                    {photoIdentiteErreur}
+                  </span>
+                )}
+                {!photoIdentiteChargement && !photoIdentiteErreur && photoIdentiteUrl && (
+                  <button
+                    type="button"
+                    className="informations-inscription__photo-identite-bouton"
+                    onClick={() => setPhotoAgrandie(true)}
+                  >
+                    <img
+                      src={photoIdentiteUrl}
+                      alt="Photo d'identité du candidat — cliquer pour agrandir"
+                      className="informations-inscription__photo-identite-vignette"
+                    />
+                  </button>
+                )}
+                {!photoIdentiteChargement && !photoIdentiteErreur && !photoIdentiteUrl && (
+                  <span className="informations-inscription__valeur">Non fournie</span>
+                )}
+              </div>
+
               <Ligne libelle="Civilité" valeur={libelle(LIBELLES_CIVILITE, candidat.civilite)} />
               <Ligne libelle="Nom" valeur={candidat.nom} />
               <Ligne libelle="Nom de naissance" valeur={candidat.nomNaissance} />
@@ -231,6 +297,20 @@ export default function InformationsInscription({ dossierId }) {
           </div>
         )}
       </details>
+
+      {photoAgrandie && photoIdentiteUrl && (
+        <div
+          className="informations-inscription__photo-identite-overlay"
+          role="dialog"
+          aria-label="Photo d'identité en grand"
+          onClick={() => setPhotoAgrandie(false)}
+        >
+          <img src={photoIdentiteUrl} alt="Photo d'identité du candidat" />
+          <button type="button" onClick={() => setPhotoAgrandie(false)}>
+            Fermer
+          </button>
+        </div>
+      )}
     </section>
   );
 }

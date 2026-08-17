@@ -71,3 +71,65 @@
   border-bottom: 1px solid var(--couleur-bordure-legere);
   font-size: 0.9rem;
 }
+
+/* Vignette "Photo d'identité" en tête du groupe "Informations personnelles" — même ligne
+   libellé/valeur que .informations-inscription__ligne (bordure basse comprise, pour rester visuellement
+   cohérente avec le reste du groupe), mais la "valeur" est une image plutôt qu'un texte. */
+.informations-inscription__photo-identite {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  font-size: 0.9rem;
+}
+
+.informations-inscription__photo-identite-bouton {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.informations-inscription__photo-identite-vignette {
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: cover;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure-legere);
+}
+
+/* Agrandissement au clic sur la vignette — même esprit qu'un lightbox minimal : fond sombre
+   plein écran, clic n'importe où (ou sur "Fermer") pour refermer. Pas de composant partagé avec
+   PanneauApercuPiece (CaptureTablette.jsx) : celui-là gère aussi le PDF/le rechargement réseau
+   pour n'importe quelle pièce, cette vignette-ci n'affiche qu'une image déjà en mémoire. */
+.informations-inscription__photo-identite-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--espace-moyen);
+  padding: var(--espace-grand);
+  background-color: rgba(0, 0, 0, 0.75);
+}
+
+.informations-inscription__photo-identite-overlay img {
+  max-width: min(90vw, 32rem);
+  max-height: 80vh;
+  border-radius: var(--rayon-bordure);
+}
+
+.informations-inscription__photo-identite-overlay button {
+  padding: 0.5rem 1.5rem;
+  border: 1px solid #ffffff;
+  border-radius: var(--rayon-bordure);
+  background-color: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
