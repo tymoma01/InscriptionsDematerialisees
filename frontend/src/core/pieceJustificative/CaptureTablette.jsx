@@ -110,14 +110,29 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     };
   }, [dossierId]);
 
+  // Complément optionnel "verso" (ex. carte_identite -> carte_identite_verso, voir
+  // typesPiecesConfig.accecit.js, propriété codeVerso) : un vrai type de pièce côté base/stockage
+  // (mêmes garanties qu'un type normal), mais volontairement absent de `typesPieces` — jamais une
+  // entrée de la liste principale, donc jamais compté dans nombreCapturees/piecesObligatoires
+  // ci-dessous (tous deux dérivés de typesPieces, pas de ce tableau étendu). N'existe QUE pour que
+  // PanneauCapture/PanneauApercuPiece (ouverts via typeSelectionne/typeApercu, voir plus bas)
+  // puissent résoudre un objet { code, libelle } pour ce code aussi, exactement comme pour un type
+  // normal — voir le sous-bloc "Ajouter le verso" dans le rendu de chaque <li>.
+  const typesEtVersos = useMemo(() => {
+    const versos = typesPieces
+      .filter((type) => type.codeVerso)
+      .map((type) => ({ code: type.codeVerso, libelle: `Verso - ${type.libelle}` }));
+    return [...typesPieces, ...versos];
+  }, [typesPieces]);
+
   const typeCourant = useMemo(
-    () => typesPieces.find((type) => type.code === typeSelectionne) ?? null,
-    [typesPieces, typeSelectionne],
+    () => typesEtVersos.find((type) => type.code === typeSelectionne) ?? null,
+    [typesEtVersos, typeSelectionne],
   );
 
   const typeEnApercu = useMemo(
-    () => typesPieces.find((type) => type.code === typeApercu) ?? null,
-    [typesPieces, typeApercu],
+    () => typesEtVersos.find((type) => type.code === typeApercu) ?? null,
+    [typesEtVersos, typeApercu],
   );
 
   const gererEnvoiReussi = (typePieceCode, pieceId) => {
@@ -216,76 +231,134 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
       <ul className="capture-tablette__liste">
         {typesPieces.map((type) => {
           const dejaCapturee = piecesCapturees.has(type.code);
+          const versoDejaCapture = type.codeVerso ? piecesCapturees.has(type.codeVerso) : false;
           return (
             <li key={type.code} className="capture-tablette__item">
-              <span
-                className={
-                  dejaCapturee ? 'capture-tablette__statut capture-tablette__statut--ok' : 'capture-tablette__statut'
-                }
-                aria-hidden="true"
-              >
-                {dejaCapturee ? '✓' : ''}
-              </span>
-              <span className="capture-tablette__libelle">
-                {type.libelle}
-                {/* Même pattern que "Date et heure du test *" (ModalePlanificationTest.jsx) —
-                    .champ-obligatoire est une classe globale (blocFormulaire.css), pas propre à
-                    ce composant. */}
-                {type.obligatoire && <span className="champ-obligatoire"> *</span>}
-                {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
-              </span>
-              {dejaCapturee ? (
-                // Boutons toujours affichés à l'identique, y compris une fois le dossier
-                // verrouillé (dossierPiecesModifiables faux) — juste désactivés plutôt que
-                // remplacés par un message : l'agent garde la même structure de ligne partout
-                // dans la liste, et comprend visuellement (grisé, curseur not-allowed, voir
-                // CaptureTablette.css) que l'action n'est plus disponible à ce stade.
-                <div className="capture-tablette__actions-piece">
-                  {/* Même condition de verrouillage que Reprendre/Supprimer (dossierPiecesModifiables)
-                      — pas de règle séparée pour l'aperçu. */}
-                  <button
-                    type="button"
-                    className="capture-tablette__bouton-voir"
-                    onClick={() => {
-                      setTypeApercu(type.code);
-                      setTypeSelectionne(null);
-                    }}
-                    disabled={!dossierPiecesModifiables}
-                  >
-                    Voir
-                  </button>
+              <div className="capture-tablette__item-principale">
+                <span
+                  className={
+                    dejaCapturee ? 'capture-tablette__statut capture-tablette__statut--ok' : 'capture-tablette__statut'
+                  }
+                  aria-hidden="true"
+                >
+                  {dejaCapturee ? '✓' : ''}
+                </span>
+                <span className="capture-tablette__libelle">
+                  {type.libelle}
+                  {/* Même pattern que "Date et heure du test *" (ModalePlanificationTest.jsx) —
+                      .champ-obligatoire est une classe globale (blocFormulaire.css), pas propre à
+                      ce composant. */}
+                  {type.obligatoire && <span className="champ-obligatoire"> *</span>}
+                  {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
+                </span>
+                {dejaCapturee ? (
+                  // Boutons toujours affichés à l'identique, y compris une fois le dossier
+                  // verrouillé (dossierPiecesModifiables faux) — juste désactivés plutôt que
+                  // remplacés par un message : l'agent garde la même structure de ligne partout
+                  // dans la liste, et comprend visuellement (grisé, curseur not-allowed, voir
+                  // CaptureTablette.css) que l'action n'est plus disponible à ce stade.
+                  <div className="capture-tablette__actions-piece">
+                    {/* Même condition de verrouillage que Reprendre/Supprimer (dossierPiecesModifiables)
+                        — pas de règle séparée pour l'aperçu. */}
+                    <button
+                      type="button"
+                      className="capture-tablette__bouton-voir"
+                      onClick={() => {
+                        setTypeApercu(type.code);
+                        setTypeSelectionne(null);
+                      }}
+                      disabled={!dossierPiecesModifiables}
+                    >
+                      Voir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTypeSelectionne(type.code);
+                        setTypeApercu(null);
+                      }}
+                      disabled={!dossierPiecesModifiables}
+                    >
+                      Reprendre
+                    </button>
+                    <button
+                      type="button"
+                      className="capture-tablette__bouton-supprimer"
+                      onClick={() => gererSuppression(type)}
+                      disabled={!dossierPiecesModifiables || suppressionEnCours === type.code}
+                    >
+                      {suppressionEnCours === type.code ? 'Suppression…' : 'Supprimer'}
+                    </button>
+                  </div>
+                ) : (
+                  // Le verrouillage post-planification ne concerne que les pièces déjà capturées
+                  // (voir dossierPiecesModifiables) — une pièce jamais capturée, obligatoire ou
+                  // optionnelle, doit rester capturable même après planification du test.
                   <button
                     type="button"
                     onClick={() => {
                       setTypeSelectionne(type.code);
                       setTypeApercu(null);
                     }}
-                    disabled={!dossierPiecesModifiables}
                   >
-                    Reprendre
+                    Capturer
                   </button>
-                  <button
-                    type="button"
-                    className="capture-tablette__bouton-supprimer"
-                    onClick={() => gererSuppression(type)}
-                    disabled={!dossierPiecesModifiables || suppressionEnCours === type.code}
-                  >
-                    {suppressionEnCours === type.code ? 'Suppression…' : 'Supprimer'}
-                  </button>
+                )}
+              </div>
+
+              {/* Complément optionnel "verso" (voir typesEtVersos ci-dessus) : jamais une ligne à
+                  part de cette liste, juste un sous-bloc secondaire rattaché à la pièce
+                  principale — n'apparaît qu'une fois celle-ci elle-même capturée (pas de verso
+                  sans recto), jamais compté dans "X / Y pièces capturées" ni marqué obligatoire. */}
+              {type.codeVerso && dejaCapturee && (
+                <div className="capture-tablette__item-verso">
+                  <span className="capture-tablette__libelle capture-tablette__libelle--verso">
+                    Verso <span className="capture-tablette__optionnel">(optionnel, si le document en a un)</span>
+                  </span>
+                  {versoDejaCapture ? (
+                    <div className="capture-tablette__actions-piece">
+                      <button
+                        type="button"
+                        className="capture-tablette__bouton-voir"
+                        onClick={() => {
+                          setTypeApercu(type.codeVerso);
+                          setTypeSelectionne(null);
+                        }}
+                        disabled={!dossierPiecesModifiables}
+                      >
+                        Voir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTypeSelectionne(type.codeVerso);
+                          setTypeApercu(null);
+                        }}
+                        disabled={!dossierPiecesModifiables}
+                      >
+                        Reprendre
+                      </button>
+                      <button
+                        type="button"
+                        className="capture-tablette__bouton-supprimer"
+                        onClick={() => gererSuppression({ code: type.codeVerso })}
+                        disabled={!dossierPiecesModifiables || suppressionEnCours === type.codeVerso}
+                      >
+                        {suppressionEnCours === type.codeVerso ? 'Suppression…' : 'Supprimer'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTypeSelectionne(type.codeVerso);
+                        setTypeApercu(null);
+                      }}
+                    >
+                      Ajouter le verso (si applicable)
+                    </button>
+                  )}
                 </div>
-              ) : (
-                // Le verrouillage post-planification ne concerne que les pièces déjà capturées
-                // (voir dossierPiecesModifiables) — une pièce jamais capturée, obligatoire ou
-                // optionnelle, doit rester capturable même après planification du test.
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTypeSelectionne(type.code);
-                    setTypeApercu(null);
-                  }}
-                >
-                  Capturer
-                </button>
               )}
             </li>
           );
@@ -514,10 +587,17 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
           <button type="button" onClick={demarrerCamera}>
             Prendre une photo
           </button>
-          <label className="capture-tablette__bouton-fichier">
-            Choisir un fichier
-            <input type="file" accept="image/*,application/pdf" onChange={gererSelectionFichier} />
-          </label>
+          {/* Absent pour les pièces marquées captureUniquement (ex. Photo d'identité,
+              typesPiecesConfig.accecit.js) : empêche l'upload d'une photo déjà existante — seule
+              une capture caméra fraîche reste possible pour cette pièce précise. Revalidé côté
+              serveur (garde partielle sur le Content-Type, voir pieceJustificativeService.js) :
+              ce n'est qu'un contrôle d'UX, pas une garantie contre un appel API direct. */}
+          {!type.captureUniquement && (
+            <label className="capture-tablette__bouton-fichier">
+              Choisir un fichier
+              <input type="file" accept="image/*,application/pdf" onChange={gererSelectionFichier} />
+            </label>
+          )}
         </div>
       )}
 

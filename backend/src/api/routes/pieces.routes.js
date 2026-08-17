@@ -104,6 +104,10 @@ router.post('/', requireRole(...ROLES_GESTION_PIECES), upload.single('piece'), a
       typePieceCode,
       nomFichier: req.file.originalname,
       contenu: req.file.buffer,
+      // Content-Type du multipart tel que déclaré par le navigateur (multer) — voir
+      // pieceJustificativeService.js pour la garde types_pieces.capture_uniquement qui s'en sert,
+      // et ses limites explicites (pas une preuve de capture réelle).
+      mimetype: req.file.mimetype,
       uploadedBy: req.utilisateur.id,
     });
 

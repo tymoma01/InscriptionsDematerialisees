@@ -50,13 +50,41 @@
   gap: var(--espace-petit);
 }
 
+/* Colonne plutôt que ligne unique directement ici (comportement d'origine, repris ci-dessous par
+   .capture-tablette__item-principale) : permet d'empiler le sous-bloc "Verso" optionnel
+   (.capture-tablette__item-verso) sous la ligne principale d'une pièce, sans casser sa mise en
+   page en ligne (statut + libellé + actions). */
 .capture-tablette__item {
   display: flex;
-  align-items: center;
-  gap: var(--espace-petit);
+  flex-direction: column;
   padding: var(--espace-petit) var(--espace-moyen);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
+}
+
+.capture-tablette__item-principale {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+/* Sous-bloc "Verso" (voir typesPiecesConfig.accecit.js, codeVerso) : en retrait sous la pièce
+   principale, séparé par une fine ligne, jamais une ligne de même poids visuel que
+   .capture-tablette__item-principale — c'est un complément optionnel rattaché, pas une pièce à
+   part de la liste (voir CaptureTablette.jsx). */
+.capture-tablette__item-verso {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  margin-top: var(--espace-petit);
+  padding-top: var(--espace-petit);
+  padding-left: calc(1.5rem + var(--espace-petit));
+  border-top: 1px dashed var(--couleur-bordure-legere);
+}
+
+.capture-tablette__libelle--verso {
+  font-size: 0.9rem;
+  color: var(--couleur-texte-secondaire);
 }
 
 /* Pastille de statut : vide/grise tant que la pièce n'est pas capturée, coche pleine une fois

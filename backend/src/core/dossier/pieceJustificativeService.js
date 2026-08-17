@@ -59,7 +59,7 @@ const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'
 // irrécupérable pour de bon sur des dossiers pourtant déjà avancés (test réalisé, verdict rendu).
 const STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS = ['nouveau'];
 
-async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, uploadedBy }) {
+async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, mimetype, uploadedBy }) {
   if (!Buffer.isBuffer(contenu)) {
     throw new Error('uploaderPieceJustificative attend un contenu de type Buffer');
   }
@@ -76,6 +76,24 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   const typePiece = await pieceJustificativeRepository.trouverTypePieceParCode(bd, entite.id, typePieceCode);
   if (!typePiece) {
     throw new ErreurPieceJustificativeInvalide(`Type de pièce "${typePieceCode}" non configuré pour l'entité « ${entite.code} ».`);
+  }
+
+  // Garde défensive PARTIELLE, pas une preuve de capture réelle (migration 048,
+  // types_pieces.capture_uniquement — ex. Photo d'identité) : capturerPhoto() de
+  // CaptureTablette.jsx produit toujours un Blob 'image/jpeg' via canvas.toBlob, jamais autre
+  // chose — un contenu qui n'est pas exactement ce type est donc forcément passé par un autre
+  // chemin que ce bouton (fichier choisi, ou appel API direct avec ce content-type). CE QUE
+  // CETTE VÉRIFICATION NE FAIT PAS : distinguer un vrai JPEG capturé à l'instant d'un JPEG
+  // préexistant renommé/reconstruit puis envoyé via un appel API forgé avec le bon
+  // Content-Type — aucune preuve de provenance (metadata EXIF, jeton signé côté client au
+  // moment de la capture...) n'est demandée ni vérifiable ici. Techniquement, la restriction
+  // "caméra uniquement" reste donc un contrôle d'UX côté front (bouton "Choisir un fichier"
+  // absent pour ce type, voir CaptureTablette.jsx), pas une garantie de sécurité côté serveur
+  // contre un appelant déterminé qui contournerait le navigateur.
+  if (typePiece.capture_uniquement && mimetype !== 'image/jpeg') {
+    throw new ErreurPieceJustificativeInvalide(
+      `Le type de pièce "${typePieceCode}" doit être capturé directement depuis l'appareil photo (fichier attendu : image/jpeg).`,
+    );
   }
 
   if (!STATUTS_UPLOAD_AUTORISES.includes(dossier.statut_code)) {
