@@ -305,7 +305,7 @@ export default function TableauDeBordAccueil() {
                 aria-pressed={entitesFiltre.has('hotel')}
                 onClick={() => basculerEntiteFiltre('hotel')}
               >
-                Hôtellerie ({compteurHotel})
+                Hôtellerie <strong>({compteurHotel})</strong>
               </button>
               <button
                 type="button"
@@ -313,7 +313,7 @@ export default function TableauDeBordAccueil() {
                 aria-pressed={entitesFiltre.has('bureau')}
                 onClick={() => basculerEntiteFiltre('bureau')}
               >
-                Tertiaire ({compteurBureau})
+                Tertiaire <strong>({compteurBureau})</strong>
               </button>
             </div>
           }

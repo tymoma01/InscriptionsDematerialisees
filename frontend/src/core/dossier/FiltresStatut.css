@@ -11,7 +11,10 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  /* Ancien font-weight: 700 sur tout le bouton retiré (2026-08-17) : mettait "Tous" entier en
+     gras pour le distinguer, mais entre en conflit avec le nouveau compteur — seul le chiffre
+     entre parenthèses doit être en gras (voir <strong> dans FiltresStatut.jsx), pour un
+     traitement visuel identique à "Tous"/aux boutons de statut/Hôtellerie/Tertiaire. */
 }
 
 /* Sans min-width, ce bouton était mécaniquement plus étroit que ses voisins immédiats
@@ -35,28 +38,30 @@
 .filtres-statut__statuts {
   display: flex;
   flex: 1;
-  flex-wrap: wrap;
+  /* nowrap + overflow-x: auto (corrigé le 2026-08-17, revient sur flex-wrap: wrap) : avec 7
+     statuts + compteurs, le texte total dépasse presque toujours la largeur disponible à côté de
+     "Tous"/du filtre Entité (déjà constaté à 1440px de large, PAS seulement une fois Hôtellerie/
+     Tertiaire sélectionné comme il y paraissait — le dernier bouton retombait déjà à la ligne
+     avec "Tous" aussi, juste moins visible) : un flex-wrap ferait donc systématiquement passer le
+     dernier bouton sur une deuxième ligne, quel que soit le filtre Entité actif. Défilement
+     horizontal à la place, même patron que .dossier-list__scroll (DossierList.css) : chaque
+     bouton garde sa largeur intacte (flex-shrink: 0 ci-dessous), rien ne se casse ni ne se
+     réduit, l'agent fait glisser la rangée si son écran est trop étroit pour tout afficher.
+     justify-content: flex-start (plutôt que space-between, qui n'a plus de sens dès que le
+     contenu déborde du conteneur) : les boutons restent groupés à gauche, dans l'ordre naturel. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--espace-petit);
   padding: var(--espace-petit);
   background-color: var(--couleur-back-office-clair);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
-  /* flex: 1 sur ce bloc : il occupe toute la largeur restante à côté du bloc "Tous"/du filtre
-     Entité, pour répartir les boutons de statut sur toute la largeur du cadre plutôt que de les
-     laisser tassés à gauche avec du vide à droite. justify-content: space-between (plutôt que
-     flex-start) répartit précisément cet espace restant entre les boutons, en plus du gap de
-     base ci-dessus — sur une seule ligne quand elle tient, ou ligne par ligne une fois repassé
-     en flex-wrap: wrap ci-dessous.
-     flex-wrap: wrap (plutôt que nowrap + overflow-x précédemment) : sur une fenêtre étroite, les
-     boutons qui ne tiennent plus passent proprement à la ligne au lieu d'imposer un défilement
-     horizontal — chaque bouton garde sa largeur (flex-shrink: 0 ci-dessous, comme avant), aucun
-     chevauchement possible.
-     min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous la
-     largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait au lieu de
-     passer ses boutons à la ligne au bon moment. */
+  /* min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous la
+     largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait la ligne entière
+     (Tous/Entité compris) au lieu de faire défiler uniquement son propre contenu. */
   min-width: 0;
 }
 

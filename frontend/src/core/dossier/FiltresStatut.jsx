@@ -20,13 +20,15 @@ import './FiltresStatut.css';
 // button`/`.actif` ci-dessous (descendants du même <nav>), sans code CSS dupliqué.
 //
 // `compteurTous`/`compteurs` optionnels (refonte compteurs, 2026-08-17) : nombre affiché entre
-// parenthèses après chaque libellé ("Test planifié (5)"). `compteurs` est un objet/Map code ->
-// nombre — un code qui n'y figure pas (aucun dossier ne le satisfait actuellement, vu les autres
-// filtres actifs) affiche "(0)" plutôt que de ne rien afficher : omettre le compteur laisserait
-// croire qu'il n'a pas encore été calculé, alors que 0 est une réponse à part entière. Seule
-// l'ABSENCE totale de la prop `compteurs` (undefined) désactive l'affichage des compteurs :
-// comportement historique inchangé pour Utilisateurs.jsx, qui réutilise ce même composant pour
-// filtrer par rôle/statut de compte, sans compteur.
+// parenthèses après chaque libellé ("Test planifié **(5)**", chiffre seul en gras via <strong> —
+// le libellé garde son poids normal, y compris sur "Tous" : voir la suppression du
+// font-weight: 700 qui portait auparavant sur tout .filtres-statut__tous, FiltresStatut.css).
+// `compteurs` est un objet/Map code -> nombre — un code qui n'y figure pas (aucun dossier ne le
+// satisfait actuellement, vu les autres filtres actifs) affiche "(0)" plutôt que de ne rien
+// afficher : omettre le compteur laisserait croire qu'il n'a pas encore été calculé, alors que 0
+// est une réponse à part entière. Seule l'ABSENCE totale de la prop `compteurs` (undefined)
+// désactive l'affichage des compteurs : comportement historique inchangé pour Utilisateurs.jsx,
+// qui réutilise ce même composant pour filtrer par rôle/statut de compte, sans compteur.
 export default function FiltresStatut({
   statuts = [],
   statutFiltre,
@@ -44,7 +46,7 @@ export default function FiltresStatut({
           className={statutFiltre === null ? 'actif' : ''}
           onClick={() => onChangerStatutFiltre(null)}
         >
-          Tous{compteurTous != null ? ` (${compteurTous})` : ''}
+          Tous{compteurTous != null ? <strong> ({compteurTous})</strong> : ''}
         </button>
       </div>
       {filtresSupplementaires}
@@ -57,7 +59,7 @@ export default function FiltresStatut({
             onClick={() => onChangerStatutFiltre(statut.code)}
           >
             {statut.libelle}
-            {compteurs ? ` (${compteurs[statut.code] ?? 0})` : ''}
+            {compteurs ? <strong> ({compteurs[statut.code] ?? 0})</strong> : ''}
           </button>
         ))}
       </div>
