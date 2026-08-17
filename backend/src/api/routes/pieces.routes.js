@@ -31,11 +31,13 @@ router.use(requireAuth);
 const ROLES_GESTION_PIECES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
 // Consultation (liste, téléchargement) ouverte à tous les rôles internes.
 const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
-// Export groupé (ZIP) réservé au Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 —
-// besoin RH "second contrôle" : télécharger/exporter les dossiers candidats). Volontairement plus
-// restreint que ROLES_CONSULTATION_PIECES : télécharger le contenu réel de toutes les pièces d'un
-// coup est un geste plus sensible que consulter une pièce à la fois.
-const ROLES_EXPORT_ZIP_PIECES = [ROLES.RECRUTEUR];
+// Export groupé (ZIP) : Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 — besoin RH
+// "second contrôle"), étendu à Accueil/Coordination et Admin le 2026-08-17. Volontairement plus
+// restreint que ROLES_CONSULTATION_PIECES (exclut Formateur/Inspecteur) : télécharger le contenu
+// réel de toutes les pièces d'un coup est un geste plus sensible que consulter une pièce à la
+// fois, réservé aux rôles qui gèrent déjà ces pièces (ROLES_GESTION_PIECES) — Formateur/
+// Inspecteur, qui n'en ont qu'une consultation en lecture seule, restent hors de ce périmètre.
+const ROLES_EXPORT_ZIP_PIECES = ROLES_GESTION_PIECES;
 
 // Fichier gardé en mémoire (pas écrit sur le disque du serveur applicatif) : part directement en
 // Buffer vers le connecteur de stockage (StorageConnector.upload attend { nom, contenu: Buffer }).
