@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { obtenirInscriptionComplete } from '../../services/dossierService';
+import { obtenirInscriptionComplete, modifierInscription } from '../../services/dossierService';
 import { listerPiecesJustificatives, obtenirApercuPiece } from '../../services/pieceJustificativeService';
+import { useSession } from '../auth/useSession';
 import './InformationsInscription.css';
 
 // Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
@@ -11,12 +12,33 @@ const CODE_PHOTO_IDENTITE = 'photo_identite';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+// Rôles autorisés à corriger une erreur de saisie via le bouton "Modifier" (CLAUDE.md, demande
+// explicite du 2026-08-18 : Admin + Accueil/Coordination uniquement, ni Recruteur ni Formateur/
+// Inspecteur) — restriction d'AFFICHAGE seulement, la vraie garde est côté back
+// (dossiers.routes.js, ROLES_MODIFICATION_INSCRIPTION) : un appel API direct depuis un autre rôle
+// serait refusé indépendamment de ce masquage.
+const ROLES_MODIFICATION_INSCRIPTION = ['admin', 'accueil_coordination'];
+
 // Mêmes libellés que les blocs du formulaire d'inscription (BlocInfosPerso.jsx,
 // BlocDisponibilites.jsx, BlocMutuelle.jsx, BlocConsentementRGPD.jsx) — dupliqués plutôt que
 // partagés, même convention que le reste du projet (voir CLAUDE.md, conventions du projet, et
 // libellePoste répété tel quel dans chaque page back-office).
 const LIBELLES_CIVILITE = { monsieur: 'Monsieur', madame: 'Madame' };
-const LIBELLES_CRENEAU = { matin: 'Matin', midi: 'Midi', soir: 'Soir' };
+// '6h-9h'/'9h-18h'/'18h-21h' (créneaux bureau) ajoutés ici en plus de matin/midi/soir (créneaux
+// hôtel, seuls déjà présents) : mêmes codes que leur libellé (déjà lisibles tels quels, voir
+// commit "Ajoute les créneaux bureau") — sans cet ajout, un dossier bureau retombait sur le code
+// brut en lecture seule (libelle() ci-dessous, fallback déjà en place) et le formulaire d'édition
+// ci-dessous n'aurait eu aucun libellé à afficher pour ses cases à cocher.
+const LIBELLES_CRENEAU = {
+  matin: 'Matin',
+  midi: 'Midi',
+  soir: 'Soir',
+  '6h-9h': '6h-9h',
+  '9h-18h': '9h-18h',
+  '18h-21h': '18h-21h',
+};
+const CRENEAUX_HOTEL = ['matin', 'midi', 'soir'];
+const CRENEAUX_BUREAU = ['6h-9h', '9h-18h', '18h-21h'];
 const LIBELLES_JOUR = {
   lundi: 'Lundi',
   mardi: 'Mardi',
@@ -26,7 +48,9 @@ const LIBELLES_JOUR = {
   samedi: 'Samedi',
   dimanche: 'Dimanche',
 };
+const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LIBELLES_LANGUE = { francais: 'Français', anglais: 'Anglais', autre: 'Autre' };
+const LANGUES = ['francais', 'anglais', 'autre'];
 const LIBELLES_POSTE = {
   nettoyage: 'Nettoyage',
   vitrerie: 'Vitrerie',
@@ -38,6 +62,8 @@ const LIBELLES_POSTE = {
   equipier: 'Équipier(ère)',
   gouvernant: 'Gouvernant(e)',
 };
+const POSTES_BUREAU = ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autres'];
+const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const LIBELLES_TYPE_POSTE = { bureau: 'Bureau', hotel: 'Hôtel' };
 const LIBELLES_COMMENT_CONNU = {
   bouche_a_oreille: 'Bouche à oreille',
@@ -45,6 +71,13 @@ const LIBELLES_COMMENT_CONNU = {
   cooptation: 'Cooptation',
   autre: 'Autre',
 };
+const SITUATIONS_FAMILIALES = [
+  { code: 'celibataire', libelle: 'Célibataire' },
+  { code: 'marie', libelle: 'Marié(e)' },
+  { code: 'pacse', libelle: 'Pacsé(e)' },
+  { code: 'divorce', libelle: 'Divorcé(e)' },
+  { code: 'veuf', libelle: 'Veuf/Veuve' },
+];
 const LIBELLES_OUI_NON = { oui: 'Oui', non: 'Non' };
 const LIBELLES_CONSENTEMENT_DIFFUSION = { autorise: 'Autorisée', refuse: 'Refusée' };
 const LIBELLES_STATUT_PIECE = {
@@ -69,6 +102,19 @@ function formaterDate(valeur) {
   return FORMAT_DATE.format(new Date(valeur));
 }
 
+// 'AAAA-MM-JJ' pour un <input type="date"> — simple troncature de la chaîne ISO déjà renvoyée par
+// le back (candidat.dateNaissance en timestamptz, disponibilites.dateDebut/dateFin déjà en
+// 'AAAA-MM-JJ' pur, voir BlocDisponibilites.schema.js), jamais un nouveau new Date(...) reformaté
+// : éviterait un décalage d'un jour selon le fuseau du navigateur (contrairement à formaterDate
+// ci-dessus, purement informatif, l'input doit rester la date EXACTE stockée).
+function versDateInput(valeur) {
+  return valeur ? String(valeur).slice(0, 10) : '';
+}
+
+function bascule(tableau, valeur) {
+  return tableau.includes(valeur) ? tableau.filter((v) => v !== valeur) : [...tableau, valeur];
+}
+
 // Une ligne "libellé : valeur" — évite de répéter la même structure pour chacun des ~25 champs
 // affichés ci-dessous.
 function Ligne({ libelle: intitule, valeur }) {
@@ -76,6 +122,38 @@ function Ligne({ libelle: intitule, valeur }) {
     <div className="informations-inscription__ligne">
       <span className="informations-inscription__libelle">{intitule}</span>
       <span className="informations-inscription__valeur">{valeur || '-'}</span>
+    </div>
+  );
+}
+
+// Champ de saisie du formulaire d'édition (voir brouillon ci-dessous) — même structure visuelle
+// que Ligne (libellé à gauche, valeur/contrôle à droite) pour que passer en édition ne redessine
+// pas toute la mise en page.
+function Champ({ id, libelle: intitule, children }) {
+  return (
+    <label className="informations-inscription__ligne informations-inscription__champ" htmlFor={id}>
+      <span className="informations-inscription__libelle">{intitule}</span>
+      {children}
+    </label>
+  );
+}
+
+// Groupe de cases à cocher (créneaux/jours/langues/postes) — rendu compact, une case par valeur
+// possible, même patron partout où il est utilisé ci-dessous (pas de sous-composant par famille de
+// codes, un seul générique suffit).
+function GroupeCases({ options, libelles, valeurs, onChange }) {
+  return (
+    <div className="informations-inscription__cases">
+      {options.map((code) => (
+        <label key={code}>
+          <input
+            type="checkbox"
+            checked={valeurs.includes(code)}
+            onChange={() => onChange(bascule(valeurs, code))}
+          />
+          {libelle(libelles, code)}
+        </label>
+      ))}
     </div>
   );
 }
@@ -94,9 +172,17 @@ function Ligne({ libelle: intitule, valeur }) {
 // qui en a explicitement besoin, ce qui n'est pas le cas d'un affichage back-office générique
 // comme celui-ci.
 //
+// Bouton "Modifier" (2026-08-18, CLAUDE.md) : bascule Informations personnelles/Coordonnées/
+// Situation professionnelle/Mutuelle en formulaire, visible uniquement Admin/Accueil-Coordination
+// (voir ROLES_MODIFICATION_INSCRIPTION) — Consentement RGPD, Pièces jointes et Photo d'identité
+// restent toujours en lecture seule ici (preuve légale horodatée pour le premier, gérées par leurs
+// propres écrans/actions pour les deux autres, voir dossierService.modifierInscription côté back
+// pour le détail de ce qui est volontairement exclu du schéma de modification).
+//
 // dossierId reçu en prop, pas de useParams() ici : ce composant ne connaît rien du routage, même
 // patron que HistoriqueRelances.jsx — à l'appelant de le lire depuis le paramètre de route.
 export default function InformationsInscription({ dossierId }) {
+  const { utilisateur } = useSession();
   const [inscription, setInscription] = useState(null);
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(false);
@@ -113,6 +199,16 @@ export default function InformationsInscription({ dossierId }) {
   const [photoIdentiteChargement, setPhotoIdentiteChargement] = useState(false);
   const [photoIdentiteErreur, setPhotoIdentiteErreur] = useState(null);
   const [photoAgrandie, setPhotoAgrandie] = useState(false);
+
+  // Mode édition (voir Champ/GroupeCases ci-dessus) : `brouillon` est un objet plat, exactement à
+  // la forme attendue par dossierService.modifierInscription (back, modificationInscriptionSchema)
+  // — envoyé tel quel à l'enregistrement, jamais reconstruit champ par champ à la soumission.
+  const [edition, setEdition] = useState(false);
+  const [brouillon, setBrouillon] = useState(null);
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const [erreurEnregistrement, setErreurEnregistrement] = useState(null);
+
+  const peutModifier = ROLES_MODIFICATION_INSCRIPTION.includes(utilisateur?.roleCode);
 
   // Révoque l'URL locale (blob) au démontage ou si elle change — même précaution que
   // CaptureTablette.jsx (PanneauApercuPiece) pour ne pas fuiter de mémoire.
@@ -154,6 +250,72 @@ export default function InformationsInscription({ dossierId }) {
   const consentementRgpd = inscription?.blocs?.consentement_rgpd ?? {};
   const postesRecherches = [...(disponibilites.posteBureau ?? []), ...(disponibilites.posteHotel ?? [])];
 
+  // Reconstitue un brouillon plat à partir des données actuellement affichées — un champ que le
+  // formulaire d'inscription n'a jamais renseigné (ex. dossier ancien) retombe sur une valeur par
+  // défaut cohérente avec le schéma de modification (back), pour ne jamais soumettre `undefined`.
+  const demarrerEdition = () => {
+    setErreurEnregistrement(null);
+    setBrouillon({
+      civilite: candidat.civilite ?? 'monsieur',
+      nom: candidat.nom ?? '',
+      nomNaissance: candidat.nomNaissance ?? '',
+      lieuNaissance: candidat.lieuNaissance ?? '',
+      nationalite: candidat.nationalite ?? '',
+      prenom: candidat.prenom ?? '',
+      dateNaissance: versDateInput(candidat.dateNaissance),
+      situationFamiliale: candidat.situationFamiliale ?? '',
+      adresse: coordonnees.adresse ?? '',
+      telephone: coordonnees.telephone ?? '',
+      email: coordonnees.email ?? candidat.email ?? '',
+      contactUrgenceNom: coordonnees.contactUrgenceNom ?? '',
+      contactUrgenceTelephone: coordonnees.contactUrgenceTelephone ?? '',
+      disponibiliteImmediate: disponibilites.disponibiliteImmediate ?? true,
+      dateDebut: versDateInput(disponibilites.dateDebut),
+      dateFin: versDateInput(disponibilites.dateFin),
+      creneaux: disponibilites.creneaux ?? [],
+      joursDisponibles: disponibilites.joursDisponibles ?? [],
+      languesParlees: disponibilites.languesParlees ?? [],
+      autreLanguePrecision: disponibilites.autreLanguePrecision ?? '',
+      typePoste: disponibilites.typePoste ?? 'hotel',
+      posteBureau: disponibilites.posteBureau ?? [],
+      posteHotel: disponibilites.posteHotel ?? [],
+      commentConnu: disponibilites.commentConnu ?? 'bouche_a_oreille',
+      commentConnuPrecision: disponibilites.commentConnuPrecision ?? '',
+      cas1CmuC: mutuelle.cas1CmuC ?? 'non',
+      cas2Acs: mutuelle.cas2Acs ?? 'non',
+      cas3MutuelleIndividuelle: mutuelle.cas3MutuelleIndividuelle ?? 'non',
+      cas4MutuelleCollective: mutuelle.cas4MutuelleCollective ?? 'non',
+      certificationAucuneDispense: mutuelle.certificationAucuneDispense ?? false,
+    });
+    setEdition(true);
+  };
+
+  const annulerEdition = () => {
+    setEdition(false);
+    setBrouillon(null);
+    setErreurEnregistrement(null);
+  };
+
+  const modifierChamp = (champ) => (valeur) => setBrouillon((precedent) => ({ ...precedent, [champ]: valeur }));
+
+  const gererEnregistrement = async (evenement) => {
+    evenement.preventDefault();
+    setEnregistrementEnCours(true);
+    setErreurEnregistrement(null);
+    try {
+      const inscriptionMiseAJour = await modifierInscription(dossierId, brouillon);
+      setInscription(inscriptionMiseAJour);
+      setEdition(false);
+      setBrouillon(null);
+    } catch (erreurRequete) {
+      setErreurEnregistrement(
+        erreurRequete.response?.data?.erreur ?? "Impossible d'enregistrer les modifications. Merci de réessayer.",
+      );
+    } finally {
+      setEnregistrementEnCours(false);
+    }
+  };
+
   return (
     <section className="informations-inscription">
       <details onToggle={gererOuverture}>
@@ -163,138 +325,413 @@ export default function InformationsInscription({ dossierId }) {
         {erreur && <p role="alert">{erreur}</p>}
 
         {!chargement && !erreur && candidat && (
-          <div className="informations-inscription__contenu">
-            <div className="informations-inscription__groupe">
-              <h3>Informations personnelles</h3>
+          <>
+            {peutModifier && !edition && (
+              <div className="informations-inscription__actions">
+                <button type="button" onClick={demarrerEdition}>
+                  Modifier
+                </button>
+              </div>
+            )}
 
-              {/* Vignette cliquable, même route de récupération (obtenirApercuPiece) que "Voir"
-                  sur CaptureTablette.jsx — voir son commentaire d'en-tête pour le détail du
-                  stockage. "Non fournie" plutôt qu'un espace vide/une erreur tant que la pièce
-                  (obligatoire mais capturée par l'accueil, pas par le candidat lui-même) n'a pas
-                  encore été prise. */}
-              <div className="informations-inscription__photo-identite">
-                <span className="informations-inscription__libelle">Photo d'identité</span>
-                {photoIdentiteChargement && <span className="informations-inscription__valeur">Chargement…</span>}
-                {!photoIdentiteChargement && photoIdentiteErreur && (
-                  <span className="informations-inscription__valeur" role="alert">
-                    {photoIdentiteErreur}
-                  </span>
-                )}
-                {!photoIdentiteChargement && !photoIdentiteErreur && photoIdentiteUrl && (
-                  <button
-                    type="button"
-                    className="informations-inscription__photo-identite-bouton"
-                    onClick={() => setPhotoAgrandie(true)}
-                  >
-                    <img
-                      src={photoIdentiteUrl}
-                      alt="Photo d'identité du candidat — cliquer pour agrandir"
-                      className="informations-inscription__photo-identite-vignette"
-                    />
-                  </button>
-                )}
-                {!photoIdentiteChargement && !photoIdentiteErreur && !photoIdentiteUrl && (
-                  <span className="informations-inscription__valeur">Non fournie</span>
+            <form
+              className="informations-inscription__contenu"
+              onSubmit={gererEnregistrement}
+              // Empêche la touche Entrée dans un champ texte de soumettre le formulaire par
+              // inadvertance (nombreux champs texte ci-dessous) — seul le bouton "Enregistrer"
+              // doit déclencher la soumission.
+              onKeyDown={(evenement) => {
+                if (evenement.key === 'Enter' && evenement.target.tagName !== 'TEXTAREA') evenement.preventDefault();
+              }}
+            >
+              <div className="informations-inscription__groupe">
+                <h3>Informations personnelles</h3>
+
+                {/* Vignette cliquable, même route de récupération (obtenirApercuPiece) que "Voir"
+                    sur CaptureTablette.jsx — voir son commentaire d'en-tête pour le détail du
+                    stockage. "Non fournie" plutôt qu'un espace vide/une erreur tant que la pièce
+                    (obligatoire mais capturée par l'accueil, pas par le candidat lui-même) n'a pas
+                    encore été prise. Jamais éditable ici, même en mode édition : c'est une pièce
+                    justificative (voir CaptureTablette.jsx/VerificationPieces.jsx), pas un champ
+                    du formulaire d'inscription. */}
+                <div className="informations-inscription__photo-identite">
+                  <span className="informations-inscription__libelle">Photo d'identité</span>
+                  {photoIdentiteChargement && <span className="informations-inscription__valeur">Chargement…</span>}
+                  {!photoIdentiteChargement && photoIdentiteErreur && (
+                    <span className="informations-inscription__valeur" role="alert">
+                      {photoIdentiteErreur}
+                    </span>
+                  )}
+                  {!photoIdentiteChargement && !photoIdentiteErreur && photoIdentiteUrl && (
+                    <button
+                      type="button"
+                      className="informations-inscription__photo-identite-bouton"
+                      onClick={() => setPhotoAgrandie(true)}
+                    >
+                      <img
+                        src={photoIdentiteUrl}
+                        alt="Photo d'identité du candidat — cliquer pour agrandir"
+                        className="informations-inscription__photo-identite-vignette"
+                      />
+                    </button>
+                  )}
+                  {!photoIdentiteChargement && !photoIdentiteErreur && !photoIdentiteUrl && (
+                    <span className="informations-inscription__valeur">Non fournie</span>
+                  )}
+                </div>
+
+                {!edition ? (
+                  <>
+                    <Ligne libelle="Civilité" valeur={libelle(LIBELLES_CIVILITE, candidat.civilite)} />
+                    <Ligne libelle="Nom" valeur={candidat.nom} />
+                    <Ligne libelle="Nom de naissance" valeur={candidat.nomNaissance} />
+                    <Ligne libelle="Prénom" valeur={candidat.prenom} />
+                    <Ligne libelle="Date de naissance" valeur={formaterDate(candidat.dateNaissance)} />
+                    <Ligne libelle="Lieu de naissance" valeur={candidat.lieuNaissance} />
+                    <Ligne libelle="Nationalité" valeur={candidat.nationalite} />
+                    <Ligne libelle="Situation familiale" valeur={candidat.situationFamiliale} />
+                    <Ligne libelle="Date d'inscription" valeur={formaterDate(candidat.dateInscription)} />
+                  </>
+                ) : (
+                  <>
+                    <Champ id="edition-civilite" libelle="Civilité">
+                      <select id="edition-civilite" value={brouillon.civilite} onChange={(e) => modifierChamp('civilite')(e.target.value)}>
+                        <option value="monsieur">Monsieur</option>
+                        <option value="madame">Madame</option>
+                      </select>
+                    </Champ>
+                    <Champ id="edition-nom" libelle="Nom">
+                      <input id="edition-nom" required value={brouillon.nom} onChange={(e) => modifierChamp('nom')(e.target.value)} />
+                    </Champ>
+                    <Champ id="edition-nom-naissance" libelle="Nom de naissance">
+                      <input
+                        id="edition-nom-naissance"
+                        value={brouillon.nomNaissance}
+                        onChange={(e) => modifierChamp('nomNaissance')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-prenom" libelle="Prénom">
+                      <input id="edition-prenom" required value={brouillon.prenom} onChange={(e) => modifierChamp('prenom')(e.target.value)} />
+                    </Champ>
+                    <Champ id="edition-date-naissance" libelle="Date de naissance">
+                      <input
+                        id="edition-date-naissance"
+                        type="date"
+                        required
+                        value={brouillon.dateNaissance}
+                        onChange={(e) => modifierChamp('dateNaissance')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-lieu-naissance" libelle="Lieu de naissance">
+                      <input
+                        id="edition-lieu-naissance"
+                        required
+                        value={brouillon.lieuNaissance}
+                        onChange={(e) => modifierChamp('lieuNaissance')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-nationalite" libelle="Nationalité">
+                      <input
+                        id="edition-nationalite"
+                        required
+                        value={brouillon.nationalite}
+                        onChange={(e) => modifierChamp('nationalite')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-situation-familiale" libelle="Situation familiale">
+                      <select
+                        id="edition-situation-familiale"
+                        value={brouillon.situationFamiliale}
+                        onChange={(e) => modifierChamp('situationFamiliale')(e.target.value)}
+                      >
+                        {SITUATIONS_FAMILIALES.map((situation) => (
+                          <option key={situation.code} value={situation.code}>
+                            {situation.libelle}
+                          </option>
+                        ))}
+                      </select>
+                    </Champ>
+                    <Ligne libelle="Date d'inscription" valeur={formaterDate(candidat.dateInscription)} />
+                  </>
                 )}
               </div>
 
-              <Ligne libelle="Civilité" valeur={libelle(LIBELLES_CIVILITE, candidat.civilite)} />
-              <Ligne libelle="Nom" valeur={candidat.nom} />
-              <Ligne libelle="Nom de naissance" valeur={candidat.nomNaissance} />
-              <Ligne libelle="Prénom" valeur={candidat.prenom} />
-              <Ligne libelle="Date de naissance" valeur={formaterDate(candidat.dateNaissance)} />
-              <Ligne libelle="Lieu de naissance" valeur={candidat.lieuNaissance} />
-              <Ligne libelle="Nationalité" valeur={candidat.nationalite} />
-              <Ligne libelle="Situation familiale" valeur={candidat.situationFamiliale} />
-              <Ligne libelle="Date d'inscription" valeur={formaterDate(candidat.dateInscription)} />
-            </div>
+              <div className="informations-inscription__groupe">
+                <h3>Coordonnées</h3>
+                {!edition ? (
+                  <>
+                    <Ligne libelle="Adresse" valeur={coordonnees.adresse} />
+                    <Ligne libelle="Téléphone" valeur={coordonnees.telephone} />
+                    <Ligne libelle="Email" valeur={coordonnees.email ?? candidat.email} />
+                    <Ligne libelle="Contact d'urgence" valeur={coordonnees.contactUrgenceNom} />
+                    <Ligne libelle="Téléphone du contact d'urgence" valeur={coordonnees.contactUrgenceTelephone} />
+                  </>
+                ) : (
+                  <>
+                    <Champ id="edition-adresse" libelle="Adresse">
+                      <input id="edition-adresse" required value={brouillon.adresse} onChange={(e) => modifierChamp('adresse')(e.target.value)} />
+                    </Champ>
+                    <Champ id="edition-telephone" libelle="Téléphone">
+                      <input
+                        id="edition-telephone"
+                        type="tel"
+                        required
+                        placeholder="06 12 34 56 78"
+                        value={brouillon.telephone}
+                        onChange={(e) => modifierChamp('telephone')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-email" libelle="Email">
+                      <input
+                        id="edition-email"
+                        type="email"
+                        required
+                        value={brouillon.email}
+                        onChange={(e) => modifierChamp('email')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-contact-urgence-nom" libelle="Contact d'urgence">
+                      <input
+                        id="edition-contact-urgence-nom"
+                        required
+                        value={brouillon.contactUrgenceNom}
+                        onChange={(e) => modifierChamp('contactUrgenceNom')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-contact-urgence-telephone" libelle="Téléphone du contact d'urgence">
+                      <input
+                        id="edition-contact-urgence-telephone"
+                        type="tel"
+                        required
+                        placeholder="06 12 34 56 78"
+                        value={brouillon.contactUrgenceTelephone}
+                        onChange={(e) => modifierChamp('contactUrgenceTelephone')(e.target.value)}
+                      />
+                    </Champ>
+                  </>
+                )}
+              </div>
 
-            <div className="informations-inscription__groupe">
-              <h3>Coordonnées</h3>
-              <Ligne libelle="Adresse" valeur={coordonnees.adresse} />
-              <Ligne libelle="Téléphone" valeur={coordonnees.telephone} />
-              <Ligne libelle="Email" valeur={coordonnees.email ?? candidat.email} />
-              <Ligne libelle="Contact d'urgence" valeur={coordonnees.contactUrgenceNom} />
-              <Ligne libelle="Téléphone du contact d'urgence" valeur={coordonnees.contactUrgenceTelephone} />
-            </div>
+              <div className="informations-inscription__groupe">
+                <h3>Situation professionnelle</h3>
+                {!edition ? (
+                  <>
+                    <Ligne
+                      libelle="Disponibilité"
+                      valeur={
+                        disponibilites.disponibiliteImmediate
+                          ? 'Immédiate'
+                          : `Du ${formaterDate(disponibilites.dateDebut)} au ${formaterDate(disponibilites.dateFin)}`
+                      }
+                    />
+                    <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
+                    <Ligne
+                      libelle="Jours disponibles"
+                      valeur={libelleListe(LIBELLES_JOUR, disponibilites.joursDisponibles)}
+                    />
+                    <Ligne libelle="Langues parlées" valeur={libelleListe(LIBELLES_LANGUE, disponibilites.languesParlees)} />
+                    {disponibilites.autreLanguePrecision && (
+                      <Ligne libelle="Précision langue" valeur={disponibilites.autreLanguePrecision} />
+                    )}
+                    <Ligne
+                      libelle="Type de poste recherché"
+                      valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)}
+                    />
+                    <Ligne libelle="Poste(s) recherché(s)" valeur={libelleListe(LIBELLES_POSTE, postesRecherches)} />
+                    <Ligne
+                      libelle="Comment nous a connu"
+                      valeur={libelle(LIBELLES_COMMENT_CONNU, disponibilites.commentConnu)}
+                    />
+                    {disponibilites.commentConnuPrecision && (
+                      <Ligne libelle="Précision" valeur={disponibilites.commentConnuPrecision} />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Champ id="edition-disponibilite-immediate" libelle="Disponibilité immédiate">
+                      <input
+                        id="edition-disponibilite-immediate"
+                        type="checkbox"
+                        checked={brouillon.disponibiliteImmediate}
+                        onChange={(e) => modifierChamp('disponibiliteImmediate')(e.target.checked)}
+                      />
+                    </Champ>
+                    {!brouillon.disponibiliteImmediate && (
+                      <>
+                        <Champ id="edition-date-debut" libelle="Disponible à partir du">
+                          <input
+                            id="edition-date-debut"
+                            type="date"
+                            required
+                            value={brouillon.dateDebut}
+                            onChange={(e) => modifierChamp('dateDebut')(e.target.value)}
+                          />
+                        </Champ>
+                        <Champ id="edition-date-fin" libelle="Jusqu'au">
+                          <input
+                            id="edition-date-fin"
+                            type="date"
+                            required
+                            value={brouillon.dateFin}
+                            onChange={(e) => modifierChamp('dateFin')(e.target.value)}
+                          />
+                        </Champ>
+                      </>
+                    )}
+                    <Champ id="edition-type-poste" libelle="Type de poste recherché">
+                      <select
+                        id="edition-type-poste"
+                        value={brouillon.typePoste}
+                        onChange={(e) => modifierChamp('typePoste')(e.target.value)}
+                      >
+                        <option value="hotel">Hôtel</option>
+                        <option value="bureau">Bureau</option>
+                      </select>
+                    </Champ>
+                    <Champ id="edition-creneaux" libelle="Créneaux souhaités">
+                      <GroupeCases
+                        options={brouillon.typePoste === 'bureau' ? CRENEAUX_BUREAU : CRENEAUX_HOTEL}
+                        libelles={LIBELLES_CRENEAU}
+                        valeurs={brouillon.creneaux}
+                        onChange={modifierChamp('creneaux')}
+                      />
+                    </Champ>
+                    <Champ id="edition-jours" libelle="Jours disponibles">
+                      <GroupeCases options={JOURS} libelles={LIBELLES_JOUR} valeurs={brouillon.joursDisponibles} onChange={modifierChamp('joursDisponibles')} />
+                    </Champ>
+                    <Champ id="edition-langues" libelle="Langues parlées">
+                      <GroupeCases options={LANGUES} libelles={LIBELLES_LANGUE} valeurs={brouillon.languesParlees} onChange={modifierChamp('languesParlees')} />
+                    </Champ>
+                    {brouillon.languesParlees.includes('autre') && (
+                      <Champ id="edition-autre-langue" libelle="Précision langue">
+                        <input
+                          id="edition-autre-langue"
+                          required
+                          value={brouillon.autreLanguePrecision}
+                          onChange={(e) => modifierChamp('autreLanguePrecision')(e.target.value)}
+                        />
+                      </Champ>
+                    )}
+                    <Champ id="edition-postes" libelle="Poste(s) recherché(s)">
+                      <GroupeCases
+                        options={brouillon.typePoste === 'bureau' ? POSTES_BUREAU : POSTES_HOTEL}
+                        libelles={LIBELLES_POSTE}
+                        valeurs={brouillon.typePoste === 'bureau' ? brouillon.posteBureau : brouillon.posteHotel}
+                        onChange={modifierChamp(brouillon.typePoste === 'bureau' ? 'posteBureau' : 'posteHotel')}
+                      />
+                    </Champ>
+                    <Champ id="edition-comment-connu" libelle="Comment nous a connu">
+                      <select
+                        id="edition-comment-connu"
+                        value={brouillon.commentConnu}
+                        onChange={(e) => modifierChamp('commentConnu')(e.target.value)}
+                      >
+                        {Object.entries(LIBELLES_COMMENT_CONNU).map(([code, libelleOption]) => (
+                          <option key={code} value={code}>
+                            {libelleOption}
+                          </option>
+                        ))}
+                      </select>
+                    </Champ>
+                    {['internet', 'autre'].includes(brouillon.commentConnu) && (
+                      <Champ id="edition-comment-connu-precision" libelle="Précision">
+                        <input
+                          id="edition-comment-connu-precision"
+                          required
+                          value={brouillon.commentConnuPrecision}
+                          onChange={(e) => modifierChamp('commentConnuPrecision')(e.target.value)}
+                        />
+                      </Champ>
+                    )}
+                  </>
+                )}
+              </div>
 
-            <div className="informations-inscription__groupe">
-              <h3>Situation professionnelle</h3>
-              <Ligne
-                libelle="Disponibilité"
-                valeur={
-                  disponibilites.disponibiliteImmediate
-                    ? 'Immédiate'
-                    : `Du ${formaterDate(disponibilites.dateDebut)} au ${formaterDate(disponibilites.dateFin)}`
-                }
-              />
-              <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
-              <Ligne
-                libelle="Jours disponibles"
-                valeur={libelleListe(LIBELLES_JOUR, disponibilites.joursDisponibles)}
-              />
-              <Ligne libelle="Langues parlées" valeur={libelleListe(LIBELLES_LANGUE, disponibilites.languesParlees)} />
-              {disponibilites.autreLanguePrecision && (
-                <Ligne libelle="Précision langue" valeur={disponibilites.autreLanguePrecision} />
-              )}
-              <Ligne
-                libelle="Type de poste recherché"
-                valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)}
-              />
-              <Ligne libelle="Poste(s) recherché(s)" valeur={libelleListe(LIBELLES_POSTE, postesRecherches)} />
-              <Ligne
-                libelle="Comment nous a connu"
-                valeur={libelle(LIBELLES_COMMENT_CONNU, disponibilites.commentConnu)}
-              />
-              {disponibilites.commentConnuPrecision && (
-                <Ligne libelle="Précision" valeur={disponibilites.commentConnuPrecision} />
-              )}
-            </div>
+              <div className="informations-inscription__groupe">
+                <h3>Mutuelle d'entreprise</h3>
+                {!edition ? (
+                  <>
+                    <Ligne libelle="CMU-C" valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas1CmuC)} />
+                    <Ligne libelle="ACS" valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas2Acs)} />
+                    <Ligne
+                      libelle="Mutuelle individuelle"
+                      valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas3MutuelleIndividuelle)}
+                    />
+                    <Ligne
+                      libelle="Mutuelle collective"
+                      valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas4MutuelleCollective)}
+                    />
+                    <Ligne libelle="Dispense certifiée" valeur={mutuelle.certificationAucuneDispense ? 'Oui' : 'Non'} />
+                  </>
+                ) : (
+                  <>
+                    {[
+                      ['cas1CmuC', 'CMU-C'],
+                      ['cas2Acs', 'ACS'],
+                      ['cas3MutuelleIndividuelle', 'Mutuelle individuelle'],
+                      ['cas4MutuelleCollective', 'Mutuelle collective'],
+                    ].map(([champ, intitule]) => (
+                      <Champ key={champ} id={`edition-${champ}`} libelle={intitule}>
+                        <select id={`edition-${champ}`} value={brouillon[champ]} onChange={(e) => modifierChamp(champ)(e.target.value)}>
+                          <option value="non">Non</option>
+                          <option value="oui">Oui</option>
+                        </select>
+                      </Champ>
+                    ))}
+                    <Champ id="edition-certification" libelle="Dispense certifiée">
+                      <input
+                        id="edition-certification"
+                        type="checkbox"
+                        checked={brouillon.certificationAucuneDispense}
+                        onChange={(e) => modifierChamp('certificationAucuneDispense')(e.target.checked)}
+                      />
+                    </Champ>
+                  </>
+                )}
+              </div>
 
-            <div className="informations-inscription__groupe">
-              <h3>Mutuelle d'entreprise</h3>
-              <Ligne libelle="CMU-C" valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas1CmuC)} />
-              <Ligne libelle="ACS" valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas2Acs)} />
-              <Ligne
-                libelle="Mutuelle individuelle"
-                valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas3MutuelleIndividuelle)}
-              />
-              <Ligne
-                libelle="Mutuelle collective"
-                valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas4MutuelleCollective)}
-              />
-              <Ligne libelle="Dispense certifiée" valeur={mutuelle.certificationAucuneDispense ? 'Oui' : 'Non'} />
-            </div>
+              <div className="informations-inscription__groupe">
+                <h3>Consentement RGPD</h3>
+                <Ligne
+                  libelle="Autorisation de diffusion des données"
+                  valeur={libelle(LIBELLES_CONSENTEMENT_DIFFUSION, consentementRgpd.consentementDiffusion)}
+                />
+                {consentementRgpd.dateSignature && (
+                  <Ligne libelle="Signé le" valeur={formaterDate(consentementRgpd.dateSignature)} />
+                )}
+              </div>
 
-            <div className="informations-inscription__groupe">
-              <h3>Consentement RGPD</h3>
-              <Ligne
-                libelle="Autorisation de diffusion des données"
-                valeur={libelle(LIBELLES_CONSENTEMENT_DIFFUSION, consentementRgpd.consentementDiffusion)}
-              />
-              {consentementRgpd.dateSignature && (
-                <Ligne libelle="Signé le" valeur={formaterDate(consentementRgpd.dateSignature)} />
-              )}
-            </div>
+              <div className="informations-inscription__groupe">
+                <h3>Pièces jointes</h3>
+                {pieces.length === 0 && (
+                  <p className="informations-inscription__vide">Aucune pièce reçue pour ce dossier.</p>
+                )}
+                {pieces.length > 0 && (
+                  <ul className="informations-inscription__pieces">
+                    {pieces.map((piece) => (
+                      <li key={piece.id}>
+                        <span>{piece.type_piece_libelle}</span>
+                        <span>{LIBELLES_STATUT_PIECE[piece.statut_verification] ?? piece.statut_verification}</span>
+                        <span>{formaterDate(piece.date_upload)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-            <div className="informations-inscription__groupe">
-              <h3>Pièces jointes</h3>
-              {pieces.length === 0 && (
-                <p className="informations-inscription__vide">Aucune pièce reçue pour ce dossier.</p>
+              {edition && (
+                <div className="informations-inscription__actions-edition">
+                  {erreurEnregistrement && <p role="alert">{erreurEnregistrement}</p>}
+                  <button type="submit" disabled={enregistrementEnCours}>
+                    {enregistrementEnCours ? 'Enregistrement…' : 'Enregistrer'}
+                  </button>
+                  <button type="button" onClick={annulerEdition} disabled={enregistrementEnCours}>
+                    Annuler
+                  </button>
+                </div>
               )}
-              {pieces.length > 0 && (
-                <ul className="informations-inscription__pieces">
-                  {pieces.map((piece) => (
-                    <li key={piece.id}>
-                      <span>{piece.type_piece_libelle}</span>
-                      <span>{LIBELLES_STATUT_PIECE[piece.statut_verification] ?? piece.statut_verification}</span>
-                      <span>{formaterDate(piece.date_upload)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
+            </form>
+          </>
         )}
       </details>
 

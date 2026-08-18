@@ -429,6 +429,207 @@ async function obtenirInscriptionComplete(entite, dossierId) {
   return dossierRepository.trouverInscriptionCompleteParDossierId(bd, entite.id, dossierId);
 }
 
+// Schéma du bouton "Modifier" (InformationsInscription.jsx, correction d'une erreur de saisie de
+// l'accueil/de l'admin après coup) — SOUS-ENSEMBLE volontairement dupliqué de
+// donneesInscriptionSchema plutôt que factorisé avec lui (voir CLAUDE.md, conventions du projet :
+// duplication déjà la norme ailleurs dans ce fichier/ces pages plutôt qu'une abstraction
+// partagée) : donneesInscriptionSchema est un chemin sensible (chiffrement NIR, signature légale
+// de charte, consentement RGPD horodaté) qu'on préfère ne jamais toucher pour les besoins d'un
+// écran d'édition annexe — un refactor commun aurait fait courir un risque de régression sur
+// l'inscription elle-même pour un gain de lisibilité marginal ici.
+//
+// Volontairement ABSENTS (donc jamais modifiables par cette voie) :
+// - nir : jamais exposé après inscription (CLAUDE.md, Contraintes RGPD — déchiffrement serveur
+//   réservé aux usages qui en ont explicitement besoin, la correction d'état civil n'en fait pas
+//   partie) ; une erreur de NIR nécessite une procédure à part, hors périmètre de ce bouton.
+// - consentementDiffusion/signatureImage/charteMention/charteSignatureImage : preuve légale
+//   horodatée au moment de l'inscription (voir enregistrerSignatureCharte) — un bouton "Modifier"
+//   générique ne doit jamais pouvoir la réécrire après coup.
+// Mêmes règles de validation (formats + contraintes croisées) que donneesInscriptionSchema sur
+// les champs qu'elle couvre bel et bien, revalidées ici à l'identique.
+const modificationInscriptionSchema = z
+  .object({
+    civilite: z.enum(['monsieur', 'madame']),
+    nom: z.string().trim().min(1),
+    nomNaissance: z
+      .string()
+      .trim()
+      .nullish()
+      .transform((valeur) => valeur ?? '')
+      .refine((valeur) => valeur === '' || NOM_REGEX.test(valeur), {
+        message: 'Le nom de naissance ne doit contenir que des lettres',
+      }),
+    lieuNaissance: z.string().trim().min(1),
+    nationalite: z.string().trim().min(1).regex(NOM_REGEX),
+    prenom: z.string().trim().min(1),
+    dateNaissance: z.string().min(1),
+    situationFamiliale: z.string().min(1),
+    adresse: z.string().trim().min(1),
+    telephone: z.string().trim().regex(TELEPHONE_REGEX),
+    email: z.string().trim().email(),
+    contactUrgenceNom: z.string().trim().min(1).regex(NOM_REGEX),
+    contactUrgenceTelephone: z.string().trim().regex(TELEPHONE_REGEX),
+    disponibiliteImmediate: z.boolean(),
+    dateDebut: z.string().trim().optional().default(''),
+    dateFin: z.string().trim().optional().default(''),
+    creneaux: z.array(z.enum(CRENEAUX)).min(1),
+    joursDisponibles: z.array(z.enum(JOURS)).min(1),
+    languesParlees: z.array(z.enum(LANGUES)).default([]),
+    autreLanguePrecision: z.string().trim().optional().default(''),
+    typePoste: z.enum(TYPES_POSTE),
+    posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
+    posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
+    commentConnu: z.enum(COMMENT_CONNU),
+    commentConnuPrecision: z.string().trim().optional().default(''),
+    cas1CmuC: z.enum(OUI_NON),
+    cas2Acs: z.enum(OUI_NON),
+    cas3MutuelleIndividuelle: z.enum(OUI_NON),
+    cas4MutuelleCollective: z.enum(OUI_NON),
+    certificationAucuneDispense: z.boolean().default(false),
+  })
+  .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
+    message: "La date de début est obligatoire si la disponibilité n'est pas immédiate",
+    path: ['dateDebut'],
+  })
+  .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateFin !== '', {
+    message: "La date de fin est obligatoire si la disponibilité n'est pas immédiate",
+    path: ['dateFin'],
+  })
+  .refine((donnees) => !donnees.languesParlees.includes('autre') || donnees.autreLanguePrecision !== '', {
+    message: 'Veuillez préciser la langue',
+    path: ['autreLanguePrecision'],
+  })
+  .refine((donnees) => donnees.typePoste !== 'bureau' || donnees.posteBureau.length > 0, {
+    message: 'Sélectionnez au moins un poste',
+    path: ['posteBureau'],
+  })
+  .refine((donnees) => donnees.typePoste !== 'hotel' || donnees.posteHotel.length > 0, {
+    message: 'Sélectionnez au moins un poste',
+    path: ['posteHotel'],
+  })
+  .refine(
+    (donnees) => donnees.typePoste !== 'hotel' || (donnees.joursDisponibles.includes('samedi') && donnees.joursDisponibles.includes('dimanche')),
+    {
+      message: 'Les postes en hôtellerie nécessitent une disponibilité le week-end (samedi et dimanche)',
+      path: ['joursDisponibles'],
+    },
+  )
+  .refine(
+    (donnees) => {
+      const codesAutorises = donnees.typePoste === 'bureau' ? CRENEAUX_BUREAU : CRENEAUX_HOTEL;
+      return donnees.creneaux.every((code) => codesAutorises.includes(code));
+    },
+    { message: 'Créneaux invalides pour le type de poste sélectionné', path: ['creneaux'] },
+  )
+  .refine(
+    (donnees) =>
+      donnees.typePoste !== 'bureau' || donnees.creneaux.includes('6h-9h') || donnees.creneaux.includes('18h-21h'),
+    {
+      message: 'Sélectionnez au moins un créneau 6h-9h ou 18h-21h (9h-18h seul ne suffit pas)',
+      path: ['creneaux'],
+    },
+  )
+  .refine(
+    (donnees) => !['internet', 'autre'].includes(donnees.commentConnu) || donnees.commentConnuPrecision !== '',
+    {
+      message: 'Veuillez préciser',
+      path: ['commentConnuPrecision'],
+    },
+  )
+  .refine(
+    (donnees) =>
+      !donnees.certificationAucuneDispense ||
+      [donnees.cas1CmuC, donnees.cas2Acs, donnees.cas3MutuelleIndividuelle, donnees.cas4MutuelleCollective].every(
+        (cas) => cas === 'non',
+      ),
+    {
+      message: "La certification n'est possible que si les 4 cas de dispense sont à « Non »",
+      path: ['certificationAucuneDispense'],
+    },
+  );
+
+// Bouton "Modifier" de la section "Informations d'inscription complètes" (InformationsInscription.jsx)
+// — corrige une erreur de saisie du candidat à l'inscription, jamais utilisé par le candidat
+// lui-même (voir dossiers.routes.js pour la restriction RBAC : Accueil/Coordination + Admin
+// uniquement). dossierId résolu -> candidat_id avant toute écriture, même filtre IDOR que le
+// reste de ce module (trouverDossierParId, scopé entite.id) : un dossierId d'une autre entité
+// renvoie undefined plutôt que de laisser fuiter/écraser les données d'un candidat qui n'est pas
+// le sien.
+async function modifierInscription(entite, dossierId, donneesBrutes) {
+  const donnees = modificationInscriptionSchema.parse(donneesBrutes);
+
+  const bd = await obtenirKnex();
+  return bd.transaction(async (trx) => {
+    const dossier = await dossierRepository.trouverDossierParId(trx, entite.id, dossierId);
+    if (!dossier) return undefined;
+
+    // Email potentiellement modifié : même contrôle d'unicité qu'à l'inscription (voir
+    // inscrireCandidat ci-dessus), mais EXCLUANT le candidat courant — conserver son propre email
+    // inchangé ne doit jamais se lire comme un conflit avec lui-même.
+    const candidatEmailExistant = await dossierRepository.trouverCandidatParEmail(trx, entite.id, donnees.email);
+    if (candidatEmailExistant && candidatEmailExistant.id !== dossier.candidat_id) {
+      throw new ErreurInscriptionConflit('Cet email est déjà utilisé par un autre dossier.', 'email');
+    }
+
+    await dossierRepository.mettreAJourCandidat(trx, dossier.candidat_id, {
+      civilite: donnees.civilite,
+      nom: donnees.nom,
+      nomNaissance: donnees.nomNaissance,
+      lieuNaissance: donnees.lieuNaissance,
+      nationalite: donnees.nationalite,
+      prenom: donnees.prenom,
+      dateNaissance: donnees.dateNaissance,
+      situationFamiliale: donnees.situationFamiliale,
+      email: donnees.email,
+    });
+
+    await dossierRepository.mettreAJourDonneesBloc(trx, {
+      dossierId,
+      blocCode: 'coordonnees',
+      donnees: {
+        adresse: donnees.adresse,
+        telephone: donnees.telephone,
+        email: donnees.email,
+        contactUrgenceNom: donnees.contactUrgenceNom,
+        contactUrgenceTelephone: donnees.contactUrgenceTelephone,
+      },
+    });
+
+    await dossierRepository.mettreAJourDonneesBloc(trx, {
+      dossierId,
+      blocCode: 'disponibilites',
+      donnees: {
+        disponibiliteImmediate: donnees.disponibiliteImmediate,
+        dateDebut: donnees.dateDebut,
+        dateFin: donnees.dateFin,
+        creneaux: donnees.creneaux,
+        joursDisponibles: donnees.joursDisponibles,
+        languesParlees: donnees.languesParlees,
+        autreLanguePrecision: donnees.autreLanguePrecision,
+        typePoste: donnees.typePoste,
+        posteBureau: donnees.posteBureau,
+        posteHotel: donnees.posteHotel,
+        commentConnu: donnees.commentConnu,
+        commentConnuPrecision: donnees.commentConnuPrecision,
+      },
+    });
+
+    await dossierRepository.mettreAJourDonneesBloc(trx, {
+      dossierId,
+      blocCode: 'mutuelle',
+      donnees: {
+        cas1CmuC: donnees.cas1CmuC,
+        cas2Acs: donnees.cas2Acs,
+        cas3MutuelleIndividuelle: donnees.cas3MutuelleIndividuelle,
+        cas4MutuelleCollective: donnees.cas4MutuelleCollective,
+        certificationAucuneDispense: donnees.certificationAucuneDispense,
+      },
+    });
+
+    return dossierRepository.trouverInscriptionCompleteParDossierId(trx, entite.id, dossierId);
+  });
+}
+
 module.exports = {
   inscrireCandidat,
   verifierDisponibilite,
@@ -436,5 +637,6 @@ module.exports = {
   listerStatuts,
   obtenirDossier,
   obtenirInscriptionComplete,
+  modifierInscription,
   ErreurInscriptionConflit,
 };

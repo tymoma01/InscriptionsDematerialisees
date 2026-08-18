@@ -127,6 +127,39 @@ function enregistrerDonneesBloc(trx, { dossierId, blocCode, donnees }) {
   });
 }
 
+// Upsert (pas un simple insert comme enregistrerDonneesBloc ci-dessus, réservé à l'inscription
+// initiale) : sert à la correction d'une erreur de saisie sur un dossier déjà inscrit (bouton
+// "Modifier", InformationsInscription.jsx/dossierService.modifierInscription) — le bloc existe
+// déjà à ce stade dans presque tous les cas, mais un upsert reste correct même si une ligne
+// venait à manquer (dossier ancien, bloc jamais enregistré). Contrainte unique(dossier_id,
+// bloc_code) posée par la migration 013 : c'est elle qui rend onConflict().merge() possible ici.
+// date_maj mise à jour explicitement (colonne dédiée, migration 013) plutôt que de dépendre du
+// defaultTo(now()) qui ne joue que sur un INSERT initial, jamais sur la branche merge().
+function mettreAJourDonneesBloc(trx, { dossierId, blocCode, donnees }) {
+  return trx('dossier_donnees_formulaire')
+    .insert({ dossier_id: dossierId, bloc_code: blocCode, donnees: JSON.stringify(donnees) })
+    .onConflict(['dossier_id', 'bloc_code'])
+    .merge({ donnees: JSON.stringify(donnees), date_maj: trx.fn.now() });
+}
+
+// Correction d'une erreur de saisie sur l'état civil (bouton "Modifier", voir
+// mettreAJourDonneesBloc ci-dessus pour le même besoin côté blocs JSONB) — jamais nir/nir_iv/
+// nir_hash ici : le NIR n'est ni exposé ni modifiable par cette voie (voir CLAUDE.md, Contraintes
+// RGPD — dossierService.modifierInscription ne le lit même pas dans son schéma de validation).
+function mettreAJourCandidat(trx, candidatId, { civilite, nom, nomNaissance, lieuNaissance, nationalite, prenom, dateNaissance, situationFamiliale, email }) {
+  return trx('candidats').where({ id: candidatId }).update({
+    civilite,
+    nom,
+    nom_naissance: nomNaissance,
+    lieu_naissance: lieuNaissance,
+    nationalite,
+    prenom,
+    date_naissance: dateNaissance,
+    situation_familiale: situationFamiliale,
+    email,
+  });
+}
+
 // La charte (texte + hash) est propre à chaque entité — une seule ligne active à la fois
 // (contrainte d'unicité posée par la migration 024).
 function trouverCharteActive(trx, entiteId) {
@@ -426,6 +459,8 @@ module.exports = {
   trouverInscriptionCompleteParDossierId,
   trouverCoordonneesCandidat,
   enregistrerDonneesBloc,
+  mettreAJourDonneesBloc,
+  mettreAJourCandidat,
   trouverCharteActive,
   enregistrerSignatureCharte,
   trouverStatutParCode,

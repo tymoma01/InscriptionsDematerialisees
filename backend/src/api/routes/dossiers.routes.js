@@ -4,6 +4,8 @@ const dossierService = require('../../core/dossier/dossierService');
 const relanceService = require('../../core/dossier/relanceService');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
 const workflowEngine = require('../../core/workflow/workflowEngine');
+const journalAudit = require('../../core/audit/journalAudit');
+const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
@@ -194,6 +196,44 @@ router.get('/:dossierId/inscription', requireRole(...ROLES_CONSULTATION_DOSSIERS
     }
     res.json(inscription);
   } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// Correction d'une erreur de saisie du candidat après coup (bouton "Modifier",
+// InformationsInscription.jsx) — réservée à Accueil/Coordination et Admin (voir CLAUDE.md,
+// demande explicite : ni Recruteur, ni Formateur/Inspecteur). Restriction posée ICI, au niveau de
+// la route, pas seulement en affichage front (le bouton "Modifier" y est masqué pour les autres
+// rôles, mais un appel API direct doit être refusé indépendamment de ce masquage) — même principe
+// que le reste de ce fichier (chaque route pose sa propre restriction, jamais héritée d'un autre
+// contrôle supposé déjà fait ailleurs).
+const ROLES_MODIFICATION_INSCRIPTION = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+
+router.patch('/:dossierId/inscription', requireRole(...ROLES_MODIFICATION_INSCRIPTION), async (req, res, next) => {
+  try {
+    const inscription = await dossierService.modifierInscription(req.entite, req.params.dossierId, req.body);
+    if (!inscription) {
+      return res.status(404).json({ erreur: `Dossier "${req.params.dossierId}" introuvable.` });
+    }
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'dossier_inscription_modifiee',
+      tableCible: 'dossiers',
+      cibleId: Number(req.params.dossierId),
+      adresseIp: req.ip,
+    });
+
+    res.json(inscription);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+    }
+    if (erreur instanceof dossierService.ErreurInscriptionConflit) {
+      return res.status(409).json({ erreur: erreur.message, champ: erreur.champ });
+    }
     next(erreur);
   }
 });

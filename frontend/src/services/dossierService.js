@@ -30,3 +30,11 @@ export async function obtenirInscriptionComplete(dossierId) {
   const { data } = await api.get(`/dossiers/${dossierId}/inscription`);
   return data;
 }
+
+// Bouton "Modifier" de cette même section (correction d'une erreur de saisie, réservé à
+// Accueil/Coordination et Admin côté back — voir dossiers.routes.js) — renvoie la même forme que
+// obtenirInscriptionComplete ci-dessus, pour rafraîchir l'affichage sans second aller-retour.
+export async function modifierInscription(dossierId, donnees) {
+  const { data } = await api.patch(`/dossiers/${dossierId}/inscription`, donnees);
+  return data;
+}

@@ -109,6 +109,10 @@ router.post('/', requireRole(...ROLES_GESTION_PIECES), upload.single('piece'), a
       // et ses limites explicites (pas une preuve de capture réelle).
       mimetype: req.file.mimetype,
       uploadedBy: req.utilisateur.id,
+      // Admin contourne la garde de statut sur le remplacement ("Reprendre") — voir
+      // pieceJustificativeService.js pour la règle exacte, posée là-bas plutôt qu'ici pour rester
+      // au même endroit que STATUTS_UPLOAD_AUTORISES qu'elle contourne.
+      roleCode: req.utilisateur.roleCode,
     });
 
     const bd = await obtenirKnex();
@@ -299,7 +303,9 @@ router.delete('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res
   try {
     const pieceId = idPositifSchema.parse(req.params.pieceId);
 
-    await pieceJustificativeService.supprimerPieceJustificative(req.entite, pieceId);
+    // Admin contourne la garde de statut (STATUTS_SUPPRESSION_AUTORISES) — voir
+    // pieceJustificativeService.js pour la règle exacte.
+    await pieceJustificativeService.supprimerPieceJustificative(req.entite, pieceId, req.utilisateur.roleCode);
 
     const bd = await obtenirKnex();
     await journalAudit.enregistrerAction(bd, {

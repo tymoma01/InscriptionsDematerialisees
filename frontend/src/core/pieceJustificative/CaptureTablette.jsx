@@ -144,7 +144,11 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   // VerificationPieces.jsx) : permissif par défaut dans ce cas, comme la vérification de taille
   // de fichier plus haut — le back reste seul juge (STATUTS_SUPPRESSION_AUTORISES /
   // STATUTS_UPLOAD_AUTORISES) et revalide de toute façon à l'envoi.
-  const dossierPiecesModifiables = statutCode == null || statutCode === STATUT_DOSSIER_PIECES_MODIFIABLES;
+  // Admin : accès total aux pièces d'un candidat "à tout moment, quel que soit le statut du
+  // dossier" (CLAUDE.md, demande explicite du 2026-08-18) — même contournement que côté back
+  // (voir pieceJustificativeService.js, roleCode). Les autres rôles gardent la règle actuelle.
+  const dossierPiecesModifiables =
+    utilisateur?.roleCode === 'admin' || statutCode == null || statutCode === STATUT_DOSSIER_PIECES_MODIFIABLES;
 
   const gererSuppression = async (type) => {
     const piece = piecesCapturees.get(type.code);

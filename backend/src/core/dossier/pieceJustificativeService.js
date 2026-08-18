@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const storageFactory = require('../../integrations/stockage/storageFactory');
 const pieceJustificativeRepository = require('./pieceJustificativeRepository');
 const dossierRepository = require('./dossierRepository');
+const { ROLES } = require('../auth/rbac');
 
 // Erreur métier distincte d'une Error générique (500 opaque) : pieces.routes.js la traduit en 400
 // avec un message directement affichable à l'agent — même principe que ErreurCreneauPris dans
@@ -59,7 +60,7 @@ const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'
 // irrécupérable pour de bon sur des dossiers pourtant déjà avancés (test réalisé, verdict rendu).
 const STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS = ['nouveau'];
 
-async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, mimetype, uploadedBy }) {
+async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, mimetype, uploadedBy, roleCode }) {
   if (!Buffer.isBuffer(contenu)) {
     throw new Error('uploaderPieceJustificative attend un contenu de type Buffer');
   }
@@ -96,7 +97,13 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
     );
   }
 
-  if (!STATUTS_UPLOAD_AUTORISES.includes(dossier.statut_code)) {
+  // Admin : accès total aux pièces d'un candidat "à tout moment, quel que soit le statut du
+  // dossier" (CLAUDE.md, demande explicite du 2026-08-18) — contourne les deux gardes de statut
+  // ci-dessous (mais pas la garde capture_uniquement plus haut, ni celle sur 'nouveau' : avant la
+  // signature de la charte, il n'existe simplement encore aucun dossier "à débloquer", peu importe
+  // le rôle). Les autres rôles (Accueil/Coordination, Recruteur) gardent leurs règles actuelles
+  // inchangées.
+  if (roleCode !== ROLES.ADMIN && !STATUTS_UPLOAD_AUTORISES.includes(dossier.statut_code)) {
     if (STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS.includes(dossier.statut_code)) {
       throw new ErreurPieceJustificativeInvalide(
         `Impossible d'ajouter une pièce justificative : le dossier "${dossierId}" est au statut "${dossier.statut_libelle}" ` +
@@ -232,7 +239,11 @@ const STATUTS_SUPPRESSION_AUTORISES = ['en_attente_pieces'];
 
 // Droit à l'effacement RGPD : supprime le fichier chez le prestataire de stockage avant de
 // retirer la ligne en base, pour ne jamais garder une référence vers un fichier déjà effacé.
-async function supprimerPieceJustificative(entite, pieceId) {
+// roleCode : Admin contourne STATUTS_SUPPRESSION_AUTORISES ci-dessous (CLAUDE.md, demande
+// explicite du 2026-08-18 — "Voir, Reprendre et Supprimer n'importe quelle pièce d'un candidat, à
+// tout moment, quel que soit le statut du dossier ou de la pièce"), les autres rôles gardent la
+// règle actuelle.
+async function supprimerPieceJustificative(entite, pieceId, roleCode) {
   const bd = await db.obtenirKnex();
   const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
   if (!piece) {
@@ -240,7 +251,7 @@ async function supprimerPieceJustificative(entite, pieceId) {
   }
 
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, piece.dossier_id);
-  if (!STATUTS_SUPPRESSION_AUTORISES.includes(dossier.statut_code)) {
+  if (roleCode !== ROLES.ADMIN && !STATUTS_SUPPRESSION_AUTORISES.includes(dossier.statut_code)) {
     throw new ErreurPieceJustificativeInvalide(
       `Impossible de supprimer cette pièce justificative : le dossier est au statut "${dossier.statut_libelle}" ` +
         `(attendu : en attente de pièces).`,

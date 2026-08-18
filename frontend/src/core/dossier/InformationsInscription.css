@@ -133,3 +133,113 @@
   color: #ffffff;
   cursor: pointer;
 }
+
+/* Bouton "Modifier" (2026-08-18) : au-dessus des groupes, aligné à droite — même emplacement que
+   le bouton d'export ZIP de Validation.css (page-validation__pieces-entete), cohérent avec le
+   reste des écrans back-office qui posent leurs actions de section en haut à droite. */
+.informations-inscription__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--espace-moyen);
+}
+
+.informations-inscription__actions button {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.informations-inscription__actions button:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
+/* Champ de formulaire (mode édition) — même ligne libellé/valeur que .informations-inscription__ligne
+   (hérite déjà de padding/bordure/font-size via la classe partagée, voir Champ() dans le .jsx),
+   seul l'alignement du contrôle change : à droite mais sans le figer à une largeur de texte fixe,
+   contrairement à .informations-inscription__valeur (juste du texte, jamais un <select>/une liste
+   de cases qui peut être plus large). */
+.informations-inscription__champ {
+  align-items: center;
+  cursor: default;
+}
+
+.informations-inscription__champ input[type='text'],
+.informations-inscription__champ input[type='date'],
+.informations-inscription__champ input[type='tel'],
+.informations-inscription__champ input[type='email'],
+.informations-inscription__champ input:not([type]),
+.informations-inscription__champ select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  max-width: 14rem;
+}
+
+.informations-inscription__champ input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* Cases à cocher (créneaux/jours/langues/postes) — empilées en colonne à droite, alignées avec le
+   reste des champs plutôt qu'une grille séparée : ce groupe reste UNE valeur de ligne parmi
+   d'autres (voir Champ()), pas une section à part. */
+.informations-inscription__cases {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.informations-inscription__cases label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+/* Enregistrer/Annuler : sous les groupes, pas mêlés au bouton "Modifier" (retiré du rendu tant
+   que edition est vrai, voir le .jsx) — erreur d'enregistrement affichée juste au-dessus, même
+   emplacement que les autres formulaires du back-office (NotesDossier.css). */
+.informations-inscription__actions-edition {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  padding-top: var(--espace-petit);
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+.informations-inscription__actions-edition button {
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.informations-inscription__actions-edition button:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.informations-inscription__actions-edition button[type='button'] {
+  background-color: var(--couleur-fond);
+  color: var(--couleur-back-office);
+}
+
+.informations-inscription__actions-edition button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.informations-inscription__actions-edition p[role='alert'] {
+  flex-basis: 100%;
+  color: var(--couleur-erreur);
+  margin: 0;
+}
