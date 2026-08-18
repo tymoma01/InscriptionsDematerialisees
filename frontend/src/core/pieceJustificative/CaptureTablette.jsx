@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   listerPiecesJustificatives,
   uploaderPieceJustificative,
@@ -65,7 +64,6 @@ function fichierAccepte(fichier) {
 // 1, sélection de poste(s) testé(s), voir son en-tête de fichier) — ce composant ne s'en sert pas
 // lui-même ailleurs, même principe que dossierId reçu sans routage.
 export default function CaptureTablette({ dossierId, typesPieces, statutCode, postesBureau, postesHotel, libellePoste }) {
-  const navigate = useNavigate();
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Map plutôt que Set : contrairement au simple "déjà capturée ?" d'origine, supprimer une
@@ -211,9 +209,11 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
             Test planifié le {FORMAT_DATE_HEURE.format(new Date(planificationReussie.dateHeure))} avec{' '}
             {planificationReussie.formateurNom}.
           </p>
-          <button type="button" className="capture-tablette__bouton-retour" onClick={() => navigate('/accueil/tableau-de-bord')}>
-            Retour au tableau de bord
-          </button>
+          {/* Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17 ; oubli
+              corrigé le 2026-08-19 — ce point de confirmation avait échappé au premier passage,
+              contrairement aux autres écrans du back-office) : couvert par le lien "Dossiers
+              candidats" de la barre de navigation commune, voir BarreNavigation.jsx (montée dans
+              PageBackOffice.jsx). */}
         </div>
       </section>
     );
