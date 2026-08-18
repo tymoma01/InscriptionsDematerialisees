@@ -17,6 +17,23 @@ import './GestionTransitions.css';
 // appliquerTransition) ; le motif ne l'est que si la transition choisie le requiert
 // (transition.motif_requis), auquel cas son vocabulaire est chargé depuis
 // GET /dossiers/transitions/motifs?codeAction=... au moment où l'action est sélectionnée.
+//
+// Exception explicite à la généricité ci-dessus (audit 2026-08-19, dossier #75) :
+// CODE_ACTION_EXCLU écarte 'planifier_test' de la liste, quel que soit le statut courant. Cette
+// transition change SEULEMENT le statut (en_attente_pieces -> test_planifie) sans les deux effets
+// de bord que le flux dédié (CaptureTablette.jsx/ModalePlanificationTest.jsx, écran Pièces)
+// applique toujours ensemble : vérifier les pièces obligatoires et créer la ligne `rendezvous`
+// correspondante. Déclenchée ici, elle produit un dossier "Test planifié" sans aucun rendez-vous
+// réel ni pièce reçue — c'est exactement ce qui est arrivé au dossier #75. Retirer le bouton
+// plutôt que dupliquer ces vérifications ici : la planification doit rester un seul chemin.
+// D'autres transitions du même workflow ACCECIT (replanifier_test, test_non_realise,
+// invalider_test, valider_envoi_formation, valider_pret_embauche) partagent un risque comparable
+// (leurs écrans dédiés — TableauDeBordAccueil.jsx/ModalePlanificationTest.jsx, Evaluation.jsx via
+// evaluationEngine.enregistrerEvaluation — appellent aussi ce même workflowEngine.appliquerTransition
+// générique après avoir écrit leurs propres données liées) : volontairement PAS exclues ici sans
+// validation explicite, voir le rapport d'audit du 2026-08-19.
+const CODE_ACTION_EXCLU = 'planifier_test';
+
 export default function GestionTransitions({ dossierId, onTransitionAppliquee }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
@@ -35,7 +52,7 @@ export default function GestionTransitions({ dossierId, onTransitionAppliquee })
     setChargement(true);
     setErreur(null);
     return listerTransitions(dossierId)
-      .then(setTransitions)
+      .then((valeur) => setTransitions(valeur.filter((transition) => transition.code_action !== CODE_ACTION_EXCLU)))
       .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les actions disponibles.'))
       .finally(() => setChargement(false));
   };
@@ -115,11 +132,18 @@ export default function GestionTransitions({ dossierId, onTransitionAppliquee })
         </p>
       )}
 
+      {/* "Passer à « … »" plutôt que le seul libellé du statut destination (audit 2026-08-19,
+          dossier #83 lu à tort comme "déjà planifié" par un agent) : aucun pattern verbe-par-
+          action n'existe ailleurs dans l'app à réutiliser (composant générique, voir son
+          commentaire d'en-tête — pas de dictionnaire code_action -> libellé ACCECIT ici) ; ce
+          préfixe reste donc lui aussi générique, applicable à N'IMPORTE QUELLE transition sans
+          connaître son code_action, et lève l'ambiguïté bouton/état en une seule fois pour toutes
+          les transitions de ce bloc. */}
       {!chargement && !erreur && transitions.length > 0 && !actionEnCours && (
         <div className="gestion-transitions__actions">
           {transitions.map((transition) => (
             <button key={transition.id} type="button" onClick={() => ouvrirAction(transition)}>
-              {transition.statut_destination_libelle}
+              Passer à « {transition.statut_destination_libelle} »
             </button>
           ))}
         </div>
