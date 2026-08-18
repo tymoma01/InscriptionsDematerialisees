@@ -238,8 +238,30 @@
   cursor: not-allowed;
 }
 
-.informations-inscription__actions-edition p[role='alert'] {
+/* Bandeau d'erreur global (voir erreurEnregistrement/erreursChamps, .jsx) : message générique du
+   backend en premier, puis le détail complet par champ en liste — reste affiché même pour les
+   champs déjà signalés au plus près d'eux (voir .informations-inscription__erreur-champ
+   ci-dessous), pour qu'un agent qui n'aurait pas remarqué l'indication en ligne le retrouve ici. */
+.informations-inscription__erreur-globale {
   flex-basis: 100%;
   color: var(--couleur-erreur);
+}
+
+.informations-inscription__erreur-globale p {
+  margin: 0 0 0.3rem;
+}
+
+.informations-inscription__erreur-globale ul {
   margin: 0;
+  padding-left: 1.2rem;
+}
+
+/* Message d'erreur au plus près d'un champ précis (créneaux, dates, postes...) — même couleur que
+   le bandeau global, taille réduite pour rester secondaire par rapport au libellé du champ juste
+   au-dessus. */
+.informations-inscription__erreur-champ {
+  margin: -0.2rem 0 0.3rem;
+  color: var(--couleur-erreur);
+  font-size: 0.85rem;
+  text-align: right;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { obtenirInscriptionComplete, modifierInscription } from '../../services/dossierService';
 import { listerPiecesJustificatives, obtenirApercuPiece } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
@@ -161,6 +161,51 @@ function GroupeCases({ options, libelles, valeurs, onChange }) {
   );
 }
 
+// Message(s) d'erreur d'un champ précis (voir erreursChamps, `details.fieldErrors` du 400 backend)
+// — affiché juste sous le contrôle concerné plutôt que seulement dans le bandeau global, quand un
+// emplacement dédié existe pour ce champ. `null` si ce champ n'a pas d'erreur, pour ne rien
+// insérer dans le flux (pas même un conteneur vide).
+function ErreurChamp({ erreursChamps, cle }) {
+  const messages = erreursChamps[cle];
+  if (!messages || messages.length === 0) return null;
+  return (
+    <p role="alert" className="informations-inscription__erreur-champ">
+      {messages.join(' ')}
+    </p>
+  );
+}
+
+// Libellés pour le récapitulatif du bandeau global (voir son rendu, plus bas) — un champ du
+// schéma de modification (dossierService.js, back) absent d'ici retombe sur son nom brut plutôt
+// que d'échouer, même patron que libelle()/libellePoste ailleurs dans ce fichier.
+const LIBELLES_CHAMPS_ERREUR = {
+  civilite: 'Civilité',
+  nom: 'Nom',
+  nomNaissance: 'Nom de naissance',
+  prenom: 'Prénom',
+  dateNaissance: 'Date de naissance',
+  lieuNaissance: 'Lieu de naissance',
+  nationalite: 'Nationalité',
+  situationFamiliale: 'Situation familiale',
+  adresse: 'Adresse',
+  telephone: 'Téléphone',
+  email: 'Email',
+  contactUrgenceNom: "Contact d'urgence",
+  contactUrgenceTelephone: "Téléphone du contact d'urgence",
+  dateDebut: 'Disponible à partir du',
+  dateFin: "Jusqu'au",
+  creneaux: 'Créneaux souhaités',
+  joursDisponibles: 'Jours disponibles',
+  languesParlees: 'Langues parlées',
+  autreLanguePrecision: 'Précision langue',
+  typePoste: 'Type de poste recherché',
+  posteBureau: 'Poste(s) recherché(s)',
+  posteHotel: 'Poste(s) recherché(s)',
+  commentConnu: 'Comment nous a connu',
+  commentConnuPrecision: 'Précision',
+  certificationAucuneDispense: 'Dispense certifiée',
+};
+
 // Section repliable "Informations d'inscription complètes" de la fiche dossier candidat
 // (accessible via "Voir le dossier"/"Étudier le dossier", voir Relances.jsx/Validation.jsx) :
 // reprend l'intégralité des données saisies par le candidat à l'inscription (état civil,
@@ -210,6 +255,17 @@ export default function InformationsInscription({ dossierId }) {
   const [brouillon, setBrouillon] = useState(null);
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
   const [erreurEnregistrement, setErreurEnregistrement] = useState(null);
+  // Détail par champ (audit 2026-08-19 : un dossier bureau aux créneaux hérités du vocabulaire
+  // Hôtel échouait avec le seul message générique "Données invalides.", sans dire à l'agent quel
+  // champ corriger) — `details.fieldErrors` du 400 backend (zod .flatten(), voir
+  // dossiers.routes.js), clé = nom de champ du schéma, valeur = tableau de messages. Affiché au
+  // plus près du champ concerné quand un emplacement dédié existe (créneaux, ci-dessous), et dans
+  // tous les cas repris en intégralité dans le bandeau global (voir son rendu) : un champ sans
+  // emplacement dédié ne doit pas non plus rester silencieux.
+  const [erreursChamps, setErreursChamps] = useState({});
+  // typePoste "déjà pris en compte" par le nettoyage de creneaux (voir demarrerEdition et l'effet
+  // plus bas) — null tant qu'aucune session d'édition n'est en cours.
+  const typePostePrecedentRef = useRef(null);
 
   const peutModifier = ROLES_MODIFICATION_INSCRIPTION.includes(utilisateur?.roleCode);
 
@@ -256,8 +312,24 @@ export default function InformationsInscription({ dossierId }) {
   // Reconstitue un brouillon plat à partir des données actuellement affichées — un champ que le
   // formulaire d'inscription n'a jamais renseigné (ex. dossier ancien) retombe sur une valeur par
   // défaut cohérente avec le schéma de modification (back), pour ne jamais soumettre `undefined`.
+  //
+  // creneaux : vidé au chargement si son contenu n'appartient pas au vocabulaire du typePoste du
+  // dossier (audit 2026-08-19, dossier #91 : "matin" — vocabulaire Hôtel — encore stocké sur un
+  // dossier typePoste=bureau, hérité d'avant l'ajout des créneaux Bureau) — même protection que
+  // BlocDisponibilites.jsx (formulaire d'inscription candidat, useEffect sur typePosteSelectionne)
+  // pour le changement de typePoste EN COURS d'édition (voir plus bas), mais celle-ci ne couvre
+  // pas ce cas précis : elle ne réagit qu'à un changement de typePoste après montage, jamais à une
+  // incohérence déjà présente à l'ouverture (un formulaire d'inscription neuf démarre toujours
+  // creneaux=[], jamais pré-rempli avec un vocabulaire différent — cas qui ne peut arriver qu'en
+  // édition sur une donnée déjà en base). Sans ce nettoyage, cocher UNE SEULE case du bon
+  // vocabulaire ajoutait la nouvelle valeur au tableau sans jamais retirer le résidu (voir
+  // bascule()), donc jamais de payload valide possible pour ces dossiers.
   const demarrerEdition = () => {
     setErreurEnregistrement(null);
+    const typePoste = disponibilites.typePoste ?? 'hotel';
+    const vocabulaireCreneaux = typePoste === 'bureau' ? CRENEAUX_BUREAU : CRENEAUX_HOTEL;
+    const creneauxStockes = disponibilites.creneaux ?? [];
+    const creneauxCoherents = creneauxStockes.every((code) => vocabulaireCreneaux.includes(code));
     setBrouillon({
       civilite: candidat.civilite ?? 'monsieur',
       nom: candidat.nom ?? '',
@@ -275,11 +347,11 @@ export default function InformationsInscription({ dossierId }) {
       disponibiliteImmediate: disponibilites.disponibiliteImmediate ?? true,
       dateDebut: versDateInput(disponibilites.dateDebut),
       dateFin: versDateInput(disponibilites.dateFin),
-      creneaux: disponibilites.creneaux ?? [],
+      creneaux: creneauxCoherents ? creneauxStockes : [],
       joursDisponibles: disponibilites.joursDisponibles ?? [],
       languesParlees: disponibilites.languesParlees ?? [],
       autreLanguePrecision: disponibilites.autreLanguePrecision ?? '',
-      typePoste: disponibilites.typePoste ?? 'hotel',
+      typePoste,
       posteBureau: disponibilites.posteBureau ?? [],
       posteHotel: disponibilites.posteHotel ?? [],
       commentConnu: disponibilites.commentConnu ?? 'bouche_a_oreille',
@@ -290,13 +362,38 @@ export default function InformationsInscription({ dossierId }) {
       cas4MutuelleCollective: mutuelle.cas4MutuelleCollective ?? 'non',
       certificationAucuneDispense: mutuelle.certificationAucuneDispense ?? false,
     });
+    // Marque ce typePoste comme "déjà pris en compte" pour l'effet ci-dessous (typePostePrecedentRef) :
+    // sans ça, l'effet le verrait comme un CHANGEMENT au premier rendu suivant (précédent = null
+    // -> nouveau = typePoste) et re-viderait creneaux une seconde fois pour rien — inoffensif ici
+    // (déjà [] ou déjà cohérent) mais garde l'intention de chaque mécanisme séparée : celui-ci gère
+    // l'état initial, l'effet ne gère que les changements pendant l'édition (voir point 3 de la
+    // demande).
+    typePostePrecedentRef.current = typePoste;
     setEdition(true);
   };
+
+  // Même protection que BlocDisponibilites.jsx (formulaire d'inscription candidat) pour un
+  // changement de typePoste PENDANT l'édition (agent qui bascule Bureau <-> Hôtel sur le select
+  // "Type de poste recherché") : les créneaux de l'ancien vocabulaire n'ont plus de sens une fois
+  // le type de poste changé, et resteraient sinon un résidu invalide comme celui corrigé par
+  // demarrerEdition ci-dessus pour le chargement initial. typePostePrecedentRef (déclaré plus haut,
+  // avec les autres états) initialisé/mis à jour par demarrerEdition (pas ici) pour ne jamais vider
+  // creneaux au tout premier rendu d'une session d'édition.
+  useEffect(() => {
+    if (!brouillon) return;
+    if (typePostePrecedentRef.current != null && typePostePrecedentRef.current !== brouillon.typePoste) {
+      setBrouillon((precedent) => (precedent ? { ...precedent, creneaux: [] } : precedent));
+    }
+    typePostePrecedentRef.current = brouillon.typePoste;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brouillon?.typePoste]);
 
   const annulerEdition = () => {
     setEdition(false);
     setBrouillon(null);
     setErreurEnregistrement(null);
+    setErreursChamps({});
+    typePostePrecedentRef.current = null;
   };
 
   const modifierChamp = (champ) => (valeur) => setBrouillon((precedent) => ({ ...precedent, [champ]: valeur }));
@@ -305,15 +402,17 @@ export default function InformationsInscription({ dossierId }) {
     evenement.preventDefault();
     setEnregistrementEnCours(true);
     setErreurEnregistrement(null);
+    setErreursChamps({});
     try {
       const inscriptionMiseAJour = await modifierInscription(dossierId, brouillon);
       setInscription(inscriptionMiseAJour);
       setEdition(false);
       setBrouillon(null);
+      typePostePrecedentRef.current = null;
     } catch (erreurRequete) {
-      setErreurEnregistrement(
-        erreurRequete.response?.data?.erreur ?? "Impossible d'enregistrer les modifications. Merci de réessayer.",
-      );
+      const donneesErreur = erreurRequete.response?.data;
+      setErreurEnregistrement(donneesErreur?.erreur ?? "Impossible d'enregistrer les modifications. Merci de réessayer.");
+      setErreursChamps(donneesErreur?.details?.fieldErrors ?? {});
     } finally {
       setEnregistrementEnCours(false);
     }
@@ -570,6 +669,7 @@ export default function InformationsInscription({ dossierId }) {
                             onChange={(e) => modifierChamp('dateDebut')(e.target.value)}
                           />
                         </Champ>
+                        <ErreurChamp erreursChamps={erreursChamps} cle="dateDebut" />
                         <Champ id="edition-date-fin" libelle="Jusqu'au">
                           <input
                             id="edition-date-fin"
@@ -579,6 +679,7 @@ export default function InformationsInscription({ dossierId }) {
                             onChange={(e) => modifierChamp('dateFin')(e.target.value)}
                           />
                         </Champ>
+                        <ErreurChamp erreursChamps={erreursChamps} cle="dateFin" />
                       </>
                     )}
                     <Champ id="edition-type-poste" libelle="Type de poste recherché">
@@ -599,9 +700,11 @@ export default function InformationsInscription({ dossierId }) {
                         onChange={modifierChamp('creneaux')}
                       />
                     </Champ>
+                    <ErreurChamp erreursChamps={erreursChamps} cle="creneaux" />
                     <Champ id="edition-jours" libelle="Jours disponibles">
                       <GroupeCases options={JOURS} libelles={LIBELLES_JOUR} valeurs={brouillon.joursDisponibles} onChange={modifierChamp('joursDisponibles')} />
                     </Champ>
+                    <ErreurChamp erreursChamps={erreursChamps} cle="joursDisponibles" />
                     <Champ id="edition-langues" libelle="Langues parlées">
                       <GroupeCases options={LANGUES} libelles={LIBELLES_LANGUE} valeurs={brouillon.languesParlees} onChange={modifierChamp('languesParlees')} />
                     </Champ>
@@ -623,6 +726,7 @@ export default function InformationsInscription({ dossierId }) {
                         onChange={modifierChamp(brouillon.typePoste === 'bureau' ? 'posteBureau' : 'posteHotel')}
                       />
                     </Champ>
+                    <ErreurChamp erreursChamps={erreursChamps} cle={brouillon.typePoste === 'bureau' ? 'posteBureau' : 'posteHotel'} />
                     <Champ id="edition-comment-connu" libelle="Comment nous a connu">
                       <select
                         id="edition-comment-connu"
@@ -724,7 +828,24 @@ export default function InformationsInscription({ dossierId }) {
 
               {edition && (
                 <div className="informations-inscription__actions-edition">
-                  {erreurEnregistrement && <p role="alert">{erreurEnregistrement}</p>}
+                  {erreurEnregistrement && (
+                    <div role="alert" className="informations-inscription__erreur-globale">
+                      <p>{erreurEnregistrement}</p>
+                      {/* Détail complet (voir erreursChamps) même pour les champs déjà signalés au
+                          plus près d'eux (créneaux, dates, postes...) : un agent qui n'a pas
+                          remarqué l'indication en ligne au milieu d'un long formulaire retrouve
+                          quand même la liste ici, avant de renvoyer inutilement la même erreur. */}
+                      {Object.keys(erreursChamps).length > 0 && (
+                        <ul>
+                          {Object.entries(erreursChamps).map(([champ, messages]) => (
+                            <li key={champ}>
+                              <strong>{LIBELLES_CHAMPS_ERREUR[champ] ?? champ}</strong> : {messages.join(' ')}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                   <button type="submit" disabled={enregistrementEnCours}>
                     {enregistrementEnCours ? 'Enregistrement…' : 'Enregistrer'}
                   </button>
