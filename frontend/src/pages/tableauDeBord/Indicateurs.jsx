@@ -398,18 +398,31 @@ function labelPartCamembert({ cx, cy, midAngle, innerRadius, outerRadius, percen
   );
 }
 
-function formatDateISO(date) {
-  return date.toISOString().slice(0, 10);
+// 'AAAA-MM-JJ' construit directement depuis les composants year/month/day (pas de
+// date.toISOString() ici, contrairement à un formatage naïf) : toISOString() convertit d'abord en
+// UTC, ce qui décale la date d'un jour en arrière dans un fuseau en avance sur UTC (Europe/Paris,
+// CEST = UTC+2) — new Date(2026, 7, 1) (1er août minuit local) redonnerait alors "2026-07-31" via
+// toISOString().slice(0, 10), pas "2026-08-01". Sans impact ailleurs dans ce fichier : ce format
+// n'est utilisé que par bornesParDefaut ci-dessous.
+function formatDateLocaleISO(annee, moisIndex, jour) {
+  return `${annee}-${String(moisIndex + 1).padStart(2, '0')}-${String(jour).padStart(2, '0')}`;
 }
 
-// Bornes par défaut à l'ouverture de l'écran : 30 derniers jours (bornes incluses) — pas de
-// période "officielle" définie ailleurs dans le projet pour ce tableau de bord, juste une
-// fenêtre de départ raisonnable, entièrement modifiable ensuite via les filtres.
+// Bornes par défaut à l'ouverture de l'écran : mois calendaire en cours, du 1er au dernier jour
+// (bornes incluses) — pas de période "officielle" définie ailleurs dans le projet pour ce tableau
+// de bord, juste une fenêtre de départ raisonnable, entièrement modifiable ensuite via les
+// filtres. Calculée dynamiquement à chaque ouverture (jamais une valeur codée en dur) : le dernier
+// jour du mois vient de `new Date(annee, moisIndex + 1, 0)` (jour 0 du mois suivant = dernier jour
+// du mois courant), qui gère nativement les mois à 28/29/30/31 jours sans table de correspondance.
 function bornesParDefaut() {
-  const fin = new Date();
-  const debut = new Date();
-  debut.setDate(debut.getDate() - 29);
-  return { dateDebut: formatDateISO(debut), dateFin: formatDateISO(fin) };
+  const maintenant = new Date();
+  const annee = maintenant.getFullYear();
+  const moisIndex = maintenant.getMonth();
+  const dernierJourDuMois = new Date(annee, moisIndex + 1, 0).getDate();
+  return {
+    dateDebut: formatDateLocaleISO(annee, moisIndex, 1),
+    dateFin: formatDateLocaleISO(annee, moisIndex, dernierJourDuMois),
+  };
 }
 
 // Tableau de bord KPI back-office (CLAUDE.md, section Tableau de bord : "indicateurs de pilotage
