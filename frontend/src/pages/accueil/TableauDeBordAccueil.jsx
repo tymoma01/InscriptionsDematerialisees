@@ -36,9 +36,9 @@ const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide']
 // ACCUEIL, STATUTS_REPLANIFIABLES). "Pièces", lui, reste affiché pour tous les statuts sans
 // exception (consultation des pièces déjà capturées toujours possible, même hors périmètre) —
 // pas de `visible` sur cette action.
-// "nouveau" volontairement absent : les inscriptions se font en agence, un dossier encore à ce
-// statut signifie que l'agent n'a pas encore scanné les pièces (session interrompue ou en
-// attente) — la reprise se fait via "Pièces", pas "Relances".
+// "nouveau" absent : plus aucun dossier ne peut atteindre ce statut aujourd'hui (voir
+// CODES_STATUTS_FILTRES_ACCUEIL, audit 2026-08-19) — n'apparaît de toute façon plus dans la liste
+// filtrée par statut, cette entrée ne sert donc plus qu'à documenter l'historique du choix.
 // "invalide" ajouté (workflow v3) : même logique que test_non_realise, une relance a un sens tant
 // qu'une replanification est possible sur ce dossier.
 const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test_non_realise', 'invalide'];
@@ -53,7 +53,13 @@ const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test
 // quelques lignes de données, pas de quoi justifier un module commun, voir CLAUDE.md conventions
 // du projet).
 const VARIANTE_PAR_CODE_ACCECIT = {
-  nouveau: 'neutre',
+  // 'nouveau' retiré (audit 2026-08-19) : plus aucun dossier ne peut atteindre ce statut depuis
+  // que dossierService.inscrireCandidat fait passer automatiquement en_attente_pieces à la fin
+  // d'une inscription (transaction atomique) — les 20 derniers dossiers encore à "nouveau" (tous
+  // antérieurs au moteur de workflow lui-même, 21/07/2026) ont été basculés rétroactivement, voir
+  // scripts/basculerDossiersNouveauEnAttentePieces.js. Un code absent de ce mapping retombe de
+  // toute façon sur le badge neutre (voir varianteStatut ci-dessous) : rien à afficher au cas où
+  // la valeur "nouveau" réapparaîtrait un jour (elle reste dans l'enum en base, volontairement).
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
   test_planifie: 'bleu',
@@ -88,12 +94,13 @@ function libellePoste(code) {
 
 // Tous les statuts réellement atteignables aujourd'hui dans le workflow actif (vérifié en base :
 // `est_initial` ou cible d'une transition existante dans `transitions_statut`, entité ACCECIT,
-// 2026-08-04) — même liste complète que CODES_STATUTS_FILTRES_RECRUTEUR (Backoffice.jsx) sur ce
-// point, propre à cette page, pas au moteur générique FiltresStatut.jsx qui reste piloté
+// 2026-08-04) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui reste piloté
 // entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification" (workflow
-// hérité) n'y figure volontairement pas : plus aucun dossier ne peut l'atteindre.
+// hérité) n'y figure volontairement pas : plus aucun dossier ne peut l'atteindre. "nouveau" retiré
+// le 2026-08-19 pour la même raison (voir VARIANTE_PAR_CODE_ACCECIT ci-dessus) : plus aucune
+// inscription ne peut aujourd'hui s'y arrêter, et les derniers dossiers résiduels ont été
+// basculés vers en_attente_pieces.
 const CODES_STATUTS_FILTRES_ACCUEIL = [
-  'nouveau',
   'en_attente_pieces',
   'test_planifie',
   // Ajouté avec le bouton "Replanifier" (voir STATUTS_REPLANIFIABLES ci-dessous) : permet à

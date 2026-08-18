@@ -23,7 +23,8 @@ import './Indicateurs.css';
 // Backoffice.jsx — dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet), sert ici
 // à la colonne "Statut" du tableau consolidé (voir plus bas, TableauDossiersSelectionnes).
 const VARIANTE_PAR_CODE_STATUT_ACCECIT = {
-  nouveau: 'neutre',
+  // 'nouveau' retiré (audit 2026-08-19, même correctif que TableauDeBordAccueil.jsx) : plus
+  // aucun dossier ne peut atteindre ce statut aujourd'hui.
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente',
   test_planifie: 'bleu',
@@ -220,8 +221,9 @@ function libelleDateCle(code) {
   return LIBELLES_DATES_CLES[code] ?? code;
 }
 // Couleurs : `--statut-<variante>-*` (variables.css), MÊME variante que le badge de statut/
-// indicateur correspondant — inscription: neutre (comme le statut "Nouveau", VARIANTE_PAR_CODE_
-// STATUT_ACCECIT.nouveau) ; test_planifie: bleu (comme le badge de statut "Test planifié",
+// indicateur correspondant — inscription: neutre (aucun statut équivalent à réutiliser depuis le
+// retrait de "nouveau", VARIANTE_PAR_CODE_STATUT_ACCECIT, audit 2026-08-19 — 'neutre' reste le
+// choix par défaut du badge générique, voir StatutBadge.jsx) ; test_planifie: bleu (comme le badge de statut "Test planifié",
 // VARIANTE_PAR_CODE_STATUT_ACCECIT.test_planifie) ; verdict_valide/invalide et orientation_* :
 // exactement VARIANTE_PAR_INDICATEUR (même code, réutilisé tel quel, pas dupliqué).
 const VARIANTE_PAR_DATE_CLE = {
