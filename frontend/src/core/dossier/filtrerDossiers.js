@@ -12,7 +12,8 @@ function normaliserTelephone(valeur) {
 // Filtrage client (recherche nom/prénom/téléphone/email/poste/n° de dossier + plage de date de
 // dernière mise à jour) sur une liste de dossiers déjà chargée en mémoire — voir
 // FiltresRechercheDossiers.jsx pour le pourquoi (pas de pagination serveur, filtrage instantané).
-// Fonction pure, partagée par TableauDeBordAccueil.jsx et Backoffice.jsx (recruteur), pour ne pas
+// Fonction pure, utilisée par TableauDeBordAccueil.jsx (Backoffice.jsx/recruteur, qui la
+// consommait aussi jusqu'ici, a été fusionné dans cette page — voir App.jsx), pour ne pas
 // dupliquer deux fois la même logique de comparaison de dates.
 //
 // `libellePoste` optionnel, même patron que DossierList.jsx (voir sa colonne "Poste") : les codes
@@ -20,14 +21,26 @@ function normaliserTelephone(valeur) {
 // générique ne les traduit pas lui-même — sans traducteur fourni, la recherche matche sur le code
 // brut plutôt que d'échouer.
 //
-// `entitesFiltre` optionnel (Set de 'hotel'/'bureau', voir Backoffice.jsx) : même détermination de
-// l'entité d'un dossier que le filtre "Entité" (typePoste) du tableau de bord Indicateurs — via
-// les postes déclarés sur le dossier (dossier.postesHotel/postesBureau), pas un champ entité_id
-// distinct (un dossier n'a qu'une seule entité_id, celle de l'agence ACCECIT/Adaptel qui l'a créé
-// — voir CLAUDE.md, section Modularité — sans rapport avec Hôtellerie/Tertiaire, qui distingue
-// deux FAMILLES DE POSTES au sein d'une même entité). Set vide/absent : aucune restriction, tous
-// les dossiers passent — même sémantique que recherche/dateDebutFiltre/dateFinFiltre vides
-// ci-dessus.
+// `entitesFiltre` optionnel (Set de 'hotel'/'bureau') : même détermination de l'entité d'un
+// dossier que le filtre "Entité" (typePoste) du tableau de bord Indicateurs — via les postes
+// déclarés sur le dossier (dossier.postesHotel/postesBureau), pas un champ entité_id distinct (un
+// dossier n'a qu'une seule entité_id, celle de l'agence ACCECIT/Adaptel qui l'a créé — voir
+// CLAUDE.md, section Modularité — sans rapport avec Hôtellerie/Tertiaire, qui distingue deux
+// FAMILLES DE POSTES au sein d'une même entité).
+//
+// Un dossier sans AUCUN poste déclaré (ni Hôtellerie ni Tertiaire) est toujours exclu, que le Set
+// soit vide ou non (audit 2026-08-18 : 6 dossiers "nouveau", inscription abandonnée avant le bloc
+// "Situation professionnelle", gonflaient le compteur "Tous" de FiltresStatut sans jamais
+// apparaître dans Hôtellerie/Tertiaire — Set vide y était jusqu'ici interprété comme "aucune
+// restriction", donc ces dossiers "passaient" alors qu'ils ne correspondent à aucune des deux
+// familles). Le Set ne sert plus qu'à restreindre à UNE famille précise quand il n'est pas vide.
+// Un dossier avec les deux familles renseignées (candidat intéressé par Hôtellerie ET Tertiaire)
+// n'est PAS exclu au double titre : il compte alors dans les deux boutons Hôtellerie/Tertiaire
+// (TableauDeBordAccueil.jsx, compteurHotel/compteurBureau) — reflète son intérêt réel plutôt que
+// de le masquer d'un des deux filtres via une entité "principale" arbitraire. "Tous" reste exact
+// dans ce cas car calculé ici comme une liste de dossiers DISTINCTS (union), jamais comme la somme
+// Hôtellerie + Tertiaire : Tous < Hôtellerie + Tertiaire est donc un résultat attendu si un tel
+// dossier existe un jour, pas un bug (voir commentaire de compteurHotel/compteurBureau).
 export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }) {
   const rechercheNormalisee = recherche.trim().toLowerCase();
   const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
@@ -74,9 +87,10 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
       if (debut && dateMaj < debut) return false;
       if (fin && dateMaj > fin) return false;
     }
+    const aPosteHotel = (dossier.postesHotel ?? []).length > 0;
+    const aPosteBureau = (dossier.postesBureau ?? []).length > 0;
+    if (!aPosteHotel && !aPosteBureau) return false;
     if (entitesFiltre && entitesFiltre.size > 0) {
-      const aPosteHotel = (dossier.postesHotel ?? []).length > 0;
-      const aPosteBureau = (dossier.postesBureau ?? []).length > 0;
       const correspondEntite = (entitesFiltre.has('hotel') && aPosteHotel) || (entitesFiltre.has('bureau') && aPosteBureau);
       if (!correspondEntite) return false;
     }
