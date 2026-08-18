@@ -50,17 +50,29 @@ function libellePoste(code) {
 // entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back — voir
 // listerRendezvousTest — cette recherche s'applique en plus, sur la liste déjà renvoyée par
 // l'API, sans aller-retour serveur supplémentaire). Même approche que filtrerDossiers.js
-// (core/dossier/filtrerDossiers.js, réutilisé tel quel par Dossiers candidats/Back-office
-// recruteur) : nom/prénom comparés mot par mot, insensible à l'ordre de saisie ("ETEST TEST"
-// retrouve "TEST ETEST") ; n° de dossier et poste comparés par simple inclusion, comme
-// téléphone/poste le sont déjà là-bas. Dupliqué plutôt que partagé : `rdv` (rendez-vous +
+// (core/dossier/filtrerDossiers.js, réutilisé tel quel par Dossiers candidats) : nom/prénom
+// comparés mot par mot, insensible à l'ordre de saisie ("ETEST TEST" retrouve "TEST ETEST") ;
+// poste comparé par simple inclusion. Dupliqué plutôt que partagé : `rdv` (rendez-vous +
 // candidat + postes) n'a pas la même forme qu'un `dossier` de filtrerDossiers.js, et cette page
-// n'a de toute façon ni téléphone ni email à chercher (absents de GET /api/dossiers/rendezvous).
-function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormalisee, rechercheNormaliseeTexte }) {
-  if (motsRechercheNom.length === 0) return true;
+// n'a de toute façon pas de téléphone à chercher (absent de GET /api/dossiers/rendezvous).
+//
+// `rechercheEstNumeroDossier`/`rechercheEstNumerique` (audit 2026-08-19, même correctif que
+// filtrerDossiers.js) : une saisie numérique courte ("91") ne doit viser QUE le n° de dossier, en
+// égalité stricte — plus une simple inclusion, qui remontait aussi "191"/"912"/etc. Une saisie
+// numérique longue (10 chiffres ou plus, forme téléphone) ne matche jamais rien ici : cette page
+// n'a pas de téléphone à chercher, mieux vaut aucun résultat qu'un repli silencieux sur le nom.
+function rechercheCorrespond(
+  rdv,
+  { motsRechercheNom, rechercheNormaliseeTexte, rechercheChiffresSeuls, rechercheEstNumerique, rechercheEstNumeroDossier },
+) {
+  if (rechercheEstNumeroDossier) {
+    return String(rdv.dossier_id) === rechercheChiffresSeuls;
+  }
+  if (rechercheEstNumerique) {
+    return false;
+  }
   const nomComplet = normaliserTexte(`${rdv.candidat_prenom} ${rdv.candidat_nom}`.toLowerCase());
   const correspondNom = motsRechercheNom.every((mot) => nomComplet.includes(mot));
-  const correspondNumeroDossier = String(rdv.dossier_id).includes(rechercheNormalisee);
   const postes = normaliserTexte(
     [...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])]
       .map(libellePoste)
@@ -68,7 +80,7 @@ function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormalisee, reche
       .toLowerCase(),
   );
   const correspondPoste = postes.includes(rechercheNormaliseeTexte);
-  return correspondNom || correspondNumeroDossier || correspondPoste;
+  return correspondNom || correspondPoste;
 }
 
 // "À venir" au sens de cette page : même définition que le filtre serveur aVenirSeulement
@@ -189,8 +201,19 @@ export default function Planification() {
     const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
     const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
     if (motsRechercheNom.length === 0) return rendezvous;
+    // Saisie strictement numérique (chiffres seuls, espaces/tirets de formatage ignorés) — voir
+    // rechercheCorrespond ci-dessus pour ce que ces deux booléens changent.
+    const rechercheChiffresSeuls = rechercheNormalisee.replace(/[\s-]/g, '');
+    const rechercheEstNumerique = rechercheChiffresSeuls.length > 0 && /^\d+$/.test(rechercheChiffresSeuls);
+    const rechercheEstNumeroDossier = rechercheEstNumerique && rechercheChiffresSeuls.length < 10;
     return rendezvous.filter((rdv) =>
-      rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormalisee, rechercheNormaliseeTexte }),
+      rechercheCorrespond(rdv, {
+        motsRechercheNom,
+        rechercheNormaliseeTexte,
+        rechercheChiffresSeuls,
+        rechercheEstNumerique,
+        rechercheEstNumeroDossier,
+      }),
     );
   }, [rendezvous, recherche]);
 

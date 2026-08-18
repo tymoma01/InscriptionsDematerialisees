@@ -52,6 +52,18 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
   // saisi dans le même ordre que prénom+nom. Reste propre au nom/prénom : postes ci-dessous garde
   // rechercheNormaliseeTexte (bloc unique), aucun bug équivalent signalé sur ce champ.
   const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
+  // Saisie strictement numérique (audit 2026-08-19 : "91" remontait à la fois le dossier #91 ET
+  // le téléphone "0780891746", qui contient "91") — désambiguïsée par la LONGUEUR plutôt que de
+  // laisser les deux champs concourir par simple inclusion :
+  // - moins de 10 chiffres : trop court pour un téléphone français, ne peut viser que le n° de
+  //   dossier (rechercheEstNumeroDossier) — correspondance EXACTE plutôt que "contient" (l'objectif
+  //   est un résultat unique, "9" ne doit plus remonter 9 ET 19 ET 91...).
+  // - 10 chiffres ou plus : comportement téléphone inchangé (rechercheTelephone ci-dessus).
+  // rechercheTelephone (pas rechercheNormalisee) sert de base : une saisie "06 12 34 56 78"
+  // (espaces) doit être traitée comme 10 chiffres, pas rejetée par le test /^\d+$/ à cause de ces
+  // espaces.
+  const rechercheEstNumerique = rechercheTelephone.length > 0 && /^\d+$/.test(rechercheTelephone);
+  const rechercheEstNumeroDossier = rechercheEstNumerique && rechercheTelephone.length < 10;
   // Bornes en heure locale (pas de découpage de chaîne ISO en UTC) : dateDebutFiltre/dateFinFiltre
   // viennent d'un <input type="date"> et représentent des jours calendaires tels que l'agent les
   // lit sur la tablette, pas des instants UTC.
@@ -59,10 +71,20 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
   const fin = dateFinFiltre ? new Date(`${dateFinFiltre}T23:59:59.999`) : null;
 
   return dossiers.filter((dossier) => {
-    if (rechercheNormalisee) {
+    if (rechercheEstNumeroDossier) {
+      // Cas 1 (saisie numérique courte) : uniquement le n° de dossier, égalité stricte — un champ
+      // à la fois, jamais combiné au nom/email/poste/téléphone ci-dessous.
+      if (String(dossier.id) !== rechercheTelephone) return false;
+    } else if (rechercheEstNumerique) {
+      // Cas 2 (saisie numérique longue) : uniquement le téléphone, comportement "contient" déjà en
+      // place — un numéro complet à 14 chiffres avec indicatif retrouve toujours un dossier dont
+      // seuls les 10 derniers chiffres sont enregistrés.
+      const telephone = normaliserTelephone(dossier.candidat_telephone ?? '');
+      if (!telephone.includes(rechercheTelephone)) return false;
+    } else if (rechercheNormalisee) {
+      // Cas 3 (saisie non numérique) : comportement inchangé — nom/prénom, email, poste.
       const nomComplet = normaliserTexte(`${dossier.candidat_prenom} ${dossier.candidat_nom}`.toLowerCase());
       const email = (dossier.candidat_email ?? '').toLowerCase();
-      const telephone = normaliserTelephone(dossier.candidat_telephone ?? '');
       const postes = normaliserTexte(
         [...(dossier.postesBureau ?? []), ...(dossier.postesHotel ?? [])]
           .map((code) => (libellePoste ? libellePoste(code) : code))
@@ -72,14 +94,7 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
       const correspond =
         motsRechercheNom.every((mot) => nomComplet.includes(mot)) ||
         email.includes(rechercheNormalisee) ||
-        postes.includes(rechercheNormaliseeTexte) ||
-        // rechercheTelephone vide (recherche sans chiffre, ex. juste des espaces/tirets) ne doit
-        // jamais matcher un dossier sans téléphone saisi — .includes('') serait toujours vrai.
-        (rechercheTelephone && telephone.includes(rechercheTelephone)) ||
-        // N° de dossier (dossier.id, identifiant métier déjà affiché dans la colonne "N°" de
-        // DossierList.jsx — voir son commentaire) : correspondance partielle comme le téléphone
-        // ci-dessus ("9" retrouve le dossier 9 mais aussi 19, 91...), pas une égalité stricte.
-        String(dossier.id).includes(rechercheNormalisee);
+        postes.includes(rechercheNormaliseeTexte);
       if (!correspond) return false;
     }
     if (debut || fin) {
