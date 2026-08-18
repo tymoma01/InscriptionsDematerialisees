@@ -80,12 +80,15 @@ const SITUATIONS_FAMILIALES = [
 ];
 const LIBELLES_OUI_NON = { oui: 'Oui', non: 'Non' };
 const LIBELLES_CONSENTEMENT_DIFFUSION = { autorise: 'Autorisée', refuse: 'Refusée' };
-const LIBELLES_STATUT_PIECE = {
-  en_attente: 'En attente',
-  valide: 'Validée',
-  rejete: 'Rejetée',
-  orpheline: 'À recapturer (fichier perdu)',
-};
+// "En attente"/"Validée"/"Rejetée" retirés (audit 2026-08-19, même correctif que Validation.jsx) :
+// pieces_justificatives.statut_verification n'est modifiable par aucun écran de l'app (le PATCH
+// correspondant existe côté back mais n'est appelé nulle part côté front) — ce badge restait donc
+// figé sur "En attente" pour toute pièce, quel que soit son contenu réel. 'orpheline' (fichier
+// disparu du stockage, détecté par le système) reste affiché : signal fiable, pas un jugement
+// humain jamais fait. Toute autre pièce listée ici est simplement "Reçue" (chaque ligne vient de
+// listerPiecesJustificatives, donc déjà présente — même donnée que dejaCapturee sur
+// CaptureTablette.jsx).
+const LIBELLE_PIECE_ORPHELINE = 'À recapturer (fichier perdu)';
 
 function libelle(dictionnaire, code) {
   if (!code) return '-';
@@ -711,7 +714,7 @@ export default function InformationsInscription({ dossierId }) {
                     {pieces.map((piece) => (
                       <li key={piece.id}>
                         <span>{piece.type_piece_libelle}</span>
-                        <span>{LIBELLES_STATUT_PIECE[piece.statut_verification] ?? piece.statut_verification}</span>
+                        <span>{piece.statut_verification === 'orpheline' ? LIBELLE_PIECE_ORPHELINE : '✓ Reçue'}</span>
                         <span>{formaterDate(piece.date_upload)}</span>
                       </li>
                     ))}

@@ -12,15 +12,24 @@ import './Validation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// 'orpheline' (migration 046) : fichier disparu du stockage documentaire (OneDrive/SharePoint),
-// constaté par le système (export ZIP) — distinct de 'rejete', un jugement humain sur une pièce
-// pourtant bien reçue. Voir Validation.css pour la distinction visuelle (orange, pas rouge).
-const LIBELLES_STATUT_VERIFICATION = {
-  en_attente: 'En attente',
-  valide: 'Validée',
-  rejete: 'Rejetée',
-  orpheline: 'À recapturer (fichier perdu)',
-};
+// Badge "En attente"/"Validée"/"Rejetée" retiré (audit 2026-08-19) : ces trois valeurs de
+// pieces_justificatives.statut_verification ne sont modifiables que par PATCH
+// /api/dossiers/:dossierId/pieces/:pieceId (pieceJustificativeService.mettreAJourStatutVerificationPieceJustificative),
+// jamais appelée par aucun écran — aucun bouton "Valider"/"Rejeter" n'existe nulle part dans
+// l'app. Résultat : ce badge restait figé sur "En attente" pour toute pièce de tout dossier,
+// quel que soit son contenu réel — une donnée trompeuse plutôt qu'un simple indicateur incomplet.
+// Route et colonne conservées telles quelles (aucune décision de les retirer, juste de ne plus
+// les afficher ici) pour une éventuelle implémentation complète du circuit de vérification.
+//
+// 'orpheline' (migration 046) reste affichée : fichier disparu du stockage documentaire
+// (OneDrive/SharePoint), constaté par le SYSTÈME (export ZIP, scripts/marquerPiecesOrphelines.js),
+// pas par une relecture humaine jamais faite — signal fiable, contrairement aux trois autres.
+// Toute pièce qui n'est pas 'orpheline' est donc simplement "Reçue" : chaque ligne de cette liste
+// vient de listerPiecesJustificatives (pièces déjà chargées), même donnée que dejaCapturee sur
+// VerificationPieces.jsx/CaptureTablette.jsx (coche verte "présente") — juste affichée ici sous
+// forme de badge plutôt que de coche, pour rester cohérente avec la mise en page existante de
+// cette liste (libellé/badge/date).
+const LIBELLE_PIECE_ORPHELINE = 'À recapturer (fichier perdu)';
 
 // Écran détail dossier pour le recruteur (CLAUDE.md : "indicateur de complétude") — dossierId
 // vient du paramètre de route (à la différence des composants génériques de core/, cette page
@@ -134,11 +143,15 @@ export default function Validation() {
               {pieces.map((piece) => (
                 <li key={piece.id}>
                   <span className="page-validation__piece-libelle">{piece.type_piece_libelle}</span>
-                  <span
-                    className={`page-validation__piece-statut page-validation__piece-statut--${piece.statut_verification}`}
-                  >
-                    {LIBELLES_STATUT_VERIFICATION[piece.statut_verification] ?? piece.statut_verification}
-                  </span>
+                  {piece.statut_verification === 'orpheline' ? (
+                    <span className="page-validation__piece-statut page-validation__piece-statut--orpheline">
+                      {LIBELLE_PIECE_ORPHELINE}
+                    </span>
+                  ) : (
+                    <span className="page-validation__piece-statut page-validation__piece-statut--recue">
+                      ✓ Reçue
+                    </span>
+                  )}
                   <span className="page-validation__piece-date">
                     {FORMAT_DATE.format(new Date(piece.date_upload))}
                   </span>

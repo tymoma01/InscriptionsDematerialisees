@@ -100,14 +100,13 @@
   color: var(--couleur-texte-secondaire);
 }
 
-.page-validation__piece-statut--valide {
+/* Remplace les anciens badges --valide/--rejete (statut_verification, retirés le 2026-08-19 —
+   voir le commentaire de LIBELLE_PIECE_ORPHELINE dans Validation.jsx) : simple confirmation de
+   présence ("✓ Reçue"), mêmes teintes de succès que l'ancien --valide, mais plus honnête sur ce
+   qu'elle affirme réellement. */
+.page-validation__piece-statut--recue {
   background-color: var(--statut-succes-fond);
   color: var(--statut-succes-texte);
-}
-
-.page-validation__piece-statut--rejete {
-  background-color: var(--statut-echec-fond);
-  color: var(--couleur-erreur);
 }
 
 /* Distinct de --rejete (rouge, jugement humain "pièce insuffisante") : orange/alerte plutôt que
