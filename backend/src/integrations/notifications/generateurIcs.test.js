@@ -70,7 +70,7 @@ test("genererIcsInvitationTest ajoute le candidat en ATTENDEE quand son email es
   assert.ok(lignesAttendee[0].includes(':mailto:sophie.martin@exemple.test'));
 });
 
-test('genererIcsInvitationTest ajoute aussi le formateur en ATTENDEE quand son email est fourni', () => {
+test('genererIcsInvitationTest ajoute aussi le formateur en ATTENDEE quand son email est fourni, avec son seul prénom (pas son nom, visible du candidat)', () => {
   const ics = deplierIcs(
     genererIcsInvitationTest({
       ...INFOS_BASE,
@@ -84,9 +84,10 @@ test('genererIcsInvitationTest ajoute aussi le formateur en ATTENDEE quand son e
   const lignesAttendee = ics.split('\r\n').filter((ligne) => ligne.startsWith('ATTENDEE'));
   assert.equal(lignesAttendee.length, 2);
   assert.ok(lignesAttendee.some((ligne) => ligne.includes(':mailto:sophie.martin@exemple.test')));
-  assert.ok(
-    lignesAttendee.some((ligne) => ligne.includes('CN="Marc Dupont"') && ligne.includes(':mailto:marc.dupont@exemple.test')),
-  );
+  const ligneFormateur = lignesAttendee.find((ligne) => ligne.includes(':mailto:marc.dupont@exemple.test'));
+  assert.ok(ligneFormateur);
+  assert.ok(ligneFormateur.includes('CN="Marc"'));
+  assert.ok(!ligneFormateur.includes('Dupont'));
 });
 
 test('genererIcsInvitationTest ignore le formateur si seuls son nom/prénom sont fournis sans email', () => {

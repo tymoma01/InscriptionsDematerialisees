@@ -101,7 +101,14 @@ function genererIcsInvitationTest({
   }
   if (formateurEmail) {
     attendees.push({
-      name: `${formateurPrenom} ${formateurNom}`,
+      // Prénom seul (pas `${formateurPrenom} ${formateurNom}`) : ce champ "name" devient le CN
+      // (Common Name) de la ligne ATTENDEE, affiché tel quel par le client calendrier du candidat
+      // (Outlook, Google Calendar...) — le candidat ne doit voir que le prénom de son formateur,
+      // jamais son nom de famille (demande explicite, 2026-08-19). formateurNom reste transmis par
+      // les deux appelants (invitationTestService.js/notificationChangementLieuService.js) : ce
+      // paramètre n'est pas retiré de la signature, seulement plus utilisé ici, pour ne pas casser
+      // un futur appelant qui en aurait besoin ailleurs (ex. ORGANIZER, si réintroduit un jour).
+      name: formateurPrenom,
       email: formateurEmail,
       role: 'REQ-PARTICIPANT',
       partstat: 'NEEDS-ACTION',
