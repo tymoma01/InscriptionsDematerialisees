@@ -2,18 +2,32 @@ import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
 import './BarreNavigation.css';
 
-// Catalogue des 5 destinations back-office (refonte navigation, 2026-08-17) — chaque entrée
-// recopie le sous-ensemble de rôles réellement autorisé côté back (voir commentaire de chacune) :
-// cette barre ne fait qu'AFFICHER un accès déjà décidé par requireRole(...), jamais l'inverse —
-// la page cible refait de toute façon son propre appel réseau protégé (voir App.jsx, en-tête).
+// Catalogue des 4 destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
+// office recruteur" dans "Dossiers candidats", voir App.jsx) — chaque entrée recopie le sous-
+// ensemble de rôles réellement autorisé côté back (voir commentaire de chacune) : cette barre ne
+// fait qu'AFFICHER un accès déjà décidé par requireRole(...), jamais l'inverse — la page cible
+// refait de toute façon son propre appel réseau protégé (voir App.jsx, en-tête).
 const ELEMENTS_NAVIGATION = [
+  {
+    cle: 'tableau-de-bord',
+    libelle: 'Tableau de bord',
+    chemin: '/tableau-de-bord/indicateurs',
+    estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
+    // Mêmes rôles que statistiques.routes.js.
+    roles: ['accueil_coordination', 'recruteur', 'admin'],
+  },
   {
     cle: 'dossiers',
     libelle: 'Dossiers candidats',
     chemin: '/accueil/tableau-de-bord',
     // Actif aussi sur les fiches dossier atteintes depuis ce tableau de bord (VerificationPieces.jsx,
-    // Relances.jsx — /accueil/... et /coordination/dossiers/<id>/relances).
-    estActif: (chemin) => chemin.startsWith('/accueil/') || chemin.startsWith('/coordination/dossiers/'),
+    // Relances.jsx, Validation.jsx — /accueil/..., /coordination/dossiers/<id>/relances et
+    // /recruteur/dossiers/<id>/validation, cette dernière atteinte via l'action "Étudier le
+    // dossier" fusionnée ici).
+    estActif: (chemin) =>
+      chemin.startsWith('/accueil/') ||
+      chemin.startsWith('/coordination/dossiers/') ||
+      chemin.startsWith('/recruteur/'),
     // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS.
     roles: ['accueil_coordination', 'recruteur', 'admin'],
   },
@@ -23,22 +37,6 @@ const ELEMENTS_NAVIGATION = [
     chemin: '/coordination/planification',
     estActif: (chemin) => chemin.startsWith('/coordination/planification'),
     // Mêmes rôles que dossiers.routes.js (route /rendezvous) et formateurs.routes.js.
-    roles: ['accueil_coordination', 'recruteur', 'admin'],
-  },
-  {
-    cle: 'backoffice-recruteur',
-    libelle: 'Back-office recruteur',
-    chemin: '/recruteur/dossiers',
-    estActif: (chemin) => chemin.startsWith('/recruteur/'),
-    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS.
-    roles: ['accueil_coordination', 'recruteur', 'admin'],
-  },
-  {
-    cle: 'tableau-de-bord',
-    libelle: 'Tableau de bord',
-    chemin: '/tableau-de-bord/indicateurs',
-    estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
-    // Mêmes rôles que statistiques.routes.js.
     roles: ['accueil_coordination', 'recruteur', 'admin'],
   },
   {
@@ -57,7 +55,7 @@ const ELEMENTS_NAVIGATION = [
 // une seule fois dans PageBackOffice.jsx plutôt que dupliquée dans chaque page — même patron que
 // BoutonNouvelleInscription.jsx (auto-gating par rôle via son propre useSession()). Ne rend rien
 // tant que la session n'est pas résolue, si personne n'est connecté (masquée sur /connexion,
-// cohérent avec EnTeteBackOffice.jsx) ou si le rôle connecté n'a accès à aucune des 5
+// cohérent avec EnTeteBackOffice.jsx) ou si le rôle connecté n'a accès à aucune des 4
 // destinations (Formateur/Inspecteur aujourd'hui : leur parcours propre — Evaluation.jsx/
 // HistoriqueEvaluations.jsx — reste hors du périmètre de cette barre).
 export default function BarreNavigation() {

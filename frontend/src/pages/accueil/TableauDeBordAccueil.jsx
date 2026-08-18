@@ -111,10 +111,15 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
 // dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Jusqu'à
-// trois actions par ligne : reprendre la prise de pièces (VerificationPieces, tous statuts),
+// quatre actions par ligne : reprendre la prise de pièces (VerificationPieces, tous statuts),
 // consulter/enregistrer une relance (Relances, historique des relances — voir
 // HistoriqueRelances.jsx — restreint aux statuts où une relance a un sens, voir
-// STATUTS_RELANCES_AUTORISEES), et replanifier un test (voir STATUTS_REPLANIFIABLES).
+// STATUTS_RELANCES_AUTORISEES), replanifier un test (voir STATUTS_REPLANIFIABLES), et étudier le
+// dossier (Validation.jsx : pièces + export ZIP + transitions + notes + informations
+// d'inscription complètes, tous statuts) — fusion de l'ancien Back-office recruteur
+// (/recruteur/dossiers, supprimé) dans cette page, seule différence relevée à l'audit entre les
+// deux tableaux (mêmes colonnes, mêmes filtres, même route API GET /api/dossiers, mêmes rôles
+// ROLES_CONSULTATION_DOSSIERS côté back).
 export default function TableauDeBordAccueil() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();
@@ -232,6 +237,15 @@ export default function TableauDeBordAccueil() {
   // Compteur des boutons "Hôtellerie"/"Tertiaire" : recherche/dates/statut appliqués, entité
   // ignorée (voir dossiersRechercheDate ci-dessus) — chaque bouton compte comme si LUI SEUL était
   // sélectionné, pour rester cohérent avec le comportement de clic (Set, indépendamment activable).
+  // Volontairement PAS mutuellement exclusifs (audit 2026-08-18, point de vigilance "double
+  // comptage") : un dossier avec à la fois un poste Hôtellerie et un poste Tertiaire (candidat
+  // intéressé par les deux familles, cas permis par BlocDisponibilites.jsx) compte dans les deux
+  // boutons plutôt que d'être arbitrairement rattaché à une seule "entité principale" — le
+  // masquer d'un des deux filtres cacherait un candidat réellement pertinent au recruteur qui
+  // consulte CE filtre. Ce choix implique Tous < Hôtellerie + Tertiaire si un tel dossier existe
+  // un jour (aucun actuellement) : ce n'est pas un bug, "Tous" (filtrerDossiers.js) reste exact
+  // car calculé comme le nombre de dossiers DISTINCTS ayant au moins un poste, pas comme la somme
+  // de ces deux compteurs.
   const compteurHotel = useMemo(
     () =>
       dossiersRechercheDate.filter(
@@ -338,6 +352,16 @@ export default function TableauDeBordAccueil() {
                 libelle: 'Replanifier',
                 onSelectionner: (dossier) => setDossierAReplanifier(dossier),
                 visible: (dossier) => STATUTS_REPLANIFIABLES.includes(dossier.statut_code),
+              },
+              {
+                libelle: 'Étudier le dossier',
+                onSelectionner: (dossier) => navigate(`/recruteur/dossiers/${dossier.id}/validation`),
+                // Toujours à l'extrême droite de la colonne Actions (voir DossierList.css) et
+                // dans l'accent visuel back-office, pour rester repérable au premier coup d'œil
+                // parmi Pièces/Relances/Replanifier — mêmes leviers génériques que DossierList.jsx
+                // expose pour n'importe quelle action, pas propres à celle-ci.
+                alignerADroite: true,
+                accent: true,
               },
             ]}
           />

@@ -181,6 +181,49 @@
   gap: var(--espace-petit);
 }
 
+/* Pousse UNE action à l'extrémité droite de la cellule (margin-left: auto sur un enfant flex),
+   quel que soit le nombre d'actions visibles avant elle sur la ligne (voir `visible` par action,
+   DossierList.jsx) — garde un alignement cohérent entre une ligne avec Pièces + Relances +
+   Replanifier + Étudier le dossier et une ligne qui n'a que Pièces + Étudier le dossier (ex. statut
+   "Validé - prêt à l'embauche"), plutôt que de dépendre du nombre de boutons qui la précèdent. */
+.dossier-list__action--droite {
+  margin-left: auto;
+}
+
+/* Accent visuel back-office (dégradé brun -> doré de l'en-tête/pied de page, voir
+   PageBackOffice.css et --couleur-back-office-dore dans variables.css) plutôt qu'un bouton par
+   défaut sans style comme ses voisins (Pièces/Relances/Replanifier) : même idiome que le bouton
+   "Nouvelle inscription" (BoutonNouvelleInscription.css, dégradé + fond blanc + ombre), teinte
+   back-office plutôt que bleu/violet candidat puisque ce bouton vit dans le back-office (tableau
+   "Dossiers candidats").
+   Largeur fixe (flex: 0 0 <largeur>, ni grandir ni rétrécir) plutôt que laissée au flex comme ses
+   voisins : sans elle, ce bouton se voyait allouer tout l'espace restant sur une ligne à peu de
+   boutons (ex. statut "Validé - prêt à l'embauche", seul avec Pièces) mais se faisait comprimer
+   par les 3 autres sur une ligne complète (Pièces + Relances + Replanifier) — deux largeurs et
+   deux retours à la ligne différents pour le même bouton selon la ligne. Largeur choisie = celle
+   mesurée dans ce cas le plus comprimé (4 boutons), pour un retour à la ligne "Étudier / le /
+   dossier" systématique quel que soit le nombre de boutons voisins. box-sizing: border-box pour
+   que padding + texte restent bien contenus dans cette largeur plutôt que de s'y ajouter. */
+.dossier-list__action--accent {
+  flex: 0 0 4.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-back-office), var(--couleur-back-office-dore));
+  color: #ffffff;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.dossier-list__action--accent:hover,
+.dossier-list__action--accent:focus-visible {
+  filter: brightness(0.92);
+}
+
 .dossier-list__vide {
   color: var(--couleur-texte-secondaire);
   padding: var(--espace-grand);

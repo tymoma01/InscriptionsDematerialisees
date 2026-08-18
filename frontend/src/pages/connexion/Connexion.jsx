@@ -2,12 +2,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginForm from '../../core/auth/LoginForm';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 
-// Redirection après connexion, propre à chaque rôle — le recruteur atterrit sur son back-office,
-// le formateur sur ses évaluations à faire (hôtel), l'inspecteur sur les siennes (bureau, section
-// distincte du formateur — voir GrilleEvaluation.jsx, roleCode), l'admin sur la gestion des
-// comptes, le reste (accueil/coordination) sur le tableau de bord Accueil.
+// Redirection après connexion, propre à chaque rôle — le formateur atterrit sur ses évaluations à
+// faire (hôtel), l'inspecteur sur les siennes (bureau, section distincte du formateur — voir
+// GrilleEvaluation.jsx, roleCode), l'admin sur la gestion des comptes, le reste (accueil/
+// coordination ET recruteur, depuis la fusion de "Back-office recruteur" dans "Dossiers
+// candidats", voir App.jsx) sur le tableau de bord Accueil, via la destination par défaut
+// ci-dessous.
 const DESTINATION_PAR_ROLE = {
-  recruteur: '/recruteur/dossiers',
   formateur: '/formateur/evaluations',
   inspecteur: '/inspecteur/evaluations',
   admin: '/admin/utilisateurs',

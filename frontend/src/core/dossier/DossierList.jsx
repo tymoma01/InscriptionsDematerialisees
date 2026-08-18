@@ -45,10 +45,14 @@ const COLONNES = [
 // les connaître.
 // `varianteStatut` et `actions` restent optionnels : sans eux, la liste reste utilisable en
 // lecture seule avec des badges neutres. `actions` : [{ libelle, onSelectionner(dossier),
-// visible?(dossier) }] — `visible` optionnel (défaut : toujours affichée), pour des actions qui
-// ne concernent que certains statuts (ex. "Replanifier" sur TableauDeBordAccueil.jsx, réservé aux
-// dossiers en test_non_realise/invalide) sans que ce composant générique ait besoin de
-// connaître ces codes de statut lui-même.
+// visible?(dossier), alignerADroite?, accent? }] — `visible` optionnel (défaut : toujours
+// affichée), pour des actions qui ne concernent que certains statuts (ex. "Replanifier" sur
+// TableauDeBordAccueil.jsx, réservé aux dossiers en test_non_realise/invalide) sans que ce
+// composant générique ait besoin de connaître ces codes de statut lui-même. `alignerADroite` /
+// `accent` : mêmes principes, deux leviers purement visuels/génériques (poussée à droite via
+// margin-left: auto sur le flex ; couleur d'accent back-office) qu'une page peut activer sur UNE
+// action (ex. "Étudier le dossier", TableauDeBordAccueil.jsx) sans que ce composant sache pourquoi
+// — voir DossierList.css.
 //
 // `libellePoste` : même principe que `varianteStatut`, pour la colonne "Poste" — les codes bruts
 // (dossier.postesBureau/postesHotel, voir dossierService.listerDossiers) sont un vocabulaire
@@ -175,7 +179,16 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
                     {actions
                       .filter((action) => !action.visible || action.visible(dossier))
                       .map((action) => (
-                        <button key={action.libelle} type="button" onClick={() => action.onSelectionner(dossier)}>
+                        <button
+                          key={action.libelle}
+                          type="button"
+                          className={
+                            [action.alignerADroite && 'dossier-list__action--droite', action.accent && 'dossier-list__action--accent']
+                              .filter(Boolean)
+                              .join(' ') || undefined
+                          }
+                          onClick={() => action.onSelectionner(dossier)}
+                        >
                           {action.libelle}
                         </button>
                       ))}
