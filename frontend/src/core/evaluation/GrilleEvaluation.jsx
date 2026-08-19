@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { obtenirQuestionnaire, enregistrerEvaluation } from '../../services/evaluationService';
 import NotesDossier from '../dossier/NotesDossier';
+import InformationsInscription from '../dossier/InformationsInscription';
 import ChecklistInspection from './ChecklistInspection';
 import './GrilleEvaluation.css';
 
@@ -185,7 +186,19 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   // d'écran de sélection possible, seulement un message explicite.
   const aucunPosteDeclare = postesCandidats.length === 0;
 
-  const [postesChoisis, setPostesChoisis] = useState([]);
+  // Pré-cochés : les postes RETENUS au moment de la planification de ce test précis
+  // (rendezvous.postes_selectionnes, migration 039 — même source de donnée que les emails de
+  // convocation, voir invitationTestService.js), restreints à ceux réellement proposés ici
+  // (postesCandidats, déclarés à l'inscription du dossier) — un poste retenu sur une planification
+  // passée mais retiré depuis de la fiche candidat ne doit pas apparaître pré-coché pour une case
+  // qui n'existe plus. Pré-remplissage seulement : gererBasculePoste reste utilisable normalement,
+  // le formateur/inspecteur peut toujours décocher/recocher librement (évaluation partielle...).
+  // Tableau vide si postes_selectionnes est vide (rendez-vous créé avant la migration 039) :
+  // comportement inchangé dans ce cas, rien de pré-coché.
+  const postesRetenusPlanification = rendezvous.postes_selectionnes ?? [];
+  const [postesChoisis, setPostesChoisis] = useState(() =>
+    postesCandidats.filter((code) => postesRetenusPlanification.includes(code)),
+  );
   // null tant qu'aucun bloc n'a encore été chargé : sert de garde d'affichage (voir plus bas,
   // écran de sélection vs formulaire) sans avoir besoin d'un état booléen séparé.
   const [blocsQuestionnaire, setBlocsQuestionnaire] = useState(null);
@@ -331,6 +344,12 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           </div>
         </div>
         <NotesDossier dossierId={rendezvous.dossier_id} />
+        {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
+            fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
+            Inspecteur (audit 2026-08-19), strictement en lecture seule : le bouton "Modifier" reste
+            masqué de lui-même (InformationsInscription.jsx, ROLES_MODIFICATION_INSCRIPTION ne
+            contient pas ces deux rôles), pas de garde dupliquée ici. */}
+        <InformationsInscription dossierId={rendezvous.dossier_id} />
       </>
     );
   }
@@ -355,7 +374,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           {estInspecteur && <ChecklistInspection />}
 
           <p>
-            Plusieurs postes ont été demandés par ce candidat - cochez celui ou ceux sur lesquels porte cette évaluation :
+            <strong>Cochez les postes à évaluer :</strong>
           </p>
           <div className="grille-evaluation__choix">
             {postesCandidats.map((code) => (
@@ -384,6 +403,12 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
             en-tête de fichier) : le formateur fait déjà partie de ROLES_NOTES_DOSSIER côté back
             (notes.routes.js), aucune variante lecture-seule à part. */}
         <NotesDossier dossierId={rendezvous.dossier_id} />
+        {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
+            fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
+            Inspecteur (audit 2026-08-19), strictement en lecture seule : le bouton "Modifier" reste
+            masqué de lui-même (InformationsInscription.jsx, ROLES_MODIFICATION_INSCRIPTION ne
+            contient pas ces deux rôles), pas de garde dupliquée ici. */}
+        <InformationsInscription dossierId={rendezvous.dossier_id} />
       </>
     );
   }
@@ -604,6 +629,9 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
       </form>
 
       <NotesDossier dossierId={rendezvous.dossier_id} />
+      {/* Voir le commentaire équivalent plus haut (écran de sélection de poste) : même section,
+          strictement en lecture seule pour Formateur/Inspecteur. */}
+      <InformationsInscription dossierId={rendezvous.dossier_id} />
     </>
   );
 }

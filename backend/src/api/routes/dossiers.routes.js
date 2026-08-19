@@ -182,13 +182,21 @@ router.get('/:dossierId', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (re
   }
 });
 
+// Formateur/Inspecteur ajoutés ici (audit 2026-08-19, écrans d'évaluation) — même patron que
+// ROLES_CONSULTATION_PIECES (pieces.routes.js) : lecture seule pour ces deux rôles, la vraie garde
+// de modification restant ROLES_MODIFICATION_INSCRIPTION ci-dessous, inchangée. Distinct de
+// ROLES_CONSULTATION_DOSSIERS (pas réutilisé tel quel) : ne pas donner à Formateur/Inspecteur un
+// accès aux AUTRES routes de ce fichier (liste des dossiers, statuts, rendez-vous...), seulement à
+// cette vue détaillée d'UN dossier, consultée depuis GrilleEvaluation.jsx (InformationsInscription).
+const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+
 // GET /api/dossiers/:dossierId/inscription — candidat (hors NIR, jamais déchiffré pour un
 // affichage back-office générique, voir dossierRepository.trouverInscriptionCompleteParDossierId)
 // + tous les blocs de dossier_donnees_formulaire déjà enregistrés pour ce dossier, pour la
-// section repliable "Informations d'inscription complètes" (Validation.jsx/Relances.jsx). Mêmes
-// rôles que la consultation de dossier ci-dessus : ce n'est qu'une vue plus détaillée du même
-// dossier, pas une capacité supplémentaire.
-router.get('/:dossierId/inscription', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+// section repliable "Informations d'inscription complètes" (Validation.jsx/Relances.jsx, et
+// désormais GrilleEvaluation.jsx pour Formateur/Inspecteur, voir ROLES_LECTURE_INSCRIPTION
+// ci-dessus).
+router.get('/:dossierId/inscription', requireRole(...ROLES_LECTURE_INSCRIPTION), async (req, res, next) => {
   try {
     const inscription = await dossierService.obtenirInscriptionComplete(req.entite, req.params.dossierId);
     if (!inscription) {

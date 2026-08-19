@@ -75,6 +75,12 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
       'rendezvous.id',
       'rendezvous.dossier_id',
       'rendezvous.date_heure',
+      // Postes RETENUS pour CE rendez-vous précis (migration 039), distincts de
+      // donnees_disponibilites (postes DÉCLARÉS à l'inscription) ci-dessous — sert à
+      // GrilleEvaluation.jsx à pré-cocher les cases de postesCandidats déjà retenues au moment de
+      // la planification (ModalePlanificationTest.jsx), même source de donnée que les emails de
+      // convocation (voir invitationTestService.js).
+      'rendezvous.postes_selectionnes',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       'bloc_disponibilites.donnees as donnees_disponibilites',
