@@ -3,10 +3,10 @@ import {
   listerPiecesJustificatives,
   uploaderPieceJustificative,
   supprimerPieceJustificative,
-  obtenirApercuPiece,
 } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
 import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
+import PanneauApercuPiece from './PanneauApercuPiece';
 import './CaptureTablette.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -381,7 +381,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
       {typeEnApercu && (
         <PanneauApercuPiece
           dossierId={dossierId}
-          type={typeEnApercu}
+          libelle={typeEnApercu.libelle}
           piece={piecesCapturees.get(typeEnApercu.code)}
           onFermer={() => setTypeApercu(null)}
         />
@@ -645,98 +645,6 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
             </button>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-// Aperçu d'une pièce déjà capturée (bouton "Voir") : récupère le fichier réel côté serveur (voir
-// pieceJustificativeService.obtenirApercuPiece, qui appelle la route /apercu — jamais un lien
-// direct SharePoint) et l'affiche intégré à la page, pas dans un nouvel onglet. Composant local
-// comme PanneauCapture : pas de registre de types, ce n'est pas un contenu piloté par config.
-function PanneauApercuPiece({ dossierId, type, piece, onFermer }) {
-  const [chargement, setChargement] = useState(true);
-  const [erreur, setErreur] = useState(null);
-  const [apercuUrl, setApercuUrl] = useState(null);
-  const [contentType, setContentType] = useState(null);
-  const panneauRef = useRef(null);
-
-  // Même défilement automatique que PanneauCapture ci-dessus, pour le clic sur "Voir" — même
-  // dépendance sur type.code (pas seulement au montage) et même raison : l'agent peut cliquer
-  // "Voir" sur une autre pièce pendant que ce panneau est déjà ouvert (pas de `key` posée par
-  // CaptureTablette.jsx sur <PanneauApercuPiece>).
-  useEffect(() => {
-    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [type.code]);
-
-  // urlObjet (pas apercuUrl directement) dans la fermeture de nettoyage : évite de dépendre d'un
-  // state React potentiellement pas encore mis à jour au moment du cleanup (même précaution que
-  // reprendre()/fermer() pour la capture locale plus haut, qui révoquent captureEnCours.url).
-  useEffect(() => {
-    let annule = false;
-    let urlObjet = null;
-    setChargement(true);
-    setErreur(null);
-    setApercuUrl(null);
-
-    obtenirApercuPiece(dossierId, piece.id)
-      .then((blob) => {
-        if (annule) return;
-        urlObjet = URL.createObjectURL(blob);
-        setApercuUrl(urlObjet);
-        setContentType(blob.type);
-      })
-      .catch((erreur) => {
-        if (annule) return;
-        // Distingue une vraie coupure réseau (erreur.response absent) d'une réponse d'erreur du
-        // serveur — même patron que valider()/gererSuppression() plus haut, pour ne pas cacher le
-        // message réel derrière un texte générique en cas d'échec HTTP.
-        console.error('Échec de récupération de l’aperçu de la pièce :', erreur);
-        setErreur(
-          erreur.response
-            ? (erreur.response.data?.erreur ?? "Impossible de récupérer l'aperçu de cette pièce.")
-            : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
-        );
-      })
-      .finally(() => {
-        if (!annule) setChargement(false);
-      });
-
-    return () => {
-      annule = true;
-      if (urlObjet) URL.revokeObjectURL(urlObjet);
-    };
-  }, [dossierId, piece.id]);
-
-  return (
-    <div
-      ref={panneauRef}
-      className="capture-tablette__panneau capture-tablette__panneau-apercu"
-      role="dialog"
-      aria-label={`Aperçu - ${type.libelle}`}
-    >
-      <div className="capture-tablette__panneau-entete">
-        <h3>{type.libelle}</h3>
-        <button type="button" onClick={onFermer}>
-          Fermer
-        </button>
-      </div>
-
-      {chargement && <p>Chargement de l’aperçu…</p>}
-      {erreur && <p role="alert">{erreur}</p>}
-
-      {apercuUrl && contentType?.startsWith('image/') && (
-        <img src={apercuUrl} alt={`Aperçu - ${type.libelle}`} className="capture-tablette__apercu-grand-image" />
-      )}
-
-      {/* Aucune lib PDF : le lecteur natif du navigateur s'affiche automatiquement dans un iframe
-          pointant vers un blob de type application/pdf (Chrome/Firefox/Edge/Safari). */}
-      {apercuUrl && contentType === 'application/pdf' && (
-        <iframe src={apercuUrl} title={`Aperçu - ${type.libelle}`} className="capture-tablette__apercu-pdf" />
-      )}
-
-      {apercuUrl && contentType && !contentType.startsWith('image/') && contentType !== 'application/pdf' && (
-        <p>Aperçu non disponible pour ce type de fichier ({contentType}).</p>
       )}
     </div>
   );

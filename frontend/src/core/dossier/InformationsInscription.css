@@ -21,17 +21,69 @@
   text-decoration: underline;
 }
 
+/* Zones nommées plutôt qu'une grille auto-fit à colonnes égales (comportement précédent) : avec
+   6 groupes de volumes très différents (Informations personnelles/Situation professionnelle,
+   longs, ~9 lignes chacun ; Coordonnées/Mutuelle d'entreprise/Consentement RGPD, courts, 2 à 5
+   lignes), l'auto-fit produisait un empilement imprévisible selon la largeur disponible — gros
+   espace vide sous un groupe court partageant sa ligne avec un groupe long (audit 2026-08-19).
+   Disposition volontaire à la place : les deux groupes longs occupent chacun toute la hauteur
+   d'une colonne, les trois groupes courts empilés partagent la colonne du milieu (leur somme de
+   hauteurs se rapproche d'un groupe long, sans espace vide résiduel), "Pièces jointes" occupe une
+   dernière ligne pleine largeur en dessous — toute la largeur disponible profite à sa liste
+   verticale nom/statut/date (voir .informations-inscription__pieces) plutôt que la contraindre à
+   une colonne étroite. informations-inscription__actions-edition (voir plus bas, grid-column:
+   1 / -1) n'a pas de zone nommée : il se place automatiquement dans une ligne implicite
+   supplémentaire, après "pieces".
+   Repasse à une seule colonne empilée sous 900px (voir media query en bas de fichier) — trois
+   colonnes de ~20rem+ chacune ne tiennent plus confortablement en dessous. */
 .informations-inscription__contenu {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas:
+    'personnelles coordonnees   situation'
+    'personnelles mutuelle      situation'
+    'personnelles consentement  situation'
+    'pieces        pieces        pieces';
   gap: var(--espace-grand);
   margin-top: var(--espace-moyen);
+}
+
+.informations-inscription__groupe--personnelles { grid-area: personnelles; }
+.informations-inscription__groupe--coordonnees { grid-area: coordonnees; }
+.informations-inscription__groupe--situation { grid-area: situation; }
+.informations-inscription__groupe--mutuelle { grid-area: mutuelle; }
+.informations-inscription__groupe--consentement { grid-area: consentement; }
+.informations-inscription__groupe--pieces { grid-area: pieces; }
+
+/* Chaque groupe visuellement délimité (voir demande explicite) : cadre propre plutôt que la seule
+   séparation implicite du gap — nécessaire maintenant que plusieurs groupes courts partagent une
+   même colonne (coordonnees/mutuelle/consentement), sans quoi rien ne marquerait leur frontière
+   au-delà de l'espacement. Même carte que .page-validation__pieces (Validation.css) pour rester
+   cohérent avec le reste du back-office. */
+.informations-inscription__groupe {
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
 }
 
 .informations-inscription__groupe h3 {
   margin: 0 0 var(--espace-petit);
   color: var(--couleur-back-office);
   font-size: 1rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .informations-inscription__contenu {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'personnelles'
+      'coordonnees'
+      'situation'
+      'mutuelle'
+      'consentement'
+      'pieces';
+  }
 }
 
 .informations-inscription__ligne {
@@ -57,19 +109,82 @@
   font-size: 0.9rem;
 }
 
+/* Liste verticale à une seule colonne, une pièce par ligne (audit 2026-08-19 : retour sur la
+   variante à colonnes internes multiples — nom tronqué en ellipsis, statut/date trop proches du
+   nom, alignement peu clair dès que le nombre de colonnes changeait selon la largeur disponible).
+   Le <ul> est LUI-MÊME la grille à 4 colonnes (nom / statut / date / action "Voir") — chaque <li>
+   (voir .jsx, display: contents ci-dessous) délègue directement ses enfants à ces colonnes plutôt
+   que de former sa propre ligne indépendante : c'est ce qui garantit que statut/date/Voir tombent
+   exactement à la même position horizontale sur TOUTES les lignes, quelle que soit la longueur du
+   nom de la pièce sur chacune (une grille "par ligne" séparée, elle, recalculerait une largeur de
+   colonne différente à chaque <li>, réintroduisant le désalignement visible auparavant).
+   minmax(0, 1fr) sur la colonne nom : peut rétrécir sous son contenu naturel (nécessaire pour que
+   le nom passe à la ligne, voir .informations-inscription__piece-nom, plutôt que de pousser les
+   colonnes suivantes hors du bloc). Les trois autres colonnes restent `auto` : chacune prend
+   exactement la largeur de son contenu le plus large parmi toutes les lignes, jamais plus. */
 .informations-inscription__pieces {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  column-gap: var(--espace-grand);
+  align-items: baseline;
 }
 
-.informations-inscription__pieces li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--espace-moyen);
-  padding: 0.3rem 0;
+.informations-inscription__piece {
+  display: contents;
+}
+
+.informations-inscription__piece-nom,
+.informations-inscription__piece-statut,
+.informations-inscription__piece-date,
+.informations-inscription__piece-action {
+  /* Espacement vertical généreux (comportement précédent : 0.3rem) — nécessaire maintenant qu'un
+     nom long peut occuper deux lignes (voir white-space ci-dessous) : une ligne plus haute a
+     besoin de plus d'air au-dessus/en dessous pour ne jamais sembler chevaucher la ligne
+     voisine. */
+  padding: 0.6rem 0;
   border-bottom: 1px solid var(--couleur-bordure-legere);
   font-size: 0.9rem;
+}
+
+.informations-inscription__piece-nom {
+  /* Pas de troncature (contrairement à la version précédente, ellipsis + nowrap) : un nom long
+     ("Carte d'identité ou Carte de séjour") passe normalement à la ligne plutôt que d'être coupé
+     — c'est la demande explicite, quitte à ce que cette ligne soit un peu plus haute que les
+     autres (align-items: baseline ci-dessus aligne alors statut/date/Voir sur sa première ligne
+     de texte, pas sur son centre vertical). */
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.informations-inscription__piece-statut,
+.informations-inscription__piece-date {
+  white-space: nowrap;
+  text-align: right;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Bouton "Voir" (ouvre PanneauApercuPiece, composant partagé avec CaptureTablette.jsx, voir .jsx)
+   — dernière colonne, même hauteur de ligne que le reste (padding hérité ci-dessus) plutôt qu'un
+   bouton flottant qui casserait l'alignement vertical de la ligne. */
+.informations-inscription__piece-action {
+  border: none;
+  background: none;
+  color: var(--couleur-back-office);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.informations-inscription__piece-action:hover {
+  text-decoration: underline;
+}
+
+.informations-inscription__piece-statut {
+  font-weight: 600;
 }
 
 /* Vignette "Photo d'identité" en tête du groupe "Informations personnelles" — même ligne

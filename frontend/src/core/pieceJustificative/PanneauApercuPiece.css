@@ -1,0 +1,47 @@
+/* Extrait des règles capture-tablette__panneau / apercu de CaptureTablette.css (audit
+   2026-08-19) — noms de classes propres à ce composant plutôt que réutilisés tels quels : les
+   classes capture-tablette__panneau/panneau-entete restent nécessaires là-bas pour PanneauCapture
+   (mode capture d'une nouvelle pièce), qui, lui, n'est pas extrait ici. */
+.panneau-apercu-piece {
+  margin-top: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.panneau-apercu-piece__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--espace-petit);
+}
+
+.panneau-apercu-piece__entete h3 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.panneau-apercu-piece__image {
+  width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+}
+
+/* Aucune lib de rendu PDF : cet iframe pointe vers un blob local (voir PanneauApercuPiece.jsx) que
+   le navigateur affiche avec son lecteur PDF natif — hauteur fixe en vh plutôt qu'un ratio, un PDF
+   n'a pas de proportion prévisible. */
+.panneau-apercu-piece__pdf {
+  width: 100%;
+  height: 75vh;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+}
+
+.panneau-apercu-piece [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}

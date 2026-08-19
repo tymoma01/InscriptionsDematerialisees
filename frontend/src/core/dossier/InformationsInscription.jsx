@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { obtenirInscriptionComplete, modifierInscription } from '../../services/dossierService';
 import { listerPiecesJustificatives, obtenirApercuPiece } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
+import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import './InformationsInscription.css';
 
 // Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
@@ -248,6 +249,13 @@ export default function InformationsInscription({ dossierId }) {
   const [photoIdentiteErreur, setPhotoIdentiteErreur] = useState(null);
   const [photoAgrandie, setPhotoAgrandie] = useState(false);
 
+  // Pièce sélectionnée pour un aperçu individuel (bouton "Voir" du bloc "Pièces jointes"), ou null
+  // si aucun panneau n'est ouvert — même mécanisme que CaptureTablette.jsx (PanneauApercuPiece,
+  // désormais extrait en composant partagé, voir son import ci-dessus), réutilisé tel quel plutôt
+  // que reconstruit ici. Cette section restant strictement en lecture seule (voir peutModifier),
+  // aucune action de suppression/remplacement n'est jamais proposée depuis ce panneau.
+  const [pieceEnApercu, setPieceEnApercu] = useState(null);
+
   // Mode édition (voir Champ/GroupeCases ci-dessus) : `brouillon` est un objet plat, exactement à
   // la forme attendue par dossierService.modifierInscription (back, modificationInscriptionSchema)
   // — envoyé tel quel à l'enregistrement, jamais reconstruit champ par champ à la soumission.
@@ -446,7 +454,7 @@ export default function InformationsInscription({ dossierId }) {
                 if (evenement.key === 'Enter' && evenement.target.tagName !== 'TEXTAREA') evenement.preventDefault();
               }}
             >
-              <div className="informations-inscription__groupe">
+              <div className="informations-inscription__groupe informations-inscription__groupe--personnelles">
                 <h3>Informations personnelles</h3>
 
                 {/* Vignette cliquable, même route de récupération (obtenirApercuPiece) que "Voir"
@@ -558,7 +566,7 @@ export default function InformationsInscription({ dossierId }) {
                 )}
               </div>
 
-              <div className="informations-inscription__groupe">
+              <div className="informations-inscription__groupe informations-inscription__groupe--coordonnees">
                 <h3>Coordonnées</h3>
                 {!edition ? (
                   <>
@@ -614,7 +622,7 @@ export default function InformationsInscription({ dossierId }) {
                 )}
               </div>
 
-              <div className="informations-inscription__groupe">
+              <div className="informations-inscription__groupe informations-inscription__groupe--situation">
                 <h3>Situation professionnelle</h3>
                 {!edition ? (
                   <>
@@ -754,7 +762,7 @@ export default function InformationsInscription({ dossierId }) {
                 )}
               </div>
 
-              <div className="informations-inscription__groupe">
+              <div className="informations-inscription__groupe informations-inscription__groupe--mutuelle">
                 <h3>Mutuelle d'entreprise</h3>
                 {!edition ? (
                   <>
@@ -797,7 +805,7 @@ export default function InformationsInscription({ dossierId }) {
                 )}
               </div>
 
-              <div className="informations-inscription__groupe">
+              <div className="informations-inscription__groupe informations-inscription__groupe--consentement">
                 <h3>Consentement RGPD</h3>
                 <Ligne
                   libelle="Autorisation de diffusion des données"
@@ -808,21 +816,56 @@ export default function InformationsInscription({ dossierId }) {
                 )}
               </div>
 
-              <div className="informations-inscription__groupe">
+              <div className="informations-inscription__groupe informations-inscription__groupe--pieces">
                 <h3>Pièces jointes</h3>
                 {pieces.length === 0 && (
                   <p className="informations-inscription__vide">Aucune pièce reçue pour ce dossier.</p>
                 )}
                 {pieces.length > 0 && (
+                  // Liste verticale à une seule colonne, une pièce par ligne (audit 2026-08-19,
+                  // retour sur la variante à colonnes internes multiples : nom tronqué en
+                  // ellipsis, statut/date qui se rapprochaient trop du nom, alignement peu clair
+                  // dès que le nombre de colonnes changeait selon la largeur disponible). `<li>`
+                  // en display: contents : ses 4 enfants (nom/statut/date/action "Voir")
+                  // participent directement aux 4 colonnes du <ul> ci-dessous, plutôt que d'être
+                  // des cellules indépendantes par ligne — c'est ce qui garantit que
+                  // statut/date/Voir tombent exactement à la même position horizontale sur TOUTES
+                  // les lignes, y compris quand un nom de pièce est plus long que les autres.
                   <ul className="informations-inscription__pieces">
                     {pieces.map((piece) => (
-                      <li key={piece.id}>
-                        <span>{piece.type_piece_libelle}</span>
-                        <span>{piece.statut_verification === 'orpheline' ? LIBELLE_PIECE_ORPHELINE : '✓ Reçue'}</span>
-                        <span>{formaterDate(piece.date_upload)}</span>
+                      <li key={piece.id} className="informations-inscription__piece">
+                        {/* Pas de troncature : un nom long (ex. "Carte d'identité ou Carte de
+                            séjour") passe à la ligne plutôt que d'être coupé (white-space:
+                            normal côté .css, voir son commentaire). */}
+                        <span className="informations-inscription__piece-nom">{piece.type_piece_libelle}</span>
+                        <span className="informations-inscription__piece-statut">
+                          {piece.statut_verification === 'orpheline' ? LIBELLE_PIECE_ORPHELINE : '✓ Reçue'}
+                        </span>
+                        <span className="informations-inscription__piece-date">{formaterDate(piece.date_upload)}</span>
+                        {/* Ouvre PanneauApercuPiece (voir plus bas) — même mécanisme que le
+                            bouton "Voir" de CaptureTablette.jsx (composant désormais partagé),
+                            réutilisé tel quel plutôt que reconstruit. Consultation uniquement :
+                            aucune suppression/remplacement proposé depuis cette section en
+                            lecture seule, contrairement à l'écran de capture. */}
+                        <button
+                          type="button"
+                          className="informations-inscription__piece-action"
+                          onClick={() => setPieceEnApercu(piece)}
+                        >
+                          Voir
+                        </button>
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {pieceEnApercu && (
+                  <PanneauApercuPiece
+                    dossierId={dossierId}
+                    libelle={pieceEnApercu.type_piece_libelle}
+                    piece={pieceEnApercu}
+                    onFermer={() => setPieceEnApercu(null)}
+                  />
                 )}
               </div>
 
