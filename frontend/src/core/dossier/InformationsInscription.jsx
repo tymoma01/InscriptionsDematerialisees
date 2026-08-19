@@ -550,17 +550,17 @@ export default function InformationsInscription({ dossierId }) {
 
         {!chargement && !erreur && candidat && (
           <>
-            {/* En-tête de section (audit 2026-08-19, demande explicite) : titre à gauche, bouton
-                "Modifier" à droite — distinct du <summary> ci-dessus (qui reste le texte cliquable
-                du repli/dépli, inchangé). */}
-            <div className="informations-inscription__entete">
-              <h3>Informations d'inscription</h3>
-              {peutModifier && !edition && (
+            {/* En-tête de section : bouton "Modifier" aligné à droite. Pas de titre ici (audit
+                2026-08-19 : "Informations d'inscription" faisait doublon avec le texte du
+                <summary> ci-dessus, "Voir les informations d'inscription complètes", qui reste
+                seul responsable du repli/dépli). */}
+            {peutModifier && !edition && (
+              <div className="informations-inscription__entete">
                 <button type="button" onClick={demarrerEdition}>
                   Modifier
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             <form
               className="informations-inscription__contenu"

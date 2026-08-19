@@ -22,21 +22,13 @@
   text-decoration: underline;
 }
 
-/* En-tête de section (titre "Informations d'inscription" + bouton "Modifier") — distinct du
-   <summary> ci-dessus (le texte de repli/dépli), affiché uniquement une fois le contenu déplié. */
+/* En-tête de section (bouton "Modifier" seul, aligné à droite) — pas de titre ici, voir le
+   commentaire du .jsx : le <summary> ("Voir les informations d'inscription complètes") reste seul
+   responsable du repli/dépli, un second titre ferait doublon. */
 .informations-inscription__entete {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--espace-moyen);
+  justify-content: flex-end;
   margin-top: var(--espace-moyen);
-}
-
-.informations-inscription__entete h3 {
-  margin: 0;
-  color: var(--couleur-back-office);
-  font-size: 1.05rem;
-  font-weight: 700;
 }
 
 .informations-inscription__entete button {
