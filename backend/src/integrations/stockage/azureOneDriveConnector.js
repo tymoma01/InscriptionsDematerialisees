@@ -5,6 +5,7 @@ const StorageConnector = require('./StorageConnector');
 // (une déstructuration figerait la référence à l'implémentation réelle dès le require).
 const graphClient = require('./graphClient');
 const { traduireErreurGraph } = require('./erreursGraph');
+const { uploaderFichier } = require('./graphUploadFichier');
 
 // Bibliothèque de documents cible pour ACCECIT, sur le site SharePoint racine du tenant (vérifié :
 // /sites/root résout bien sur le site nommé "Communication site" utilisé par Florence, même site,
@@ -75,12 +76,6 @@ function cheminDossierCandidat(dossierInfo) {
   return `${annee}/${mois}/${segmentCandidat}`;
 }
 
-// Limite de l'upload simple (PUT .../content) côté Microsoft Graph : 4 Mio. Au-delà, obligation
-// de passer par une upload session (envoi par tranches), sans quoi la requête échoue.
-const SEUIL_UPLOAD_SIMPLE_OCTETS = 4 * 1024 * 1024;
-// Taille de tranche recommandée par Microsoft (doit être un multiple de 320 Kio) pour l'upload par tranches.
-const TAILLE_TRANCHE_OCTETS = 5 * 1024 * 1024;
-
 let promesseDriveId;
 
 async function obtenirDriveId(client) {
@@ -129,57 +124,6 @@ function encoderChemin(chemin) {
   return chemin.split('/').map(encodeURIComponent).join('/');
 }
 
-async function uploaderPetitFichier(client, driveId, chemin, contenu) {
-  try {
-    return await client.api(`/drives/${driveId}/root:/${chemin}:/content`).put(contenu);
-  } catch (erreur) {
-    throw traduireErreurGraph(erreur, `upload de "${chemin}"`);
-  }
-}
-
-// Upload par tranches (obligatoire au-delà de 4 Mio) : ouvre une session, envoie le contenu
-// par blocs de TAILLE_TRANCHE_OCTETS vers l'uploadUrl pré-authentifiée renvoyée par Graph
-// (fetch direct, sans passer par le client Graph — cette URL porte sa propre autorisation).
-async function uploaderGrosFichier(client, driveId, chemin, contenu) {
-  let session;
-  try {
-    session = await client.api(`/drives/${driveId}/root:/${chemin}:/createUploadSession`).post({
-      item: { '@microsoft.graph.conflictBehavior': 'replace' },
-    });
-  } catch (erreur) {
-    throw traduireErreurGraph(erreur, `ouverture de la session d'upload pour "${chemin}"`);
-  }
-
-  const taille = contenu.length;
-  let itemFinal;
-
-  for (let debut = 0; debut < taille; debut += TAILLE_TRANCHE_OCTETS) {
-    const fin = Math.min(debut + TAILLE_TRANCHE_OCTETS, taille);
-    const tranche = contenu.subarray(debut, fin);
-
-    const reponse = await fetch(session.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Length': String(tranche.length),
-        'Content-Range': `bytes ${debut}-${fin - 1}/${taille}`,
-      },
-      body: tranche,
-    });
-
-    if (!reponse.ok) {
-      throw new Error(`Échec de l'envoi par tranches vers OneDrive (statut HTTP ${reponse.status})`);
-    }
-    if (reponse.status === 200 || reponse.status === 201) {
-      itemFinal = await reponse.json();
-    }
-  }
-
-  if (!itemFinal) {
-    throw new Error("Upload par tranches terminé sans réponse finale contenant l'item créé");
-  }
-  return itemFinal;
-}
-
 // Liste le contenu d'un seul chemin, [] si le dossier n'existe pas (rien uploadé à cet
 // emplacement) — factorisé pour lister() ci-dessous, qui interroge deux emplacements possibles.
 async function listerItemsChemin(client, driveId, chemin, dossierId) {
@@ -204,10 +148,7 @@ class AzureOneDriveConnector extends StorageConnector {
     const driveId = await obtenirDriveId(client);
     const chemin = encoderChemin(`${cheminDossierCandidat(dossierInfo)}/${fichier.nom}`);
 
-    const item =
-      fichier.contenu.length <= SEUIL_UPLOAD_SIMPLE_OCTETS
-        ? await uploaderPetitFichier(client, driveId, chemin, fichier.contenu)
-        : await uploaderGrosFichier(client, driveId, chemin, fichier.contenu);
+    const item = await uploaderFichier(client, driveId, chemin, fichier.contenu);
 
     return encoderReference(driveId, item.id);
   }

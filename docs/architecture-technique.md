@@ -175,6 +175,17 @@ Cette table est le résumé opérationnel de la contrainte de modularité de CLA
 
 ---
 
+## 5. Sauvegarde de la base Neon
+
+Sauvegarde quotidienne (`pg_dump -Fc` chiffré AES-256-GCM, uploadé sur SharePoint `Backups/neon`,
+rétention 30 jours), en complément du PITR natif Neon (limité à 6h sur le plan gratuit). Non
+spécifique à une entité (une seule base Neon partagée) : n'utilise donc pas `storageFactory.js`,
+appelle directement Microsoft Graph avec les credentials déjà en place pour les pièces
+justificatives. Détail complet (secrets à créer, procédure de test de restauration, dépannage) :
+[`docs/sauvegarde-neon.md`](./sauvegarde-neon.md).
+
+---
+
 ## Prochaines étapes techniques (suite à la décision § 1.7)
 
 1. **Service de chiffrement NIR** : créer `backend/src/core/securite/nirCipher.js` (AES-256-GCM, fonctions `chiffrer(nirClair)` / `dechiffrer(nirChiffre, iv)`), remplaçant la logique ad hoc actuellement absente — aucun autre module ne doit accéder au NIR sans passer par ce service.

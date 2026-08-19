@@ -1,0 +1,58 @@
+name: Sauvegarde quotidienne Neon
+
+# Choix GitHub Actions plutôt qu'Azure Container Apps Jobs : pas d'infra Container Apps en place
+# pour ce projet à ce stade (voir docs/sauvegarde-neon.md), alors que le dépôt est déjà sur GitHub
+# — c'est l'option la plus simple à opérer aujourd'hui. À reconsidérer si une infra Container Apps
+# est mise en place pour d'autres besoins.
+
+on:
+  schedule:
+    # 03h00 UTC = 04h ou 05h heure de Paris selon la saison, hors usage de la tablette d'accueil
+    # (CLAUDE.md : usage prévu en journée), pour ne pas faire concurrence à la charge applicative
+    # avec un pg_dump complet.
+    - cron: '0 3 * * *'
+  workflow_dispatch: {} # déclenchement manuel depuis l'onglet Actions, pour tester sans attendre le cron
+
+permissions:
+  contents: read
+
+jobs:
+  sauvegarde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Installer pg_dump/pg_restore (client PostgreSQL)
+        # Neon est en Postgres 16/17 au moment de l'écriture de ce workflow — le paquet Ubuntu
+        # générique "postgresql-client" convient tant que sa version reste >= à la version majeure
+        # du serveur Neon (voir docs/sauvegarde-neon.md, à revérifier si Neon change de version).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          pg_dump --version
+
+      - name: Exécuter la sauvegarde
+        env:
+          # Service principal DÉDIÉ à ce job (accès Key Vault en lecture seule, scope minimal —
+          # voir docs/sauvegarde-neon.md), distinct des identités utilisées en local (az login) ou
+          # en production (Managed Identity). DefaultAzureCredential (backend/src/core/securite/
+          # keyVaultClient.js) lit ces trois variables via EnvironmentCredential automatiquement,
+          # sans code spécifique à ajouter pour CI.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_BACKUP_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_BACKUP_CLIENT_SECRET }}
+          SAUVEGARDE_EMAIL_ALERTE: ${{ vars.SAUVEGARDE_EMAIL_ALERTE }}
+        run: node scripts/sauvegarderNeon.js

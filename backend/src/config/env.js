@@ -22,4 +22,9 @@ module.exports = {
   // déjà (voir core/securite/keyVaultClient.js pour ceux-là).
   ALLMYSMS_API_LOGIN: process.env.ALLMYSMS_API_LOGIN,
   ALLMYSMS_API_PASSWORD: process.env.ALLMYSMS_API_PASSWORD,
+  // Adresse alertée en cas d'échec de la sauvegarde quotidienne Neon (voir
+  // core/sauvegarde/notificationEchecSauvegarde.js et docs/sauvegarde-neon.md) — reste en variable
+  // d'environnement classique, même logique que les identifiants AllMySMS ci-dessus (pas une
+  // donnée candidat sensible).
+  SAUVEGARDE_EMAIL_ALERTE: process.env.SAUVEGARDE_EMAIL_ALERTE,
 };
