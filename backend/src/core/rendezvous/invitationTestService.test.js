@@ -31,6 +31,15 @@ const RENDEZVOUS = { id: 55, dossier_id: 42, date_heure: '2099-01-01T10:00:00.00
 const RENDEZVOUS_AVEC_FORMATEUR = { ...RENDEZVOUS, formateur_id: 7 };
 const RENDEZVOUS_AVEC_LIEU = { ...RENDEZVOUS, lieu_id: 3 };
 const RENDEZVOUS_AVEC_FORMATEUR_ET_LIEU = { ...RENDEZVOUS, formateur_id: 7, lieu_id: 3 };
+// Postes RETENUS pour ce rendez-vous, volontairement différents des postes déclarés à
+// l'inscription du dossier (voir mockerKnex, trouverDossierAvecStatutParId ne renvoie aucun
+// posteBureau/posteHotel) — le test ci-dessous vérifie que l'email lit bien ceux-ci
+// (rendezvous.postes_selectionnes), jamais une donnée résolue depuis le dossier.
+const RENDEZVOUS_AVEC_FORMATEUR_ET_POSTES = {
+  ...RENDEZVOUS,
+  formateur_id: 7,
+  postes_selectionnes: ['gouvernant', 'cafetier'],
+};
 
 function mockerKnex(t) {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
@@ -272,6 +281,45 @@ test("envoyerInvitationTest inclut les instructions dans l'email candidat mais P
   const corpsFormateur = mailMock.mock.calls[1].arguments[2];
   assert.ok(corpsFormateur.includes('Métro Ecole Militaire - Ligne 8'));
   assert.ok(!corpsFormateur.includes('identité'));
+});
+
+test("envoyerInvitationTest inclut les postes retenus pour CE rendez-vous (rendezvous.postes_selectionnes) dans l'email candidat ET l'email formateur, pas les postes déclarés à l'inscription du dossier", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR_ET_POSTES);
+
+  assert.equal(mailMock.mock.calls.length, 2);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(corpsCandidat.includes('Poste(s) : Gouvernant(e), Cafétier(ère)'));
+
+  const corpsFormateur = mailMock.mock.calls[1].arguments[2];
+  assert.ok(corpsFormateur.includes('Poste(s) : Gouvernant(e), Cafétier(ère)'));
+});
+
+test("envoyerInvitationTest n'affiche aucune ligne « Poste(s) » quand rendezvous.postes_selectionnes est vide (rendez-vous créé avant la migration 039)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(!corpsCandidat.includes('Poste(s)'));
 });
 
 test("envoyerInvitationTest retombe sur LIEU_TEST_ACCECIT quand rendezvous.lieu_id est absent", async (t) => {

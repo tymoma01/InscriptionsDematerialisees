@@ -12,6 +12,39 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
 });
 
+// Libellés des postes, propre à cette entité (voir Modularité, CLAUDE.md) — même mapping que
+// côté front (TableauDeBordAccueil.jsx/VerificationPieces.jsx/Planification.jsx/Validation.jsx),
+// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent (poste
+// ajouté au formulaire mais pas encore ici) retombe simplement sur le code brut plutôt que
+// d'échouer.
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
+// Ligne "Poste(s) : ..." commune aux deux emails ci-dessous — postes RETENUS pour CE rendez-vous
+// précis (rendezvous.postes_selectionnes, migration 039), pas les postes déclarés à l'inscription
+// (dossier_donnees_formulaire.donnees.posteBureau/posteHotel) : les deux peuvent différer (voir
+// ModalePlanificationTest.jsx, sélection ajustable au moment de la planification). Chaîne vide
+// (pas de <p>) si aucun poste retenu — rendez-vous créé avant la migration 039, ou dossier sans
+// aucun poste déclaré (cas limite) : mieux vaut omettre la ligne qu'afficher "Poste(s) : " suivi
+// de rien.
+function formaterLignePostesHtml(postesSelectionnes = []) {
+  if (postesSelectionnes.length === 0) return '';
+  const libelles = postesSelectionnes.map(libellePoste).join(', ');
+  return `<p>Poste(s) : ${echapperHtml(libelles)}</p>`;
+}
+
 // adresse + metroAcces uniquement (pas `instructions`, plus long et réservé à l'email HTML, voir
 // formaterLignesLieuHtml) — arbitrage acté au passage aux champs structurés (migration 047).
 function construireMessageSms({ candidatPrenom, dateHeure, lieuAdresse, lieuMetroAcces }) {
@@ -26,13 +59,24 @@ function construireMessageSms({ candidatPrenom, dateHeure, lieuAdresse, lieuMetr
 // migration 047) chacun sur sa propre ligne, plutôt que de tout concaténer sur une seule ligne
 // difficile à lire — seul ce canal inclut aussi `instructions` (voir construireMessageSms
 // ci-dessus, plus court).
-function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieuAdresse, lieuMetroAcces, lieuInstructions }) {
+function construireMessageEmail({
+  candidatPrenom,
+  candidatNom,
+  dateHeure,
+  lieuAdresse,
+  lieuMetroAcces,
+  lieuInstructions,
+  postesSelectionnes,
+}) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Convocation à votre test ACCECIT',
     corps:
       `<p>Bonjour ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)},</p>` +
       `<p>Votre test est prévu le ${echapperHtml(date)}.</p>` +
+      // Juste après la date, avant le lieu : ordre "quand / pour quel poste / où", cohérent avec
+      // la lecture naturelle d'une convocation.
+      formaterLignePostesHtml(postesSelectionnes) +
       `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces, instructions: lieuInstructions })}</p>` +
       '<p>Vous trouverez en pièce jointe une invitation à ajouter directement à votre calendrier (Outlook, Google Calendar...).</p>' +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
@@ -43,13 +87,25 @@ function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, lieuAd
 // inclureInstructions: false) : ce sont des consignes d'accueil destinées au candidat qui se
 // présente sur place ("munissez-vous de votre pièce d'identité", "sonnez et dites TEST"), sans
 // objet pour le formateur/inspecteur qui les évalue — seul metroAcces reste utile aux deux.
-function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, lieuAdresse, lieuMetroAcces }) {
+function construireMessageEmailFormateur({
+  formateurPrenom,
+  candidatPrenom,
+  candidatNom,
+  dateHeure,
+  lieuAdresse,
+  lieuMetroAcces,
+  postesSelectionnes,
+}) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Nouveau candidat à évaluer',
     corps:
       `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
       `<p>Vous êtes assigné(e) à l'évaluation du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)}.</p>` +
+      // Même ligne, même source de donnée (rendezvous.postes_selectionnes) que l'email candidat
+      // ci-dessus — le formateur/inspecteur doit savoir sur quel(s) poste(s) évaluer ce candidat
+      // précis, qui peu(ven)t différer des postes déclarés à l'inscription.
+      formaterLignePostesHtml(postesSelectionnes) +
       `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces }, { inclureInstructions: false })}</p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
@@ -98,6 +154,14 @@ async function envoyerInvitationTest(entite, rendezvous) {
     lieuAdresse: lieuTrouve?.adresse ?? LIEU_TEST_ACCECIT,
     lieuMetroAcces: lieuTrouve?.metro_acces,
     lieuInstructions: lieuTrouve?.instructions,
+    // Postes RETENUS pour CE rendez-vous précis (voir formaterLignePostesHtml plus haut), lu
+    // directement sur la ligne `rendezvous` fraîchement créée/relue par l'appelant (voir
+    // planificationRendezvousService.js) — jamais recalculé depuis les postes déclarés à
+    // l'inscription du dossier, qui peuvent différer. Une replanification crée toujours un
+    // nouveau rendez-vous (voir rendezvousRepository.creerRendezvous /
+    // neutraliserRendezvousActifsDossier) : `rendezvous` ici est systématiquement le plus récent,
+    // jamais un ancien rendez-vous remplacé.
+    postesSelectionnes: rendezvous.postes_selectionnes,
   };
 
   const notificationProvider = notificationFactory();
