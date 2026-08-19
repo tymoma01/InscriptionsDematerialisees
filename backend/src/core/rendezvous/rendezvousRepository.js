@@ -83,7 +83,16 @@ function listerRendezvousParDossier(bd, dossierId) {
       // planifie_par_* (rendez-vous créé hors API).
       'audit_planification.date_action as planifie_le',
     )
-    .orderBy('rendezvous.date_heure', 'desc');
+    // Tri par date de PLANIFICATION (planifie_le, quand l'agent a enregistré ce rendez-vous),
+    // pas par date_heure (quand le test aura/a eu lieu) — audit 2026-08-19, demande explicite :
+    // avec plusieurs replanifications sur un même dossier, l'ordre du plus récent au plus ancien
+    // doit refléter l'ordre des ACTIONS de planification, pas l'ordre des créneaux de test choisis
+    // (un agent peut très bien replanifier un test à une date plus proche dans le temps que le
+    // rendez-vous qu'il remplace, ce qui inverserait l'ordre si on triait sur date_heure).
+    // NULLS LAST : un rendez-vous sans entrée journal_audit (planifie_le NULL, voir son commentaire
+    // plus haut — scripts de dev, migrations de données) retombe en fin de liste plutôt qu'en tête,
+    // pour ne pas faire passer une donnée non tracée avant les planifications réellement datées.
+    .orderBy([{ column: 'audit_planification.date_action', order: 'desc', nulls: 'last' }]);
 }
 
 // Vue d'ensemble des rendez-vous de test, tous dossiers confondus (page Planification côté
