@@ -3,6 +3,7 @@ import { obtenirInscriptionComplete, modifierInscription } from '../../services/
 import { listerPiecesJustificatives, obtenirApercuPiece } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
+import StatutBadge from '../workflow/StatutBadge';
 import './InformationsInscription.css';
 
 // Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
@@ -79,6 +80,12 @@ const SITUATIONS_FAMILIALES = [
   { code: 'divorce', libelle: 'Divorcé(e)' },
   { code: 'veuf', libelle: 'Veuf/Veuve' },
 ];
+// Dérivé de SITUATIONS_FAMILIALES ci-dessus (liste utilisée par le <select> d'édition) — même
+// forme {code: libelle} que les autres dictionnaires de ce fichier, pour rester utilisable par
+// libelle()/libelleListe() en lecture seule sans dupliquer les libellés une seconde fois à la main.
+const LIBELLES_SITUATION_FAMILIALE = Object.fromEntries(
+  SITUATIONS_FAMILIALES.map((situation) => [situation.code, situation.libelle]),
+);
 const LIBELLES_OUI_NON = { oui: 'Oui', non: 'Non' };
 const LIBELLES_CONSENTEMENT_DIFFUSION = { autorise: 'Autorisée', refuse: 'Refusée' };
 // "En attente"/"Validée"/"Rejetée" retirés (audit 2026-08-19, même correctif que Validation.jsx) :
@@ -119,8 +126,9 @@ function bascule(tableau, valeur) {
   return tableau.includes(valeur) ? tableau.filter((v) => v !== valeur) : [...tableau, valeur];
 }
 
-// Une ligne "libellé : valeur" — évite de répéter la même structure pour chacun des ~25 champs
-// affichés ci-dessous.
+// Une ligne "libellé : valeur" — évite de répéter la même structure pour chacun des champs
+// affichés en lecture seule (cartes ci-dessous) et sert aussi de base visuelle à Champ() (mode
+// édition), pour que passer en édition ne redessine pas toute la mise en page.
 function Ligne({ libelle: intitule, valeur }) {
   return (
     <div className="informations-inscription__ligne">
@@ -131,8 +139,7 @@ function Ligne({ libelle: intitule, valeur }) {
 }
 
 // Champ de saisie du formulaire d'édition (voir brouillon ci-dessous) — même structure visuelle
-// que Ligne (libellé à gauche, valeur/contrôle à droite) pour que passer en édition ne redessine
-// pas toute la mise en page.
+// que Ligne (libellé à gauche, valeur/contrôle à droite).
 function Champ({ id, libelle: intitule, children }) {
   return (
     <label className="informations-inscription__ligne informations-inscription__champ" htmlFor={id}>
@@ -207,6 +214,73 @@ const LIBELLES_CHAMPS_ERREUR = {
   certificationAucuneDispense: 'Dispense certifiée',
 };
 
+// Icônes de section (audit 2026-08-19, refonte visuelle) — dessinées à la main dans le même
+// esprit outline que BoutonNouvelleInscription.jsx (IconePersonnePlus) : le projet n'a aucune
+// bibliothèque d'icônes installée (voir package.json), pas de quoi justifier une dépendance pour
+// quatre icônes fixes. currentColor + stroke pour hériter la couleur posée par le CSS de chaque
+// en-tête de carte (voir .informations-inscription__carte-entete), jamais une couleur fixe ici.
+function IconePersonne({ taille = 20 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={taille} height={taille} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20v-1a8 8 0 0 1 16 0v1" />
+    </svg>
+  );
+}
+
+function IconeCarnetAdresses({ taille = 20 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={taille} height={taille} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="2" />
+      <path d="M6.5 16c0-1.7 1.2-3 2.5-3s2.5 1.3 2.5 3" />
+      <line x1="14.5" y1="9" x2="18" y2="9" />
+      <line x1="14.5" y1="13" x2="18" y2="13" />
+    </svg>
+  );
+}
+
+function IconeMallette({ taille = 20 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={taille} height={taille} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="2" y1="13" x2="22" y2="13" />
+    </svg>
+  );
+}
+
+function IconeTrombone({ taille = 20 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={taille} height={taille} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20.5 11.5L12 20a5 5 0 0 1-7-7l8.1-8.1a3.5 3.5 0 0 1 5 5L9.7 18.3a2 2 0 1 1-2.8-2.8l7.4-7.4" />
+    </svg>
+  );
+}
+
+// En-tête d'une carte (icône + titre) — même structure sur les 4 cartes de la vue lecture seule
+// (Identité/Coordonnées/Situation professionnelle/Pièces jointes), voir Icone associée à chacune.
+function EnteteCarte({ icone, titre, children }) {
+  return (
+    <div className="informations-inscription__carte-entete">
+      <div className="informations-inscription__carte-titre">
+        {icone}
+        <h3>{titre}</h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Badge coloré vert/gris pour une valeur binaire (Oui/Non, Autorisée/Refusée...) — jamais rouge
+// pour la valeur négative (demande explicite : "Non"/"Refusée" restent des réponses normales du
+// candidat, pas une alerte à traiter). Réutilise StatutBadge (core/workflow/), déjà utilisé
+// ailleurs dans l'app (DossierList.jsx, GestionRendezvous.jsx) — pas de nouveau composant de
+// badge à maintenir en parallèle.
+function BadgePositifNeutre({ positif, libellePositif, libelleNeutre }) {
+  return <StatutBadge libelle={positif ? libellePositif : libelleNeutre} variante={positif ? 'succes' : 'neutre'} />;
+}
+
 // Section repliable "Informations d'inscription complètes" de la fiche dossier candidat
 // (accessible via "Voir le dossier"/"Étudier le dossier", voir Relances.jsx/Validation.jsx) :
 // reprend l'intégralité des données saisies par le candidat à l'inscription (état civil,
@@ -220,6 +294,15 @@ const LIBELLES_CHAMPS_ERREUR = {
 // sélectionne même pas — CLAUDE.md n'autorise son déchiffrement que côté serveur, pour un usage
 // qui en a explicitement besoin, ce qui n'est pas le cas d'un affichage back-office générique
 // comme celui-ci.
+//
+// Vue lecture seule en cartes (audit 2026-08-19, refonte visuelle sur maquette validée) — TOUTE
+// donnée saisie à l'inscription reste TOUJOURS affichée, y compris les valeurs négatives/vides
+// (demande explicite : plus aucun `condition && <Ligne/>` qui ferait disparaître un champ entier,
+// contrairement au comportement précédent sur autreLanguePrecision/commentConnuPrecision/
+// dateSignature). Le mode édition (voir demarrerEdition/Champ ci-dessous), lui, garde son ancienne
+// présentation en groupes empilés simples — aucune demande de refonte sur ce mode, plus rare et
+// plus fonctionnel que visuel ; seules Consentement RGPD et Pièces jointes restent hors édition
+// dans les deux cas (jamais éditables, voir leur commentaire plus bas).
 //
 // Bouton "Modifier" (2026-08-18, CLAUDE.md) : bascule Informations personnelles/Coordonnées/
 // Situation professionnelle/Mutuelle en formulaire, visible uniquement Admin/Accueil-Coordination
@@ -242,8 +325,8 @@ export default function InformationsInscription({ dossierId }) {
   // même connecteur de stockage par entité (OneDrive/Microsoft Graph pour ACCECIT, voir
   // storageFactory côté back) que n'importe quelle autre pièce justificative — aucune route ni
   // logique de récupération propre à cette section. null tant qu'aucune photo n'est trouvée dans
-  // `pieces` (dossier en cours, pas encore capturée) : distinct de chargement/erreur, sert de
-  // condition "Non fournie" dans le rendu.
+  // `pieces` (dossier en cours, pas encore capturée) : distinct de chargement/erreur, sert à
+  // choisir entre la vignette réelle et l'icône générique de repli dans la carte "Identité".
   const [photoIdentiteUrl, setPhotoIdentiteUrl] = useState(null);
   const [photoIdentiteChargement, setPhotoIdentiteChargement] = useState(false);
   const [photoIdentiteErreur, setPhotoIdentiteErreur] = useState(null);
@@ -426,6 +509,37 @@ export default function InformationsInscription({ dossierId }) {
     }
   };
 
+  // Comment nous a connu + précision repliés en une seule valeur (voir grille "Situation
+  // professionnelle") — évite une 6e ligne pour une précision qui n'a de sens qu'accolée à sa
+  // question, sans pour autant la faire disparaître (voir demande explicite, "aucune donnée
+  // masquée conditionnellement" : la précision, elle, reste absente du texte si non renseignée,
+  // ce n'est pas la même chose qu'un champ entier qui disparaîtrait).
+  const commentConnuValeur = disponibilites.commentConnu
+    ? `${libelle(LIBELLES_COMMENT_CONNU, disponibilites.commentConnu)}${
+        disponibilites.commentConnuPrecision ? ` (${disponibilites.commentConnuPrecision})` : ''
+      }`
+    : '-';
+
+  // Langues parlées + précision "Autre" repliées de la même façon (voir commentConnuValeur
+  // ci-dessus) — "Français, Anglais, Autre (Créole)" plutôt qu'une ligne "Précision langue" à part.
+  const languesValeur = (() => {
+    if (!disponibilites.languesParlees || disponibilites.languesParlees.length === 0) return '-';
+    return disponibilites.languesParlees
+      .map((code) =>
+        code === 'autre' && disponibilites.autreLanguePrecision
+          ? `Autre (${disponibilites.autreLanguePrecision})`
+          : libelle(LIBELLES_LANGUE, code),
+      )
+      .join(', ');
+  })();
+
+  // Contact d'urgence (nom + téléphone) replié en une seule valeur (voir grille "Coordonnées") —
+  // "Julien Dupont (06 12 34 56 78)" plutôt que deux lignes séparées ; aucune des deux données
+  // n'est perdue, juste présentées ensemble puisqu'elles décrivent la même personne.
+  const contactUrgenceValeur = coordonnees.contactUrgenceNom
+    ? `${coordonnees.contactUrgenceNom}${coordonnees.contactUrgenceTelephone ? ` (${coordonnees.contactUrgenceTelephone})` : ''}`
+    : '-';
+
   return (
     <section className="informations-inscription">
       <details onToggle={gererOuverture}>
@@ -436,74 +550,206 @@ export default function InformationsInscription({ dossierId }) {
 
         {!chargement && !erreur && candidat && (
           <>
-            {peutModifier && !edition && (
-              <div className="informations-inscription__actions">
+            {/* En-tête de section (audit 2026-08-19, demande explicite) : titre à gauche, bouton
+                "Modifier" à droite — distinct du <summary> ci-dessus (qui reste le texte cliquable
+                du repli/dépli, inchangé). */}
+            <div className="informations-inscription__entete">
+              <h3>Informations d'inscription</h3>
+              {peutModifier && !edition && (
                 <button type="button" onClick={demarrerEdition}>
                   Modifier
                 </button>
-              </div>
-            )}
+              )}
+            </div>
 
             <form
               className="informations-inscription__contenu"
               onSubmit={gererEnregistrement}
               // Empêche la touche Entrée dans un champ texte de soumettre le formulaire par
-              // inadvertance (nombreux champs texte ci-dessous) — seul le bouton "Enregistrer"
-              // doit déclencher la soumission.
+              // inadvertance (nombreux champs texte ci-dessous, mode édition). Seul le bouton
+              // "Enregistrer" doit déclencher la soumission.
               onKeyDown={(evenement) => {
                 if (evenement.key === 'Enter' && evenement.target.tagName !== 'TEXTAREA') evenement.preventDefault();
               }}
             >
-              <div className="informations-inscription__groupe informations-inscription__groupe--personnelles">
-                <h3>Informations personnelles</h3>
+              {!edition ? (
+                // ===== VUE LECTURE SEULE — cartes (maquette validée, audit 2026-08-19) =====
+                <>
+                  <div className="informations-inscription__rangee informations-inscription__rangee--deux-colonnes">
+                    <div className="informations-inscription__carte informations-inscription__carte--identite">
+                      <EnteteCarte icone={<IconePersonne />} titre="Identité" />
+                      <div className="informations-inscription__identite-corps">
+                        {/* Photo d'identité si disponible, icône générique de repli sinon — jamais
+                            éditable ici même en mode édition : c'est une pièce justificative (voir
+                            CaptureTablette.jsx/VerificationPieces.jsx), pas un champ du formulaire
+                            d'inscription. Même route de récupération (obtenirApercuPiece) que
+                            "Voir" sur CaptureTablette.jsx. */}
+                        {photoIdentiteChargement ? (
+                          <div className="informations-inscription__identite-avatar informations-inscription__identite-avatar--generique">
+                            <IconePersonne taille={28} />
+                          </div>
+                        ) : photoIdentiteUrl ? (
+                          <button
+                            type="button"
+                            className="informations-inscription__identite-avatar informations-inscription__photo-identite-bouton"
+                            onClick={() => setPhotoAgrandie(true)}
+                          >
+                            <img
+                              src={photoIdentiteUrl}
+                              alt="Photo d'identité du candidat — cliquer pour agrandir"
+                              className="informations-inscription__identite-avatar-image"
+                            />
+                          </button>
+                        ) : (
+                          <div
+                            className="informations-inscription__identite-avatar informations-inscription__identite-avatar--generique"
+                            title={photoIdentiteErreur || 'Photo non fournie'}
+                          >
+                            <IconePersonne taille={28} />
+                          </div>
+                        )}
 
-                {/* Vignette cliquable, même route de récupération (obtenirApercuPiece) que "Voir"
-                    sur CaptureTablette.jsx — voir son commentaire d'en-tête pour le détail du
-                    stockage. "Non fournie" plutôt qu'un espace vide/une erreur tant que la pièce
-                    (obligatoire mais capturée par l'accueil, pas par le candidat lui-même) n'a pas
-                    encore été prise. Jamais éditable ici, même en mode édition : c'est une pièce
-                    justificative (voir CaptureTablette.jsx/VerificationPieces.jsx), pas un champ
-                    du formulaire d'inscription. */}
-                <div className="informations-inscription__photo-identite">
-                  <span className="informations-inscription__libelle">Photo d'identité</span>
-                  {photoIdentiteChargement && <span className="informations-inscription__valeur">Chargement…</span>}
-                  {!photoIdentiteChargement && photoIdentiteErreur && (
-                    <span className="informations-inscription__valeur" role="alert">
-                      {photoIdentiteErreur}
-                    </span>
-                  )}
-                  {!photoIdentiteChargement && !photoIdentiteErreur && photoIdentiteUrl && (
-                    <button
-                      type="button"
-                      className="informations-inscription__photo-identite-bouton"
-                      onClick={() => setPhotoAgrandie(true)}
-                    >
-                      <img
-                        src={photoIdentiteUrl}
-                        alt="Photo d'identité du candidat — cliquer pour agrandir"
-                        className="informations-inscription__photo-identite-vignette"
+                        <div className="informations-inscription__identite-details">
+                          <p className="informations-inscription__identite-nom">
+                            {candidat.prenom} {candidat.nom}
+                          </p>
+                          <p className="informations-inscription__identite-ligne">
+                            {libelle(LIBELLES_CIVILITE, candidat.civilite)} · Né(e) le {formaterDate(candidat.dateNaissance)} à{' '}
+                            {candidat.lieuNaissance || '-'}
+                          </p>
+                          <p className="informations-inscription__identite-ligne">
+                            {candidat.nationalite || '-'} · {libelle(LIBELLES_SITUATION_FAMILIALE, candidat.situationFamiliale)}
+                          </p>
+                          <p className="informations-inscription__identite-ligne">
+                            Nom de naissance : {candidat.nomNaissance || '-'}
+                          </p>
+                          <p className="informations-inscription__identite-meta">
+                            Inscrit(e) le {formaterDate(candidat.dateInscription)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="informations-inscription__carte informations-inscription__carte--coordonnees">
+                      <EnteteCarte icone={<IconeCarnetAdresses />} titre="Coordonnées" />
+                      <Ligne libelle="Adresse" valeur={coordonnees.adresse} />
+                      <Ligne libelle="Téléphone" valeur={coordonnees.telephone} />
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">Email</span>
+                        <span className="informations-inscription__valeur informations-inscription__valeur--accent">
+                          {coordonnees.email ?? candidat.email ?? '-'}
+                        </span>
+                      </div>
+                      <Ligne libelle="Contact d'urgence" valeur={contactUrgenceValeur} />
+                    </div>
+                  </div>
+
+                  <div className="informations-inscription__carte informations-inscription__carte--situation">
+                    <EnteteCarte icone={<IconeMallette />} titre="Situation professionnelle" />
+                    <div className="informations-inscription__grille-deux">
+                      <Ligne
+                        libelle="Disponibilité"
+                        valeur={
+                          disponibilites.disponibiliteImmediate
+                            ? 'Immédiate'
+                            : `Du ${formaterDate(disponibilites.dateDebut)} au ${formaterDate(disponibilites.dateFin)}`
+                        }
                       />
-                    </button>
-                  )}
-                  {!photoIdentiteChargement && !photoIdentiteErreur && !photoIdentiteUrl && (
-                    <span className="informations-inscription__valeur">Non fournie</span>
-                  )}
-                </div>
+                      <Ligne libelle="Type de poste recherché" valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)} />
+                      <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
+                      <Ligne libelle="Langues parlées" valeur={languesValeur} />
+                      <Ligne libelle="Comment nous a connu" valeur={commentConnuValeur} />
+                    </div>
+                    <Ligne libelle="Jours disponibles" valeur={libelleListe(LIBELLES_JOUR, disponibilites.joursDisponibles)} />
+                    <Ligne libelle="Poste(s) recherché(s)" valeur={libelleListe(LIBELLES_POSTE, postesRecherches)} />
 
-                {!edition ? (
-                  <>
-                    <Ligne libelle="Civilité" valeur={libelle(LIBELLES_CIVILITE, candidat.civilite)} />
-                    <Ligne libelle="Nom" valeur={candidat.nom} />
-                    <Ligne libelle="Nom de naissance" valeur={candidat.nomNaissance} />
-                    <Ligne libelle="Prénom" valeur={candidat.prenom} />
-                    <Ligne libelle="Date de naissance" valeur={formaterDate(candidat.dateNaissance)} />
-                    <Ligne libelle="Lieu de naissance" valeur={candidat.lieuNaissance} />
-                    <Ligne libelle="Nationalité" valeur={candidat.nationalite} />
-                    <Ligne libelle="Situation familiale" valeur={candidat.situationFamiliale} />
-                    <Ligne libelle="Date d'inscription" valeur={formaterDate(candidat.dateInscription)} />
-                  </>
-                ) : (
-                  <>
+                    <hr className="informations-inscription__separateur" />
+
+                    <h4 className="informations-inscription__sous-titre">Mutuelle d'entreprise</h4>
+                    <div className="informations-inscription__grille-deux">
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">CMU-C</span>
+                        <BadgePositifNeutre positif={mutuelle.cas1CmuC === 'oui'} libellePositif="Oui" libelleNeutre="Non" />
+                      </div>
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">ACS</span>
+                        <BadgePositifNeutre positif={mutuelle.cas2Acs === 'oui'} libellePositif="Oui" libelleNeutre="Non" />
+                      </div>
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">Mutuelle individuelle</span>
+                        <BadgePositifNeutre
+                          positif={mutuelle.cas3MutuelleIndividuelle === 'oui'}
+                          libellePositif="Oui"
+                          libelleNeutre="Non"
+                        />
+                      </div>
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">Mutuelle collective</span>
+                        <BadgePositifNeutre
+                          positif={mutuelle.cas4MutuelleCollective === 'oui'}
+                          libellePositif="Oui"
+                          libelleNeutre="Non"
+                        />
+                      </div>
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">Dispense certifiée</span>
+                        <BadgePositifNeutre
+                          positif={Boolean(mutuelle.certificationAucuneDispense)}
+                          libellePositif="Oui"
+                          libelleNeutre="Non"
+                        />
+                      </div>
+                    </div>
+
+                    <hr className="informations-inscription__separateur" />
+
+                    <h4 className="informations-inscription__sous-titre">Consentement RGPD</h4>
+                    <div className="informations-inscription__grille-deux">
+                      <div className="informations-inscription__ligne">
+                        <span className="informations-inscription__libelle">Autorisation de diffusion des données</span>
+                        <BadgePositifNeutre
+                          positif={consentementRgpd.consentementDiffusion === 'autorise'}
+                          libellePositif="Autorisée"
+                          libelleNeutre="Refusée"
+                        />
+                      </div>
+                      <Ligne libelle="Signé le" valeur={formaterDate(consentementRgpd.dateSignature)} />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                // ===== MODE ÉDITION — formulaire simple, inchangé (voir commentaire d'en-tête du
+                // composant : pas de refonte visuelle demandée sur ce mode) =====
+                <>
+                  <div className="informations-inscription__groupe">
+                    <h3>Informations personnelles</h3>
+
+                    <div className="informations-inscription__photo-identite">
+                      <span className="informations-inscription__libelle">Photo d'identité</span>
+                      {photoIdentiteChargement && <span className="informations-inscription__valeur">Chargement…</span>}
+                      {!photoIdentiteChargement && photoIdentiteErreur && (
+                        <span className="informations-inscription__valeur" role="alert">
+                          {photoIdentiteErreur}
+                        </span>
+                      )}
+                      {!photoIdentiteChargement && !photoIdentiteErreur && photoIdentiteUrl && (
+                        <button
+                          type="button"
+                          className="informations-inscription__photo-identite-bouton"
+                          onClick={() => setPhotoAgrandie(true)}
+                        >
+                          <img
+                            src={photoIdentiteUrl}
+                            alt="Photo d'identité du candidat — cliquer pour agrandir"
+                            className="informations-inscription__photo-identite-vignette"
+                          />
+                        </button>
+                      )}
+                      {!photoIdentiteChargement && !photoIdentiteErreur && !photoIdentiteUrl && (
+                        <span className="informations-inscription__valeur">Non fournie</span>
+                      )}
+                    </div>
+
                     <Champ id="edition-civilite" libelle="Civilité">
                       <select id="edition-civilite" value={brouillon.civilite} onChange={(e) => modifierChamp('civilite')(e.target.value)}>
                         <option value="monsieur">Monsieur</option>
@@ -562,22 +808,10 @@ export default function InformationsInscription({ dossierId }) {
                       </select>
                     </Champ>
                     <Ligne libelle="Date d'inscription" valeur={formaterDate(candidat.dateInscription)} />
-                  </>
-                )}
-              </div>
+                  </div>
 
-              <div className="informations-inscription__groupe informations-inscription__groupe--coordonnees">
-                <h3>Coordonnées</h3>
-                {!edition ? (
-                  <>
-                    <Ligne libelle="Adresse" valeur={coordonnees.adresse} />
-                    <Ligne libelle="Téléphone" valeur={coordonnees.telephone} />
-                    <Ligne libelle="Email" valeur={coordonnees.email ?? candidat.email} />
-                    <Ligne libelle="Contact d'urgence" valeur={coordonnees.contactUrgenceNom} />
-                    <Ligne libelle="Téléphone du contact d'urgence" valeur={coordonnees.contactUrgenceTelephone} />
-                  </>
-                ) : (
-                  <>
+                  <div className="informations-inscription__groupe">
+                    <h3>Coordonnées</h3>
                     <Champ id="edition-adresse" libelle="Adresse">
                       <input id="edition-adresse" required value={brouillon.adresse} onChange={(e) => modifierChamp('adresse')(e.target.value)} />
                     </Champ>
@@ -618,46 +852,10 @@ export default function InformationsInscription({ dossierId }) {
                         onChange={(e) => modifierChamp('contactUrgenceTelephone')(e.target.value)}
                       />
                     </Champ>
-                  </>
-                )}
-              </div>
+                  </div>
 
-              <div className="informations-inscription__groupe informations-inscription__groupe--situation">
-                <h3>Situation professionnelle</h3>
-                {!edition ? (
-                  <>
-                    <Ligne
-                      libelle="Disponibilité"
-                      valeur={
-                        disponibilites.disponibiliteImmediate
-                          ? 'Immédiate'
-                          : `Du ${formaterDate(disponibilites.dateDebut)} au ${formaterDate(disponibilites.dateFin)}`
-                      }
-                    />
-                    <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
-                    <Ligne
-                      libelle="Jours disponibles"
-                      valeur={libelleListe(LIBELLES_JOUR, disponibilites.joursDisponibles)}
-                    />
-                    <Ligne libelle="Langues parlées" valeur={libelleListe(LIBELLES_LANGUE, disponibilites.languesParlees)} />
-                    {disponibilites.autreLanguePrecision && (
-                      <Ligne libelle="Précision langue" valeur={disponibilites.autreLanguePrecision} />
-                    )}
-                    <Ligne
-                      libelle="Type de poste recherché"
-                      valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)}
-                    />
-                    <Ligne libelle="Poste(s) recherché(s)" valeur={libelleListe(LIBELLES_POSTE, postesRecherches)} />
-                    <Ligne
-                      libelle="Comment nous a connu"
-                      valeur={libelle(LIBELLES_COMMENT_CONNU, disponibilites.commentConnu)}
-                    />
-                    {disponibilites.commentConnuPrecision && (
-                      <Ligne libelle="Précision" valeur={disponibilites.commentConnuPrecision} />
-                    )}
-                  </>
-                ) : (
-                  <>
+                  <div className="informations-inscription__groupe">
+                    <h3>Situation professionnelle</h3>
                     <Champ id="edition-disponibilite-immediate" libelle="Disponibilité immédiate">
                       <input
                         id="edition-disponibilite-immediate"
@@ -758,28 +956,10 @@ export default function InformationsInscription({ dossierId }) {
                         />
                       </Champ>
                     )}
-                  </>
-                )}
-              </div>
+                  </div>
 
-              <div className="informations-inscription__groupe informations-inscription__groupe--mutuelle">
-                <h3>Mutuelle d'entreprise</h3>
-                {!edition ? (
-                  <>
-                    <Ligne libelle="CMU-C" valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas1CmuC)} />
-                    <Ligne libelle="ACS" valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas2Acs)} />
-                    <Ligne
-                      libelle="Mutuelle individuelle"
-                      valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas3MutuelleIndividuelle)}
-                    />
-                    <Ligne
-                      libelle="Mutuelle collective"
-                      valeur={libelle(LIBELLES_OUI_NON, mutuelle.cas4MutuelleCollective)}
-                    />
-                    <Ligne libelle="Dispense certifiée" valeur={mutuelle.certificationAucuneDispense ? 'Oui' : 'Non'} />
-                  </>
-                ) : (
-                  <>
+                  <div className="informations-inscription__groupe">
+                    <h3>Mutuelle d'entreprise</h3>
                     {[
                       ['cas1CmuC', 'CMU-C'],
                       ['cas2Acs', 'ACS'],
@@ -801,23 +981,28 @@ export default function InformationsInscription({ dossierId }) {
                         onChange={(e) => modifierChamp('certificationAucuneDispense')(e.target.checked)}
                       />
                     </Champ>
-                  </>
-                )}
-              </div>
+                  </div>
 
-              <div className="informations-inscription__groupe informations-inscription__groupe--consentement">
-                <h3>Consentement RGPD</h3>
-                <Ligne
-                  libelle="Autorisation de diffusion des données"
-                  valeur={libelle(LIBELLES_CONSENTEMENT_DIFFUSION, consentementRgpd.consentementDiffusion)}
-                />
-                {consentementRgpd.dateSignature && (
-                  <Ligne libelle="Signé le" valeur={formaterDate(consentementRgpd.dateSignature)} />
-                )}
-              </div>
+                  <div className="informations-inscription__groupe">
+                    <h3>Consentement RGPD</h3>
+                    <Ligne
+                      libelle="Autorisation de diffusion des données"
+                      valeur={libelle(LIBELLES_CONSENTEMENT_DIFFUSION, consentementRgpd.consentementDiffusion)}
+                    />
+                    <Ligne libelle="Signé le" valeur={formaterDate(consentementRgpd.dateSignature)} />
+                  </div>
+                </>
+              )}
 
-              <div className="informations-inscription__groupe informations-inscription__groupe--pieces">
-                <h3>Pièces jointes</h3>
+              {/* Pièces jointes — inchangée entre lecture seule et édition (jamais éditable ici,
+                  voir commentaire d'en-tête du composant), toujours affichée après les cartes/
+                  groupes ci-dessus quel que soit le mode. */}
+              <div className="informations-inscription__carte informations-inscription__carte--pieces">
+                <EnteteCarte icone={<IconeTrombone />} titre="Pièces jointes">
+                  <span className="informations-inscription__pieces-compteur">
+                    {pieces.length} pièce{pieces.length > 1 ? 's' : ''} reçue{pieces.length > 1 ? 's' : ''}
+                  </span>
+                </EnteteCarte>
                 {pieces.length === 0 && (
                   <p className="informations-inscription__vide">Aucune pièce reçue pour ce dossier.</p>
                 )}
@@ -838,10 +1023,13 @@ export default function InformationsInscription({ dossierId }) {
                             séjour") passe à la ligne plutôt que d'être coupé (white-space:
                             normal côté .css, voir son commentaire). */}
                         <span className="informations-inscription__piece-nom">{piece.type_piece_libelle}</span>
-                        <span className="informations-inscription__piece-statut">
-                          {piece.statut_verification === 'orpheline' ? LIBELLE_PIECE_ORPHELINE : '✓ Reçue'}
-                        </span>
                         <span className="informations-inscription__piece-date">{formaterDate(piece.date_upload)}</span>
+                        <span className="informations-inscription__piece-statut">
+                          <StatutBadge
+                            libelle={piece.statut_verification === 'orpheline' ? LIBELLE_PIECE_ORPHELINE : '✓ Reçue'}
+                            variante={piece.statut_verification === 'orpheline' ? 'alerte' : 'succes'}
+                          />
+                        </span>
                         {/* Ouvre PanneauApercuPiece (voir plus bas) — même mécanisme que le
                             bouton "Voir" de CaptureTablette.jsx (composant désormais partagé),
                             réutilisé tel quel plutôt que reconstruit. Consultation uniquement :

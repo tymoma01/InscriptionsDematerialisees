@@ -1,7 +1,8 @@
 /* Section repliable "Informations d'inscription complètes" (InformationsInscription.jsx) — même
    habillage carte que HistoriqueRelances.css/NotesDossier.css (fond blanc, bordure légère,
-   coins arrondis), pour rester visuellement cohérente avec les autres sections de la fiche
-   dossier. */
+   coins arrondis) pour le conteneur global, pour rester visuellement cohérente avec les autres
+   sections de la fiche dossier. Le contenu déplié, lui, suit désormais la maquette en cartes
+   internes (audit 2026-08-19, refonte visuelle) — voir plus bas. */
 .informations-inscription {
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto var(--espace-grand);
@@ -21,77 +22,183 @@
   text-decoration: underline;
 }
 
-/* Zones nommées plutôt qu'une grille auto-fit à colonnes égales (comportement précédent) : avec
-   6 groupes de volumes très différents (Informations personnelles/Situation professionnelle,
-   longs, ~9 lignes chacun ; Coordonnées/Mutuelle d'entreprise/Consentement RGPD, courts, 2 à 5
-   lignes), l'auto-fit produisait un empilement imprévisible selon la largeur disponible — gros
-   espace vide sous un groupe court partageant sa ligne avec un groupe long (audit 2026-08-19).
-   Disposition volontaire à la place : les deux groupes longs occupent chacun toute la hauteur
-   d'une colonne, les trois groupes courts empilés partagent la colonne du milieu (leur somme de
-   hauteurs se rapproche d'un groupe long, sans espace vide résiduel), "Pièces jointes" occupe une
-   dernière ligne pleine largeur en dessous — toute la largeur disponible profite à sa liste
-   verticale nom/statut/date (voir .informations-inscription__pieces) plutôt que la contraindre à
-   une colonne étroite. informations-inscription__actions-edition (voir plus bas, grid-column:
-   1 / -1) n'a pas de zone nommée : il se place automatiquement dans une ligne implicite
-   supplémentaire, après "pieces".
-   Repasse à une seule colonne empilée sous 900px (voir media query en bas de fichier) — trois
-   colonnes de ~20rem+ chacune ne tiennent plus confortablement en dessous. */
+/* En-tête de section (titre "Informations d'inscription" + bouton "Modifier") — distinct du
+   <summary> ci-dessus (le texte de repli/dépli), affiché uniquement une fois le contenu déplié. */
+.informations-inscription__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-top: var(--espace-moyen);
+}
+
+.informations-inscription__entete h3 {
+  margin: 0;
+  color: var(--couleur-back-office);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.informations-inscription__entete button {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.informations-inscription__entete button:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
 .informations-inscription__contenu {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-areas:
-    'personnelles coordonnees   situation'
-    'personnelles mutuelle      situation'
-    'personnelles consentement  situation'
-    'pieces        pieces        pieces';
+  display: flex;
+  flex-direction: column;
   gap: var(--espace-grand);
   margin-top: var(--espace-moyen);
 }
 
-.informations-inscription__groupe--personnelles { grid-area: personnelles; }
-.informations-inscription__groupe--coordonnees { grid-area: coordonnees; }
-.informations-inscription__groupe--situation { grid-area: situation; }
-.informations-inscription__groupe--mutuelle { grid-area: mutuelle; }
-.informations-inscription__groupe--consentement { grid-area: consentement; }
-.informations-inscription__groupe--pieces { grid-area: pieces; }
-
-/* Chaque groupe visuellement délimité (voir demande explicite) : cadre propre plutôt que la seule
-   séparation implicite du gap — nécessaire maintenant que plusieurs groupes courts partagent une
-   même colonne (coordonnees/mutuelle/consentement), sans quoi rien ne marquerait leur frontière
-   au-delà de l'espacement. Même carte que .page-validation__pieces (Validation.css) pour rester
-   cohérent avec le reste du back-office. */
-.informations-inscription__groupe {
-  padding: var(--espace-moyen);
-  border: 1px solid var(--couleur-bordure-legere);
-  border-radius: var(--rayon-bordure);
+/* Rangée "Identité" / "Coordonnées" — deux colonnes égales (voir maquette), repasse à une seule
+   colonne empilée sous 900px comme le reste de la section (voir media query en bas de fichier). */
+.informations-inscription__rangee--deux-colonnes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--espace-grand);
 }
 
-.informations-inscription__groupe h3 {
-  margin: 0 0 var(--espace-petit);
+@media (max-width: 900px) {
+  .informations-inscription__rangee--deux-colonnes {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Carte de contenu (Identité/Coordonnées/Situation professionnelle/Pièces jointes) — fond
+   légèrement teinté plutôt qu'une bordure lourde ou une ombre (demande explicite), même teinte
+   gris très clair que le reste de l'app (--couleur-fond-secondaire, déjà utilisée par exemple
+   pour l'en-tête du tableau "Dossiers candidats", DossierList.css). */
+.informations-inscription__carte {
+  padding: var(--espace-moyen) var(--espace-grand);
+  background-color: var(--couleur-fond-secondaire);
+  border-radius: var(--rayon-bordure);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.informations-inscription__carte-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
+/* Icône + titre de carte — icône discrète (couleur secondaire, taille modeste, voir les
+   composants IconePersonne/IconeCarnetAdresses/IconeMallette/IconeTrombone du .jsx), jamais la
+   couleur d'accent back-office pleine : elle ne sert qu'à identifier le thème de la carte, pas à
+   attirer l'œil. */
+.informations-inscription__carte-titre {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+.informations-inscription__carte-titre h3 {
+  margin: 0;
   color: var(--couleur-back-office);
   font-size: 1rem;
   font-weight: 700;
 }
 
-@media (max-width: 900px) {
-  .informations-inscription__contenu {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'personnelles'
-      'coordonnees'
-      'situation'
-      'mutuelle'
-      'consentement'
-      'pieces';
-  }
+.informations-inscription__sous-titre {
+  margin: var(--espace-petit) 0 0.2rem;
+  color: var(--couleur-back-office);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
+.informations-inscription__separateur {
+  margin: var(--espace-petit) 0;
+  border: none;
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+/* Carte "Identité" : avatar/photo à gauche, détails compacts à droite. */
+.informations-inscription__identite-corps {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espace-moyen);
+}
+
+.informations-inscription__identite-avatar {
+  flex: 0 0 auto;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--couleur-bordure-legere);
+  background-color: var(--couleur-fond);
+  cursor: pointer;
+  line-height: 0;
+}
+
+/* Icône générique de repli (aucune photo d'identité disponible) — mêmes cercle/silhouette que
+   l'icône de carte "Identité", en plus grand et centrée ; pas cliquable (pas de photo à agrandir),
+   curseur par défaut pour ne pas suggérer une action. */
+.informations-inscription__identite-avatar--generique {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--couleur-bordure);
+  cursor: default;
+}
+
+.informations-inscription__identite-avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.informations-inscription__identite-details {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.informations-inscription__identite-nom {
+  margin: 0 0 0.1rem;
+  color: var(--couleur-texte);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.informations-inscription__identite-ligne {
+  margin: 0;
+  color: var(--couleur-texte);
+  font-size: 0.85rem;
+}
+
+.informations-inscription__identite-meta {
+  margin: 0.3rem 0 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.78rem;
+}
+
+/* Paire "libellé / valeur" — réutilisée telle quelle par toutes les cartes (Coordonnées,
+   Situation professionnelle, Mutuelle, RGPD) ainsi que par le formulaire d'édition (voir
+   .informations-inscription__champ plus bas, qui en hérite). */
 .informations-inscription__ligne {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: var(--espace-moyen);
   padding: 0.3rem 0;
-  border-bottom: 1px solid var(--couleur-bordure-legere);
   font-size: 0.9rem;
 }
 
@@ -102,6 +209,30 @@
 .informations-inscription__valeur {
   text-align: right;
   font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+/* Email (carte "Coordonnées") — couleur d'accent (demande explicite), bleu candidat plutôt que le
+   brun back-office déjà porté par les titres de carte, pour rester distinct des autres valeurs
+   sans introduire de nouvelle couleur. */
+.informations-inscription__valeur--accent {
+  color: var(--couleur-primaire);
+}
+
+/* Carte "Situation professionnelle" : grille 2 colonnes pour les paires courtes (disponibilité,
+   type de poste, créneaux, langues, comment nous a connu), puis les deux lignes pleine largeur
+   (Jours disponibles / Postes recherchés) reprennent l'affichage standard en dessous, hors
+   grille. */
+.informations-inscription__grille-deux {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--espace-grand);
+}
+
+@media (max-width: 700px) {
+  .informations-inscription__grille-deux {
+    grid-template-columns: 1fr;
+  }
 }
 
 .informations-inscription__vide {
@@ -109,19 +240,21 @@
   font-size: 0.9rem;
 }
 
-/* Liste verticale à une seule colonne, une pièce par ligne (audit 2026-08-19 : retour sur la
-   variante à colonnes internes multiples — nom tronqué en ellipsis, statut/date trop proches du
-   nom, alignement peu clair dès que le nombre de colonnes changeait selon la largeur disponible).
-   Le <ul> est LUI-MÊME la grille à 4 colonnes (nom / statut / date / action "Voir") — chaque <li>
-   (voir .jsx, display: contents ci-dessous) délègue directement ses enfants à ces colonnes plutôt
-   que de former sa propre ligne indépendante : c'est ce qui garantit que statut/date/Voir tombent
-   exactement à la même position horizontale sur TOUTES les lignes, quelle que soit la longueur du
-   nom de la pièce sur chacune (une grille "par ligne" séparée, elle, recalculerait une largeur de
-   colonne différente à chaque <li>, réintroduisant le désalignement visible auparavant).
+/* Carte "Pièces jointes" — compteur "X pièces reçues" à droite du titre, dans le même en-tête que
+   les autres cartes (voir .informations-inscription__carte-entete). */
+.informations-inscription__pieces-compteur {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+/* Liste verticale à une seule colonne, une pièce par ligne. Le <ul> est LUI-MÊME la grille à 4
+   colonnes (nom / date / statut / action "Voir") — chaque <li> (voir .jsx, display: contents
+   ci-dessous) délègue directement ses enfants à ces colonnes plutôt que de former sa propre ligne
+   indépendante : c'est ce qui garantit que date/statut/Voir tombent exactement à la même position
+   horizontale sur TOUTES les lignes, quelle que soit la longueur du nom de la pièce sur chacune.
    minmax(0, 1fr) sur la colonne nom : peut rétrécir sous son contenu naturel (nécessaire pour que
    le nom passe à la ligne, voir .informations-inscription__piece-nom, plutôt que de pousser les
-   colonnes suivantes hors du bloc). Les trois autres colonnes restent `auto` : chacune prend
-   exactement la largeur de son contenu le plus large parmi toutes les lignes, jamais plus. */
+   colonnes suivantes hors du bloc). Les trois autres colonnes restent `auto`. */
 .informations-inscription__pieces {
   list-style: none;
   margin: 0;
@@ -129,7 +262,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   column-gap: var(--espace-grand);
-  align-items: baseline;
+  align-items: center;
 }
 
 .informations-inscription__piece {
@@ -137,33 +270,42 @@
 }
 
 .informations-inscription__piece-nom,
-.informations-inscription__piece-statut,
 .informations-inscription__piece-date,
+.informations-inscription__piece-statut,
 .informations-inscription__piece-action {
-  /* Espacement vertical généreux (comportement précédent : 0.3rem) — nécessaire maintenant qu'un
-     nom long peut occuper deux lignes (voir white-space ci-dessous) : une ligne plus haute a
-     besoin de plus d'air au-dessus/en dessous pour ne jamais sembler chevaucher la ligne
-     voisine. */
   padding: 0.6rem 0;
   border-bottom: 1px solid var(--couleur-bordure-legere);
   font-size: 0.9rem;
 }
 
-.informations-inscription__piece-nom {
-  /* Pas de troncature (contrairement à la version précédente, ellipsis + nowrap) : un nom long
-     ("Carte d'identité ou Carte de séjour") passe normalement à la ligne plutôt que d'être coupé
-     — c'est la demande explicite, quitte à ce que cette ligne soit un peu plus haute que les
-     autres (align-items: baseline ci-dessus aligne alors statut/date/Voir sur sa première ligne
-     de texte, pas sur son centre vertical). */
-  white-space: normal;
-  overflow-wrap: break-word;
+/* Séparateur fin entre chaque pièce, pas de séparateur après la dernière (demande explicite) — les
+   4 enfants d'un même <li> partagent la même position dans la liste des :last-child de leur
+   colonne respective (display: contents ne change pas ce comptage), donc un seul sélecteur
+   couvre les 4 colonnes de la dernière ligne. */
+.informations-inscription__piece:last-child .informations-inscription__piece-nom,
+.informations-inscription__piece:last-child .informations-inscription__piece-date,
+.informations-inscription__piece:last-child .informations-inscription__piece-statut,
+.informations-inscription__piece:last-child .informations-inscription__piece-action {
+  border-bottom: none;
 }
 
-.informations-inscription__piece-statut,
+.informations-inscription__piece-nom {
+  /* Pas de troncature : un nom long ("Carte d'identité ou Carte de séjour") passe normalement à
+     la ligne plutôt que d'être coupé. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  color: var(--couleur-texte);
+}
+
 .informations-inscription__piece-date {
   white-space: nowrap;
   text-align: right;
   color: var(--couleur-texte-secondaire);
+}
+
+.informations-inscription__piece-statut {
+  white-space: nowrap;
+  text-align: right;
 }
 
 /* Bouton "Voir" (ouvre PanneauApercuPiece, composant partagé avec CaptureTablette.jsx, voir .jsx)
@@ -174,7 +316,7 @@
   background: none;
   color: var(--couleur-back-office);
   font-weight: 600;
-  font-size: 0.9rem;
+  text-align: right;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -183,13 +325,10 @@
   text-decoration: underline;
 }
 
-.informations-inscription__piece-statut {
-  font-weight: 600;
-}
-
-/* Vignette "Photo d'identité" en tête du groupe "Informations personnelles" — même ligne
-   libellé/valeur que .informations-inscription__ligne (bordure basse comprise, pour rester visuellement
-   cohérente avec le reste du groupe), mais la "valeur" est une image plutôt qu'un texte. */
+/* Vignette "Photo d'identité" en tête du groupe "Informations personnelles" (mode édition
+   uniquement — la vue lecture seule utilise .informations-inscription__identite-avatar ci-dessus)
+   — même ligne libellé/valeur que .informations-inscription__ligne, mais la "valeur" est une
+   image plutôt qu'un texte. */
 .informations-inscription__photo-identite {
   display: flex;
   align-items: center;
@@ -217,10 +356,11 @@
   border: 1px solid var(--couleur-bordure-legere);
 }
 
-/* Agrandissement au clic sur la vignette — même esprit qu'un lightbox minimal : fond sombre
-   plein écran, clic n'importe où (ou sur "Fermer") pour refermer. Pas de composant partagé avec
-   PanneauApercuPiece (CaptureTablette.jsx) : celui-là gère aussi le PDF/le rechargement réseau
-   pour n'importe quelle pièce, cette vignette-ci n'affiche qu'une image déjà en mémoire. */
+/* Agrandissement au clic sur la vignette (photo de la carte "Identité" ou du mode édition) — même
+   esprit qu'un lightbox minimal : fond sombre plein écran, clic n'importe où (ou sur "Fermer")
+   pour refermer. Pas de composant partagé avec PanneauApercuPiece (CaptureTablette.jsx) : celui-là
+   gère aussi le PDF/le rechargement réseau pour n'importe quelle pièce, cette vignette-ci
+   n'affiche qu'une image déjà en mémoire. */
 .informations-inscription__photo-identite-overlay {
   position: fixed;
   inset: 0;
@@ -249,34 +389,33 @@
   cursor: pointer;
 }
 
-/* Bouton "Modifier" (2026-08-18) : au-dessus des groupes, aligné à droite — même emplacement que
-   le bouton d'export ZIP de Validation.css (page-validation__pieces-entete), cohérent avec le
-   reste des écrans back-office qui posent leurs actions de section en haut à droite. */
-.informations-inscription__actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--espace-moyen);
-}
-
-.informations-inscription__actions button {
-  padding: 0.4rem 1rem;
-  border: 1px solid var(--couleur-back-office);
+/* ===== Mode édition — formulaire simple en groupes empilés, distinct des cartes ci-dessus (voir
+   commentaire d'en-tête du composant : pas de refonte visuelle demandée sur ce mode). ===== */
+.informations-inscription__groupe {
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office);
-  color: #ffffff;
-  font-size: 0.85rem;
-  cursor: pointer;
 }
 
-.informations-inscription__actions button:hover {
-  background-color: var(--couleur-back-office-hover);
+.informations-inscription__groupe h3 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-back-office);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
-/* Champ de formulaire (mode édition) — même ligne libellé/valeur que .informations-inscription__ligne
-   (hérite déjà de padding/bordure/font-size via la classe partagée, voir Champ() dans le .jsx),
-   seul l'alignement du contrôle change : à droite mais sans le figer à une largeur de texte fixe,
-   contrairement à .informations-inscription__valeur (juste du texte, jamais un <select>/une liste
-   de cases qui peut être plus large). */
+.informations-inscription__groupe .informations-inscription__ligne {
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.informations-inscription__groupe .informations-inscription__ligne:last-child {
+  border-bottom: none;
+}
+
+/* Champ de formulaire (mode édition) — même ligne libellé/valeur que
+   .informations-inscription__ligne, seul l'alignement du contrôle change : à droite mais sans le
+   figer à une largeur de texte fixe, contrairement à .informations-inscription__valeur (juste du
+   texte, jamais un <select>/une liste de cases qui peut être plus large). */
 .informations-inscription__champ {
   align-items: center;
   cursor: default;
@@ -322,7 +461,6 @@
    que edition est vrai, voir le .jsx) — erreur d'enregistrement affichée juste au-dessus, même
    emplacement que les autres formulaires du back-office (NotesDossier.css). */
 .informations-inscription__actions-edition {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: var(--espace-petit);
