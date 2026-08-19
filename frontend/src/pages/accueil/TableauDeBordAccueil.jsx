@@ -305,10 +305,12 @@ export default function TableauDeBordAccueil() {
                 // Style back-office accent (cadre séparé, dégradé brun/doré, largeur fixe forçant
                 // le retour à la ligne "Étudier / le / dossier") conservé tel quel malgré le
                 // retrait de Pièces/Relances/Replanifier (voir DossierList.css,
-                // .dossier-list__action--accent/--droite) : mise en forme déjà validée avant la
+                // .dossier-list__action--accent) : mise en forme déjà validée avant la
                 // simplification de la colonne Actions, pas de raison d'en changer maintenant que
-                // ce bouton y est seul.
-                alignerADroite: true,
+                // ce bouton y est seul. `alignerADroite` retiré (audit 2026-08-19) : poussait le
+                // bouton à l'extrême droite de la cellule, utile pour le distinguer des autres
+                // actions quand elles existaient encore — seul restant, il est maintenant centré
+                // via .dossier-list__actions (voir DossierList.css).
                 accent: true,
               },
             ]}

@@ -178,6 +178,7 @@
 .dossier-list__actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--espace-petit);
 }
 
