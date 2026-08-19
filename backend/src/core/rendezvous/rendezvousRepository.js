@@ -42,17 +42,38 @@ function trouverRendezvousParId(bd, entiteId, rendezvousId) {
 // évite au consommateur (écran coordination) une seconde requête par ligne. dossierId est déjà
 // vérifié comme appartenant à l'entité par rendezvousService avant d'appeler cette fonction,
 // même principe que pieceJustificativeRepository.listerPiecesParDossier.
+// note_planification (migration 049) exposée directement, colonne du rendez-vous lui-même — pas
+// de jointure nécessaire pour elle.
+// planifie_par_* : même mécanisme que cree_par_*/cree_le dans listerHistoriqueRendezvousParDossiers
+// ci-dessous (leftJoin journal_audit, rendezvous n'a lui-même aucune colonne auteur, voir migration
+// 018) — repris ici plutôt qu'une nouvelle colonne dédiée sur `rendezvous`, pour ne pas dupliquer
+// une traçabilité déjà fiable. planifie_par_role_libelle (roles.libelle, déjà en base pour le RBAC,
+// voir rbac.js) ajouté en plus de prenom/nom — aucune requête supplémentaire, une seule jointure de
+// plus sur une table déjà minuscule (quelques lignes). NULL pour tout rendez-vous sans entrée
+// journal_audit correspondante (même cas que cree_par_* : scripts de dev, migrations de données) —
+// à GestionRendezvous.jsx de composer l'affichage nom+rôle en conséquence, jamais en devinant.
 function listerRendezvousParDossier(bd, dossierId) {
   return bd('rendezvous')
     .leftJoin('motifs', 'motifs.id', 'rendezvous.motif_id')
+    .leftJoin('journal_audit as audit_planification', function () {
+      this.on('audit_planification.cible_id', '=', 'rendezvous.id')
+        .andOn('audit_planification.table_cible', '=', bd.raw('?', ['rendezvous']))
+        .andOnIn('audit_planification.action', ['rendezvous_cree', 'rendezvous_cree_avec_transitions']);
+    })
+    .leftJoin('utilisateurs as agent_planificateur', 'agent_planificateur.id', 'audit_planification.utilisateur_id')
+    .leftJoin('roles as role_planificateur', 'role_planificateur.id', 'agent_planificateur.role_id')
     .where({ 'rendezvous.dossier_id': dossierId })
     .select(
       'rendezvous.id',
       'rendezvous.type_rdv',
       'rendezvous.date_heure',
       'rendezvous.statut',
+      'rendezvous.note_planification',
       'motifs.code as motif_code',
       'motifs.libelle as motif_libelle',
+      'agent_planificateur.prenom as planifie_par_prenom',
+      'agent_planificateur.nom as planifie_par_nom',
+      'role_planificateur.libelle as planifie_par_role_libelle',
     )
     .orderBy('rendezvous.date_heure', 'desc');
 }
@@ -248,7 +269,14 @@ async function compterRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
 // mettreAJourStatutRendezvous. formateurId/lieuId peuvent être nuls (rendez-vous pas encore
 // assigné à un formateur, ou sans lieu précisé) : voir rendezvousService.creerRendezvous pour la
 // validation en amont (rôle formateur, lieu actif de l'entité).
-async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [] }) {
+// notePlanification : note libre optionnelle pour le formateur/inspecteur (migration 049) —
+// undefined/chaîne vide stockés NULL (?? null, jamais ''), pour que l'email/l'affichage puissent
+// se contenter d'un test de vérité simple (voir invitationTestService.js/GestionRendezvous.jsx)
+// plutôt que devoir aussi distinguer une chaîne vide d'une valeur absente.
+async function creerRendezvous(
+  bd,
+  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [], notePlanification },
+) {
   const [rendezvous] = await bd('rendezvous')
     .insert({
       dossier_id: dossierId,
@@ -261,6 +289,7 @@ async function creerRendezvous(bd, { dossierId, typeRdv, dateHeure, formateurId,
       // ne pas laisser le driver pg deviner la sérialisation d'un tableau JS pour une colonne
       // jsonb (migration 039).
       postes_selectionnes: JSON.stringify(postesSelectionnes),
+      note_planification: notePlanification || null,
     })
     .returning('*');
   return rendezvous;

@@ -163,6 +163,26 @@ export default function GestionRendezvous({ dossierId }) {
                   )}
                 </div>
 
+                {/* Note de planification (migration 049, ModalePlanificationTest.jsx) — propre à
+                    CE rendez-vous, distincte du bloc "Notes" général (NotesDossier.jsx) rendu plus
+                    bas sur la fiche dossier. Absente si aucune note saisie à la planification
+                    (rendezvous.note_planification NULL). Nom + rôle de l'agent qui l'a saisie
+                    (même format que NotesDossier.jsx, demande explicite) — dérivés de
+                    journal_audit (rendezvous n'a lui-même aucune colonne auteur, voir
+                    rendezvousRepository.listerRendezvousParDossier), absents ("agent non
+                    renseigné") pour un rendez-vous créé hors API (script de dev). */}
+                {rdv.note_planification && (
+                  <p className="gestion-rendezvous__note">
+                    <strong>Note de l&rsquo;agent :</strong> {rdv.note_planification}
+                    <span className="gestion-rendezvous__note-auteur">
+                      {' — '}
+                      {rdv.planifie_par_prenom
+                        ? `${rdv.planifie_par_prenom} ${rdv.planifie_par_nom} — ${rdv.planifie_par_role_libelle}`
+                        : 'agent non renseigné'}
+                    </span>
+                  </p>
+                )}
+
                 {actionsDisponibles && !enDesistementPourCeRdv && (
                   <div className="gestion-rendezvous__actions">
                     {rdv.statut === 'prevu' && (

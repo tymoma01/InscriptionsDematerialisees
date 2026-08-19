@@ -17,7 +17,18 @@ const invitationTestService = require('./invitationTestService');
 // plusieurs transitions.
 async function planifierRendezvousAvecTransitions(
   entite,
-  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, transitions, utilisateurId, roleCode },
+  {
+    dossierId,
+    typeRdv,
+    dateHeure,
+    formateurId,
+    lieuId,
+    postesSelectionnes,
+    notePlanification,
+    transitions,
+    utilisateurId,
+    roleCode,
+  },
 ) {
   const bd = await db.obtenirKnex();
 
@@ -31,7 +42,7 @@ async function planifierRendezvousAvecTransitions(
 
     const rendezvous = await rendezvousService.creerRendezvous(
       entite,
-      { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes },
+      { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, notePlanification },
       trx,
     );
 

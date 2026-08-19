@@ -40,6 +40,15 @@ const RENDEZVOUS_AVEC_FORMATEUR_ET_POSTES = {
   formateur_id: 7,
   postes_selectionnes: ['gouvernant', 'cafetier'],
 };
+// Note de planification (migration 049) — saisie par l'agent Accueil/Coordination à la
+// planification (ModalePlanificationTest.jsx), distincte des notes générales du dossier. Le test
+// ci-dessous vérifie qu'elle apparaît dans l'email FORMATEUR uniquement, jamais dans l'email
+// candidat (construireMessageEmail ne reçoit jamais ce champ, voir invitationTestService.js).
+const RENDEZVOUS_AVEC_FORMATEUR_ET_NOTE = {
+  ...RENDEZVOUS,
+  formateur_id: 7,
+  note_planification: 'Candidat très timide, à mettre en confiance dès le début du test.',
+};
 
 function mockerKnex(t) {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
@@ -320,6 +329,56 @@ test("envoyerInvitationTest n'affiche aucune ligne « Poste(s) » quand rendezvo
 
   const corpsCandidat = mailMock.mock.calls[0].arguments[2];
   assert.ok(!corpsCandidat.includes('Poste(s)'));
+});
+
+test("envoyerInvitationTest inclut « Note de l'agent : ... » dans l'email FORMATEUR quand rendezvous.note_planification est renseignée, jamais dans l'email candidat", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR_ET_NOTE);
+
+  assert.equal(mailMock.mock.calls.length, 2);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(!corpsCandidat.includes("Note de l'agent"));
+  assert.ok(!corpsCandidat.includes('timide'));
+
+  const corpsFormateur = mailMock.mock.calls[1].arguments[2];
+  assert.ok(
+    corpsFormateur.includes(
+      "Note de l'agent : Candidat très timide, à mettre en confiance dès le début du test.",
+    ),
+  );
+});
+
+test("envoyerInvitationTest n'affiche aucune ligne « Note de l'agent » dans l'email formateur quand rendezvous.note_planification est absente", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  const corpsFormateur = mailMock.mock.calls[1].arguments[2];
+  assert.ok(!corpsFormateur.includes("Note de l'agent"));
 });
 
 test("envoyerInvitationTest retombe sur LIEU_TEST_ACCECIT quand rendezvous.lieu_id est absent", async (t) => {

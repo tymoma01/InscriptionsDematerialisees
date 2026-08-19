@@ -45,6 +45,17 @@ function formaterLignePostesHtml(postesSelectionnes = []) {
   return `<p>Poste(s) : ${echapperHtml(libelles)}</p>`;
 }
 
+// Note libre optionnelle saisie par l'agent au moment de la planification de CE rendez-vous
+// (rendezvous.note_planification, migration 049, ModalePlanificationTest.jsx) — réservée à
+// l'email formateur/inspecteur (voir construireMessageEmailFormateur, jamais construireMessageEmail
+// côté candidat) : distincte du journal de notes générales du dossier (notes_dossier), jamais
+// incluse ici. Chaîne vide (pas de <p>) si aucune note renseignée pour ce rendez-vous précis —
+// même principe que formaterLignePostesHtml ci-dessus, pas de ligne "Note de l'agent :" vide.
+function formaterLigneNoteHtml(notePlanification) {
+  if (!notePlanification) return '';
+  return `<p>Note de l'agent : ${echapperHtml(notePlanification)}</p>`;
+}
+
 // adresse + metroAcces uniquement (pas `instructions`, plus long et réservé à l'email HTML, voir
 // formaterLignesLieuHtml) — arbitrage acté au passage aux champs structurés (migration 047).
 function construireMessageSms({ candidatPrenom, dateHeure, lieuAdresse, lieuMetroAcces }) {
@@ -95,6 +106,7 @@ function construireMessageEmailFormateur({
   lieuAdresse,
   lieuMetroAcces,
   postesSelectionnes,
+  notePlanification,
 }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
@@ -107,6 +119,9 @@ function construireMessageEmailFormateur({
       // précis, qui peu(ven)t différer des postes déclarés à l'inscription.
       formaterLignePostesHtml(postesSelectionnes) +
       `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces }, { inclureInstructions: false })}</p>` +
+      // Après date/poste(s)/lieu (demande explicite) — réservée à cet email, voir
+      // formaterLigneNoteHtml ci-dessus.
+      formaterLigneNoteHtml(notePlanification) +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
@@ -215,7 +230,14 @@ async function envoyerInvitationTest(entite, rendezvous) {
   if (formateur) {
     if (formateur.email) {
       try {
-        const { sujet, corps } = construireMessageEmailFormateur({ ...infos, formateurPrenom: formateur.prenom });
+        // notePlanification passée UNIQUEMENT ici, jamais dans `infos` (partagé avec l'email
+        // candidat construireMessageEmail ci-dessus) : réservée au formateur/inspecteur, voir
+        // formaterLigneNoteHtml.
+        const { sujet, corps } = construireMessageEmailFormateur({
+          ...infos,
+          formateurPrenom: formateur.prenom,
+          notePlanification: rendezvous.note_planification,
+        });
         await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
         formateurEmailEnvoye = true;
       } catch (erreur) {

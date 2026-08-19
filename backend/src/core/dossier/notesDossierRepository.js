@@ -4,9 +4,14 @@
 // Jointure sur utilisateurs pour exposer qui a écrit la note (pas seulement auteur_id) — même
 // principe que relanceRepository.listerRelancesParDossier. dossierId est déjà vérifié comme
 // appartenant à l'entité par notesDossierService avant d'appeler cette fonction.
+// Jointure supplémentaire sur roles (audit 2026-08-19, demande explicite : afficher le rôle de
+// l'agent à côté de son nom, ex. "Jeanne Dupont — Accueil / Coordination") — déjà en base pour le
+// RBAC (utilisateurs.role_id, voir rbac.js), aucune requête supplémentaire : une seule jointure de
+// plus sur une table minuscule (quelques lignes), pas un aller-retour réseau séparé.
 function listerNotesParDossier(bd, dossierId) {
   return bd('notes_dossier')
     .join('utilisateurs', 'utilisateurs.id', 'notes_dossier.auteur_id')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
     .where({ 'notes_dossier.dossier_id': dossierId })
     .select(
       'notes_dossier.id',
@@ -14,6 +19,7 @@ function listerNotesParDossier(bd, dossierId) {
       'notes_dossier.date_creation',
       'utilisateurs.prenom as auteur_prenom',
       'utilisateurs.nom as auteur_nom',
+      'roles.libelle as auteur_role_libelle',
     )
     .orderBy('notes_dossier.date_creation', 'desc');
 }
@@ -30,6 +36,7 @@ function listerNotesParDossiers(bd, entiteId, dossierIds) {
   return bd('notes_dossier')
     .join('dossiers', 'dossiers.id', 'notes_dossier.dossier_id')
     .join('utilisateurs', 'utilisateurs.id', 'notes_dossier.auteur_id')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
     .where('dossiers.entite_id', entiteId)
     .whereIn('notes_dossier.dossier_id', dossierIds)
     .select(
@@ -39,6 +46,7 @@ function listerNotesParDossiers(bd, entiteId, dossierIds) {
       'notes_dossier.date_creation',
       'utilisateurs.prenom as auteur_prenom',
       'utilisateurs.nom as auteur_nom',
+      'roles.libelle as auteur_role_libelle',
     )
     .orderBy('notes_dossier.date_creation', 'desc');
 }

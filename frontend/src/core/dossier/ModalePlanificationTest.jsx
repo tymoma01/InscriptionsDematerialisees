@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
 import { listerLieux, creerLieu, modifierLieu, listerRendezvousAssociesLieu, supprimerLieu } from '../../services/lieuService';
-import { creerRendezvousAvecTransitions, listerRendezvousTest } from '../../services/rendezvousService';
+import { creerRendezvousAvecTransitions, listerRendezvousTest, listerRendezvous } from '../../services/rendezvousService';
 import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
 import { dateDuJourParis } from './dateDuJourParis';
 import { trouverLieuSimilaire } from './detectionLieuSimilaire';
@@ -242,6 +242,14 @@ export default function ModalePlanificationTest({
   // devoir cliquer "Inspecteurs" à chaque planification d'un test bureau.
   const [groupeRole, setGroupeRole] = useState(() => (postesBureau.length > 0 ? 'inspecteur' : 'formateur'));
   const [formateurId, setFormateurId] = useState('');
+  // Note libre optionnelle pour le formateur/inspecteur assigné (migration 049) — distincte des
+  // notes générales du dossier (bloc "Notes" de la fiche candidat, NotesDossier.jsx) : propre à
+  // CE rendez-vous, envoyée dans l'email de convocation formateur/inspecteur uniquement (jamais
+  // au candidat, voir invitationTestService.js), remplacée à chaque nouvelle
+  // planification/replanification comme postesCoches ci-dessus — pas d'édition ultérieure hors
+  // replanification, cohérent avec le reste de ce formulaire (aucun champ ici n'est modifiable
+  // après coup en dehors d'une nouvelle ouverture de ce panneau).
+  const [notePlanification, setNotePlanification] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
 
@@ -277,6 +285,42 @@ export default function ModalePlanificationTest({
     setGroupeRole(postesBureau.length > 0 ? 'inspecteur' : 'formateur');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, JSON.stringify(postesBureau)]);
+
+  // Vide d'abord la note (même raison que les deux effets ci-dessus : une note tapée pour un
+  // premier candidat ne doit jamais rester affichée, ni a fortiori être pré-remplie, pour un
+  // second dossier ouvert sans fermer ce panneau) — puis reprend celle du rendez-vous de test
+  // actuellement actif pour CE dossier, s'il en existe un (replanification : ce rendez-vous est
+  // celui que la nouvelle planification va remplacer, voir rendezvousRepository.
+  // neutraliserRendezvousActifsDossier côté back). Reste vide si aucun rendez-vous de test actif
+  // n'existe (planification initiale, comportement inchangé).
+  //
+  // Ne teste PAS `codeAction` (jamais 'planifier_test'/'replanifier_test' en dur ici, voir
+  // Modularité CLAUDE.md) : ce composant ne sait pas pour quelle action il a été ouvert, il se
+  // contente de chercher s'il existe déjà un rendez-vous à remplacer et d'en reprendre la note —
+  // même résultat, sans connaître le vocabulaire de transitions d'ACCECIT.
+  useEffect(() => {
+    let annule = false;
+    setNotePlanification('');
+    listerRendezvous(dossierId)
+      .then((rendezvousDuDossier) => {
+        if (annule) return;
+        const rendezvousActif = rendezvousDuDossier.find(
+          (rdv) => rdv.type_rdv === 'test' && ['prevu', 'confirme'].includes(rdv.statut),
+        );
+        if (rendezvousActif?.note_planification) {
+          setNotePlanification(rendezvousActif.note_planification);
+        }
+      })
+      .catch(() => {
+        // Non bloquant : le champ reste simplement vide si cette recherche échoue (ex. rôle
+        // Formateur/Inspecteur sans accès à GET /rendezvous, voir ROLES_GESTION_RENDEZVOUS côté
+        // back — ce panneau n'est aujourd'hui ouvert que par Accueil/Coordination/Admin, mais
+        // rien ne doit bloquer la saisie manuelle d'une nouvelle note si cet appel échouait).
+      });
+    return () => {
+      annule = true;
+    };
+  }, [dossierId]);
 
   const togglerPoste = (code) => {
     setPostesCoches((precedent) => {
@@ -458,9 +502,15 @@ export default function ModalePlanificationTest({
     : creneauxJourSelectionne.filter((rendezvous) => new Date(rendezvous.date_heure).toISOString() === dateHeureChoisieIso).length;
   const creneauDejaPris = nombreDejaPresentsSurCreneau >= CAPACITE_MAX_FORMATEUR_PAR_CRENEAU;
 
+  // Lieu désormais obligatoire (audit 2026-08-19, décision produit) — '' (option "-") ou aucun
+  // lieu choisi bloque la confirmation, même garde-fou frontend que dateTest/formateurId
+  // ci-dessous. Le back revalide indépendamment (voir creationRendezvousSchema, rendezvous.routes.js) :
+  // ce composant ne fait ici que donner un retour immédiat à l'agent avant l'appel réseau.
+  const lieuManquant = !lieuId;
+
   const soumettre = async (evenement) => {
     evenement.preventDefault();
-    if (!dateTest || !heureTest || !minuteTest || !formateurId || envoiEnCours || creneauDejaPris) return;
+    if (!dateTest || !heureTest || !minuteTest || !formateurId || !lieuId || envoiEnCours || creneauDejaPris) return;
 
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
@@ -493,6 +543,10 @@ export default function ModalePlanificationTest({
         // alors sur l'adresse par défaut ACCECIT (voir invitationTestService.js, LIEU_TEST_ACCECIT).
         lieuId: lieuId ? Number(lieuId) : undefined,
         postesSelectionnes: [...postesCoches],
+        // '' (champ laissé vide, optionnel) -> undefined plutôt qu'une chaîne vide : le back
+        // stocke alors NULL (voir rendezvousRepository.creerRendezvous), jamais '' — cohérent
+        // avec lieuId ci-dessus.
+        notePlanification: notePlanification.trim() || undefined,
         transitions,
       });
     } catch (erreur) {
@@ -645,7 +699,9 @@ export default function ModalePlanificationTest({
                 contrairement aux formateurs, la liste de lieux n'est pas indispensable pour
                 planifier un test. */}
             <fieldset className="modale-planification-test__champ-lieu">
-              <legend>Lieu</legend>
+              <legend>
+                Lieu <span className="champ-obligatoire">*</span>
+              </legend>
               {chargementLieux ? (
                 <p className="modale-planification-test__lieu-etat">Chargement des lieux…</p>
               ) : erreurLieux ? (
@@ -893,12 +949,30 @@ export default function ModalePlanificationTest({
             </fieldset>
           )}
 
+          {/* Note libre optionnelle pour le formateur/inspecteur assigné (migration 049) —
+              distincte des notes générales du dossier (bloc "Notes" de la fiche candidat, jamais
+              modifié par ce formulaire). Envoyée uniquement dans l'email de convocation
+              formateur/inspecteur (voir invitationTestService.js), jamais au candidat, et non
+              modifiable après coup en dehors d'une replanification (même principe que
+              Poste(s) testé(s) ci-dessus). */}
+          <label className="modale-planification-test__champ-note">
+            <span>Note pour le formateur/inspecteur (optionnel)</span>
+            <textarea
+              value={notePlanification}
+              onChange={(evenement) => setNotePlanification(evenement.target.value)}
+              rows={3}
+              maxLength={2000}
+            />
+          </label>
+
           {creneauDejaPris && (
             <p role="alert">
               Ce formateur a déjà {CAPACITE_MAX_FORMATEUR_PAR_CRENEAU} candidats prévus à cet horaire (créneau
               complet). Choisissez un autre créneau.
             </p>
           )}
+
+          {lieuManquant && <p role="alert">Choisissez un lieu avant de confirmer la planification.</p>}
 
           {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
@@ -908,7 +982,9 @@ export default function ModalePlanificationTest({
             </button>
             <button
               type="submit"
-              disabled={envoiEnCours || !dateTest || !heureTest || !minuteTest || !formateurId || creneauDejaPris}
+              disabled={
+                envoiEnCours || !dateTest || !heureTest || !minuteTest || !formateurId || !lieuId || creneauDejaPris
+              }
             >
               {envoiEnCours ? 'Enregistrement...' : 'Confirmer la planification'}
             </button>

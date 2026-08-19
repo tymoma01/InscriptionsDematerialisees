@@ -54,6 +54,18 @@
   font-size: 0.9rem;
 }
 
+/* Note de planification (migration 049) — sous la ligne type/date/statut/motif, même taille que
+   .gestion-rendezvous__motif pour rester secondaire par rapport à ces informations principales. */
+.gestion-rendezvous__note {
+  margin: 0.4rem 0 0;
+  color: var(--couleur-texte);
+  font-size: 0.9rem;
+}
+
+.gestion-rendezvous__note-auteur {
+  color: var(--couleur-texte-secondaire);
+}
+
 .gestion-rendezvous__actions {
   display: flex;
   flex-wrap: wrap;

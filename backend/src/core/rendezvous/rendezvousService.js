@@ -271,7 +271,7 @@ async function listerHistoriqueRendezvousDossiers(entite, dossierIds) {
 // puisque purement informative pour le formateur, jamais utilisée pour une décision d'accès.
 async function creerRendezvous(
   entite,
-  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [] },
+  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [], notePlanification },
   bdExistante = null,
 ) {
   // Ne jamais se fier uniquement au front (calendrier grisé + <input min>, voir
@@ -352,6 +352,7 @@ async function creerRendezvous(
           formateurId: formateurIdValide,
           lieuId: lieuIdValide,
           postesSelectionnes,
+          notePlanification,
         }),
       );
 

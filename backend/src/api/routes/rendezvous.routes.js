@@ -48,11 +48,21 @@ const creationRendezvousSchema = z.object({
   typeRdv: z.string().trim().min(1),
   dateHeure: z.string().trim().datetime({ offset: true }),
   formateurId: idPositifSchema.optional(),
-  // Optionnel comme formateurId ci-dessus : un rendez-vous peut être créé sans lieu précisé,
-  // voir rendezvousService.creerRendezvous (retombe alors sur l'adresse par défaut ACCECIT,
-  // LIEU_TEST_ACCECIT).
-  lieuId: idPositifSchema.optional(),
+  // Obligatoire (audit 2026-08-19, décision produit — corrige le choix initial "optionnel" :
+  // repli silencieux sur LIEU_TEST_ACCECIT, voir invitationTestService.js, jugé trop permissif).
+  // Validation posée ICI, pas seulement côté formulaire (ModalePlanificationTest.jsx) : un appel
+  // API direct doit être refusé indépendamment de ce que l'UI empêche déjà — même principe que
+  // ROLES_MODIFICATION_INSCRIPTION dans dossiers.routes.js. rendezvousService.creerRendezvous
+  // garde son repli sur lieuIdValide = null pour les rendez-vous créés AVANT cette contrainte
+  // (lieu_id déjà NULL en base), pas pour en créer de nouveaux.
+  lieuId: idPositifSchema,
   postesSelectionnes: z.array(z.string().trim().min(1)).default([]),
+  // Note libre optionnelle pour le formateur/inspecteur assigné (ModalePlanificationTest.jsx,
+  // migration 049) — distincte du journal de notes générales du dossier (notes.routes.js).
+  // undefined -> stockée NULL (voir rendezvousRepository.creerRendezvous), jamais une chaîne
+  // vide en base : simplifie l'affichage conditionnel de la ligne "Note de l'agent :" côté email
+  // (voir invitationTestService.js) et du bloc "Rendez-vous" de la fiche dossier.
+  notePlanification: z.string().trim().max(2000).optional(),
 });
 
 // Une transition à appliquer juste après la création du rendez-vous, dans la même transaction
@@ -98,7 +108,8 @@ router.get('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next)
 router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes } = creationRendezvousSchema.parse(req.body);
+    const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, notePlanification } =
+      creationRendezvousSchema.parse(req.body);
 
     const rendezvous = await rendezvousService.creerRendezvous(req.entite, {
       dossierId,
@@ -107,6 +118,7 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
       formateurId,
       lieuId,
       postesSelectionnes,
+      notePlanification,
     });
 
     const bd = await obtenirKnex();
@@ -123,6 +135,7 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
         formateurId: formateurId ?? null,
         lieuId: lieuId ?? null,
         postesSelectionnes,
+        notePlanification: notePlanification ?? null,
       },
       adresseIp: req.ip,
     });
@@ -154,7 +167,7 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
 router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, transitions } =
+    const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, notePlanification, transitions } =
       creationAvecTransitionsSchema.parse(req.body);
 
     const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(req.entite, {
@@ -164,6 +177,7 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
       formateurId,
       lieuId,
       postesSelectionnes,
+      notePlanification,
       transitions,
       utilisateurId: req.utilisateur.id,
       roleCode: req.utilisateur.roleCode,
@@ -183,6 +197,7 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
         formateurId: formateurId ?? null,
         lieuId: lieuId ?? null,
         postesSelectionnes,
+        notePlanification: notePlanification ?? null,
         codesActions: transitions.map((transition) => transition.codeAction),
       },
       adresseIp: req.ip,

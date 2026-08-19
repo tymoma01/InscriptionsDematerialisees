@@ -335,6 +335,18 @@
   gap: 0.5rem;
 }
 
+/* Même style que .notes-dossier__formulaire textarea (NotesDossier.css) — cohérent avec l'autre
+   seul champ de texte libre déjà présent sur la fiche dossier, malgré un usage distinct (voir
+   ModalePlanificationTest.jsx pour la différence : propre au rendez-vous, jamais ajoutée au bloc
+   "Notes" général). */
+.modale-planification-test__champ-note textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+}
+
 .modale-planification-test__formulaire-actions {
   display: flex;
   gap: var(--espace-petit);

@@ -69,6 +69,7 @@ test('planifierRendezvousAvecTransitions crée le rendez-vous puis applique les 
       formateurId: 8,
       lieuId: 3,
       postesSelectionnes: undefined,
+      notePlanification: undefined,
     },
     TRX_FACTICE,
   ]);
@@ -125,6 +126,29 @@ test('planifierRendezvousAvecTransitions accepte une liste de transitions vide (
     notification: { emailEnvoye: false, smsEnvoye: false },
   });
   assert.equal(appliquerTransitionMock.mock.calls.length, 0);
+});
+
+test('planifierRendezvousAvecTransitions transmet notePlanification à rendezvousService.creerRendezvous quand elle est fournie (migration 049)', async (t) => {
+  mockerTransaction(t);
+  const creerRendezvousMock = t.mock.method(rendezvousService, 'creerRendezvous', async () => ({ id: 103 }));
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({}));
+  t.mock.method(invitationTestService, 'envoyerInvitationTest', async () => ({ emailEnvoye: true, smsEnvoye: false }));
+
+  await planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
+    dossierId: 62,
+    typeRdv: 'test',
+    dateHeure: '2026-07-24T09:30:00.000Z',
+    formateurId: 8,
+    notePlanification: 'Candidat très timide, à mettre en confiance.',
+    transitions: [],
+    utilisateurId: 3,
+    roleCode: 'accueil_coordination',
+  });
+
+  assert.equal(
+    creerRendezvousMock.mock.calls[0].arguments[1].notePlanification,
+    'Candidat très timide, à mettre en confiance.',
+  );
 });
 
 test("planifierRendezvousAvecTransitions n'envoie aucune convocation pour un rendez-vous qui n'est pas un test", async (t) => {

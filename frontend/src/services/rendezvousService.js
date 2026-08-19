@@ -45,7 +45,7 @@ export async function creerRendezvous(dossierId, { typeRdv, dateHeure, formateur
 // tableau vide par défaut si omis.
 export async function creerRendezvousAvecTransitions(
   dossierId,
-  { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, transitions },
+  { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, notePlanification, transitions },
 ) {
   const { data } = await api.post(`/dossiers/${dossierId}/rendezvous/avec-transitions`, {
     typeRdv,
@@ -53,6 +53,7 @@ export async function creerRendezvousAvecTransitions(
     formateurId,
     lieuId,
     postesSelectionnes,
+    notePlanification,
     transitions,
   });
   return data;

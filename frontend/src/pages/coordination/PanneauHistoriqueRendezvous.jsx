@@ -267,8 +267,14 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                 <ul>
                   {notesParDossier.get(groupe.dossierId).map((note) => (
                     <li key={note.id}>
+                      {/* Nom + rôle de l'auteur (ex. "Jeanne Dupont — Accueil / Coordination",
+                          audit 2026-08-19, demande explicite, même format que NotesDossier.jsx) —
+                          auteur_role_libelle vient de roles.libelle
+                          (notesDossierRepository.listerNotesParDossiers), déjà en base pour le
+                          RBAC. */}
                       <span className="panneau-historique-rendezvous__notes-dossier-meta">
-                        {FORMAT_DATE_HEURE.format(new Date(note.date_creation))} — {note.auteur_prenom} {note.auteur_nom}
+                        {FORMAT_DATE_HEURE.format(new Date(note.date_creation))} — {note.auteur_prenom}{' '}
+                        {note.auteur_nom} — {note.auteur_role_libelle}
                       </span>
                       <p>{note.contenu}</p>
                     </li>
