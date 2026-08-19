@@ -83,15 +83,21 @@ function listerRendezvousParDossier(bd, dossierId) {
       // planifie_par_* (rendez-vous créé hors API).
       'audit_planification.date_action as planifie_le',
     )
-    // Tri par date de PLANIFICATION (planifie_le, quand l'agent a enregistré ce rendez-vous),
-    // pas par date_heure (quand le test aura/a eu lieu) — audit 2026-08-19, demande explicite :
-    // avec plusieurs replanifications sur un même dossier, l'ordre du plus récent au plus ancien
-    // doit refléter l'ordre des ACTIONS de planification, pas l'ordre des créneaux de test choisis
-    // (un agent peut très bien replanifier un test à une date plus proche dans le temps que le
-    // rendez-vous qu'il remplace, ce qui inverserait l'ordre si on triait sur date_heure).
-    // NULLS LAST : un rendez-vous sans entrée journal_audit (planifie_le NULL, voir son commentaire
-    // plus haut — scripts de dev, migrations de données) retombe en fin de liste plutôt qu'en tête,
-    // pour ne pas faire passer une donnée non tracée avant les planifications réellement datées.
+    // Tri à deux niveaux (audit 2026-08-19, demande explicite) :
+    // 1. Le(s) rendez-vous ACTIF(S) (statut != 'remplace' — prevu/confirme/absent/annule, voir
+    //    GestionRendezvous.jsx varianteStatutRendezvous) toujours en tête, quelle que soit sa date
+    //    de planification par rapport aux rendez-vous 'remplace' plus récemment (re)planifiés :
+    //    trier uniquement par planifie_le plaçait sinon le rendez-vous actif au milieu de la
+    //    liste, entouré de rendez-vous 'remplace' plus récents en planification mais sans
+    //    pertinence pour l'agent (voir orderByRaw ci-dessous, `statut = 'remplace'` vaut false
+    //    pour l'actif, qui trie donc avant `true` en ASC).
+    // 2. Les rendez-vous 'remplace', ENTRE EUX, restent triés par date de PLANIFICATION
+    //    (planifie_le, quand l'agent a enregistré CE rendez-vous, pas date_heure — quand le test
+    //    aura/a eu lieu), du plus récent au plus ancien — tri déjà en place, conservé tel quel.
+    //    NULLS LAST : un rendez-vous sans entrée journal_audit (planifie_le NULL, voir son
+    //    commentaire plus haut — scripts de dev, migrations de données) retombe en fin de liste
+    //    plutôt qu'en tête.
+    .orderByRaw("(rendezvous.statut = 'remplace') asc")
     .orderBy([{ column: 'audit_planification.date_action', order: 'desc', nulls: 'last' }]);
 }
 

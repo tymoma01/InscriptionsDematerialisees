@@ -26,10 +26,67 @@
   gap: var(--espace-petit);
 }
 
+/* Timeline verticale (audit 2026-08-19, refonte visuelle) — item en ligne (colonne date à
+   gauche + contenu), bordure gauche épaisse colorée selon l'état (voir les deux modificateurs
+   ci-dessous) pour renforcer la lecture chronologique de haut en bas (déjà trié du plus récent
+   au plus ancien, voir rendezvousRepository.listerRendezvousParDossier). */
 .gestion-rendezvous__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espace-moyen);
   padding: var(--espace-moyen);
   border: 1px solid var(--couleur-bordure-legere);
+  border-left: 4px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
+}
+
+/* Rendez-vous actif (tout statut autre que 'remplace' — prevu/confirme/absent/annule sont tous
+   de vrais événements arrivés à CE rendez-vous, pas seulement 'prevu') : bordure d'accent
+   back-office, pleinement visible (opacité 1, comportement par défaut). */
+.gestion-rendezvous__item--actif {
+  border-left-color: var(--couleur-back-office-dore);
+}
+
+/* Rendez-vous remplacé par une replanification ultérieure : bordure neutre, opacité réduite pour
+   qu'il reste consultable (l'historique n'est jamais retiré) sans concurrencer visuellement le
+   rendez-vous actif de la liste — même principe que le badge "Remplacé" neutre gris (voir
+   varianteStatutRendezvous, GestionRendezvous.jsx), qui hérite lui aussi de cette opacité. */
+.gestion-rendezvous__item--remplace {
+  border-left-color: var(--couleur-bordure);
+  opacity: 0.7;
+}
+
+/* Colonne timeline : jour/mois du TEST en évidence, heure en dessous plus petite/discrète —
+   largeur fixe pour que toutes les lignes s'alignent verticalement quel que soit le nombre de
+   chiffres (ex. "05/08" vs "20/12" occupent la même largeur). */
+.gestion-rendezvous__timeline {
+  flex: 0 0 3.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 0.15rem;
+  text-align: center;
+}
+
+.gestion-rendezvous__timeline-jour {
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.15;
+  color: var(--couleur-back-office);
+}
+
+.gestion-rendezvous__timeline-heure {
+  font-size: 0.72rem;
+  line-height: 1.15;
+  color: var(--couleur-texte-secondaire);
+}
+
+.gestion-rendezvous__contenu {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .gestion-rendezvous__ligne {
@@ -45,43 +102,61 @@
   text-transform: capitalize;
 }
 
-.gestion-rendezvous__date {
-  color: var(--couleur-texte);
-}
-
 .gestion-rendezvous__motif {
   color: var(--couleur-texte-secondaire);
   font-size: 0.9rem;
 }
 
-/* Note de planification (migration 049) — sous la ligne type/date/statut/motif, même taille que
-   .gestion-rendezvous__motif pour rester secondaire par rapport à ces informations principales.
-   Le texte de la note (après les deux-points, hors .gestion-rendezvous__note-meta ci-dessous)
-   hérite de cette couleur "pleine" (--couleur-texte) — plus soutenue que le gris des métadonnées,
-   pour rester le contenu visuellement principal de la ligne (demande explicite, audit 2026-08-19 :
-   plus aucun gras sur cette ligne). */
-.gestion-rendezvous__note {
-  margin: 0.4rem 0 0;
+/* "Planifié le [date] à [heure] par [Nom] (Rôle)" — texte discret, sous la ligne de titre,
+   toujours présent dès qu'un auteur est connu (indépendant de la note ci-dessous). */
+.gestion-rendezvous__meta-planification {
+  margin: 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+}
+
+/* Note de planification du rendez-vous ACTIF — encart distinct (fond + bordure back-office
+   clair/doré, même famille de couleurs que .page-validation__action) pour qu'elle reste
+   pleinement visible sans se confondre avec le reste du texte de la ligne. */
+.gestion-rendezvous__note-encart {
+  padding: var(--espace-petit) var(--espace-moyen);
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+}
+
+.gestion-rendezvous__note-contenu {
+  margin: 0;
   color: var(--couleur-texte);
   font-size: 0.9rem;
 }
 
-/* Date/heure + "Nom (Rôle) :" — même ton que .notes-dossier__meta (NotesDossier.css), gris
-   discret, texte normal (aucun gras), pour rester secondaire par rapport au texte de la note
-   lui-même. */
-.gestion-rendezvous__note-meta {
+/* Note de planification d'un rendez-vous REMPLACÉ — repliée par défaut (<details>, voir .jsx) :
+   reste consultable sans jamais s'afficher d'emblée à côté du rendez-vous actif. */
+.gestion-rendezvous__note-repliee {
+  font-size: 0.85rem;
   color: var(--couleur-texte-secondaire);
+}
+
+.gestion-rendezvous__note-repliee summary {
+  cursor: pointer;
+}
+
+.gestion-rendezvous__note-repliee summary:hover {
+  text-decoration: underline;
+}
+
+.gestion-rendezvous__note-repliee .gestion-rendezvous__note-contenu {
+  margin-top: 0.3rem;
 }
 
 .gestion-rendezvous__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--espace-petit);
-  margin-top: var(--espace-petit);
 }
 
 .gestion-rendezvous__formulaire-motif {
-  margin-top: var(--espace-petit);
   padding-top: var(--espace-petit);
   border-top: 1px solid var(--couleur-bordure-legere);
   display: flex;
