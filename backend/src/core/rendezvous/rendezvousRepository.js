@@ -74,6 +74,14 @@ function listerRendezvousParDossier(bd, dossierId) {
       'agent_planificateur.prenom as planifie_par_prenom',
       'agent_planificateur.nom as planifie_par_nom',
       'role_planificateur.libelle as planifie_par_role_libelle',
+      // Date/heure de saisie de la note de planification (audit 2026-08-19, demande explicite) —
+      // même colonne journal_audit.date_action que cree_le dans
+      // listerHistoriqueRendezvousParDossiers ci-dessous : l'écriture de note_planification n'a
+      // lieu qu'à la création du rendez-vous (jamais modifiée après coup, voir
+      // ModalePlanificationTest.jsx), donc la date de CETTE entrée journal_audit est bien celle de
+      // la saisie de la note, pas seulement celle du rendez-vous. NULL dans le même cas que
+      // planifie_par_* (rendez-vous créé hors API).
+      'audit_planification.date_action as planifie_le',
     )
     .orderBy('rendezvous.date_heure', 'desc');
 }

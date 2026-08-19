@@ -94,10 +94,11 @@ export default function NotesDossier({ dossierId }) {
             <li key={note.id} className="notes-dossier__item">
               <p className="notes-dossier__contenu">{note.contenu}</p>
               <span className="notes-dossier__meta">
-                {/* Nom + rôle de l'auteur (ex. "Jeanne Dupont — Accueil / Coordination", audit
-                    2026-08-19, demande explicite) — auteur_role_libelle vient de roles.libelle
-                    (notesDossierRepository.js), déjà en base pour le RBAC, jamais deviné ici. */}
-                {note.auteur_prenom} {note.auteur_nom} — {note.auteur_role_libelle} -{' '}
+                {/* "Nom (Rôle) _ date et heure" (ex. "Jeanne Dupont (Accueil / Coordination) _
+                    05/08/2026 16:09", audit 2026-08-19, demande explicite) — auteur_role_libelle
+                    vient de roles.libelle (notesDossierRepository.js), déjà en base pour le RBAC,
+                    jamais deviné ici. */}
+                {note.auteur_prenom} {note.auteur_nom} ({note.auteur_role_libelle}) _{' '}
                 {FORMAT_DATE.format(new Date(note.date_creation))}
               </span>
             </li>

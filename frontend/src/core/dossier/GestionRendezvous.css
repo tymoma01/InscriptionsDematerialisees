@@ -55,11 +55,22 @@
 }
 
 /* Note de planification (migration 049) — sous la ligne type/date/statut/motif, même taille que
-   .gestion-rendezvous__motif pour rester secondaire par rapport à ces informations principales. */
+   .gestion-rendezvous__motif pour rester secondaire par rapport à ces informations principales.
+   Le texte de la note (après les deux-points, hors .gestion-rendezvous__note-meta ci-dessous)
+   hérite de cette couleur "pleine" (--couleur-texte) — plus soutenue que le gris des métadonnées,
+   pour rester le contenu visuellement principal de la ligne (demande explicite, audit 2026-08-19 :
+   plus aucun gras sur cette ligne). */
 .gestion-rendezvous__note {
   margin: 0.4rem 0 0;
   color: var(--couleur-texte);
   font-size: 0.9rem;
+}
+
+/* Date/heure + "Nom (Rôle) :" — même ton que .notes-dossier__meta (NotesDossier.css), gris
+   discret, texte normal (aucun gras), pour rester secondaire par rapport au texte de la note
+   lui-même. */
+.gestion-rendezvous__note-meta {
+  color: var(--couleur-texte-secondaire);
 }
 
 .gestion-rendezvous__actions {

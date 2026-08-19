@@ -166,21 +166,28 @@ export default function GestionRendezvous({ dossierId }) {
                 {/* Note de planification (migration 049, ModalePlanificationTest.jsx) — propre à
                     CE rendez-vous, distincte du bloc "Notes" général (NotesDossier.jsx) rendu plus
                     bas sur la fiche dossier. Absente si aucune note saisie à la planification
-                    (rendezvous.note_planification NULL). "Note de Nom (Rôle) : texte" (audit
-                    2026-08-19, demande explicite — remplace l'ancien "Note de l'agent : texte —
-                    Nom — Rôle") : nom + rôle de l'agent qui a planifié CE rendez-vous précis,
-                    dérivés de journal_audit (rendezvous n'a lui-même aucune colonne auteur, voir
-                    rendezvousRepository.listerRendezvousParDossier), en gras jusqu'aux
-                    deux-points, texte de la note en dehors du gras. Repli "Note (agent non
-                    renseigné) :" pour un rendez-vous créé hors API (script de dev), sans nom à
-                    afficher. */}
+                    (rendezvous.note_planification NULL). "Date Heure _ Nom (Rôle) : texte" (audit
+                    2026-08-19, demande explicite) : date/heure + nom + rôle de l'agent qui a
+                    planifié CE rendez-vous précis, dérivés de journal_audit (rendezvous n'a
+                    lui-même aucune colonne auteur/date de saisie, voir rendezvousRepository.
+                    listerRendezvousParDossier). Plus aucun gras (demande explicite, revient sur un
+                    choix précédent) : la métadonnée (date/heure + nom (rôle)) en gris discret,
+                    même ton que .notes-dossier__meta (NotesDossier.css), le texte de la note
+                    lui-même dans la couleur de texte "pleine" (--couleur-texte, plus soutenue que
+                    le gris) pour rester le contenu visuellement principal de la ligne — mêmes
+                    tokens que .notes-dossier__contenu/-meta, cohérent avec le reste du bloc
+                    "Rendez-vous". Repli "(agent non renseigné)" sans date, pour un rendez-vous créé
+                    hors API (script de dev, planifie_le NULL dans ce même cas). */}
                 {rdv.note_planification && (
                   <p className="gestion-rendezvous__note">
-                    <strong>
+                    <span className="gestion-rendezvous__note-meta">
+                      {rdv.planifie_par_prenom && rdv.planifie_le && (
+                        <>{FORMAT_DATE.format(new Date(rdv.planifie_le))} _ </>
+                      )}
                       {rdv.planifie_par_prenom
-                        ? `Note de ${rdv.planifie_par_prenom} ${rdv.planifie_par_nom} (${rdv.planifie_par_role_libelle}) :`
-                        : 'Note (agent non renseigné) :'}
-                    </strong>{' '}
+                        ? `${rdv.planifie_par_prenom} ${rdv.planifie_par_nom} (${rdv.planifie_par_role_libelle}) :`
+                        : '(agent non renseigné) :'}
+                    </span>{' '}
                     {rdv.note_planification}
                   </p>
                 )}
