@@ -4,44 +4,12 @@ import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
-import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest';
+import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import './TableauDeBordAccueil.css';
-
-// Code de la transition qui replanifie un test après un désistement (test_non_realise) ou un
-// test invalidé (workflow v3 : les deux origines partagent ce même codeAction, vers
-// test_planifie, voir workflow.config.json ACCECIT) — voir ModalePlanificationTest.jsx, qui ne
-// connaît lui-même aucun statut ni codeAction en dur, c'est cette page qui décide depuis quelle
-// action elle l'ouvre. Le moteur de transitions (workflowEngine.appliquerTransition) résout la
-// bonne ligne transitions_statut à partir du statut réel du dossier, jamais choisie ici.
-const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
-
-// Statuts depuis lesquels le bouton "Replanifier" est proposé (voir Modularité, CLAUDE.md : reste
-// propre à cette page/entité, pas au moteur générique DossierList). "invalide" remplace
-// "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif). "test_planifie"
-// ajouté (workflow v4, retrait de en_attente_verdict, responsable de projet, 2026-07-31) : la
-// replanification doit rester possible à tout moment tant que le dossier est encore test_planifie
-// (pas de restriction de délai) — le codeAction replanifier_test porte alors une transition vers
-// ce même statut (voir workflow.config.json), pas un changement d'état à proprement parler.
-const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide'];
-
-// Statuts pour lesquels le bouton "Relances" a un sens concret pour l'agent Accueil — au-delà
-// (dossier transmis au recruteur, verdict rendu, décision finale prise), la relance sort de son
-// périmètre d'action, même logique de restriction que STATUTS_REPLANIFIABLES ci-dessus. Liste
-// explicite plutôt que des conditions if/else dispersées dans le JSX : un seul endroit à modifier
-// si le périmètre change, cohérent avec les autres listes de cette page (CODES_STATUTS_FILTRES_
-// ACCUEIL, STATUTS_REPLANIFIABLES). "Pièces", lui, reste affiché pour tous les statuts sans
-// exception (consultation des pièces déjà capturées toujours possible, même hors périmètre) —
-// pas de `visible` sur cette action.
-// "nouveau" absent : plus aucun dossier ne peut atteindre ce statut aujourd'hui (voir
-// CODES_STATUTS_FILTRES_ACCUEIL, audit 2026-08-19) — n'apparaît de toute façon plus dans la liste
-// filtrée par statut, cette entrée ne sert donc plus qu'à documenter l'historique du choix.
-// "invalide" ajouté (workflow v3) : même logique que test_non_realise, une relance a un sens tant
-// qu'une replanification est possible sur ce dossier.
-const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test_non_realise', 'invalide'];
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
@@ -103,9 +71,9 @@ function libellePoste(code) {
 const CODES_STATUTS_FILTRES_ACCUEIL = [
   'en_attente_pieces',
   'test_planifie',
-  // Ajouté avec le bouton "Replanifier" (voir STATUTS_REPLANIFIABLES ci-dessous) : permet à
-  // l'accueil d'isoler d'un coup les dossiers en attente de replanification après un test
-  // invalidé, sans devoir les repérer dans la liste complète. "invalide" remplace
+  // Permet à l'accueil d'isoler d'un coup les dossiers en attente de replanification après un
+  // test invalidé, sans devoir les repérer dans la liste complète (voir Validation.jsx,
+  // STATUTS_REPLANIFIABLES, pour l'action "Replanifier" elle-même). "invalide" remplace
   // "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif).
   'test_non_realise',
   'invalide',
@@ -117,32 +85,36 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
 ];
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
-// dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Jusqu'à
-// quatre actions par ligne : reprendre la prise de pièces (VerificationPieces, tous statuts),
-// consulter/enregistrer une relance (Relances, historique des relances — voir
-// HistoriqueRelances.jsx — restreint aux statuts où une relance a un sens, voir
-// STATUTS_RELANCES_AUTORISEES), replanifier un test (voir STATUTS_REPLANIFIABLES), et étudier le
-// dossier (Validation.jsx : pièces + export ZIP + transitions + notes + informations
-// d'inscription complètes, tous statuts) — fusion de l'ancien Back-office recruteur
-// (/recruteur/dossiers, supprimé) dans cette page, seule différence relevée à l'audit entre les
-// deux tableaux (mêmes colonnes, mêmes filtres, même route API GET /api/dossiers, mêmes rôles
-// ROLES_CONSULTATION_DOSSIERS côté back).
+// dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Une
+// seule action par ligne, "Étudier le dossier" (Validation.jsx : pièces + export ZIP +
+// transitions + notes + informations d'inscription complètes, tous statuts) — fusion de l'ancien
+// Back-office recruteur (/recruteur/dossiers, supprimé) dans cette page, seule différence relevée
+// à l'audit entre les deux tableaux (mêmes colonnes, mêmes filtres, même route API
+// GET /api/dossiers, mêmes rôles ROLES_CONSULTATION_DOSSIERS côté back).
+// Les actions "Pièces"/"Relances"/"Replanifier", auparavant directement sur cette ligne,
+// vivent désormais sur la fiche dossier elle-même (audit 2026-08-19, colonne Actions surchargée
+// sur tablette — jusqu'à 4 boutons par ligne) : voir Validation.jsx, qui reste le seul et même
+// écran de destination, pour ne pas éclater la fiche dossier en plusieurs pages divergentes selon
+// l'entrée utilisée.
 export default function TableauDeBordAccueil() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState([]);
-  const [statutFiltre, setStatutFiltre] = useState(null); // null = tous les statuts
+  // Filtres persistés dans l'URL (query params) plutôt qu'en state React local (CLAUDE.md, retour
+  // arrière navigateur depuis une fiche dossier : le filtre actif ne doit pas se perdre) — voir
+  // useParametreURL.js. null = tous les statuts (comportement par défaut inchangé).
+  const [statutFiltre, setStatutFiltre] = useParametreURL('statut', null);
   const [dossiers, setDossiers] = useState([]);
   const [chargementDossiers, setChargementDossiers] = useState(true);
   const [erreur, setErreur] = useState(null);
 
-  // Recherche nom/prénom + plage de date, combinées au statutFiltre déjà géré côté serveur
-  // ci-dessus — filtrage entièrement client (voir filtrerDossiers.js), la liste `dossiers` étant
-  // déjà intégralement en mémoire.
-  const [recherche, setRecherche] = useState('');
-  const [dateDebutFiltre, setDateDebutFiltre] = useState('');
-  const [dateFinFiltre, setDateFinFiltre] = useState('');
+  // Recherche nom/prénom + plage de date, combinées au statutFiltre ci-dessus — filtrage
+  // entièrement client (voir filtrerDossiers.js), la liste `dossiers` étant déjà intégralement en
+  // mémoire.
+  const [recherche, setRecherche] = useParametreURL('q', '');
+  const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
+  const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
 
   // Filtre "Entité" (Hôtellerie/Tertiaire) — même patron que Backoffice.jsx (recruteur) : deux
   // boutons indépendamment activables, jamais d'option "Toutes" dédiée (ferait doublon avec le
@@ -150,20 +122,7 @@ export default function TableauDeBordAccueil() {
   // Filtrage entièrement client (dossier.postesHotel/postesBureau déjà présents sur chaque
   // dossier renvoyé par GET /api/dossiers, voir filtrerDossiers.js), même mécanisme que
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
-  const [entitesFiltre, setEntitesFiltre] = useState(() => new Set());
-
-  function basculerEntiteFiltre(code) {
-    setEntitesFiltre((precedent) => {
-      const suivant = new Set(precedent);
-      if (suivant.has(code)) suivant.delete(code);
-      else suivant.add(code);
-      return suivant;
-    });
-  }
-
-  // Dossier sélectionné pour une replanification, ou null si le panneau est fermé — voir bouton
-  // "Replanifier" plus bas et ModalePlanificationTest.jsx.
-  const [dossierAReplanifier, setDossierAReplanifier] = useState(null);
+  const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
 
   useEffect(() => {
     listerStatuts()
@@ -198,15 +157,6 @@ export default function TableauDeBordAccueil() {
       annule = true;
     };
   }, []);
-
-  // Rechargement manuel après une replanification réussie (voir plus bas) : le dossier a changé
-  // de statut (→ test_planifie), la vue filtrée par statut ainsi que les compteurs doivent
-  // refléter ce changement.
-  const rechargerDossiers = () => {
-    listerDossiers()
-      .then(setDossiers)
-      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les dossiers.'));
-  };
 
   // Recherche/dates uniquement (pas encore l'entité ni le statut) : base commune aux compteurs
   // "Hôtellerie"/"Tertiaire" ci-dessous, qui doivent chacun ignorer l'état courant du filtre
@@ -349,44 +299,19 @@ export default function TableauDeBordAccueil() {
             varianteStatut={varianteStatut}
             libellePoste={libellePoste}
             actions={[
-              { libelle: 'Pièces', onSelectionner: (dossier) => navigate(`/accueil/dossiers/${dossier.id}/pieces`) },
-              {
-                libelle: 'Relances',
-                onSelectionner: (dossier) => navigate(`/coordination/dossiers/${dossier.id}/relances`),
-                visible: (dossier) => STATUTS_RELANCES_AUTORISEES.includes(dossier.statut_code),
-              },
-              {
-                libelle: 'Replanifier',
-                onSelectionner: (dossier) => setDossierAReplanifier(dossier),
-                visible: (dossier) => STATUTS_REPLANIFIABLES.includes(dossier.statut_code),
-              },
               {
                 libelle: 'Étudier le dossier',
                 onSelectionner: (dossier) => navigate(`/recruteur/dossiers/${dossier.id}/validation`),
-                // Toujours à l'extrême droite de la colonne Actions (voir DossierList.css) et
-                // dans l'accent visuel back-office, pour rester repérable au premier coup d'œil
-                // parmi Pièces/Relances/Replanifier — mêmes leviers génériques que DossierList.jsx
-                // expose pour n'importe quelle action, pas propres à celle-ci.
+                // Style back-office accent (cadre séparé, dégradé brun/doré, largeur fixe forçant
+                // le retour à la ligne "Étudier / le / dossier") conservé tel quel malgré le
+                // retrait de Pièces/Relances/Replanifier (voir DossierList.css,
+                // .dossier-list__action--accent/--droite) : mise en forme déjà validée avant la
+                // simplification de la colonne Actions, pas de raison d'en changer maintenant que
+                // ce bouton y est seul.
                 alignerADroite: true,
                 accent: true,
               },
             ]}
-          />
-        )}
-
-        {dossierAReplanifier && (
-          <ModalePlanificationTest
-            dossierId={dossierAReplanifier.id}
-            codeAction={CODE_ACTION_REPLANIFIER_TEST}
-            titre={`Replanifier un test - ${dossierAReplanifier.candidat_prenom} ${dossierAReplanifier.candidat_nom}`}
-            postesBureau={dossierAReplanifier.postesBureau}
-            postesHotel={dossierAReplanifier.postesHotel}
-            libellePoste={libellePoste}
-            onAnnuler={() => setDossierAReplanifier(null)}
-            onReussite={() => {
-              setDossierAReplanifier(null);
-              rechargerDossiers();
-            }}
           />
         )}
       </div>

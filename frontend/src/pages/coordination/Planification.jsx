@@ -5,6 +5,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
+import { useParametreURL } from '../../core/filtres/useParametreURL';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
@@ -128,11 +129,17 @@ export default function Planification() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
-  const [aVenirSeulement, setAVenirSeulement] = useState(true);
-  const [formateurFiltre, setFormateurFiltre] = useState(''); // '' = tous les formateurs
+  // Filtres persistés dans l'URL (query params), même mécanisme que TableauDeBordAccueil.jsx —
+  // voir useParametreURL.js (CLAUDE.md, cohérence entre pages de filtres similaires). `a_venir`
+  // sérialisé en '1'/'0' plutôt qu'un booléen natif (les query params sont toujours des chaînes) ;
+  // '1' est la valeur par défaut donc jamais écrite dans l'URL (voir useParametreURL.js).
+  const [aVenirBrut, setAVenirBrut] = useParametreURL('a_venir', '1');
+  const aVenirSeulement = aVenirBrut !== '0';
+  const setAVenirSeulement = (valeur) => setAVenirBrut(valeur ? '1' : '0');
+  const [formateurFiltre, setFormateurFiltre] = useParametreURL('formateur', ''); // '' = tous les formateurs
   const [formateurs, setFormateurs] = useState([]);
   // Recherche élargie (nom/prénom, n° dossier, poste) — voir rechercheCorrespond ci-dessus.
-  const [recherche, setRecherche] = useState('');
+  const [recherche, setRecherche] = useParametreURL('q', '');
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =

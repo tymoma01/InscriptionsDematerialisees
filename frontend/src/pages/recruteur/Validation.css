@@ -3,6 +3,11 @@
 .page-validation__titre-ligne {
   display: flex;
   align-items: center;
+  /* Pousse le badge de statut (StatutBadge, voir Validation.jsx) à l'extrême droite de la ligne
+     de titre — space-between reste correct même si un futur troisième enfant s'ajoutait un jour
+     (h1 grandirait, le dernier enfant resterait collé à droite), contrairement à un
+     margin-left: auto posé sur le badge lui-même. */
+  justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--espace-moyen);
   margin: 0 0 var(--espace-grand);
@@ -11,6 +16,20 @@
 .page-validation__titre-ligne h1 {
   margin: 0;
   color: var(--couleur-back-office);
+}
+
+/* Regroupe "Statut :" et le badge (voir Validation.jsx, StatutBadge) pour qu'ils restent collés
+   l'un à l'autre à l'extrême droite de la ligne de titre. */
+.page-validation__statut {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.page-validation__statut-libelle {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 
 /* Format "NOM Prénom" classique, même convention que .capture-tablette__candidat-nom
@@ -126,4 +145,75 @@
 
 .page-validation [role='alert'] {
   color: var(--couleur-erreur);
+}
+
+/* Style d'action partagé par les trois actions de la fiche dossier déplacées depuis
+   TableauDeBordAccueil.jsx (audit 2026-08-19) — "Gérer les pièces justificatives" (<Link>),
+   "Replanifier un test" (<button>) et "Voir l'historique et enregistrer une relance" (<Link>) :
+   même classe sur les trois plutôt qu'une par action (ex-.page-validation__lien-pieces/
+   -lien-relances, ex-.page-validation__rendezvous-entete button, règles identiques dupliquées
+   trois fois) pour qu'elles restent visuellement interchangeables — un agent qui repère l'une
+   doit reconnaître les deux autres comme la même famille d'action, indépendamment du fait que
+   l'une ouvre une modale en place et les deux autres naviguent. Sélecteur de balise (`a`/`button`)
+   plutôt que deux classes séparées : un <button> n'a pas de soulignement à retirer
+   (`text-decoration`, propre aux liens) donc pas besoin d'y penser à chaque nouvel appelant. */
+a.page-validation__action,
+button.page-validation__action {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.page-validation__action:hover,
+button.page-validation__action:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
+}
+
+/* Sections "Rendez-vous"/"Relances" (actions déplacées depuis TableauDeBordAccueil.jsx, audit
+   2026-08-19) — même carte que .page-validation__pieces/.gestion-transitions ci-dessus, pour
+   rester visuellement cohérent avec le reste de la fiche dossier. */
+.page-validation__rendezvous,
+.page-validation__relances {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.page-validation__rendezvous h2,
+.page-validation__relances h2 {
+  color: var(--couleur-back-office);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.page-validation__rendezvous-entete,
+.page-validation__relances-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+}
+
+.page-validation__rendezvous-entete h2,
+.page-validation__relances-entete h2 {
+  margin: 0;
+}
+
+.page-validation__rendezvous-indisponible,
+.page-validation__relances-indisponible {
+  color: var(--couleur-texte-secondaire);
+  margin: var(--espace-moyen) 0 0;
 }
