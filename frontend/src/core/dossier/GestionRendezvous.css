@@ -62,10 +62,6 @@
   font-size: 0.9rem;
 }
 
-.gestion-rendezvous__note-auteur {
-  color: var(--couleur-texte-secondaire);
-}
-
 .gestion-rendezvous__actions {
   display: flex;
   flex-wrap: wrap;

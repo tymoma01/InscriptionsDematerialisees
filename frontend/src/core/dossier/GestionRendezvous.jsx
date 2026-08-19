@@ -166,20 +166,22 @@ export default function GestionRendezvous({ dossierId }) {
                 {/* Note de planification (migration 049, ModalePlanificationTest.jsx) — propre à
                     CE rendez-vous, distincte du bloc "Notes" général (NotesDossier.jsx) rendu plus
                     bas sur la fiche dossier. Absente si aucune note saisie à la planification
-                    (rendezvous.note_planification NULL). Nom + rôle de l'agent qui l'a saisie
-                    (même format que NotesDossier.jsx, demande explicite) — dérivés de
-                    journal_audit (rendezvous n'a lui-même aucune colonne auteur, voir
-                    rendezvousRepository.listerRendezvousParDossier), absents ("agent non
-                    renseigné") pour un rendez-vous créé hors API (script de dev). */}
+                    (rendezvous.note_planification NULL). "Note de Nom (Rôle) : texte" (audit
+                    2026-08-19, demande explicite — remplace l'ancien "Note de l'agent : texte —
+                    Nom — Rôle") : nom + rôle de l'agent qui a planifié CE rendez-vous précis,
+                    dérivés de journal_audit (rendezvous n'a lui-même aucune colonne auteur, voir
+                    rendezvousRepository.listerRendezvousParDossier), en gras jusqu'aux
+                    deux-points, texte de la note en dehors du gras. Repli "Note (agent non
+                    renseigné) :" pour un rendez-vous créé hors API (script de dev), sans nom à
+                    afficher. */}
                 {rdv.note_planification && (
                   <p className="gestion-rendezvous__note">
-                    <strong>Note de l&rsquo;agent :</strong> {rdv.note_planification}
-                    <span className="gestion-rendezvous__note-auteur">
-                      {' — '}
+                    <strong>
                       {rdv.planifie_par_prenom
-                        ? `${rdv.planifie_par_prenom} ${rdv.planifie_par_nom} — ${rdv.planifie_par_role_libelle}`
-                        : 'agent non renseigné'}
-                    </span>
+                        ? `Note de ${rdv.planifie_par_prenom} ${rdv.planifie_par_nom} (${rdv.planifie_par_role_libelle}) :`
+                        : 'Note (agent non renseigné) :'}
+                    </strong>{' '}
+                    {rdv.note_planification}
                   </p>
                 )}
 
