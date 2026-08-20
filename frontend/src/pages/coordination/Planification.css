@@ -49,18 +49,34 @@
 }
 
 /* Même patron que .planification__filtre-formateur ci-dessus (label + champ, même padding/
-   bordure/rayon que le select voisin) — recherche élargie (nom/prénom, n° dossier, poste), à
-   côté des filtres "À venir uniquement"/Formateur existants (voir rechercheCorrespond,
-   Planification.jsx). */
+   bordure/rayon que le select voisin) — recherche élargie (nom/prénom, n° dossier, poste,
+   formateur), à côté des filtres "À venir uniquement"/Formateur existants (voir
+   rechercheCorrespond, Planification.jsx).
+   flex: 1 1 18rem (audit 2026-08-20) : absorbe l'espace restant de la ligne de filtres (voir
+   .planification__filtres ci-dessus) pour aligner Du/Au à l'extrême droite plutôt que juste après
+   ce champ — même intention que .filtres-recherche-dossiers__recherche (Dossiers candidats,
+   FiltresRechercheDossiers.css), qui grandit déjà ainsi ; Du/Au restent eux flex-shrink: 0 (voir
+   FiltrePlageDate.css), donc tout l'espace gagné ici revient bien à ce champ, pas à eux. Pas de
+   min-width explicite sur ce label : le plancher de 18rem de l'input ci-dessous suffit déjà (un
+   flex item sans min-width ne rétrécit jamais sous la taille de son contenu) — en dessous de ce
+   plancher, .planification__filtres (flex-wrap) fait passer ce champ à la ligne suivante plutôt
+   que de l'écraser ou d'écraser ses voisins (même comportement déjà en place pour Du/Au sur un
+   écran étroit). */
 .planification__filtre-recherche {
   display: flex;
   align-items: center;
   gap: var(--espace-petit);
+  flex: 1 1 18rem;
 }
 
 .planification__filtre-recherche input {
   /* Élargi (2026-08-17) pour le nouveau placeholder, plus long que l'ancien "Nom ou prénom" —
-     sans largeur minimale, le champ par défaut du navigateur (~20 caractères) le tronquait. */
+     sans largeur minimale, le champ par défaut du navigateur (~20 caractères) le tronquait. Sert
+     aussi de plancher au flex-grow du <label> parent ci-dessus (jamais plus étroit que 18rem,
+     quelle que soit la largeur d'écran). flex: 1 pour que ce soit l'input, pas le span
+     "Rechercher" à côté, qui absorbe la largeur gagnée par le label — sans quoi cette largeur
+     resterait un vide entre le texte et le champ. */
+  flex: 1;
   min-width: 18rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--couleur-bordure);
@@ -316,4 +332,40 @@
   color: var(--couleur-texte-secondaire);
   font-size: 0.8rem;
   white-space: nowrap;
+}
+
+/* Cellule Actions : même patron que .dossier-list__actions (DossierList.css) — centre le bouton
+   dans la cellule, contrairement au reste du tableau resté aligné à gauche
+   (.planification__table th, .planification__table td). */
+.planification__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Même cadre que "Étudier le dossier" (.dossier-list__action--accent, DossierList.css) : largeur
+   fixe, padding, rayon de bordure, ombre, police et transition identiques — seule la couleur
+   change, pour distinguer visuellement les deux actions tout en restant cohérent avec la charte.
+   Dégradé bleu ACCECIT (--couleur-primaire, couleur de marque extraite du logo) plutôt que le
+   brun/doré du back-office, déjà utilisé par "Étudier le dossier" : les deux boutons ouvrent un
+   dossier depuis des tableaux back-office différents (Suivi des tests vs Dossiers candidats),
+   sans lien de hiérarchie entre eux qui justifierait de partager la même teinte. */
+.planification__action-voir {
+  flex: 0 0 4.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-primaire), var(--couleur-primaire-hover));
+  color: #ffffff;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.planification__action-voir:hover,
+.planification__action-voir:focus-visible {
+  filter: brightness(0.92);
 }

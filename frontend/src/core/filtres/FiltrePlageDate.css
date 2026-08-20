@@ -1,0 +1,21 @@
+/* Déplacé depuis FiltresRechercheDossiers.css (Dossiers candidats) sans changement de règle — voir
+   FiltrePlageDate.jsx pour le pourquoi de l'extraction. Chaque page appelante l'insère dans sa
+   propre barre de filtres (flex, gap déjà posé par le conteneur parent), donc aucune règle de
+   disposition de ligne ici, seulement l'apparence de chaque champ Du/Au. */
+.filtre-plage-date {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.filtre-plage-date input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+}

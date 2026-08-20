@@ -27,20 +27,5 @@
   font: inherit;
 }
 
-.filtres-recherche-dossiers__date {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-shrink: 0;
-  color: var(--couleur-texte-secondaire);
-  font-size: 0.85rem;
-}
-
-.filtres-recherche-dossiers__date input {
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--couleur-bordure);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-fond);
-  color: var(--couleur-texte);
-  font: inherit;
-}
+/* Champs "Du"/"Au" : voir core/filtres/FiltrePlageDate.css (composant partagé avec
+   Planification.jsx, plus de règle .filtres-recherche-dossiers__date ici). */

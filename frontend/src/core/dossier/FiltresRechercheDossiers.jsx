@@ -1,3 +1,4 @@
+import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import './FiltresRechercheDossiers.css';
 
 // Recherche par nom/prénom/téléphone/email/poste/n° de dossier + plage de date de dernière mise
@@ -7,7 +8,8 @@ import './FiltresRechercheDossiers.css';
 // TableauDeBordAccueil.jsx / Backoffice.jsx, aucune pagination serveur), le filtrage réel se fait
 // là-bas (useMemo côté page), pas ici — ce composant ne fait que remonter
 // recherche/dateDebutFiltre/dateFinFiltre à son parent, comme onChangerStatutFiltre le fait déjà
-// pour le statut.
+// pour le statut. Champs "Du"/"Au" portés par FiltrePlageDate (core/filtres/), réutilisé tel quel
+// par Planification.jsx (Suivi des tests) — voir son commentaire d'en-tête.
 export default function FiltresRechercheDossiers({
   recherche,
   onChangerRecherche,
@@ -26,22 +28,12 @@ export default function FiltresRechercheDossiers({
         value={recherche}
         onChange={(evenement) => onChangerRecherche(evenement.target.value)}
       />
-      <label className="filtres-recherche-dossiers__date">
-        <span>Du</span>
-        <input
-          type="date"
-          value={dateDebutFiltre}
-          onChange={(evenement) => onChangerDateDebutFiltre(evenement.target.value)}
-        />
-      </label>
-      <label className="filtres-recherche-dossiers__date">
-        <span>Au</span>
-        <input
-          type="date"
-          value={dateFinFiltre}
-          onChange={(evenement) => onChangerDateFinFiltre(evenement.target.value)}
-        />
-      </label>
+      <FiltrePlageDate
+        dateDebutFiltre={dateDebutFiltre}
+        onChangerDateDebutFiltre={onChangerDateDebutFiltre}
+        dateFinFiltre={dateFinFiltre}
+        onChangerDateFinFiltre={onChangerDateFinFiltre}
+      />
     </div>
   );
 }

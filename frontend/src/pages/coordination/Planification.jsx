@@ -6,6 +6,7 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
+import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
@@ -47,9 +48,9 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s)), filtrage
-// entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back — voir
-// listerRendezvousTest — cette recherche s'applique en plus, sur la liste déjà renvoyée par
+// Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s), nom du formateur),
+// filtrage entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back —
+// voir listerRendezvousTest — cette recherche s'applique en plus, sur la liste déjà renvoyée par
 // l'API, sans aller-retour serveur supplémentaire). Même approche que filtrerDossiers.js
 // (core/dossier/filtrerDossiers.js, réutilisé tel quel par Dossiers candidats) : nom/prénom
 // comparés mot par mot, insensible à l'ordre de saisie ("ETEST TEST" retrouve "TEST ETEST") ;
@@ -62,6 +63,14 @@ function libellePoste(code) {
 // égalité stricte — plus une simple inclusion, qui remontait aussi "191"/"912"/etc. Une saisie
 // numérique longue (10 chiffres ou plus, forme téléphone) ne matche jamais rien ici : cette page
 // n'a pas de téléphone à chercher, mieux vaut aucun résultat qu'un repli silencieux sur le nom.
+//
+// Formateur (colonne "Formateur") ajouté à la recherche élargie plutôt que réservé au seul
+// sélecteur "Formateur" déjà présent (formateurFiltre, filtré côté back) : ce dernier exige de
+// connaître le formateur à l'avance dans une liste déroulante, alors que taper son nom dans
+// "Rechercher" retrouve directement ses rendez-vous, comme pour un candidat ou un poste. Même
+// comparaison mot à mot que le nom du candidat (nomFormateur ci-dessous), pas une simple
+// inclusion comme les postes : un formateur est une personne, comme le candidat, donc insensible
+// à l'ordre de saisie ("Thomas Yamini" retrouve "Yamini Thomas") pour la même raison.
 function rechercheCorrespond(
   rdv,
   { motsRechercheNom, rechercheNormaliseeTexte, rechercheChiffresSeuls, rechercheEstNumerique, rechercheEstNumeroDossier },
@@ -81,7 +90,9 @@ function rechercheCorrespond(
       .toLowerCase(),
   );
   const correspondPoste = postes.includes(rechercheNormaliseeTexte);
-  return correspondNom || correspondPoste;
+  const nomFormateur = normaliserTexte(`${rdv.formateur_prenom ?? ''} ${rdv.formateur_nom ?? ''}`.toLowerCase());
+  const correspondFormateur = motsRechercheNom.every((mot) => nomFormateur.includes(mot));
+  return correspondNom || correspondPoste || correspondFormateur;
 }
 
 // "À venir" au sens de cette page : même définition que le filtre serveur aVenirSeulement
@@ -138,8 +149,19 @@ export default function Planification() {
   const setAVenirSeulement = (valeur) => setAVenirBrut(valeur ? '1' : '0');
   const [formateurFiltre, setFormateurFiltre] = useParametreURL('formateur', ''); // '' = tous les formateurs
   const [formateurs, setFormateurs] = useState([]);
-  // Recherche élargie (nom/prénom, n° dossier, poste) — voir rechercheCorrespond ci-dessus.
+  // Recherche élargie (nom/prénom, n° dossier, poste, formateur) — voir rechercheCorrespond
+  // ci-dessus.
   const [recherche, setRecherche] = useParametreURL('q', '');
+  // Plage de date sur rdv.date_heure (colonne "Date et heure"), mêmes noms de paramètre URL que
+  // TableauDeBordAccueil.jsx (date_debut/date_fin) — même composant FiltrePlageDate
+  // (core/filtres/), réutilisé tel quel plutôt que recréé (voir son commentaire d'en-tête) ;
+  // seule la donnée filtrée diffère (date du rendez-vous ici, date de dernière mise à jour du
+  // dossier là-bas). Filtrage entièrement client, comme `recherche` ci-dessus (voir
+  // rendezvousFiltres plus bas) — se combine donc en ET avec aVenirSeulement/formateurFiltre
+  // (filtres serveur) sans logique de composition dédiée : cette plage ne fait que restreindre
+  // davantage la liste déjà renvoyée par l'API.
+  const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
+  const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -198,31 +220,42 @@ export default function Planification() {
     };
   }, [aVenirSeulement, formateurFiltre]);
 
-  // Filtrage client élargi (nom/prénom, n° dossier, poste — voir rechercheCorrespond), appliqué
-  // en plus des filtres serveur (aVenirSeulement/formateurFiltre, voir l'effet ci-dessus) sur la
-  // liste déjà reçue — se combine donc naturellement avec eux sans logique de composition
-  // supplémentaire : moins de résultats servis par le back à filtrer davantage ici, jamais
-  // l'inverse. Même découpage recherche/motsRecherche que filtrerDossiers.js.
+  // Filtrage client élargi (nom/prénom, n° dossier, poste, formateur — voir rechercheCorrespond) +
+  // plage de date sur rdv.date_heure (dateDebutFiltre/dateFinFiltre), appliqués en plus des filtres serveur
+  // (aVenirSeulement/formateurFiltre, voir l'effet ci-dessus) sur la liste déjà reçue — se combine
+  // donc naturellement avec eux sans logique de composition supplémentaire (ET logique) : moins de
+  // résultats servis par le back à filtrer davantage ici, jamais l'inverse. Même découpage
+  // recherche/motsRecherche que filtrerDossiers.js ; mêmes bornes en heure locale que
+  // filtrerDossiers.js pour la plage de date (dateDebutFiltre/dateFinFiltre viennent d'un
+  // <input type="date"> et représentent des jours calendaires tels que l'agent les lit sur la
+  // tablette, pas des instants UTC).
   const rendezvousFiltres = useMemo(() => {
     const rechercheNormalisee = recherche.trim().toLowerCase();
     const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
     const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
-    if (motsRechercheNom.length === 0) return rendezvous;
     // Saisie strictement numérique (chiffres seuls, espaces/tirets de formatage ignorés) — voir
     // rechercheCorrespond ci-dessus pour ce que ces deux booléens changent.
     const rechercheChiffresSeuls = rechercheNormalisee.replace(/[\s-]/g, '');
     const rechercheEstNumerique = rechercheChiffresSeuls.length > 0 && /^\d+$/.test(rechercheChiffresSeuls);
     const rechercheEstNumeroDossier = rechercheEstNumerique && rechercheChiffresSeuls.length < 10;
-    return rendezvous.filter((rdv) =>
-      rechercheCorrespond(rdv, {
+    const debut = dateDebutFiltre ? new Date(`${dateDebutFiltre}T00:00:00`) : null;
+    const fin = dateFinFiltre ? new Date(`${dateFinFiltre}T23:59:59.999`) : null;
+    return rendezvous.filter((rdv) => {
+      if (debut || fin) {
+        const dateRdv = new Date(rdv.date_heure);
+        if (debut && dateRdv < debut) return false;
+        if (fin && dateRdv > fin) return false;
+      }
+      if (motsRechercheNom.length === 0) return true;
+      return rechercheCorrespond(rdv, {
         motsRechercheNom,
         rechercheNormaliseeTexte,
         rechercheChiffresSeuls,
         rechercheEstNumerique,
         rechercheEstNumeroDossier,
-      }),
-    );
-  }, [rendezvous, recherche]);
+      });
+    });
+  }, [rendezvous, recherche, dateDebutFiltre, dateFinFiltre]);
 
   // Une ligne par candidat (dossier_id), pas par rendez-vous (décision utilisateur) : un candidat
   // avec plusieurs tentatives de test (replanifications, absences...) n'apparaissait jusqu'ici
@@ -375,16 +408,29 @@ export default function Planification() {
 
           {/* Filtrage client (voir rechercheCorrespond/rendezvousFiltres ci-dessus) : se combine
               avec aVenirSeulement/formateurFiltre sans logique dédiée, ceux-ci étant déjà
-              appliqués côté back avant que cette recherche ne s'exécute sur le résultat. */}
+              appliqués côté back avant que cette recherche ne s'exécute sur le résultat. Couvre
+              toutes les colonnes du tableau (N°, Candidat, Poste, Formateur) — retrouve un
+              formateur par son nom sans passer par le sélecteur "Formateur" ci-dessus, qui exige
+              de le connaître à l'avance dans la liste déroulante. */}
           <label className="planification__filtre-recherche">
             <span>Rechercher</span>
             <input
               type="search"
               value={recherche}
               onChange={(evenement) => setRecherche(evenement.target.value)}
-              placeholder="Nom, prénom, N° dossier ou poste"
+              placeholder="Nom, prénom, N° dossier, poste ou formateur"
             />
           </label>
+
+          {/* Même composant que Dossiers candidats (voir FiltrePlageDate.jsx) — filtre ici sur
+              rdv.date_heure plutôt que la date de dernière mise à jour du dossier (voir
+              rendezvousFiltres ci-dessus). */}
+          <FiltrePlageDate
+            dateDebutFiltre={dateDebutFiltre}
+            onChangerDateDebutFiltre={setDateDebutFiltre}
+            dateFinFiltre={dateFinFiltre}
+            onChangerDateFinFiltre={setDateFinFiltre}
+          />
         </div>
 
         <div className="planification__actions-selection">
@@ -490,12 +536,15 @@ export default function Planification() {
                       />
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/coordination/dossiers/${rdv.dossier_id}/relances`)}
-                      >
-                        Voir le dossier
-                      </button>
+                      <div className="planification__actions">
+                        <button
+                          type="button"
+                          className="planification__action-voir"
+                          onClick={() => navigate(`/coordination/dossiers/${rdv.dossier_id}/relances`)}
+                        >
+                          Voir le dossier
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
