@@ -99,7 +99,6 @@
 .gestion-rendezvous__type {
   font-weight: 600;
   color: var(--couleur-back-office);
-  text-transform: capitalize;
 }
 
 .gestion-rendezvous__motif {
