@@ -13,20 +13,20 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch: {} # déclenchement manuel depuis l'onglet Actions, pour tester sans attendre le cron
 
-permissions:
-  contents: read
-
 jobs:
   sauvegarde:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # requis par azure/login (fédération OIDC, pas de client secret stocké)
     defaults:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -44,15 +44,22 @@ jobs:
           sudo apt-get install -y postgresql-client
           pg_dump --version
 
+      - name: Authentification Azure (OIDC fédéré)
+        # Ouvre une session Azure CLI sur le runner via fédération d'identité OIDC (le token GitHub
+        # du job, exposé grâce à `permissions.id-token: write` ci-dessus, est échangé contre un
+        # jeton Azure AD — aucun client secret à générer/stocker). Service principal DÉDIÉ à ce job
+        # (accès Key Vault en lecture seule, scope minimal — voir docs/sauvegarde-neon.md), distinct
+        # des identités utilisées en local (az login interactif) ou en production (Managed
+        # Identity). DefaultAzureCredential (backend/src/core/securite/keyVaultClient.js) retombe
+        # sur AzureCliCredential et retrouve cette session automatiquement à l'étape suivante, sans
+        # code spécifique à ajouter pour CI.
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Exécuter la sauvegarde
         env:
-          # Service principal DÉDIÉ à ce job (accès Key Vault en lecture seule, scope minimal —
-          # voir docs/sauvegarde-neon.md), distinct des identités utilisées en local (az login) ou
-          # en production (Managed Identity). DefaultAzureCredential (backend/src/core/securite/
-          # keyVaultClient.js) lit ces trois variables via EnvironmentCredential automatiquement,
-          # sans code spécifique à ajouter pour CI.
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_BACKUP_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_BACKUP_CLIENT_SECRET }}
-          SAUVEGARDE_EMAIL_ALERTE: ${{ vars.SAUVEGARDE_EMAIL_ALERTE }}
+          SAUVEGARDE_EMAIL_ALERTE: ${{ secrets.SAUVEGARDE_EMAIL_ALERTE }}
         run: node scripts/sauvegarderNeon.js

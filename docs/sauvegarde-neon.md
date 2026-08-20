@@ -35,18 +35,25 @@ le job GitHub Actions se termine en échec (visible dans l'onglet Actions / noti
 
 ### GitHub Actions (Settings → Secrets and variables → Actions)
 
-- `AZURE_TENANT_ID` : id du tenant Azure.
-- `AZURE_BACKUP_CLIENT_ID` / `AZURE_BACKUP_CLIENT_SECRET` : service principal **dédié** à ce job
-  (à créer séparément de tout autre usage), avec un accès Key Vault en lecture seule scopé aux
-  seuls secrets nécessaires (`neon-connection-string`, `backup-encryption-key`,
+- `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` : service principal **dédié** à
+  ce job (à créer séparément de tout autre usage), avec un accès Key Vault en lecture seule scopé
+  aux seuls secrets nécessaires (`neon-connection-string`, `backup-encryption-key`,
   `graph-client-id`, `graph-client-secret`, `graph-tenant-id`) — ne pas réutiliser une identité à
-  plus large portée pour ce job non interactif.
-- `SAUVEGARDE_EMAIL_ALERTE` (variable, pas secret) : adresse à notifier en cas d'échec.
+  plus large portée pour ce job non interactif. Ce service principal doit avoir un **identifiant
+  fédéré (federated credential)** configuré côté app registration Azure (Certificates & secrets →
+  Federated credentials), scénario "GitHub Actions deploying Azure resources", avec pour subject
+  `repo:tymoma01/InscriptionsDematerialisees:ref:refs/heads/main` — **pas de client secret à
+  générer/stocker** pour ce service principal.
+- `SAUVEGARDE_EMAIL_ALERTE` (secret, pas variable, depuis le 2026-08-20 — l'ancien réglage en
+  variable d'environnement Actions ne déclenchait jamais l'envoi de l'email d'alerte) : adresse à
+  notifier en cas d'échec.
 
-`DefaultAzureCredential` (voir `keyVaultClient.js`) capte automatiquement
-`AZURE_TENANT_ID`/`AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET` via son `EnvironmentCredential` — aucun
-code spécifique à CI n'a été nécessaire, seul le mapping des noms de secrets GitHub vers ces trois
-variables d'environnement dans le workflow.
+Le job s'authentifie auprès d'Azure via l'étape `azure/login@v2` du workflow (fédération OIDC : le
+jeton d'identité GitHub du job — exposé grâce à `permissions.id-token: write` — est échangé contre
+un jeton Azure AD, sans jamais transiter par un client secret). Cette étape ouvre une session Azure
+CLI sur le runner ; `DefaultAzureCredential` (voir `keyVaultClient.js`) la retrouve ensuite via son
+`AzureCliCredential` de repli, exactement comme un `az login` fait en local — aucun code spécifique
+à CI n'a été nécessaire dans `keyVaultClient.js`.
 
 ## Format des fichiers de sauvegarde
 
@@ -103,13 +110,22 @@ s'applique seulement après un upload réussi, voir l'ordre des étapes dans `sa
 - **`pg_dump a échoué`** : vérifier la compatibilité de version (`pg_dump --version` doit être
   >= à la version majeure du serveur Postgres de Neon), et que `PGSSLMODE=require` n'est pas
   bloqué par un pare-feu sortant (cas GitHub Actions : peu probable, runners hébergés).
+- **`azure/login` échoue (`AADSTS70021` ou équivalent)** : le federated credential de l'app
+  registration ne correspond pas au subject envoyé par GitHub — vérifier qu'il cible bien
+  `repo:tymoma01/InscriptionsDematerialisees:ref:refs/heads/main` (ou l'environnement utilisé, le
+  cas échéant) et que `permissions.id-token: write` est bien présent sur le job dans le workflow.
+- **`DefaultAzureCredential` ne trouve toujours aucune méthode d'authentification malgré
+  `azure/login`** : vérifier que l'étape `azure/login@v2` s'exécute bien **avant** "Exécuter la
+  sauvegarde" dans le workflow (l'ordre des steps fait foi) et qu'elle se termine sans erreur.
 - **Authentification Microsoft Graph expirée ou invalide** : vérifier `graph-client-id` /
   `graph-client-secret` / `graph-tenant-id` dans Key Vault (message d'erreur déjà explicite, voir
   `erreursGraph.js`).
 - **Le job GitHub Actions échoue sans notification email reçue** : vérifier que
-  `SAUVEGARDE_EMAIL_ALERTE` est bien définie (variable, pas secret) et que le service principal a
-  la permission Graph `Mail.Send` déjà accordée pour `graphMailProvider.js` — sinon l'échec de
-  notification est loggué dans les logs du job (onglet Actions), qui restent la source de vérité
-  en dernier recours.
+  `SAUVEGARDE_EMAIL_ALERTE` est bien définie **en secret** GitHub Actions (pas en variable — une
+  variable ne remonte jamais dans `secrets.*`, voir le mapping dans le workflow) et que le service
+  principal a la permission Graph `Mail.Send` déjà accordée pour `graphMailProvider.js` — sinon
+  l'échec de notification est loggué dans les logs du job (onglet Actions), qui restent la source
+  de vérité en dernier recours (`notifierEchecSauvegarde` n'échoue jamais bruyamment par design,
+  voir `notificationEchecSauvegarde.js`).
 - **Secret `backup-encryption-key` absent** : `chiffrementSauvegarde.js` échoue explicitement dès
   le premier `chiffrerFichier` avec ce message, avant tout upload.
