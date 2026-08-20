@@ -144,9 +144,15 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   // STATUTS_UPLOAD_AUTORISES) et revalide de toute façon à l'envoi.
   // Admin : accès total aux pièces d'un candidat "à tout moment, quel que soit le statut du
   // dossier" (CLAUDE.md, demande explicite du 2026-08-18) — même contournement que côté back
-  // (voir pieceJustificativeService.js, roleCode). Les autres rôles gardent la règle actuelle.
+  // (voir pieceJustificativeService.js, roleCode), y compris juste après une planification
+  // réussie ci-dessous. Les autres rôles gardent la règle actuelle, mais se voient en plus
+  // verrouillés dès que planificationReussie passe à vrai (retour terrain 2026-08-20 : la liste
+  // reste maintenant affichée après planification, voir plus bas — sans ce `!planificationReussie`
+  // ici, Reprendre/Supprimer resteraient actifs en attendant que statutCode, une prop reçue de la
+  // page appelante, se mette lui-même à jour après un rechargement du dossier).
   const dossierPiecesModifiables =
-    utilisateur?.roleCode === 'admin' || statutCode == null || statutCode === STATUT_DOSSIER_PIECES_MODIFIABLES;
+    utilisateur?.roleCode === 'admin' ||
+    (!planificationReussie && (statutCode == null || statutCode === STATUT_DOSSIER_PIECES_MODIFIABLES));
 
   const gererSuppression = async (type) => {
     const piece = piecesCapturees.get(type.code);
@@ -192,31 +198,6 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   // suite que laisser l'agent capturer une pièce pour découvrir l'échec seulement à l'envoi.
   if (!utilisateur) {
     return <p role="alert">Vous devez être connecté pour capturer des pièces justificatives.</p>;
-  }
-
-  // Une fois le test planifié, l'agent n'a plus rien à faire sur cet écran — la liste des pièces
-  // et le bouton de planification n'ont plus lieu d'être affichés à côté d'une confirmation qui
-  // invite déjà à passer à autre chose (même principe que ConfirmationInscription.jsx : un écran
-  // dédié plutôt qu'un message qui s'ajoute au-dessus du reste).
-  if (planificationReussie) {
-    return (
-      <section className="capture-tablette">
-        <header className="capture-tablette__entete">
-          <h2>Pièces justificatives</h2>
-        </header>
-        <div className="capture-tablette__confirmation" role="status">
-          <p>
-            Test planifié le {FORMAT_DATE_HEURE.format(new Date(planificationReussie.dateHeure))} avec{' '}
-            {planificationReussie.formateurNom}.
-          </p>
-          {/* Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17 ; oubli
-              corrigé le 2026-08-19 — ce point de confirmation avait échappé au premier passage,
-              contrairement aux autres écrans du back-office) : couvert par le lien "Dossiers
-              candidats" de la barre de navigation commune, voir BarreNavigation.jsx (montée dans
-              PageBackOffice.jsx). */}
-        </div>
-      </section>
-    );
   }
 
   return (
@@ -300,6 +281,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                   // optionnelle, doit rester capturable même après planification du test.
                   <button
                     type="button"
+                    className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
                     onClick={() => {
                       setTypeSelectionne(type.code);
                       setTypeApercu(null);
@@ -309,6 +291,30 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                   </button>
                 )}
               </div>
+
+              {/* Panneau de capture/aperçu rendu juste sous la pièce concernée, pas après toute
+                  la liste (retour terrain du 2026-08-20 : sur tablette, avec une liste de 6
+                  pièces, l'ancien panneau partagé en pied de liste poussait "Prendre une photo"
+                  hors de l'écran visible après le scrollIntoView). typeCourant/typeEnApercu
+                  restent des states uniques au niveau de CaptureTablette (un seul panneau ouvert
+                  à la fois, toutes pièces confondues) — seul l'endroit où on les affiche change ici. */}
+              {typeCourant?.code === type.code && (
+                <PanneauCapture
+                  dossierId={dossierId}
+                  type={typeCourant}
+                  onAnnuler={() => setTypeSelectionne(null)}
+                  onEnvoiReussi={(pieceId) => gererEnvoiReussi(typeCourant.code, pieceId)}
+                />
+              )}
+
+              {typeEnApercu?.code === type.code && (
+                <PanneauApercuPiece
+                  dossierId={dossierId}
+                  libelle={typeEnApercu.libelle}
+                  piece={piecesCapturees.get(typeEnApercu.code)}
+                  onFermer={() => setTypeApercu(null)}
+                />
+              )}
 
               {/* Complément optionnel "verso" (voir typesEtVersos ci-dessus) : jamais une ligne à
                   part de cette liste, juste un sous-bloc secondaire rattaché à la pièce
@@ -354,6 +360,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                   ) : (
                     <button
                       type="button"
+                      className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
                       onClick={() => {
                         setTypeSelectionne(type.codeVerso);
                         setTypeApercu(null);
@@ -362,6 +369,26 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                       Ajouter le verso (si applicable)
                     </button>
                   )}
+
+                  {/* Même principe que pour le recto ci-dessus : panneau rattaché au verso, pas
+                      au pied de liste. */}
+                  {typeCourant?.code === type.codeVerso && (
+                    <PanneauCapture
+                      dossierId={dossierId}
+                      type={typeCourant}
+                      onAnnuler={() => setTypeSelectionne(null)}
+                      onEnvoiReussi={(pieceId) => gererEnvoiReussi(typeCourant.code, pieceId)}
+                    />
+                  )}
+
+                  {typeEnApercu?.code === type.codeVerso && (
+                    <PanneauApercuPiece
+                      dossierId={dossierId}
+                      libelle={typeEnApercu.libelle}
+                      piece={piecesCapturees.get(typeEnApercu.code)}
+                      onFermer={() => setTypeApercu(null)}
+                    />
+                  )}
                 </div>
               )}
             </li>
@@ -369,48 +396,47 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
         })}
       </ul>
 
-      {typeCourant && (
-        <PanneauCapture
-          dossierId={dossierId}
-          type={typeCourant}
-          onAnnuler={() => setTypeSelectionne(null)}
-          onEnvoiReussi={(pieceId) => gererEnvoiReussi(typeCourant.code, pieceId)}
-        />
-      )}
-
-      {typeEnApercu && (
-        <PanneauApercuPiece
-          dossierId={dossierId}
-          libelle={typeEnApercu.libelle}
-          piece={piecesCapturees.get(typeEnApercu.code)}
-          onFermer={() => setTypeApercu(null)}
-        />
-      )}
-
-      {/* Visible tant que le dossier est encore en_attente_pieces (CLAUDE.md, besoin
-          Coordination : "planifie les tests"), désactivé tant que les pièces obligatoires ne sont
-          pas toutes capturées — voir piecesObligatoiresCompletes ci-dessus. Une fois le test déjà
-          planifié (dossierPiecesModifiables faux, voir plus haut), cet écran ne sert plus qu'à
-          compléter une pièce manquante — pas à replanifier un test déjà en place, qui se fait
-          depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test") une fois le dossier
-          repassé par test_non_realise/invalide, pas depuis ce bouton. */}
-      {dossierPiecesModifiables && (
-        <div className="capture-tablette__pied">
-          <button
-            type="button"
-            onClick={() => setPlanificationOuverte(true)}
-            disabled={!piecesObligatoiresCompletes}
-          >
-            Valider et planifier un test
-          </button>
-          {!piecesObligatoiresCompletes && (
-            <p className="capture-tablette__pied-indication">
-              {nombrePiecesObligatoires === 1
-                ? 'Capturez la pièce obligatoire pour activer ce bouton.'
-                : `Capturez les ${nombrePiecesObligatoires} pièces obligatoires pour activer ce bouton.`}
-            </p>
-          )}
+      {/* La liste des pièces au-dessus reste affichée après planification (retour terrain
+          2026-08-20 : un écran de confirmation qui remplaçait toute la section masquait les
+          pièces déjà envoyées — Voir reste utile après coup, pour l'accueil comme pour la RH,
+          voir CLAUDE.md "second contrôle"). Seul ce pied change : bouton de planification tant
+          que rien n'est encore planifié, message de confirmation une fois que oui — jamais les
+          deux en même temps, jamais la liste masquée dans un cas comme dans l'autre. */}
+      {planificationReussie ? (
+        <div className="capture-tablette__confirmation" role="status">
+          <p>
+            Test planifié le {FORMAT_DATE_HEURE.format(new Date(planificationReussie.dateHeure))} avec{' '}
+            {planificationReussie.formateurNom}.
+          </p>
         </div>
+      ) : (
+        // Visible tant que le dossier est encore en_attente_pieces (CLAUDE.md, besoin
+        // Coordination : "planifie les tests"), désactivé tant que les pièces obligatoires ne
+        // sont pas toutes capturées — voir piecesObligatoiresCompletes ci-dessus. Une fois le
+        // test déjà planifié via un statutCode reçu directement à jour (dossierPiecesModifiables
+        // faux sans passer par planificationReussie, ex. retour sur cet écran après navigation),
+        // cet écran ne sert plus qu'à compléter une pièce manquante — pas à replanifier un test
+        // déjà en place, qui se fait depuis TableauDeBordAccueil.jsx (codeAction
+        // "replanifier_test") une fois le dossier repassé par test_non_realise/invalide, pas
+        // depuis ce bouton.
+        dossierPiecesModifiables && (
+          <div className="capture-tablette__pied">
+            <button
+              type="button"
+              onClick={() => setPlanificationOuverte(true)}
+              disabled={!piecesObligatoiresCompletes}
+            >
+              Valider et planifier un test
+            </button>
+            {!piecesObligatoiresCompletes && (
+              <p className="capture-tablette__pied-indication">
+                {nombrePiecesObligatoires === 1
+                  ? 'Capturez la pièce obligatoire pour activer ce bouton.'
+                  : `Capturez les ${nombrePiecesObligatoires} pièces obligatoires pour activer ce bouton.`}
+              </p>
+            )}
+          </div>
+        )
       )}
 
       {planificationOuverte && (
@@ -439,18 +465,11 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
 function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const panneauRef = useRef(null);
 
-  // Défilement automatique vers le panneau au clic sur "Capturer"/"Reprendre" — sans lui, la
-  // liste des pièces (potentiellement longue) laisse ce panneau hors champ en bas de page, l'agent
-  // devant défiler manuellement pour l'atteindre. Dépendance sur type.code (pas juste au montage) :
-  // ce composant reste monté et ne fait que changer de `type` si l'agent clique Reprendre sur une
-  // autre pièce pendant que le panneau est déjà ouvert (pas de `key` posée par CaptureTablette.jsx
-  // sur <PanneauCapture>) — sans cette dépendance, aucun nouveau défilement ne se déclencherait
-  // dans ce cas précis.
-  useEffect(() => {
-    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [type.code]);
+  // Pas de scrollIntoView ici (retiré le 2026-08-20) : le panneau est rendu juste sous la pièce
+  // concernée (voir CaptureTablette.jsx), donc le bouton cliqué est déjà visible à l'ouverture —
+  // un défilement automatique en plus faisait justement descendre la page au point de sortir
+  // "Prendre une photo" du cadre (retour terrain, tablette).
 
   const [modeCamera, setModeCamera] = useState(false);
   const [erreurCamera, setErreurCamera] = useState(null);
@@ -578,17 +597,21 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   };
 
   return (
-    <div ref={panneauRef} className="capture-tablette__panneau" role="dialog" aria-label={`Capture - ${type.libelle}`}>
+    <div className="capture-tablette__panneau" role="dialog" aria-label={`Capture - ${type.libelle}`}>
       <div className="capture-tablette__panneau-entete">
         <h3>{type.libelle}</h3>
-        <button type="button" onClick={fermer}>
+        <button type="button" className="capture-tablette__bouton-fermer" onClick={fermer}>
           Fermer
         </button>
       </div>
 
       {!captureEnCours && !modeCamera && (
         <div className="capture-tablette__choix-methode">
-          <button type="button" onClick={demarrerCamera}>
+          <button
+            type="button"
+            className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire"
+            onClick={demarrerCamera}
+          >
             Prendre une photo
           </button>
           {/* Absent pour les pièces marquées captureUniquement (ex. Photo d'identité,
@@ -616,10 +639,18 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
               ici puisque srcObject n'est de toute façon assigné qu'après le montage. */}
           <video ref={videoRef} className="capture-tablette__video" autoPlay playsInline muted />
           <div className="capture-tablette__camera-actions">
-            <button type="button" onClick={capturerPhoto}>
+            <button
+              type="button"
+              className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire"
+              onClick={capturerPhoto}
+            >
               Capturer la photo
             </button>
-            <button type="button" onClick={annulerCamera}>
+            <button
+              type="button"
+              className="capture-tablette__bouton-action capture-tablette__bouton-action--secondaire"
+              onClick={annulerCamera}
+            >
               Annuler
             </button>
           </div>
@@ -637,10 +668,20 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
           {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
           <div className="capture-tablette__apercu-actions">
-            <button type="button" onClick={reprendre} disabled={envoiEnCours}>
+            <button
+              type="button"
+              className="capture-tablette__bouton-action capture-tablette__bouton-action--secondaire"
+              onClick={reprendre}
+              disabled={envoiEnCours}
+            >
               Reprendre
             </button>
-            <button type="button" onClick={valider} disabled={envoiEnCours}>
+            <button
+              type="button"
+              className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire"
+              onClick={valider}
+              disabled={envoiEnCours}
+            >
               {envoiEnCours ? 'Envoi en cours...' : 'Charger'}
             </button>
           </div>

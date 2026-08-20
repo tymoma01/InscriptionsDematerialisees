@@ -106,6 +106,72 @@
   flex: 0 0 auto;
 }
 
+/* Boutons d'action pleins (fond --couleur-back-office) et fantômes (bordure seule) — remplace
+   l'apparence par défaut du navigateur sur les boutons de déclenchement/validation de ce composant
+   (retour terrain 2026-08-20 : "pas les boutons basiques"), sans toucher .bouton-voir/
+   .bouton-supprimer/.bouton-fichier ci-dessus, déjà habillés. Deux tailles (normale dans le
+   panneau de capture, compacte dans les lignes de la liste) plutôt qu'une seule, pour ne pas
+   surcharger visuellement une ligne de liste avec un bouton aussi large que dans le panneau. */
+.capture-tablette__bouton-action {
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.capture-tablette__bouton-action--compacte {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.capture-tablette__bouton-action--primaire {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.capture-tablette__bouton-action--primaire:hover:not(:disabled) {
+  background-color: var(--couleur-back-office-hover);
+  border-color: var(--couleur-back-office-hover);
+}
+
+.capture-tablette__bouton-action--secondaire {
+  background-color: var(--couleur-fond);
+  border-color: var(--couleur-bordure);
+  color: var(--couleur-texte);
+}
+
+.capture-tablette__bouton-action--secondaire:hover:not(:disabled) {
+  background-color: var(--couleur-fond-secondaire);
+  border-color: var(--couleur-back-office-dore);
+}
+
+.capture-tablette__bouton-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Bouton "Fermer" du panneau : discret, en haut à droite à côté du titre — pas le même poids
+   visuel que les actions principales ci-dessus. */
+.capture-tablette__bouton-fermer {
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure-legere);
+  background-color: transparent;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.capture-tablette__bouton-fermer:hover {
+  background-color: var(--gris-100);
+  color: var(--couleur-texte);
+}
+
 .capture-tablette__actions-piece {
   display: flex;
   gap: var(--espace-petit);
@@ -192,11 +258,20 @@
 .capture-tablette__bouton-fichier {
   display: inline-flex;
   align-items: center;
-  padding: 0.5rem 1rem;
+  padding: 0.55rem 1.1rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-weight: 600;
+  font-size: 0.95rem;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.capture-tablette__bouton-fichier:hover {
+  background-color: var(--couleur-fond-secondaire);
+  border-color: var(--couleur-back-office-dore);
 }
 
 .capture-tablette__bouton-fichier input[type='file'] {

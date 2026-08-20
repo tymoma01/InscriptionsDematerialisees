@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { obtenirApercuPiece } from '../../services/pieceJustificativeService';
 import './PanneauApercuPiece.css';
 
@@ -17,15 +17,11 @@ export default function PanneauApercuPiece({ dossierId, libelle, piece, onFermer
   const [erreur, setErreur] = useState(null);
   const [apercuUrl, setApercuUrl] = useState(null);
   const [contentType, setContentType] = useState(null);
-  const panneauRef = useRef(null);
 
-  // Défilement automatique à l'ouverture — dépend de piece.id (pas seulement au montage) : l'agent
-  // peut cliquer "Voir" sur une autre pièce pendant que ce panneau est déjà ouvert (pas de `key`
-  // posée par les appelants sur <PanneauApercuPiece>), il faut donc re-scroller à chaque nouvelle
-  // pièce affichée, pas seulement à la toute première ouverture.
-  useEffect(() => {
-    panneauRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [piece.id]);
+  // Pas de scrollIntoView ici (retiré le 2026-08-20, même raison que PanneauCapture.jsx) : ce
+  // panneau est rendu juste sous la pièce concernée par ses appelants (CaptureTablette.jsx,
+  // InformationsInscription.jsx), le bouton "Voir" cliqué est donc déjà visible sans défilement
+  // forcé.
 
   // urlObjet (pas apercuUrl directement) dans la fermeture de nettoyage : évite de dépendre d'un
   // state React potentiellement pas encore mis à jour au moment du cleanup.
@@ -66,10 +62,10 @@ export default function PanneauApercuPiece({ dossierId, libelle, piece, onFermer
   }, [dossierId, piece.id]);
 
   return (
-    <div ref={panneauRef} className="panneau-apercu-piece" role="dialog" aria-label={`Aperçu - ${libelle}`}>
+    <div className="panneau-apercu-piece" role="dialog" aria-label={`Aperçu - ${libelle}`}>
       <div className="panneau-apercu-piece__entete">
         <h3>{libelle}</h3>
-        <button type="button" onClick={onFermer}>
+        <button type="button" className="panneau-apercu-piece__bouton-fermer" onClick={onFermer}>
           Fermer
         </button>
       </div>

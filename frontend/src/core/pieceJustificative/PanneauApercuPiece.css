@@ -22,6 +22,24 @@
   color: var(--couleur-back-office);
 }
 
+/* Même apparence que .capture-tablette__bouton-fermer (CaptureTablette.css) — pas réutilisée
+   telle quelle vu que ce composant garde ses propres classes (voir en-tête de ce fichier). */
+.panneau-apercu-piece__bouton-fermer {
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure-legere);
+  background-color: transparent;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.panneau-apercu-piece__bouton-fermer:hover {
+  background-color: var(--gris-100);
+  color: var(--couleur-texte);
+}
+
 .panneau-apercu-piece__image {
   width: 100%;
   max-height: 75vh;
