@@ -26,6 +26,40 @@ function listerRendezvousARappeler(bd, entiteId, { fenetreHeures }) {
     );
 }
 
+// Rendez-vous de test dont la date est passée, toujours 'prevu' (ni confirmé, ni marqué absent/
+// annulé par un agent — GestionRendezvous.jsx, ni replanifié — 'remplace'), sur un dossier
+// toujours 'test_planifie' — candidats à la bascule automatique "Test non réalisé" (voir
+// basculeTestNonRealiseService.js, tâche planifiée CLAUDE.md). Le filtre sur statuts.code évite
+// d'inclure un dossier déjà sorti du parcours test (évalué, replanifié entre-temps...) ; la
+// re-vérification finale du statut du RENDEZ-VOUS lui-même (au moment précis de la bascule, pas
+// ici) reste portée par trouverRendezvousPourBasculeVerrouillee ci-dessous, contre une action
+// manuelle concurrente survenue entre cette lecture et l'écriture.
+function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId) {
+  return bd('rendezvous')
+    .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .where({
+      'dossiers.entite_id': entiteId,
+      'rendezvous.type_rdv': 'test',
+      'rendezvous.statut': 'prevu',
+      'statuts.code': 'test_planifie',
+    })
+    .andWhere('rendezvous.date_heure', '<', bd.fn.now())
+    .select('rendezvous.id', 'rendezvous.dossier_id', 'rendezvous.date_heure');
+}
+
+// Relecture verrouillée (FOR UPDATE) d'un rendez-vous précis, juste avant la bascule automatique
+// (voir basculeTestNonRealiseService.js) — revérifie l'état RÉEL du rendez-vous au moment exact de
+// l'écriture, pas seulement au moment de listerRendezvousTestNonRealisesAutomatiquement ci-dessus :
+// un agent a pu le confirmer/marquer absent/annulé entre les deux. FOR UPDATE verrouille la ligne
+// le temps de la transaction, pour qu'une mise à jour concurrente de rendezvous.statut
+// (changerStatutRendezvous) attende que cette transaction se termine plutôt que de risquer une
+// bascule sur une valeur déjà obsolète — `trx` obligatoire (jamais `bd` seul), un verrou FOR UPDATE
+// n'a de sens que dans une transaction.
+function trouverRendezvousPourBasculeVerrouillee(trx, rendezvousId) {
+  return trx('rendezvous').where({ id: rendezvousId }).forUpdate().first();
+}
+
 // Scopé par entiteId (jointure vers dossiers) : un rendezvousId est un entier séquentiel, donc
 // devinable — sans ce filtre, un agent authentifié d'une entité pourrait agir sur le rendez-vous
 // d'une autre entité en devinant son id, même faille IDOR déjà corrigée pour les pièces
@@ -368,6 +402,8 @@ function migrerRendezvousVersLieu(trx, { lieuIdOrigine, lieuIdDestination }) {
 
 module.exports = {
   listerRendezvousARappeler,
+  listerRendezvousTestNonRealisesAutomatiquement,
+  trouverRendezvousPourBasculeVerrouillee,
   trouverRendezvousParId,
   listerRendezvousParDossier,
   listerRendezvousTest,

@@ -29,7 +29,10 @@ const ROLES_PAR_ACTION_ACCECIT = {
   planifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
   // Le formateur marque le test comme non réalisé (candidat absent, etc.) — aucune évaluation
   // associée, transition seule via POST /transitions générique (voir ListeEvaluationsAFaire.jsx).
-  test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN],
+  // SYSTEME ajouté (audit 2026-08-20) pour la bascule automatique du même codeAction, déclenchée
+  // par une tâche planifiée sans agent connecté (voir core/rendezvous/
+  // basculeTestNonRealiseService.js) — même patron que inscription_soumise ci-dessus.
+  test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN, ROLES.SYSTEME],
   // Replanification d'un nouveau créneau, depuis test_non_realise, invalide, OU test_planifie lui-
   // même (workflow v4 : replanifier reste possible à tout moment tant que le dossier est encore
   // test_planifie, sans restriction de délai — trois lignes transitions_statut partagent ce même
