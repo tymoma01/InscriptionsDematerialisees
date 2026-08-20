@@ -236,7 +236,9 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
               <tr>
                 {/* N° de dossier = evaluation.dossier_id, même principe que Dossiers candidats/
                     Suivi des tests (identifiant métier plutôt qu'un simple rang d'affichage). */}
-                <th scope="col">N°</th>
+                <th scope="col" className="historique-evaluations__colonne-numero">
+                  N°
+                </th>
                 {COLONNES.map((colonne) => {
                   const actif = tri.colonne === colonne.cle;
                   return (
@@ -256,7 +258,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
             <tbody>
               {evaluationsTriees.map((evaluation) => (
                 <tr key={evaluation.id}>
-                  <td>{evaluation.dossier_id}</td>
+                  <td className="historique-evaluations__colonne-numero">{evaluation.dossier_id}</td>
                   <td>
                     {evaluation.candidat_prenom} {evaluation.candidat_nom}
                   </td>
