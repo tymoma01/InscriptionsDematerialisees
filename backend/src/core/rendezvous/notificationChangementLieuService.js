@@ -106,32 +106,48 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
   // encore configurés dans ce projet, voir allMySmsProvider.js) ne bloque ni ne saute l'autre
   // canal, et surtout jamais la migration/suppression déjà actée en base à ce stade : log
   // seulement, jamais de throw qui remonterait à l'appelant.
+  // Généré une seule fois, réutilisé par l'email candidat ET l'email formateur/inspecteur
+  // ci-dessous — même correctif que invitationTestService.js (audit 2026-08-20) : cette variable
+  // était jusqu'ici scopée au seul bloc candidat, l'email formateur ne recevait donc jamais
+  // l'.ics de mise à jour de lieu. Même générateur que la convocation initiale
+  // (invitationTestService.js) — date/heure et participants (candidat + formateur/inspecteur
+  // assigné, si déjà connu) inchangés, seul le lieu reflète la nouvelle adresse
+  // (adresse+metroAcces, pas instructions — voir generateurIcs.composerAdresseCourte).
+  // rendezvousId+sequence : voir SEQUENCE_CHANGEMENT_LIEU et generateurIcs.js pour le rôle exact
+  // de ces deux champs (mise à jour du même événement calendrier plutôt qu'un doublon). Même
+  // fichier joint pour les deux destinataires (même nom/contenu/typeMime) : c'est le même
+  // événement mis à jour. try/catch dédié (createEvent, lib `ics`, peut lever une erreur) : un
+  // échec de génération n'empêche ni l'email candidat ni l'email formateur de partir (sans pièce
+  // jointe dans ce cas).
+  let contenuIcs = null;
+  try {
+    contenuIcs = genererIcsInvitationTest({
+      dateHeure: rendezvous.date_heure,
+      candidatNom: rendezvous.candidat_nom,
+      candidatPrenom: rendezvous.candidat_prenom,
+      candidatEmail: coordonnees?.email,
+      formateurNom: rendezvous.formateur_nom,
+      formateurPrenom: rendezvous.formateur_prenom,
+      formateurEmail: rendezvous.formateur_email,
+      lieuAdresse: nouveauLieu.adresse,
+      lieuMetroAcces: nouveauLieu.metroAcces,
+      rendezvousId: rendezvous.id,
+      sequence: SEQUENCE_CHANGEMENT_LIEU,
+    });
+  } catch (erreur) {
+    console.error(`Échec de la génération de l'.ics de changement de lieu pour le rendez-vous ${rendezvous.id} :`, erreur.message);
+  }
+  const piecesJointesIcs = contenuIcs
+    ? [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }]
+    : undefined;
+
   if (coordonnees?.email) {
     try {
       const { sujet, corps } = construireMessageEmail(infos);
-      // Même générateur que la convocation initiale (invitationTestService.js) — date/heure et
-      // participants (candidat + formateur/inspecteur assigné, si déjà connu) inchangés, seul le
-      // lieu reflète la nouvelle adresse (adresse+metroAcces, pas instructions — voir
-      // generateurIcs.composerAdresseCourte). rendezvousId+sequence : voir SEQUENCE_CHANGEMENT_LIEU
-      // et generateurIcs.js pour le rôle exact de ces deux champs (mise à jour du même événement
-      // calendrier plutôt qu'un doublon).
-      const contenuIcs = genererIcsInvitationTest({
-        dateHeure: rendezvous.date_heure,
-        candidatNom: rendezvous.candidat_nom,
-        candidatPrenom: rendezvous.candidat_prenom,
-        candidatEmail: coordonnees.email,
-        formateurNom: rendezvous.formateur_nom,
-        formateurPrenom: rendezvous.formateur_prenom,
-        formateurEmail: rendezvous.formateur_email,
-        lieuAdresse: nouveauLieu.adresse,
-        lieuMetroAcces: nouveauLieu.metroAcces,
-        rendezvousId: rendezvous.id,
-        sequence: SEQUENCE_CHANGEMENT_LIEU,
-      });
       await notificationProvider.envoyer(coordonnees.email, 'email', corps, {
         sujet,
         html: true,
-        piecesJointes: [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }],
+        piecesJointes: piecesJointesIcs,
       });
       emailEnvoye = true;
     } catch (erreur) {
@@ -169,7 +185,13 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
     if (rendezvous.formateur_email) {
       try {
         const { sujet, corps } = construireMessageEmailFormateur({ ...infos, formateurPrenom: rendezvous.formateur_prenom });
-        await notificationProvider.envoyer(rendezvous.formateur_email, 'email', corps, { sujet, html: true });
+        // piecesJointes : même .ics que l'email candidat ci-dessus (audit 2026-08-20, corrige le
+        // trou — cet appel n'attachait jusqu'ici jamais rien).
+        await notificationProvider.envoyer(rendezvous.formateur_email, 'email', corps, {
+          sujet,
+          html: true,
+          piecesJointes: piecesJointesIcs,
+        });
         formateurEmailEnvoye = true;
       } catch (erreur) {
         console.error(

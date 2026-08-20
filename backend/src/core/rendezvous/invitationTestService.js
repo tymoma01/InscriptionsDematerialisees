@@ -183,26 +183,45 @@ async function envoyerInvitationTest(entite, rendezvous) {
   let emailEnvoye = false;
   let smsEnvoye = false;
 
+  // Généré une seule fois, réutilisé par l'email candidat ET l'email formateur/inspecteur
+  // ci-dessous — audit 2026-08-20 : cette variable était jusqu'ici scopée au seul bloc candidat
+  // (try { const contenuIcs = ... }), donc inaccessible au moment de l'envoi formateur, qui ne
+  // recevait jamais l'.ics. Même fichier joint pour les deux destinataires (même nom, même
+  // contenu, même typeMime) : c'est le même événement, aucune raison de le personnaliser par
+  // destinataire — genererIcsInvitationTest liste d'ailleurs déjà les deux comme ATTENDEE dans un
+  // seul et même .ics (voir generateurIcs.js). Pure et sans effet de bord, mais createEvent (lib
+  // `ics`) peut lever une erreur (date invalide...) : try/catch dédié pour qu'un échec de
+  // génération n'empêche ni l'email candidat ni l'email formateur de partir (sans pièce jointe
+  // dans ce cas), au lieu de faire échouer les deux comme le ferait une exception non rattrapée.
+  let contenuIcs = null;
+  try {
+    contenuIcs = genererIcsInvitationTest({
+      ...infos,
+      candidatEmail: coordonnees?.email,
+      formateurNom: formateur?.nom,
+      formateurPrenom: formateur?.prenom,
+      formateurEmail: formateur?.email,
+      // UID stable dérivé de rendezvous.id (voir generateurIcs.js) : c'est cette convocation
+      // initiale qui pose la valeur que notificationChangementLieuService.js devra reprendre à
+      // l'identique pour qu'un changement de lieu ultérieur mette à jour cet événement dans le
+      // calendrier du destinataire plutôt que d'en créer un second. sequence omis (première
+      // version, RFC 5545 la traite comme 0 par défaut).
+      rendezvousId: rendezvous.id,
+    });
+  } catch (erreur) {
+    console.error(`Échec de la génération de l'.ics pour le rendez-vous ${rendezvous.id} :`, erreur.message);
+  }
+  const piecesJointesIcs = contenuIcs
+    ? [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }]
+    : undefined;
+
   if (coordonnees?.email) {
     try {
       const { sujet, corps } = construireMessageEmail(infos);
-      const contenuIcs = genererIcsInvitationTest({
-        ...infos,
-        candidatEmail: coordonnees.email,
-        formateurNom: formateur?.nom,
-        formateurPrenom: formateur?.prenom,
-        formateurEmail: formateur?.email,
-        // UID stable dérivé de rendezvous.id (voir generateurIcs.js) : c'est cette convocation
-        // initiale qui pose la valeur que notificationChangementLieuService.js devra reprendre à
-        // l'identique pour qu'un changement de lieu ultérieur mette à jour cet événement dans le
-        // calendrier du candidat plutôt que d'en créer un second. sequence omis (première
-        // version, RFC 5545 la traite comme 0 par défaut).
-        rendezvousId: rendezvous.id,
-      });
       await notificationProvider.envoyer(coordonnees.email, 'email', corps, {
         sujet,
         html: true,
-        piecesJointes: [{ nom: 'convocation-test-accecit.ics', contenu: Buffer.from(contenuIcs, 'utf8'), typeMime: 'text/calendar' }],
+        piecesJointes: piecesJointesIcs,
       });
       emailEnvoye = true;
     } catch (erreur) {
@@ -238,7 +257,9 @@ async function envoyerInvitationTest(entite, rendezvous) {
           formateurPrenom: formateur.prenom,
           notePlanification: rendezvous.note_planification,
         });
-        await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
+        // piecesJointes : même .ics que l'email candidat ci-dessus (audit 2026-08-20, corrige le
+        // trou — cet appel n'attachait jusqu'ici jamais rien).
+        await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true, piecesJointes: piecesJointesIcs });
         formateurEmailEnvoye = true;
       } catch (erreur) {
         console.error(`Échec de l'envoi de l'email de notification formateur pour le rendez-vous ${rendezvous.id} :`, erreur.message);

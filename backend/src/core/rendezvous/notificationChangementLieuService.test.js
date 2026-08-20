@@ -171,6 +171,13 @@ test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comm
   assert.equal(appelFormateur.arguments[3].sujet, 'Changement de lieu pour un test à évaluer');
   assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
   assert.ok(appelFormateur.arguments[2].includes('Salle Annexe - 3 rue des Tests, 75001 Paris'));
+
+  // Régression (audit 2026-08-20) : l'email formateur n'attachait jusqu'ici jamais l'.ics de mise
+  // à jour de lieu — même fichier que l'email candidat ci-dessus.
+  const piecesJointesFormateur = appelFormateur.arguments[3].piecesJointes;
+  assert.equal(piecesJointesFormateur[0].nom, 'convocation-test-accecit.ics');
+  assert.equal(piecesJointesFormateur[0].typeMime, 'text/calendar');
+  assert.equal(piecesJointesFormateur[0].contenu.toString('utf8'), contenuIcs);
 });
 
 test("envoyerNotificationChangementLieu ignore la notification formateur quand le formateur assigné n'a pas d'email renseigné", async (t) => {

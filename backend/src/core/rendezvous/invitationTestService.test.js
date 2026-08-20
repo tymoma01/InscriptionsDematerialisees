@@ -132,6 +132,13 @@ test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participa
   assert.equal(appelFormateur.arguments[3].sujet, 'Nouveau candidat à évaluer');
   assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
   assert.ok(appelFormateur.arguments[2].includes('Sophie Martin'));
+
+  // Régression (audit 2026-08-20) : l'email formateur n'attachait jusqu'ici jamais l'.ics
+  // (contenuIcs était scopé au seul bloc candidat) — même fichier que l'email candidat ci-dessus.
+  const piecesJointesFormateur = appelFormateur.arguments[3].piecesJointes;
+  assert.equal(piecesJointesFormateur[0].nom, 'convocation-test-accecit.ics');
+  assert.equal(piecesJointesFormateur[0].typeMime, 'text/calendar');
+  assert.equal(piecesJointesFormateur[0].contenu.toString('utf8'), contenuIcs);
 });
 
 test("envoyerInvitationTest notifie aussi bien un inspecteur (test bureau) qu'un formateur (test hôtel) — le service ne distingue pas le role_code, voir rendezvous.formateur_id : colonne unique partagée par les deux rôles (migration 018)", async (t) => {
