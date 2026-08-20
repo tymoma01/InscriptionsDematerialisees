@@ -52,14 +52,15 @@ function mockerDependances(t, overrides = {}) {
   t.mock.method(evaluationRepository, 'enregistrerPostesEvaluation', async () => {});
   t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
   const enregistrerMock = t.mock.method(evaluationRepository, 'enregistrerEvaluation', overrides.enregistrerEvaluation ?? (async () => 1));
-  return { enregistrerMock };
+  const mettreAJourStatutRendezvousMock = t.mock.method(rendezvousRepository, 'mettreAJourStatutRendezvous', async () => ({}));
+  return { enregistrerMock, mettreAJourStatutRendezvousMock };
 }
 
 const BLOC_REPONSES = { posteCode: 'nettoyage', reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' }] };
 
 test("enregistrerEvaluation accepte un verdict positif d'Inspecteur sans orientation, la persiste à NULL, et déclenche valider_pret_embauche", async (t) => {
   mockerKnex(t);
-  const { enregistrerMock } = mockerDependances(t);
+  const { enregistrerMock, mettreAJourStatutRendezvousMock } = mockerDependances(t);
   const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
 
   const resultat = await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
@@ -75,6 +76,12 @@ test("enregistrerEvaluation accepte un verdict positif d'Inspecteur sans orienta
   assert.deepEqual(resultat, { evaluationId: 1 });
   assert.equal(enregistrerMock.mock.calls[0].arguments[1].orientation, null);
   assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'valider_pret_embauche');
+
+  // Régression (audit 2026-08-20, dossiers #89/#91/#85/#74/#69) : un verdict positif doit aussi
+  // marquer le rendez-vous "honore", pas seulement faire avancer le dossier.
+  assert.equal(mettreAJourStatutRendezvousMock.mock.calls.length, 1);
+  assert.equal(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[1], 10);
+  assert.deepEqual(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[2], { statut: 'honore', motifId: null });
 });
 
 test("enregistrerEvaluation ignore une orientation envoyée par erreur par un Inspecteur (toujours NULL persisté, jamais de confiance dans le payload)", async (t) => {
@@ -115,7 +122,7 @@ test('enregistrerEvaluation rejette toujours un verdict positif de Formateur san
 
 test('enregistrerEvaluation applique invalider_test pour un verdict négatif, quel que soit le rôle (formateur ou inspecteur)', async (t) => {
   mockerKnex(t);
-  mockerDependances(t);
+  const { mettreAJourStatutRendezvousMock } = mockerDependances(t);
   const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 7 }));
 
   await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
@@ -129,6 +136,9 @@ test('enregistrerEvaluation applique invalider_test pour un verdict négatif, qu
   });
 
   assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'invalider_test');
+  // Un verdict négatif n'a pas d'issue positive : rendezvous.statut reste inchangé ('honore'
+  // réservé aux verdicts valides, voir enregistrerEvaluation).
+  assert.equal(mettreAJourStatutRendezvousMock.mock.calls.length, 0);
 });
 
 test('enregistrerEvaluation accepte les réponses grille_qcu sur l\'échelle bureau (aucune_connaissance/excellent)', async (t) => {

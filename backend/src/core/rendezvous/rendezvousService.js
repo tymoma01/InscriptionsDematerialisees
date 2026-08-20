@@ -28,7 +28,14 @@ const DELAI_MIN_REPLANIFICATION_MINUTES = 30;
 const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
 const STATUT_PROTEGE_PAR_DELAI_REPLANIFICATION = 'test_planifie';
 
-const STATUTS_AUTORISES = ['prevu', 'confirme', 'absent', 'annule'];
+// 'honore' (audit 2026-08-20, dossiers #89/#91/#85/#74/#69) : posé uniquement par
+// evaluationEngine.enregistrerEvaluation quand une évaluation valide fait aboutir le dossier à
+// valide_pret_embauche/valide_envoi_formation — le test a réellement eu lieu et conclu
+// positivement, distinct de 'confirme' (présence confirmée À L'AVANCE, avant le test, jamais un
+// constat a posteriori). Jamais choisi par un agent via changerStatutRendezvous ce jour (pas de
+// bouton dédié) : listé ici pour que la validation de forme l'accepte quand
+// evaluationEngine l'écrit via rendezvousRepository.mettreAJourStatutRendezvous.
+const STATUTS_AUTORISES = ['prevu', 'confirme', 'absent', 'annule', 'honore'];
 // Statuts qui constituent un désistement (CLAUDE.md, besoin Accueil/Coordination : "motif de
 // désistement enregistré systématiquement, pour objectiver le phénomène et nourrir le futur
 // tableau de bord") — 'absent' (non présenté le jour J) et 'annule' (désistement annoncé à
@@ -92,6 +99,17 @@ class ErreurRendezvousDossierClos extends Error {
   }
 }
 
+// Audit du 2026-08-20 (dossier #32, RDV #82) : "Marquer absent" appliqué à un rendez-vous encore
+// à venir (date_heure future) — rien ne l'empêchait. Une absence ne peut être constatée qu'une
+// fois le créneau passé ; 'confirme'/'annule' restent autorisés à tout moment (une annulation
+// s'annonce typiquement À L'AVANCE, contrairement à une absence qui se CONSTATE après coup).
+class ErreurRendezvousDateNonPassee extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurRendezvousDateNonPassee';
+  }
+}
+
 // Statuts de DOSSIER (pas de rendez-vous) au-delà desquels une action sur le rendez-vous de test
 // associé n'a plus de sens : le dossier a déjà quitté test_planifie vers une issue (non réalisé,
 // invalidé après évaluation, ou verdict final positif) — Confirmer la présence/Marquer absent/
@@ -150,6 +168,15 @@ async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut
   const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
   if (!rendezvous || rendezvous.dossier_id !== Number(dossierId)) {
     throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour le dossier "${dossierId}".`);
+  }
+
+  // 'absent' seulement : une absence se CONSTATE après le créneau, jamais avant (voir
+  // ErreurRendezvousDateNonPassee ci-dessus) — 'confirme'/'annule' restent autorisés à tout
+  // moment, aucune contrainte de date sur eux.
+  if (statut === 'absent' && new Date(rendezvous.date_heure) >= new Date()) {
+    throw new ErreurRendezvousDateNonPassee(
+      "Impossible de marquer ce rendez-vous absent : le créneau n'est pas encore passé.",
+    );
   }
 
   let motifId = null;
