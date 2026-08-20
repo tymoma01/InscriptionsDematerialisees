@@ -65,7 +65,7 @@ jobs:
         # Identity). DefaultAzureCredential (backend/src/core/securite/keyVaultClient.js) retombe
         # sur AzureCliCredential et retrouve cette session automatiquement à l'étape suivante, sans
         # code spécifique à ajouter pour CI.
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
