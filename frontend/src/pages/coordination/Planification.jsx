@@ -23,11 +23,22 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // Même mapping que GestionRendezvous.jsx (libellé + polarité visuelle d'un statut de
 // rendez-vous) — dupliqué plutôt que partagé : une poignée de lignes, pas de quoi justifier un
 // utilitaire commun (voir CLAUDE.md, conventions du projet).
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Absent', annule: 'Annulé' };
+// 'remplace' (posé automatiquement par neutraliserRendezvousActifsDossier lors d'une
+// replanification, jamais choisi par un agent — voir rendezvousRepository.js) manquait ici (audit
+// 2026-08-20) : il retombait sur le code brut "remplace" (ni majuscule ni accent) faute d'entrée
+// dans LIBELLES_STATUT, et sur la variante par défaut 'attente', indiscernable visuellement d'un
+// rendez-vous réellement 'prevu' — corrigé pour reprendre le même libellé déjà en place sur
+// GestionRendezvous.jsx ("Remplacé"). Variante 'neutre-fort' (pas le simple 'neutre' utilisé un
+// temps ici, jugé trop discret sur ce tableau — audit 2026-08-20 suivant) : gris moyen/texte foncé,
+// neutre mais bien lisible, distinct des badges colorés actifs (Prévu/Annulé...) — même variante
+// reprise sur GestionRendezvous.jsx pour rester cohérent entre les deux endroits où ce badge
+// apparaît.
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Absent', annule: 'Annulé', remplace: 'Remplacé' };
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
   if (STATUTS_DESISTEMENT.includes(statut)) return 'echec';
+  if (statut === 'remplace') return 'neutre-fort';
   return 'attente';
 }
 
@@ -48,8 +59,9 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s), nom du formateur),
-// filtrage entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back —
+// Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s), nom du formateur,
+// libellé du statut) — toutes les colonnes visibles du tableau (audit 2026-08-20, généralisation
+// à toute l'app), filtrage entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back —
 // voir listerRendezvousTest — cette recherche s'applique en plus, sur la liste déjà renvoyée par
 // l'API, sans aller-retour serveur supplémentaire). Même approche que filtrerDossiers.js
 // (core/dossier/filtrerDossiers.js, réutilisé tel quel par Dossiers candidats) : nom/prénom
@@ -71,6 +83,10 @@ function libellePoste(code) {
 // comparaison mot à mot que le nom du candidat (nomFormateur ci-dessous), pas une simple
 // inclusion comme les postes : un formateur est une personne, comme le candidat, donc insensible
 // à l'ordre de saisie ("Thomas Yamini" retrouve "Yamini Thomas") pour la même raison.
+//
+// Statut (colonne "Statut") ajouté à la recherche élargie (audit 2026-08-20) — même principe que
+// poste ci-dessus (simple inclusion sur le LIBELLÉ affiché, LIBELLES_STATUT[rdv.statut], jamais le
+// code brut) : un agent tape "prévu" ou "annulé", pas "prevu"/"annule" (codes internes).
 function rechercheCorrespond(
   rdv,
   { motsRechercheNom, rechercheNormaliseeTexte, rechercheChiffresSeuls, rechercheEstNumerique, rechercheEstNumeroDossier },
@@ -92,7 +108,9 @@ function rechercheCorrespond(
   const correspondPoste = postes.includes(rechercheNormaliseeTexte);
   const nomFormateur = normaliserTexte(`${rdv.formateur_prenom ?? ''} ${rdv.formateur_nom ?? ''}`.toLowerCase());
   const correspondFormateur = motsRechercheNom.every((mot) => nomFormateur.includes(mot));
-  return correspondNom || correspondPoste || correspondFormateur;
+  const statut = normaliserTexte((LIBELLES_STATUT[rdv.statut] ?? rdv.statut ?? '').toLowerCase());
+  const correspondStatut = statut.includes(rechercheNormaliseeTexte);
+  return correspondNom || correspondPoste || correspondFormateur || correspondStatut;
 }
 
 // "À venir" au sens de cette page : même définition que le filtre serveur aVenirSeulement
@@ -136,6 +154,18 @@ export default function Planification() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const navigate = useNavigate();
 
+  // Formateur/Inspecteur (audit 2026-08-20, accès étendu à cette page) : ne voient QUE leurs
+  // propres rendez-vous assignés (restriction posée côté serveur, voir dossiers.routes.js —
+  // formateurId y est forcé à req.utilisateur.id pour ces deux rôles, quoi qu'envoie le client).
+  // Cette constante ne pilote donc ici que des masquages d'AFFICHAGE cohérents avec cette
+  // restriction déjà acquise côté back, jamais la restriction elle-même : le sélecteur
+  // "Formateur" n'a plus de sens pour un compte qui ne voit déjà que ses propres rendez-vous
+  // (point 4 de la demande), et la sélection multi-candidats/"Voir l'historique..." reste hors
+  // périmètre pour ces deux rôles (accès à /coordination/dossiers/:id/relances non accordé côté
+  // back pour Formateur/Inspecteur — rendezvous.routes.js/relances.routes.js restent réservés à
+  // Accueil/Coordination/Recruteur/Admin, décision volontairement non étendue ici).
+  const estFormateurOuInspecteur = ['formateur', 'inspecteur'].includes(utilisateur?.roleCode);
+
   const [rendezvous, setRendezvous] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -149,7 +179,7 @@ export default function Planification() {
   const setAVenirSeulement = (valeur) => setAVenirBrut(valeur ? '1' : '0');
   const [formateurFiltre, setFormateurFiltre] = useParametreURL('formateur', ''); // '' = tous les formateurs
   const [formateurs, setFormateurs] = useState([]);
-  // Recherche élargie (nom/prénom, n° dossier, poste, formateur) — voir rechercheCorrespond
+  // Recherche élargie (nom/prénom, n° dossier, poste, formateur, statut) — voir rechercheCorrespond
   // ci-dessus.
   const [recherche, setRecherche] = useParametreURL('q', '');
   // Plage de date sur rdv.date_heure (colonne "Date et heure"), mêmes noms de paramètre URL que
@@ -193,13 +223,23 @@ export default function Planification() {
   const [compteurHistorique, setCompteurHistorique] = useState(0);
 
   useEffect(() => {
+    // Sélecteur "Formateur" masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur
+    // ci-dessus) : inutile d'appeler une route que ces deux rôles n'ont de toute façon pas le
+    // droit d'interroger (formateurs.routes.js reste réservé à Accueil/Coordination/Recruteur/
+    // Admin, décision volontairement non étendue ici). Attend la résolution de la session
+    // (chargementSession) avant de décider : au tout premier rendu, utilisateur est encore null
+    // et estFormateurOuInspecteur vaut donc faussement `false` (roleCode indéfini) — sans cette
+    // garde, l'appel partait une première fois avant que le rôle réel ne soit connu, provoquant
+    // un aller-retour 403 inutile pour un compte Formateur/Inspecteur avant que l'effet ne se
+    // redéclenche correctement une fois la session chargée.
+    if (chargementSession || estFormateurOuInspecteur) return;
     listerFormateurs()
       .then(setFormateurs)
       .catch(() => {
         // Filtre non critique : la liste de rendez-vous reste consultable sans lui, seul le
         // sélecteur "Formateur" resterait vide.
       });
-  }, []);
+  }, [chargementSession, estFormateurOuInspecteur]);
 
   useEffect(() => {
     let annule = false;
@@ -220,8 +260,8 @@ export default function Planification() {
     };
   }, [aVenirSeulement, formateurFiltre]);
 
-  // Filtrage client élargi (nom/prénom, n° dossier, poste, formateur — voir rechercheCorrespond) +
-  // plage de date sur rdv.date_heure (dateDebutFiltre/dateFinFiltre), appliqués en plus des filtres serveur
+  // Filtrage client élargi (nom/prénom, n° dossier, poste, formateur, statut — voir
+  // rechercheCorrespond) + plage de date sur rdv.date_heure (dateDebutFiltre/dateFinFiltre), appliqués en plus des filtres serveur
   // (aVenirSeulement/formateurFiltre, voir l'effet ci-dessus) sur la liste déjà reçue — se combine
   // donc naturellement avec eux sans logique de composition supplémentaire (ET logique) : moins de
   // résultats servis par le back à filtrer davantage ici, jamais l'inverse. Même découpage
@@ -394,22 +434,28 @@ export default function Planification() {
             À venir uniquement
           </label>
 
-          <label className="planification__filtre-formateur">
-            <span>Formateur</span>
-            <select value={formateurFiltre} onChange={(evenement) => setFormateurFiltre(evenement.target.value)}>
-              <option value="">Tous</option>
-              {formateurs.map((formateur) => (
-                <option key={formateur.id} value={formateur.id}>
-                  {formateur.prenom} {formateur.nom}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : ces deux rôles ne
+              voient déjà que leurs propres rendez-vous (restriction serveur, dossiers.routes.js),
+              un sélecteur "Tous les formateurs" n'aurait donc plus aucun effet utile pour eux. */}
+          {!estFormateurOuInspecteur && (
+            <label className="planification__filtre-formateur">
+              <span>Formateur</span>
+              <select value={formateurFiltre} onChange={(evenement) => setFormateurFiltre(evenement.target.value)}>
+                <option value="">Tous</option>
+                {formateurs.map((formateur) => (
+                  <option key={formateur.id} value={formateur.id}>
+                    {formateur.prenom} {formateur.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {/* Filtrage client (voir rechercheCorrespond/rendezvousFiltres ci-dessus) : se combine
               avec aVenirSeulement/formateurFiltre sans logique dédiée, ceux-ci étant déjà
               appliqués côté back avant que cette recherche ne s'exécute sur le résultat. Couvre
-              toutes les colonnes du tableau (N°, Candidat, Poste, Formateur) — retrouve un
+              toutes les colonnes VISIBLES du tableau (N°, Candidat, Poste, Formateur, Statut —
+              jamais Date et heure, couverte par le filtre Du/Au dédié ci-dessous) — retrouve un
               formateur par son nom sans passer par le sélecteur "Formateur" ci-dessus, qui exige
               de le connaître à l'avance dans la liste déroulante. */}
           <label className="planification__filtre-recherche">
@@ -418,7 +464,7 @@ export default function Planification() {
               type="search"
               value={recherche}
               onChange={(evenement) => setRecherche(evenement.target.value)}
-              placeholder="Nom, prénom, N° dossier, poste ou formateur"
+              placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
             />
           </label>
 
@@ -433,12 +479,19 @@ export default function Planification() {
           />
         </div>
 
-        <div className="planification__actions-selection">
-          <button type="button" disabled={dossiersSelectionnes.size === 0} onClick={ouvrirHistorique}>
-            Voir l&rsquo;historique des rendez-vous sélectionnés
-            {dossiersSelectionnes.size > 0 ? ` (${dossiersSelectionnes.size})` : ''}
-          </button>
-        </div>
+        {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection
+            multi-candidats/"Voir l'historique..." reste une action de coordination (regroupement
+            de plusieurs dossiers), distincte de la simple consultation en lecture seule d'UN
+            dossier via "Voir le dossier" (colonne Actions ci-dessous, désormais accessible à ces
+            deux rôles — voir son commentaire). */}
+        {!estFormateurOuInspecteur && (
+          <div className="planification__actions-selection">
+            <button type="button" disabled={dossiersSelectionnes.size === 0} onClick={ouvrirHistorique}>
+              Voir l&rsquo;historique des rendez-vous sélectionnés
+              {dossiersSelectionnes.size > 0 ? ` (${dossiersSelectionnes.size})` : ''}
+            </button>
+          </div>
+        )}
 
         {chargement && <p>Chargement des rendez-vous…</p>}
         {erreur && <p role="alert">{erreur}</p>}
@@ -449,22 +502,35 @@ export default function Planification() {
 
         {!chargement && !erreur && rendezvousTries.length > 0 && (
           <div className="planification__scroll">
-            <table className="planification__table">
+            {/* --planification-largeur-colonne-case ramenée à 0 quand la colonne de sélection ne
+                se rend pas (Formateur/Inspecteur, voir estFormateurOuInspecteur) : cette variable
+                pilote aussi le décalage (`left`) en cascade de "N°"/"Date et heure"/"Candidat"
+                (voir Planification.css) — sans ce recalage, ces trois colonnes figées garderaient
+                un vide à gauche correspondant à la largeur de la case à cocher absente. */}
+            <table
+              className="planification__table"
+              style={estFormateurOuInspecteur ? { '--planification-largeur-colonne-case': '0rem' } : undefined}
+            >
               <thead>
                 <tr>
                   {/* Sélection de candidats (voir dossiersSelectionnes) — première colonne, figée
                       au défilement horizontal comme "N°"/"Date et heure"/"Candidat" juste après
                       elle (voir Planification.css, --planification-largeur-colonne-case décale
                       maintenant les trois autres). Case "tout sélectionner" : coche/décoche les
-                      seuls candidats actuellement visibles (voir togglerSelectionnerTout). */}
-                  <th scope="col" className="planification__colonne-case">
-                    <input
-                      type="checkbox"
-                      checked={tousVisiblesSelectionnes}
-                      onChange={togglerSelectionnerTout}
-                      aria-label="Tout sélectionner"
-                    />
-                  </th>
+                      seuls candidats actuellement visibles (voir togglerSelectionnerTout). Masquée
+                      pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection
+                      multi-candidats n'a d'utilité que pour "Voir l'historique...", lui-même
+                      masqué pour ces deux rôles (voir plus haut). */}
+                  {!estFormateurOuInspecteur && (
+                    <th scope="col" className="planification__colonne-case">
+                      <input
+                        type="checkbox"
+                        checked={tousVisiblesSelectionnes}
+                        onChange={togglerSelectionnerTout}
+                        aria-label="Tout sélectionner"
+                      />
+                    </th>
+                  )}
                   {/* N° de dossier = rdv.dossier_id, identifiant métier déjà utilisé partout
                       ailleurs dans l'app (en-tête "Dossier #id", colonne "N° dossier" du tableau
                       KPI) — plus un simple rang d'affichage recalculé à chaque tri (comportement
@@ -500,20 +566,29 @@ export default function Planification() {
                       </th>
                     );
                   })}
+                  {/* "Voir le dossier" (voir son commentaire plus bas) désormais accessible à
+                      Formateur/Inspecteur aussi (audit 2026-08-20) : accès en lecture seule à
+                      /coordination/dossiers/:id/relances, accordé côté back (rendezvous.routes.js/
+                      relances.routes.js, ROLES_LECTURE_RENDEZVOUS/ROLES_LECTURE_RELANCES) — les
+                      actions de reprogrammation/désistement/relance y restent masquées pour ces
+                      deux rôles (voir GestionRendezvous.jsx/HistoriqueRelances.jsx), donc plus
+                      besoin de masquer cette colonne en amont ici. */}
                   <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {rendezvousTries.map((rdv) => (
                   <tr key={rdv.id}>
-                    <td className="planification__colonne-case">
-                      <input
-                        type="checkbox"
-                        checked={dossiersSelectionnes.has(rdv.dossier_id)}
-                        onChange={() => togglerSelectionDossier(rdv.dossier_id)}
-                        aria-label={`Sélectionner ${rdv.candidat_prenom} ${rdv.candidat_nom}`}
-                      />
-                    </td>
+                    {!estFormateurOuInspecteur && (
+                      <td className="planification__colonne-case">
+                        <input
+                          type="checkbox"
+                          checked={dossiersSelectionnes.has(rdv.dossier_id)}
+                          onChange={() => togglerSelectionDossier(rdv.dossier_id)}
+                          aria-label={`Sélectionner ${rdv.candidat_prenom} ${rdv.candidat_nom}`}
+                        />
+                      </td>
+                    )}
                     <td className="planification__colonne-numero">{rdv.dossier_id}</td>
                     <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td className="planification__colonne-figee">
@@ -529,12 +604,19 @@ export default function Planification() {
                       </div>
                     </td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
-                    <td>
+                    <td className="planification__colonne-statut">
                       <StatutBadge
                         libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut}
                         variante={varianteStatutRendezvous(rdv.statut)}
                       />
                     </td>
+                    {/* "Voir le dossier" — même bouton (style/couleur/cadre) que sur la vue
+                        Accueil/Admin ci-dessus, désormais aussi rendu pour Formateur/Inspecteur
+                        (voir le commentaire de l'en-tête "Actions"). Ouvre la même fiche dossier
+                        (Relances.jsx) en lecture seule pour ces deux rôles : GestionRendezvous.jsx/
+                        HistoriqueRelances.jsx y masquent déjà leurs actions de reprogrammation/
+                        désistement/relance pour eux (backend toujours fermé sur ces écritures,
+                        même sans ce masquage front). */}
                     <td>
                       <div className="planification__actions">
                         <button

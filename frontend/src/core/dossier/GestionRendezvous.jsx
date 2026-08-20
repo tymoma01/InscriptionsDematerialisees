@@ -24,12 +24,15 @@ const STATUTS_DESISTEMENT = ['absent', 'annule'];
 // 'remplace' (posé automatiquement par neutraliserRendezvousActifsDossier lors d'une
 // replanification, jamais choisi par un agent — voir rendezvousRepository.js) retombait
 // jusqu'ici sur la variante par défaut 'attente', indiscernable visuellement d'un rendez-vous
-// réellement 'prevu' — badge neutre gris explicite désormais (audit 2026-08-19, refonte
-// timeline), cohérent avec son statut de simple historique, jamais l'état à mettre en avant.
+// réellement 'prevu' — badge neutre explicite désormais (audit 2026-08-19, refonte timeline),
+// cohérent avec son statut de simple historique, jamais l'état à mettre en avant. Variante
+// 'neutre-fort' (pas le simple 'neutre', jugé trop discret — audit 2026-08-20) : gris moyen/texte
+// foncé, neutre mais bien lisible ; même variante reprise sur Planification.jsx (Suivi des tests)
+// pour rester cohérent entre les deux endroits où ce badge apparaît.
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
   if (STATUTS_DESISTEMENT.includes(statut)) return 'echec';
-  if (statut === 'remplace') return 'neutre';
+  if (statut === 'remplace') return 'neutre-fort';
   return 'attente';
 }
 
@@ -51,6 +54,14 @@ const LIBELLES_STATUT = {
 // contourné, aucun désistement ne peut être enregistré sans motif.
 export default function GestionRendezvous({ dossierId }) {
   const { utilisateur, chargement: chargementSession } = useSession();
+
+  // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
+  // dossier" sur Suivi des tests, voir rendezvous.routes.js ROLES_LECTURE_RENDEZVOUS) : consultent
+  // la liste ci-dessous mais ne voient jamais les actions de reprogrammation/désistement,
+  // réservées à Accueil/Coordination/Recruteur/Admin (voir ROLES_GESTION_RENDEZVOUS côté back —
+  // ces routes PATCH restent fermées pour ces deux rôles, ce masquage d'affichage évite un bouton
+  // visible mais non fonctionnel).
+  const peutGererRendezvous = ['accueil_coordination', 'recruteur', 'admin'].includes(utilisateur?.roleCode);
 
   const [rendezvous, setRendezvous] = useState([]);
   const [motifs, setMotifs] = useState([]);
@@ -163,7 +174,7 @@ export default function GestionRendezvous({ dossierId }) {
         <ul className="gestion-rendezvous__liste">
           {rendezvous.map((rdv) => {
             const enDesistementPourCeRdv = desistementEnCours?.rendezvousId === rdv.id;
-            const actionsDisponibles = rdv.statut === 'prevu' || rdv.statut === 'confirme';
+            const actionsDisponibles = peutGererRendezvous && (rdv.statut === 'prevu' || rdv.statut === 'confirme');
             // Seul état "remplacé" (posé automatiquement lors d'une replanification, voir
             // varianteStatutRendezvous ci-dessus) à estomper — absent/annule/confirme/prevu
             // restent tous des états "actifs" au sens de cette page : ce sont de vrais

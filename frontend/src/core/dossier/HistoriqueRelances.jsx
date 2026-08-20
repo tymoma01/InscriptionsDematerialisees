@@ -38,6 +38,13 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 export default function HistoriqueRelances({ dossierId }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
+  // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
+  // dossier" sur Suivi des tests, voir relances.routes.js ROLES_LECTURE_RELANCES) : consultent
+  // l'historique ci-dessous mais ne voient jamais le formulaire d'ajout, réservé à Accueil/
+  // Coordination/Recruteur/Admin (voir ROLES_GESTION_RELANCES côté back — la route POST reste
+  // fermée pour ces deux rôles, ce masquage évite un formulaire visible mais non fonctionnel).
+  const peutGererRelances = ['accueil_coordination', 'recruteur', 'admin'].includes(utilisateur?.roleCode);
+
   const [relances, setRelances] = useState([]);
   const [motifs, setMotifs] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -160,59 +167,61 @@ export default function HistoriqueRelances({ dossierId }) {
         </ul>
       )}
 
-      <form className="historique-relances__formulaire" onSubmit={gererEnvoi}>
-        <h3>Enregistrer une relance</h3>
+      {peutGererRelances && (
+        <form className="historique-relances__formulaire" onSubmit={gererEnvoi}>
+          <h3>Enregistrer une relance</h3>
 
-        <label>
-          <span>Canal</span>
-          <select value={canal} onChange={(evenement) => setCanal(evenement.target.value)}>
-            {CANAUX.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.libelle}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Résultat choisi par l'agent uniquement pour un appel téléphonique — pour sms/email,
-            l'envoi est réel et le résultat est déterminé automatiquement par son succès/échec
-            (voir relanceService.js), donc rien à choisir ici. */}
-        {canal === 'telephone' && (
           <label>
-            <span>Résultat</span>
-            <select value={resultat} onChange={(evenement) => setResultat(evenement.target.value)} required>
-              {motifsTelephone.length === 0 && <option value="">Aucun résultat configuré</option>}
-              {motifsTelephone.map((motif) => (
-                <option key={motif.code} value={motif.code}>
-                  {motif.libelle}
+            <span>Canal</span>
+            <select value={canal} onChange={(evenement) => setCanal(evenement.target.value)}>
+              {CANAUX.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.libelle}
                 </option>
               ))}
             </select>
           </label>
-        )}
 
-        {canal !== 'telephone' && (
-          <p className="historique-relances__indication-envoi">
-            {libelleCanal(canal)} envoyé directement au candidat au moment de l’enregistrement.
-          </p>
-        )}
+          {/* Résultat choisi par l'agent uniquement pour un appel téléphonique — pour sms/email,
+              l'envoi est réel et le résultat est déterminé automatiquement par son succès/échec
+              (voir relanceService.js), donc rien à choisir ici. */}
+          {canal === 'telephone' && (
+            <label>
+              <span>Résultat</span>
+              <select value={resultat} onChange={(evenement) => setResultat(evenement.target.value)} required>
+                {motifsTelephone.length === 0 && <option value="">Aucun résultat configuré</option>}
+                {motifsTelephone.map((motif) => (
+                  <option key={motif.code} value={motif.code}>
+                    {motif.libelle}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
-        <label className="historique-relances__champ-commentaire">
-          <span>Commentaire (optionnel)</span>
-          <textarea
-            value={commentaire}
-            onChange={(evenement) => setCommentaire(evenement.target.value)}
-            rows={3}
-            maxLength={2000}
-          />
-        </label>
+          {canal !== 'telephone' && (
+            <p className="historique-relances__indication-envoi">
+              {libelleCanal(canal)} envoyé directement au candidat au moment de l’enregistrement.
+            </p>
+          )}
 
-        {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
+          <label className="historique-relances__champ-commentaire">
+            <span>Commentaire (optionnel)</span>
+            <textarea
+              value={commentaire}
+              onChange={(evenement) => setCommentaire(evenement.target.value)}
+              rows={3}
+              maxLength={2000}
+            />
+          </label>
 
-        <button type="submit" disabled={envoiEnCours || motifs.length === 0}>
-          {envoiEnCours ? 'Enregistrement...' : 'Enregistrer la relance'}
-        </button>
-      </form>
+          {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
+
+          <button type="submit" disabled={envoiEnCours || motifs.length === 0}>
+            {envoiEnCours ? 'Enregistrement...' : 'Enregistrer la relance'}
+          </button>
+        </form>
+      )}
     </section>
   );
 }

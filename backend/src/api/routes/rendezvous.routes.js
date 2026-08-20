@@ -25,6 +25,14 @@ const router = Router({ mergeParams: true });
 // gestion des pièces justificatives et des relances.
 const ROLES_GESTION_RENDEZVOUS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
 
+// Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
+// "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais aux routes
+// POST/PATCH, qui restent réservées à ROLES_GESTION_RENDEZVOUS : ces deux rôles consultent la
+// fiche dossier en lecture seule, sans les actions de reprogrammation/désistement (Confirmer la
+// présence/Marquer absent/Marquer annulé restent masquées côté front pour eux, voir
+// GestionRendezvous.jsx, et de toute façon refusées ici côté serveur si contournées).
+const ROLES_LECTURE_RENDEZVOUS = [...ROLES_GESTION_RENDEZVOUS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+
 router.use(requireAuth);
 
 const idPositifSchema = z.coerce.number().int().positive();
@@ -86,7 +94,7 @@ function repondreErreurValidation(res, erreurZod) {
 }
 
 // GET /api/dossiers/:dossierId/rendezvous — rendez-vous du dossier, du plus récent au plus ancien.
-router.get('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
+router.get('/', requireRole(...ROLES_LECTURE_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const rendezvous = await rendezvousService.listerRendezvous(req.entite, dossierId);

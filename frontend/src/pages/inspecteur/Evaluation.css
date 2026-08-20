@@ -9,8 +9,9 @@
   margin-bottom: var(--espace-petit);
 }
 
-/* Titre + bouton empilés (même patron que .page-evaluation__titre-bloc) : le bouton "Historique
-   des évaluations" passe sous le titre plutôt que collé à côté. */
+/* Bouton "Historique des évaluations" retiré (refonte navigation, 2026-08-20) : couvert par le
+   lien du même nom dans la barre de navigation commune, voir BarreNavigation.jsx (montée dans
+   PageBackOffice.jsx) — même retrait que pages/formateur/Evaluation.css. */
 .page-evaluation-inspecteur__titre-bloc {
   display: flex;
   flex-direction: column;
@@ -20,26 +21,6 @@
 .page-evaluation-inspecteur__titre-bloc h1 {
   margin: 0;
   color: var(--couleur-back-office);
-}
-
-/* Même mise en forme bouton bordé que tous les liens de navigation back-office du projet
-   (dupliqué plutôt que partagé, voir CLAUDE.md conventions du projet). */
-.page-evaluation-inspecteur__bouton-historique {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.page-evaluation-inspecteur__bouton-historique:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
 }
 
 .page-evaluation-inspecteur__entete .en-tete-back-office {

@@ -8,9 +8,10 @@
   margin-bottom: var(--espace-petit);
 }
 
-/* Titre + bouton empilés (contrairement à .tableau-bord-accueil__entete où le lien reste sur la
-   même ligne que le h1) : le bouton "Historique des évaluations" passe sous le titre plutôt que
-   collé à côté. */
+/* Bouton "Historique des évaluations" retiré (refonte navigation, 2026-08-20) : couvert par le
+   lien du même nom dans la barre de navigation commune, voir BarreNavigation.jsx (montée dans
+   PageBackOffice.jsx) — .titre-bloc ne garde donc plus qu'un enfant (h1), conservé tel quel pour
+   rester cohérent avec le patron des autres en-têtes back-office (VerificationPieces.jsx...). */
 .page-evaluation__titre-bloc {
   display: flex;
   flex-direction: column;
@@ -20,28 +21,6 @@
 .page-evaluation__titre-bloc h1 {
   margin: 0;
   color: var(--couleur-back-office);
-}
-
-/* Même mise en forme que .capture-tablette__bouton-retour/.page-validation__bouton-retour/
-   .page-relances__bouton-retour/.planification__bouton-retour (dupliqué plutôt que partagé, même
-   choix qu'ailleurs dans le projet) : tous les liens de navigation back-office reprennent
-   l'apparence bouton bordé, plus de lien texte nu à puce. */
-.page-evaluation__bouton-historique {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.page-evaluation__bouton-historique:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
 }
 
 .page-evaluation__entete .en-tete-back-office {

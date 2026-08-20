@@ -42,9 +42,6 @@ export default function PageHistoriqueEvaluationsInspecteur() {
         <header className="page-historique-evaluations-inspecteur__entete">
           <div className="page-historique-evaluations-inspecteur__titre-bloc">
             <h1>Historique des évaluations</h1>
-            <Link to="/inspecteur/evaluations" className="page-historique-evaluations-inspecteur__bouton-retour">
-              Évaluations à faire
-            </Link>
           </div>
           <EnTeteBackOffice />
         </header>

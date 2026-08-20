@@ -17,6 +17,13 @@ const router = Router({ mergeParams: true });
 // core/auth/rbac.js), le recruteur et l'admin consultent/agissent aussi sur le dossier.
 const ROLES_GESTION_RELANCES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
 
+// Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
+// "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais à POST, qui reste
+// réservé à ROLES_GESTION_RELANCES : ces deux rôles consultent l'historique en lecture seule,
+// sans pouvoir enregistrer de relance (formulaire masqué côté front, voir
+// HistoriqueRelances.jsx, et de toute façon refusé ici côté serveur si contourné).
+const ROLES_LECTURE_RELANCES = [...ROLES_GESTION_RELANCES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+
 router.use(requireAuth);
 
 const idPositifSchema = z.coerce.number().int().positive();
@@ -82,7 +89,7 @@ router.post('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) 
 
 // GET /api/dossiers/:dossierId/relances — historique des relances du dossier, du plus récent au
 // plus ancien : c'est cet historique qui doit être consulté avant de relancer à nouveau.
-router.get('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) => {
+router.get('/', requireRole(...ROLES_LECTURE_RELANCES), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const relances = await relanceService.listerRelances(req.entite, dossierId);

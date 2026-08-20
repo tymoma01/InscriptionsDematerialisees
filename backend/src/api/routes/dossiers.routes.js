@@ -22,6 +22,25 @@ router.use(requireAuth);
 // c'est la suite du même parcours interne.
 const ROLES_CONSULTATION_DOSSIERS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
 
+// Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET /rendezvous ci-dessous (audit 2026-08-20,
+// accès à "Suivi des tests") — pas à ROLES_CONSULTATION_DOSSIERS lui-même : ces deux rôles n'ont
+// pas à voir la liste complète des dossiers, ni les motifs/statuts/transitions des autres routes de
+// ce fichier, seulement leurs propres rendez-vous de test (voir la restriction posée dans le
+// handler de la route, jamais un simple filtrage d'affichage côté front).
+const ROLES_CONSULTATION_RENDEZVOUS_TEST = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+
+// Formateur/Inspecteur, lecture seule sur UN dossier précis (audit 2026-08-19, écrans
+// d'évaluation — étendu le 2026-08-20 au résumé GET /:dossierId, bouton "Voir le dossier" sur
+// Suivi des tests) — même patron que ROLES_CONSULTATION_PIECES (pieces.routes.js), la vraie garde
+// de modification restant ROLES_MODIFICATION_INSCRIPTION plus bas, inchangée. Distinct de
+// ROLES_CONSULTATION_DOSSIERS (pas réutilisé tel quel) : ne pas donner à Formateur/Inspecteur un
+// accès aux AUTRES routes de ce fichier (liste des dossiers, statuts, transitions...) — seulement
+// au résumé et aux infos d'inscription d'UN dossier précis, consulté depuis Relances.jsx
+// ("Voir le dossier") ou GrilleEvaluation.jsx (InformationsInscription). GET /rendezvous reste à
+// part (ROLES_CONSULTATION_RENDEZVOUS_TEST ci-dessus), déjà scopé différemment (tous dossiers,
+// pas un seul).
+const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+
 // GET /api/dossiers?statut=code — liste des dossiers de l'entité courante, filtrable par statut.
 // Le code de statut n'est jamais figé ici : il vient de la table `statuts`, configurable par
 // entité (voir Modularité, CLAUDE.md) — un code inconnu pour l'entité renvoie simplement une
@@ -74,18 +93,26 @@ const rendezvousTestQuerySchema = z.object({
 });
 
 // GET /api/dossiers/rendezvous — vue d'ensemble des rendez-vous de test, tous dossiers
-// confondus (page Planification côté Coordination, CLAUDE.md : "planifie les tests") —
-// filtrable par aVenir (statut prevu/confirme + date future), par formateurId, et par plage de
-// dates (dateDebut/dateFin, pour le calendrier mensuel de disponibilité). Distinct de
+// confondus pour Accueil/Coordination/Recruteur/Admin (page Planification, CLAUDE.md : "planifie
+// les tests") — filtrable par aVenir (statut prevu/confirme + date future), par formateurId, et
+// par plage de dates (dateDebut/dateFin, pour le calendrier mensuel de disponibilité). Distinct de
 // GET /api/dossiers/:dossierId/rendezvous (rendezvous.routes.js), qui liste les rendez-vous d'UN
 // dossier précis — même logique "pas propre à un dossier en particulier" que les routes de
 // motifs ci-dessous.
-router.get('/rendezvous', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+//
+// Formateur/Inspecteur (audit 2026-08-20) : ne voient QUE leurs propres rendez-vous assignés,
+// jamais ceux d'un autre formateur/inspecteur — `formateurId` reçu en query est donc IGNORÉ pour
+// ces deux rôles et remplacé par req.utilisateur.id, quoi qu'envoie le client. Restriction posée
+// ici, côté serveur, pas seulement par le masquage du sélecteur "Formateur" côté front
+// (Planification.jsx) : un appel direct à cette route avec un autre formateurId doit rester sans
+// effet pour ces rôles, même principe que ROLES_MODIFICATION_INSCRIPTION plus bas dans ce fichier.
+router.get('/rendezvous', requireRole(...ROLES_CONSULTATION_RENDEZVOUS_TEST), async (req, res, next) => {
   try {
     const { aVenir, formateurId, dateDebut, dateFin } = rendezvousTestQuerySchema.parse(req.query);
+    const estFormateurOuInspecteur = [ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(req.utilisateur.roleCode);
     const rendezvous = await rendezvousService.listerRendezvousTest(req.entite, {
       aVenirSeulement: aVenir === 'true',
-      formateurId,
+      formateurId: estFormateurOuInspecteur ? req.utilisateur.id : formateurId,
       dateDebut,
       dateFin,
     });
@@ -170,7 +197,13 @@ router.get('/transitions/motifs', requireRole(...ROLES_CONSULTATION_DOSSIERS), a
 // dossierId='statuts'). Aucune collision avec les routeurs montés séparément sur
 // '/api/dossiers/:dossierId/pieces' etc. (voir app.js) : ce pattern à un seul segment ne matche
 // pas un chemin qui a un segment de plus.
-router.get('/:dossierId', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+//
+// Formateur/Inspecteur ajoutés ici (audit 2026-08-20, bouton "Voir le dossier" sur Suivi des
+// tests) — même résumé de dossier (jamais le NIR, jamais les pièces) que ROLES_LECTURE_INSCRIPTION
+// leur accorde déjà pour la section "Informations d'inscription complètes" ; sert ici uniquement
+// à afficher le titre "Dossier #X - NOM Prénom" de la fiche (Relances.jsx) — pas d'accès à
+// GET /api/dossiers (liste complète), resté fermé à ces deux rôles.
+router.get('/:dossierId', requireRole(...ROLES_LECTURE_INSCRIPTION), async (req, res, next) => {
   try {
     const dossier = await dossierService.obtenirDossier(req.entite, req.params.dossierId);
     if (!dossier) {
@@ -182,20 +215,12 @@ router.get('/:dossierId', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (re
   }
 });
 
-// Formateur/Inspecteur ajoutés ici (audit 2026-08-19, écrans d'évaluation) — même patron que
-// ROLES_CONSULTATION_PIECES (pieces.routes.js) : lecture seule pour ces deux rôles, la vraie garde
-// de modification restant ROLES_MODIFICATION_INSCRIPTION ci-dessous, inchangée. Distinct de
-// ROLES_CONSULTATION_DOSSIERS (pas réutilisé tel quel) : ne pas donner à Formateur/Inspecteur un
-// accès aux AUTRES routes de ce fichier (liste des dossiers, statuts, rendez-vous...), seulement à
-// cette vue détaillée d'UN dossier, consultée depuis GrilleEvaluation.jsx (InformationsInscription).
-const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
-
 // GET /api/dossiers/:dossierId/inscription — candidat (hors NIR, jamais déchiffré pour un
 // affichage back-office générique, voir dossierRepository.trouverInscriptionCompleteParDossierId)
 // + tous les blocs de dossier_donnees_formulaire déjà enregistrés pour ce dossier, pour la
 // section repliable "Informations d'inscription complètes" (Validation.jsx/Relances.jsx, et
 // désormais GrilleEvaluation.jsx pour Formateur/Inspecteur, voir ROLES_LECTURE_INSCRIPTION
-// ci-dessus).
+// déclaré plus haut avec les autres rôles).
 router.get('/:dossierId/inscription', requireRole(...ROLES_LECTURE_INSCRIPTION), async (req, res, next) => {
   try {
     const inscription = await dossierService.obtenirInscriptionComplete(req.entite, req.params.dossierId);

@@ -116,6 +116,17 @@
   --statut-neutre-texte: var(--couleur-texte-secondaire);
   --statut-neutre-bordure: var(--couleur-bordure-legere);
 
+  /* Variante plus soutenue que 'neutre' ci-dessus (audit 2026-08-20, badge "Remplacé" jugé trop
+     discret sur fond blanc — gris-100/texte-secondaire à peine plus foncé que le fond blanc) :
+     gris moyen (gris-300) + texte foncé (gris-800), pour un statut neutre mais bien lisible,
+     distinct des badges colorés actifs (Prévu/Honoré/Annulé...) sans pour autant disparaître
+     visuellement. Réservée aux cas où 'neutre' est jugé insuffisamment visible — 'neutre' reste
+     inchangé pour ses autres usages (ex. "Non" sur les badges CMU-C/ACS de
+     InformationsInscription.jsx, volontairement discrets, pas à assombrir). */
+  --statut-neutre-fort-fond: var(--gris-300);
+  --statut-neutre-fort-texte: var(--gris-800);
+  --statut-neutre-fort-bordure: var(--gris-400);
+
   --statut-attente-fond: #fdf3e2;
   --statut-attente-texte: #92620a;
   --statut-attente-bordure: #f3d9a4;

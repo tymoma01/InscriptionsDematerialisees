@@ -10,8 +10,9 @@
   margin-bottom: var(--espace-petit);
 }
 
-/* Titre + bouton empilés (même patron que .page-evaluation-inspecteur__titre-bloc) : le bouton
-   "Évaluations à faire" passe sous le titre plutôt que collé à côté. */
+/* Bouton "Évaluations à faire" retiré (refonte navigation, 2026-08-20) : couvert par le lien
+   "Évaluations à venir" de la barre de navigation commune, voir BarreNavigation.jsx (montée dans
+   PageBackOffice.jsx) — même retrait que pages/formateur/HistoriqueEvaluations.css. */
 .page-historique-evaluations-inspecteur__titre-bloc {
   display: flex;
   flex-direction: column;
@@ -21,26 +22,6 @@
 .page-historique-evaluations-inspecteur__titre-bloc h1 {
   margin: 0;
   color: var(--couleur-back-office);
-}
-
-/* Même mise en forme bouton bordé que tous les liens de navigation back-office du projet
-   (dupliqué plutôt que partagé, voir CLAUDE.md conventions du projet). */
-.page-historique-evaluations-inspecteur__bouton-retour {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--couleur-back-office-dore);
-  border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.page-historique-evaluations-inspecteur__bouton-retour:hover {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--couleur-back-office);
 }
 
 .page-historique-evaluations-inspecteur__entete .en-tete-back-office {

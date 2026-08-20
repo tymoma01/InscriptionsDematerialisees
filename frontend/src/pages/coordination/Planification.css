@@ -334,6 +334,20 @@
   white-space: nowrap;
 }
 
+/* Cellule Statut (audit 2026-08-20) : centre le badge dans la cellule, contrairement au reste du
+   tableau resté aligné à gauche (.planification__table th, .planification__table td) — même
+   intention que .planification__actions ci-dessous pour la cellule Actions. StatutBadge lui-même
+   (core/workflow/StatutBadge.jsx) est déjà un composant générique partagé par tout le back-office
+   (Suivi des tests, fiche dossier, Dossiers candidats...), donc déjà cohérent en couleurs/forme de
+   pilule sans rien à harmoniser côté CSS ici — seul l'alignement horizontal manquait.
+   Qualifiée par table + td (même correctif de spécificité que .planification__colonne-case/
+   -numero plus haut, voir leur commentaire) : une classe seule perdrait face à
+   .planification__table td (1 classe + 1 type, même "poids" que 2 classes sans le sélecteur de
+   table en plus). */
+.planification__table td.planification__colonne-statut {
+  text-align: center;
+}
+
 /* Cellule Actions : même patron que .dossier-list__actions (DossierList.css) — centre le bouton
    dans la cellule, contrairement au reste du tableau resté aligné à gauche
    (.planification__table th, .planification__table td). */

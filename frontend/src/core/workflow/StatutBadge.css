@@ -66,3 +66,11 @@
   color: var(--statut-echec-fort-texte);
   border-color: var(--statut-echec-fort-bordure);
 }
+
+/* Version plus soutenue de 'neutre' (voir --statut-neutre-fort-* dans variables.css) — même
+   principe que 'echec-fort' ci-dessus. */
+.statut-badge--neutre-fort {
+  background-color: var(--statut-neutre-fort-fond);
+  color: var(--statut-neutre-fort-texte);
+  border-color: var(--statut-neutre-fort-bordure);
+}
