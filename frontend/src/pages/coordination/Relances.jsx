@@ -66,7 +66,11 @@ export default function Relances() {
             partout où cette section apparaît. */}
         <InformationsInscription dossierId={dossierId} />
 
-        <GestionRendezvous dossierId={dossierId} />
+        <GestionRendezvous
+          dossierId={dossierId}
+          codeStatutDossier={dossier?.statut_code}
+          libelleStatutDossier={dossier?.statut_libelle}
+        />
         <HistoriqueRelances dossierId={dossierId} />
         <NotesDossier dossierId={dossierId} />
       </div>

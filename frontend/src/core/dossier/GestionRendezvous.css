@@ -107,6 +107,16 @@
   font-size: 0.9rem;
 }
 
+/* Message affiché à la place des 3 boutons d'action quand le dossier a déjà quitté test_planifie
+   (voir STATUTS_DOSSIER_RENDEZVOUS_CLOS, GestionRendezvous.jsx) — même couleur que le badge
+   "alerte" (StatutBadge.css) pour rester cohérent avec le reste du vocabulaire visuel de statut
+   plutôt qu'une couleur d'erreur générique, ce n'est pas un échec mais un état attendu. */
+.gestion-rendezvous__etat-clos {
+  margin: 0;
+  color: var(--statut-alerte-texte);
+  font-size: 0.9rem;
+}
+
 /* "Planifié le [date] à [heure] par [Nom] (Rôle)" — texte discret, sous la ligne de titre,
    toujours présent dès qu'un auteur est connu (indépendant de la note ci-dessous). */
 .gestion-rendezvous__meta-planification {

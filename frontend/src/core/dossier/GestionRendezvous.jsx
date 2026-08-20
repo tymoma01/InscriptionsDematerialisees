@@ -44,15 +44,29 @@ const LIBELLES_STATUT = {
   remplace: 'Remplacé',
 };
 
+// Statuts de DOSSIER (pas de rendez-vous) au-delà desquels Confirmer la présence/Marquer absent/
+// Marquer annulé n'ont plus de sens — copie exacte de STATUTS_DOSSIER_RENDEZVOUS_CLOS
+// (backend/src/core/rendezvous/rendezvousService.js, qui revérifie la même règle côté serveur,
+// voir son commentaire) : les deux listes doivent rester synchronisées à la main, aucun partage de
+// code entre front et back sur ce projet (audit 2026-08-20, dossier #84).
+const STATUTS_DOSSIER_RENDEZVOUS_CLOS = ['test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
+
 // Rendez-vous d'un dossier (CLAUDE.md, besoin Accueil/Coordination : "relances et
 // reprogrammations" + "motif de désistement enregistré systématiquement, pour objectiver le
 // phénomène"). dossierId reçu en prop, comme HistoriqueRelances.jsx — ce composant ne connaît
 // rien du routage.
 //
+// codeStatutDossier/libelleStatutDossier (audit 2026-08-20, dossier #84) : reçus du parent
+// (Relances.jsx, qui les a déjà via obtenirDossier) plutôt que rechargés ici — ce composant
+// n'appelait jusqu'ici jamais GET /dossiers/:id, pas la peine d'ajouter un second appel réseau
+// juste pour connaître le statut du dossier.
+//
 // Le formulaire de désistement (motif obligatoire) est un garde-fou côté UI : le serveur revalide
 // systématiquement (voir services/rendezvousService.js), donc même si ce composant était
-// contourné, aucun désistement ne peut être enregistré sans motif.
-export default function GestionRendezvous({ dossierId }) {
+// contourné, aucun désistement ne peut être enregistré sans motif. Le verrouillage ci-dessous suit
+// le même principe : masquage ici, revérifié côté serveur (rendezvousService.
+// changerStatutRendezvous, ErreurRendezvousDossierClos) — jamais qu'un garde-fou d'affichage.
+export default function GestionRendezvous({ dossierId, codeStatutDossier, libelleStatutDossier }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
@@ -174,7 +188,9 @@ export default function GestionRendezvous({ dossierId }) {
         <ul className="gestion-rendezvous__liste">
           {rendezvous.map((rdv) => {
             const enDesistementPourCeRdv = desistementEnCours?.rendezvousId === rdv.id;
-            const actionsDisponibles = peutGererRendezvous && (rdv.statut === 'prevu' || rdv.statut === 'confirme');
+            const dossierEnEtatClos = STATUTS_DOSSIER_RENDEZVOUS_CLOS.includes(codeStatutDossier);
+            const rdvEligiblePourAction = rdv.statut === 'prevu' || rdv.statut === 'confirme';
+            const actionsDisponibles = peutGererRendezvous && rdvEligiblePourAction && !dossierEnEtatClos;
             // Seul état "remplacé" (posé automatiquement lors d'une replanification, voir
             // varianteStatutRendezvous ci-dessus) à estomper — absent/annule/confirme/prevu
             // restent tous des états "actifs" au sens de cette page : ce sont de vrais
@@ -260,6 +276,20 @@ export default function GestionRendezvous({ dossierId }) {
                         Marquer annulé
                       </button>
                     </div>
+                  )}
+
+                  {/* Dossier déjà passé à un statut incompatible avec une action sur CE
+                      rendez-vous (voir STATUTS_DOSSIER_RENDEZVOUS_CLOS ci-dessus) — message
+                      explicite plutôt que masquer silencieusement les 3 boutons, pour que l'agent
+                      comprenne pourquoi ils ont disparu plutôt que de soupçonner un bug (audit
+                      2026-08-20, dossier #84). Mêmes conditions d'affichage que le bloc actions
+                      ci-dessus (peutGererRendezvous + rdv encore prevu/confirme), seul
+                      dossierEnEtatClos change de valeur entre les deux blocs. */}
+                  {peutGererRendezvous && rdvEligiblePourAction && dossierEnEtatClos && !enDesistementPourCeRdv && (
+                    <p className="gestion-rendezvous__etat-clos">
+                      Ce test est déjà clôturé ({libelleStatutDossier ?? codeStatutDossier}) : action sur ce rendez-vous
+                      indisponible.
+                    </p>
                   )}
 
                   {enDesistementPourCeRdv && (

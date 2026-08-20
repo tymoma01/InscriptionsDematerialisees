@@ -7,6 +7,7 @@ const {
   ErreurDatePassee,
   ErreurReplanificationTropTardive,
   ErreurLieuInvalide,
+  ErreurRendezvousDossierClos,
 } = rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
 const journalAudit = require('../../core/audit/journalAudit');
@@ -262,6 +263,9 @@ router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (
     res.json(rendezvous);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurRendezvousDossierClos) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

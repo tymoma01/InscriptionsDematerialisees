@@ -85,6 +85,25 @@ class ErreurLieuInvalide extends Error {
   }
 }
 
+class ErreurRendezvousDossierClos extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurRendezvousDossierClos';
+  }
+}
+
+// Statuts de DOSSIER (pas de rendez-vous) au-delà desquels une action sur le rendez-vous de test
+// associé n'a plus de sens : le dossier a déjà quitté test_planifie vers une issue (non réalisé,
+// invalidé après évaluation, ou verdict final positif) — Confirmer la présence/Marquer absent/
+// Marquer annulé porteraient alors sur un rendez-vous déjà tranché autrement (audit du 2026-08-20,
+// dossier #84 : dossier basculé en test_non_realise par la tâche automatique, rendez-vous resté
+// affiché "Prévu" avec ces 3 boutons toujours actifs, aucune vérification serveur ne les
+// bloquait). Codes ACCECIT en dur, même patron que STATUTS_REPLANIFIABLES
+// (frontend/pages/recruteur/Validation.jsx) : à faire évoluer en configuration si une autre entité
+// réutilise ce composant (voir Modularité, CLAUDE.md) — copie tenue identique côté front, voir
+// GestionRendezvous.jsx.
+const STATUTS_DOSSIER_RENDEZVOUS_CLOS = ['test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
+
 // dossierId vient toujours de l'URL (voir rendezvous.routes.js) : jamais traité sans confirmer
 // au préalable qu'il appartient à l'entité résolue par entiteContext, même faille IDOR déjà
 // corrigée pour les pièces justificatives et les relances.
@@ -105,13 +124,28 @@ async function listerRendezvous(entite, dossierId) {
 // « systématiquement » n'est pas une option laissée à l'agent, c'est une règle imposée ici,
 // jamais contournable depuis le front (même principe que la revalidation serveur des autres
 // règles métier du projet — la validation front ne suffit jamais à elle seule).
-async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut, motifCode }) {
+async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut, motifCode }, bdExistante = null) {
   if (!STATUTS_AUTORISES.includes(statut)) {
     throw new Error(`Statut de rendez-vous "${statut}" invalide (attendu : ${STATUTS_AUTORISES.join(', ')}).`);
   }
 
-  const bd = await db.obtenirKnex();
-  await verifierDossierAppartientEntite(bd, entite, dossierId);
+  const bd = bdExistante ?? (await db.obtenirKnex());
+
+  // Remplace verifierDossierAppartientEntite (même vérification IDOR) : récupère en plus le code
+  // et le libellé de statut du dossier, nécessaires pour le garde-fou
+  // STATUTS_DOSSIER_RENDEZVOUS_CLOS ci-dessous, sans requête séparée.
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  if (!dossier) {
+    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  // Défense en profondeur : GestionRendezvous.jsx masque déjà ces boutons dans ce cas, mais rien
+  // n'empêchait jusqu'ici un appel API direct (ou un clic sur un bouton resté affiché par une
+  // page non rafraîchie) de réussir silencieusement — voir audit du 2026-08-20.
+  if (STATUTS_DOSSIER_RENDEZVOUS_CLOS.includes(dossier.statut_code)) {
+    throw new ErreurRendezvousDossierClos(
+      `Ce test est déjà clôturé (${dossier.statut_libelle}) : action sur le rendez-vous indisponible.`,
+    );
+  }
 
   const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
   if (!rendezvous || rendezvous.dossier_id !== Number(dossierId)) {
@@ -413,4 +447,5 @@ module.exports = {
   ErreurDatePassee,
   ErreurReplanificationTropTardive,
   ErreurLieuInvalide,
+  ErreurRendezvousDossierClos,
 };
