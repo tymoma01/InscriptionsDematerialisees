@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
+import { normaliserTexte } from '../filtres/normaliserTexte';
+import { useParametreURL } from '../filtres/useParametreURL';
+import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerHistoriqueEvaluations } from '../../services/evaluationService';
 import './HistoriqueEvaluations.css';
 
@@ -39,6 +42,33 @@ const POSTE_BUREAU_LIBELLES = {
 function libellePostes(postesCodes) {
   if (!postesCodes || postesCodes.length === 0) return 'Générique';
   return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode).join(', ');
+}
+
+// Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) évalué(s), résultat) — même
+// principe que Dossiers candidats/Suivi des tests (filtrerDossiers.js/Planification.jsx) : toutes
+// les colonnes visibles du tableau (audit 2026-08-20), jamais seulement un sous-ensemble. Nom/
+// prénom comparés mot par mot, insensible à l'ordre de saisie ; poste/résultat comparés par simple
+// inclusion sur le libellé AFFICHÉ (libelleResultat, défini plus bas — function déclarée, donc
+// disponible ici malgré l'ordre du fichier), jamais resultat_global/orientation bruts : un agent
+// tape "invalidé" ou "prêt à l'embauche", pas les codes internes 'invalide'/'pret_embauche'.
+// Dupliqué plutôt que partagé : `evaluation` n'a pas la même forme qu'un `dossier`/`rdv`, et cette
+// page n'a ni téléphone ni email à chercher. Une saisie numérique courte ("91") ne vise QUE le n°
+// de dossier, en égalité stricte — même correctif qu'ailleurs (audit 2026-08-19) : une simple
+// inclusion remonterait aussi "191"/"912"/etc. Pas de cas "saisie numérique longue" à gérer ici
+// (contrairement à filtrerDossiers.js/Planification.jsx) : cette page n'a aucun champ téléphone,
+// une telle saisie ne matche donc simplement rien (repli naturel sur nom/poste/résultat ci-dessous,
+// tous non numériques).
+function rechercheCorrespond(evaluation, { motsRechercheNom, rechercheNormaliseeTexte, rechercheChiffresSeuls, rechercheEstNumeroDossier }) {
+  if (rechercheEstNumeroDossier) {
+    return String(evaluation.dossier_id) === rechercheChiffresSeuls;
+  }
+  const nomComplet = normaliserTexte(`${evaluation.candidat_prenom} ${evaluation.candidat_nom}`.toLowerCase());
+  const correspondNom = motsRechercheNom.every((mot) => nomComplet.includes(mot));
+  const postes = normaliserTexte(libellePostes(evaluation.postes_codes).toLowerCase());
+  const correspondPoste = postes.includes(rechercheNormaliseeTexte);
+  const resultat = normaliserTexte(libelleResultat(evaluation).toLowerCase());
+  const correspondResultat = resultat.includes(rechercheNormaliseeTexte);
+  return correspondNom || correspondPoste || correspondResultat;
 }
 
 // Combine resultat_global + orientation en un seul libellé — mêmes formulations que
@@ -81,6 +111,15 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
   const [erreur, setErreur] = useState(null);
   const [tri, setTri] = useState({ colonne: 'date_evaluation', ordre: 'desc' });
 
+  // Filtres persistés dans l'URL (query params), même mécanisme que Dossiers candidats/Suivi des
+  // tests — voir useParametreURL.js. S'appliquent en plus de la restriction RBAC déjà posée côté
+  // serveur (listerHistoriqueEvaluations ne renvoie que les évaluations du formateur/inspecteur
+  // connecté, voir son commentaire d'en-tête) : filtrage entièrement client sur une liste déjà
+  // scopée, jamais une restriction en soi.
+  const [recherche, setRecherche] = useParametreURL('q', '');
+  const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
+  const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
+
   useEffect(() => {
     let annule = false;
     setChargement(true);
@@ -100,9 +139,37 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
     };
   }, []);
 
+  // Filtrage client (recherche + plage de date sur date_evaluation) sur la liste déjà reçue —
+  // même bornage en heure locale que filtrerDossiers.js/Planification.jsx (dateDebutFiltre/
+  // dateFinFiltre viennent d'un <input type="date">, jours calendaires tels que l'agent les lit,
+  // pas des instants UTC).
+  const evaluationsFiltrees = useMemo(() => {
+    const rechercheNormalisee = recherche.trim().toLowerCase();
+    const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
+    const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
+    const rechercheChiffresSeuls = rechercheNormalisee.replace(/[\s-]/g, '');
+    const rechercheEstNumeroDossier = rechercheChiffresSeuls.length > 0 && /^\d+$/.test(rechercheChiffresSeuls);
+    const debut = dateDebutFiltre ? new Date(`${dateDebutFiltre}T00:00:00`) : null;
+    const fin = dateFinFiltre ? new Date(`${dateFinFiltre}T23:59:59.999`) : null;
+    return evaluations.filter((evaluation) => {
+      if (debut || fin) {
+        const dateEvaluation = new Date(evaluation.date_evaluation);
+        if (debut && dateEvaluation < debut) return false;
+        if (fin && dateEvaluation > fin) return false;
+      }
+      if (motsRechercheNom.length === 0) return true;
+      return rechercheCorrespond(evaluation, {
+        motsRechercheNom,
+        rechercheNormaliseeTexte,
+        rechercheChiffresSeuls,
+        rechercheEstNumeroDossier,
+      });
+    });
+  }, [evaluations, recherche, dateDebutFiltre, dateFinFiltre]);
+
   const evaluationsTriees = useMemo(() => {
     const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
-    const copie = [...evaluations];
+    const copie = [...evaluationsFiltrees];
     copie.sort((a, b) => {
       const valeurA = colonneTri.extraire(a);
       const valeurB = colonneTri.extraire(b);
@@ -111,7 +178,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
       return 0;
     });
     return copie;
-  }, [evaluations, tri]);
+  }, [evaluationsFiltrees, tri]);
 
   // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Date du test"
   // repart décroissant (l'évaluation la plus récente en premier reste le repère le plus utile
@@ -137,50 +204,84 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
   }
 
   return (
-    <div className="historique-evaluations__scroll">
-      <table className="historique-evaluations">
-        <thead>
-          <tr>
-            {/* Numéro d'ordre = rang d'affichage (1, 2, 3...), pas evaluation.id — recalculé à
-                chaque tri, purement visuel, aucun lien avec la clé de tri. */}
-            <th scope="col">N°</th>
-            {COLONNES.map((colonne) => {
-              const actif = tri.colonne === colonne.cle;
-              return (
-                <th key={colonne.cle} scope="col" aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <button type="button" className="historique-evaluations__entete-tri" onClick={() => trierPar(colonne.cle)}>
-                    {colonne.libelle}
-                    <span className="historique-evaluations__indicateur-tri" aria-hidden="true">
-                      {actif ? (tri.ordre === 'asc' ? '▲' : '▼') : ''}
-                    </span>
-                  </button>
-                </th>
-              );
-            })}
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {evaluationsTriees.map((evaluation, index) => (
-            <tr key={evaluation.id}>
-              <td>{index + 1}</td>
-              <td>
-                {evaluation.candidat_prenom} {evaluation.candidat_nom}
-              </td>
-              <td>{libellePostes(evaluation.postes_codes)}</td>
-              <td>{FORMAT_DATE.format(new Date(evaluation.date_evaluation))}</td>
-              <td>
-                <StatutBadge libelle={libelleResultat(evaluation)} variante={varianteResultat(evaluation)} />
-              </td>
-              <td>
-                <button type="button" onClick={() => onSelectionner(evaluation)}>
-                  Voir le détail
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="historique-evaluations__filtres">
+        <label className="historique-evaluations__filtre-recherche">
+          <span>Rechercher</span>
+          <input
+            type="search"
+            value={recherche}
+            onChange={(evenement) => setRecherche(evenement.target.value)}
+            placeholder="Nom, prénom, N° dossier, poste ou résultat"
+          />
+        </label>
+
+        {/* Même composant que Dossiers candidats/Suivi des tests (voir FiltrePlageDate.jsx) —
+            filtre ici sur date_evaluation ("Date du test") plutôt que la date de dernière mise à
+            jour du dossier ou du rendez-vous. */}
+        <FiltrePlageDate
+          dateDebutFiltre={dateDebutFiltre}
+          onChangerDateDebutFiltre={setDateDebutFiltre}
+          dateFinFiltre={dateFinFiltre}
+          onChangerDateFinFiltre={setDateFinFiltre}
+        />
+      </div>
+
+      {evaluationsTriees.length === 0 ? (
+        <p className="historique-evaluations__vide">Aucune évaluation ne correspond aux critères actuels.</p>
+      ) : (
+        <div className="historique-evaluations__scroll">
+          <table className="historique-evaluations">
+            <thead>
+              <tr>
+                {/* N° de dossier = evaluation.dossier_id, même principe que Dossiers candidats/
+                    Suivi des tests (identifiant métier plutôt qu'un simple rang d'affichage). */}
+                <th scope="col">N°</th>
+                {COLONNES.map((colonne) => {
+                  const actif = tri.colonne === colonne.cle;
+                  return (
+                    <th key={colonne.cle} scope="col" aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button type="button" className="historique-evaluations__entete-tri" onClick={() => trierPar(colonne.cle)}>
+                        {colonne.libelle}
+                        <span className="historique-evaluations__indicateur-tri" aria-hidden="true">
+                          {actif ? (tri.ordre === 'asc' ? '▲' : '▼') : ''}
+                        </span>
+                      </button>
+                    </th>
+                  );
+                })}
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {evaluationsTriees.map((evaluation) => (
+                <tr key={evaluation.id}>
+                  <td>{evaluation.dossier_id}</td>
+                  <td>
+                    {evaluation.candidat_prenom} {evaluation.candidat_nom}
+                  </td>
+                  <td>{libellePostes(evaluation.postes_codes)}</td>
+                  <td>{FORMAT_DATE.format(new Date(evaluation.date_evaluation))}</td>
+                  <td>
+                    <StatutBadge libelle={libelleResultat(evaluation)} variante={varianteResultat(evaluation)} />
+                  </td>
+                  <td>
+                    <div className="historique-evaluations__actions">
+                      <button
+                        type="button"
+                        className="historique-evaluations__action-detail"
+                        onClick={() => onSelectionner(evaluation)}
+                      >
+                        Voir le détail
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }

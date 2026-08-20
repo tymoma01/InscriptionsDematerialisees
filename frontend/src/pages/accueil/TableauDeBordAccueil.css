@@ -13,7 +13,7 @@
   color: var(--couleur-back-office);
 }
 
-/* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
+/* Plaque EnTeteBackOffice (nom de l'agent / Déconnexion) contre le bord droit de
    l'en-tête — scopé à ce conteneur précis (pas dans EnTeteBackOffice.css lui-même, qui est
    réutilisé par d'autres pages avec des besoins de mise en page différents, ex.
    Backoffice.css). */

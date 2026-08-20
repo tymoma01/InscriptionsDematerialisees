@@ -36,8 +36,10 @@ export default function EnTeteBackOffice() {
 
   return (
     <div className="en-tete-back-office">
+      {/* Préfixe "Agent connecté : " retiré (audit 2026-08-20, décision utilisateur) : le nom seul
+          suffit, cet en-tête n'apparaissant que sur les écrans internes déjà authentifiés. */}
       <p className="en-tete-back-office__agent">
-        Agent connecté : {utilisateur.prenom} {utilisateur.nom}
+        {utilisateur.prenom} {utilisateur.nom}
       </p>
       <button
         type="button"

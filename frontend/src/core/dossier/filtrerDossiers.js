@@ -9,8 +9,8 @@ function normaliserTelephone(valeur) {
   return valeur.replace(/[\s-]/g, '');
 }
 
-// Filtrage client (recherche nom/prénom/téléphone/email/poste/n° de dossier + plage de date de
-// dernière mise à jour) sur une liste de dossiers déjà chargée en mémoire — voir
+// Filtrage client (recherche nom/prénom/téléphone/email/poste/statut/n° de dossier + plage de
+// date de dernière mise à jour) sur une liste de dossiers déjà chargée en mémoire — voir
 // FiltresRechercheDossiers.jsx pour le pourquoi (pas de pagination serveur, filtrage instantané).
 // Fonction pure, utilisée par TableauDeBordAccueil.jsx (Backoffice.jsx/recruteur, qui la
 // consommait aussi jusqu'ici, a été fusionné dans cette page — voir App.jsx), pour ne pas
@@ -82,7 +82,14 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
       const telephone = normaliserTelephone(dossier.candidat_telephone ?? '');
       if (!telephone.includes(rechercheTelephone)) return false;
     } else if (rechercheNormalisee) {
-      // Cas 3 (saisie non numérique) : comportement inchangé — nom/prénom, email, poste.
+      // Cas 3 (saisie non numérique) : nom/prénom, email, poste, statut (colonne STATUT, ajoutée
+      // audit 2026-08-20 — toutes les colonnes visibles du tableau doivent être cherchables,
+      // jamais seulement un sous-ensemble). Comparé sur le LIBELLÉ affiché (dossier.statut_libelle,
+      // même champ que StatutBadge dans DossierList.jsx), pas le code brut : un agent tape ce
+      // qu'il voit à l'écran ("invalidé"), pas un code interne qu'il ne connaît pas forcément
+      // ("test_non_realise"). Simple inclusion sur un bloc normalisé, même patron que `postes`
+      // ci-dessous (pas de correspondance mot à mot comme le nom : "attente" doit retrouver "En
+      // attente de pièces" même si le reste du libellé ne matche aucun mot isolé).
       const nomComplet = normaliserTexte(`${dossier.candidat_prenom} ${dossier.candidat_nom}`.toLowerCase());
       const email = (dossier.candidat_email ?? '').toLowerCase();
       const postes = normaliserTexte(
@@ -91,10 +98,12 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
           .join(' ')
           .toLowerCase(),
       );
+      const statut = normaliserTexte((dossier.statut_libelle ?? '').toLowerCase());
       const correspond =
         motsRechercheNom.every((mot) => nomComplet.includes(mot)) ||
         email.includes(rechercheNormalisee) ||
-        postes.includes(rechercheNormaliseeTexte);
+        postes.includes(rechercheNormaliseeTexte) ||
+        statut.includes(rechercheNormaliseeTexte);
       if (!correspond) return false;
     }
     if (debut || fin) {

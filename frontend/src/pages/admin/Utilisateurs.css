@@ -19,7 +19,7 @@
 }
 
 
-/* Plaque EnTeteBackOffice ("Agent connecté : ..." / Déconnexion) contre le bord droit de
+/* Plaque EnTeteBackOffice (nom de l'agent / Déconnexion) contre le bord droit de
    l'en-tête, maintenant que .page-utilisateurs__entete est passé en flex — même patron que
    .backoffice-recruteur__entete .en-tete-back-office. */
 .page-utilisateurs__entete .en-tete-back-office {

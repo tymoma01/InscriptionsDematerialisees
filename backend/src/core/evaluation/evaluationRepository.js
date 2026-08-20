@@ -75,6 +75,11 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
       'rendezvous.id',
       'rendezvous.dossier_id',
       'rendezvous.date_heure',
+      // Toujours 'prevu' ou 'confirme' ici (voir whereIn ci-dessus) — exposé quand même pour
+      // l'affichage/la recherche côté front (ListeEvaluationsAFaire.jsx, badge de statut + champ
+      // "Rechercher", audit 2026-08-20), même patron que rendezvousRepository.listerRendezvousTest
+      // (Suivi des tests).
+      'rendezvous.statut',
       // Postes RETENUS pour CE rendez-vous précis (migration 039), distincts de
       // donnees_disponibilites (postes DÉCLARÉS à l'inscription) ci-dessous — sert à
       // GrilleEvaluation.jsx à pré-cocher les cases de postesCandidats déjà retenues au moment de

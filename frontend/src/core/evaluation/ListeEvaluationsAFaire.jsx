@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import StatutBadge from '../workflow/StatutBadge';
+import { normaliserTexte } from '../filtres/normaliserTexte';
+import { useParametreURL } from '../filtres/useParametreURL';
+import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerRendezvousAEvaluer } from '../../services/evaluationService';
 import { appliquerTransition } from '../../services/transitionService';
 import './ListeEvaluationsAFaire.css';
@@ -11,6 +15,29 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+// Même mapping que Planification.jsx (Suivi des tests, GestionRendezvous.jsx) — dupliqué plutôt
+// que partagé, même convention que le reste du projet (voir CLAUDE.md, conventions du projet).
+// En pratique toujours 'prevu'/'confirme' ici (voir backend evaluationRepository.
+// listerRendezvousAEvaluer, whereIn) : mapping complet gardé malgré tout, pour rester cohérent
+// avec les autres pages si ce filtre serveur venait à changer.
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Absent', annule: 'Annulé' };
+function varianteStatutRendezvous(statut) {
+  return statut === 'confirme' ? 'succes' : 'attente';
+}
+
+// Recherche élargie (nom/prénom du candidat, statut) — toutes les colonnes visibles de cette
+// liste hormis la date (couverte par le filtre Du/Au dédié, jamais la recherche texte — même
+// règle que Dossiers candidats/Suivi des tests/Historique des évaluations, audit 2026-08-20).
+// Pas de poste ni de n° de dossier ici : cette liste n'affiche ni l'un ni l'autre (contrairement
+// au tableau "Suivi des tests"), rien à y chercher qui ne soit déjà visible à l'écran.
+function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte }) {
+  const nomComplet = normaliserTexte(`${rdv.candidat_prenom} ${rdv.candidat_nom}`.toLowerCase());
+  const correspondNom = motsRechercheNom.every((mot) => nomComplet.includes(mot));
+  const statut = normaliserTexte((LIBELLES_STATUT[rdv.statut] ?? rdv.statut ?? '').toLowerCase());
+  const correspondStatut = statut.includes(rechercheNormaliseeTexte);
+  return correspondNom || correspondStatut;
+}
+
 // Liste des rendez-vous de test assignés au formateur connecté et pas encore évalués (voir
 // backend GET /api/evaluations/a-faire — déjà filtrée par formateur et par "pas déjà évalué",
 // rien à filtrer ici). `rafraichir` : changer sa valeur force un rechargement (utilisé par
@@ -22,6 +49,15 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
   const [erreur, setErreur] = useState(null);
   const [enCoursId, setEnCoursId] = useState(null);
   const [erreurAction, setErreurAction] = useState(null);
+
+  // Filtres persistés dans l'URL (query params), même mécanisme que Dossiers candidats/Suivi des
+  // tests/Historique des évaluations — voir useParametreURL.js. S'appliquent en plus de la
+  // restriction RBAC déjà posée côté serveur (listerRendezvousAEvaluer ne renvoie que les
+  // rendez-vous du formateur/inspecteur connecté) : filtrage entièrement client sur une liste déjà
+  // scopée, jamais une restriction en soi.
+  const [recherche, setRecherche] = useParametreURL('q', '');
+  const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
+  const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
 
   useEffect(() => {
     let annule = false;
@@ -41,6 +77,27 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
       annule = true;
     };
   }, [rafraichir]);
+
+  // Filtrage client (recherche + plage de date sur date_heure) sur la liste déjà reçue — même
+  // bornage en heure locale que filtrerDossiers.js/Planification.jsx (dateDebutFiltre/
+  // dateFinFiltre viennent d'un <input type="date">, jours calendaires tels que l'agent les lit,
+  // pas des instants UTC).
+  const rendezvousFiltres = useMemo(() => {
+    const rechercheNormalisee = recherche.trim().toLowerCase();
+    const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
+    const motsRechercheNom = rechercheNormalisee.split(/\s+/).filter(Boolean).map(normaliserTexte);
+    const debut = dateDebutFiltre ? new Date(`${dateDebutFiltre}T00:00:00`) : null;
+    const fin = dateFinFiltre ? new Date(`${dateFinFiltre}T23:59:59.999`) : null;
+    return rendezvous.filter((rdv) => {
+      if (debut || fin) {
+        const dateRdv = new Date(rdv.date_heure);
+        if (debut && dateRdv < debut) return false;
+        if (fin && dateRdv > fin) return false;
+      }
+      if (motsRechercheNom.length === 0) return true;
+      return rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte });
+    });
+  }, [rendezvous, recherche, dateDebutFiltre, dateFinFiltre]);
 
   // Aucune grille associée (contrairement à "Évaluer" — voir GrilleEvaluation.jsx) : une seule
   // transition (voir workflowEngine.appliquerTransition), commentaire auto-généré comme le fait
@@ -80,28 +137,55 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
 
   return (
     <>
+      <div className="liste-evaluations__filtres">
+        <label className="liste-evaluations__filtre-recherche">
+          <span>Rechercher</span>
+          <input
+            type="search"
+            value={recherche}
+            onChange={(evenement) => setRecherche(evenement.target.value)}
+            placeholder="Nom, prénom ou statut"
+          />
+        </label>
+
+        {/* Même composant que Dossiers candidats/Suivi des tests/Historique des évaluations (voir
+            FiltrePlageDate.jsx) — filtre ici sur rdv.date_heure (date/heure du test). */}
+        <FiltrePlageDate
+          dateDebutFiltre={dateDebutFiltre}
+          onChangerDateDebutFiltre={setDateDebutFiltre}
+          dateFinFiltre={dateFinFiltre}
+          onChangerDateFinFiltre={setDateFinFiltre}
+        />
+      </div>
+
       {erreurAction && <p role="alert">{erreurAction}</p>}
-      <ul className="liste-evaluations">
-        {rendezvous.map((rdv) => (
-          <li key={rdv.id} className="liste-evaluations__item">
-            <span className="liste-evaluations__candidat">
-              {rdv.candidat_prenom} {rdv.candidat_nom}
-            </span>
-            <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
-            <button
-              type="button"
-              className="liste-evaluations__bouton-secondaire"
-              disabled={enCoursId === rdv.id}
-              onClick={() => marquerNonRealise(rdv)}
-            >
-              {enCoursId === rdv.id ? 'Enregistrement...' : 'Test non réalisé'}
-            </button>
-            <button type="button" disabled={enCoursId === rdv.id} onClick={() => onSelectionner(rdv)}>
-              Évaluer
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      {rendezvousFiltres.length === 0 ? (
+        <p className="liste-evaluations__vide">Aucune évaluation ne correspond aux critères actuels.</p>
+      ) : (
+        <ul className="liste-evaluations">
+          {rendezvousFiltres.map((rdv) => (
+            <li key={rdv.id} className="liste-evaluations__item">
+              <span className="liste-evaluations__candidat">
+                {rdv.candidat_prenom} {rdv.candidat_nom}
+              </span>
+              <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
+              <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
+              <button
+                type="button"
+                className="liste-evaluations__bouton-secondaire"
+                disabled={enCoursId === rdv.id}
+                onClick={() => marquerNonRealise(rdv)}
+              >
+                {enCoursId === rdv.id ? 'Enregistrement...' : 'Test non réalisé'}
+              </button>
+              <button type="button" disabled={enCoursId === rdv.id} onClick={() => onSelectionner(rdv)}>
+                Évaluer
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }

@@ -1,3 +1,31 @@
+/* Recherche + plage de date, au-dessus du tableau — même patron que .planification__filtres
+   (Planification.css, Suivi des tests) : flex-wrap pour rester lisible sur un écran étroit,
+   .filtre-recherche absorbe l'espace restant (flex-grow) pour aligner Du/Au à l'extrême droite
+   plutôt que juste après le champ. */
+.historique-evaluations__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-grand);
+  margin-bottom: var(--espace-moyen);
+}
+
+.historique-evaluations__filtre-recherche {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  flex: 1 1 18rem;
+}
+
+.historique-evaluations__filtre-recherche input {
+  flex: 1;
+  min-width: 18rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
 /* Même patron que DossierList.css : conteneur de défilement horizontal dédié, pas toute la page. */
 .historique-evaluations__scroll {
   overflow-x: auto;
@@ -80,4 +108,37 @@
   color: var(--couleur-texte-secondaire);
   padding: var(--espace-grand);
   text-align: center;
+}
+
+/* Cellule Actions : centre le bouton dans la cellule, même patron que .dossier-list__actions
+   (DossierList.css) — contrairement au reste du tableau resté aligné à gauche. */
+.historique-evaluations__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Même cadre que "Étudier le dossier"/"Voir le dossier" (.dossier-list__action--accent,
+   DossierList.css) — dégradé brun/doré back-office, padding, rayon de bordure, ombre, police et
+   transition identiques — remplace le bouton par défaut du navigateur (audit 2026-08-20, jugé
+   trop discret). Pas de largeur fixe forçant un retour à la ligne comme .dossier-list__action
+   --accent : cette colonne n'affiche jamais qu'un seul bouton par ligne (pas de crowding à
+   arbitrer entre plusieurs actions), la largeur peut donc suivre le contenu naturellement.
+   white-space: nowrap pour éviter tout retour à la ligne intempestif du texte du bouton. */
+.historique-evaluations__action-detail {
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-back-office), var(--couleur-back-office-dore));
+  color: #ffffff;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.historique-evaluations__action-detail:hover,
+.historique-evaluations__action-detail:focus-visible {
+  filter: brightness(0.92);
 }

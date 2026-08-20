@@ -61,7 +61,7 @@ export default function VerificationPieces() {
   return (
     <PageBackOffice>
       <div className="page-verification-pieces">
-        {/* Titre à gauche, EnTeteBackOffice ("Agent connecté" + Déconnexion) à droite, même ligne
+        {/* Titre à gauche, EnTeteBackOffice (nom de l'agent + Déconnexion) à droite, même ligne
             — même patron que Relances.jsx/Planification.jsx (décision utilisateur, 2026-08-13/14).
             Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17) : couvert
             par le lien "Dossiers candidats" de la barre de navigation commune, voir
