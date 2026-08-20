@@ -107,9 +107,13 @@ s'applique seulement après un upload réussi, voir l'ordre des étapes dans `sa
 
 ## Dépannage
 
-- **`pg_dump a échoué`** : vérifier la compatibilité de version (`pg_dump --version` doit être
-  >= à la version majeure du serveur Postgres de Neon), et que `PGSSLMODE=require` n'est pas
-  bloqué par un pare-feu sortant (cas GitHub Actions : peu probable, runners hébergés).
+- **`pg_dump a échoué` / `server version mismatch`** : `pg_dump --version` doit être >= à la
+  version majeure du serveur Postgres de Neon (Neon est passé en Postgres 18 — voir l'étape
+  "Installer pg_dump/pg_restore" du workflow, qui installe explicitement `postgresql-client-18`
+  depuis le dépôt APT officiel PGDG plutôt que le paquet Ubuntu générique, resté bloqué en v16). Si
+  Neon change à nouveau de version majeure, bumper le `postgresql-client-<version>` pinné dans le
+  workflow en conséquence. Vérifier aussi que `PGSSLMODE=require` n'est pas bloqué par un pare-feu
+  sortant (cas GitHub Actions : peu probable, runners hébergés).
 - **`azure/login` échoue (`AADSTS70021` ou équivalent)** : le federated credential de l'app
   registration ne correspond pas au subject envoyé par GitHub — vérifier qu'il cible bien
   `repo:tymoma01/InscriptionsDematerialisees:ref:refs/heads/main` (ou l'environnement utilisé, le

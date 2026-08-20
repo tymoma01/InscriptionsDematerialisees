@@ -35,13 +35,25 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
-      - name: Installer pg_dump/pg_restore (client PostgreSQL)
-        # Neon est en Postgres 16/17 au moment de l'écriture de ce workflow — le paquet Ubuntu
-        # générique "postgresql-client" convient tant que sa version reste >= à la version majeure
-        # du serveur Neon (voir docs/sauvegarde-neon.md, à revérifier si Neon change de version).
+      - name: Installer pg_dump/pg_restore (client PostgreSQL 18, aligné sur la version serveur Neon)
+        # Le paquet Ubuntu générique "postgresql-client" est plafonné à une vieille version (16 sur
+        # ubuntu-latest/24.04) et pg_dump refuse de dumper un serveur plus récent que lui-même
+        # ("server version mismatch") — Neon est passé en Postgres 18 (voir logs du job). On installe
+        # donc depuis le dépôt APT officiel PGDG (apt.postgresql.org), qui propose les paquets
+        # postgresql-client-<version majeure> à jour. À REVÉRIFIER/BUMPER si Neon change à nouveau de
+        # version majeure (voir docs/sauvegarde-neon.md) : le pin explicite (postgresql-client-18)
+        # est volontaire, pour ne jamais dépendre silencieusement d'un "dernier disponible" qui
+        # dérive du serveur au fil du temps.
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
           pg_dump --version
 
       - name: Authentification Azure (OIDC fédéré)
