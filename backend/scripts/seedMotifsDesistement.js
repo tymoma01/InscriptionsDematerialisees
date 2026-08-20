@@ -16,6 +16,12 @@ const MOTIFS_DESISTEMENT_ACCECIT = [
   { code: 'probleme_transport', libelle: 'Problème de transport' },
   { code: 'ne_souhaite_plus', libelle: 'Ne souhaite plus donner suite' },
   { code: 'autre', libelle: 'Autre motif' },
+  // Motif dédié (audit 2026-08-20, dossier #84) : posé par basculeTestNonRealiseService.js et par
+  // marquerNonRealise (ListeEvaluationsAFaire.jsx) quand un rendez-vous passe à 'absent' suite à
+  // un test non réalisé — distinct des motifs ci-dessus (constatés/déclarés par un agent), pour
+  // que le futur tableau de bord (CLAUDE.md, "objectiver le phénomène") puisse isoler les absences
+  // détectées automatiquement de celles remontées manuellement.
+  { code: 'test_non_realise', libelle: 'Test non réalisé (absence constatée au créneau)' },
 ];
 
 async function seedMotifsDesistement(codeEntite) {
