@@ -203,6 +203,13 @@ export default function Validation() {
           )}
         </div>
 
+        {/* Repositionnée juste sous le titre/statut (audit 2026-08-20, décision utilisateur) —
+            auparavant tout en bas de la fiche, après Pièces/Rendez-vous/Relances/Notes : composant
+            partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
+            VerificationPieces.jsx/Relances.jsx/GrilleEvaluation.jsx pour rester cohérent partout
+            où cette section apparaît. */}
+        <InformationsInscription dossierId={dossierId} />
+
         <section className="page-validation__pieces">
           <div className="page-validation__pieces-entete">
             <h2>Pièces justificatives</h2>
@@ -335,7 +342,6 @@ export default function Validation() {
             quelle si un futur écran (ex. un outil d'override Admin) en a besoin — voir son
             commentaire d'en-tête, qui ne connaît lui-même aucune page appelante en dur. */}
         <NotesDossier dossierId={dossierId} />
-        <InformationsInscription dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );

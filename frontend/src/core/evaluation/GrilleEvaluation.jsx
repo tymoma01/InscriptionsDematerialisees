@@ -329,10 +329,20 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   if (aucunPosteDeclare) {
     return (
       <>
+        <h2 className="grille-evaluation__titre">
+          Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+        </h2>
+
+        {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
+            fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
+            Inspecteur (audit 2026-08-19), strictement en lecture seule : le bouton "Modifier" reste
+            masqué de lui-même (InformationsInscription.jsx, ROLES_MODIFICATION_INSCRIPTION ne
+            contient pas ces deux rôles), pas de garde dupliquée ici. Repositionnée juste sous le
+            titre (audit 2026-08-20, décision utilisateur) — auparavant tout en bas de l'écran,
+            après Notes. */}
+        <InformationsInscription dossierId={rendezvous.dossier_id} />
+
         <div className="grille-evaluation">
-          <h2>
-            Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-          </h2>
           <p role="alert">
             Aucun poste n'est déclaré sur ce dossier — impossible d'évaluer sans poste. Complétez d'abord le poste
             recherché sur le dossier du candidat avant de reprendre cette évaluation.
@@ -344,12 +354,6 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           </div>
         </div>
         <NotesDossier dossierId={rendezvous.dossier_id} />
-        {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
-            fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
-            Inspecteur (audit 2026-08-19), strictement en lecture seule : le bouton "Modifier" reste
-            masqué de lui-même (InformationsInscription.jsx, ROLES_MODIFICATION_INSCRIPTION ne
-            contient pas ces deux rôles), pas de garde dupliquée ici. */}
-        <InformationsInscription dossierId={rendezvous.dossier_id} />
       </>
     );
   }
@@ -363,11 +367,17 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
       // lieu de s'étendre en dessous sur toute la largeur, comme sur VerificationPieces.jsx/
       // Relances.jsx/Validation.jsx.
       <>
-        <div className="grille-evaluation">
-          <h2>
-            Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-          </h2>
+        <h2 className="grille-evaluation__titre">
+          Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+        </h2>
 
+        {/* Section repliable "Voir les informations d'inscription complètes" — voir le commentaire
+            équivalent de l'écran bloquant ci-dessus (aucunPosteDeclare). Repositionnée juste sous
+            le titre (audit 2026-08-20, décision utilisateur) — auparavant tout en bas de l'écran,
+            après Notes. */}
+        <InformationsInscription dossierId={rendezvous.dossier_id} />
+
+        <div className="grille-evaluation">
           {/* Même aide-mémoire que sur la grille principale (voir plus bas), positionnée de la
               même façon — juste sous le titre, avant le reste de l'écran — pour rester visible dès
               cette étape de sélection de poste, avant même que la grille ne soit chargée. */}
@@ -403,12 +413,6 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
             en-tête de fichier) : le formateur fait déjà partie de ROLES_NOTES_DOSSIER côté back
             (notes.routes.js), aucune variante lecture-seule à part. */}
         <NotesDossier dossierId={rendezvous.dossier_id} />
-        {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
-            fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
-            Inspecteur (audit 2026-08-19), strictement en lecture seule : le bouton "Modifier" reste
-            masqué de lui-même (InformationsInscription.jsx, ROLES_MODIFICATION_INSCRIPTION ne
-            contient pas ces deux rôles), pas de garde dupliquée ici. */}
-        <InformationsInscription dossierId={rendezvous.dossier_id} />
       </>
     );
   }
@@ -448,11 +452,17 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     // pour l'ajout d'une note (voir son en-tête de fichier) — un <form> imbriqué dans un autre
     // n'est pas valide en HTML, il doit rester un frère du <form> d'évaluation, pas un enfant.
     <>
-      <form className="grille-evaluation" onSubmit={gererEnvoi}>
-        <h2>
-          Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-        </h2>
+      <h2 className="grille-evaluation__titre">
+        Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+      </h2>
 
+      {/* Voir le commentaire équivalent plus haut (écrans de sélection de poste ci-dessus) : même
+          section "Voir les informations d'inscription complètes", strictement en lecture seule
+          pour Formateur/Inspecteur. Repositionnée juste sous le titre (audit 2026-08-20, décision
+          utilisateur) — auparavant tout en bas de l'écran, après Notes. */}
+      <InformationsInscription dossierId={rendezvous.dossier_id} />
+
+      <form className="grille-evaluation" onSubmit={gererEnvoi}>
         {/* Aide-mémoire de l'inspecteur (avant/après test) — informative, jamais bloquante ni
             envoyée avec l'évaluation (voir ChecklistInspection.jsx). Remontée ici, juste sous le
             titre et avant la grille/le formulaire de verdict (demande explicite), plutôt que
@@ -629,9 +639,6 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
       </form>
 
       <NotesDossier dossierId={rendezvous.dossier_id} />
-      {/* Voir le commentaire équivalent plus haut (écran de sélection de poste) : même section,
-          strictement en lecture seule pour Formateur/Inspecteur. */}
-      <InformationsInscription dossierId={rendezvous.dossier_id} />
     </>
   );
 }

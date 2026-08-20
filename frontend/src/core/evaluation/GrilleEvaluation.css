@@ -11,8 +11,17 @@
   gap: var(--espace-moyen);
 }
 
-.grille-evaluation h2 {
-  margin: 0;
+/* Titre "Évaluation - Prénom Nom", extrait de la carte .grille-evaluation (déplacement de
+   InformationsInscription juste en dessous, audit 2026-08-20 — auparavant en bas de page, voir
+   son commentaire dans le .jsx) : mêmes styles que l'ancien sélecteur `.grille-evaluation h2`
+   (margin:0, couleur back-office), marge basse ajoutée pour l'espacement maintenant que ce titre
+   n'est plus un enfant du flex column `.grille-evaluation` (qui posait déjà cet espacement via
+   son `gap`). Pas de max-width/margin auto ici : ce composant est toujours rendu dans
+   PageBackOffice (.page-back-office__contenu, voir son commentaire), qui centre déjà tout son
+   contenu à la même largeur — même convention que .grille-evaluation/.informations-inscription
+   ci-dessous, qui la reposent chacun malgré tout. */
+.grille-evaluation__titre {
+  margin: 0 0 var(--espace-moyen);
   color: var(--couleur-back-office);
 }
 

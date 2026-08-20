@@ -81,6 +81,14 @@ export default function VerificationPieces() {
           </div>
           <EnTeteBackOffice />
         </header>
+
+        {/* Repositionnée juste sous le titre (audit 2026-08-20, décision utilisateur) —
+            auparavant tout en bas de la fiche, après Pièces/Notes : composant partagé
+            (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
+            Validation.jsx/Relances.jsx/GrilleEvaluation.jsx pour rester cohérent partout où
+            cette section apparaît. */}
+        <InformationsInscription dossierId={dossierId} />
+
         <CaptureTablette
           dossierId={dossierId}
           typesPieces={typesPiecesConfigAccecitTest}
@@ -90,7 +98,6 @@ export default function VerificationPieces() {
           libellePoste={libellePoste}
         />
         <NotesDossier dossierId={dossierId} />
-        <InformationsInscription dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );

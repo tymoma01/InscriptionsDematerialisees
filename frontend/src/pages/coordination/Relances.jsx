@@ -58,10 +58,17 @@ export default function Relances() {
           </div>
           <EnTeteBackOffice />
         </header>
+
+        {/* Repositionnée juste sous le titre (audit 2026-08-20, décision utilisateur) —
+            auparavant tout en bas de la fiche, après Rendez-vous/Relances/Notes : composant
+            partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
+            Validation.jsx/VerificationPieces.jsx/GrilleEvaluation.jsx pour rester cohérent
+            partout où cette section apparaît. */}
+        <InformationsInscription dossierId={dossierId} />
+
         <GestionRendezvous dossierId={dossierId} />
         <HistoriqueRelances dossierId={dossierId} />
         <NotesDossier dossierId={dossierId} />
-        <InformationsInscription dossierId={dossierId} />
       </div>
     </PageBackOffice>
   );
