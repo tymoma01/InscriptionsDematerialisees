@@ -112,6 +112,17 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
       await appliquerTransition(rdv.dossier_id, {
         codeAction: 'test_non_realise',
         commentaire: `Test non réalisé le ${FORMAT_DATE.format(new Date(rdv.date_heure))}.`,
+        // Ferme aussi le rendez-vous lui-même (audit 2026-08-20, dossier #84) : sans ça, ce bouton
+        // ne faisait avancer que le statut du dossier, laissant le rendez-vous affiché "Prévu"
+        // avec Confirmer la présence/Marquer absent/Marquer annulé toujours actifs sur la fiche
+        // dossier — même correctif que la bascule automatique (voir
+        // backend/src/core/rendezvous/basculeTestNonRealiseService.js). 'test_non_realise' est ici
+        // le code du motif de désistement dédié (scripts/seedMotifsDesistement.js), pas le
+        // codeAction ci-dessus — coïncidence de nommage, deux vocabulaires distincts (motifs vs
+        // transitions_statut).
+        rendezvousId: rdv.id,
+        statutRendezvous: 'absent',
+        motifCodeRendezvous: 'test_non_realise',
       });
       setRendezvous((precedent) => precedent.filter((r) => r.id !== rdv.id));
     } catch (erreur) {
