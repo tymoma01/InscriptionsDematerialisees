@@ -22,7 +22,9 @@ const INSCRIPTION_DOSSIER_69 = {
   blocs: {
     coordonnees: {
       email: 'A@T.GT',
-      adresse: 'PARIS',
+      adresse: '12 RUE DE PARIS',
+      codePostal: '75001',
+      ville: 'PARIS',
       telephone: '0712345677',
       contactUrgenceNom: 'NOM',
       contactUrgenceTelephone: '0523456776',
@@ -35,6 +37,7 @@ test('construirePayloadApprenant traduit un dossier ACCECIT réel (#69) vers le 
     dossierId: 69,
     inscription: INSCRIPTION_DOSSIER_69,
     entrepriseUid: 'uid-entreprise-hotellerie',
+    nir: '1850578006048',
   });
 
   assert.equal(payload.customId, 'APPX-69');
@@ -47,12 +50,14 @@ test('construirePayloadApprenant traduit un dossier ACCECIT réel (#69) vers le 
   assert.equal(payload.meta.civilite, 'Monsieur');
   assert.equal(payload.meta.dateNaissance, '2004-12-30');
   assert.equal(payload.meta.tel, '0712345677');
-  assert.equal(payload.meta.adresse.rue, 'PARIS');
-  assert.equal(payload.meta.adresse.codePostal, '');
+  assert.equal(payload.meta.adresse.rue, '12 RUE DE PARIS');
+  assert.equal(payload.meta.adresse.codePostal, '75001');
+  assert.equal(payload.meta.adresse.ville, 'PARIS');
+  assert.equal(payload.meta.adresse.complementAdresse, '');
 
-  // Les 20 custom_field_N doivent tous être présents (SmartOF les marque "required", même à
-  // vide) — voir smartOfMapper.js, champsPersonnalisesVides.
-  for (let i = 1; i <= 20; i += 1) {
+  // custom_field_1 = NIR (décision utilisateur, 2026-08-21) ; les 19 autres restent vides.
+  assert.equal(payload.custom_fields.custom_field_1, '1850578006048');
+  for (let i = 2; i <= 20; i += 1) {
     assert.equal(payload.custom_fields[`custom_field_${i}`], '');
   }
 });
@@ -71,4 +76,6 @@ test('construirePayloadApprenant retombe sur "Non renseigné" pour une civilité
   assert.equal(payload.meta.dateNaissance, '');
   assert.equal(payload.meta.tel, '');
   assert.deepEqual(payload.entrepriseUids, []);
+  // nir absent (déchiffrement en échec côté smartOfService.js, voir son commentaire) : repli vide.
+  assert.equal(payload.custom_fields.custom_field_1, '');
 });

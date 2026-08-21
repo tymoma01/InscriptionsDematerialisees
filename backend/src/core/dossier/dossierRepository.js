@@ -436,6 +436,20 @@ async function trouverInscriptionCompleteParDossierId(bd, entiteId, dossierId) {
   };
 }
 
+// NIR chiffré (bytea) + IV — volontairement SÉPARÉ de trouverInscriptionCompleteParDossierId
+// ci-dessus, dont le résultat est renvoyé tel quel par GET /api/dossiers/:dossierId/inscription
+// (dossiers.routes.js) à plusieurs rôles back-office pour un affichage générique ("hors NIR",
+// voir le commentaire de cette route). Un appelant qui a un besoin explicite de déchiffrer le NIR
+// (aujourd'hui : smartOfService.js uniquement) doit passer par cette fonction dédiée, jamais
+// mélanger nirChiffre/nirIv dans une forme déjà exposée en HTTP (CLAUDE.md, Contraintes RGPD).
+async function trouverNirChiffreParDossierId(bd, entiteId, dossierId) {
+  return bd('dossiers')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
+    .select('candidats.nir as nirChiffre', 'candidats.nir_iv as nirIv')
+    .first();
+}
+
 // signature_image est un bytea : le tracé doit déjà être un Buffer à ce stade (voir
 // dossierService.js pour la conversion depuis le PNG base64 envoyé par le front).
 // created_at n'est jamais fourni ici — colonne à defaultTo(now()) côté DB, jamais un
@@ -457,6 +471,7 @@ module.exports = {
   trouverDossierParId,
   trouverDossierAvecStatutParId,
   trouverInscriptionCompleteParDossierId,
+  trouverNirChiffreParDossierId,
   trouverCoordonneesCandidat,
   enregistrerDonneesBloc,
   mettreAJourDonneesBloc,

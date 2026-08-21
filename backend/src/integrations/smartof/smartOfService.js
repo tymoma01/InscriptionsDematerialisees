@@ -2,6 +2,7 @@ const db = require('../../db/knex');
 const dossierRepository = require('../../core/dossier/dossierRepository');
 const smartOfClient = require('./smartOfClient');
 const { construirePayloadApprenant } = require('./smartOfMapper');
+const nirCipher = require('../../core/securite/nirCipher');
 
 // Orchestration de la création du profil candidat côté SmartOF (CLAUDE.md, étape 9 : "une fois le
 // test validé, appel à l'API SmartOF pour créer directement le profil du candidat côté
@@ -58,14 +59,40 @@ async function envoyerCandidatEnFormation(entite, { dossierId, roleCode }) {
       return;
     }
 
-    const payload = construirePayloadApprenant({ dossierId, inscription, entrepriseUid: entreprise.entrepriseUid });
+    // NIR récupéré et déchiffré séparément de `inscription` ci-dessus (voir
+    // dossierRepository.trouverNirChiffreParDossierId : jamais mélangé à la forme renvoyée par
+    // trouverInscriptionCompleteParDossierId, elle-même réexposée telle quelle par GET
+    // /api/dossiers/:dossierId/inscription à plusieurs rôles back-office). Déchiffré ici
+    // (orchestration), jamais dans smartOfMapper.js qui reste pur/sans accès Key Vault, et
+    // seulement au moment de l'envoi — jamais mis en cache ni journalisé en clair. Un échec de
+    // déchiffrement (secret Key Vault en rotation, donnée corrompue...) ne doit pas empêcher la
+    // création de l'apprenant pour autant : repli sur '' (custom_field_1 vide) plutôt que
+    // d'abandonner tout l'envoi, même esprit que le reste de ce fichier ("non bloquant").
+    let nir = '';
+    try {
+      const { nirChiffre, nirIv } = await dossierRepository.trouverNirChiffreParDossierId(bd, entite.id, dossierId);
+      nir = await nirCipher.dechiffrer(nirChiffre, nirIv);
+    } catch (erreurNir) {
+      console.error(`SmartOF : échec du déchiffrement du NIR pour le dossier #${dossierId} — custom_field_1 envoyé vide.`, erreurNir);
+    }
+
+    const payload = construirePayloadApprenant({ dossierId, inscription, entrepriseUid: entreprise.entrepriseUid, nir });
     const apprenant = await smartOfClient.creerApprenant(payload);
 
+    // payload_envoye (smartof_sync) est un jsonb NON chiffré (migration 022) : simple journal
+    // d'audit de ce qui a été envoyé à SmartOF, jamais prévu pour porter une donnée sensible en
+    // clair (contrairement à candidats.nir, chiffré AES-256-GCM — voir CLAUDE.md, Contraintes
+    // RGPD). custom_field_1 (le NIR, voir smartOfMapper.js) est donc explicitement redacted ici
+    // avant écriture, alors que `payload` (avec le vrai NIR) part bien tel quel vers SmartOF
+    // au-dessus — cette redaction ne concerne que ce qui reste dans Neon.
     await bd('smartof_sync').insert({
       dossier_id: dossierId,
       smartof_candidat_id: apprenant.apprenantUid,
       statut_sync: 'envoye',
-      payload_envoye: JSON.stringify(payload),
+      payload_envoye: JSON.stringify({
+        ...payload,
+        custom_fields: { ...payload.custom_fields, custom_field_1: nir ? '[NIR masqué]' : '' },
+      }),
     });
   } catch (erreur) {
     console.error(`SmartOF : échec de la création de l'apprenant pour le dossier #${dossierId}.`, erreur);

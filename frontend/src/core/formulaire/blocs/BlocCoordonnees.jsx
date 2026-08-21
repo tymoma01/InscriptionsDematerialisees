@@ -23,6 +23,8 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
     resolver: zodResolver(blocCoordonneesSchema),
     defaultValues: {
       adresse: valeurs?.adresse ?? '',
+      codePostal: valeurs?.codePostal ?? '',
+      ville: valeurs?.ville ?? '',
       telephone: valeurs?.telephone ?? '',
       email: valeurs?.email ?? '',
       contactUrgenceNom: valeurs?.contactUrgenceNom ?? '',
@@ -93,10 +95,26 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="adresse">
-          Adresse <span className="champ-obligatoire">*</span>
+          Numéro et nom de rue <span className="champ-obligatoire">*</span>
         </label>
-        <input id="adresse" type="text" autoComplete="street-address" {...register('adresse')} />
+        <input id="adresse" type="text" autoComplete="address-line1" {...register('adresse')} />
         {errors.adresse && <p role="alert">{errors.adresse.message}</p>}
+      </div>
+
+      <div className="bloc-coordonnees__champ">
+        <label htmlFor="codePostal">
+          Code postal <span className="champ-obligatoire">*</span>
+        </label>
+        <input id="codePostal" type="text" inputMode="numeric" autoComplete="postal-code" {...register('codePostal')} />
+        {errors.codePostal && <p role="alert">{errors.codePostal.message}</p>}
+      </div>
+
+      <div className="bloc-coordonnees__champ">
+        <label htmlFor="ville">
+          Ville <span className="champ-obligatoire">*</span>
+        </label>
+        <input id="ville" type="text" autoComplete="address-level2" {...register('ville')} />
+        {errors.ville && <p role="alert">{errors.ville.message}</p>}
       </div>
 
       <div className="bloc-coordonnees__champ">

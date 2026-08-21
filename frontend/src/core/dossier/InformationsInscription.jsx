@@ -195,7 +195,9 @@ const LIBELLES_CHAMPS_ERREUR = {
   lieuNaissance: 'Lieu de naissance',
   nationalite: 'Nationalité',
   situationFamiliale: 'Situation familiale',
-  adresse: 'Adresse',
+  adresse: 'Numéro et nom de rue',
+  codePostal: 'Code postal',
+  ville: 'Ville',
   telephone: 'Téléphone',
   email: 'Email',
   contactUrgenceNom: "Contact d'urgence",
@@ -431,6 +433,8 @@ export default function InformationsInscription({ dossierId }) {
       dateNaissance: versDateInput(candidat.dateNaissance),
       situationFamiliale: candidat.situationFamiliale ?? '',
       adresse: coordonnees.adresse ?? '',
+      codePostal: coordonnees.codePostal ?? '',
+      ville: coordonnees.ville ?? '',
       telephone: coordonnees.telephone ?? '',
       email: coordonnees.email ?? candidat.email ?? '',
       contactUrgenceNom: coordonnees.contactUrgenceNom ?? '',
@@ -632,7 +636,9 @@ export default function InformationsInscription({ dossierId }) {
 
                     <div className="informations-inscription__carte informations-inscription__carte--coordonnees">
                       <EnteteCarte icone={<IconeCarnetAdresses />} titre="Coordonnées" />
-                      <Ligne libelle="Adresse" valeur={coordonnees.adresse} />
+                      <Ligne libelle="Numéro et nom de rue" valeur={coordonnees.adresse} />
+                      <Ligne libelle="Code postal" valeur={coordonnees.codePostal} />
+                      <Ligne libelle="Ville" valeur={coordonnees.ville} />
                       <Ligne libelle="Téléphone" valeur={coordonnees.telephone} />
                       <div className="informations-inscription__ligne">
                         <span className="informations-inscription__libelle">Email</span>
@@ -812,8 +818,21 @@ export default function InformationsInscription({ dossierId }) {
 
                   <div className="informations-inscription__groupe">
                     <h3>Coordonnées</h3>
-                    <Champ id="edition-adresse" libelle="Adresse">
+                    <Champ id="edition-adresse" libelle="Numéro et nom de rue">
                       <input id="edition-adresse" required value={brouillon.adresse} onChange={(e) => modifierChamp('adresse')(e.target.value)} />
+                    </Champ>
+                    <Champ id="edition-code-postal" libelle="Code postal">
+                      <input
+                        id="edition-code-postal"
+                        type="text"
+                        inputMode="numeric"
+                        required
+                        value={brouillon.codePostal}
+                        onChange={(e) => modifierChamp('codePostal')(e.target.value)}
+                      />
+                    </Champ>
+                    <Champ id="edition-ville" libelle="Ville">
+                      <input id="edition-ville" required value={brouillon.ville} onChange={(e) => modifierChamp('ville')(e.target.value)} />
                     </Champ>
                     <Champ id="edition-telephone" libelle="Téléphone">
                       <input
