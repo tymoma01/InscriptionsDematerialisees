@@ -80,7 +80,7 @@ function construireMessageEmailFormateur({
       "<p>Merci de noter ce changement d'adresse.</p>" +
       // Même lien/placement que invitationTestService.construireMessageEmailFormateur (audit
       // 2026-08-21) — voir construireLienEvaluation, formatageEmail.js.
-      `<p><a href="${echapperHtml(lienEvaluation)}">Voir l'évaluation de ce candidat</a></p>` +
+      `<p><a href="${echapperHtml(lienEvaluation)}">Évaluer le candidat</a></p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }

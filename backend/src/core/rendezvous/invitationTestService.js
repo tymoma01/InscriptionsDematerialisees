@@ -128,7 +128,7 @@ function construireMessageEmailFormateur({
       // construireLienEvaluation, formatageEmail.js) — surligne directement la ligne de ce
       // rendez-vous à l'arrivée (audit 2026-08-21, ListeEvaluationsAFaire.jsx/Evaluation.jsx).
       // Placé juste avant la formule de clôture, comme dernière information de l'email.
-      `<p><a href="${echapperHtml(lienEvaluation)}">Voir l'évaluation de ce candidat</a></p>` +
+      `<p><a href="${echapperHtml(lienEvaluation)}">Évaluer le candidat</a></p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
