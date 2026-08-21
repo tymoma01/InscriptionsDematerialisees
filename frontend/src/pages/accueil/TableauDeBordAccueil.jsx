@@ -71,12 +71,12 @@ function libellePoste(code) {
 // page, pas au moteur générique FiltresStatut.jsx qui reste piloté entièrement par la prop
 // `statuts` qu'on lui passe. "En attente de vérification" (workflow hérité) n'y figure
 // volontairement pas : plus aucun dossier ne peut l'atteindre.
-//
-// "nouveau" ("Inscrit") volontairement PAS ajouté ici (workflow v5, audit 2026-08-21) malgré sa
-// réintroduction dans VARIANTE_PAR_CODE_ACCECIT ci-dessus : demande explicite limitée à
-// "Test non planifié"/"Test réalisé" pour ce tour — un dossier "Inscrit" reste visible via "Tous",
-// juste sans bouton de filtre dédié pour l'instant.
 const CODES_STATUTS_FILTRES_ACCUEIL = [
+  // "Inscrit" (audit 2026-08-21, complète l'ajout initial de Test non planifié/Test réalisé
+  // ci-dessous) : redevenu réellement observable depuis le retrait de la bascule automatique
+  // nouveau -> en_attente_pieces (workflow v5, point 1) — jusqu'ici visible seulement via "Tous",
+  // sans bouton de filtre dédié pour l'isoler des dossiers déjà entrés en collecte de pièces.
+  'nouveau',
   'en_attente_pieces',
   // "Test non planifié" (workflow v5) : pièces obligatoires complètes, test pas encore planifié —
   // même ordre que le workflow (voir workflow.config.json, ordre 25 entre en_attente_pieces=20 et
@@ -101,6 +101,25 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
   'valide_envoi_formation',
   'valide_pret_embauche',
 ];
+
+// Codes agrégés sous le bouton "Test réalisé" (demande explicite, audit 2026-08-21) : à la
+// différence de tous les autres boutons ci-dessus (correspondance stricte à un seul statut), ce
+// filtre doit couvrir tout dossier dont le test a RÉELLEMENT EU LIEU, quel que soit le verdict
+// déjà rendu ou non — test_realise (verdict pas encore soumis) ET les trois issues qui ne sont
+// atteignables QU'après confirmer_test_realise (voir workflow.config.json, workflow v5 :
+// valider_envoi_formation/valider_pret_embauche/invalider_test partent tous les trois de
+// test_realise, plus jamais de test_planifie). Exclut sciemment test_non_realise (le test n'a
+// précisément PAS eu lieu) et tout statut antérieur. Les boutons Invalidé/Validé - envoyé en
+// formation/Validé - prêt à l'embauche restent, eux, des filtres stricts à un seul statut chacun
+// (un agent qui clique "Invalidé" veut voir UNIQUEMENT les dossiers invalidés, pas les mélanger
+// avec les deux autres issues) — seul "Test réalisé" a besoin de cette agrégation, propre à ce
+// bouton. Codes des dossiers eux-mêmes jamais réécrits ni uniformisés par cette agrégation :
+// chaque ligne du tableau garde son statut/badge réel (DossierList.jsx reste piloté par
+// dossier.statut_code, pas par ce filtre), seule la logique de filtrage/comptage est concernée.
+const CODES_STATUTS_TEST_REALISE_ACCECIT = ['test_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
+function codesPourFiltreStatut(code) {
+  return code === 'test_realise' ? CODES_STATUTS_TEST_REALISE_ACCECIT : [code];
+}
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
 // dossiers en attente") — liste les dossiers de l'entité courante, filtrables par statut. Une
@@ -193,19 +212,23 @@ export default function TableauDeBordAccueil() {
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
-  const dossiersFiltres = useMemo(
-    () =>
-      statutFiltre
-        ? dossiersFiltresSansStatut.filter((dossier) => dossier.statut_code === statutFiltre)
-        : dossiersFiltresSansStatut,
-    [dossiersFiltresSansStatut, statutFiltre],
-  );
+  const dossiersFiltres = useMemo(() => {
+    if (!statutFiltre) return dossiersFiltresSansStatut;
+    const codes = codesPourFiltreStatut(statutFiltre);
+    return dossiersFiltresSansStatut.filter((dossier) => codes.includes(dossier.statut_code));
+  }, [dossiersFiltresSansStatut, statutFiltre]);
 
   const compteursParStatut = useMemo(() => {
     const compte = {};
     dossiersFiltresSansStatut.forEach((dossier) => {
       compte[dossier.statut_code] = (compte[dossier.statut_code] ?? 0) + 1;
     });
+    // "Test réalisé" : compteur agrégé (voir CODES_STATUTS_TEST_REALISE_ACCECIT ci-dessus), pas
+    // le simple compte de dossiers au statut test_realise seul — recalculé à partir des comptes
+    // individuels déjà posés ci-dessus. Chacun des 4 codes garde par ailleurs SA propre valeur
+    // pour son propre bouton (ex. compte.invalide reste le nombre réel de dossiers invalidés pour
+    // le bouton "Invalidé" ci-dessous) : seule la clé 'test_realise' de cet objet est réécrite ici.
+    compte.test_realise = CODES_STATUTS_TEST_REALISE_ACCECIT.reduce((somme, code) => somme + (compte[code] ?? 0), 0);
     return compte;
   }, [dossiersFiltresSansStatut]);
 
@@ -221,17 +244,25 @@ export default function TableauDeBordAccueil() {
   // un jour (aucun actuellement) : ce n'est pas un bug, "Tous" (filtrerDossiers.js) reste exact
   // car calculé comme le nombre de dossiers DISTINCTS ayant au moins un poste, pas comme la somme
   // de ces deux compteurs.
+  // codesPourFiltreStatut (pas une simple égalité de code) : "Test réalisé" étant un filtre
+  // agrégé (voir plus haut), ces deux compteurs doivent eux aussi compter les 4 statuts agrégés
+  // quand ce bouton est actif, sous peine de rester bloqués sur le seul sous-ensemble test_realise
+  // pendant que le tableau/compteur "Test réalisé" affichent déjà l'ensemble élargi.
   const compteurHotel = useMemo(
     () =>
       dossiersRechercheDate.filter(
-        (dossier) => (!statutFiltre || dossier.statut_code === statutFiltre) && (dossier.postesHotel ?? []).length > 0,
+        (dossier) =>
+          (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
+          (dossier.postesHotel ?? []).length > 0,
       ).length,
     [dossiersRechercheDate, statutFiltre],
   );
   const compteurBureau = useMemo(
     () =>
       dossiersRechercheDate.filter(
-        (dossier) => (!statutFiltre || dossier.statut_code === statutFiltre) && (dossier.postesBureau ?? []).length > 0,
+        (dossier) =>
+          (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
+          (dossier.postesBureau ?? []).length > 0,
       ).length,
     [dossiersRechercheDate, statutFiltre],
   );

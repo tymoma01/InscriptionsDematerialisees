@@ -1,7 +1,13 @@
 .filtres-statut {
   display: flex;
   justify-content: space-between;
-  align-items: stretch;
+  /* flex-start plutôt que stretch (audit 2026-08-21, passage de .filtres-statut__statuts en
+     flex-wrap: wrap ci-dessous) : avec stretch, "Tous"/le filtre Entité s'étiraient pour égaler
+     la hauteur du bloc statuts, désormais variable (une à plusieurs lignes selon le nombre de
+     statuts actifs) — un simple bouton centré au milieu d'un grand bloc étiré. flex-start les
+     garde compacts et alignés en haut, quelle que soit la hauteur prise par le bloc statuts à
+     côté. */
+  align-items: flex-start;
   gap: var(--espace-petit);
   margin-bottom: var(--espace-moyen);
 }
@@ -38,19 +44,17 @@
 .filtres-statut__statuts {
   display: flex;
   flex: 1;
-  /* nowrap + overflow-x: auto (corrigé le 2026-08-17, revient sur flex-wrap: wrap) : avec 7
-     statuts + compteurs, le texte total dépasse presque toujours la largeur disponible à côté de
-     "Tous"/du filtre Entité (déjà constaté à 1440px de large, PAS seulement une fois Hôtellerie/
-     Tertiaire sélectionné comme il y paraissait — le dernier bouton retombait déjà à la ligne
-     avec "Tous" aussi, juste moins visible) : un flex-wrap ferait donc systématiquement passer le
-     dernier bouton sur une deuxième ligne, quel que soit le filtre Entité actif. Défilement
-     horizontal à la place, même patron que .dossier-list__scroll (DossierList.css) : chaque
-     bouton garde sa largeur intacte (flex-shrink: 0 ci-dessous), rien ne se casse ni ne se
-     réduit, l'agent fait glisser la rangée si son écran est trop étroit pour tout afficher.
-     justify-content: flex-start (plutôt que space-between, qui n'a plus de sens dès que le
-     contenu déborde du conteneur) : les boutons restent groupés à gauche, dans l'ordre naturel. */
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  /* Retour à flex-wrap: wrap (audit 2026-08-21, 10 filtres avec l'ajout d'Inscrit/Test non
+     planifié/Test réalisé) : le défilement horizontal introduit le 2026-08-17 (nowrap +
+     overflow-x: auto, voir historique git) cachait presque tout son affordance — barre de
+     défilement fine, dernier bouton ("Validé - prêt à l'embauche") visuellement coupé sans qu'on
+     comprenne qu'il fallait défiler. Avec 9 puis 10 statuts, un simple retour à la ligne reste
+     plus lisible qu'un défilement peu visible, quitte à occuper plus de hauteur verticale — pas
+     un problème sur cet usage tablette/back-office (pas de contrainte de hauteur fixe ici).
+     justify-content: flex-start (pas space-between, qui n'a plus de sens dès que les boutons
+     s'enchaînent sur plusieurs lignes) : les boutons restent groupés à gauche, dans l'ordre
+     naturel, ligne après ligne. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-start;
   gap: var(--espace-petit);
@@ -60,8 +64,8 @@
   border-radius: var(--rayon-bordure);
   box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
   /* min-width: 0 reste nécessaire : sans lui, un enfant flex ne se rétrécit jamais sous la
-     largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait la ligne entière
-     (Tous/Entité compris) au lieu de faire défiler uniquement son propre contenu. */
+     largeur de son contenu (min-width:auto par défaut), et ce bloc déborderait la ligne du haut
+     (Tous/Entité compris) au lieu de rester contenu dans l'espace qui lui est réservé. */
   min-width: 0;
 }
 
