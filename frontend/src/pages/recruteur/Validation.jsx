@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
+import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -13,26 +13,12 @@ import './Validation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Code de la transition qui replanifie un test après un désistement (test_non_realise) ou un
-// test invalidé (workflow v3 : les deux origines partagent ce même codeAction, vers
-// test_planifie, voir workflow.config.json ACCECIT) — voir ModalePlanificationTest.jsx, qui ne
-// connaît lui-même aucun statut ni codeAction en dur, c'est cette page qui décide depuis quelle
-// action elle l'ouvre. Le moteur de transitions (workflowEngine.appliquerTransition) résout la
-// bonne ligne transitions_statut à partir du statut réel du dossier, jamais choisie ici.
-// Déplacé depuis TableauDeBordAccueil.jsx (audit 2026-08-19, colonne Actions surchargée) : le
-// bouton "Replanifier" vit désormais directement sur la fiche dossier plutôt que sur la ligne du
-// tableau.
-const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
-
-// Statuts depuis lesquels l'action "Replanifier" est proposée (voir Modularité, CLAUDE.md : reste
-// propre à cette page/entité, pas au moteur générique GestionTransitions/ModalePlanificationTest).
-// "invalide" remplace "verdict_negatif" (workflow v3, verdict_negatif retiré du parcours actif).
-// "test_planifie" inclus (workflow v4, retrait de en_attente_verdict, responsable de projet,
-// 2026-07-31) : la replanification doit rester possible à tout moment tant que le dossier est
-// encore test_planifie (pas de restriction de délai) — le codeAction replanifier_test porte alors
-// une transition vers ce même statut (voir workflow.config.json), pas un changement d'état à
-// proprement parler. Même liste que l'ancien TableauDeBordAccueil.jsx (déplacée, pas dupliquée :
-// cette page en est désormais la seule utilisatrice).
+// Statuts depuis lesquels l'action "Replanifier" a un sens concret — affichage du lien "Rendez-vous"
+// uniquement, la vraie garde reste côté Tests.jsx (voir Modularité, CLAUDE.md : reste propre à
+// cette page/entité, pas au moteur générique GestionTransitions/ModalePlanificationTest). Même
+// liste que Tests.jsx (dupliquée, pas partagée, voir CLAUDE.md conventions du projet) — section
+// "Rendez-vous" extraite sur son propre écran (décision utilisateur, 2026-08-21), cette page-ci
+// n'ouvre plus ModalePlanificationTest elle-même, juste un lien vers /tests.
 const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide'];
 
 // Statuts pour lesquels l'accès aux relances a un sens concret — au-delà (dossier transmis au
@@ -42,25 +28,6 @@ const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide']
 // même hors périmètre) — pas de garde équivalente sur son lien. Même liste que l'ancien
 // TableauDeBordAccueil.jsx (déplacée, pas dupliquée).
 const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test_non_realise', 'invalide'];
-
-// Libellés des postes (sélection de poste(s) testé(s) de ModalePlanificationTest.jsx) — même
-// mapping que TableauDeBordAccueil.jsx/VerificationPieces.jsx/Planification.jsx, dupliqué plutôt
-// que partagé (voir CLAUDE.md conventions du projet) : un code absent (poste ajouté au formulaire
-// mais pas encore ici) retombe simplement sur le code brut plutôt que d'échouer.
-const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-function libellePoste(code) {
-  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
-}
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
 // Modularité CLAUDE.md) — même mapping que TableauDeBordAccueil.jsx (VARIANTE_PAR_CODE_ACCECIT),
@@ -126,31 +93,22 @@ export default function Validation() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
-  // Panneau de replanification (ModalePlanificationTest, voir plus bas) — ouvert/fermé, plus
-  // besoin de retenir "quel dossier" (contrairement à l'ancien dossierAReplanifier de
-  // TableauDeBordAccueil.jsx) puisque cette page est déjà scopée à un seul dossier via dossierId.
-  const [panneauReplanificationOuvert, setPanneauReplanificationOuvert] = useState(false);
-
   // Nom du candidat affiché à côté du numéro de dossier dans le titre, même patron que
   // CaptureTablette.jsx (obtenirDossier, statut + nom/prénom déjà joints côté back) : purement
   // informatif, un échec de chargement ne bloque donc pas le reste de l'écran de décision
   // (catch silencieux, comme là-bas).
   const [dossier, setDossier] = useState(null);
 
-  // Rechargement manuel après une replanification réussie (voir plus bas, ModalePlanificationTest
-  // onReussite) : le statut du dossier a pu changer, or c'est lui qui pilote la visibilité des
-  // actions "Replanifier"/"Relances" ci-dessous (STATUTS_REPLANIFIABLES/
-  // STATUTS_RELANCES_AUTORISEES) — sans ce rechargement, ces actions resteraient affichées/
-  // masquées selon le statut d'avant l'action tant que l'agent ne recharge pas la page.
-  const rechargerDossier = () => {
-    obtenirDossier(dossierId)
-      .then(setDossier)
-      .catch(() => {});
-  };
-
   useEffect(() => {
-    rechargerDossier();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let annule = false;
+    obtenirDossier(dossierId)
+      .then((valeur) => {
+        if (!annule) setDossier(valeur);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
   }, [dossierId]);
 
   useEffect(() => {
@@ -202,6 +160,12 @@ export default function Validation() {
             </div>
           )}
         </div>
+
+        {/* Bandeau d'accès rapide aux autres écrans du dossier (patch léger, décision utilisateur
+            2026-08-21) — voir NavigationFicheDossier.jsx : évite de perdre le fil en arrivant sur
+            /pieces ou /relances, qui n'affichaient jusque-là aucun moyen de revenir ici ni d'aller
+            à l'autre écran sans repasser par le tableau de bord. */}
+        <NavigationFicheDossier dossierId={dossierId} pageActuelle="validation" />
 
         {/* Repositionnée juste sous le titre/statut (audit 2026-08-20, décision utilisateur) —
             auparavant tout en bas de la fiche, après Pièces/Rendez-vous/Relances/Notes : composant
@@ -268,18 +232,25 @@ export default function Validation() {
           )}
         </section>
 
-        {/* Section "Rendez-vous" (action "Replanifier", déplacée depuis TableauDeBordAccueil.jsx,
-            audit 2026-08-19) — disponible "directement sur la fiche dossier" (décision produit),
-            contrairement à Pièces/Relances qui restent des liens vers leurs écrans dédiés : ouvre
-            ModalePlanificationTest en place, sans navigation. Gardée par STATUTS_REPLANIFIABLES,
-            même règle de disponibilité par statut qu'avant ce déplacement. */}
+        {/* Section "Rendez-vous" (action "Replanifier") — extraite sur son propre écran
+            (Tests.jsx, décision utilisateur 2026-08-21) : n'ouvre plus ModalePlanificationTest en
+            place, reste un lien vers l'écran dédié, même patron que "Relances" juste en dessous.
+            Avant cette extraction, cette section restait volontairement inline (voir historique
+            git) — un choix qui datait d'avant l'introduction du bandeau NavigationFicheDossier.jsx
+            : une fois ce bandeau en place, une action inline ici restait invisible depuis
+            /pieces et /relances. Gardée par STATUTS_REPLANIFIABLES, même règle de disponibilité
+            par statut qu'avant. */}
         <section className="page-validation__rendezvous">
           <div className="page-validation__rendezvous-entete">
             <h2>Rendez-vous</h2>
             {dossier && STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && (
-              <button className="page-validation__action" type="button" onClick={() => setPanneauReplanificationOuvert(true)}>
+              <Link
+                className="page-validation__action"
+                to={`/coordination/dossiers/${dossierId}/tests`}
+                state={{ ouvrirReplanification: true }}
+              >
                 Replanifier un test
-              </button>
+              </Link>
             )}
           </div>
           {dossier && !STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && (
@@ -288,22 +259,6 @@ export default function Validation() {
             </p>
           )}
         </section>
-
-        {panneauReplanificationOuvert && dossier && (
-          <ModalePlanificationTest
-            dossierId={dossierId}
-            codeAction={CODE_ACTION_REPLANIFIER_TEST}
-            titre={`Replanifier un test - ${dossier.candidat_prenom} ${dossier.candidat_nom}`}
-            postesBureau={dossier.postesBureau}
-            postesHotel={dossier.postesHotel}
-            libellePoste={libellePoste}
-            onAnnuler={() => setPanneauReplanificationOuvert(false)}
-            onReussite={() => {
-              setPanneauReplanificationOuvert(false);
-              rechargerDossier();
-            }}
-          />
-        )}
 
         {/* Section "Relances" (déplacée depuis TableauDeBordAccueil.jsx, audit 2026-08-19) — reste
             un lien vers Relances.jsx (historique + formulaire d'ajout, GestionRendezvous), pas une

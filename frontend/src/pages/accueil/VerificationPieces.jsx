@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import CaptureTablette from '../../core/pieceJustificative/CaptureTablette';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
+import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -81,6 +82,12 @@ export default function VerificationPieces() {
           </div>
           <EnTeteBackOffice />
         </header>
+
+        {/* Bandeau d'accès rapide aux autres écrans du dossier (patch léger, décision utilisateur
+            2026-08-21) — voir NavigationFicheDossier.jsx : jusque-là cet écran n'affichait ni le
+            statut ni les sections "Rendez-vous"/"Relances" de Validation.jsx, sans aucun moyen d'y
+            accéder sinon revenir au tableau de bord. */}
+        <NavigationFicheDossier dossierId={dossierId} pageActuelle="pieces" />
 
         {/* Repositionnée juste sous le titre (audit 2026-08-20, décision utilisateur) —
             auparavant tout en bas de la fiche, après Pièces/Notes : composant partagé
