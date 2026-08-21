@@ -1,3 +1,16 @@
+/* Page de connexion sans habillage PageBackOffice (ni bandeau/logos, ni pied de page, ni barre de
+   navigation) — voir Connexion.jsx : avant d'être connecté, rien ne doit être visible à part le
+   formulaire. min-height: 100vh + centrage vertical reprennent juste assez de
+   PageBackOffice.css pour que la carte du formulaire (LoginForm.css, qui se centre déjà
+   elle-même via margin: auto) ne se retrouve pas plaquée en haut d'un écran vide. */
+.page-connexion {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
 /* Rappel de session déjà active (voir Connexion.jsx) — même largeur que .login-form
    (LoginForm.css, 800px) pour rester aligné avec la carte juste en dessous, mais bordure/fond
    discrets plutôt que la carte marquée du formulaire : ce n'est qu'un rappel contextuel, pas
