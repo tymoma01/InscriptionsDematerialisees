@@ -61,6 +61,37 @@ const LIBELLES_STATUT = {
   honore: 'Réalisé',
 };
 
+// Rendez-vous 'prevu' (valeur en base INCHANGÉE, uniquement l'affichage ci-dessous) dont la date
+// est déjà passée sans qu'aucun flux (bascule automatique, action manuelle) ne l'ait fait
+// avancer — dossier #37, audit 2026-08-21 : montrer "Prévu" pour un test déjà passé induirait en
+// erreur. Calculé à la volée à chaque rendu (Date.now()), pas mémorisé : cohérent avec le reste
+// de cette page, qui ne maintient aucune horloge vivante.
+function rendezvousPrevuExpire(rdv) {
+  return rdv.statut === 'prevu' && new Date(rdv.date_heure).getTime() < Date.now();
+}
+
+// Libellé/variante EFFECTIFS affichés (titre ET badge) — jamais LIBELLES_STATUT/
+// varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
+// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "Manqué"
+// (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif) — ici,
+// personne n'a constaté/enregistré quoi que ce soit, seule la date a débordé.
+function libelleAffiche(rdv) {
+  if (rendezvousPrevuExpire(rdv)) return 'Non réalisé';
+  return LIBELLES_STATUT[rdv.statut] ?? rdv.statut;
+}
+function varianteAffichee(rdv) {
+  if (rendezvousPrevuExpire(rdv)) return 'echec';
+  return varianteStatutRendezvous(rdv.statut);
+}
+
+// Titre générique fixe devant le badge (.gestion-rendezvous__type) — décision utilisateur,
+// 2026-08-21 : remplace l'ancien titre variable par statut (retiré la veille pour les statuts
+// clos, "Remplacé Remplacé" jugé redondant — voir git blame), qui changeait de mot selon
+// LIBELLES_STATUT/rendezvousPrevuExpire. "Test" reste identique quel que soit le statut, aucune
+// variation possible ici : seul le badge juste à côté (voir libelleAffiche/varianteAffichee
+// ci-dessus) porte l'information de statut, avec sa couleur habituelle.
+const TITRE_RENDEZVOUS = 'Test';
+
 // "Test non réalisé" est désormais porté par le titre/badge "Manqué" ci-dessus (LIBELLES_STATUT)
 // pour un rendez-vous 'absent' — le motif affiché à côté ne doit plus le répéter (audit
 // 2026-08-20, dossier #86) :
@@ -252,8 +283,8 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
 
                 <div className="gestion-rendezvous__contenu">
                   <div className="gestion-rendezvous__ligne">
-                    <span className="gestion-rendezvous__type">{LIBELLES_STATUT[rdv.statut] ?? rdv.statut}</span>
-                    <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
+                    <span className="gestion-rendezvous__type">{TITRE_RENDEZVOUS}</span>
+                    <StatutBadge libelle={libelleAffiche(rdv)} variante={varianteAffichee(rdv)} />
                     {rdv.motif_libelle && (
                       <span className="gestion-rendezvous__motif">Motif : {libelleMotifAffiche(rdv.motif_libelle)}</span>
                     )}

@@ -36,13 +36,43 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // 'absent' affiché "Manqué" (pas "Absent") — audit 2026-08-20, cohérent avec GestionRendezvous.jsx
 // (fiche dossier, même correctif) : purement l'affichage, aucun changement de la valeur en base ni
 // de la couleur du badge (variante 'echec' inchangée, voir varianteStatutRendezvous ci-dessous).
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Manqué', annule: 'Annulé', remplace: 'Remplacé' };
+// 'honore' (posé par evaluationEngine.enregistrerEvaluation pour un test conduit et validé, voir
+// GestionRendezvous.jsx) manquait ici (audit 2026-08-21, régression) : jamais présent dans cette
+// table depuis sa création, il retombait sur le code brut "honore" (ni majuscule ni traduction) et
+// sur la variante par défaut 'attente' — rétabli avec le même libellé/couleur que
+// GestionRendezvous.jsx ("Réalisé"/'vert-clair'), seul autre endroit où ce badge apparaît.
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Manqué', annule: 'Annulé', remplace: 'Remplacé', honore: 'Réalisé' };
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
+  if (statut === 'honore') return 'vert-clair';
   if (STATUTS_DESISTEMENT.includes(statut)) return 'echec';
   if (statut === 'remplace') return 'neutre-fort';
   return 'attente';
+}
+
+// Rendez-vous 'prevu' (valeur en base INCHANGÉE, uniquement l'affichage ci-dessous) dont la date
+// est déjà passée sans qu'aucun flux (bascule automatique, action manuelle) ne l'ait fait
+// avancer — même correctif que GestionRendezvous.jsx (dossier #37, audit 2026-08-21) : montrer
+// "Prévu" pour un test déjà passé induirait en erreur. Masqué par défaut ici (case "À venir
+// uniquement" cochée par défaut, voir aVenirSeulement/rendezvousRepository.listerRendezvousTest,
+// qui exclut toute date_heure passée) — reste visible une fois cette case décochée, d'où ce
+// correctif malgré tout.
+function rendezvousPrevuExpire(rdv) {
+  return rdv.statut === 'prevu' && new Date(rdv.date_heure).getTime() < Date.now();
+}
+
+// Libellé/variante EFFECTIFS (badge, recherche, tri) — jamais LIBELLES_STATUT/
+// varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
+// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "Manqué"
+// (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif).
+function libelleAfficheRendezvous(rdv) {
+  if (rendezvousPrevuExpire(rdv)) return 'Non réalisé';
+  return LIBELLES_STATUT[rdv.statut] ?? rdv.statut;
+}
+function varianteAfficheeRendezvous(rdv) {
+  if (rendezvousPrevuExpire(rdv)) return 'echec';
+  return varianteStatutRendezvous(rdv.statut);
 }
 
 // Libellés des postes (colonne "Poste") — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx,
@@ -111,7 +141,7 @@ function rechercheCorrespond(
   const correspondPoste = postes.includes(rechercheNormaliseeTexte);
   const nomFormateur = normaliserTexte(`${rdv.formateur_prenom ?? ''} ${rdv.formateur_nom ?? ''}`.toLowerCase());
   const correspondFormateur = motsRechercheNom.every((mot) => nomFormateur.includes(mot));
-  const statut = normaliserTexte((LIBELLES_STATUT[rdv.statut] ?? rdv.statut ?? '').toLowerCase());
+  const statut = normaliserTexte(libelleAfficheRendezvous(rdv).toLowerCase());
   const correspondStatut = statut.includes(rechercheNormaliseeTexte);
   return correspondNom || correspondPoste || correspondFormateur || correspondStatut;
 }
@@ -141,7 +171,7 @@ const COLONNES = [
   {
     cle: 'statut',
     libelle: 'Statut',
-    extraire: (rdv) => (LIBELLES_STATUT[rdv.statut] ?? rdv.statut ?? '').toLowerCase(),
+    extraire: (rdv) => libelleAfficheRendezvous(rdv).toLowerCase(),
   },
 ];
 
@@ -609,8 +639,8 @@ export default function Planification() {
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
                     <td className="planification__colonne-statut">
                       <StatutBadge
-                        libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut}
-                        variante={varianteStatutRendezvous(rdv.statut)}
+                        libelle={libelleAfficheRendezvous(rdv)}
+                        variante={varianteAfficheeRendezvous(rdv)}
                       />
                     </td>
                     {/* "Voir le dossier" — même bouton (style/couleur/cadre) que sur la vue
