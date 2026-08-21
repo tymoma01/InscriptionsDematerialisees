@@ -25,12 +25,15 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test").
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
 
-// Statut sous lequel les pièces déjà capturées restent modifiables (reprise ou suppression) —
+// Statuts sous lesquels les pièces déjà capturées restent modifiables (reprise ou suppression) —
 // aligné sur STATUTS_SUPPRESSION_AUTORISES côté back (pieceJustificativeService.js), qui reste
 // seul juge en dernier ressort : cette constante n'est là que pour donner un retour immédiat à
 // l'agent (masquer des actions vouées à échouer une fois le test planifié), pas pour dupliquer la
-// règle métier.
-const STATUT_DOSSIER_PIECES_MODIFIABLES = 'en_attente_pieces';
+// règle métier. test_non_planifie ajouté (workflow v5, audit 2026-08-21) : la transition
+// automatique 'pieces_completes' fait désormais quitter en_attente_pieces dès la dernière pièce
+// obligatoire capturée, avant que le test soit planifié — sans cet ajout, le bouton "Valider et
+// planifier un test" ci-dessous disparaîtrait juste au moment où il doit devenir utile.
+const STATUTS_DOSSIER_PIECES_MODIFIABLES = ['en_attente_pieces', 'test_non_planifie'];
 
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
 // ici uniquement pour donner un retour immédiat à l'agent, le back revalide de toute façon.
@@ -152,7 +155,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   // page appelante, se mette lui-même à jour après un rechargement du dossier).
   const dossierPiecesModifiables =
     utilisateur?.roleCode === 'admin' ||
-    (!planificationReussie && (statutCode == null || statutCode === STATUT_DOSSIER_PIECES_MODIFIABLES));
+    (!planificationReussie && (statutCode == null || STATUTS_DOSSIER_PIECES_MODIFIABLES.includes(statutCode)));
 
   const gererSuppression = async (type) => {
     const piece = piecesCapturees.get(type.code);
@@ -410,15 +413,17 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
           </p>
         </div>
       ) : (
-        // Visible tant que le dossier est encore en_attente_pieces (CLAUDE.md, besoin
-        // Coordination : "planifie les tests"), désactivé tant que les pièces obligatoires ne
-        // sont pas toutes capturées — voir piecesObligatoiresCompletes ci-dessus. Une fois le
-        // test déjà planifié via un statutCode reçu directement à jour (dossierPiecesModifiables
-        // faux sans passer par planificationReussie, ex. retour sur cet écran après navigation),
-        // cet écran ne sert plus qu'à compléter une pièce manquante — pas à replanifier un test
-        // déjà en place, qui se fait depuis TableauDeBordAccueil.jsx (codeAction
-        // "replanifier_test") une fois le dossier repassé par test_non_realise/invalide, pas
-        // depuis ce bouton.
+        // Visible tant que le dossier est en_attente_pieces ou test_non_planifie (CLAUDE.md,
+        // besoin Coordination : "planifie les tests" — voir STATUTS_DOSSIER_PIECES_MODIFIABLES
+        // ci-dessus, workflow v5 : la transition automatique 'pieces_completes' fait quitter
+        // en_attente_pieces dès la dernière pièce obligatoire, avant même la planification),
+        // désactivé tant que les pièces obligatoires ne sont pas toutes capturées — voir
+        // piecesObligatoiresCompletes ci-dessus. Une fois le test déjà planifié via un statutCode
+        // reçu directement à jour (dossierPiecesModifiables faux sans passer par
+        // planificationReussie, ex. retour sur cet écran après navigation), cet écran ne sert plus
+        // qu'à compléter une pièce manquante — pas à replanifier un test déjà en place, qui se
+        // fait depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test") une fois le dossier
+        // repassé par test_non_realise/invalide, pas depuis ce bouton.
         dossierPiecesModifiables && (
           <div className="capture-tablette__pied">
             <button

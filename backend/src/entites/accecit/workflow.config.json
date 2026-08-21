@@ -1,24 +1,38 @@
 {
   "statuts": [
-    { "code": "nouveau", "libelle": "Nouveau", "ordre": 1, "estInitial": true, "estFinal": false },
-    { "code": "en_attente_pieces", "libelle": "En attente de pièces", "ordre": 2, "estInitial": false, "estFinal": false },
-    { "code": "test_planifie", "libelle": "Test planifié", "ordre": 3, "estInitial": false, "estFinal": false },
-    { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 4, "estInitial": false, "estFinal": false },
-    { "code": "invalide", "libelle": "Invalidé", "ordre": 6, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true },
-    { "code": "valide_envoi_formation", "libelle": "Validé - envoyé en formation", "ordre": 11, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
-    { "code": "valide_pret_embauche", "libelle": "Validé - prêt à l'embauche", "ordre": 12, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true }
+    { "code": "nouveau", "libelle": "Inscrit", "ordre": 10, "estInitial": true, "estFinal": false },
+    { "code": "en_attente_pieces", "libelle": "En attente de pièces", "ordre": 20, "estInitial": false, "estFinal": false },
+    { "code": "test_non_planifie", "libelle": "Test non planifié", "ordre": 25, "estInitial": false, "estFinal": false },
+    { "code": "test_planifie", "libelle": "Test planifié", "ordre": 30, "estInitial": false, "estFinal": false },
+    { "code": "test_realise", "libelle": "Test réalisé", "ordre": 35, "estInitial": false, "estFinal": false },
+    { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 40, "estInitial": false, "estFinal": false },
+    { "code": "invalide", "libelle": "Invalidé", "ordre": 60, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true },
+    { "code": "valide_envoi_formation", "libelle": "Validé - envoyé en formation", "ordre": 110, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
+    { "code": "valide_pret_embauche", "libelle": "Validé - prêt à l'embauche", "ordre": 120, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true }
   ],
   "transitions": [
     {
-      "codeAction": "inscription_soumise",
+      "codeAction": "premiere_piece_chargee",
       "statutOrigine": "nouveau",
       "statutDestination": "en_attente_pieces",
       "motifRequis": false
     },
     {
-      "codeAction": "planifier_test",
+      "codeAction": "pieces_completes",
       "statutOrigine": "en_attente_pieces",
+      "statutDestination": "test_non_planifie",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "planifier_test",
+      "statutOrigine": "test_non_planifie",
       "statutDestination": "test_planifie",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "confirmer_test_realise",
+      "statutOrigine": "test_planifie",
+      "statutDestination": "test_realise",
       "motifRequis": false
     },
     {
@@ -41,19 +55,19 @@
     },
     {
       "codeAction": "valider_envoi_formation",
-      "statutOrigine": "test_planifie",
+      "statutOrigine": "test_realise",
       "statutDestination": "valide_envoi_formation",
       "motifRequis": false
     },
     {
       "codeAction": "valider_pret_embauche",
-      "statutOrigine": "test_planifie",
+      "statutOrigine": "test_realise",
       "statutDestination": "valide_pret_embauche",
       "motifRequis": false
     },
     {
       "codeAction": "invalider_test",
-      "statutOrigine": "test_planifie",
+      "statutOrigine": "test_realise",
       "statutDestination": "invalide",
       "motifRequis": false
     },

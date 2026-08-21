@@ -120,7 +120,17 @@ class ErreurRendezvousDateNonPassee extends Error {
 // (frontend/pages/recruteur/Validation.jsx) : à faire évoluer en configuration si une autre entité
 // réutilise ce composant (voir Modularité, CLAUDE.md) — copie tenue identique côté front, voir
 // GestionRendezvous.jsx.
-const STATUTS_DOSSIER_RENDEZVOUS_CLOS = ['test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
+// 'test_realise' ajouté (workflow v5, audit 2026-08-21) : une fois le test confirmé réalisé par le
+// formateur/inspecteur assigné, le rendez-vous est lui aussi tranché — Confirmer la présence/
+// Marquer absent/Marquer annulé n'auraient plus de sens dessus, même raisonnement que pour les
+// autres statuts déjà listés ici.
+const STATUTS_DOSSIER_RENDEZVOUS_CLOS = [
+  'test_realise',
+  'test_non_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+];
 
 // dossierId vient toujours de l'URL (voir rendezvous.routes.js) : jamais traité sans confirmer
 // au préalable qu'il appartient à l'entité résolue par entiteContext, même faille IDOR déjà

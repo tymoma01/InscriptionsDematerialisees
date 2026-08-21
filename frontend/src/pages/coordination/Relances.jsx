@@ -19,9 +19,15 @@ import './Relances.css';
 // nulle part, contrairement à Validation.jsx, alors que dossier.statut_code/statut_libelle est
 // déjà chargé ci-dessous (obtenirDossier) pour le nom du candidat dans le titre.
 const VARIANTE_PAR_CODE_ACCECIT = {
+  // nouveau/test_non_planifie/test_realise ajoutés (workflow v5, audit 2026-08-21) — même mapping
+  // que TableauDeBordAccueil.jsx, voir son commentaire d'en-tête pour le détail des choix de
+  // couleur.
+  nouveau: 'neutre',
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
+  test_non_planifie: 'attente',
   test_planifie: 'bleu',
+  test_realise: 'violet',
   test_non_realise: 'alerte',
   invalide: 'echec',
   valide_envoi_formation: 'succes',

@@ -21,16 +21,23 @@ import './TableauDeBordAccueil.css';
 // quelques lignes de données, pas de quoi justifier un module commun, voir CLAUDE.md conventions
 // du projet).
 const VARIANTE_PAR_CODE_ACCECIT = {
-  // 'nouveau' retiré (audit 2026-08-19) : plus aucun dossier ne peut atteindre ce statut depuis
-  // que dossierService.inscrireCandidat fait passer automatiquement en_attente_pieces à la fin
-  // d'une inscription (transaction atomique) — les 20 derniers dossiers encore à "nouveau" (tous
-  // antérieurs au moteur de workflow lui-même, 21/07/2026) ont été basculés rétroactivement, voir
-  // scripts/basculerDossiersNouveauEnAttentePieces.js. Un code absent de ce mapping retombe de
-  // toute façon sur le badge neutre (voir varianteStatut ci-dessous) : rien à afficher au cas où
-  // la valeur "nouveau" réapparaîtrait un jour (elle reste dans l'enum en base, volontairement).
+  // 'nouveau' réintroduit (workflow v5, audit 2026-08-21) : redevenu réellement observable
+  // ("Inscrit" persistant tant qu'aucune pièce n'a été capturée, voir dossierService.
+  // inscrireCandidat/pieceJustificativeService.js) — était retiré depuis le 2026-08-19 tant que ce
+  // statut n'était qu'un artefact transitoire (voir scripts/basculerDossiersNouveauEnAttentePieces.js
+  // pour l'historique de ce retrait). 'neutre' plutôt que 'attente' : rien n'est encore en cours,
+  // contrairement à en_attente_pieces (une collecte a débuté).
+  nouveau: 'neutre',
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
+  // 'test_non_planifie' (workflow v5) : même famille que en_attente_pieces (le dossier attend une
+  // action de la coordination, ici planifier le test plutôt que compléter les pièces).
+  test_non_planifie: 'attente',
   test_planifie: 'bleu',
+  // 'test_realise' (workflow v5) : violet, inutilisé ailleurs dans ce mapping — le test a eu lieu
+  // mais aucun verdict n'est encore rendu, état à surveiller pour relancer un formateur qui tarde
+  // à évaluer (CLAUDE.md, besoin Accueil/Coordination : "historique des relances").
+  test_realise: 'violet',
   test_non_realise: 'alerte',
   invalide: 'echec',
   valide_envoi_formation: 'succes',
@@ -60,17 +67,28 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Tous les statuts réellement atteignables aujourd'hui dans le workflow actif (vérifié en base :
-// `est_initial` ou cible d'une transition existante dans `transitions_statut`, entité ACCECIT,
-// 2026-08-04) — propre à cette page, pas au moteur générique FiltresStatut.jsx qui reste piloté
-// entièrement par la prop `statuts` qu'on lui passe. "En attente de vérification" (workflow
-// hérité) n'y figure volontairement pas : plus aucun dossier ne peut l'atteindre. "nouveau" retiré
-// le 2026-08-19 pour la même raison (voir VARIANTE_PAR_CODE_ACCECIT ci-dessus) : plus aucune
-// inscription ne peut aujourd'hui s'y arrêter, et les derniers dossiers résiduels ont été
-// basculés vers en_attente_pieces.
+// Tous les statuts réellement atteignables aujourd'hui dans le workflow actif — propre à cette
+// page, pas au moteur générique FiltresStatut.jsx qui reste piloté entièrement par la prop
+// `statuts` qu'on lui passe. "En attente de vérification" (workflow hérité) n'y figure
+// volontairement pas : plus aucun dossier ne peut l'atteindre.
+//
+// "nouveau" ("Inscrit") volontairement PAS ajouté ici (workflow v5, audit 2026-08-21) malgré sa
+// réintroduction dans VARIANTE_PAR_CODE_ACCECIT ci-dessus : demande explicite limitée à
+// "Test non planifié"/"Test réalisé" pour ce tour — un dossier "Inscrit" reste visible via "Tous",
+// juste sans bouton de filtre dédié pour l'instant.
 const CODES_STATUTS_FILTRES_ACCUEIL = [
   'en_attente_pieces',
+  // "Test non planifié" (workflow v5) : pièces obligatoires complètes, test pas encore planifié —
+  // même ordre que le workflow (voir workflow.config.json, ordre 25 entre en_attente_pieces=20 et
+  // test_planifie=30) ; l'ORDRE de ce tableau lui-même n'a aucune incidence sur l'affichage
+  // (statutsFiltres filtre `statuts`, déjà trié par `ordre` côté back, voir plus bas), seul
+  // l'ensemble des codes retenus compte ici.
+  'test_non_planifie',
   'test_planifie',
+  // "Test réalisé" (workflow v5) : test confirmé tenu, évaluation pas encore soumise — utile pour
+  // repérer un formateur/inspecteur qui tarde à évaluer (demande explicite, "relancer un formateur
+  // qui tarde").
+  'test_realise',
   // Permet à l'accueil d'isoler d'un coup les dossiers en attente de replanification après un
   // test invalidé, sans devoir les repérer dans la liste complète (voir Validation.jsx,
   // STATUTS_REPLANIFIABLES, pour l'action "Replanifier" elle-même). "invalide" remplace

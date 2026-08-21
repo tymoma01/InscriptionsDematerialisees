@@ -13,39 +13,60 @@ const { obtenirKnex } = require('../src/db/knex');
 const { ROLES } = require('../src/core/auth/rbac');
 
 const ROLES_PAR_ACTION_ACCECIT = {
-  // Transition interne, jamais déclenchée via l'API par un agent (voir
-  // core/dossier/dossierService.js, inscrireCandidat : écrit directement en base sans passer par
-  // workflowEngine) — rôle SYSTEME listé par cohérence documentaire, concrètement injouable via
-  // POST /transitions par un humain puisqu'aucun utilisateur SYSTEME ne peut se connecter (voir
-  // scripts/seedUtilisateurSysteme.js, actif: false).
-  inscription_soumise: [ROLES.SYSTEME],
+  // 'inscription_soumise' RETIRÉ d'ici (workflow v5, audit 2026-08-21, "Inscrit" persistant) :
+  // ACCECIT n'a plus cette transition dans son workflow.config.json (voir dossierService.
+  // inscrireCandidat, qui ne l'appelle plus que si trouvée en config — Adaptel la garde,
+  // inchangée, dans son propre workflow.config.json) — la ligne transitions_statut correspondante
+  // vient d'être purgée par scripts/seedStatuts.js ; garder une entrée ici n'aurait plus rien à
+  // quoi s'accrocher (seedTransitionRoles logue "introuvable" et continue, sans erreur, mais ce
+  // serait une entrée morte à demeure pour ACCECIT).
+  // Workflow v5 (audit 2026-08-21, "Inscrit" persistant) : déclenchée par
+  // pieceJustificativeService.uploaderPieceJustificative au tout premier upload d'une pièce pour
+  // un dossier encore 'nouveau' — l'acteur réel est l'agent qui capture la pièce (Accueil/
+  // Coordination), jamais l'utilisateur système (contrairement à inscription_soumise ci-dessus,
+  // resté un événement purement interne pour les entités qui ne l'utilisent pas/plus, ex. Adaptel).
+  premiere_piece_chargee: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
+  // Workflow v5 : déclenchée par le même service dès que la dernière pièce OBLIGATOIRE manquante
+  // est chargée (types_pieces.obligatoire) — même acteur que premiere_piece_chargee ci-dessus.
+  // Réutilisé tel quel par Adaptel (voir son workflow.config.json, même code_action vers
+  // en_attente_verification) : même acteur plausible pour cette entité aussi, pas de raison de
+  // diverger.
+  pieces_completes: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
   // Bouton "Planifier un test" (CLAUDE.md, section Accueil/Coordination : "planifie les tests") —
   // l'agent scanne les pièces, les juge visuellement conformes, et planifie directement le test
-  // dans la foulée (workflow v2 : plus d'étape "en_attente_verification" séparée, la vérification
-  // est inline). Même code_action réutilisé pour la replanification (voir replanifier_test
+  // dans la foulée. Même code_action réutilisé pour la replanification (voir replanifier_test
   // ci-dessous) : deux origines différentes, jamais ambiguës à l'exécution (workflowEngine filtre
   // toujours par le statut courant réel du dossier), seulement à distinguer ici pour le seed des
   // rôles — d'où la boucle sur toutes les lignes correspondantes plus bas, pas juste la première.
   planifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
+  // Workflow v5 : "Confirmer que le test a eu lieu" (ListeEvaluationsAFaire.jsx), distinct de la
+  // soumission d'évaluation elle-même — même rôles que valider_envoi_formation/valider_pret_
+  // embauche/invalider_test ci-dessous (Formateur/Inspecteur assigné au rendez-vous, ou Admin),
+  // l'assignation précise étant revérifiée dans le service (confirmerTestRealise,
+  // evaluationEngine.js), pas seulement ici par le rôle.
+  confirmer_test_realise: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   // Le formateur marque le test comme non réalisé (candidat absent, etc.) — aucune évaluation
   // associée, transition seule via POST /transitions générique (voir ListeEvaluationsAFaire.jsx).
-  // SYSTEME ajouté (audit 2026-08-20) pour la bascule automatique du même codeAction, déclenchée
-  // par une tâche planifiée sans agent connecté (voir core/rendezvous/
-  // basculeTestNonRealiseService.js) — même patron que inscription_soumise ci-dessus.
+  // Reste déclenchable depuis test_planifie (pas test_realise, workflow v5) : par définition, un
+  // test qu'on découvre "non réalisé" n'a jamais été confirmé réalisé. SYSTEME ajouté (audit
+  // 2026-08-20) pour la bascule automatique du même codeAction, déclenchée par une tâche planifiée
+  // sans agent connecté (voir core/rendezvous/basculeTestNonRealiseService.js) — même patron que
+  // inscription_soumise ci-dessus.
   test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN, ROLES.SYSTEME],
-  // Replanification d'un nouveau créneau, depuis test_non_realise, invalide, OU test_planifie lui-
-  // même (workflow v4 : replanifier reste possible à tout moment tant que le dossier est encore
-  // test_planifie, sans restriction de délai — trois lignes transitions_statut partagent ce même
-  // code_action, "invalide" remplace "verdict_negatif" depuis le workflow v3) — la boucle plus bas
-  // applique ces rôles à chaque ligne partageant ce code_action, jamais juste la première.
+  // Replanification d'un nouveau créneau, depuis test_non_realise, invalide, valide_envoi_formation,
+  // valide_pret_embauche, OU test_planifie lui-même (replanifier reste possible à tout moment tant
+  // que le dossier est encore test_planifie, sans restriction de délai — plusieurs lignes
+  // transitions_statut partagent ce même code_action) — la boucle plus bas applique ces rôles à
+  // chaque ligne partageant ce code_action, jamais juste la première.
   replanifier_test: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
-  // Écrites par evaluationEngine.enregistrerEvaluation (workflow v4 : transition directe depuis
-  // test_planifie vers l'issue finale du dossier, plus de verdict intermédiaire ni de passage par
-  // le recruteur) — pas par POST /transitions directement, mais FORMATEUR/INSPECTEUR/ADMIN listés
-  // par cohérence avec evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour
-  // exposée telle quelle via l'API générique. valider_envoi_formation n'a pas d'équivalent bureau
-  // (INSPECTEUR non listé ici) — le bureau n'a pas de notion de formation, un verdict positif y
-  // passe toujours par valider_pret_embauche (voir evaluationEngine.js, codeActionFinal).
+  // Écrites par evaluationEngine.enregistrerEvaluation (workflow v5 : transition directe depuis
+  // test_realise, plus jamais test_planifie, vers l'issue finale du dossier — voir
+  // confirmer_test_realise ci-dessus pour l'étape intermédiaire qui y mène désormais) — pas par
+  // POST /transitions directement, mais FORMATEUR/INSPECTEUR/ADMIN listés par cohérence avec
+  // evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour exposée telle
+  // quelle via l'API générique. valider_envoi_formation n'a pas d'équivalent bureau (INSPECTEUR non
+  // listé ici) — le bureau n'a pas de notion de formation, un verdict positif y passe toujours par
+  // valider_pret_embauche (voir evaluationEngine.js, codeActionFinal).
   valider_envoi_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
   valider_pret_embauche: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   invalider_test: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],

@@ -111,7 +111,16 @@ function libelleMotifAffiche(motifLibelle) {
 // (backend/src/core/rendezvous/rendezvousService.js, qui revérifie la même règle côté serveur,
 // voir son commentaire) : les deux listes doivent rester synchronisées à la main, aucun partage de
 // code entre front et back sur ce projet (audit 2026-08-20, dossier #84).
-const STATUTS_DOSSIER_RENDEZVOUS_CLOS = ['test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
+// 'test_realise' ajouté (workflow v5, audit 2026-08-21) : une fois le test confirmé réalisé par le
+// formateur/inspecteur assigné, le rendez-vous est lui aussi tranché — même raisonnement que les
+// autres statuts déjà listés ici.
+const STATUTS_DOSSIER_RENDEZVOUS_CLOS = [
+  'test_realise',
+  'test_non_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+];
 
 // Rendez-vous d'un dossier (CLAUDE.md, besoin Accueil/Coordination : "relances et
 // reprogrammations" + "motif de désistement enregistré systématiquement, pour objectiver le

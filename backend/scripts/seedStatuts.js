@@ -6,6 +6,14 @@
 // point ouvert n°1) ; ce fichier est volontairement limité aux statuts nécessaires au tableau de
 // bord Accueil (voir CLAUDE.md), pas encore à la machine à états complète d'ACCECIT. Idempotent.
 //
+// Statuts : upsert seul, jamais de suppression (un code retiré de la config reste en base tel
+// quel — un dossier existant peut encore y référer). Transitions : upsert PUIS purge des lignes
+// devenues obsolètes (audit 2026-08-21, workflow v5) — une transition retirée ou déplacée d'une
+// origine à une autre (ex. « planifier_test » passé de en_attente_pieces à test_non_planifie)
+// restait jusqu'ici active en base indéfiniment, avec ses transition_roles toujours accordés :
+// un moyen silencieux de contourner la nouvelle machine à états en rejouant l'ancienne action
+// depuis l'ancien statut. Voir la purge en fin de fonction pour le détail.
+//
 // Usage : node scripts/seedStatuts.js <code_entite>
 
 const path = require('path');
@@ -88,6 +96,34 @@ async function seedStatuts(codeEntite) {
         })
         .returning('id');
       console.log(`Transition « ${transition.codeAction} » créée pour « ${codeEntite} » (id=${inseree.id}) ✔`);
+    }
+
+    // Purge des transitions obsolètes (voir commentaire d'en-tête) — comparaison par la même
+    // triplette (statut_origine_id, statut_destination_id, code_action) que l'upsert ci-dessus,
+    // pas par id : c'est cette triplette, pas l'id, qui identifie une transition du point de vue
+    // de workflow.config.json. transition_roles n'a pas de ON DELETE CASCADE vers
+    // transitions_statut (FK stricte) — supprimé explicitement en premier, sinon la suppression
+    // de transitions_statut échouerait.
+    const clesValides = new Set(
+      transitions.map((transition) => {
+        const statutOrigineId = idsParCode[transition.statutOrigine] || null;
+        const statutDestinationId = idsParCode[transition.statutDestination];
+        return `${statutOrigineId}|${statutDestinationId}|${transition.codeAction}`;
+      }),
+    );
+    const transitionsExistantes = await bd('transitions_statut').where({ entite_id: entite.id });
+    const transitionsObsoletes = transitionsExistantes.filter(
+      (ligne) => !clesValides.has(`${ligne.statut_origine_id}|${ligne.statut_destination_id}|${ligne.code_action}`),
+    );
+    if (transitionsObsoletes.length > 0) {
+      const idsObsoletes = transitionsObsoletes.map((ligne) => ligne.id);
+      await bd('transition_roles').whereIn('transition_id', idsObsoletes).del();
+      await bd('transitions_statut').whereIn('id', idsObsoletes).del();
+      for (const ligne of transitionsObsoletes) {
+        console.log(
+          `Transition « ${ligne.code_action} » (id=${ligne.id}) absente de workflow.config.json pour « ${codeEntite} » — supprimée avec ses transition_roles ✘`,
+        );
+      }
     }
   } finally {
     await bd.destroy();

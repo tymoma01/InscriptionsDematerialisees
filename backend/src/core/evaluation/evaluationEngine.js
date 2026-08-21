@@ -335,6 +335,45 @@ async function enregistrerEvaluation(
   });
 }
 
+// "Confirmer que le test a eu lieu" (workflow v5, audit 2026-08-21) — distincte de
+// enregistrerEvaluation ci-dessus : ne fait avancer le dossier QUE vers test_realise
+// (codeAction 'confirmer_test_realise', voir workflow.config.json), aucune saisie de grille
+// associée. C'est cette confirmation qui ouvre ensuite l'accès au formulaire d'évaluation
+// lui-même : tant que le dossier reste à test_planifie, workflowEngine.appliquerTransition refuse
+// déjà valider_envoi_formation/valider_pret_embauche/invalider_test (plus aucune ligne
+// transitions_statut ne part de test_planifie pour ces codeAction, voir workflow.config.json) —
+// c'est ce refus normal, pas une vérification dupliquée ici, qui sert de garde-fou "formulaire
+// accessible uniquement une fois test_realise" (demande explicite).
+//
+// Même garde d'assignation que listerQuestionnaire/enregistrerEvaluation ci-dessus (rendezvous.
+// formateur_id, ou Admin) : seul le formateur/inspecteur RÉELLEMENT assigné à ce rendez-vous peut
+// confirmer sa tenue, jamais n'importe quel titulaire du rôle Formateur/Inspecteur — transition_
+// roles (voir seedTransitionRoles.js) ne filtre que le RÔLE, cette vérification supplémentaire est
+// donc nécessaire ici, pas redondante.
+async function confirmerTestRealise(entite, { rendezvousId, formateurId, roleCode }) {
+  const bd = await db.obtenirKnex();
+  const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
+  if (!rendezvous) {
+    throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  if (rendezvous.type_rdv !== 'test') {
+    throw new Error(`Le rendez-vous "${rendezvousId}" n'est pas un rendez-vous de test.`);
+  }
+  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
+    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
+  }
+
+  const { statutDestinationId } = await workflowEngine.appliquerTransition(entite, {
+    dossierId: rendezvous.dossier_id,
+    codeAction: 'confirmer_test_realise',
+    commentaire: 'Test confirmé réalisé par le formateur/inspecteur assigné.',
+    utilisateurId: formateurId,
+    roleCode,
+  });
+
+  return { dossierId: rendezvous.dossier_id, statutDestinationId };
+}
+
 // Historique des évaluations déjà soumises par CE formateur connecté — jamais tous formateurs
 // confondus (voir evaluationRepository.listerEvaluationsParFormateur). Un candidat peut avoir
 // plusieurs entrées si repassé un test pour un poste différent (poste_code distinct par ligne,
@@ -399,6 +438,7 @@ module.exports = {
   listerQuestionnaire,
   listerRendezvousAEvaluer,
   enregistrerEvaluation,
+  confirmerTestRealise,
   listerHistorique,
   obtenirDetailEvaluation,
 };

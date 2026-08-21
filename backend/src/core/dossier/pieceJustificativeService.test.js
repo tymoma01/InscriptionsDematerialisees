@@ -8,6 +8,7 @@ const dossierRepository = require('./dossierRepository');
 // directement plutôt que storageFactory (export de fonction brute, non mockable via t.mock.method
 // une fois déstructuré/consommé — cf. commentaire en tête de azureOneDriveConnector.js).
 const azureOneDriveConnector = require('../../integrations/stockage/azureOneDriveConnector');
+const workflowEngine = require('../workflow/workflowEngine');
 const service = require('./pieceJustificativeService');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit', connecteur_stockage: 'azure_onedrive' };
@@ -235,28 +236,70 @@ test("uploaderPieceJustificative autorise le remplacement d'une pièce 'orphelin
   assert.equal(uploadMock.mock.calls.length, 1);
 });
 
-test("uploaderPieceJustificative rejette toute pièce avant la signature de la charte (statut nouveau)", async (t) => {
+// Workflow v5 (audit 2026-08-21, "Inscrit" persistant) : l'upload à 'nouveau' est désormais
+// AUTORISÉ (voir STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS, pieceJustificativeService.js) — c'est
+// précisément la toute première pièce capturée qui doit faire avancer le dossier vers
+// en_attente_pieces (codeAction 'premiere_piece_chargee'), remplace l'ancien test qui vérifiait le
+// rejet inverse.
+test("uploaderPieceJustificative accepte la première pièce d'un dossier encore 'nouveau' et déclenche premiere_piece_chargee", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
     id: 42,
     statut_code: 'nouveau',
-    statut_libelle: 'Nouveau',
+    statut_libelle: 'Inscrit',
     date_creation: DATE_CREATION_DOSSIER_TEST,
     candidat_nom: 'Martin',
     candidat_prenom: 'Sophie',
   }));
   t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
+  // Aucune pièce de ce type déjà présente (voir uploaderPieceJustificative, dejaPresente) : ce
+  // dossier n'a encore jamais rien reçu, la garde "statut non ouvert à l'upload" ne s'applique
+  // donc qu'à un remplacement, pas à cette toute première capture.
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceParDossierEtType', async () => undefined);
+  t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-premiere-piece');
+  t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 200);
+  // Première pièce jamais capturée pour ce dossier (voir compterPiecesParDossier,
+  // faireAvancerStatutApresUpload) : c'est cette valeur qui déclenche premiere_piece_chargee.
+  t.mock.method(pieceJustificativeRepository, 'compterPiecesParDossier', async () => 1);
+  const transitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 2 }));
 
-  await assert.rejects(
-    () => service.uploaderPieceJustificative(ENTITE_ACCECIT, {
-      dossierId: 42,
-      typePieceCode: 'CNI',
-      nomFichier: 'cni.pdf',
-      contenu: Buffer.from('x'),
-      uploadedBy: 1,
-    }),
-    /Impossible d'ajouter une pièce justificative.*statut "Nouveau"/,
-  );
+  const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 42,
+    typePieceCode: 'CNI',
+    nomFichier: 'cni.pdf',
+    contenu: Buffer.from('x'),
+    uploadedBy: 1,
+    roleCode: 'accueil_coordination',
+  });
+
+  assert.deepEqual(resultat, { pieceId: 200, referenceStockage: 'ref-stockage-premiere-piece' });
+  assert.equal(transitionMock.mock.calls.length, 1);
+  assert.equal(transitionMock.mock.calls[0].arguments[1].codeAction, 'premiere_piece_chargee');
+  assert.equal(transitionMock.mock.calls[0].arguments[1].dossierId, 42);
+});
+
+// Un échec de l'avancement automatique (config manquante, etc.) ne doit jamais faire échouer
+// l'upload lui-même — la pièce est déjà correctement enregistrée à ce stade (voir
+// faireAvancerStatutApresUpload, try/catch dédié).
+test('uploaderPieceJustificative réussit même si l\'avancement automatique du statut échoue', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 7, code: 'CNI' }));
+  t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-xyz');
+  t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 201);
+  t.mock.method(pieceJustificativeRepository, 'toutesPiecesObligatoiresPresentes', async () => {
+    throw new Error('config manquante');
+  });
+
+  const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 42,
+    typePieceCode: 'CNI',
+    nomFichier: 'cni.pdf',
+    contenu: Buffer.from('x'),
+    uploadedBy: 1,
+    roleCode: 'accueil_coordination',
+  });
+
+  assert.deepEqual(resultat, { pieceId: 201, referenceStockage: 'ref-stockage-xyz' });
 });
 
 test('uploaderPieceJustificative uploade vers le connecteur puis enregistre la référence en base', async (t) => {

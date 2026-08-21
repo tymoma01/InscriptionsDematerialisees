@@ -91,6 +91,42 @@ function mettreAJourStatutVerification(trx, pieceId, { statutVerification, dateV
     .then(([piece]) => piece);
 }
 
+// Nombre de pièces déjà présentes pour ce dossier, tous types confondus, y compris les
+// 'orpheline' (audit 2026-08-21, workflow v5) — sert à pieceJustificativeService pour détecter
+// "est-ce la toute première pièce jamais capturée pour ce dossier ?" juste après un insert
+// (compterPiecesParDossier === 1 à cet instant précis) : le déclencheur de la transition
+// 'premiere_piece_chargee' (nouveau -> en_attente_pieces), pas une mesure de complétude — une
+// pièce orpheline compte quand même ici, une capture a bien eu lieu à un moment donné pour ce
+// dossier, qu'elle soit encore récupérable ou non côté stockage.
+async function compterPiecesParDossier(trx, dossierId) {
+  const { total } = await trx('pieces_justificatives').where({ dossier_id: dossierId }).count({ total: '*' }).first();
+  return Number(total);
+}
+
+// Vrai si TOUS les types de pièces obligatoires de l'entité (types_pieces.obligatoire) ont au
+// moins une pièce présente pour ce dossier — 'orpheline' explicitement exclue (contrairement à
+// compterPiecesParDossier ci-dessus) : un fichier disparu du stockage documentaire ne doit pas
+// compter comme "présent" pour la complétude, sans quoi le dossier avancerait à tort vers
+// test_non_planifie alors qu'il manque en réalité une pièce à recapturer (audit 2026-08-21,
+// workflow v5, déclencheur de 'pieces_completes' — voir pieceJustificativeService.js). Deux
+// requêtes simples plutôt qu'un LEFT JOIN + HAVING : le nombre de types obligatoires reste petit
+// (quelques unités), pas de raison d'optimiser en une seule requête pour ce volume.
+async function toutesPiecesObligatoiresPresentes(trx, entiteId, dossierId) {
+  const typesObligatoires = await trx('types_pieces').where({ entite_id: entiteId, obligatoire: true }).select('id');
+  if (typesObligatoires.length === 0) return true;
+
+  const piecesPresentes = await trx('pieces_justificatives')
+    .where({ dossier_id: dossierId })
+    .whereNot('statut_verification', 'orpheline')
+    .whereIn(
+      'type_piece_id',
+      typesObligatoires.map((t) => t.id),
+    )
+    .distinct('type_piece_id');
+
+  return piecesPresentes.length === typesObligatoires.length;
+}
+
 module.exports = {
   trouverTypePieceParCode,
   enregistrerPieceJustificative,
@@ -100,4 +136,6 @@ module.exports = {
   listerPiecesParDossier,
   listerPiecesAvecReferenceParDossier,
   mettreAJourStatutVerification,
+  compterPiecesParDossier,
+  toutesPiecesObligatoiresPresentes,
 };

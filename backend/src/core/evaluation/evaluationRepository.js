@@ -38,10 +38,15 @@ async function listerQuestionsAvecItems(bd, questionnaireId) {
 // enregistrerEvaluation) — c'est ce NOT EXISTS qui fait disparaître un rendez-vous de la liste
 // "à évaluer" une fois l'évaluation soumise, sans avoir besoin d'un statut dédié.
 //
-// dossiers.statut_id = 'test_planifie' en plus (workflow v2) : un rendez-vous existe toujours
-// après que son dossier soit passé à test_non_realise (voir evaluationEngine.enregistrerEvaluation
-// / ListeEvaluationsAFaire.jsx, bouton "Test non réalisé") — sans ce filtre, ce même rendez-vous
-// resterait affiché comme "à évaluer" alors que la seule action possible dessus a déjà été prise.
+// dossiers.statut_id IN ('test_planifie', 'test_realise') (workflow v5, audit 2026-08-21 — élargi
+// depuis la seule égalité 'test_planifie' du workflow v2/v4) : cette liste sert désormais aussi de
+// support à "Confirmer que le test a eu lieu" (voir dossier_statut_code exposé ci-dessous,
+// ListeEvaluationsAFaire.jsx) — un rendez-vous dont le dossier est encore test_planifie affiche ce
+// bouton de confirmation, un dossier déjà test_realise affiche "Évaluer" à la place. Un rendez-vous
+// disparaît toujours de cette liste une fois son dossier passé à test_non_realise (voir
+// evaluationEngine.enregistrerEvaluation / ListeEvaluationsAFaire.jsx, bouton "Test non réalisé")
+// ou à l'une des issues finales (invalide/valide_*) — sans ce filtre, ce même rendez-vous resterait
+// affiché comme "à évaluer" alors que la seule action possible dessus a déjà été prise.
 //
 // Jointure gauche vers dossier_donnees_formulaire (bloc 'disponibilites', JSONB, migration 013)
 // pour exposer le(s) poste(s) recherché(s) — nécessaire pour charger le bon questionnaire côté
@@ -65,8 +70,8 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
       'dossiers.entite_id': entiteId,
       'rendezvous.type_rdv': 'test',
       'rendezvous.formateur_id': formateurId,
-      'statuts.code': 'test_planifie',
     })
+    .whereIn('statuts.code', ['test_planifie', 'test_realise'])
     .whereIn('rendezvous.statut', ['prevu', 'confirme'])
     .whereNotExists(function () {
       this.select(1).from('evaluations').whereRaw('evaluations.rendezvous_id = rendezvous.id');
@@ -80,6 +85,10 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
       // "Rechercher", audit 2026-08-20), même patron que rendezvousRepository.listerRendezvousTest
       // (Suivi des tests).
       'rendezvous.statut',
+      // 'test_planifie' ou 'test_realise' (voir whereIn ci-dessus) — pilote côté front lequel des
+      // deux boutons afficher par ligne ("Confirmer que le test a eu lieu" vs "Évaluer", voir
+      // ListeEvaluationsAFaire.jsx, workflow v5 audit 2026-08-21).
+      'statuts.code as dossier_statut_code',
       // Postes RETENUS pour CE rendez-vous précis (migration 039), distincts de
       // donnees_disponibilites (postes DÉCLARÉS à l'inscription) ci-dessous — sert à
       // GrilleEvaluation.jsx à pré-cocher les cases de postesCandidats déjà retenues au moment de

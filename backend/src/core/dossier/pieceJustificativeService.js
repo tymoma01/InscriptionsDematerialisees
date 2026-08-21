@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const storageFactory = require('../../integrations/stockage/storageFactory');
 const pieceJustificativeRepository = require('./pieceJustificativeRepository');
 const dossierRepository = require('./dossierRepository');
+const workflowEngine = require('../workflow/workflowEngine');
 const { ROLES } = require('../auth/rbac');
 
 // Erreur métier distincte d'une Error générique (500 opaque) : pieces.routes.js la traduit en 400
@@ -36,21 +37,32 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
 // CLAUDE.md) — une autre entité peut avoir un jeu de pièces différent sans toucher ce module.
 
 // Statuts sous lesquels un upload de n'importe quelle pièce (nouvelle ou remplacement via
-// "Reprendre") reste possible : en_attente_pieces (le cas nominal, l'accueil prend les pièces) et
+// "Reprendre") reste possible : en_attente_pieces (le cas nominal, l'accueil prend les pièces),
 // en_attente_verification (ajout tardif — ex. remplacer une pièce que le recruteur vient de
 // rejeter — sans avoir à repasser explicitement le dossier en en_attente_pieces, transition qui
-// n'existe d'ailleurs pas dans transitions_statut).
-const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'];
+// n'existe d'ailleurs pas dans transitions_statut) et test_non_planifie (workflow v5, audit
+// 2026-08-21 : la transition automatique 'pieces_completes' fait désormais quitter
+// en_attente_pieces dès la dernière pièce obligatoire capturée, avant même que le test soit
+// planifié — sans cet ajout, corriger une pièce ou en compléter une optionnelle entre ce moment-là
+// et la planification effective du test exigerait à tort le rôle Admin).
+const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification', 'test_non_planifie'];
 
 // La capture d'une pièce ENCORE JAMAIS présente pour ce dossier reste tolérée quel que soit le
 // statut atteint ensuite (test planifié, test réalisé, verdict rendu...) — ex. pièce optionnelle
 // (justificatif d'expérience, attestation mutuelle) complétée tardivement pour le second contrôle
-// RH (CLAUDE.md), y compris sur un dossier dont le test est déjà passé. Seul 'nouveau' reste
-// exclu : avant la signature de la charte, aucune pièce n'a de raison d'être capturée. Jamais le
-// remplacement d'une pièce déjà présente en dehors de STATUTS_UPLOAD_AUTORISES : ce serait un
-// moyen détourné de contourner l'interdiction de "Reprendre" une fois le dossier hors
-// en_attente_pieces (même restriction que STATUTS_SUPPRESSION_AUTORISES côté suppression), donc
-// revérifié explicitement plus bas (dejaPresente), pas seulement masqué côté front.
+// RH (CLAUDE.md), y compris sur un dossier dont le test est déjà passé. Jamais le remplacement
+// d'une pièce déjà présente en dehors de STATUTS_UPLOAD_AUTORISES : ce serait un moyen détourné de
+// contourner l'interdiction de "Reprendre" une fois le dossier hors en_attente_pieces (même
+// restriction que STATUTS_SUPPRESSION_AUTORISES côté suppression), donc revérifié explicitement
+// plus bas (dejaPresente), pas seulement masqué côté front.
+//
+// 'nouveau' RETIRÉ de cette liste (audit 2026-08-21, workflow v5, "Inscrit" persistant) : la toute
+// PREMIÈRE pièce d'un dossier encore à 'nouveau' est désormais précisément ce qui doit être
+// autorisé — c'est cet upload qui déclenche automatiquement la transition 'premiere_piece_chargee'
+// (nouveau -> en_attente_pieces, voir plus bas) ; avant ce changement, 'nouveau' n'était de toute
+// façon jamais observable assez longtemps pour qu'un upload y soit tenté (voir dossierService.
+// inscrireCandidat, qui basculait alors automatiquement en_attente_pieces dans la même transaction
+// que la création du dossier).
 //
 // Exception : une pièce déjà présente mais 'orpheline' (migration 046 — fichier disparu du
 // stockage documentaire, constaté par le système, pas un rejet humain remis en cause, voir
@@ -58,7 +70,7 @@ const STATUTS_UPLOAD_AUTORISES = ['en_attente_pieces', 'en_attente_verification'
 // n'est pas un contournement de la règle ci-dessus : il n'existe déjà plus rien à "Reprendre" côté
 // stockage pour ce type de pièce sur ce dossier, la bloquer reviendrait à rendre la pièce
 // irrécupérable pour de bon sur des dossiers pourtant déjà avancés (test réalisé, verdict rendu).
-const STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS = ['nouveau'];
+const STATUTS_AJOUT_PIECE_MANQUANTE_EXCLUS = [];
 
 async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, nomFichier, contenu, mimetype, uploadedBy, roleCode }) {
   if (!Buffer.isBuffer(contenu)) {
@@ -154,7 +166,83 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
     uploadedBy,
   });
 
+  // Avancement automatique du statut dossier après upload (workflow v5, audit 2026-08-21) —
+  // best-effort : la pièce est déjà correctement enregistrée ci-dessus à cet instant, un échec de
+  // transition (config manquante pour cette entité, race...) ne doit jamais faire échouer l'upload
+  // lui-même, voir faireAvancerStatutApresUpload plus bas pour le détail.
+  await faireAvancerStatutApresUpload(entite, {
+    dossierId,
+    dossierStatutCodeAvantUpload: dossier.statut_code,
+    uploadedBy,
+    roleCode,
+  });
+
   return { pieceId, referenceStockage };
+}
+
+// Deux transitions automatiques possibles à la suite d'un upload réussi (workflow v5, "Inscrit"
+// persistant + "Test non planifié", audit 2026-08-21) — jamais bloquantes pour l'upload lui-même
+// (try/catch dédié, même principe que les envois de notification best-effort ailleurs dans le
+// projet, ex. invitationTestService.js) :
+//
+// 1. 'premiere_piece_chargee' (nouveau -> en_attente_pieces) : SEULEMENT si le dossier était
+//    encore à 'nouveau' juste avant cet upload ET que c'est la toute première pièce jamais
+//    capturée pour ce dossier (compterPiecesParDossier === 1 à cet instant précis) — un second
+//    upload sur un dossier déjà en_attente_pieces ne doit évidemment rien redéclencher ici.
+// 2. 'pieces_completes' (en_attente_pieces -> test_non_planifie) : dès que TOUS les types de
+//    pièces obligatoires de l'entité sont désormais présents (voir
+//    pieceJustificativeRepository.toutesPiecesObligatoiresPresentes) — vérifiée APRÈS la
+//    transition 1 ci-dessus si elle a eu lieu (un dossier peut passer nouveau -> en_attente_pieces
+//    -> test_non_planifie en un seul upload si l'entité ne configure qu'un seul type de pièce
+//    obligatoire, cas limite mais correct).
+//
+// roleCode/uploadedBy réutilisés tels quels comme acteur de la transition (déjà l'agent réellement
+// authentifié qui capture la pièce, voir pieces.routes.js) : jamais l'utilisateur système ici,
+// contrairement à basculeTestNonRealiseService.js — ce n'est pas une tâche planifiée sans agent
+// connecté, c'est un effet de bord immédiat de SON action.
+//
+// Silencieux (pas de transition déclenchée) si l'entité ne configure ni l'une ni l'autre de ces
+// deux codeAction depuis le statut concerné (workflowEngine.appliquerTransition lève alors une
+// erreur "non autorisée", capturée ci-dessous) : une entité qui n'a pas ce workflow (ou choisit de
+// ne pas l'adopter) continue de fonctionner sans aucun changement de comportement.
+async function faireAvancerStatutApresUpload(entite, { dossierId, dossierStatutCodeAvantUpload, uploadedBy, roleCode }) {
+  const bd = await db.obtenirKnex();
+
+  try {
+    let statutCodeCourant = dossierStatutCodeAvantUpload;
+
+    if (statutCodeCourant === 'nouveau') {
+      const nombrePieces = await pieceJustificativeRepository.compterPiecesParDossier(bd, dossierId);
+      if (nombrePieces === 1) {
+        await workflowEngine.appliquerTransition(entite, {
+          dossierId,
+          codeAction: 'premiere_piece_chargee',
+          commentaire: 'Première pièce justificative capturée — passage automatique en attente de pièces.',
+          utilisateurId: uploadedBy,
+          roleCode,
+        });
+        statutCodeCourant = 'en_attente_pieces';
+      }
+    }
+
+    if (statutCodeCourant === 'en_attente_pieces') {
+      const complet = await pieceJustificativeRepository.toutesPiecesObligatoiresPresentes(bd, entite.id, dossierId);
+      if (complet) {
+        await workflowEngine.appliquerTransition(entite, {
+          dossierId,
+          codeAction: 'pieces_completes',
+          commentaire: 'Toutes les pièces justificatives obligatoires sont chargées — passage automatique en test non planifié.',
+          utilisateurId: uploadedBy,
+          roleCode,
+        });
+      }
+    }
+  } catch (erreur) {
+    console.error(
+      `Avancement automatique du statut après upload de pièce ignoré pour le dossier ${dossierId} :`,
+      erreur.message,
+    );
+  }
 }
 
 async function telechargerPieceJustificative(entite, pieceId) {
@@ -230,12 +318,14 @@ async function listerPiecesJustificativesAvecContenu(entite, dossierId) {
   };
 }
 
-// Suppression permise uniquement tant que le dossier est encore en_attente_pieces : une fois le
-// test planifié (planifier_test), les pièces déjà prises pour cette étape ne doivent plus pouvoir
-// être retirées — plus strict que STATUTS_UPLOAD_AUTORISES (qui admet aussi
-// en_attente_verification, un ajout tardif après rejet du recruteur, cas où on remplace une pièce
-// via un nouvel upload plutôt que d'en supprimer une existante).
-const STATUTS_SUPPRESSION_AUTORISES = ['en_attente_pieces'];
+// Suppression permise tant que le test n'est pas encore planifié (planifier_test) : une fois
+// celui-ci planifié, les pièces déjà prises pour cette étape ne doivent plus pouvoir être
+// retirées — plus strict que STATUTS_UPLOAD_AUTORISES (qui admet aussi en_attente_verification, un
+// ajout tardif après rejet du recruteur, cas où on remplace une pièce via un nouvel upload plutôt
+// que d'en supprimer une existante). test_non_planifie ajouté (workflow v5, audit 2026-08-21) :
+// même raison que sur STATUTS_UPLOAD_AUTORISES ci-dessus, la transition automatique
+// 'pieces_completes' fait quitter en_attente_pieces avant que le test soit planifié.
+const STATUTS_SUPPRESSION_AUTORISES = ['en_attente_pieces', 'test_non_planifie'];
 
 // Droit à l'effacement RGPD : supprime le fichier chez le prestataire de stockage avant de
 // retirer la ligne en base, pour ne jamais garder une référence vers un fichier déjà effacé.

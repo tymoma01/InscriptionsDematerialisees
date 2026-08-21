@@ -2,6 +2,7 @@ const { z } = require('zod');
 const { obtenirKnex } = require('../../db/knex');
 const { chiffrer, hasherNirPourUnicite } = require('../securite/nirCipher');
 const dossierRepository = require('./dossierRepository');
+const workflowRepository = require('../workflow/workflowRepository');
 const { TYPES_POSTE, POSTES_BUREAU, POSTES_HOTEL } = require('./postesConstantes');
 
 // Codes des contraintes UNIQUE posées par la migration 032_ajout_email_nir_hash_candidats —
@@ -331,25 +332,37 @@ async function inscrireCandidat(entite, donneesBrutes) {
       signatureImage: charteSignatureBuffer,
     });
 
-    // Fin des étapes du formulaire : le dossier quitte automatiquement son statut initial pour
-    // « en_attente_pieces » (voir CLAUDE.md, parcours ACCECIT étape 3 — prise des pièces par
-    // l'accueil). Aucun agent n'est connecté à cette étape (le candidat saisit lui-même, voir
-    // candidats.routes.js) : l'acteur tracé dans historique_statuts est l'utilisateur système de
-    // l'entité, pas un choix arbitraire, pour que la traçabilité RGPD reste exacte.
-    const statutEnAttentePieces = await dossierRepository.trouverStatutParCode(trx, entite.id, 'en_attente_pieces');
-    if (!statutEnAttentePieces) {
-      throw new Error(`Statut « en_attente_pieces » non configuré pour l'entité « ${entite.code} ».`);
+    // Fin des étapes du formulaire : SI l'entité configure une transition 'inscription_soumise'
+    // depuis le statut initial (transitions_statut), le dossier avance automatiquement — sinon
+    // (workflow v5 ACCECIT, audit 2026-08-21) il reste au statut initial ("Inscrit"/nouveau),
+    // volontairement observable désormais, jusqu'à ce qu'un agent capture la première pièce
+    // justificative (voir pieceJustificativeService.uploaderPieceJustificative, codeAction
+    // premiere_piece_chargee). Recherche générique via workflowRepository — CE fichier ne doit
+    // connaître ni "en_attente_pieces" ni aucun autre code de statut en dur (Modularité, CLAUDE.md) :
+    // le comportement varie déjà par entité PUREMENT via la présence ou l'absence de cette ligne de
+    // configuration (voir workflow.config.json d'Adaptel, qui la garde telle quelle — comportement
+    // inchangé pour cette entité). Aucun agent n'est connecté à cette étape (le candidat saisit
+    // lui-même, voir candidats.routes.js) : l'acteur tracé dans historique_statuts, quand la
+    // transition existe, est l'utilisateur système de l'entité, pas un choix arbitraire, pour que
+    // la traçabilité RGPD reste exacte.
+    const transitionInscriptionSoumise = await workflowRepository.trouverTransition(
+      trx,
+      entite.id,
+      statutInitial.id,
+      'inscription_soumise',
+    );
+    if (transitionInscriptionSoumise) {
+      const utilisateurSysteme = await dossierRepository.trouverUtilisateurSysteme(trx, entite.id);
+      if (!utilisateurSysteme) {
+        throw new Error(`Utilisateur système non configuré pour l'entité « ${entite.code} ».`);
+      }
+      await dossierRepository.enregistrerChangementStatut(trx, {
+        dossierId,
+        statutId: transitionInscriptionSoumise.statut_destination_id,
+        utilisateurId: utilisateurSysteme.id,
+        commentaire: 'Inscription soumise par le candidat — passage automatique en attente de pièces justificatives.',
+      });
     }
-    const utilisateurSysteme = await dossierRepository.trouverUtilisateurSysteme(trx, entite.id);
-    if (!utilisateurSysteme) {
-      throw new Error(`Utilisateur système non configuré pour l'entité « ${entite.code} ».`);
-    }
-    await dossierRepository.enregistrerChangementStatut(trx, {
-      dossierId,
-      statutId: statutEnAttentePieces.id,
-      utilisateurId: utilisateurSysteme.id,
-      commentaire: 'Inscription soumise par le candidat — passage automatique en attente de pièces justificatives.',
-    });
 
     return { candidatId, dossierId };
   });
