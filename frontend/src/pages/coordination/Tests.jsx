@@ -4,10 +4,32 @@ import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest'
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
 import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
+import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
 import './Tests.css';
+
+// Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
+// Modularité CLAUDE.md) — même mapping que Validation.jsx (VARIANTE_PAR_CODE_ACCECIT), dupliqué
+// plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent de ce mapping (autre
+// entité, nouveau statut) retombe simplement sur un badge neutre plutôt que d'échouer. Badge
+// ajouté sur cette fiche (audit 2026-08-21) : le statut du dossier n'y était jusque-là visible
+// nulle part, alors que dossier.statut_code/statut_libelle est déjà chargé ci-dessous
+// (obtenirDossier, aussi utilisé par STATUTS_REPLANIFIABLES) pour le nom du candidat dans le
+// titre.
+const VARIANTE_PAR_CODE_ACCECIT = {
+  en_attente_pieces: 'attente',
+  en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
+  test_planifie: 'bleu',
+  test_non_realise: 'alerte',
+  invalide: 'echec',
+  valide_envoi_formation: 'succes',
+  valide_pret_embauche: 'vert-clair',
+};
+function varianteStatut(code) {
+  return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
+}
 
 // Code de la transition qui replanifie un test après un désistement (test_non_realise) ou un
 // test invalidé (workflow v3 : les deux origines partagent ce même codeAction, vers
@@ -104,6 +126,14 @@ export default function Tests() {
                 </>
               )}
             </h1>
+            {/* Même badge/mapping que Validation.jsx/Relances.jsx/VerificationPieces.jsx, pour
+                que le statut reste visible depuis n'importe quel onglet de la fiche dossier. */}
+            {dossier && (
+              <div className="page-tests__statut">
+                <span className="page-tests__statut-libelle">Statut :</span>
+                <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
+              </div>
+            )}
           </div>
           <EnTeteBackOffice />
         </header>
