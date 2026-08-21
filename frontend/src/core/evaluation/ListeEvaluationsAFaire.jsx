@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
 import { normaliserTexte } from '../filtres/normaliserTexte';
 import { useParametreURL } from '../filtres/useParametreURL';
@@ -44,13 +44,22 @@ function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte }
 // backend GET /api/evaluations/a-faire — déjà filtrée par formateur et par "pas déjà évalué",
 // rien à filtrer ici). `rafraichir` : changer sa valeur force un rechargement (utilisé par
 // Evaluation.jsx après une évaluation soumise). `onSelectionner` laisse à l'appelant la décision
-// d'ouvrir la grille — ce composant ne connaît pas GrilleEvaluation.jsx.
-export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
+// d'ouvrir la grille — ce composant ne connaît pas GrilleEvaluation.jsx. `rendezvousIdCible` : lu
+// par Evaluation.jsx/pages/inspecteur/Evaluation.jsx (paramètre d'URL ?rendezvousId=..., voir le
+// lien "Voir l'évaluation de ce candidat" de l'email formateur/inspecteur, formatageEmail.
+// construireLienEvaluation) — surligne et scrolle jusqu'à la ligne correspondante ci-dessous. Reste
+// géré ici (pas dans Evaluation.jsx) car c'est ce composant qui possède le DOM des lignes.
+export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, rendezvousIdCible }) {
   const [rendezvous, setRendezvous] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [enCoursId, setEnCoursId] = useState(null);
   const [erreurAction, setErreurAction] = useState(null);
+
+  // Ligne ciblée par rendezvousIdCible — même mécanisme que FormulaireUtilisateur
+  // (pages/admin/Utilisateurs.jsx:349-352) : un ref posé sur le nœud DOM lui-même, scrollIntoView
+  // dans un effet dédié plutôt qu'une requête DOM externe (document.querySelector).
+  const ligneCibleRef = useRef(null);
 
   // Filtres persistés dans l'URL (query params), même mécanisme que Dossiers candidats/Suivi des
   // tests/Historique des évaluations — voir useParametreURL.js. S'appliquent en plus de la
@@ -100,6 +109,15 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
       return rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte });
     });
   }, [rendezvous, recherche, dateDebutFiltre, dateFinFiltre]);
+
+  // Scroll jusqu'à la ligne ciblée une fois la liste rendue (rendezvousFiltres en dépendance : le
+  // ref n'est posé sur le bon <li> qu'après ce rendu-là). Silencieux si rendezvousIdCible ne
+  // correspond à aucune ligne (déjà évalué entre-temps, ou exclu par un filtre recherche/date
+  // actif) — ligneCibleRef.current reste alors null, scrollIntoView n'est simplement pas appelé.
+  useEffect(() => {
+    if (!rendezvousIdCible) return;
+    ligneCibleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [rendezvousIdCible, rendezvousFiltres]);
 
   // Aucune grille associée (contrairement à "Évaluer" — voir GrilleEvaluation.jsx) : une seule
   // transition (voir workflowEngine.appliquerTransition), commentaire auto-généré comme le fait
@@ -177,8 +195,14 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
         <p className="liste-evaluations__vide">Aucune évaluation ne correspond aux critères actuels.</p>
       ) : (
         <ul className="liste-evaluations">
-          {rendezvousFiltres.map((rdv) => (
-            <li key={rdv.id} className="liste-evaluations__item">
+          {rendezvousFiltres.map((rdv) => {
+            const estCible = rendezvousIdCible && String(rdv.id) === String(rendezvousIdCible);
+            return (
+            <li
+              key={rdv.id}
+              ref={estCible ? ligneCibleRef : null}
+              className={`liste-evaluations__item${estCible ? ' liste-evaluations__item--cible' : ''}`}
+            >
               <span className="liste-evaluations__candidat">
                 {rdv.candidat_prenom} {rdv.candidat_nom}
               </span>
@@ -196,7 +220,8 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir }) {
                 Évaluer
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </>

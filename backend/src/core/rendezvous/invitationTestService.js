@@ -4,7 +4,8 @@ const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
 const { genererIcsInvitationTest, composerAdresseCourte, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
-const { echapperHtml, formaterLignesLieuHtml } = require('../../integrations/notifications/formatageEmail');
+const { echapperHtml, formaterLignesLieuHtml, construireLienEvaluation } = require('../../integrations/notifications/formatageEmail');
+const { FRONTEND_URL } = require('../../config/env');
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   dateStyle: 'long',
@@ -107,6 +108,7 @@ function construireMessageEmailFormateur({
   lieuMetroAcces,
   postesSelectionnes,
   notePlanification,
+  lienEvaluation,
 }) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
@@ -122,6 +124,11 @@ function construireMessageEmailFormateur({
       // Après date/poste(s)/lieu (demande explicite) — réservée à cet email, voir
       // formaterLigneNoteHtml ci-dessus.
       formaterLigneNoteHtml(notePlanification) +
+      // Lien vers /formateur/evaluations ou /inspecteur/evaluations?rendezvousId=... (voir
+      // construireLienEvaluation, formatageEmail.js) — surligne directement la ligne de ce
+      // rendez-vous à l'arrivée (audit 2026-08-21, ListeEvaluationsAFaire.jsx/Evaluation.jsx).
+      // Placé juste avant la formule de clôture, comme dernière information de l'email.
+      `<p><a href="${echapperHtml(lienEvaluation)}">Voir l'évaluation de ce candidat</a></p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
@@ -251,11 +258,14 @@ async function envoyerInvitationTest(entite, rendezvous) {
       try {
         // notePlanification passée UNIQUEMENT ici, jamais dans `infos` (partagé avec l'email
         // candidat construireMessageEmail ci-dessus) : réservée au formateur/inspecteur, voir
-        // formaterLigneNoteHtml.
+        // formaterLigneNoteHtml. formateur.role_code déjà disponible (trouverUtilisateurParId
+        // joint roles, voir utilisateurRepository.js) : pas besoin d'une requête supplémentaire
+        // pour distinguer /formateur/ de /inspecteur/ dans le lien.
         const { sujet, corps } = construireMessageEmailFormateur({
           ...infos,
           formateurPrenom: formateur.prenom,
           notePlanification: rendezvous.note_planification,
+          lienEvaluation: construireLienEvaluation(FRONTEND_URL, formateur.role_code, rendezvous.id),
         });
         // piecesJointes : même .ics que l'email candidat ci-dessus (audit 2026-08-20, corrige le
         // trou — cet appel n'attachait jusqu'ici jamais rien).

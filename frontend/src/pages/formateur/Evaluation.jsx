@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
+import { useParametreURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ListeEvaluationsAFaire from '../../core/evaluation/ListeEvaluationsAFaire';
 import GrilleEvaluation from '../../core/evaluation/GrilleEvaluation';
@@ -15,8 +16,15 @@ import './Evaluation.css';
 // à recharger sans dupliquer sa logique de fetch ici.
 export default function Evaluation() {
   const { utilisateur, chargement: chargementSession } = useSession();
+  const location = useLocation();
   const [rendezvousSelectionne, setRendezvousSelectionne] = useState(null);
   const [compteurRafraichissement, setCompteurRafraichissement] = useState(0);
+
+  // ?rendezvousId=... (lien "Voir l'évaluation de ce candidat" de l'email formateur, voir
+  // formatageEmail.construireLienEvaluation) — même pattern que 'q' dans
+  // ListeEvaluationsAFaire.jsx, transmis tel quel pour qu'il surligne/scrolle jusqu'à la ligne
+  // correspondante (voir ListeEvaluationsAFaire.jsx, rendezvousIdCible).
+  const [rendezvousIdCible] = useParametreURL('rendezvousId', '');
 
   if (chargementSession) {
     return (
@@ -30,7 +38,14 @@ export default function Evaluation() {
     return (
       <PageBackOffice>
         <p role="alert">
-          Vous devez être connecté pour évaluer un test. <Link to="/connexion">Se connecter</Link>
+          Vous devez être connecté pour évaluer un test.{' '}
+          {/* ?redirection=... (Connexion.jsx) ramène ici APRÈS connexion, avec rendezvousId
+              toujours dans l'URL — même construction que ConfirmationInscription.jsx : sans ça,
+              un formateur non connecté qui clique le lien de l'email perdrait le ciblage en se
+              connectant (retomberait sur la destination par défaut de son rôle, liste complète). */}
+          <Link to={`/connexion?redirection=${encodeURIComponent(location.pathname + location.search)}`}>
+            Se connecter
+          </Link>
         </p>
       </PageBackOffice>
     );
@@ -52,7 +67,11 @@ export default function Evaluation() {
         </header>
 
         {!rendezvousSelectionne && (
-          <ListeEvaluationsAFaire onSelectionner={setRendezvousSelectionne} rafraichir={compteurRafraichissement} />
+          <ListeEvaluationsAFaire
+            onSelectionner={setRendezvousSelectionne}
+            rafraichir={compteurRafraichissement}
+            rendezvousIdCible={rendezvousIdCible}
+          />
         )}
 
         {rendezvousSelectionne && (

@@ -38,4 +38,19 @@ function formaterLignesLieuHtml({ adresse, metroAcces, instructions }, { inclure
   return lignes.join('<br>\n');
 }
 
-module.exports = { echapperHtml, formaterLignesLieuHtml };
+// Lien vers la fiche d'évaluation du rendez-vous, inclus dans l'email formateur/inspecteur (voir
+// construireMessageEmailFormateur dans invitationTestService.js/notificationChangementLieuService.js)
+// — factorisé ici comme le reste de ce fichier : même construction exacte requise des deux côtés,
+// une divergence (ex. un chemin qui change d'un côté et pas de l'autre) casserait silencieusement
+// le lien pour l'un des deux emails. /formateur/ ou /inspecteur/ selon roleCode (voir
+// pages/formateur/Evaluation.jsx et pages/inspecteur/Evaluation.jsx côté front, même distinction
+// que DESTINATION_PAR_ROLE dans Connexion.jsx) — 'inspecteur' explicitement testé, tout le reste
+// (notamment 'formateur') retombe sur /formateur/, jamais d'URL cassée faute de role_code connu.
+// ?rendezvousId=... lu par useParametreURL côté front (ListeEvaluationsAFaire.jsx) pour surligner
+// la ligne correspondante à l'arrivée — voir Evaluation.jsx.
+function construireLienEvaluation(frontendUrl, roleCode, rendezvousId) {
+  const segmentRole = roleCode === 'inspecteur' ? 'inspecteur' : 'formateur';
+  return `${frontendUrl}/${segmentRole}/evaluations?rendezvousId=${encodeURIComponent(rendezvousId)}`;
+}
+
+module.exports = { echapperHtml, formaterLignesLieuHtml, construireLienEvaluation };
