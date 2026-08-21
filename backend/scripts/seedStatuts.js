@@ -32,6 +32,9 @@ async function seedStatuts(codeEntite) {
           ordre: statut.ordre,
           est_initial: statut.estInitial,
           est_final: statut.estFinal,
+          // Défaut false si absent de workflow.config.json (migration 051) — mêmes conventions
+          // que estInitial/estFinal ci-dessus.
+          neutralise_rendezvous_actifs: Boolean(statut.neutraliseRendezvousActifs),
         });
         idsParCode[statut.code] = existant.id;
         console.log(`Statut « ${statut.code} » déjà présent pour « ${codeEntite} » (id=${existant.id}) — mis à jour ✔`);
@@ -46,6 +49,7 @@ async function seedStatuts(codeEntite) {
           ordre: statut.ordre,
           est_initial: statut.estInitial,
           est_final: statut.estFinal,
+          neutralise_rendezvous_actifs: Boolean(statut.neutraliseRendezvousActifs),
         })
         .returning('id');
       idsParCode[statut.code] = inseree.id;

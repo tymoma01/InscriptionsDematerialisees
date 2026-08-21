@@ -2,6 +2,21 @@ const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
 const workflowRepository = require('./workflowRepository');
 const motifRepository = require('../motifs/motifRepository');
+// rendezvousRepository (couche données, pas rendezvousService) : reste au même niveau que les
+// autres dépendances de ce moteur générique (dossierRepository/workflowRepository/motifRepository,
+// toutes des repositories, jamais un service métier) — voir neutraliserRendezvousActifsDossier
+// ci-dessous, seul point d'usage.
+const rendezvousRepository = require('../rendezvous/rendezvousRepository');
+
+// Valeur de `rendezvous.statut` pour un rendez-vous neutralisé — même sentinel que
+// rendezvousService.STATUT_REMPLACE (core/rendezvous/rendezvousService.js), dupliquée ici plutôt
+// que réimportée : rendezvousService.js porte de la logique métier propre au domaine rendez-vous
+// (capacité formateur, délai de replanification...), pas seulement de l'accès aux données — ce
+// moteur générique importe uniquement des repositories (voir ci-dessus), jamais un service métier,
+// pour ne pas remonter de dépendance dans l'autre sens. Les deux valeurs DOIVENT rester
+// synchronisées à la main (même convention que STATUTS_DOSSIER_RENDEZVOUS_CLOS, dupliqué entre
+// front et back sur ce projet, voir CLAUDE.md conventions).
+const STATUT_RENDEZVOUS_REMPLACE = 'remplace';
 
 // Moteur générique de la machine à états des dossiers (voir CLAUDE.md, contrainte de modularité
 // n°1, et docs/architecture-technique.md §1.3) : ne connaît aucun statut ni transition nommés en
@@ -85,6 +100,25 @@ async function appliquerTransition(
     motifId,
     commentaire,
   });
+
+  // Neutralise (jamais ne supprime) tout rendez-vous encore 'prevu'/'confirme' du dossier quand
+  // le statut D'ARRIVÉE le demande (statuts.neutralise_rendezvous_actifs, migration 051) — audit
+  // 2026-08-21, dossier #37 : jusqu'ici, rien n'empêchait un rendez-vous de rester actif
+  // indéfiniment sur un dossier déjà passé à un statut clos (invalide, valide_pret_embauche,
+  // valide_envoi_formation pour ACCECIT — configuré par entité, jamais nommé ici). Systématique
+  // pour TOUTE transition menant à un tel statut, quel que soit l'appelant (bouton "Décision"
+  // générique, bascule automatique...) : ne dépend d'aucune donnée fournie par l'appelant
+  // au-delà de dossierId (déjà connu), contrairement à la création d'un rendez-vous (qui, elle,
+  // reste hors de ce moteur générique — voir le commentaire d'en-tête de Validation.jsx sur le
+  // bloc "Décision" masqué après l'incident du dossier #75 : un rendez-vous a besoin de
+  // date/lieu/formateur que l'appelant seul connaît, une neutralisation n'a besoin de rien de
+  // plus que le dossier lui-même, donc aucun effet de bord manquant possible ici).
+  if (transition.statut_destination_neutralise_rendezvous_actifs) {
+    await rendezvousRepository.neutraliserRendezvousActifsDossier(bd, {
+      dossierId,
+      statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
+    });
+  }
 
   return { statutDestinationId: transition.statut_destination_id };
 }

@@ -301,11 +301,17 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
 // trouverRendezvousTestActifDossier : neutralise tout doublon déjà présent (auto-cicatrisation
 // d'un dossier ayant accumulé plusieurs rendez-vous actifs avant ce correctif), pas seulement le
 // plus récent.
+// `typeRdv` désormais optionnel (audit 2026-08-21, workflowEngine.appliquerTransition) : ce moteur
+// générique ne connaît aucun type de rendez-vous en dur (voir son commentaire d'en-tête) et doit
+// pouvoir neutraliser TOUS les rendez-vous actifs d'un dossier passant à un statut clos, quel que
+// soit leur type — les appelants existants (rendezvousService.creerRendezvous) continuent de
+// fournir `typeRdv` explicitement, comportement inchangé pour eux.
 function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, statutRemplace }) {
-  return bd('rendezvous')
-    .where({ dossier_id: dossierId, type_rdv: typeRdv })
-    .whereIn('statut', ['prevu', 'confirme'])
-    .update({ statut: statutRemplace });
+  const requete = bd('rendezvous')
+    .where({ dossier_id: dossierId })
+    .whereIn('statut', ['prevu', 'confirme']);
+  if (typeRdv) requete.andWhere({ type_rdv: typeRdv });
+  return requete.update({ statut: statutRemplace });
 }
 
 // Nombre de candidats déjà assignés à ce formateur au même horaire exact (voir

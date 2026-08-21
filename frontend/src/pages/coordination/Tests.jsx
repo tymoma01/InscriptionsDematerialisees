@@ -47,7 +47,15 @@ const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
 // décision utilisateur, 2026-08-21 : la replanification d'un test mérite son propre écran plutôt
 // que de vivre en modale sur la fiche de décision du recruteur, cohérent avec CLAUDE.md qui range
 // déjà "planifie les tests et reprogrammations" du côté Coordination).
-const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide'];
+// valide_envoi_formation/valide_pret_embauche ajoutés (audit 2026-08-21) — voir le commentaire de
+// cette même constante dans Validation.jsx pour le détail.
+const STATUTS_REPLANIFIABLES = [
+  'test_planifie',
+  'test_non_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+];
 
 // Libellés des postes (sélection de poste(s) testé(s) de ModalePlanificationTest.jsx) — même
 // mapping que Validation.jsx/TableauDeBordAccueil.jsx/VerificationPieces.jsx/Planification.jsx,

@@ -1,6 +1,7 @@
 const http = require('http');
 const { creerApp } = require('./app');
 const { PORT } = require('./config/env');
+const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
 
 // creerApp() est asynchrone (attend la connection string Neon depuis Azure Key Vault pour
 // monter le middleware de session, voir core/auth/session.js) — le serveur n'écoute qu'une fois
@@ -12,6 +13,10 @@ async function demarrer() {
   serveur.listen(PORT, () => {
     console.log(`Serveur démarré sur le port ${PORT}`);
   });
+
+  // Démarré une seule fois au lancement du serveur (audit 2026-08-21, dossier #84) — voir
+  // jobs/basculeTestNonRealiseCron.js pour la fréquence et le verrou anti-chevauchement.
+  demarrerCronBasculeTestNonRealise();
 
   // Arrêt propre : on attend la fin des requêtes en cours, mais serveur.close() seul ne coupe
   // pas les connexions keep-alive déjà établies (ex: onglet front resté ouvert) - sans ça son

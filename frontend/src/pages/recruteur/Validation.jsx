@@ -19,7 +19,18 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // liste que Tests.jsx (dupliquée, pas partagée, voir CLAUDE.md conventions du projet) — section
 // "Rendez-vous" extraite sur son propre écran (décision utilisateur, 2026-08-21), cette page-ci
 // n'ouvre plus ModalePlanificationTest elle-même, juste un lien vers /tests.
-const STATUTS_REPLANIFIABLES = ['test_planifie', 'test_non_realise', 'invalide'];
+// valide_envoi_formation/valide_pret_embauche ajoutés (audit 2026-08-21) : workflow.config.json
+// porte désormais une transition replanifier_test depuis ces deux statuts (un candidat déjà
+// validé peut avoir besoin d'un nouveau test, ex. changement de poste) — même liste que
+// workflowEngine.appliquerTransition, qui neutralise déjà (jamais ne supprime) l'ancien rendez-vous
+// actif du dossier via neutralise_rendezvous_actifs.
+const STATUTS_REPLANIFIABLES = [
+  'test_planifie',
+  'test_non_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+];
 
 // Statuts pour lesquels l'accès aux relances a un sens concret — au-delà (dossier transmis au
 // recruteur, verdict rendu, décision finale prise), la relance sort du périmètre d'action, même

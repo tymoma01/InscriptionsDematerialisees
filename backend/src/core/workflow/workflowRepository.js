@@ -4,9 +4,26 @@
 // La transition permise depuis le statut courant d'un dossier pour une action donnée — c'est
 // cette ligne (ou son absence) qui détermine si l'action est possible du tout, pas un
 // switch/case en dur (voir Modularité, CLAUDE.md).
+//
+// Jointure vers statuts (migration 051) pour exposer neutralise_rendezvous_actifs du statut
+// D'ARRIVÉE — lu par workflowEngine.appliquerTransition juste après avoir écrit la transition,
+// pour neutraliser (jamais supprimer) tout rendez-vous encore actif du dossier quand ce statut le
+// demande (voir son commentaire). Champ de configuration comme motif_requis ci-dessous, jamais un
+// statut nommé en dur ici.
 function trouverTransition(bd, entiteId, statutOrigineId, codeAction) {
   return bd('transitions_statut')
-    .where({ entite_id: entiteId, statut_origine_id: statutOrigineId, code_action: codeAction })
+    .join('statuts', 'statuts.id', 'transitions_statut.statut_destination_id')
+    .where({
+      'transitions_statut.entite_id': entiteId,
+      'transitions_statut.statut_origine_id': statutOrigineId,
+      'transitions_statut.code_action': codeAction,
+    })
+    .select(
+      'transitions_statut.id',
+      'transitions_statut.statut_destination_id',
+      'transitions_statut.motif_requis',
+      'statuts.neutralise_rendezvous_actifs as statut_destination_neutralise_rendezvous_actifs',
+    )
     .first();
 }
 
