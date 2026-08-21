@@ -12,7 +12,8 @@
 
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
 const { genererIcsInvitationTest, composerAdresseCourte } = require('../../integrations/notifications/generateurIcs');
-const { echapperHtml, formaterLignesLieuHtml } = require('../../integrations/notifications/formatageEmail');
+const { echapperHtml, formaterLignesLieuHtml, construireLienEvaluation } = require('../../integrations/notifications/formatageEmail');
+const { FRONTEND_URL } = require('../../config/env');
 
 // Toujours 1 ici : ce service ne gère qu'UN SEUL changement de lieu par rendez-vous (pas de
 // compteur persistant de versions successives) — une migration ultérieure du même rendez-vous
@@ -60,7 +61,15 @@ function construireMessageEmail({ candidatPrenom, candidatNom, dateHeure, nouvea
 // `instructions` volontairement exclu (voir formatageEmail.formaterLignesLieuHtml,
 // inclureInstructions: false) : consignes d'accueil destinées au candidat, sans objet pour le
 // formateur/inspecteur — même arbitrage que construireMessageEmailFormateur (invitationTestService.js).
-function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure, nouveauLieuAdresse, nouveauLieuMetroAcces }) {
+function construireMessageEmailFormateur({
+  formateurPrenom,
+  candidatPrenom,
+  candidatNom,
+  dateHeure,
+  nouveauLieuAdresse,
+  nouveauLieuMetroAcces,
+  lienEvaluation,
+}) {
   const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
   return {
     sujet: 'Changement de lieu pour un test à évaluer',
@@ -69,6 +78,9 @@ function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, cand
       `<p>Le lieu du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)}, a changé. Il se déroulera désormais :</p>` +
       `<p>${formaterLignesLieuHtml({ adresse: nouveauLieuAdresse, metroAcces: nouveauLieuMetroAcces }, { inclureInstructions: false })}</p>` +
       "<p>Merci de noter ce changement d'adresse.</p>" +
+      // Même lien/placement que invitationTestService.construireMessageEmailFormateur (audit
+      // 2026-08-21) — voir construireLienEvaluation, formatageEmail.js.
+      `<p><a href="${echapperHtml(lienEvaluation)}">Voir l'évaluation de ce candidat</a></p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
@@ -179,12 +191,18 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
   // vient de listerRendezvousParLieu (leftJoin utilisateurs), qui ne sélectionne pas formateur_id
   // lui-même : formateur_nom sert de signal "un formateur est assigné", distinct de "il a un
   // email" (formateur_email), pour ne pas logguer une absence d'email à chaque rendez-vous qui
-  // n'a simplement pas encore de formateur assigné.
+  // n'a simplement pas encore de formateur assigné. formateur_role_code (voir
+  // rendezvousRepository.listerRendezvousParLieu, audit 2026-08-21) suffit à distinguer
+  // /formateur/ de /inspecteur/ pour construireLienEvaluation, sans requête supplémentaire.
   let formateurEmailEnvoye = false;
   if (rendezvous.formateur_nom) {
     if (rendezvous.formateur_email) {
       try {
-        const { sujet, corps } = construireMessageEmailFormateur({ ...infos, formateurPrenom: rendezvous.formateur_prenom });
+        const { sujet, corps } = construireMessageEmailFormateur({
+          ...infos,
+          formateurPrenom: rendezvous.formateur_prenom,
+          lienEvaluation: construireLienEvaluation(FRONTEND_URL, rendezvous.formateur_role_code, rendezvous.id),
+        });
         // piecesJointes : même .ics que l'email candidat ci-dessus (audit 2026-08-20, corrige le
         // trou — cet appel n'attachait jusqu'ici jamais rien).
         await notificationProvider.envoyer(rendezvous.formateur_email, 'email', corps, {

@@ -38,4 +38,29 @@ function formaterLignesLieuHtml({ adresse, metroAcces, instructions }, { inclure
   return lignes.join('<br>\n');
 }
 
-module.exports = { echapperHtml, formaterLignesLieuHtml };
+// Lien vers la fiche d'évaluation du rendez-vous, inclus dans l'email formateur/inspecteur (voir
+// construireMessageEmailFormateur dans invitationTestService.js/notificationChangementLieuService.js)
+// — factorisé ici comme le reste de ce fichier : même construction exacte requise des deux côtés,
+// une divergence (ex. un chemin qui change d'un côté et pas de l'autre) casserait silencieusement
+// le lien pour l'un des deux emails. /formateur/ ou /inspecteur/ selon roleCode (voir
+// pages/formateur/Evaluation.jsx et pages/inspecteur/Evaluation.jsx côté front, même distinction
+// que DESTINATION_PAR_ROLE dans Connexion.jsx) — 'inspecteur' explicitement testé, tout le reste
+// (notamment 'formateur') retombe sur /formateur/, jamais d'URL cassée faute de role_code connu.
+// ?rendezvousId=... lu par useParametreURL côté front (ListeEvaluationsAFaire.jsx) pour surligner
+// la ligne correspondante à l'arrivée — voir Evaluation.jsx.
+//
+// Passe systématiquement par /connexion?redirection=... plutôt que de pointer directement sur la
+// page cible (audit 2026-08-21, corrige un cas constaté) : si une session DIFFÉRENTE (mauvais
+// compte, rôle insuffisant) était déjà active dans le navigateur au moment du clic, un lien
+// direct atterrissait sur la page cible avec CETTE session-là — "Rôle insuffisant pour cette
+// action" (rbac.middleware.js), sans aucun moyen de se reconnecter depuis cet écran. Passer par
+// /connexion d'abord (Connexion.jsx, déjà câblé pour lire ?redirection=) permet de se reconnecter
+// avec le bon compte ; si c'est déjà le bon compte, Connexion.jsx redirige immédiatement, sans
+// friction (voir son commentaire d'en-tête).
+function construireLienEvaluation(frontendUrl, roleCode, rendezvousId) {
+  const segmentRole = roleCode === 'inspecteur' ? 'inspecteur' : 'formateur';
+  const cible = `/${segmentRole}/evaluations?rendezvousId=${encodeURIComponent(rendezvousId)}`;
+  return `${frontendUrl}/connexion?redirection=${encodeURIComponent(cible)}`;
+}
+
+module.exports = { echapperHtml, formaterLignesLieuHtml, construireLienEvaluation };

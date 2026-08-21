@@ -77,3 +77,13 @@
 .liste-evaluations__vide {
   color: var(--couleur-texte-secondaire);
 }
+
+/* Ligne ciblée par ?rendezvousId=... (lien "Voir l'évaluation de ce candidat" de l'email
+   formateur/inspecteur, voir ListeEvaluationsAFaire.jsx) — fond + bordure gauche accentuée dans
+   la même teinte back-office que le reste des surlignages de l'app (ex. .page-verification-pieces__entete),
+   plutôt qu'une couleur d'alerte : ce n'est pas un signal d'erreur, juste un repère visuel. */
+.liste-evaluations__item--cible {
+  background-color: var(--couleur-back-office-clair);
+  border-color: var(--couleur-back-office-dore);
+  border-left-width: 4px;
+}

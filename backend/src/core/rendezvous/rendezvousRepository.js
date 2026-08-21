@@ -362,12 +362,17 @@ async function creerRendezvous(
 // gauche vers utilisateurs (formateur_id, nullable) en plus — même patron que listerRendezvousTest
 // ci-dessus : sert à ce que le .ics regénéré pour cette notification (voir generateurIcs.js)
 // reprenne le même participant formateur que l'.ics de la convocation initiale, pas seulement le
-// candidat.
+// candidat. Jointure gauche vers roles en plus (audit 2026-08-21) : formateur_role_code
+// (formateur/inspecteur) nécessaire pour construireLienEvaluation (voir formatageEmail.js) —
+// distingue /formateur/evaluations de /inspecteur/evaluations dans le lien envoyé par
+// notificationChangementLieuService.js, même donnée que formateur.role_code déjà disponible côté
+// invitationTestService.js (utilisateurRepository.trouverUtilisateurParId, qui joint roles).
 function listerRendezvousParLieu(bd, entiteId, lieuId) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
+    .leftJoin('roles', 'roles.id', 'utilisateurs.role_id')
     .leftJoin('dossier_donnees_formulaire as bloc_coordonnees', function () {
       this.on('bloc_coordonnees.dossier_id', '=', 'dossiers.id').andOn(
         'bloc_coordonnees.bloc_code',
@@ -387,6 +392,7 @@ function listerRendezvousParLieu(bd, entiteId, lieuId) {
       'utilisateurs.prenom as formateur_prenom',
       'utilisateurs.nom as formateur_nom',
       'utilisateurs.email as formateur_email',
+      'roles.code as formateur_role_code',
     )
     .orderBy('rendezvous.date_heure', 'asc');
 }
