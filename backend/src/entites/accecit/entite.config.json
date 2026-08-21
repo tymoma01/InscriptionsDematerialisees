@@ -5,6 +5,12 @@
   "sms_actif": true,
   "canal_rappel": "sms",
   "smartof_actif": true,
+  "smartof_config": {
+    "entreprises_par_role": {
+      "formateur": "ENT-0003",
+      "inspecteur": "ENT-0002"
+    }
+  },
   "duree_conservation_mois": 12,
   "actif": true
 }

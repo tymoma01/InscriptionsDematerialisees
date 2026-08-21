@@ -3,6 +3,7 @@ const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const evaluationRepository = require('./evaluationRepository');
 const workflowEngine = require('../workflow/workflowEngine');
 const { ROLES } = require('../auth/rbac');
+const smartOfService = require('../../integrations/smartof/smartOfService');
 
 // Moteur d'évaluation du test (voir docs/architecture-technique.md §1.5) : le contenu du
 // questionnaire (questions, items) ne vient jamais d'ici — voir questionnaireEvaluation (migration
@@ -316,6 +317,20 @@ async function enregistrerEvaluation(
       await rendezvousRepository.mettreAJourStatutRendezvous(trx, rendezvousId, { statut: 'honore', motifId: null });
     }
 
+    return { evaluationId, codeActionFinal };
+  }).then(async ({ evaluationId, codeActionFinal }) => {
+    // Appel SmartOF déclenché APRÈS la transaction (pas dans trx ci-dessus) : c'est un appel
+    // réseau vers un tiers, potentiellement lent — le tenir dans la transaction garderait la
+    // connexion DB ouverte (et les lignes qu'elle verrouille) pendant toute la durée de cet
+    // appel, pour un besoin qui n'a de toute façon pas à être atomique avec l'évaluation elle-même
+    // (voir smartOfService.js : un échec SmartOF n'annule jamais l'évaluation déjà enregistrée,
+    // il est seulement journalisé). Uniquement pour valider_envoi_formation (CLAUDE.md, étape 9 :
+    // "une fois le test validé, appel à l'API SmartOF") — jamais pour valider_pret_embauche
+    // (Inspecteur/bureau, décision utilisateur 2026-08-21 : hors périmètre pour l'instant, voir
+    // smartOfService.js) ni pour invalider_test.
+    if (codeActionFinal === CODE_ACTION_PAR_ORIENTATION.envoi_formation) {
+      await smartOfService.envoyerCandidatEnFormation(entite, { dossierId: rendezvous.dossier_id, roleCode });
+    }
     return { evaluationId };
   });
 }

@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const evaluationRepository = require('./evaluationRepository');
 const workflowEngine = require('../workflow/workflowEngine');
+const smartOfService = require('../../integrations/smartof/smartOfService');
 const evaluationEngine = require('./evaluationEngine');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
@@ -157,6 +158,57 @@ test('enregistrerEvaluation accepte les réponses grille_qcu sur l\'échelle bur
       ],
     }),
   );
+});
+
+// Envoi SmartOF (smartOfService.envoyerCandidatEnFormation) mocké ici : le vrai module appelle
+// Key Vault + l'API SmartOF réelle, jamais souhaitable dans un test unitaire — même raison que
+// workflowEngine/rendezvousRepository/evaluationRepository ci-dessus, tous mockés plutôt
+// qu'exécutés réellement.
+test('enregistrerEvaluation déclenche smartOfService.envoyerCandidatEnFormation pour un verdict positif de Formateur avec orientation "envoi_formation"', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 18 }));
+  const envoyerMock = t.mock.method(smartOfService, 'envoyerCandidatEnFormation', async () => {});
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'formateur',
+    resultatGlobal: 'valide',
+    orientation: 'envoi_formation',
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.equal(envoyerMock.mock.calls.length, 1);
+  assert.deepEqual(envoyerMock.mock.calls[0].arguments, [ENTITE_ACCECIT, { dossierId: 62, roleCode: 'formateur' }]);
+});
+
+test('enregistrerEvaluation ne déclenche PAS smartOfService.envoyerCandidatEnFormation pour "pret_embauche" (Formateur) ni pour un verdict négatif', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+  const envoyerMock = t.mock.method(smartOfService, 'envoyerCandidatEnFormation', async () => {});
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'formateur',
+    resultatGlobal: 'valide',
+    orientation: 'pret_embauche',
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  });
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'inspecteur',
+    resultatGlobal: 'invalide',
+    commentaire: 'Insuffisant.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.equal(envoyerMock.mock.calls.length, 0);
 });
 
 // Voir audit "Poste non spécifié" (tableau de bord KPI) : une évaluation sans aucun poste résolu
