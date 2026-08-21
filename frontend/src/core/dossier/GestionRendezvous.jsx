@@ -128,7 +128,18 @@ const STATUTS_DOSSIER_RENDEZVOUS_CLOS = ['test_non_realise', 'invalide', 'valide
 // contourné, aucun désistement ne peut être enregistré sans motif. Le verrouillage ci-dessous suit
 // le même principe : masquage ici, revérifié côté serveur (rendezvousService.
 // changerStatutRendezvous, ErreurRendezvousDossierClos) — jamais qu'un garde-fou d'affichage.
-export default function GestionRendezvous({ dossierId, codeStatutDossier, libelleStatutDossier }) {
+//
+// dernierSeulement (audit 2026-08-21, Tests.jsx) : n'affiche que le premier élément de
+// `rendezvous` (déjà trié par le back — non-remplacés d'abord, puis date de PLANIFICATION
+// décroissante, voir rendezvousRepository.listerRendezvousParDossier) et omet le <h2> ci-dessous,
+// pour s'insérer dans une section "Rendez-vous" qui porte déjà son propre titre (voir
+// .page-tests__rendezvous-entete) — plutôt que de dupliquer la logique d'affichage (timeline/
+// titre/badge/motif/actions) dans Tests.jsx, seul autre écran qui a besoin d'un aperçu du dossier
+// sans son historique complet (déjà visible sur Relances.jsx, point de rendu par défaut de ce
+// composant). L'état "aucun rendez-vous" (voir plus bas) reste affiché tel quel dans les deux
+// modes : c'est déjà le message que ce cas d'usage doit reprendre (point 4 de la demande), pas la
+// peine d'en écrire un second.
+export default function GestionRendezvous({ dossierId, codeStatutDossier, libelleStatutDossier, dernierSeulement = false }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
@@ -235,20 +246,29 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
     return <p role="alert">Vous devez être connecté pour consulter les rendez-vous.</p>;
   }
 
+  // Limité au premier élément seulement en mode dernierSeulement (voir son commentaire d'en-tête)
+  // — la liste reçue est toujours triée avec le plus récent (par planification) en premier, ce
+  // slice n'a donc besoin d'aucun tri supplémentaire ici.
+  const rendezvousAffiches = dernierSeulement ? rendezvous.slice(0, 1) : rendezvous;
+
   return (
-    <section className="gestion-rendezvous">
-      <h2>Rendez-vous</h2>
+    // gestion-rendezvous--imbrique (dernierSeulement) neutralise la carte (bordure/ombre/fond
+    // propres, voir GestionRendezvous.css) : Tests.jsx monte déjà ce composant À L'INTÉRIEUR de sa
+    // propre carte .page-tests__rendezvous — sans ce modificateur, une seconde carte s'imbriquerait
+    // dans la première (double bordure/ombre, largeur re-contrainte).
+    <section className={dernierSeulement ? 'gestion-rendezvous gestion-rendezvous--imbrique' : 'gestion-rendezvous'}>
+      {!dernierSeulement && <h2>Rendez-vous</h2>}
 
       {chargement && <p>Chargement des rendez-vous…</p>}
       {erreur && <p role="alert">{erreur}</p>}
 
-      {!chargement && !erreur && rendezvous.length === 0 && (
+      {!chargement && !erreur && rendezvousAffiches.length === 0 && (
         <p className="gestion-rendezvous__vide">Aucun rendez-vous pour ce dossier.</p>
       )}
 
-      {!chargement && !erreur && rendezvous.length > 0 && (
+      {!chargement && !erreur && rendezvousAffiches.length > 0 && (
         <ul className="gestion-rendezvous__liste">
-          {rendezvous.map((rdv) => {
+          {rendezvousAffiches.map((rdv) => {
             const enDesistementPourCeRdv = desistementEnCours?.rendezvousId === rdv.id;
             const dossierEnEtatClos = STATUTS_DOSSIER_RENDEZVOUS_CLOS.includes(codeStatutDossier);
             const rdvEligiblePourAction = rdv.statut === 'prevu' || rdv.statut === 'confirme';

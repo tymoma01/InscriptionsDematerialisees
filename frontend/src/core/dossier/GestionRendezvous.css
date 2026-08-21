@@ -13,6 +13,21 @@
   margin: 0 0 var(--espace-moyen);
 }
 
+/* Voir GestionRendezvous.jsx (prop dernierSeulement) — neutralise la carte ci-dessus quand ce
+   composant est imbriqué dans une carte déjà stylée par sa page appelante (.page-tests__rendezvous,
+   Tests.css) : sans ça, une seconde bordure/ombre/fond s'ajouterait à l'intérieur de la première.
+   Espacement au-dessus (margin-top) conservé : sépare visuellement le rendez-vous du bouton
+   "Replanifier un test" juste au-dessus. */
+.gestion-rendezvous--imbrique {
+  max-width: none;
+  margin: var(--espace-moyen) 0 0;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .gestion-rendezvous__vide {
   color: var(--couleur-texte-secondaire);
 }

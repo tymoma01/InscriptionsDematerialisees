@@ -4,6 +4,7 @@ import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest'
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
 import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
+import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -164,6 +165,18 @@ export default function Tests() {
               Replanification indisponible pour le statut actuel de ce dossier.
             </p>
           )}
+
+          {/* Dernier rendez-vous seulement (voir GestionRendezvous.jsx, prop dernierSeulement) —
+              pas l'historique complet des replanifications, déjà consultable sur l'onglet
+              "Relances" (Relances.jsx, seul autre point de montage de ce composant). Même style
+              que là-bas (timeline/titre "Test"/badge/motif/actions Confirmer-Marquer absent-
+              Marquer annulé), sans dupliquer cette logique d'affichage ici. */}
+          <GestionRendezvous
+            dossierId={dossierId}
+            codeStatutDossier={dossier?.statut_code}
+            libelleStatutDossier={dossier?.statut_libelle}
+            dernierSeulement
+          />
         </section>
 
         {panneauReplanificationOuvert && dossier && (
