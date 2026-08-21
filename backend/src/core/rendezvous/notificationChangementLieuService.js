@@ -141,6 +141,10 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
       formateurNom: rendezvous.formateur_nom,
       formateurPrenom: rendezvous.formateur_prenom,
       formateurEmail: rendezvous.formateur_email,
+      // Pilote le préfixe "Formateur "/"Inspecteur " du CN affiché au candidat dans l'.ics (voir
+      // generateurIcs.libelleRoleFormateur) — même donnée que rendezvous.formateur_role_code déjà
+      // utilisée plus bas pour construireLienEvaluation (rendezvousRepository.listerRendezvousParLieu).
+      formateurRoleCode: rendezvous.formateur_role_code,
       lieuAdresse: nouveauLieu.adresse,
       lieuMetroAcces: nouveauLieu.metroAcces,
       rendezvousId: rendezvous.id,

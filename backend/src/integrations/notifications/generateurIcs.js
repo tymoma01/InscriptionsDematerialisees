@@ -48,10 +48,13 @@ function composantsDateUtc(date) {
 // cette règle avec son appelant (voir Modularité, CLAUDE.md : un module générique ne décide pas
 // à la place de l'appelant si un envoi doit avoir lieu, il décrit juste le fichier).
 //
-// formateurNom/formateurPrenom/formateurEmail : absents pour un rendez-vous pas encore assigné à
-// un formateur/inspecteur (`rendezvous.formateur_id` nullable, voir migration 018) — l'appelant
-// ne les fournit alors simplement pas, cette fonction n'a besoin d'aucune logique conditionnelle
-// supplémentaire pour ce cas.
+// formateurNom/formateurPrenom/formateurEmail/formateurRoleCode : absents pour un rendez-vous pas
+// encore assigné à un formateur/inspecteur (`rendezvous.formateur_id` nullable, voir migration
+// 018) — l'appelant ne les fournit alors simplement pas, cette fonction n'a besoin d'aucune
+// logique conditionnelle supplémentaire pour ce cas. formateurRoleCode ('formateur'/'inspecteur',
+// voir utilisateurs.role_id/roles.code) pilote le préfixe "Formateur "/"Inspecteur " du CN affiché
+// au candidat (voir libelleRoleFormateur/attendees ci-dessous) — résolu dynamiquement depuis les
+// données réelles de l'utilisateur assigné, jamais deviné.
 //
 // lieuAdresse/lieuMetroAcces : champs structurés du lieu réellement choisi sur le rendez-vous
 // (`rendezvous.lieu_id`, table `lieux`, migrations 044/045/047) — résolus une seule fois par
@@ -76,6 +79,14 @@ function composantsDateUtc(date) {
 // calendrier qu'il s'agit d'une mise à jour plus récente plutôt que d'un doublon ou d'une version
 // obsolète reçue en retard. Absent (undefined) pour la toute première convocation d'un rendez-vous
 // (voir invitationTestService.js) : RFC 5545 traite un SEQUENCE omis comme 0, la valeur initiale.
+// 'inspecteur' explicitement testé, tout le reste (notamment 'formateur', ou une valeur absente
+// pour un ancien rendez-vous assigné avant que formateur_role_code ne soit résolu par l'appelant)
+// retombe sur "Formateur" — même convention de repli que construireLienEvaluation
+// (formatageEmail.js), jamais de CN vide ou de plantage faute de rôle connu.
+function libelleRoleFormateur(formateurRoleCode) {
+  return formateurRoleCode === 'inspecteur' ? 'Inspecteur' : 'Formateur';
+}
+
 function genererIcsInvitationTest({
   dateHeure,
   candidatNom,
@@ -84,6 +95,7 @@ function genererIcsInvitationTest({
   formateurNom,
   formateurPrenom,
   formateurEmail,
+  formateurRoleCode,
   lieuAdresse,
   lieuMetroAcces,
   rendezvousId,
@@ -101,14 +113,19 @@ function genererIcsInvitationTest({
   }
   if (formateurEmail) {
     attendees.push({
-      // Prénom seul (pas `${formateurPrenom} ${formateurNom}`) : ce champ "name" devient le CN
-      // (Common Name) de la ligne ATTENDEE, affiché tel quel par le client calendrier du candidat
-      // (Outlook, Google Calendar...) — le candidat ne doit voir que le prénom de son formateur,
-      // jamais son nom de famille (demande explicite, 2026-08-19). formateurNom reste transmis par
-      // les deux appelants (invitationTestService.js/notificationChangementLieuService.js) : ce
-      // paramètre n'est pas retiré de la signature, seulement plus utilisé ici, pour ne pas casser
-      // un futur appelant qui en aurait besoin ailleurs (ex. ORGANIZER, si réintroduit un jour).
-      name: formateurPrenom,
+      // "Formateur "/"Inspecteur " + prénom seul (jamais `${formateurPrenom} ${formateurNom}`) :
+      // ce champ "name" devient le CN (Common Name) de la ligne ATTENDEE, affiché tel quel par le
+      // client calendrier du candidat (Outlook, Google Calendar...) — le candidat ne doit voir que
+      // le prénom de son formateur/inspecteur, jamais son nom de famille (demande explicite,
+      // 2026-08-19), mais doit désormais savoir lequel des deux rôles lui est assigné (demande
+      // explicite, 2026-08-21 — "Ibra" seul ne disait pas si c'était son formateur hôtel ou son
+      // inspecteur bureau). Rôle résolu dynamiquement depuis formateurRoleCode (voir
+      // libelleRoleFormateur ci-dessus), jamais deviné depuis une convention de nommage.
+      // formateurNom reste transmis par les deux appelants (invitationTestService.js/
+      // notificationChangementLieuService.js) : ce paramètre n'est pas retiré de la signature,
+      // seulement plus utilisé ici, pour ne pas casser un futur appelant qui en aurait besoin
+      // ailleurs (ex. ORGANIZER, si réintroduit un jour).
+      name: `${libelleRoleFormateur(formateurRoleCode)} ${formateurPrenom}`,
       email: formateurEmail,
       role: 'REQ-PARTICIPANT',
       partstat: 'NEEDS-ACTION',

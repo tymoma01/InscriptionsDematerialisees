@@ -208,6 +208,10 @@ async function envoyerInvitationTest(entite, rendezvous) {
       formateurNom: formateur?.nom,
       formateurPrenom: formateur?.prenom,
       formateurEmail: formateur?.email,
+      // Pilote le préfixe "Formateur "/"Inspecteur " du CN affiché au candidat dans l'.ics (voir
+      // generateurIcs.libelleRoleFormateur) — déjà résolu par trouverUtilisateurParId (jointure
+      // roles), même donnée que celle réutilisée plus bas pour construireLienEvaluation.
+      formateurRoleCode: formateur?.role_code,
       // UID stable dérivé de rendezvous.id (voir generateurIcs.js) : c'est cette convocation
       // initiale qui pose la valeur que notificationChangementLieuService.js devra reprendre à
       // l'identique pour qu'un changement de lieu ultérieur mette à jour cet événement dans le

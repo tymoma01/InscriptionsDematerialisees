@@ -70,7 +70,48 @@ test("genererIcsInvitationTest ajoute le candidat en ATTENDEE quand son email es
   assert.ok(lignesAttendee[0].includes(':mailto:sophie.martin@exemple.test'));
 });
 
-test('genererIcsInvitationTest ajoute aussi le formateur en ATTENDEE quand son email est fourni, avec son seul prénom (pas son nom, visible du candidat)', () => {
+test('genererIcsInvitationTest ajoute aussi le formateur en ATTENDEE quand son email est fourni, avec son seul prénom précédé de "Formateur" (pas son nom, visible du candidat)', () => {
+  const ics = deplierIcs(
+    genererIcsInvitationTest({
+      ...INFOS_BASE,
+      candidatEmail: 'sophie.martin@exemple.test',
+      formateurNom: 'Dupont',
+      formateurPrenom: 'Marc',
+      formateurEmail: 'marc.dupont@exemple.test',
+      formateurRoleCode: 'formateur',
+    }),
+  );
+
+  const lignesAttendee = ics.split('\r\n').filter((ligne) => ligne.startsWith('ATTENDEE'));
+  assert.equal(lignesAttendee.length, 2);
+  assert.ok(lignesAttendee.some((ligne) => ligne.includes(':mailto:sophie.martin@exemple.test')));
+  const ligneFormateur = lignesAttendee.find((ligne) => ligne.includes(':mailto:marc.dupont@exemple.test'));
+  assert.ok(ligneFormateur);
+  assert.ok(ligneFormateur.includes('CN="Formateur Marc"'));
+  assert.ok(!ligneFormateur.includes('Dupont'));
+});
+
+test('genererIcsInvitationTest préfixe "Inspecteur" au lieu de "Formateur" quand formateurRoleCode vaut "inspecteur"', () => {
+  const ics = deplierIcs(
+    genererIcsInvitationTest({
+      ...INFOS_BASE,
+      candidatEmail: 'sophie.martin@exemple.test',
+      formateurNom: 'Durand',
+      formateurPrenom: 'Alice',
+      formateurEmail: 'alice.durand@exemple.test',
+      formateurRoleCode: 'inspecteur',
+    }),
+  );
+
+  const ligneFormateur = ics
+    .split('\r\n')
+    .filter((ligne) => ligne.startsWith('ATTENDEE'))
+    .find((ligne) => ligne.includes(':mailto:alice.durand@exemple.test'));
+  assert.ok(ligneFormateur);
+  assert.ok(ligneFormateur.includes('CN="Inspecteur Alice"'));
+});
+
+test('genererIcsInvitationTest retombe sur "Formateur" si formateurRoleCode est absent', () => {
   const ics = deplierIcs(
     genererIcsInvitationTest({
       ...INFOS_BASE,
@@ -81,13 +122,12 @@ test('genererIcsInvitationTest ajoute aussi le formateur en ATTENDEE quand son e
     }),
   );
 
-  const lignesAttendee = ics.split('\r\n').filter((ligne) => ligne.startsWith('ATTENDEE'));
-  assert.equal(lignesAttendee.length, 2);
-  assert.ok(lignesAttendee.some((ligne) => ligne.includes(':mailto:sophie.martin@exemple.test')));
-  const ligneFormateur = lignesAttendee.find((ligne) => ligne.includes(':mailto:marc.dupont@exemple.test'));
+  const ligneFormateur = ics
+    .split('\r\n')
+    .filter((ligne) => ligne.startsWith('ATTENDEE'))
+    .find((ligne) => ligne.includes(':mailto:marc.dupont@exemple.test'));
   assert.ok(ligneFormateur);
-  assert.ok(ligneFormateur.includes('CN="Marc"'));
-  assert.ok(!ligneFormateur.includes('Dupont'));
+  assert.ok(ligneFormateur.includes('CN="Formateur Marc"'));
 });
 
 test('genererIcsInvitationTest ignore le formateur si seuls son nom/prénom sont fournis sans email', () => {
