@@ -1,0 +1,84 @@
+/* Même patron que Relances.css : en-tête (titre + EnTeteBackOffice) plafonnée à la même largeur
+   que les cartes en dessous, plutôt que de s'étirer sur toute la largeur de l'écran. */
+.page-tests__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: 0 var(--espace-moyen);
+  box-sizing: border-box;
+}
+
+.page-tests__entete h1 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.page-tests__titre-bloc {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+/* Format "NOM Prénom" classique, même convention que .page-validation__candidat-nom
+   (Validation.css) / .page-relances__candidat-nom (Relances.css). */
+.page-tests__candidat-nom {
+  text-transform: uppercase;
+}
+
+/* Section "Rendez-vous", reprise telle quelle de .page-validation__rendezvous (Validation.css)
+   avant son extraction sur cette page dédiée (décision utilisateur, 2026-08-21) — même carte que
+   les autres sections des fiches dossier, pour rester visuellement cohérent. */
+.page-tests__rendezvous {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.page-tests__rendezvous h2 {
+  color: var(--couleur-back-office);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.page-tests__rendezvous-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+}
+
+.page-tests__rendezvous-entete h2 {
+  margin: 0;
+}
+
+.page-tests__rendezvous-indisponible {
+  color: var(--couleur-texte-secondaire);
+  margin: var(--espace-moyen) 0 0;
+}
+
+/* Même style que .page-validation__action (Validation.css) — bouton "Replanifier un test". */
+button.page-tests__action {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.page-tests__action:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
+}

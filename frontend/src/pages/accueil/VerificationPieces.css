@@ -39,6 +39,22 @@
   color: var(--couleur-back-office);
 }
 
+/* Décalage supplémentaire pour NavigationFicheDossier.jsx (core/dossier/NavigationFicheDossier.css,
+   décision utilisateur 2026-08-21) : son top par défaut (calc(--hauteur-entete +
+   --hauteur-barre-navigation)) suppose que rien de sticky ne le précède dans le flux, ce qui est
+   faux ICI puisque .page-verification-pieces__entete ci-dessus est lui-même déjà sticky à ce même
+   top, juste avant ce bandeau dans le DOM — sans ce correctif les deux se superposeraient au lieu
+   de s'empiler. 3.4rem : hauteur estimée de .page-verification-pieces__entete (padding
+   --espace-petit haut/bas + une ligne de h1 en taille par défaut du navigateur, ce en-tête ne
+   fixant lui-même aucune taille de police) faute d'avoir pu la mesurer dans un navigateur réel au
+   moment de ce correctif (session sans accès à un compte de test) — à vérifier visuellement sur un
+   véritable écran/tablette et ajuster cette valeur si un écart est visible. z-index: 3, sous le 4
+   de l'en-tête ci-dessus (qui doit rester au-dessus une fois les deux empilés). */
+.page-verification-pieces .navigation-fiche-dossier {
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation) + 3.4rem);
+  z-index: 3;
+}
+
 /* Même patron que .planification__titre-bloc/.page-relances__titre-bloc : row plutôt que
    column, align-items: center aligne la bordure du bouton sur la ligne de base du texte du h1
    malgré leurs tailles de police différentes. */

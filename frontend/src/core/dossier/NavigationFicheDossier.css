@@ -1,0 +1,67 @@
+/* Même langage visuel que .page-validation__action (Validation.css) pour l'onglet inactif (lien),
+   afin que ce bandeau se lise comme une extension de la même famille d'actions plutôt que comme un
+   nouveau composant visuel isolé.
+
+   position: sticky (décision utilisateur, 2026-08-21) : reste visible en permanence pendant que
+   l'agent défile la fiche dossier (Pièces/Rendez-vous/Relances/Notes peuvent être longs), pour
+   changer de section sans remonter en haut de page — contrairement à BarreNavigation.jsx
+   (Tableau de bord/Dossiers candidats/…), qui n'a pas besoin de ce traitement ici (décision
+   utilisateur explicite : seul CE bandeau-ci doit rester visible au défilement). top: calc(
+   --hauteur-entete + --hauteur-barre-navigation) : mêmes deux variables héritées de
+   .page-back-office (PageBackOffice.css) que .page-verification-pieces__entete
+   (VerificationPieces.css), pour se coller PROPREMENT sous BarreNavigation (elle-même sticky,
+   voir BarreNavigation.css) plutôt que de se superposer à elle. z-index: 4, en dessous du 5 de
+   BarreNavigation (doit rester en dessous d'elle) — même valeur que
+   .page-verification-pieces__entete, seul autre endroit du back-office déjà sticky à ce niveau.
+   Ce top par défaut suppose qu'aucun autre élément sticky ne précède ce bandeau dans le flux de la
+   page (vrai sur Validation.jsx/Relances.jsx/Tests.jsx, dont l'en-tête propre n'est pas sticky) —
+   seule exception : VerificationPieces.jsx, dont l'en-tête (.page-verification-pieces__entete) est
+   lui-même déjà sticky au même top, juste AVANT ce bandeau dans le flux ; sans ajustement les deux
+   se superposeraient au lieu de s'empiler. Décalage supplémentaire ajouté spécifiquement là-bas
+   (sélecteur plus spécifique, voir VerificationPieces.css) plutôt qu'ici, ce composant restant
+   générique et ignorant delibérément quel en-tête de page (le cas échéant) le précède. Fond/
+   bordure/coins arrondis/ombre ajoutés uniquement à cause du sticky, même raison que
+   .page-verification-pieces__entete : une fois collé en haut, le contenu qui défile en dessous
+   doit rester caché derrière plutôt que transparaître entre les onglets. */
+.navigation-fiche-dossier {
+  position: sticky;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin: 0 0 var(--espace-grand);
+  padding: var(--espace-petit);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.15);
+}
+
+.navigation-fiche-dossier__onglet {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a.navigation-fiche-dossier__onglet:hover {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
+}
+
+/* Onglet actif : <span>, pas de lien (déjà sur cette page) — fond plein pour marquer nettement
+   "vous êtes ici", même couleur que .notes-dossier__formulaire button (action pleine du
+   back-office) plutôt qu'une nouvelle teinte. */
+.navigation-fiche-dossier__onglet--actif {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+  cursor: default;
+}

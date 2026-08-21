@@ -4,6 +4,7 @@ import HistoriqueRelances from '../../core/dossier/HistoriqueRelances';
 import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
+import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
@@ -58,6 +59,12 @@ export default function Relances() {
           </div>
           <EnTeteBackOffice />
         </header>
+
+        {/* Bandeau d'accès rapide aux autres écrans du dossier (patch léger, décision utilisateur
+            2026-08-21) — voir NavigationFicheDossier.jsx : jusque-là cet écran n'affichait ni le
+            statut ni la section "Pièces justificatives" de Validation.jsx, sans aucun moyen d'y
+            accéder sinon revenir au tableau de bord. */}
+        <NavigationFicheDossier dossierId={dossierId} pageActuelle="relances" />
 
         {/* Repositionnée juste sous le titre (audit 2026-08-20, décision utilisateur) —
             auparavant tout en bas de la fiche, après Rendez-vous/Relances/Notes : composant
