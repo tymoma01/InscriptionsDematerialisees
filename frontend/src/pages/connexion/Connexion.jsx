@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginForm from '../../core/auth/LoginForm';
-import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import { seDeconnecter } from '../../services/authService';
 import './Connexion.css';
@@ -41,6 +40,15 @@ export default function Connexion() {
   const { utilisateur: utilisateurActuel, chargement: chargementSession } = useSession();
   const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
 
+  // Reprend la teinte de fond back-office (styles/blocFormulaire.css, .corps-back-office),
+  // normalement posée par PageBackOffice.jsx — volontairement NON utilisé ici : avant connexion,
+  // rien ne doit être visible à part le formulaire (ni bandeau/logos, ni pied de page, ni barre de
+  // navigation), voir demande utilisateur du 2026-08-21.
+  useEffect(() => {
+    document.body.classList.add('corps-back-office');
+    return () => document.body.classList.remove('corps-back-office');
+  }, []);
+
   // true seulement si la session active a le rôle attendu par cibleRedirection (comparaison sur
   // le chemin seul, avant le '?' — le rendezvousId ciblé n'a pas d'incidence sur la légitimité du
   // rôle) : sert à la fois à la redirection immédiate ci-dessous et au message affiché plus bas
@@ -62,11 +70,10 @@ export default function Connexion() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chargementSession, roleCorrespondACible]);
 
-  // Rechargement complet plutôt qu'un simple état local effacé : BarreNavigation.jsx (montée par
-  // PageBackOffice.jsx, toujours affichée ici) a son propre useSession() indépendant qui ne se
-  // réabonne qu'au montage (voir son commentaire d'en-tête) — sans reload, elle continuerait
-  // d'afficher les liens du rôle précédent le temps de rester sur cette page. Reste sur la MÊME
-  // URL (window.location.reload() réutilise l'URL courante) : contrairement à
+  // Rechargement complet plutôt qu'un simple état local effacé : useSession() (voir son
+  // commentaire d'en-tête) ne se réabonne qu'au montage — sans reload, le useSession() de CE
+  // composant continuerait lui-même d'afficher l'ancien utilisateurActuel après la déconnexion.
+  // Reste sur la MÊME URL (window.location.reload() réutilise l'URL courante) : contrairement à
   // EnTeteBackOffice.jsx (qui renvoie vers /connexion SANS paramètre depuis une page interne), on
   // est déjà sur /connexion?redirection=... — un navigate('/connexion') perdrait cibleRedirection
   // en cours de route.
@@ -80,7 +87,7 @@ export default function Connexion() {
   };
 
   return (
-    <PageBackOffice>
+    <main className="page-connexion">
       {/* Rappel du compte déjà connecté — seulement une fois la session résolue et non vide,
           jamais pendant le chargement (évite un flash "Connecté en tant que..." qui disparaîtrait
           aussitôt sur une simple visite non connectée de /connexion, cas le plus fréquent). */}
@@ -101,6 +108,6 @@ export default function Connexion() {
           navigate(cibleRedirection || (DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT))
         }
       />
-    </PageBackOffice>
+    </main>
   );
 }

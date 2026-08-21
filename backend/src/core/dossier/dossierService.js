@@ -27,6 +27,7 @@ class ErreurInscriptionConflit extends Error {
 const TELEPHONE_REGEX = /^0[1-9](\s?\d{2}){4}$/;
 const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
+const CODE_POSTAL_REGEX = /^\d{5}$/;
 // Deux vocabulaires de créneaux distincts selon le type de poste — même contrat que
 // BlocDisponibilites.schema.js (CRENEAUX_HOTEL/CRENEAUX_BUREAU) côté front, revalidé ici.
 const CRENEAUX_HOTEL = ['matin', 'midi', 'soir'];
@@ -62,6 +63,8 @@ const donneesInscriptionSchema = z
     nir: z.string().trim().regex(NIR_REGEX),
     situationFamiliale: z.string().min(1),
     adresse: z.string().trim().min(1),
+    codePostal: z.string().trim().regex(CODE_POSTAL_REGEX),
+    ville: z.string().trim().min(1).regex(NOM_REGEX),
     telephone: z.string().trim().regex(TELEPHONE_REGEX),
     email: z.string().trim().email(),
     contactUrgenceNom: z.string().trim().min(1).regex(NOM_REGEX),
@@ -254,6 +257,8 @@ async function inscrireCandidat(entite, donneesBrutes) {
       blocCode: 'coordonnees',
       donnees: {
         adresse: donnees.adresse,
+        codePostal: donnees.codePostal,
+        ville: donnees.ville,
         telephone: donnees.telephone,
         email: donnees.email,
         contactUrgenceNom: donnees.contactUrgenceNom,
@@ -465,6 +470,8 @@ const modificationInscriptionSchema = z
     dateNaissance: z.string().min(1),
     situationFamiliale: z.string().min(1),
     adresse: z.string().trim().min(1),
+    codePostal: z.string().trim().regex(CODE_POSTAL_REGEX),
+    ville: z.string().trim().min(1).regex(NOM_REGEX),
     telephone: z.string().trim().regex(TELEPHONE_REGEX),
     email: z.string().trim().email(),
     contactUrgenceNom: z.string().trim().min(1).regex(NOM_REGEX),
@@ -588,6 +595,8 @@ async function modifierInscription(entite, dossierId, donneesBrutes) {
       blocCode: 'coordonnees',
       donnees: {
         adresse: donnees.adresse,
+        codePostal: donnees.codePostal,
+        ville: donnees.ville,
         telephone: donnees.telephone,
         email: donnees.email,
         contactUrgenceNom: donnees.contactUrgenceNom,

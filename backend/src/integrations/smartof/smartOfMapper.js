@@ -3,15 +3,16 @@
 // seule couche qui connaît à la fois le modèle interne et le modèle SmartOF". Pure : aucun accès
 // DB ni HTTP ici (voir smartOfService.js pour l'orchestration), pour rester testable isolément.
 
-// 20 custom_field_N obligatoires côté SmartOF (chaîne, potentiellement vide) — aucun n'a
-// aujourd'hui de correspondance connue côté ACCECIT (pas de champ configuré côté admin SmartOF
-// documenté), tous à '' par défaut. À remplir si/quand SmartOF confirme un usage précis pour l'un
-// d'eux.
-function champsPersonnalisesVides() {
+// 20 custom_field_N obligatoires côté SmartOF (chaîne, potentiellement vide). Seul custom_field_1
+// a une correspondance ACCECIT connue à ce jour : le NIR (décision utilisateur, 2026-08-21 —
+// champ déjà configuré/libellé "NIR" côté admin SmartOF). Les 19 autres restent à '' par défaut,
+// à remplir si/quand SmartOF confirme un usage précis pour l'un d'eux.
+function champsPersonnalisesVides(nir) {
   const champs = {};
   for (let i = 1; i <= 20; i += 1) {
     champs[`custom_field_${i}`] = '';
   }
+  champs.custom_field_1 = nir || '';
   return champs;
 }
 
@@ -41,13 +42,15 @@ function dateNaissanceSmartOf(dateNaissance) {
 // `entrepriseUid` : résolu par smartOfService.js (résolution par rôle, voir
 // entites.smartof_config.entreprises_par_role), pas ici — ce mapper ne connaît aucun rôle ni
 // aucune règle métier de résolution, seulement la traduction de champs déjà résolus.
+// `nir` : NIR déjà déchiffré par smartOfService.js (jamais ici — ce mapper reste pur, aucun accès
+// Key Vault) ; chaîne vide si absent/déchiffrement en échec, voir custom_field_1 ci-dessous.
 //
 // Champs SmartOF sans source ACCECIT connue à ce jour (fonction/lieuActivite/numeroCompteComptable/
-// statutBPF, adresse décomposée rue/complementAdresse/codePostal/ville) : laissés vides plutôt que
-// devinés — voir le commentaire de chacun ci-dessous. Point ouvert à trancher avec SmartOF/l'équipe
-// avant mise en production si l'un de ces champs s'avère en réalité obligatoire pour eux au-delà
-// du typage OpenAPI (qui les marque "required" au sens "présent", pas "non vide").
-function construirePayloadApprenant({ dossierId, inscription, entrepriseUid }) {
+// statutBPF, complementAdresse) : laissés vides plutôt que devinés — voir le commentaire de chacun
+// ci-dessous. Point ouvert à trancher avec SmartOF/l'équipe avant mise en production si l'un de ces
+// champs s'avère en réalité obligatoire pour eux au-delà du typage OpenAPI (qui les marque
+// "required" au sens "présent", pas "non vide").
+function construirePayloadApprenant({ dossierId, inscription, entrepriseUid, nir }) {
   const { candidat, blocs } = inscription;
   const coordonnees = blocs?.coordonnees ?? {};
 
@@ -64,7 +67,7 @@ function construirePayloadApprenant({ dossierId, inscription, entrepriseUid }) {
     // détection de doublon, voir dossierRepository.trouverCandidatParEmail), coordonnees.email
     // reste la source la plus proche de "ce que le candidat a déclaré vouloir comme contact".
     email: coordonnees.email || candidat.email || '',
-    custom_fields: champsPersonnalisesVides(),
+    custom_fields: champsPersonnalisesVides(nir),
     meta: {
       nom: candidat.nom ?? '',
       // Pas de "nom d'usage" distinct dans le formulaire ACCECIT (BlocInfosPerso.jsx : nom,
@@ -81,15 +84,15 @@ function construirePayloadApprenant({ dossierId, inscription, entrepriseUid }) {
       dateNaissance: dateNaissanceSmartOf(candidat.dateNaissance),
       tel: coordonnees.telephone ?? '',
       adresse: {
-        // ACCECIT ne collecte l'adresse candidat que sous forme d'un seul champ libre (voir
-        // BlocCoordonnees.jsx, CLAUDE.md étape 2 : "adresse" au singulier) — jamais décomposée en
-        // rue/complément/code postal/ville. Posée telle quelle en `rue`, seul sous-champ où une
-        // valeur non vide a un sens sans découpage ; les trois autres restent vides plutôt que
-        // d'inventer un découpage non fiable (regex sur texte libre).
+        // BlocCoordonnees.jsx collecte le numéro et nom de rue dans `adresse` (champ dédié,
+        // renommé fonctionnellement pour ça — décision utilisateur, 2026-08-21), et codePostal/
+        // ville séparément depuis la même date. complementAdresse reste vide : pas de champ ACCECIT
+        // équivalent, et pas de découpage inventé sur du texte libre (contrairement à l'ancienne
+        // version de ce mapper, où seul `adresse` existait).
         rue: coordonnees.adresse ?? '',
         complementAdresse: '',
-        codePostal: '',
-        ville: '',
+        codePostal: coordonnees.codePostal ?? '',
+        ville: coordonnees.ville ?? '',
       },
       civilite: civiliteSmartOf(candidat.civilite),
       // Pas de source ACCECIT (comptabilité SmartOF interne).

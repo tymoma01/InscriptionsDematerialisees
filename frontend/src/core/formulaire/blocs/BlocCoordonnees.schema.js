@@ -6,8 +6,17 @@ const TELEPHONE_REGEX = /^0[1-9](\s?\d{2}){4}$/;
 // Lettres (accents compris), espaces, tirets et apostrophes uniquement — pas de chiffres
 const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
 
+// Code postal français : 5 chiffres
+const CODE_POSTAL_REGEX = /^\d{5}$/;
+
 export const blocCoordonneesSchema = z.object({
-  adresse: z.string().trim().min(1, "L'adresse est obligatoire"),
+  adresse: z.string().trim().min(1, "Le numéro et le nom de rue sont obligatoires"),
+  codePostal: z.string().trim().regex(CODE_POSTAL_REGEX, 'Le code postal doit contenir 5 chiffres'),
+  ville: z
+    .string()
+    .trim()
+    .min(1, 'La ville est obligatoire')
+    .regex(NOM_REGEX, 'La ville ne peut contenir que des lettres, espaces, tirets ou apostrophes'),
   telephone: z
     .string()
     .trim()
