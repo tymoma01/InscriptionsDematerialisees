@@ -304,6 +304,19 @@ async function enregistrerEvaluation(
       trx,
     );
 
+    // Audit 2026-08-20 (dossiers #89/#91/#85/#74/#69) : un verdict positif fait avancer le
+    // dossier vers valide_pret_embauche/valide_envoi_formation mais ne touchait jusqu'ici jamais
+    // rendezvous.statut, resté "prevu" indéfiniment — la fiche dossier affichait alors à la fois
+    // "Prévu" sur le rendez-vous ET "Ce test est déjà clôturé" (GestionRendezvous.jsx,
+    // STATUTS_DOSSIER_RENDEZVOUS_CLOS). 'honore' seulement pour un verdict VALIDE
+    // (codeActionFinal !== CODE_ACTION_INVALIDATION) : un test invalidé n'a pas eu une issue
+    // positive, rendezvous.statut reste "prevu" dans ce cas (pas de nouveau statut demandé pour
+    // ce cas-là — un dossier invalidé peut encore être reprogrammé, voir STATUTS_REPLANIFIABLES
+    // côté front).
+    if (codeActionFinal !== CODE_ACTION_INVALIDATION) {
+      await rendezvousRepository.mettreAJourStatutRendezvous(trx, rendezvousId, { statut: 'honore', motifId: null });
+    }
+
     return { evaluationId, codeActionFinal };
   }).then(async ({ evaluationId, codeActionFinal }) => {
     // Appel SmartOF déclenché APRÈS la transaction (pas dans trx ci-dessus) : c'est un appel

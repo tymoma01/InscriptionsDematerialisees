@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const workflowEngine = require('../../core/workflow/workflowEngine');
+const { cloturerRendezvousAvecTransition } = require('../../core/rendezvous/clotureRendezvousAvecTransitionService');
+const { ErreurRendezvousDossierClos } = require('../../core/rendezvous/rendezvousService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -36,6 +38,16 @@ const transitionBodySchema = z.object({
   // vérifié par workflowEngine, pas ici : c'est lui qui connaît la config de l'entité.
   motifCode: z.string().trim().min(1).optional(),
   commentaire: z.string().trim().min(1),
+  // Trois champs optionnels ajoutés (audit 2026-08-20, dossier #84) pour fermer ATOMIQUEMENT le
+  // rendez-vous associé en même temps que cette transition — voir marquerNonRealise
+  // (ListeEvaluationsAFaire.jsx, bouton manuel "Test non réalisé"), seul appelant actuel. Absents
+  // par défaut : la route reste utilisable telle quelle par tout autre appelant qui ne concerne
+  // aucun rendez-vous (ex. valider_dossier, pieces_completes...). rendezvousId reste soumis au
+  // même garde-fou IDOR que PATCH /rendezvous/:id (voir rendezvousService.changerStatutRendezvous,
+  // qui revérifie que ce rendez-vous appartient bien à ce dossier).
+  rendezvousId: z.coerce.number().int().positive().optional(),
+  statutRendezvous: z.enum(['prevu', 'confirme', 'absent', 'annule']).optional(),
+  motifCodeRendezvous: z.string().trim().min(1).optional(),
 });
 
 function repondreErreurValidation(res, erreurZod) {
@@ -61,16 +73,30 @@ router.get('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, next
 router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { codeAction, motifCode, commentaire } = transitionBodySchema.parse(req.body);
+    const { codeAction, motifCode, commentaire, rendezvousId, statutRendezvous, motifCodeRendezvous } =
+      transitionBodySchema.parse(req.body);
 
-    const resultat = await workflowEngine.appliquerTransition(req.entite, {
-      dossierId,
-      codeAction,
-      motifCode,
-      commentaire,
-      utilisateurId: req.utilisateur.id,
-      roleCode: req.utilisateur.roleCode,
-    });
+    // rendezvousId présent : ferme ce rendez-vous ET applique la transition en une seule
+    // transaction (voir clotureRendezvousAvecTransitionService.js) — sinon, comportement inchangé
+    // (transition seule, comme avant cet ajout).
+    const resultat = rendezvousId
+      ? await cloturerRendezvousAvecTransition(req.entite, {
+          dossierId,
+          rendezvousId,
+          statutRendezvous,
+          motifCodeRendezvous,
+          transitions: [{ codeAction, motifCode, commentaire }],
+          utilisateurId: req.utilisateur.id,
+          roleCode: req.utilisateur.roleCode,
+        })
+      : await workflowEngine.appliquerTransition(req.entite, {
+          dossierId,
+          codeAction,
+          motifCode,
+          commentaire,
+          utilisateurId: req.utilisateur.id,
+          roleCode: req.utilisateur.roleCode,
+        });
 
     const bd = await obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
@@ -82,10 +108,27 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
       donnees: { dossierId, codeAction, motifCode, commentaire },
       adresseIp: req.ip,
     });
+    if (rendezvousId) {
+      // Journalisé séparément (même patron que PATCH /rendezvous/:id, rendezvous.routes.js) :
+      // action distincte sur une table distincte, traçable indépendamment de la transition dossier
+      // ci-dessus même si les deux ont été appliquées atomiquement.
+      await journalAudit.enregistrerAction(bd, {
+        utilisateurId: req.utilisateur.id,
+        entiteId: req.entite.id,
+        action: `rendezvous_statut_${statutRendezvous}`,
+        tableCible: 'rendezvous',
+        cibleId: rendezvousId,
+        donnees: { dossierId, statut: statutRendezvous, motifCode: motifCodeRendezvous },
+        adresseIp: req.ip,
+      });
+    }
 
     res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurRendezvousDossierClos) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

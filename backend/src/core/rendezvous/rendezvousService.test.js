@@ -5,9 +5,11 @@ const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
 const notesDossierRepository = require('../dossier/notesDossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
+const motifRepository = require('../motifs/motifRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
 const rendezvousService = require('./rendezvousService');
+const { ErreurRendezvousDossierClos } = rendezvousService;
 
 // Le contrôle de date passée intervient avant tout accès DB (voir creerRendezvous) — testable
 // sans mock, entité/dossier fictifs compris, puisque l'exécution ne les atteint jamais.
@@ -519,4 +521,87 @@ test('listerHistoriqueRendezvousDossiers renvoie les notes de dossier telles que
   assert.deepEqual(resultat.notes, [
     { id: 10, dossier_id: 88, contenu: 'Candidat très motivé.', date_creation: DATE_PASSEE, auteur_prenom: 'Jeanne', auteur_nom: 'Dupont' },
   ]);
+});
+
+// Garde-fou ajouté par l'audit du 2026-08-20 (dossier #84) : changerStatutRendezvous refuse
+// désormais toute action si le dossier a déjà quitté test_planifie vers une issue (voir
+// STATUTS_DOSSIER_RENDEZVOUS_CLOS, rendezvousService.js).
+test('changerStatutRendezvous rejette avec ErreurRendezvousDossierClos si le dossier est déjà test_non_realise', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 84,
+    statut_code: 'test_non_realise',
+    statut_libelle: 'Test non réalisé',
+  }));
+  const trouverRendezvousParId = t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({
+    id: 70,
+    dossier_id: 84,
+    statut: 'prevu',
+  }));
+
+  await assert.rejects(
+    () => rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, { dossierId: 84, rendezvousId: 70, statut: 'confirme' }),
+    (erreur) => {
+      assert.ok(erreur instanceof ErreurRendezvousDossierClos);
+      assert.match(erreur.message, /Test non réalisé/);
+      return true;
+    },
+  );
+  // Refusé avant même d'aller chercher le rendez-vous — pas la peine d'une requête de plus une
+  // fois le dossier reconnu comme clos.
+  assert.equal(trouverRendezvousParId.mock.callCount(), 0);
+});
+
+test('changerStatutRendezvous rejette pour chacun des 4 statuts de dossier "clos" (invalide/valide_envoi_formation/valide_pret_embauche en plus de test_non_realise)', async (t) => {
+  for (const statutCode of ['invalide', 'valide_envoi_formation', 'valide_pret_embauche']) {
+    t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+    t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+      id: 1,
+      statut_code: statutCode,
+      statut_libelle: statutCode,
+    }));
+
+    await assert.rejects(
+      () => rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, { dossierId: 1, rendezvousId: 1, statut: 'absent', motifCode: 'autre' }),
+      ErreurRendezvousDossierClos,
+      `devrait rejeter pour statut_code=${statutCode}`,
+    );
+  }
+});
+
+test('changerStatutRendezvous réussit normalement quand le dossier est encore test_planifie', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 90,
+    statut_code: 'test_planifie',
+    statut_libelle: 'Test planifié',
+  }));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, statut: 'prevu' }));
+  const mettreAJour = t.mock.method(rendezvousRepository, 'mettreAJourStatutRendezvous', async () => ({ id: 71, statut: 'confirme' }));
+
+  const resultat = await rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, { dossierId: 90, rendezvousId: 71, statut: 'confirme' });
+
+  assert.equal(mettreAJour.mock.callCount(), 1);
+  assert.deepEqual(resultat, { id: 71, statut: 'confirme' });
+});
+
+test('changerStatutRendezvous accepte une transaction déjà ouverte (bdExistante) sans en ouvrir une seconde', async (t) => {
+  const obtenirKnex = t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 90,
+    statut_code: 'test_planifie',
+    statut_libelle: 'Test planifié',
+  }));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, statut: 'prevu' }));
+  t.mock.method(motifRepository, 'trouverMotifParCode', async () => ({ id: 24, code: 'test_non_realise' }));
+  t.mock.method(rendezvousRepository, 'mettreAJourStatutRendezvous', async () => ({ id: 71, statut: 'absent' }));
+
+  const trxFactice = creerBdFactice();
+  await rendezvousService.changerStatutRendezvous(
+    ENTITE_FACTICE,
+    { dossierId: 90, rendezvousId: 71, statut: 'absent', motifCode: 'test_non_realise' },
+    trxFactice,
+  );
+
+  assert.equal(obtenirKnex.mock.callCount(), 0);
 });

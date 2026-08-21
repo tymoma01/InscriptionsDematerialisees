@@ -177,6 +177,17 @@
   background-color: var(--couleur-fond);
 }
 
+/* text-align: center ci-dessus reste sans effet sur les <td> (les <th> sont déjà centrés par
+   `.table-utilisateurs th`) : `.table-utilisateurs td` (une classe + un type) l'emporte sur
+   `.table-utilisateurs__colonne-numero` seule (une classe) à spécificité égale de nombre de
+   classes — le type ajouté par `td` fait pencher la balance vers `text-align: left`. Même bug de
+   spécificité déjà rencontré et corrigé sur DossierList.css/Planification.css (audit 2026-08-20,
+   colonnes "N°" enfin cohérentes sur tout l'app) : qualifiée ici aussi par `.table-utilisateurs
+   td` pour regagner la priorité. */
+.table-utilisateurs td.table-utilisateurs__colonne-numero {
+  text-align: center;
+}
+
 /* L'en-tête a son propre fond (--couleur-fond-secondaire, voir règle `th` plus haut) — la version
    figée doit reprendre ce même fond plutôt que celui du corps du tableau, et rester au-dessus des
    cellules figées du corps (z-index supérieur) si jamais les deux se chevauchent visuellement. */

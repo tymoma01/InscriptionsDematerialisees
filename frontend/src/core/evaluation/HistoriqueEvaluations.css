@@ -68,6 +68,24 @@
   padding: 0;
 }
 
+/* "N°" n'a pas de bouton .historique-evaluations__entete-tri interne (pas de tri sur cette
+   colonne, contrairement aux en-têtes triables ci-dessus, dont le bouton porte lui-même le
+   padding) : ce <th> hériterait sinon du padding: 0 de la règle générale ci-dessus, texte collé
+   au bord de la cellule — même patron que Planification.css
+   (.planification__table th.planification__colonne-case/-numero). */
+.historique-evaluations th.historique-evaluations__colonne-numero {
+  padding: 0.75rem var(--espace-moyen);
+}
+
+/* N° de dossier centré dans le corps du tableau aussi (audit 2026-08-20) — qualifiée par table +
+   td, même correctif de spécificité que DossierList.css/Planification.css
+   (.dossier-list td.dossier-list__colonne-numero / .planification__table
+   td.planification__colonne-numero) : une classe seule perdrait face à la règle groupée
+   .historique-evaluations td ci-dessus (1 classe + 1 type l'emporte sur 1 classe seule). */
+.historique-evaluations td.historique-evaluations__colonne-numero {
+  text-align: center;
+}
+
 .historique-evaluations__entete-tri {
   display: flex;
   align-items: center;

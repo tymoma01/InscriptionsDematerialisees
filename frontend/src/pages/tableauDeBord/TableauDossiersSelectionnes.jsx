@@ -321,7 +321,9 @@ export default function TableauDossiersSelectionnes({
             <th scope="col" className="tableau-dossiers-selectionnes__colonne-numero">
               N°
             </th>
-            <th scope="col">N° dossier</th>
+            <th scope="col" className="tableau-dossiers-selectionnes__colonne-dossier">
+              N° dossier
+            </th>
             <th scope="col">Candidat</th>
             <th scope="col">Poste</th>
             <th scope="col">Statut</th>
@@ -337,7 +339,7 @@ export default function TableauDossiersSelectionnes({
             return (
               <tr key={dossier.id}>
                 <td className="tableau-dossiers-selectionnes__colonne-numero">{index + 1}</td>
-                <td>
+                <td className="tableau-dossiers-selectionnes__colonne-dossier">
                   <Link to={`/recruteur/dossiers/${dossier.id}/validation`}>#{dossier.id}</Link>
                 </td>
                 <td>

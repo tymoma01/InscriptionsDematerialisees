@@ -61,6 +61,29 @@
   text-align: center;
 }
 
+/* text-align: center ci-dessus (et sur .colonne-dossier plus bas) reste sans effet tel quel sur
+   les <th>/<td> : `.tableau-dossiers-selectionnes th`/`td` (une classe + un type, voir plus haut)
+   l'emporte sur une classe seule à spécificité égale de nombre de classes — le type ajouté par
+   `th`/`td` fait pencher la balance vers `text-align: left`. Même bug de spécificité déjà
+   rencontré et corrigé sur DossierList.css/Planification.css/Utilisateurs.css (audit 2026-08-20,
+   colonnes "N°" enfin cohérentes sur tout l'app) : qualifiées ici aussi par
+   `.tableau-dossiers-selectionnes th`/`td` pour regagner la priorité. Ce fichier n'avait pas non
+   plus de `text-align: center` sur son `th` générique (contrairement aux 3 autres) : sans lui,
+   même l'en-tête "N°"/"N° dossier" restait aligné à gauche comme le reste du tableau. */
+.tableau-dossiers-selectionnes th.tableau-dossiers-selectionnes__colonne-numero,
+.tableau-dossiers-selectionnes td.tableau-dossiers-selectionnes__colonne-numero,
+.tableau-dossiers-selectionnes th.tableau-dossiers-selectionnes__colonne-dossier,
+.tableau-dossiers-selectionnes td.tableau-dossiers-selectionnes__colonne-dossier {
+  text-align: center;
+}
+
+/* N° dossier (le vrai `dossier.id`, voir TableauDossiersSelectionnes.jsx) — même centrage que
+   "N°" ci-dessus (voir la règle groupée qui la qualifie déjà), pas de largeur fixe ici : son
+   contenu ("#123") reste plus variable que le simple rang à 1-2 chiffres de la colonne "N°". */
+.tableau-dossiers-selectionnes__colonne-dossier {
+  text-align: center;
+}
+
 .tableau-dossiers-selectionnes__postes {
   display: flex;
   flex-direction: column;

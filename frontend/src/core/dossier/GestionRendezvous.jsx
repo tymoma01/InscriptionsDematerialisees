@@ -17,10 +17,11 @@ const FORMAT_JOUR_MOIS = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', mont
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const FORMAT_DATE_SEULE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Statuts constituant un désistement (voir backend rendezvousService.js, STATUTS_DESISTEMENT) :
-// un motif est obligatoire pour ces deux-là, jamais pour 'confirme'.
-const STATUTS_DESISTEMENT = ['absent', 'annule'];
-
+// Un motif est obligatoire pour 'absent'/'annule' (voir backend rendezvousService.js,
+// STATUTS_DESISTEMENT), jamais pour 'confirme' — mais les deux divergent désormais en couleur
+// (voir varianteStatutRendezvous ci-dessous, audit 2026-08-20) : une annulation s'annonce à
+// l'avance (couleur neutre), une absence est un incident constaté après coup (reste 'echec').
+//
 // 'remplace' (posé automatiquement par neutraliserRendezvousActifsDossier lors d'une
 // replanification, jamais choisi par un agent — voir rendezvousRepository.js) retombait
 // jusqu'ici sur la variante par défaut 'attente', indiscernable visuellement d'un rendez-vous
@@ -28,31 +29,75 @@ const STATUTS_DESISTEMENT = ['absent', 'annule'];
 // cohérent avec son statut de simple historique, jamais l'état à mettre en avant. Variante
 // 'neutre-fort' (pas le simple 'neutre', jugé trop discret — audit 2026-08-20) : gris moyen/texte
 // foncé, neutre mais bien lisible ; même variante reprise sur Planification.jsx (Suivi des tests)
-// pour rester cohérent entre les deux endroits où ce badge apparaît.
+// pour rester cohérent entre les deux endroits où ce badge apparaît. 'annule' reprend la même
+// variante (audit 2026-08-20) : les libellés distincts ("Annulé" vs "Remplacé", voir
+// LIBELLES_STATUT plus bas) suffisent à les distinguer, pas besoin d'une troisième teinte neutre.
+//
+// 'honore' (audit 2026-08-20, dossiers #89/#91/#85/#74/#69, posé par evaluationEngine.
+// enregistrerEvaluation) : 'vert-clair', pas 'succes' comme 'confirme' — même famille positive,
+// mais visuellement distinct pour ne pas confondre une présence confirmée À L'AVANCE avec un test
+// réellement conduit et conclu positivement (voir rendezvousService.STATUTS_AUTORISES pour la
+// même distinction côté back). Même variante que le badge dossier "Validé - prêt à l'embauche"
+// (Validation.jsx/TableauDeBordAccueil.jsx), cohérent avec l'issue positive qu'il accompagne.
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
-  if (STATUTS_DESISTEMENT.includes(statut)) return 'echec';
-  if (statut === 'remplace') return 'neutre-fort';
+  if (statut === 'honore') return 'vert-clair';
+  if (statut === 'absent') return 'echec';
+  if (statut === 'annule' || statut === 'remplace') return 'neutre-fort';
   return 'attente';
 }
 
+// Source UNIQUE pour le titre (.gestion-rendezvous__type) ET le badge de statut — audit
+// 2026-08-20 : titre et badge affichaient auparavant deux libellés distincts pour 'absent' ("Non
+// réalisé" vs "Manqué"), incohérence repérée en comparant avec 'honore' (déjà identique des deux
+// côtés, "Réalisé"/"Réalisé"). Un seul dictionnaire désormais, lu aux deux endroits (voir plus
+// bas) : titre et badge ne peuvent plus diverger, quel que soit le statut.
 const LIBELLES_STATUT = {
   prevu: 'Prévu',
   confirme: 'Confirmé',
-  absent: 'Absent',
+  absent: 'Manqué',
   annule: 'Annulé',
   remplace: 'Remplacé',
+  honore: 'Réalisé',
 };
+
+// "Test non réalisé" est désormais porté par le titre/badge "Manqué" ci-dessus (LIBELLES_STATUT)
+// pour un rendez-vous 'absent' — le motif affiché à côté ne doit plus le répéter (audit
+// 2026-08-20, dossier #86) :
+// préfixe retiré s'il est présent (motif dédié "test_non_realise", scripts/
+// seedMotifsDesistement.js), laissé tel quel sinon (les autres motifs de désistement — "Ne répond
+// plus", "Finalement indisponible"... — n'ont jamais porté ce préfixe).
+const PREFIXE_MOTIF_REDONDANT = 'Test non réalisé ';
+function libelleMotifAffiche(motifLibelle) {
+  if (motifLibelle?.startsWith(PREFIXE_MOTIF_REDONDANT)) {
+    return motifLibelle.slice(PREFIXE_MOTIF_REDONDANT.length);
+  }
+  return motifLibelle;
+}
+
+// Statuts de DOSSIER (pas de rendez-vous) au-delà desquels Confirmer la présence/Marquer absent/
+// Marquer annulé n'ont plus de sens — copie exacte de STATUTS_DOSSIER_RENDEZVOUS_CLOS
+// (backend/src/core/rendezvous/rendezvousService.js, qui revérifie la même règle côté serveur,
+// voir son commentaire) : les deux listes doivent rester synchronisées à la main, aucun partage de
+// code entre front et back sur ce projet (audit 2026-08-20, dossier #84).
+const STATUTS_DOSSIER_RENDEZVOUS_CLOS = ['test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
 
 // Rendez-vous d'un dossier (CLAUDE.md, besoin Accueil/Coordination : "relances et
 // reprogrammations" + "motif de désistement enregistré systématiquement, pour objectiver le
 // phénomène"). dossierId reçu en prop, comme HistoriqueRelances.jsx — ce composant ne connaît
 // rien du routage.
 //
+// codeStatutDossier/libelleStatutDossier (audit 2026-08-20, dossier #84) : reçus du parent
+// (Relances.jsx, qui les a déjà via obtenirDossier) plutôt que rechargés ici — ce composant
+// n'appelait jusqu'ici jamais GET /dossiers/:id, pas la peine d'ajouter un second appel réseau
+// juste pour connaître le statut du dossier.
+//
 // Le formulaire de désistement (motif obligatoire) est un garde-fou côté UI : le serveur revalide
 // systématiquement (voir services/rendezvousService.js), donc même si ce composant était
-// contourné, aucun désistement ne peut être enregistré sans motif.
-export default function GestionRendezvous({ dossierId }) {
+// contourné, aucun désistement ne peut être enregistré sans motif. Le verrouillage ci-dessous suit
+// le même principe : masquage ici, revérifié côté serveur (rendezvousService.
+// changerStatutRendezvous, ErreurRendezvousDossierClos) — jamais qu'un garde-fou d'affichage.
+export default function GestionRendezvous({ dossierId, codeStatutDossier, libelleStatutDossier }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
@@ -174,7 +219,9 @@ export default function GestionRendezvous({ dossierId }) {
         <ul className="gestion-rendezvous__liste">
           {rendezvous.map((rdv) => {
             const enDesistementPourCeRdv = desistementEnCours?.rendezvousId === rdv.id;
-            const actionsDisponibles = peutGererRendezvous && (rdv.statut === 'prevu' || rdv.statut === 'confirme');
+            const dossierEnEtatClos = STATUTS_DOSSIER_RENDEZVOUS_CLOS.includes(codeStatutDossier);
+            const rdvEligiblePourAction = rdv.statut === 'prevu' || rdv.statut === 'confirme';
+            const actionsDisponibles = peutGererRendezvous && rdvEligiblePourAction && !dossierEnEtatClos;
             // Seul état "remplacé" (posé automatiquement lors d'une replanification, voir
             // varianteStatutRendezvous ci-dessus) à estomper — absent/annule/confirme/prevu
             // restent tous des états "actifs" au sens de cette page : ce sont de vrais
@@ -205,10 +252,10 @@ export default function GestionRendezvous({ dossierId }) {
 
                 <div className="gestion-rendezvous__contenu">
                   <div className="gestion-rendezvous__ligne">
-                    <span className="gestion-rendezvous__type">{rdv.type_rdv}</span>
+                    <span className="gestion-rendezvous__type">{LIBELLES_STATUT[rdv.statut] ?? rdv.statut}</span>
                     <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
                     {rdv.motif_libelle && (
-                      <span className="gestion-rendezvous__motif">Motif : {rdv.motif_libelle}</span>
+                      <span className="gestion-rendezvous__motif">Motif : {libelleMotifAffiche(rdv.motif_libelle)}</span>
                     )}
                   </div>
 
@@ -260,6 +307,20 @@ export default function GestionRendezvous({ dossierId }) {
                         Marquer annulé
                       </button>
                     </div>
+                  )}
+
+                  {/* Dossier déjà passé à un statut incompatible avec une action sur CE
+                      rendez-vous (voir STATUTS_DOSSIER_RENDEZVOUS_CLOS ci-dessus) — message
+                      explicite plutôt que masquer silencieusement les 3 boutons, pour que l'agent
+                      comprenne pourquoi ils ont disparu plutôt que de soupçonner un bug (audit
+                      2026-08-20, dossier #84). Mêmes conditions d'affichage que le bloc actions
+                      ci-dessus (peutGererRendezvous + rdv encore prevu/confirme), seul
+                      dossierEnEtatClos change de valeur entre les deux blocs. */}
+                  {peutGererRendezvous && rdvEligiblePourAction && dossierEnEtatClos && !enDesistementPourCeRdv && (
+                    <p className="gestion-rendezvous__etat-clos">
+                      Ce test est déjà clôturé ({libelleStatutDossier ?? codeStatutDossier}) : action sur ce rendez-vous
+                      indisponible.
+                    </p>
                   )}
 
                   {enDesistementPourCeRdv && (

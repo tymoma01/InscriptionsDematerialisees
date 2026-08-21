@@ -13,8 +13,23 @@ export async function listerTransitions(dossierId) {
 
 // utilisateurId n'est jamais envoyé ici : le back le dérive de la session serveur de l'agent
 // connecté (voir backend/src/api/routes/transitions.routes.js), jamais un champ manuel.
-export async function appliquerTransition(dossierId, { codeAction, motifCode, commentaire }) {
-  const { data } = await api.post(`/dossiers/${dossierId}/transitions`, { codeAction, motifCode, commentaire });
+//
+// rendezvousId/statutRendezvous/motifCodeRendezvous (optionnels, audit 2026-08-20, dossier #84) :
+// ferme ATOMIQUEMENT le rendez-vous associé en même temps que cette transition — voir
+// marquerNonRealise (ListeEvaluationsAFaire.jsx), seul appelant actuel à les renseigner. Omis pour
+// toute autre transition (comportement inchangé, transition seule).
+export async function appliquerTransition(
+  dossierId,
+  { codeAction, motifCode, commentaire, rendezvousId, statutRendezvous, motifCodeRendezvous },
+) {
+  const { data } = await api.post(`/dossiers/${dossierId}/transitions`, {
+    codeAction,
+    motifCode,
+    commentaire,
+    rendezvousId,
+    statutRendezvous,
+    motifCodeRendezvous,
+  });
   return data;
 }
 
