@@ -1,0 +1,31 @@
+/* Rappel de session déjà active (voir Connexion.jsx) — même largeur que .login-form
+   (LoginForm.css, 800px) pour rester aligné avec la carte juste en dessous, mais bordure/fond
+   discrets plutôt que la carte marquée du formulaire : ce n'est qu'un rappel contextuel, pas
+   l'action principale de l'écran. */
+.connexion__session-active {
+  max-width: 800px;
+  margin: 2.5rem auto 0;
+  padding: 0.9rem 1.25rem;
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  color: var(--couleur-texte);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.connexion__session-active button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--couleur-primaire);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.connexion__session-active button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
