@@ -68,96 +68,11 @@
   }
 }
 
-/* En-tête sticky : dégradé brun foncé -> doré (--couleur-back-office-dore, dérivé du tourbillon
-   doré du logo — voir variables.css), même construction à deux teintes que le dégradé
-   indigo/turquoise du formulaire candidat (InscriptionTablette.css) mais dans une famille de
-   couleur totalement différente (brun/bronze plutôt que bleu), pour renforcer la distinction
-   entre les deux espaces au premier coup d'œil tout en restant cohérent avec l'identité de
-   marque (le doré du logo). --couleur-back-office-dore est volontairement assombri par rapport
-   au doré brut du logo (voir le commentaire dans variables.css) : le texte blanc du logo/des
-   sous-marques doit rester lisible sur toute la largeur du dégradé, y compris à son extrémité
-   la plus claire. */
-.page-back-office__entete {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  overflow: hidden;
-  background: linear-gradient(90deg, var(--couleur-back-office), var(--couleur-back-office-dore));
-  border-bottom: 1px solid var(--couleur-back-office-hover);
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-}
+/* Règles de l'en-tête (.page-back-office__entete*) déplacées vers EnTeteAccecit.css (audit
+   2026-08-21, extraction en composant partagé EnTeteAccecit.jsx — voir son commentaire d'en-tête)
+   — importées ici indirectement via PageBackOffice.jsx, qui monte désormais ce composant.
 
-.page-back-office__entete-contenu {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--espace-grand);
-  min-height: var(--hauteur-entete);
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: var(--espace-petit) var(--espace-moyen);
-}
-
-.page-back-office__logo {
-  display: block;
-  height: 4.5rem;
-  width: auto;
-}
-
-.page-back-office__logos-marques {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--espace-grand);
-}
-
-.page-back-office__logo-marque {
-  display: flex;
-  align-items: center;
-  gap: var(--espace-petit);
-}
-
-.page-back-office__logo-marque-icone {
-  display: block;
-  height: 2.75rem;
-  width: auto;
-}
-
-.page-back-office__logo-marque-texte {
-  display: flex;
-  flex-direction: column;
-}
-
-/* text-shadow sur le texte blanc de l'en-tête/pied de page : filet de sécurité supplémentaire
-   pour la lisibilité par-dessus le dégradé brun/doré (en plus du calibrage de
-   --couleur-back-office-dore lui-même, voir son commentaire dans variables.css) — absent côté
-   candidat (InscriptionTablette.css), pas nécessaire là où le dégradé ne comporte aucune teinte
-   claire. */
-.page-back-office__logo-marque-nom {
-  color: #ffffff;
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.28em;
-  line-height: 1.3;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-.page-back-office__logo-marque-sous-nom {
-  color: #f1e6d3;
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
-  line-height: 1.3;
-  border-top: 1px solid rgba(255, 255, 255, 0.55);
-  margin-top: 0.15rem;
-  padding-top: 0.15rem;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-/* Contenu défilant sous l'en-tête fixe : largeur maximale centrée, décalé du haut de la hauteur
+   Contenu défilant sous l'en-tête fixe : largeur maximale centrée, décalé du haut de la hauteur
    de l'en-tête (+ une respiration) pour ne jamais passer dessous. flex: 1 0 auto absorbe l'espace
    vertical restant pour pousser le pied de page en bas de l'écran sur les pages courtes. */
 .page-back-office__contenu {
@@ -172,54 +87,6 @@
   flex: 1 0 auto;
 }
 
-/* Pied de page : même dégradé brun -> doré que l'en-tête (haut -> bas plutôt que gauche ->
-   droite), coins hauts arrondis en écho avec lui — même logique que .pied-de-page côté candidat
-   (PiedDePageFormulaire.css). */
-.page-back-office__pied-de-page {
-  width: 100%;
-  box-sizing: border-box;
-  background: linear-gradient(180deg, var(--couleur-back-office), var(--couleur-back-office-dore));
-  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
-}
-
-.page-back-office__pied-de-page-contenu {
-  box-sizing: border-box;
-  max-width: var(--largeur-max-formulaire);
-  margin: 0 auto;
-  padding: var(--espace-petit) var(--espace-moyen);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--espace-moyen);
-}
-
-.page-back-office__pied-de-page-logo {
-  display: block;
-  height: 2.75rem;
-  width: auto;
-}
-
-.page-back-office__coordonnees {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-  gap: 0.2rem;
-}
-
-.page-back-office__contact {
-  margin: 0;
-  color: #ffffff;
-  font-size: 0.9rem;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-.page-back-office__copyright {
-  flex: 1;
-  margin: 0;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.75rem;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-}
+/* Règles du pied de page (.page-back-office__pied-de-page*) déplacées vers PiedDePageAccecit.css
+   (audit 2026-08-21, extraction en composant partagé PiedDePageAccecit.jsx — voir le commentaire
+   d'en-tête de EnTeteAccecit.css pour le contexte complet de cette extraction).

@@ -1,0 +1,55 @@
+/* Règles extraites de PageBackOffice.css (audit 2026-08-21, PiedDePageAccecit.jsx) — mêmes
+   sélecteurs qu'avant l'extraction (page-back-office__pied-de-page*), aucune valeur changée. Voir
+   EnTeteAccecit.css pour le contexte complet de cette extraction.
+
+   Même dégradé brun -> doré que l'en-tête (haut -> bas plutôt que gauche -> droite), coins hauts
+   arrondis en écho avec lui — même logique que .pied-de-page côté candidat
+   (PiedDePageFormulaire.css). */
+.page-back-office__pied-de-page {
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, var(--couleur-back-office), var(--couleur-back-office-dore));
+  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
+}
+
+.page-back-office__pied-de-page-contenu {
+  box-sizing: border-box;
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-petit) var(--espace-moyen);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+}
+
+.page-back-office__pied-de-page-logo {
+  display: block;
+  height: 2.75rem;
+  width: auto;
+}
+
+.page-back-office__coordonnees {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 0.2rem;
+}
+
+.page-back-office__contact {
+  margin: 0;
+  color: #ffffff;
+  font-size: 0.9rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.page-back-office__copyright {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}

@@ -1,0 +1,93 @@
+/* Règles extraites de PageBackOffice.css (audit 2026-08-21, EnTeteAccecit.jsx) — même sélecteurs
+   qu'avant l'extraction (page-back-office__entete*), aucune valeur changée : ce composant reste
+   monté à l'intérieur de .page-back-office (PageBackOffice.jsx) OU d'un conteneur qui en reprend
+   les variables --hauteur-entete/--largeur-max-formulaire (voir Connexion.jsx/Connexion.css).
+
+   En-tête sticky : dégradé brun foncé -> doré (--couleur-back-office-dore, dérivé du tourbillon
+   doré du logo — voir variables.css), même construction à deux teintes que le dégradé
+   indigo/turquoise du formulaire candidat (InscriptionTablette.css) mais dans une famille de
+   couleur totalement différente (brun/bronze plutôt que bleu), pour renforcer la distinction
+   entre les deux espaces au premier coup d'œil tout en restant cohérent avec l'identité de
+   marque (le doré du logo). --couleur-back-office-dore est volontairement assombri par rapport
+   au doré brut du logo (voir le commentaire dans variables.css) : le texte blanc du logo/des
+   sous-marques doit rester lisible sur toute la largeur du dégradé, y compris à son extrémité
+   la plus claire. */
+.page-back-office__entete {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--couleur-back-office), var(--couleur-back-office-dore));
+  border-bottom: 1px solid var(--couleur-back-office-hover);
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.page-back-office__entete-contenu {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-grand);
+  min-height: var(--hauteur-entete);
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+  padding: var(--espace-petit) var(--espace-moyen);
+}
+
+.page-back-office__logo {
+  display: block;
+  height: 4.5rem;
+  width: auto;
+}
+
+.page-back-office__logos-marques {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--espace-grand);
+}
+
+.page-back-office__logo-marque {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.page-back-office__logo-marque-icone {
+  display: block;
+  height: 2.75rem;
+  width: auto;
+}
+
+.page-back-office__logo-marque-texte {
+  display: flex;
+  flex-direction: column;
+}
+
+/* text-shadow sur le texte blanc de l'en-tête/pied de page : filet de sécurité supplémentaire
+   pour la lisibilité par-dessus le dégradé brun/doré (en plus du calibrage de
+   --couleur-back-office-dore lui-même, voir son commentaire dans variables.css) — absent côté
+   candidat (InscriptionTablette.css), pas nécessaire là où le dégradé ne comporte aucune teinte
+   claire. */
+.page-back-office__logo-marque-nom {
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  line-height: 1.3;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.page-back-office__logo-marque-sous-nom {
+  color: #f1e6d3;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+  border-top: 1px solid rgba(255, 255, 255, 0.55);
+  margin-top: 0.15rem;
+  padding-top: 0.15rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}

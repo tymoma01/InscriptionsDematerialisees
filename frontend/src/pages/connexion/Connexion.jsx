@@ -3,6 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginForm from '../../core/auth/LoginForm';
 import { useSession } from '../../core/auth/useSession';
 import { seDeconnecter } from '../../services/authService';
+import EnTeteAccecit from '../../core/backOffice/EnTeteAccecit';
+import PiedDePageAccecit from '../../core/backOffice/PiedDePageAccecit';
+// .page-back-office/.page-back-office__contenu (bandeau fixe + pied de page collé en bas, mêmes
+// variables --hauteur-entete/--largeur-max-formulaire) réutilisées telles quelles depuis
+// PageBackOffice.css (audit 2026-08-21) plutôt que redéfinies ici — cet écran n'utilise PAS
+// PageBackOffice.jsx lui-même (BarreNavigation/BoutonNouvelleInscription dépendent d'une session
+// active, sans objet avant connexion), seulement ses classes de mise en page communes avec
+// EnTeteAccecit/PiedDePageAccecit ci-dessus.
+import '../../core/backOffice/PageBackOffice.css';
 import './Connexion.css';
 
 // Redirection après connexion, propre à chaque rôle — le formateur atterrit sur ses évaluations à
@@ -40,10 +49,12 @@ export default function Connexion() {
   const { utilisateur: utilisateurActuel, chargement: chargementSession } = useSession();
   const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
 
-  // Reprend la teinte de fond back-office (styles/blocFormulaire.css, .corps-back-office),
-  // normalement posée par PageBackOffice.jsx — volontairement NON utilisé ici : avant connexion,
-  // rien ne doit être visible à part le formulaire (ni bandeau/logos, ni pied de page, ni barre de
-  // navigation), voir demande utilisateur du 2026-08-21.
+  // Pose la teinte back-office sur <body> (styles/blocFormulaire.css, .corps-back-office) — même
+  // effet que PageBackOffice.jsx, dupliqué ici plutôt qu'importé : PageBackOffice.jsx lui-même
+  // reste volontairement NON utilisé sur cet écran (BarreNavigation/BoutonNouvelleInscription
+  // dépendent tous deux d'une session déjà active, sans objet avant connexion) — voir
+  // EnTeteAccecit/PiedDePageAccecit plus bas pour le bandeau/pied de page seuls (demande
+  // utilisateur du 2026-08-21 : l'écran doit rester habillé comme le reste du site).
   useEffect(() => {
     document.body.classList.add('corps-back-office');
     return () => document.body.classList.remove('corps-back-office');
@@ -87,27 +98,37 @@ export default function Connexion() {
   };
 
   return (
-    <main className="page-connexion">
-      {/* Rappel du compte déjà connecté — seulement une fois la session résolue et non vide,
-          jamais pendant le chargement (évite un flash "Connecté en tant que..." qui disparaîtrait
-          aussitôt sur une simple visite non connectée de /connexion, cas le plus fréquent). */}
-      {!chargementSession && utilisateurActuel && (
-        <p className="connexion__session-active" role="status">
-          Connecté(e) en tant que {utilisateurActuel.prenom} {utilisateurActuel.nom}
-          {cibleRedirection && !roleCorrespondACible && ' — ce compte ne semble pas avoir accès à la page demandée.'}{' '}
-          Pour changer de compte, connectez-vous ci-dessous, ou{' '}
-          <button type="button" onClick={gererDeconnexion} disabled={deconnexionEnCours}>
-            {deconnexionEnCours ? 'Déconnexion...' : 'déconnectez-vous'}
-          </button>
-          .
-        </p>
-      )}
+    // .page-back-office/.page-back-office__contenu réutilisées telles quelles (voir l'import de
+    // PageBackOffice.css plus haut) : même bandeau fixe + pied de page collé en bas que le reste
+    // du site, sans monter PageBackOffice.jsx lui-même (voir son commentaire d'en-tête).
+    <main className="page-back-office page-connexion">
+      <EnTeteAccecit />
 
-      <LoginForm
-        onConnexionReussie={(utilisateur) =>
-          navigate(cibleRedirection || (DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT))
-        }
-      />
+      <div className="page-back-office__contenu page-connexion__contenu">
+        {/* Rappel du compte déjà connecté — seulement une fois la session résolue et non vide,
+            jamais pendant le chargement (évite un flash "Connecté en tant que..." qui
+            disparaîtrait aussitôt sur une simple visite non connectée de /connexion, cas le plus
+            fréquent). */}
+        {!chargementSession && utilisateurActuel && (
+          <p className="connexion__session-active" role="status">
+            Connecté(e) en tant que {utilisateurActuel.prenom} {utilisateurActuel.nom}
+            {cibleRedirection && !roleCorrespondACible && ' — ce compte ne semble pas avoir accès à la page demandée.'}{' '}
+            Pour changer de compte, connectez-vous ci-dessous, ou{' '}
+            <button type="button" onClick={gererDeconnexion} disabled={deconnexionEnCours}>
+              {deconnexionEnCours ? 'Déconnexion...' : 'déconnectez-vous'}
+            </button>
+            .
+          </p>
+        )}
+
+        <LoginForm
+          onConnexionReussie={(utilisateur) =>
+            navigate(cibleRedirection || (DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT))
+          }
+        />
+      </div>
+
+      <PiedDePageAccecit />
     </main>
   );
 }

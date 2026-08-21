@@ -1,14 +1,16 @@
-/* Page de connexion sans habillage PageBackOffice (ni bandeau/logos, ni pied de page, ni barre de
-   navigation) — voir Connexion.jsx : avant d'être connecté, rien ne doit être visible à part le
-   formulaire. min-height: 100vh + centrage vertical reprennent juste assez de
-   PageBackOffice.css pour que la carte du formulaire (LoginForm.css, qui se centre déjà
-   elle-même via margin: auto) ne se retrouve pas plaquée en haut d'un écran vide. */
-.page-connexion {
+/* Page de connexion habillée comme le reste du site (audit 2026-08-21, demande utilisateur) —
+   bandeau ACCECIT (EnTeteAccecit) + pied de page (PiedDePageAccecit) + fond back-office, mêmes
+   composants et classes de mise en page que PageBackOffice.jsx (voir l'import de
+   PageBackOffice.css et le commentaire d'en-tête de Connexion.jsx), sans BarreNavigation ni
+   BoutonNouvelleInscription (tous deux dépendants d'une session active, sans objet avant
+   connexion). .page-back-office/.page-back-office__contenu (PageBackOffice.css) posent déjà la
+   géométrie commune (bandeau fixe, pied de page collé en bas via flex) — la seule règle propre à
+   cet écran est le centrage vertical de la carte de connexion ci-dessous : les autres pages
+   back-office empilent leur contenu depuis le haut, pas de centrage vertical là-bas. */
+.page-connexion__contenu {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 100vh;
-  box-sizing: border-box;
 }
 
 /* Rappel de session déjà active (voir Connexion.jsx) — même largeur que .login-form

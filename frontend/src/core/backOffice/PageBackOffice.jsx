@@ -2,26 +2,9 @@ import { useEffect } from 'react';
 import FiligraneFormulaire from '../../pages/accueil/FiligraneFormulaire';
 import BoutonNouvelleInscription from './BoutonNouvelleInscription';
 import BarreNavigation from './BarreNavigation';
-import logoAccecit from '../../assets/logo-accecit-blanc.png';
-import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
-import iconeAccecitTertiaire from '../../assets/icone-accecit-tertiaire.png';
+import EnTeteAccecit from './EnTeteAccecit';
+import PiedDePageAccecit from './PiedDePageAccecit';
 import './PageBackOffice.css';
-
-// Reprend la disposition du logo officiel des sous-marques (icône à gauche, nom "ACCECIT" en
-// lettres espacées, séparateur fin, sous-nom en dessous) — identique à celle du formulaire
-// candidat (InscriptionTablette.jsx), dupliquée ici plutôt que partagée : voir le commentaire
-// d'en-tête de ce fichier pour le choix de ne pas factoriser ces deux habillages ensemble.
-function LogoSousMarque({ icone, nom }) {
-  return (
-    <div className="page-back-office__logo-marque">
-      <img className="page-back-office__logo-marque-icone" src={icone} alt="" />
-      <div className="page-back-office__logo-marque-texte">
-        <span className="page-back-office__logo-marque-nom">ACCECIT</span>
-        <span className="page-back-office__logo-marque-sous-nom">{nom}</span>
-      </div>
-    </div>
-  );
-}
 
 // Habillage commun aux pages back-office (accueil/coordination, recruteur, formateur, admin) :
 // même langage visuel que le formulaire d'inscription candidat (en-tête sticky dégradé, filigrane
@@ -39,6 +22,12 @@ function LogoSousMarque({ icone, nom }) {
 // déjà générique (ne connaît aucun contexte candidat), pilote sa position via --hauteur-entete que
 // ce composant définit aussi (voir CSS) — rien à différencier pour un filigrane qui se contente de
 // répéter le logo, sans dégradé de couleur associé.
+//
+// EnTeteAccecit.jsx/PiedDePageAccecit.jsx (extraits d'ici, audit 2026-08-21) : bandeau et pied de
+// page seuls, sans BarreNavigation/BoutonNouvelleInscription (tous deux dépendants d'une session
+// active) — réutilisés tels quels par Connexion.jsx, seul autre écran qui a besoin de cette même
+// teinte back-office sans le reste de cet habillage (avant toute connexion, une barre de
+// navigation par rôle ou un bouton "Nouvelle inscription" n'auraient pas de sens).
 //
 // `children` : contenu de la page (même patron que .page-inscription-tablette__contenu côté
 // candidat) — ce composant ne connaît aucun titre ni contenu propre à une page back-office
@@ -62,19 +51,7 @@ export default function PageBackOffice({ children }) {
           BoutonNouvelleInscription.jsx) — monté ici une seule fois pour les 9 pages back-office
           plutôt que dupliqué dans chacune. */}
       <BoutonNouvelleInscription />
-      <header className="page-back-office__entete">
-        <div className="page-back-office__entete-contenu">
-          <img
-            className="page-back-office__logo"
-            src={logoAccecit}
-            alt="ACCECIT - Nettoyage à visage humain"
-          />
-          <div className="page-back-office__logos-marques">
-            <LogoSousMarque icone={iconeAccecitHotellerie} nom="Hôtellerie" />
-            <LogoSousMarque icone={iconeAccecitTertiaire} nom="Tertiaire" />
-          </div>
-        </div>
-      </header>
+      <EnTeteAccecit />
 
       <div className="page-back-office__contenu">
         {/* Barre de navigation commune (Dossiers candidats/Suivi des tests/Back-office recruteur/
@@ -85,16 +62,7 @@ export default function PageBackOffice({ children }) {
         {children}
       </div>
 
-      <footer className="page-back-office__pied-de-page">
-        <div className="page-back-office__pied-de-page-contenu">
-          <img className="page-back-office__pied-de-page-logo" src={logoAccecit} alt="ACCECIT" />
-          <p className="page-back-office__copyright">© 2026 ACCECIT</p>
-          <div className="page-back-office__coordonnees">
-            <p className="page-back-office__contact">01 56 56 69 56</p>
-            <p className="page-back-office__contact">47 avenue Paul Vaillant Couturier, 94250 Gentilly</p>
-          </div>
-        </div>
-      </footer>
+      <PiedDePageAccecit />
     </main>
   );
 }
