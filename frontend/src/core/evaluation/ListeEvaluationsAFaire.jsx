@@ -20,7 +20,9 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 // En pratique toujours 'prevu'/'confirme' ici (voir backend evaluationRepository.
 // listerRendezvousAEvaluer, whereIn) : mapping complet gardé malgré tout, pour rester cohérent
 // avec les autres pages si ce filtre serveur venait à changer.
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Absent', annule: 'Annulé' };
+// 'absent' affiché "Manqué" (pas "Absent") — audit 2026-08-20, cohérent avec Planification.jsx/
+// GestionRendezvous.jsx (même correctif, affichage seul).
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Manqué', annule: 'Annulé' };
 function varianteStatutRendezvous(statut) {
   return statut === 'confirme' ? 'succes' : 'attente';
 }

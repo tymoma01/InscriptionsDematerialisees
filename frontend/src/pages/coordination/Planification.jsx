@@ -33,7 +33,10 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // neutre mais bien lisible, distinct des badges colorés actifs (Prévu/Annulé...) — même variante
 // reprise sur GestionRendezvous.jsx pour rester cohérent entre les deux endroits où ce badge
 // apparaît.
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Absent', annule: 'Annulé', remplace: 'Remplacé' };
+// 'absent' affiché "Manqué" (pas "Absent") — audit 2026-08-20, cohérent avec GestionRendezvous.jsx
+// (fiche dossier, même correctif) : purement l'affichage, aucun changement de la valeur en base ni
+// de la couleur du badge (variante 'echec' inchangée, voir varianteStatutRendezvous ci-dessous).
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Manqué', annule: 'Annulé', remplace: 'Remplacé' };
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';

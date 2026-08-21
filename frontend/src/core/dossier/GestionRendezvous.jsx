@@ -17,10 +17,11 @@ const FORMAT_JOUR_MOIS = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', mont
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 const FORMAT_DATE_SEULE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Statuts constituant un désistement (voir backend rendezvousService.js, STATUTS_DESISTEMENT) :
-// un motif est obligatoire pour ces deux-là, jamais pour 'confirme'.
-const STATUTS_DESISTEMENT = ['absent', 'annule'];
-
+// Un motif est obligatoire pour 'absent'/'annule' (voir backend rendezvousService.js,
+// STATUTS_DESISTEMENT), jamais pour 'confirme' — mais les deux divergent désormais en couleur
+// (voir varianteStatutRendezvous ci-dessous, audit 2026-08-20) : une annulation s'annonce à
+// l'avance (couleur neutre), une absence est un incident constaté après coup (reste 'echec').
+//
 // 'remplace' (posé automatiquement par neutraliserRendezvousActifsDossier lors d'une
 // replanification, jamais choisi par un agent — voir rendezvousRepository.js) retombait
 // jusqu'ici sur la variante par défaut 'attente', indiscernable visuellement d'un rendez-vous
@@ -28,7 +29,10 @@ const STATUTS_DESISTEMENT = ['absent', 'annule'];
 // cohérent avec son statut de simple historique, jamais l'état à mettre en avant. Variante
 // 'neutre-fort' (pas le simple 'neutre', jugé trop discret — audit 2026-08-20) : gris moyen/texte
 // foncé, neutre mais bien lisible ; même variante reprise sur Planification.jsx (Suivi des tests)
-// pour rester cohérent entre les deux endroits où ce badge apparaît.
+// pour rester cohérent entre les deux endroits où ce badge apparaît. 'annule' reprend la même
+// variante (audit 2026-08-20) : les libellés distincts ("Annulé" vs "Remplacé", voir
+// LIBELLES_STATUT plus bas) suffisent à les distinguer, pas besoin d'une troisième teinte neutre.
+//
 // 'honore' (audit 2026-08-20, dossiers #89/#91/#85/#74/#69, posé par evaluationEngine.
 // enregistrerEvaluation) : 'vert-clair', pas 'succes' comme 'confirme' — même famille positive,
 // mais visuellement distinct pour ne pas confondre une présence confirmée À L'AVANCE avec un test
@@ -38,14 +42,16 @@ const STATUTS_DESISTEMENT = ['absent', 'annule'];
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
   if (statut === 'honore') return 'vert-clair';
-  if (STATUTS_DESISTEMENT.includes(statut)) return 'echec';
-  if (statut === 'remplace') return 'neutre-fort';
+  if (statut === 'absent') return 'echec';
+  if (statut === 'annule' || statut === 'remplace') return 'neutre-fort';
   return 'attente';
 }
 
-// 'absent' affiché "Manqué" (pas "Absent") — audit 2026-08-20, dossier #86 : même couleur
-// (varianteStatutRendezvous inchangée), seul le libellé change, cohérent avec le nouveau titre
-// "Non réalisé" (voir libelleTitre plus bas) qui remplace "Test" pour ce même statut.
+// Source UNIQUE pour le titre (.gestion-rendezvous__type) ET le badge de statut — audit
+// 2026-08-20 : titre et badge affichaient auparavant deux libellés distincts pour 'absent' ("Non
+// réalisé" vs "Manqué"), incohérence repérée en comparant avec 'honore' (déjà identique des deux
+// côtés, "Réalisé"/"Réalisé"). Un seul dictionnaire désormais, lu aux deux endroits (voir plus
+// bas) : titre et badge ne peuvent plus diverger, quel que soit le statut.
 const LIBELLES_STATUT = {
   prevu: 'Prévu',
   confirme: 'Confirmé',
@@ -55,23 +61,9 @@ const LIBELLES_STATUT = {
   honore: 'Réalisé',
 };
 
-// Titre affiché avant le badge de statut (voir .gestion-rendezvous__type ci-dessous) — "Non
-// réalisé" plutôt que le type_rdv brut ('test', mis en forme "Test" par text-transform:
-// capitalize) une fois l'absence constatée : le rendez-vous n'est alors plus décrit comme "Test"
-// mais par son issue, cohérent avec "Réalisé" déjà utilisé pour 'honore' (voir LIBELLES_STATUT) —
-// audit 2026-08-20, dossier #86. Tous les autres statuts (prevu/confirme/honore/annule/remplace)
-// gardent le type_rdv brut inchangé.
-function libelleTitre(rdv) {
-  if (rdv.statut === 'absent') return 'Non réalisé';
-  // Capitalisation posée ici plutôt que par CSS (l'ancien text-transform: capitalize de
-  // .gestion-rendezvous__type est retiré, voir GestionRendezvous.css) : ce transform aurait aussi
-  // capitalisé "réalisé" dans "Non réalisé" ci-dessus ("Non Réalisé"), ne correspondant plus à la
-  // maquette (audit 2026-08-20, dossier #86).
-  return rdv.type_rdv.charAt(0).toUpperCase() + rdv.type_rdv.slice(1);
-}
-
-// "Test non réalisé" est désormais porté par le titre ci-dessus (libelleTitre) pour un rendez-vous
-// 'absent' — le motif affiché à côté ne doit plus le répéter (audit 2026-08-20, dossier #86) :
+// "Test non réalisé" est désormais porté par le titre/badge "Manqué" ci-dessus (LIBELLES_STATUT)
+// pour un rendez-vous 'absent' — le motif affiché à côté ne doit plus le répéter (audit
+// 2026-08-20, dossier #86) :
 // préfixe retiré s'il est présent (motif dédié "test_non_realise", scripts/
 // seedMotifsDesistement.js), laissé tel quel sinon (les autres motifs de désistement — "Ne répond
 // plus", "Finalement indisponible"... — n'ont jamais porté ce préfixe).
@@ -260,7 +252,7 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
 
                 <div className="gestion-rendezvous__contenu">
                   <div className="gestion-rendezvous__ligne">
-                    <span className="gestion-rendezvous__type">{libelleTitre(rdv)}</span>
+                    <span className="gestion-rendezvous__type">{LIBELLES_STATUT[rdv.statut] ?? rdv.statut}</span>
                     <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
                     {rdv.motif_libelle && (
                       <span className="gestion-rendezvous__motif">Motif : {libelleMotifAffiche(rdv.motif_libelle)}</span>
