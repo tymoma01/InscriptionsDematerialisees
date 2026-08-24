@@ -764,8 +764,21 @@ export default function Indicateurs() {
                 graphiques s'adapter. En dessous d'un certain seuil (Indicateurs.css, @media), les
                 deux colonnes s'empilent — le panneau repasse en pleine largeur SOUS le contenu
                 principal, comportement identique à avant cette réorganisation, jamais de
-                débordement horizontal forcé. */}
-            <div className="indicateurs__disposition">
+                débordement horizontal forcé. Classe --panneau-elargi (audit 2026-08-24, correctif
+                largeur du mode agrandi) posée ici, sur ce conteneur grid, et pas seulement sur
+                .indicateurs__panneau-lateral : grid-template-columns se lit sur le PARENT grid,
+                jamais sur l'enfant (voir Indicateurs.css) — le panneau seul ne peut pas s'élargir
+                au-delà de la colonne que ce conteneur lui accorde. Conditionnée aussi à
+                selectionIndicateurs.size > 0 (pas seulement à panneauElargi) : sans ce garde-fou,
+                effacer la sélection après avoir agrandi le panneau laisserait ce conteneur alloué à
+                90%/10% pour une deuxième colonne devenue vide (l'aside ne se re-render plus du
+                tout, voir plus bas), compressant les graphiques sans aucun panneau visible pour le
+                justifier. */}
+            <div
+              className={`indicateurs__disposition${
+                panneauElargi && selectionIndicateurs.size > 0 ? ' indicateurs__disposition--panneau-elargi' : ''
+              }`}
+            >
             <div className="indicateurs__contenu-principal">
             <ErrorBoundary titre="Indicateurs (tuiles)">
             <div className="indicateurs__tuiles">
