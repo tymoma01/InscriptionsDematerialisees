@@ -40,21 +40,33 @@ export default function FiltresStatut({
 }) {
   return (
     <nav className="filtres-statut" aria-label={ariaLabel}>
-      <div className="filtres-statut__tous">
-        <button
-          type="button"
-          className={statutFiltre === null ? 'actif' : ''}
-          onClick={() => onChangerStatutFiltre(null)}
-        >
-          Tous{compteurTous != null ? <strong> ({compteurTous})</strong> : ''}
-        </button>
+      {/* Regroupe "Tous" et filtresSupplementaires dans un même bloc, distinct de la boîte de
+          statuts (voir .filtres-statut__gauche, FiltresStatut.css) — permet à une page appelante
+          de disposer ce bloc autrement (ex. empilé en colonne de largeur fixe,
+          TableauDeBordAccueil.css) sans que ce composant générique n'ait à connaître sa mise en
+          page cible. */}
+      <div className="filtres-statut__gauche">
+        <div className="filtres-statut__tous">
+          <button
+            type="button"
+            className={statutFiltre === null ? 'actif' : ''}
+            onClick={() => onChangerStatutFiltre(null)}
+          >
+            Tous{compteurTous != null ? <strong> ({compteurTous})</strong> : ''}
+          </button>
+        </div>
+        {filtresSupplementaires}
       </div>
-      {filtresSupplementaires}
       <div className="filtres-statut__statuts">
         {statuts.map((statut) => (
           <button
             key={statut.code}
             type="button"
+            // data-statut : accroche de style optionnelle pour une page appelante (ex. teinte de
+            // fond par statut, TableauDeBordAccueil.css) sans dupliquer statut.code dans une classe
+            // CSS — ce composant générique reste lui-même sans opinion sur ce que "code" représente
+            // (voir en-tête de fichier : réutilisé aussi pour rôle/statut de compte).
+            data-statut={statut.code}
             className={statutFiltre === statut.code ? 'actif' : ''}
             onClick={() => onChangerStatutFiltre(statut.code)}
           >

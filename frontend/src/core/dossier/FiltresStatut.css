@@ -12,6 +12,18 @@
   margin-bottom: var(--espace-moyen);
 }
 
+/* Bloc "Tous" + filtresSupplementaires (ex. Hôtellerie/Tertiaire) — en rangée par défaut, comme
+   avant l'introduction de ce wrapper (comportement historique inchangé pour Utilisateurs.jsx, qui
+   ne passe pas filtresSupplementaires). Une page appelante peut le disposer autrement en ciblant
+   cette classe depuis son propre CSS (ex. colonne de largeur fixe, TableauDeBordAccueil.css) sans
+   modifier ce fichier générique. */
+.filtres-statut__gauche {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
 .filtres-statut__tous {
   display: flex;
   flex-shrink: 0;
