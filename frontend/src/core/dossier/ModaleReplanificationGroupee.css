@@ -1,0 +1,144 @@
+/* Fond semi-opaque plein écran (même patron que les autres modales du projet, voir
+   PanneauHistoriqueRendezvous.css) — au-dessus de la barre d'actions groupées elle-même sticky
+   (voir TableauDeBordAccueil.css). */
+.modale-replanification-groupee__fond {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-replanification-groupee {
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 52rem;
+  padding: var(--espace-grand);
+}
+
+.modale-replanification-groupee__entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+}
+
+.modale-replanification-groupee__entete h2 {
+  margin: 0;
+}
+
+.modale-replanification-groupee__entete span {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--couleur-texte-secondaire);
+}
+
+.modale-replanification-groupee__lignes {
+  list-style: none;
+  margin: 0 0 var(--espace-moyen);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-replanification-groupee__ligne {
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-moyen);
+}
+
+.modale-replanification-groupee__ligne-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+}
+
+.modale-replanification-groupee__ligne-titre {
+  font-weight: 600;
+}
+
+.modale-replanification-groupee__succes {
+  color: var(--couleur-succes);
+}
+
+.modale-replanification-groupee__echec {
+  color: var(--couleur-erreur);
+}
+
+.modale-replanification-groupee__champs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--espace-petit) var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
+.modale-replanification-groupee__champs label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.modale-replanification-groupee__heure {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.modale-replanification-groupee__postes {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--espace-petit);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+}
+
+.modale-replanification-groupee__postes legend {
+  font-size: 0.85rem;
+  color: var(--couleur-texte-secondaire);
+  padding: 0;
+  margin-bottom: 0.25rem;
+}
+
+.modale-replanification-groupee__postes label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.modale-replanification-groupee__note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.modale-replanification-groupee__resume-succes {
+  color: var(--couleur-succes);
+  font-weight: 600;
+}
+
+.modale-replanification-groupee__resume-echec {
+  color: var(--couleur-erreur);
+  font-weight: 600;
+}
+
+.modale-replanification-groupee__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+  margin-top: var(--espace-moyen);
+}

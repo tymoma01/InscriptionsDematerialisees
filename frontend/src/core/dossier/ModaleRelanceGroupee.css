@@ -1,0 +1,106 @@
+/* Même patron que ModaleReplanificationGroupee.css (fond plein écran, carte centrée) — dupliqué
+   plutôt que partagé (voir CLAUDE.md, conventions du projet), les deux modales restant assez
+   différentes dans le détail pour ne pas justifier un composant de mise en page commun. */
+.modale-relance-groupee__fond {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-relance-groupee {
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 32rem;
+  padding: var(--espace-grand);
+}
+
+.modale-relance-groupee__entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+}
+
+.modale-relance-groupee__entete h2 {
+  margin: 0;
+}
+
+.modale-relance-groupee__entete span {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--couleur-texte-secondaire);
+}
+
+.modale-relance-groupee__formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-relance-groupee__formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.modale-relance-groupee__candidats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.modale-relance-groupee__candidats li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-petit);
+  padding: 0.5rem var(--espace-moyen);
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.modale-relance-groupee__candidats li:last-child {
+  border-bottom: none;
+}
+
+.modale-relance-groupee__succes {
+  color: var(--couleur-succes);
+}
+
+.modale-relance-groupee__echec {
+  color: var(--couleur-erreur);
+}
+
+.modale-relance-groupee__indication-envoi {
+  margin: 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+}
+
+.modale-relance-groupee__resume-succes {
+  color: var(--couleur-succes);
+  font-weight: 600;
+}
+
+.modale-relance-groupee__resume-echec {
+  color: var(--couleur-erreur);
+  font-weight: 600;
+}
+
+.modale-relance-groupee__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+}

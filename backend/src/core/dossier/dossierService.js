@@ -455,6 +455,13 @@ async function listerStatuts(entite) {
   return dossierRepository.listerStatuts(bd, entite.id);
 }
 
+// Actions groupées "Dossiers candidats" (audit 2026-08-24) — voir dossierRepository.
+// listerResumesParIds pour le choix de cette requête légère plutôt que listerDossiersParIds.
+async function listerResumesParIds(entite, dossierIds) {
+  const bd = await obtenirKnex();
+  return dossierRepository.listerResumesParIds(bd, entite.id, dossierIds);
+}
+
 // Rafraîchissement automatique du back-office par polling (audit 2026-08-24) — voir le
 // commentaire de dossierRepository.obtenirDerniereModification pour le choix de journal_audit
 // comme signal unique. null (aucune ligne journal_audit pour cette entité, cas théorique — une
@@ -697,6 +704,7 @@ module.exports = {
   verifierDisponibilite,
   listerDossiers,
   listerStatuts,
+  listerResumesParIds,
   obtenirDerniereModification,
   obtenirDossier,
   obtenirInscriptionComplete,

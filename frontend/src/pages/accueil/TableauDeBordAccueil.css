@@ -141,3 +141,51 @@
     width: 100%;
   }
 }
+
+/* Barre d'actions groupées (audit 2026-08-24, sélection multiple sur "Dossiers candidats") —
+   sticky juste sous BarreNavigation (même calc que .page-verification-pieces__entete,
+   VerificationPieces.css : rien d'autre n'est sticky au-dessus d'elle sur cette page) : reste
+   visible pendant que l'agent défile la liste de dossiers pour continuer à cocher des candidats,
+   plutôt que de disparaître dès que la barre de filtres défile hors champ. Teinte back-office
+   (dégradé brun/doré, voir --couleur-back-office/-dore) plutôt qu'un fond neutre : cohérent avec
+   .dossier-list__action--accent (DossierList.css), même idiome "action back-office qui agit sur
+   plusieurs dossiers à la fois" que "Étudier le dossier". */
+.tableau-bord-accueil__actions-groupees {
+  position: sticky;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+  padding: var(--espace-petit) var(--espace-moyen);
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-back-office), var(--couleur-back-office-dore));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.tableau-bord-accueil__actions-groupees-compteur {
+  color: #ffffff;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+/* Bouton ET lien ("Export des pièces" est un <a href download>, voir TableauDeBordAccueil.jsx) —
+   même classe pour les deux, un lien de téléchargement n'a pas à se distinguer visuellement des
+   deux boutons voisins qui ouvrent une modale. */
+.tableau-bord-accueil__bouton-action-groupee {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background-color: #ffffff;
+  color: var(--couleur-back-office);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.tableau-bord-accueil__bouton-action-groupee:hover,
+.tableau-bord-accueil__bouton-action-groupee:focus-visible {
+  filter: brightness(0.95);
+}

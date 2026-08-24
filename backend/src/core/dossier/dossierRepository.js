@@ -257,6 +257,25 @@ function listerStatuts(bd, entiteId) {
   return bd('statuts').where({ entite_id: entiteId }).orderBy('ordre', 'asc');
 }
 
+// Résumé minimal (id + nom/prénom candidat) pour une liste de dossiers, scopé à l'entité — sert
+// à nommer les sous-dossiers de l'archive ZIP groupée (audit 2026-08-24, actions groupées "Dossiers
+// candidats", voir dossiers.routes.js GET /pieces/export-zip-groupe) : contrairement à
+// listerDossiersParIds (statistiques KPI, nombreuses jointures pour les indicateurs), ce module n'a
+// besoin d'aucune autre colonne — requête volontairement séparée plutôt que de réutiliser cette
+// fonction plus lourde pour un simple besoin d'affichage de nom. whereIn('dossiers.entite_id', ...)
+// jamais utilisé seul comme filtre IDOR : entite_id fait partie du WHERE composite ci-dessous, un
+// dossierId d'une autre entité est donc silencieusement absent du résultat plutôt que de lever une
+// erreur — à l'appelant de constater l'absence (voir la route, qui traite un id manquant comme un
+// échec par dossier, pas un blocage de tout l'export).
+function listerResumesParIds(bd, entiteId, dossierIds) {
+  if (dossierIds.length === 0) return Promise.resolve([]);
+  return bd('dossiers')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .where('dossiers.entite_id', entiteId)
+    .whereIn('dossiers.id', dossierIds)
+    .select('dossiers.id', 'candidats.nom as candidat_nom', 'candidats.prenom as candidat_prenom');
+}
+
 // Rafraîchissement automatique du back-office par polling (audit 2026-08-24) : `journal_audit`
 // est déjà écrit par la quasi-totalité des points de mutation du parcours dossier (transitions,
 // rendez-vous, pièces, notes, et désormais la création — voir candidats.routes.js), MAX(date_action)
@@ -498,5 +517,6 @@ module.exports = {
   listerDossiers,
   listerDossiersParIds,
   listerStatuts,
+  listerResumesParIds,
   obtenirDerniereModification,
 };

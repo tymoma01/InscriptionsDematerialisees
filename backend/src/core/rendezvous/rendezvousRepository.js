@@ -103,6 +103,14 @@ function listerRendezvousParDossier(bd, dossierId) {
       'rendezvous.date_heure',
       'rendezvous.statut',
       'rendezvous.note_planification',
+      // formateur_id/lieu_id/postes_selectionnes (audit 2026-08-24, préremplissage de la
+      // replanification groupée depuis "Dossiers candidats") — absents jusqu'ici de ce select
+      // (aucun consommateur n'en avait besoin), ajoutés en pur ajout de colonnes : aucun appelant
+      // existant (GestionRendezvous.jsx, Tests.jsx) ne casse en recevant des clés en plus qu'il
+      // n'utilise pas.
+      'rendezvous.formateur_id',
+      'rendezvous.lieu_id',
+      'rendezvous.postes_selectionnes',
       'motifs.code as motif_code',
       'motifs.libelle as motif_libelle',
       'agent_planificateur.prenom as planifie_par_prenom',

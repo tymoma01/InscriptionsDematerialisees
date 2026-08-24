@@ -65,7 +65,26 @@ const COLONNES = [
 // ferait un aller-retour réseau pour un travail que le navigateur fait déjà instantanément sur
 // quelques dizaines/centaines de lignes. Défaut = dernière mise à jour décroissante (comportement
 // historique du composant), préservé tant qu'aucun en-tête n'a été cliqué.
-export default function DossierList({ dossiers, varianteStatut, libellePoste, actions = [] }) {
+// `dossiersSelectionnes`/`onTogglerSelectionDossier`/`toutSelectionne`/`onTogglerSelectionnerTout`
+// (sélection multiple + actions groupées, audit 2026-08-24) : optionnels comme `actions` ci-dessus
+// — sans `dossiersSelectionnes` fourni (undefined), aucune colonne de case à cocher ne se rend,
+// comportement inchangé pour un futur appelant qui n'en aurait pas besoin. Calculs (quels ids sont
+// "visibles" pour la case "tout sélectionner", quel Set contient quoi) laissés à l'appelant
+// (TableauDeBordAccueil.jsx) plutôt que recalculés ici : ce composant trie déjà `dossiers` en
+// interne (dossiersTries) mais ne le FILTRE jamais lui-même, donc "tout ce qui est affiché" reste
+// littéralement le tableau `dossiers` reçu — pas de logique de filtrage supplémentaire à dupliquer
+// ici, même principe que `actions`/`varianteStatut` déjà externalisés.
+export default function DossierList({
+  dossiers,
+  varianteStatut,
+  libellePoste,
+  actions = [],
+  dossiersSelectionnes,
+  onTogglerSelectionDossier,
+  toutSelectionne = false,
+  onTogglerSelectionnerTout,
+}) {
+  const selectionActive = dossiersSelectionnes != null;
   const [tri, setTri] = useState({ colonne: 'date_maj', ordre: 'desc' });
 
   const dossiersTries = useMemo(() => {
@@ -103,9 +122,28 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
     // conteneur, dépasser cette largeur pousserait toute la page en scroll horizontal sur un
     // écran étroit (tablette en portrait), pas seulement le tableau.
     <div className="dossier-list__scroll">
-      <table className="dossier-list">
+      {/* --dossier-list-largeur-colonne-case ramenée à 0 quand la sélection ne se rend pas
+          (selectionActive false) : cette variable pilote aussi le décalage (`left`) en cascade de
+          "N°"/"Candidat" (voir DossierList.css) — sans ce recalage, ces deux colonnes figées
+          garderaient un vide à gauche correspondant à la largeur de la case à cocher absente,
+          même mécanisme exact que Planification.css/--planification-largeur-colonne-case. */}
+      <table className="dossier-list" style={selectionActive ? undefined : { '--dossier-list-largeur-colonne-case': '0rem' }}>
         <thead>
           <tr>
+            {/* Sélection multiple (barre d'actions groupées, TableauDeBordAccueil.jsx) — même
+                pattern que Planification.jsx (Suivi des tests) : case "tout sélectionner" dans
+                l'en-tête, première colonne figée au défilement horizontal (voir DossierList.css,
+                --dossier-list-largeur-colonne-case décale désormais "N°"/"Candidat"). */}
+            {selectionActive && (
+              <th scope="col" className="dossier-list__colonne-case">
+                <input
+                  type="checkbox"
+                  checked={toutSelectionne}
+                  onChange={onTogglerSelectionnerTout}
+                  aria-label="Tout sélectionner"
+                />
+              </th>
+            )}
             {/* N° de dossier = dossier.id, identifiant métier déjà utilisé partout ailleurs dans
                 l'app (en-tête "Dossier #id" de Validation.jsx/Relances.jsx/VerificationPieces.jsx,
                 colonne "N° dossier" de TableauDossiersSelectionnes.jsx) — plus un simple rang
@@ -143,6 +181,16 @@ export default function DossierList({ dossiers, varianteStatut, libellePoste, ac
         <tbody>
           {dossiersTries.map((dossier) => (
             <tr key={dossier.id}>
+              {selectionActive && (
+                <td className="dossier-list__colonne-case">
+                  <input
+                    type="checkbox"
+                    checked={dossiersSelectionnes.has(dossier.id)}
+                    onChange={() => onTogglerSelectionDossier(dossier.id)}
+                    aria-label={`Sélectionner ${dossier.candidat_prenom} ${dossier.candidat_nom}`}
+                  />
+                </td>
+              )}
               <td className="dossier-list__colonne-numero">{dossier.id}</td>
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}

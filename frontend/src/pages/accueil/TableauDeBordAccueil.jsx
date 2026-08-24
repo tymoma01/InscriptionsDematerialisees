@@ -10,7 +10,15 @@ import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
+import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
+import api from '../../services/api';
 import './TableauDeBordAccueil.css';
+
+// Actions groupées (audit 2026-08-24, "Dossiers candidats") : la barre apparaît à partir de 2
+// candidats sélectionnés — en dessous, chaque action reste accessible individuellement depuis la
+// fiche dossier (Validation.jsx), une sélection groupée n'apporte rien pour un seul candidat.
+const SEUIL_SELECTION_ACTIONS_GROUPEES = 2;
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
@@ -228,6 +236,64 @@ export default function TableauDeBordAccueil() {
     return dossiersFiltresSansStatut.filter((dossier) => codes.includes(dossier.statut_code));
   }, [dossiersFiltresSansStatut, statutFiltre]);
 
+  // Sélection multiple + actions groupées (audit 2026-08-24) — même patron que Planification.jsx
+  // (Suivi des tests) : un Set d'ids, jamais réinitialisé au changement de filtre/recherche (une
+  // sélection faite sous un filtre reste valable si l'agent élargit/change ensuite le filtre,
+  // même choix que dossiersSelectionnes là-bas). `dossierIdsVisibles` = dossiersFiltres actuel :
+  // DossierList.jsx ne fait que TRIER ce qu'on lui donne (jamais filtrer, voir son commentaire
+  // d'en-tête), "tout ce qui est affiché" est donc exactement dossiersFiltres, sans recalcul côté
+  // enfant.
+  const [dossiersSelectionnes, setDossiersSelectionnes] = useState(new Set());
+  const dossierIdsVisibles = useMemo(() => dossiersFiltres.map((dossier) => dossier.id), [dossiersFiltres]);
+  const tousVisiblesSelectionnes =
+    dossierIdsVisibles.length > 0 && dossierIdsVisibles.every((id) => dossiersSelectionnes.has(id));
+
+  const togglerSelectionDossier = (dossierId) => {
+    setDossiersSelectionnes((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(dossierId)) suivant.delete(dossierId);
+      else suivant.add(dossierId);
+      return suivant;
+    });
+  };
+
+  const togglerSelectionnerTout = () => {
+    setDossiersSelectionnes((precedent) => {
+      const suivant = new Set(precedent);
+      if (tousVisiblesSelectionnes) {
+        dossierIdsVisibles.forEach((id) => suivant.delete(id));
+      } else {
+        dossierIdsVisibles.forEach((id) => suivant.add(id));
+      }
+      return suivant;
+    });
+  };
+
+  // Objets complets (pas seulement les ids) des dossiers sélectionnés — lus depuis `dossiers`
+  // (liste complète déjà en mémoire, voir plus haut), pas `dossiersFiltres` : une sélection reste
+  // exploitable par les modales même si l'agent modifie ensuite le filtre/la recherche pendant
+  // qu'une sélection est déjà faite (voir commentaire ci-dessus). Sert aux deux modales groupées
+  // ci-dessous (nom du candidat affiché par ligne, postesBureau/postesHotel pour la
+  // replanification).
+  const dossiersSelectionnesObjets = useMemo(
+    () => dossiers.filter((dossier) => dossiersSelectionnes.has(dossier.id)),
+    [dossiers, dossiersSelectionnes],
+  );
+
+  // Modale ouverte pour les actions groupées "Relances"/"Replanifier des tests" — 'relance' |
+  // 'replanification' | null. "Export des pièces" n'en a pas besoin (lien de téléchargement direct,
+  // voir plus bas) : c'est la seule des trois actions qui ne demande aucune saisie supplémentaire
+  // à l'agent avant de s'exécuter.
+  const [modaleGroupeeOuverte, setModaleGroupeeOuverte] = useState(null);
+
+  // Vide la sélection et ferme la modale — appelé quand une modale groupée se termine avec succès
+  // (voir onTermine des deux modales) : l'agent revient sur une liste "propre", cohérente avec le
+  // comportement d'une action individuelle réussie (retour à l'écran précédent).
+  const terminerActionGroupee = () => {
+    setModaleGroupeeOuverte(null);
+    setDossiersSelectionnes(new Set());
+  };
+
   const compteursParStatut = useMemo(() => {
     const compte = {};
     dossiersFiltresSansStatut.forEach((dossier) => {
@@ -349,6 +415,47 @@ export default function TableauDeBordAccueil() {
           }
         />
 
+        {/* Barre d'actions groupées (audit 2026-08-24) — sticky en haut de la zone de contenu
+            (voir TableauDeBordAccueil.css) : reste visible pendant que l'agent défile la liste
+            pour continuer à cocher des candidats, plutôt que de disparaître dès que la barre de
+            filtres/le premier écran de lignes défile hors champ. Seuil à
+            SEUIL_SELECTION_ACTIONS_GROUPEES (2) : en dessous, chaque action reste accessible
+            individuellement depuis la fiche dossier (Validation.jsx). */}
+        {dossiersSelectionnes.size >= SEUIL_SELECTION_ACTIONS_GROUPEES && (
+          <div className="tableau-bord-accueil__actions-groupees" role="toolbar" aria-label="Actions groupées">
+            <span className="tableau-bord-accueil__actions-groupees-compteur">
+              {dossiersSelectionnes.size} candidats sélectionnés
+            </span>
+            {/* Téléchargement réel (pas un aperçu intégré) : même patron qu'en export individuel
+                (Validation.jsx, "Télécharger toutes les pièces (ZIP)") — lien classique plutôt
+                qu'un fetch en blob, le back pose déjà Content-Disposition: attachment (voir
+                dossiers.routes.js), le navigateur gère le téléchargement seul via le cookie de
+                session (same-origin). Pas de state ouvert/fermé comme les deux boutons suivants :
+                cette action ne demande aucune saisie avant de s'exécuter. */}
+            <a
+              className="tableau-bord-accueil__bouton-action-groupee"
+              href={`${api.defaults.baseURL}/dossiers/pieces/export-zip-groupe?dossierIds=${[...dossiersSelectionnes].join(',')}`}
+              download
+            >
+              Export des pièces
+            </a>
+            <button
+              type="button"
+              className="tableau-bord-accueil__bouton-action-groupee"
+              onClick={() => setModaleGroupeeOuverte('relance')}
+            >
+              Relances
+            </button>
+            <button
+              type="button"
+              className="tableau-bord-accueil__bouton-action-groupee"
+              onClick={() => setModaleGroupeeOuverte('replanification')}
+            >
+              Replanifier des tests
+            </button>
+          </div>
+        )}
+
         {chargementDossiers && <p>Chargement des dossiers…</p>}
         {erreur && <p role="alert">{erreur}</p>}
 
@@ -357,6 +464,10 @@ export default function TableauDeBordAccueil() {
             dossiers={dossiersFiltres}
             varianteStatut={varianteStatut}
             libellePoste={libellePoste}
+            dossiersSelectionnes={dossiersSelectionnes}
+            onTogglerSelectionDossier={togglerSelectionDossier}
+            toutSelectionne={tousVisiblesSelectionnes}
+            onTogglerSelectionnerTout={togglerSelectionnerTout}
             actions={[
               {
                 libelle: 'Étudier le dossier',
@@ -376,6 +487,30 @@ export default function TableauDeBordAccueil() {
           />
         )}
       </div>
+
+      {/* key={[...dossiersSelectionnes].join(',')} : force un remontage complet de la modale si la
+          sélection change pendant qu'elle est fermée puis rouverte (improbable mais possible via
+          les cases de la colonne de sélection restées visibles derrière un fond semi-opaque) —
+          chaque ouverture doit repartir d'un chargement propre (formateurs/lieux/derniers
+          rendez-vous), jamais d'un état résiduel d'une ouverture précédente sur une autre
+          sélection. */}
+      {modaleGroupeeOuverte === 'relance' && (
+        <ModaleRelanceGroupee
+          key={[...dossiersSelectionnes].join(',')}
+          dossiers={dossiersSelectionnesObjets}
+          onFermer={() => setModaleGroupeeOuverte(null)}
+          onTermine={terminerActionGroupee}
+        />
+      )}
+      {modaleGroupeeOuverte === 'replanification' && (
+        <ModaleReplanificationGroupee
+          key={[...dossiersSelectionnes].join(',')}
+          dossiers={dossiersSelectionnesObjets}
+          libellePoste={libellePoste}
+          onFermer={() => setModaleGroupeeOuverte(null)}
+          onTermine={terminerActionGroupee}
+        />
+      )}
     </PageBackOffice>
   );
 }

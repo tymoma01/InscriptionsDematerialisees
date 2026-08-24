@@ -1,9 +1,13 @@
 const { Router } = require('express');
 const { z } = require('zod');
+// Même interop CJS/ESM que pieces.routes.js (archiver@8, voir son commentaire d'en-tête) —
+// utilisée ici pour l'export ZIP groupé (GET /pieces/export-zip-groupe ci-dessous).
+const { ZipArchive } = require('archiver');
 const dossierService = require('../../core/dossier/dossierService');
 const relanceService = require('../../core/dossier/relanceService');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
 const workflowEngine = require('../../core/workflow/workflowEngine');
+const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -87,6 +91,144 @@ router.get('/derniere-modification', requireRole(...ROLES_TOUT_BACK_OFFICE), asy
     const derniereModification = await dossierService.obtenirDerniereModification(req.entite);
     res.json({ derniereModification });
   } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// Export ZIP groupé (barre d'actions groupées, "Dossiers candidats", audit 2026-08-24) — mêmes
+// rôles que l'export ZIP par dossier (ROLES_EXPORT_ZIP_PIECES, pieces.routes.js) : ce module ne
+// réexporte pas cette constante (déclarée localement là-bas), redéclarée ici à l'identique, même
+// convention que le reste du projet (voir CLAUDE.md, dupliqué plutôt que partagé pour quelques
+// lignes de données).
+const ROLES_EXPORT_ZIP_PIECES_GROUPE = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+
+// Même schéma CSV que historiqueRendezvousQuerySchema plus bas (dossierIds="12,45,67") — pas
+// partagé entre les deux : ce fichier duplique déjà ce patron pour /rendezvous/historique, une
+// même page. z.coerce.number().int().positive() réécrit ici plutôt que de référencer
+// idPositifSchema (déclaré plus bas dans ce fichier, hors d'atteinte à ce point du chargement du
+// module — `const` n'est pas hissé comme une déclaration de fonction).
+const exportZipGroupeQuerySchema = z.object({
+  dossierIds: z
+    .string()
+    .trim()
+    .min(1)
+    .transform((valeur) => valeur.split(','))
+    .pipe(z.array(z.coerce.number().int().positive()).min(1)),
+});
+
+// Remplace les caractères qui casseraient l'arborescence de l'archive (un "/" dans un nom/prénom
+// créerait un sous-dossier imprévu) — improbable en pratique (voir NOM_REGEX, dossierService.js,
+// qui n'autorise déjà que lettres/espaces/tirets/apostrophes à la saisie) mais ce module ne
+// dépend pas de cette validation amont pour rester correct par lui-même.
+function nettoyerSegmentChemin(valeur) {
+  return valeur.replace(/[\\/]/g, '-');
+}
+
+// GET /api/dossiers/pieces/export-zip-groupe?dossierIds=12,45,67 — une seule archive ZIP pour
+// plusieurs dossiers sélectionnés (barre d'actions groupées, "Dossiers candidats"), un
+// sous-dossier "N°dossier - NOM Prénom" par candidat contenant ses pièces déjà chargées. Distinct
+// de GET /api/dossiers/:dossierId/pieces/export-zip (pieces.routes.js, un seul dossier, archive
+// plate) : cette route-ci vit dans ce fichier (pas pieces.routes.js, monté sur
+// '/api/dossiers/:dossierId/pieces') car elle porte sur une LISTE de dossiers, pas un dossierId
+// de l'URL. Déclarée avant '/pieces/:pieceId' n'existe pas ici (routeur distinct) — aucune
+// collision possible.
+//
+// Réutilise pieceJustificativeService.listerPiecesJustificativesAvecContenu tel quel, un appel
+// par dossier (déjà garde l'appartenance à l'entité, voir son commentaire d'en-tête) : un
+// dossierId invalide (autre entité, supprimé) ou un échec de récupération auprès du connecteur de
+// stockage n'interrompt jamais l'export des AUTRES dossiers de la sélection — même philosophie de
+// résilience que l'export individuel (pièces manquantes -> manifeste texte, jamais un 404/500
+// global), étendue ici au niveau du dossier entier plutôt que de la pièce.
+router.get('/pieces/export-zip-groupe', requireRole(...ROLES_EXPORT_ZIP_PIECES_GROUPE), async (req, res, next) => {
+  try {
+    const { dossierIds } = exportZipGroupeQuerySchema.parse(req.query);
+    const resumes = await dossierService.listerResumesParIds(req.entite, dossierIds);
+    const resumeParId = new Map(resumes.map((resume) => [resume.id, resume]));
+
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', 'attachment; filename="pieces-justificatives-groupe.zip"');
+
+    const archive = new ZipArchive({ zlib: { level: 9 } });
+    // Même limite qu'en export individuel (pieces.routes.js) : une erreur de streaming survient
+    // après l'envoi des en-têtes ci-dessus, impossible de renvoyer un JSON d'erreur propre à ce
+    // stade.
+    archive.on('error', (erreur) => {
+      console.error('Échec de génération du ZIP groupé de pièces justificatives :', erreur.message);
+      res.destroy();
+    });
+    archive.pipe(res);
+
+    const dossiersEnEchec = [];
+    let nombrePiecesTotal = 0;
+
+    // Séquentiel plutôt que Promise.all sur toute la sélection : chaque dossier ouvre déjà ses
+    // propres téléchargements en parallèle (voir listerPiecesJustificativesAvecContenu), borner la
+    // concurrence dossier par dossier évite d'ouvrir des dizaines de connexions simultanées vers
+    // le connecteur de stockage sur une grosse sélection.
+    for (const dossierId of dossierIds) {
+      const resume = resumeParId.get(dossierId);
+      if (!resume) {
+        dossiersEnEchec.push(`Dossier ${dossierId} : introuvable pour l'entité « ${req.entite.code} ».`);
+        continue;
+      }
+      const nomDossier = `${dossierId} - ${nettoyerSegmentChemin(resume.candidat_nom)} ${nettoyerSegmentChemin(resume.candidat_prenom)}`;
+
+      try {
+        const { fichiers, manquantes } = await pieceJustificativeService.listerPiecesJustificativesAvecContenu(
+          req.entite,
+          dossierId,
+        );
+        for (const fichier of fichiers) {
+          archive.append(fichier.contenu, { name: `${nomDossier}/${fichier.typePieceCode}_${fichier.nomFichier}` });
+        }
+        nombrePiecesTotal += fichiers.length;
+        if (manquantes.length > 0) {
+          const lignes = manquantes.map((piece) => `- ${piece.typePieceCode} (${piece.nomFichier}) : ${piece.erreur}`);
+          archive.append(
+            `${manquantes.length} pièce(s) n'ont pas pu être récupérées depuis le stockage documentaire et sont absentes de ce sous-dossier :\n\n${lignes.join('\n')}\n`,
+            { name: `${nomDossier}/_pieces_manquantes.txt` },
+          );
+        }
+        if (fichiers.length === 0 && manquantes.length === 0) {
+          archive.append('Aucune pièce justificative pour ce dossier.\n', { name: `${nomDossier}/_aucune_piece.txt` });
+        }
+      } catch (erreurDossier) {
+        dossiersEnEchec.push(`${nomDossier} : ${erreurDossier.message}`);
+      }
+    }
+
+    // Manifeste GLOBAL à la racine de l'archive (pas un seul sous-dossier) : distinct des
+    // manifestes par dossier ci-dessus, celui-ci couvre les dossiers ENTIERS qui n'ont pas pu être
+    // traités du tout (pas de piste "manquantes" propre à leur intérieur, puisqu'ils n'ont jamais
+    // été ouverts).
+    if (dossiersEnEchec.length > 0) {
+      archive.append(
+        `${dossiersEnEchec.length} dossier(s) n'ont pas pu être exportés :\n\n${dossiersEnEchec.join('\n')}\n`,
+        { name: '_dossiers_en_echec.txt' },
+      );
+    }
+
+    await archive.finalize();
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'pieces_justificatives_export_zip_groupe',
+      tableCible: 'pieces_justificatives',
+      cibleId: 0,
+      donnees: {
+        dossierIds,
+        nombreDossiers: dossierIds.length,
+        nombrePieces: nombrePiecesTotal,
+        nombreDossiersEnEchec: dossiersEnEchec.length,
+      },
+      adresseIp: req.ip,
+    });
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+    }
     next(erreur);
   }
 });
