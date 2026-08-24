@@ -8,6 +8,7 @@ const multer = require('multer');
 const { ZipArchive } = require('archiver');
 const { z } = require('zod');
 const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
+const dossierService = require('../../core/dossier/dossierService');
 const { ErreurPieceJustificativeInvalide } = pieceJustificativeService;
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -147,11 +148,26 @@ router.get('/', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next
   }
 });
 
+// Remplace les caractères qui casseraient l'arborescence de l'archive (un "/" dans un nom/prénom
+// créerait un sous-dossier imprévu) — même fonction que dossiers.routes.js (export ZIP groupé),
+// dupliquée ici plutôt que partagée (voir CLAUDE.md, conventions du projet).
+function nettoyerSegmentChemin(valeur) {
+  return valeur.replace(/[\\/]/g, '-');
+}
+
 // GET /api/dossiers/:dossierId/pieces/export-zip — télécharge toutes les pièces justificatives
 // d'un dossier en une seule archive (RH, "second contrôle", CLAUDE.md). Déclarée avant
 // GET /:pieceId ci-dessous : Express matche les routes dans l'ordre de déclaration, et
 // `:pieceId` matcherait la chaîne littérale "export-zip" comme n'importe quel autre segment si
 // cette route venait après — l'ordre ici n'est donc pas juste cosmétique.
+//
+// Nom du fichier téléchargé et arborescence interne alignés sur l'export ZIP groupé (audit
+// 2026-08-24, dossiers.routes.js GET /pieces/export-zip-groupe) : "Dossier N° - NOM Prénom", pour
+// qu'un agent qui a déjà l'habitude du nommage de l'export groupé retrouve exactement le même
+// repère en téléchargement individuel — et pour que le contenu d'un ZIP individuel puisse être
+// fusionné sans collision avec celui d'un ZIP groupé (même sous-dossier "Dossier N° - NOM Prénom/"
+// à l'intérieur des deux). dossierService.listerResumesParIds réutilisé tel quel (même fonction
+// que l'export groupé) plutôt qu'une requête dédiée à un seul dossier.
 router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
@@ -163,8 +179,14 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
       return res.status(404).json({ erreur: 'Aucune pièce justificative pour ce dossier.' });
     }
 
+    // dossierId déjà vérifié comme appartenant à l'entité par l'appel ci-dessus
+    // (listerPiecesJustificativesAvecContenu -> verifierDossierAppartientEntite) : ce resume est
+    // donc garanti présent, pas besoin de revalider son existence une seconde fois ici.
+    const [resume] = await dossierService.listerResumesParIds(req.entite, [dossierId]);
+    const nomDossier = `Dossier ${dossierId} - ${nettoyerSegmentChemin(resume.candidat_nom)} ${nettoyerSegmentChemin(resume.candidat_prenom)}`;
+
     res.set('Content-Type', 'application/zip');
-    res.set('Content-Disposition', `attachment; filename="dossier-${dossierId}-pieces.zip"`);
+    res.set('Content-Disposition', `attachment; filename="${nomDossier.replace(/"/g, '')}.zip"`);
 
     const archive = new ZipArchive({ zlib: { level: 9 } });
     // Une erreur de streaming survient après l'envoi des en-têtes (res.set ci-dessus) : on ne
@@ -179,8 +201,10 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
     for (const fichier of fichiers) {
       // Préfixé par le type de pièce (même convention que le chemin OneDrive à l'upload, voir
       // pieceJustificativeService.js) : garantit un nom d'entrée unique dans l'archive même si
-      // deux pièces partageaient autrefois un nom de fichier d'origine identique.
-      archive.append(fichier.contenu, { name: `${fichier.typePieceCode}_${fichier.nomFichier}` });
+      // deux pièces partageaient autrefois un nom de fichier d'origine identique. Placé dans le
+      // sous-dossier nomDossier (même patron que l'export groupé, dossiers.routes.js) plutôt qu'à
+      // la racine de l'archive (comportement précédent).
+      archive.append(fichier.contenu, { name: `${nomDossier}/${fichier.typePieceCode}_${fichier.nomFichier}` });
     }
 
     // Manifeste texte À L'INTÉRIEUR de l'archive plutôt qu'un en-tête HTTP ou un champ JSON à
@@ -192,7 +216,7 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
       const lignes = manquantes.map((piece) => `- ${piece.typePieceCode} (${piece.nomFichier}) : ${piece.erreur}`);
       archive.append(
         `${manquantes.length} pièce(s) n'ont pas pu être récupérées depuis le stockage documentaire et sont absentes de cette archive :\n\n${lignes.join('\n')}\n`,
-        { name: '_pieces_manquantes.txt' },
+        { name: `${nomDossier}/_pieces_manquantes.txt` },
       );
     }
 

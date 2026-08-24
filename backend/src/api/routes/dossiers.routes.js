@@ -126,8 +126,8 @@ function nettoyerSegmentChemin(valeur) {
 
 // GET /api/dossiers/pieces/export-zip-groupe?dossierIds=12,45,67 — une seule archive ZIP pour
 // plusieurs dossiers sélectionnés (barre d'actions groupées, "Dossiers candidats"), un
-// sous-dossier "N°dossier - NOM Prénom" par candidat contenant ses pièces déjà chargées. Distinct
-// de GET /api/dossiers/:dossierId/pieces/export-zip (pieces.routes.js, un seul dossier, archive
+// sous-dossier "Dossier N°dossier - NOM Prénom" par candidat contenant ses pièces déjà chargées.
+// Distinct de GET /api/dossiers/:dossierId/pieces/export-zip (pieces.routes.js, un seul dossier, archive
 // plate) : cette route-ci vit dans ce fichier (pas pieces.routes.js, monté sur
 // '/api/dossiers/:dossierId/pieces') car elle porte sur une LISTE de dossiers, pas un dossierId
 // de l'URL. Déclarée avant '/pieces/:pieceId' n'existe pas ici (routeur distinct) — aucune
@@ -171,7 +171,7 @@ router.get('/pieces/export-zip-groupe', requireRole(...ROLES_EXPORT_ZIP_PIECES_G
         dossiersEnEchec.push(`Dossier ${dossierId} : introuvable pour l'entité « ${req.entite.code} ».`);
         continue;
       }
-      const nomDossier = `${dossierId} - ${nettoyerSegmentChemin(resume.candidat_nom)} ${nettoyerSegmentChemin(resume.candidat_prenom)}`;
+      const nomDossier = `Dossier ${dossierId} - ${nettoyerSegmentChemin(resume.candidat_nom)} ${nettoyerSegmentChemin(resume.candidat_prenom)}`;
 
       try {
         const { fichiers, manquantes } = await pieceJustificativeService.listerPiecesJustificativesAvecContenu(
