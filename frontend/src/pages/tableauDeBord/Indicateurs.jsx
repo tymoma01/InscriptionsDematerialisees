@@ -466,6 +466,11 @@ export default function Indicateurs() {
   const [dossiersSelectionnes, setDossiersSelectionnes] = useState([]);
   const [chargementTableau, setChargementTableau] = useState(false);
   const [erreurTableau, setErreurTableau] = useState(null);
+  // Largeur du panneau latéral "Dossiers sélectionnés" (audit 2026-08-24, décision utilisateur) —
+  // simple bascule visuelle, jamais rechargée depuis l'API ni persistée : repart à `false` (largeur
+  // par défaut) à chaque rechargement de page, cohérent avec le reste des états d'affichage locaux
+  // de cet écran (ex. selectionIndicateurs lui-même).
+  const [panneauElargi, setPanneauElargi] = useState(false);
 
   // Active `code` en retirant d'abord son opposé exclusif s'il y en a un et qu'il est
   // actuellement sélectionné (voir PAIRES_INDICATEURS_EXCLUSIFS plus haut) — seul l'AJOUT déclenche
@@ -746,6 +751,22 @@ export default function Indicateurs() {
             sections encore valides restent pleinement interactives. */}
         {!chargement && !erreur && indicateurs && (
           <>
+            {/* Disposition deux colonnes (audit 2026-08-24, décision utilisateur) : tuiles/
+                graphiques à gauche (majorité de la largeur), panneau "Dossiers sélectionnés" fixe
+                à droite — colonne CSS Grid `auto` dimensionnée par la largeur explicite du panneau
+                lui-même (.indicateurs__panneau-lateral), pas par une variable posée sur le
+                conteneur : une custom property CSS posée sur un enfant n'est jamais visible par le
+                grid-template-columns de son parent (elle ne "remonte" pas), contrairement à une
+                variable posée directement ici. min-width: 0 sur .indicateurs__contenu-principal
+                (voir Indicateurs.css) : sans elle, la grille de graphiques (deux camemberts
+                40%/40%) empêcherait la colonne principale de rétrécir sous sa largeur de contenu
+                naturelle, poussant le panneau hors de l'écran plutôt que de laisser le texte des
+                graphiques s'adapter. En dessous d'un certain seuil (Indicateurs.css, @media), les
+                deux colonnes s'empilent — le panneau repasse en pleine largeur SOUS le contenu
+                principal, comportement identique à avant cette réorganisation, jamais de
+                débordement horizontal forcé. */}
+            <div className="indicateurs__disposition">
+            <div className="indicateurs__contenu-principal">
             <ErrorBoundary titre="Indicateurs (tuiles)">
             <div className="indicateurs__tuiles">
               {/* Bouton plutôt qu'un <div> statique : sélection multiple des cartes (voir
@@ -994,38 +1015,63 @@ export default function Indicateurs() {
               </section>
               </ErrorBoundary>
             </div>
+            </div>
 
-            {/* Tableau consolidé : uniquement visible dès qu'au moins une carte/segment est
-                sélectionné — en dessous des graphiques (pas un panneau superposé) pour garder la
+            {/* Panneau latéral "Dossiers sélectionnés" — uniquement visible dès qu'au moins une
+                carte/segment est sélectionné (comportement inchangé, seulement repositionné en
+                colonne fixe à droite, voir .indicateurs__disposition ci-dessus) : garde la
                 sélection visible pendant qu'on consulte le détail, voir l'audit préalable à cette
                 fonctionnalité. */}
             {selectionIndicateurs.size > 0 && (
-              <ErrorBoundary titre="Dossiers sélectionnés">
-              <section className="indicateurs__tableau-consolide">
-                <div className="indicateurs__tableau-consolide-entete">
-                  <h2>Dossiers sélectionnés ({selectionIndicateurs.size} indicateur(s))</h2>
-                  <button type="button" onClick={() => setSelectionIndicateurs(new Set())}>
-                    Effacer la sélection
-                  </button>
-                </div>
-                {chargementTableau && <p>Chargement des dossiers…</p>}
-                {erreurTableau && <p role="alert">{erreurTableau}</p>}
-                {!chargementTableau && !erreurTableau && (
-                  <TableauDossiersSelectionnes
-                    dossiers={dossiersSelectionnes}
-                    libellePoste={libellePoste}
-                    libelleIndicateur={libelleIndicateur}
-                    varianteIndicateur={varianteIndicateur}
-                    varianteStatut={varianteStatut}
-                    estIndicateurPoste={estIndicateurPoste}
-                    libelleDateCle={libelleDateCle}
-                    varianteDateCle={varianteDateCle}
-                    ordreCanoniqueIndicateurs={ORDRE_CANONIQUE_INDICATEURS}
-                  />
-                )}
-              </section>
-              </ErrorBoundary>
+              <aside
+                className={`indicateurs__panneau-lateral${panneauElargi ? ' indicateurs__panneau-lateral--elargi' : ''}`}
+              >
+                <ErrorBoundary titre="Dossiers sélectionnés">
+                <section className="indicateurs__tableau-consolide">
+                  <div className="indicateurs__tableau-consolide-entete">
+                    <h2>Dossiers sélectionnés ({selectionIndicateurs.size} indicateur(s))</h2>
+                    <div className="indicateurs__tableau-consolide-actions">
+                      {/* Icône seule (»/«) + aria-label explicite : élargit le panneau (280px ->
+                          480px, voir Indicateurs.css) pour afficher plus de colonnes/détails par
+                          ligne sans recharger la page ni masquer le reste du tableau de bord — un
+                          second clic revient à la largeur par défaut. Purement visuel (CSS), la
+                          liste de dossiers/le filtre par indicateurs restent inchangés par ce
+                          bouton. */}
+                      <button
+                        type="button"
+                        className="indicateurs__bouton-agrandir"
+                        aria-expanded={panneauElargi}
+                        aria-label={panneauElargi ? 'Réduire le panneau' : 'Agrandir le panneau'}
+                        title={panneauElargi ? 'Réduire le panneau' : 'Agrandir le panneau'}
+                        onClick={() => setPanneauElargi((precedent) => !precedent)}
+                      >
+                        {panneauElargi ? '«' : '»'}
+                      </button>
+                      <button type="button" onClick={() => setSelectionIndicateurs(new Set())}>
+                        Effacer la sélection
+                      </button>
+                    </div>
+                  </div>
+                  {chargementTableau && <p>Chargement des dossiers…</p>}
+                  {erreurTableau && <p role="alert">{erreurTableau}</p>}
+                  {!chargementTableau && !erreurTableau && (
+                    <TableauDossiersSelectionnes
+                      dossiers={dossiersSelectionnes}
+                      libellePoste={libellePoste}
+                      libelleIndicateur={libelleIndicateur}
+                      varianteIndicateur={varianteIndicateur}
+                      varianteStatut={varianteStatut}
+                      estIndicateurPoste={estIndicateurPoste}
+                      libelleDateCle={libelleDateCle}
+                      varianteDateCle={varianteDateCle}
+                      ordreCanoniqueIndicateurs={ORDRE_CANONIQUE_INDICATEURS}
+                    />
+                  )}
+                </section>
+                </ErrorBoundary>
+              </aside>
             )}
+            </div>
           </>
         )}
       </div>

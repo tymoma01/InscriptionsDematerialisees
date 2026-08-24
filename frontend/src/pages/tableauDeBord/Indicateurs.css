@@ -297,11 +297,69 @@
   text-align: center;
 }
 
+/* Disposition deux colonnes (audit 2026-08-24, décision utilisateur) — voir le commentaire
+   d'en-tête d'Indicateurs.jsx pour le choix d'une colonne `auto` (dimensionnée par la largeur
+   explicite de .indicateurs__panneau-lateral) plutôt qu'une variable CSS posée sur ce conteneur.
+   align-items: start : sans lui, la grille étire par défaut les deux colonnes sur la hauteur de la
+   plus grande (comportement stretch normal d'une grid), collant inutilement le panneau latéral
+   (généralement plus court) sur toute la hauteur des graphiques. */
+.indicateurs__disposition {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--espace-grand);
+}
+
+.indicateurs__contenu-principal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-grand);
+  /* Empêche le contenu (ex. les deux camemberts, largeur naturelle non compressible en dessous
+     d'un certain seuil) de forcer cette colonne à s'élargir au-delà de l'espace que la grille lui
+     accorde réellement — sans elle, le panneau latéral se ferait pousser hors du conteneur au lieu
+     que les graphiques s'adaptent (comportement par défaut d'un enfant de grid/flex, min-width:
+     auto implicite). */
+  min-width: 0;
+}
+
+/* Panneau latéral "Dossiers sélectionnés" — largeur par défaut ~280px (fourchette 260-300px
+   demandée), passe à 480px via .indicateurs__panneau-lateral--elargi (bouton »/«, Indicateurs.jsx)
+   — transition douce plutôt qu'un changement de largeur brutal, aucun rechargement de données
+   (uniquement du CSS). flex-shrink: 0 : ne doit jamais rétrécir sous sa largeur explicite tant que
+   la disposition reste à deux colonnes (voir le @media plus bas pour le seuil d'empilement). */
+.indicateurs__panneau-lateral {
+  width: 280px;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+}
+
+.indicateurs__panneau-lateral--elargi {
+  width: 480px;
+}
+
+/* En dessous de ce seuil, les deux colonnes n'ont plus la place de coexister proprement (le
+   contenu principal — tuiles + graphiques deux camemberts côte à côte dès 800px, voir
+   .indicateurs__graphiques plus haut — a déjà besoin de sa propre largeur minimale) : le panneau
+   repasse en pleine largeur SOUS le contenu principal plutôt que de forcer un débordement
+   horizontal, comportement identique à avant cette réorganisation (une seule colonne empilée). */
+@media (max-width: 900px) {
+  .indicateurs__disposition {
+    grid-template-columns: 1fr;
+  }
+  .indicateurs__panneau-lateral,
+  .indicateurs__panneau-lateral--elargi {
+    width: 100%;
+  }
+}
+
 /* Tableau consolidé (voir TableauDossiersSelectionnes.jsx) : même cadre que .indicateurs__graphique
    (bordure légère, fond plein) pour rester visuellement de la même famille que le reste de la
-   page, sous les graphiques plutôt qu'un panneau superposé (voir Indicateurs.jsx). */
+   page. margin-top retiré (audit 2026-08-24) : ce bloc vit désormais toujours dans
+   .indicateurs__panneau-lateral (colonne à part, voir ci-dessus), plus jamais empilé directement
+   sous .indicateurs__graphiques — cet espacement horizontal est déjà fourni par le `gap` de
+   .indicateurs__disposition (colonnes côte à côte) ou .indicateurs__contenu-principal (une fois
+   empilé sous 900px, où le `gap` de .indicateurs__disposition joue le même rôle verticalement). */
 .indicateurs__tableau-consolide {
-  margin-top: var(--espace-grand);
   padding: var(--espace-moyen);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
@@ -322,6 +380,16 @@
   color: var(--couleur-back-office);
 }
 
+/* Regroupe le bouton d'agrandissement et "Effacer la sélection" à droite de l'en-tête (voir
+   Indicateurs.jsx) — un seul `justify-content: space-between` sur .indicateurs__tableau-consolide
+   -entete ci-dessus (h2 à gauche, ce groupe à droite) plutôt que trois enfants directs, qui se
+   répartiraient à parts égales sur la ligne au lieu de coller les deux boutons l'un à l'autre. */
+.indicateurs__tableau-consolide-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
 .indicateurs__tableau-consolide-entete button {
   font: inherit;
   padding: 0.4rem 0.8rem;
@@ -334,4 +402,13 @@
 .indicateurs__tableau-consolide-entete button:hover {
   border-color: var(--couleur-back-office);
   color: var(--couleur-back-office);
+}
+
+/* Bouton icône seul (»/«, voir Indicateurs.jsx) — largeur resserrée sur le glyphe plutôt que le
+   padding horizontal généreux hérité de la règle ci-dessus (pensée pour un libellé texte comme
+   "Effacer la sélection"), pour rester visuellement une icône et non un second bouton texte. */
+.indicateurs__bouton-agrandir {
+  padding: 0.4rem 0.6rem;
+  font-size: 1.1rem;
+  line-height: 1;
 }
