@@ -8,6 +8,7 @@ import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Tests.css';
@@ -160,7 +161,14 @@ export default function Tests() {
 
         <NavigationFicheDossier dossierId={dossierId} pageActuelle="tests" />
 
-        <InformationsInscription dossierId={dossierId} />
+        {/* Mode dégradé du back-office (audit 2026-08-24) — chaque section garde son propre
+            chargement de données indépendant, ErrorBoundary ajoute le filet manquant côté RENDU :
+            un plantage n'empêche plus la consultation des autres sections de cette fiche.
+            key={dossierId} sur chacune pour repartir d'un état propre si l'agent change de
+            dossier. */}
+        <ErrorBoundary key={`inscription-${dossierId}`} titre="Informations d'inscription complètes">
+          <InformationsInscription dossierId={dossierId} />
+        </ErrorBoundary>
 
         <section className="page-tests__rendezvous">
           <div className="page-tests__rendezvous-entete">
@@ -181,32 +189,41 @@ export default function Tests() {
               pas l'historique complet des replanifications, déjà consultable sur l'onglet
               "Relances" (Relances.jsx, seul autre point de montage de ce composant). Même style
               que là-bas (timeline/titre "Test"/badge/motif/actions Confirmer-Marquer absent-
-              Marquer annulé), sans dupliquer cette logique d'affichage ici. */}
-          <GestionRendezvous
-            dossierId={dossierId}
-            codeStatutDossier={dossier?.statut_code}
-            libelleStatutDossier={dossier?.statut_libelle}
-            dernierSeulement
-          />
+              Marquer annulé), sans dupliquer cette logique d'affichage ici. ErrorBoundary posée
+              seulement sur GestionRendezvous, pas toute la <section> : le bouton "Replanifier un
+              test" ci-dessus doit rester cliquable même si l'affichage du dernier rendez-vous
+              plante. */}
+          <ErrorBoundary key={`rendezvous-${dossierId}`} titre="Rendez-vous">
+            <GestionRendezvous
+              dossierId={dossierId}
+              codeStatutDossier={dossier?.statut_code}
+              libelleStatutDossier={dossier?.statut_libelle}
+              dernierSeulement
+            />
+          </ErrorBoundary>
         </section>
 
         {panneauReplanificationOuvert && dossier && (
-          <ModalePlanificationTest
-            dossierId={dossierId}
-            codeAction={CODE_ACTION_REPLANIFIER_TEST}
-            titre={`Replanifier un test - ${dossier.candidat_prenom} ${dossier.candidat_nom}`}
-            postesBureau={dossier.postesBureau}
-            postesHotel={dossier.postesHotel}
-            libellePoste={libellePoste}
-            onAnnuler={() => setPanneauReplanificationOuvert(false)}
-            onReussite={() => {
-              setPanneauReplanificationOuvert(false);
-              rechargerDossier();
-            }}
-          />
+          <ErrorBoundary key={`replanification-${dossierId}`} titre="Replanifier un test">
+            <ModalePlanificationTest
+              dossierId={dossierId}
+              codeAction={CODE_ACTION_REPLANIFIER_TEST}
+              titre={`Replanifier un test - ${dossier.candidat_prenom} ${dossier.candidat_nom}`}
+              postesBureau={dossier.postesBureau}
+              postesHotel={dossier.postesHotel}
+              libellePoste={libellePoste}
+              onAnnuler={() => setPanneauReplanificationOuvert(false)}
+              onReussite={() => {
+                setPanneauReplanificationOuvert(false);
+                rechargerDossier();
+              }}
+            />
+          </ErrorBoundary>
         )}
 
-        <NotesDossier dossierId={dossierId} />
+        <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
+          <NotesDossier dossierId={dossierId} />
+        </ErrorBoundary>
       </div>
     </PageBackOffice>
   );

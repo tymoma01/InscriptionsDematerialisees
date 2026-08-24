@@ -1,0 +1,40 @@
+/* Remplace la section entière en cas de plantage de rendu (voir ErrorBoundary.jsx) — encadré
+   discret plutôt qu'un simple [role='alert'] rouge en ligne (convention du reste du projet,
+   voir GestionRendezvous.css/LoginForm.css) : ce composant occupe l'espace d'une section
+   complète, un simple texte rouge s'y perdrait. Fond légèrement teinté d'erreur (pas
+   --couleur-fond uni) pour rester visuellement distinct d'un état "vide" neutre
+   (.dossier-list__vide, DossierList.css) — un plantage n'est pas la même chose qu'une absence de
+   données. */
+.limite-erreur {
+  padding: var(--espace-grand);
+  border: 1px solid var(--couleur-erreur);
+  border-radius: var(--rayon-bordure);
+  background-color: #fdf2f1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--espace-petit);
+  text-align: center;
+}
+
+.limite-erreur__message {
+  margin: 0;
+  color: var(--couleur-erreur);
+}
+
+/* Même convention que .gestion-rendezvous button/.historique-relances__formulaire button
+   (bordure fine, fond --couleur-fond, pas le bouton plein --couleur-back-office réservé aux
+   actions principales — "Réessayer" reste une action secondaire de récupération). */
+.limite-erreur__bouton {
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.limite-erreur__bouton:hover {
+  background-color: var(--couleur-fond-secondaire);
+}

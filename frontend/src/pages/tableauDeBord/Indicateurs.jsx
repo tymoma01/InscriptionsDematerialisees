@@ -17,6 +17,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirIndicateursKpi, listerDossiersParIndicateurs } from '../../services/statistiqueService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import TableauDossiersSelectionnes from './TableauDossiersSelectionnes';
 import './Indicateurs.css';
 
@@ -726,8 +727,17 @@ export default function Indicateurs() {
         {chargement && <p>Chargement des indicateurs…</p>}
         {erreur && <p role="alert">{erreur}</p>}
 
+        {/* Mode dégradé du back-office (audit 2026-08-24) — les tuiles/graphiques/tableau
+            partagent un seul fetch (obtenirIndicateursKpi, sauf le tableau consolidé qui a le
+            sien, listerDossiersParIndicateurs) mais restent des sous-arbres de RENDU distincts :
+            une ErrorBoundary par section limite un plantage de rendu (donnée inattendue, bug
+            recharts...) à cette seule section plutôt qu'à toute la page. L'état interactif partagé
+            (selectionIndicateurs, qui relie tuiles/segments/tableau) vit dans ce composant parent,
+            jamais dans une section : le déclenchement d'une limite n'y touche donc pas, les
+            sections encore valides restent pleinement interactives. */}
         {!chargement && !erreur && indicateurs && (
           <>
+            <ErrorBoundary titre="Indicateurs (tuiles)">
             <div className="indicateurs__tuiles">
               {/* Bouton plutôt qu'un <div> statique : sélection multiple des cartes (voir
                   basculerIndicateur plus haut), accessible au clavier sans rien ajouter. Chaque
@@ -807,8 +817,10 @@ export default function Indicateurs() {
                 <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
             </div>
+            </ErrorBoundary>
 
             <div className="indicateurs__graphiques">
+              <ErrorBoundary titre="Tests réussis vs ratés">
               <section className="indicateurs__graphique indicateurs__graphique--camembert indicateurs__graphique--verdicts">
                 <h2>Tests réussis vs ratés</h2>
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
@@ -878,7 +890,9 @@ export default function Indicateurs() {
                   </div>
                 )}
               </section>
+              </ErrorBoundary>
 
+              <ErrorBoundary titre="Formation vs prêt à l’embauche">
               <section className="indicateurs__graphique indicateurs__graphique--camembert indicateurs__graphique--orientations">
                 <h2>Formation vs prêt à l’embauche</h2>
                 {donneesOrientations.every((entree) => entree.total === 0) ? (
@@ -925,7 +939,9 @@ export default function Indicateurs() {
                   </div>
                 )}
               </section>
+              </ErrorBoundary>
 
+              <ErrorBoundary titre="Répartition par poste">
               <section className="indicateurs__graphique indicateurs__graphique--large">
                 <h2>Répartition par poste (évaluations distinctes)</h2>
                 {donneesRepartitionPoste.length === 0 ? (
@@ -960,6 +976,7 @@ export default function Indicateurs() {
                   </ResponsiveContainer>
                 )}
               </section>
+              </ErrorBoundary>
             </div>
 
             {/* Tableau consolidé : uniquement visible dès qu'au moins une carte/segment est
@@ -967,6 +984,7 @@ export default function Indicateurs() {
                 sélection visible pendant qu'on consulte le détail, voir l'audit préalable à cette
                 fonctionnalité. */}
             {selectionIndicateurs.size > 0 && (
+              <ErrorBoundary titre="Dossiers sélectionnés">
               <section className="indicateurs__tableau-consolide">
                 <div className="indicateurs__tableau-consolide-entete">
                   <h2>Dossiers sélectionnés ({selectionIndicateurs.size} indicateur(s))</h2>
@@ -990,6 +1008,7 @@ export default function Indicateurs() {
                   />
                 )}
               </section>
+              </ErrorBoundary>
             )}
           </>
         )}

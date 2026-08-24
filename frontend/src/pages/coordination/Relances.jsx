@@ -8,6 +8,7 @@ import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Relances.css';
@@ -116,15 +117,29 @@ export default function Relances() {
             partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
             Validation.jsx/VerificationPieces.jsx/GrilleEvaluation.jsx pour rester cohérent
             partout où cette section apparaît. */}
-        <InformationsInscription dossierId={dossierId} />
+        {/* Chaque section a déjà son propre chargement de données indépendant (voir leurs
+            fichiers respectifs) — ErrorBoundary ajoute le filet manquant côté RENDU (audit
+            2026-08-24, mode dégradé du back-office) : un plantage dans l'une n'empêche plus la
+            consultation des trois autres, key={dossierId} sur chacune pour repartir d'un état
+            propre si l'agent change de dossier (même patron que la remise à zéro déjà en place
+            sur ces composants via leur propre useEffect([dossierId])). */}
+        <ErrorBoundary key={`inscription-${dossierId}`} titre="Informations d'inscription complètes">
+          <InformationsInscription dossierId={dossierId} />
+        </ErrorBoundary>
 
-        <GestionRendezvous
-          dossierId={dossierId}
-          codeStatutDossier={dossier?.statut_code}
-          libelleStatutDossier={dossier?.statut_libelle}
-        />
-        <HistoriqueRelances dossierId={dossierId} />
-        <NotesDossier dossierId={dossierId} />
+        <ErrorBoundary key={`rendezvous-${dossierId}`} titre="Rendez-vous">
+          <GestionRendezvous
+            dossierId={dossierId}
+            codeStatutDossier={dossier?.statut_code}
+            libelleStatutDossier={dossier?.statut_libelle}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary key={`relances-${dossierId}`} titre="Relances">
+          <HistoriqueRelances dossierId={dossierId} />
+        </ErrorBoundary>
+        <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
+          <NotesDossier dossierId={dossierId} />
+        </ErrorBoundary>
       </div>
     </PageBackOffice>
   );

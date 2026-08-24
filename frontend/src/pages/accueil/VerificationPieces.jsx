@@ -8,6 +8,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
+import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './VerificationPieces.css';
@@ -139,17 +140,27 @@ export default function VerificationPieces() {
             (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
             Validation.jsx/Relances.jsx/GrilleEvaluation.jsx pour rester cohérent partout où
             cette section apparaît. */}
-        <InformationsInscription dossierId={dossierId} />
+        {/* Mode dégradé du back-office (audit 2026-08-24) — chaque section garde son propre
+            chargement de données indépendant, ErrorBoundary ajoute le filet manquant côté RENDU :
+            un plantage n'empêche plus la consultation des autres sections de cette fiche.
+            key={dossierId} pour repartir d'un état propre si l'agent change de dossier. */}
+        <ErrorBoundary key={`inscription-${dossierId}`} titre="Informations d'inscription complètes">
+          <InformationsInscription dossierId={dossierId} />
+        </ErrorBoundary>
 
-        <CaptureTablette
-          dossierId={dossierId}
-          typesPieces={typesPiecesConfigAccecitTest}
-          statutCode={dossier?.statut_code}
-          postesBureau={dossier?.postesBureau}
-          postesHotel={dossier?.postesHotel}
-          libellePoste={libellePoste}
-        />
-        <NotesDossier dossierId={dossierId} />
+        <ErrorBoundary key={`capture-${dossierId}`} titre="Pièces justificatives">
+          <CaptureTablette
+            dossierId={dossierId}
+            typesPieces={typesPiecesConfigAccecitTest}
+            statutCode={dossier?.statut_code}
+            postesBureau={dossier?.postesBureau}
+            postesHotel={dossier?.postesHotel}
+            libellePoste={libellePoste}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
+          <NotesDossier dossierId={dossierId} />
+        </ErrorBoundary>
       </div>
     </PageBackOffice>
   );

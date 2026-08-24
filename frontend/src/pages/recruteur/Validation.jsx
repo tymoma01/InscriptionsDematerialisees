@@ -6,6 +6,7 @@ import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -202,65 +203,75 @@ export default function Validation() {
             partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
             VerificationPieces.jsx/Relances.jsx/GrilleEvaluation.jsx pour rester cohérent partout
             où cette section apparaît. */}
-        <InformationsInscription dossierId={dossierId} />
+        {/* Mode dégradé du back-office (audit 2026-08-24) — chaque section garde son propre
+            chargement de données indépendant, ErrorBoundary ajoute le filet manquant côté RENDU :
+            un plantage n'empêche plus la consultation des autres sections de cette fiche.
+            key={dossierId} pour repartir d'un état propre si l'agent change de dossier. Pas posée
+            sur "Rendez-vous"/"Relances" plus bas : simples liens statiques dérivés de `dossier`
+            (déjà chargé pour le titre), aucun chargement de données qui leur soit propre. */}
+        <ErrorBoundary key={`inscription-${dossierId}`} titre="Informations d'inscription complètes">
+          <InformationsInscription dossierId={dossierId} />
+        </ErrorBoundary>
 
-        <section className="page-validation__pieces">
-          <div className="page-validation__pieces-entete">
-            <h2>Pièces justificatives</h2>
-            {/* Vers l'écran de capture/reprise des pièces (CaptureTablette.jsx via
-                VerificationPieces.jsx) — cette section-ci reste une simple liste de consultation
-                (voir son commentaire d'en-tête plus haut), ce lien est le seul moyen d'ajouter ou
-                de remplacer une pièce depuis la fiche dossier. Déplacé depuis
-                TableauDeBordAccueil.jsx (bouton "Pièces", audit 2026-08-19) : accessible pour
-                tous les statuts, sans exception, même comportement que là-bas. */}
-            <Link className="page-validation__action" to={`/accueil/dossiers/${dossierId}/pieces`}>
-              Gérer les pièces justificatives
-            </Link>
-            {/* Téléchargement réel (pas un aperçu intégré) : lien classique plutôt qu'un fetch en
-                blob (voir CaptureTablette.jsx pour l'inverse) — le back pose déjà
-                Content-Disposition: attachment (voir pieces.routes.js), le navigateur gère le
-                téléchargement seul via le cookie de session (same-origin). Visible seulement s'il
-                y a quelque chose à exporter. */}
-            {!chargement && !erreur && pieces.length > 0 && (
-              <a
-                className="page-validation__bouton-export-zip"
-                href={`${api.defaults.baseURL}/dossiers/${dossierId}/pieces/export-zip`}
-                download
-              >
-                Télécharger toutes les pièces (ZIP)
-              </a>
+        <ErrorBoundary key={`pieces-${dossierId}`} titre="Pièces justificatives">
+          <section className="page-validation__pieces">
+            <div className="page-validation__pieces-entete">
+              <h2>Pièces justificatives</h2>
+              {/* Vers l'écran de capture/reprise des pièces (CaptureTablette.jsx via
+                  VerificationPieces.jsx) — cette section-ci reste une simple liste de consultation
+                  (voir son commentaire d'en-tête plus haut), ce lien est le seul moyen d'ajouter ou
+                  de remplacer une pièce depuis la fiche dossier. Déplacé depuis
+                  TableauDeBordAccueil.jsx (bouton "Pièces", audit 2026-08-19) : accessible pour
+                  tous les statuts, sans exception, même comportement que là-bas. */}
+              <Link className="page-validation__action" to={`/accueil/dossiers/${dossierId}/pieces`}>
+                Gérer les pièces justificatives
+              </Link>
+              {/* Téléchargement réel (pas un aperçu intégré) : lien classique plutôt qu'un fetch en
+                  blob (voir CaptureTablette.jsx pour l'inverse) — le back pose déjà
+                  Content-Disposition: attachment (voir pieces.routes.js), le navigateur gère le
+                  téléchargement seul via le cookie de session (same-origin). Visible seulement s'il
+                  y a quelque chose à exporter. */}
+              {!chargement && !erreur && pieces.length > 0 && (
+                <a
+                  className="page-validation__bouton-export-zip"
+                  href={`${api.defaults.baseURL}/dossiers/${dossierId}/pieces/export-zip`}
+                  download
+                >
+                  Télécharger toutes les pièces (ZIP)
+                </a>
+              )}
+            </div>
+
+            {chargement && <p>Chargement…</p>}
+            {erreur && <p role="alert">{erreur}</p>}
+
+            {!chargement && !erreur && pieces.length === 0 && (
+              <p className="page-validation__pieces-vide">Aucune pièce reçue pour ce dossier.</p>
             )}
-          </div>
 
-          {chargement && <p>Chargement…</p>}
-          {erreur && <p role="alert">{erreur}</p>}
-
-          {!chargement && !erreur && pieces.length === 0 && (
-            <p className="page-validation__pieces-vide">Aucune pièce reçue pour ce dossier.</p>
-          )}
-
-          {!chargement && !erreur && pieces.length > 0 && (
-            <ul className="page-validation__pieces-liste">
-              {pieces.map((piece) => (
-                <li key={piece.id}>
-                  <span className="page-validation__piece-libelle">{piece.type_piece_libelle}</span>
-                  {piece.statut_verification === 'orpheline' ? (
-                    <span className="page-validation__piece-statut page-validation__piece-statut--orpheline">
-                      {LIBELLE_PIECE_ORPHELINE}
+            {!chargement && !erreur && pieces.length > 0 && (
+              <ul className="page-validation__pieces-liste">
+                {pieces.map((piece) => (
+                  <li key={piece.id}>
+                    <span className="page-validation__piece-libelle">{piece.type_piece_libelle}</span>
+                    {piece.statut_verification === 'orpheline' ? (
+                      <span className="page-validation__piece-statut page-validation__piece-statut--orpheline">
+                        {LIBELLE_PIECE_ORPHELINE}
+                      </span>
+                    ) : (
+                      <span className="page-validation__piece-statut page-validation__piece-statut--recue">
+                        ✓ Reçue
+                      </span>
+                    )}
+                    <span className="page-validation__piece-date">
+                      {FORMAT_DATE.format(new Date(piece.date_upload))}
                     </span>
-                  ) : (
-                    <span className="page-validation__piece-statut page-validation__piece-statut--recue">
-                      ✓ Reçue
-                    </span>
-                  )}
-                  <span className="page-validation__piece-date">
-                    {FORMAT_DATE.format(new Date(piece.date_upload))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </ErrorBoundary>
 
         {/* Section "Rendez-vous" (action "Replanifier") — extraite sur son propre écran
             (Tests.jsx, décision utilisateur 2026-08-21) : n'ouvre plus ModalePlanificationTest en
@@ -326,7 +337,9 @@ export default function Validation() {
             volontairement INTACTS : GestionTransitions reste générique et réutilisable telle
             quelle si un futur écran (ex. un outil d'override Admin) en a besoin — voir son
             commentaire d'en-tête, qui ne connaît lui-même aucune page appelante en dur. */}
-        <NotesDossier dossierId={dossierId} />
+        <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
+          <NotesDossier dossierId={dossierId} />
+        </ErrorBoundary>
       </div>
     </PageBackOffice>
   );
