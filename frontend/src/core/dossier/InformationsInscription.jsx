@@ -471,13 +471,19 @@ export default function InformationsInscription({ dossierId }) {
   // changement de typePoste PENDANT l'édition (agent qui bascule Bureau <-> Hôtel sur le select
   // "Type de poste recherché") : les créneaux de l'ancien vocabulaire n'ont plus de sens une fois
   // le type de poste changé, et resteraient sinon un résidu invalide comme celui corrigé par
-  // demarrerEdition ci-dessus pour le chargement initial. typePostePrecedentRef (déclaré plus haut,
-  // avec les autres états) initialisé/mis à jour par demarrerEdition (pas ici) pour ne jamais vider
-  // creneaux au tout premier rendu d'une session d'édition.
+  // demarrerEdition ci-dessus pour le chargement initial. Vide aussi le tableau de postes de la
+  // famille QUITTÉE (posteBureau/posteHotel) — audit 2026-08-24 (dossier 69, "TEST ETEST") : un
+  // agent qui bascule Bureau -> Hôtel en édition gardait l'ancien posteBureau dans `brouillon` (rien
+  // ne l'écrase, l'UI n'affiche que la famille courante) et le réenvoyait tel quel à l'enregistrement
+  // aux côtés du nouveau posteHotel, faisant compter le dossier dans Hôtellerie ET Tertiaire à la
+  // fois (voir compteurHotel/compteurBureau, TableauDeBordAccueil.jsx). typePostePrecedentRef
+  // (déclaré plus haut, avec les autres états) initialisé/mis à jour par demarrerEdition (pas ici)
+  // pour ne jamais vider creneaux au tout premier rendu d'une session d'édition.
   useEffect(() => {
     if (!brouillon) return;
     if (typePostePrecedentRef.current != null && typePostePrecedentRef.current !== brouillon.typePoste) {
-      setBrouillon((precedent) => (precedent ? { ...precedent, creneaux: [] } : precedent));
+      const champAVider = typePostePrecedentRef.current === 'bureau' ? 'posteBureau' : 'posteHotel';
+      setBrouillon((precedent) => (precedent ? { ...precedent, creneaux: [], [champAVider]: [] } : precedent));
     }
     typePostePrecedentRef.current = brouillon.typePoste;
     // eslint-disable-next-line react-hooks/exhaustive-deps

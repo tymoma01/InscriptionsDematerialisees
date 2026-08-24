@@ -151,15 +151,21 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
   // Vide les créneaux déjà cochés dès que le candidat CHANGE réellement de type de poste
   // (bureau <-> hôtel) : les deux vocabulaires (Matin/Midi/Soir vs 6h-9h/9h-18h/18h-21h) n'ont pas
   // le même sens, ne doivent jamais cohabiter en mémoire (voir le .refine dédié,
-  // BlocDisponibilites.schema.js). Le ref se réconcilie avec la valeur courante au tout premier
-  // rendu : une transition undefined -> 'bureau'/'hotel' (premier choix du candidat, ou remontage
-  // de ce bloc en revenant sur une étape précédente avec un typePoste déjà enregistré) ne
-  // déclenche donc jamais ce reset — seul un changement qui survient PENDANT que ce composant est
-  // déjà monté (l'utilisateur bascule effectivement son choix) le fait.
+  // BlocDisponibilites.schema.js). Vide aussi le tableau de postes de la famille QUITTÉE
+  // (posteBureau si on bascule vers hôtel, posteHotel si on bascule vers bureau) — audit
+  // 2026-08-24 : ce champ restait auparavant en mémoire (react-hook-form ne le désenregistre pas
+  // tant qu'il n'est pas démonté) et repartait dans le payload de soumission avec l'autre famille
+  // fraîchement cochée, faisant compter le même dossier à la fois dans Hôtellerie ET Tertiaire
+  // (voir compteurHotel/compteurBureau, TableauDeBordAccueil.jsx). Le ref se réconcilie avec la
+  // valeur courante au tout premier rendu : une transition undefined -> 'bureau'/'hotel' (premier
+  // choix du candidat, ou remontage de ce bloc en revenant sur une étape précédente avec un
+  // typePoste déjà enregistré) ne déclenche donc jamais ce reset — seul un changement qui survient
+  // PENDANT que ce composant est déjà monté (l'utilisateur bascule effectivement son choix) le fait.
   const typePostePrecedentRef = useRef(typePosteSelectionne);
   useEffect(() => {
     if (typePostePrecedentRef.current != null && typePostePrecedentRef.current !== typePosteSelectionne) {
       setValue('creneaux', [], { shouldValidate: true });
+      setValue(typePosteSelectionne === 'hotel' ? 'posteBureau' : 'posteHotel', [], { shouldValidate: true });
     }
     typePostePrecedentRef.current = typePosteSelectionne;
   }, [typePosteSelectionne]);

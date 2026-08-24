@@ -116,6 +116,22 @@ const donneesInscriptionSchema = z
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
   })
+  // La famille de postes NON sélectionnée doit rester vide (audit 2026-08-24, dossier 69 "TEST
+  // ETEST" : un résidu de posteBureau survivait en base sur un dossier passé en typePoste=hotel,
+  // faisant compter ce dossier à la fois dans Hôtellerie ET Tertiaire côté tableau de bord — voir
+  // compteurHotel/compteurBureau, TableauDeBordAccueil.jsx). Les deux useEffect front qui vident ce
+  // champ au changement de typePoste (BlocDisponibilites.jsx, InformationsInscription.jsx) restent
+  // la correction primaire ; ce refine est le filet de sécurité côté back, cohérent avec le principe
+  // du projet de ne jamais faire confiance au seul client pour une contrainte de cohérence de
+  // données (voir aussi la revalidation croisée déjà en place juste au-dessus).
+  .refine((donnees) => donnees.typePoste !== 'bureau' || donnees.posteHotel.length === 0, {
+    message: 'posteHotel doit être vide quand le type de poste recherché est "Bureau"',
+    path: ['posteHotel'],
+  })
+  .refine((donnees) => donnees.typePoste !== 'hotel' || donnees.posteBureau.length === 0, {
+    message: 'posteBureau doit être vide quand le type de poste recherché est "Hôtel"',
+    path: ['posteBureau'],
+  })
   // Disponibilité samedi ET dimanche obligatoire pour l'hôtellerie (activité du week-end) — même
   // règle que BlocDisponibilites.schema.js côté front, revalidée ici : la validation front ne
   // suffit jamais à sécuriser une écriture en base.
@@ -526,6 +542,19 @@ const modificationInscriptionSchema = z
   .refine((donnees) => donnees.typePoste !== 'hotel' || donnees.posteHotel.length > 0, {
     message: 'Sélectionnez au moins un poste',
     path: ['posteHotel'],
+  })
+  // La famille de postes NON sélectionnée doit rester vide — même filet de sécurité que
+  // donneesInscriptionSchema ci-dessus (voir son commentaire, audit 2026-08-24 dossier 69), mais
+  // d'autant plus nécessaire ici : c'est précisément le bouton "Modifier" (InformationsInscription.jsx)
+  // qui a produit le résidu constaté, en gardant l'ancien tableau de postes en mémoire lors d'un
+  // changement de typePoste en cours d'édition.
+  .refine((donnees) => donnees.typePoste !== 'bureau' || donnees.posteHotel.length === 0, {
+    message: 'posteHotel doit être vide quand le type de poste recherché est "Bureau"',
+    path: ['posteHotel'],
+  })
+  .refine((donnees) => donnees.typePoste !== 'hotel' || donnees.posteBureau.length === 0, {
+    message: 'posteBureau doit être vide quand le type de poste recherché est "Hôtel"',
+    path: ['posteBureau'],
   })
   .refine(
     (donnees) => donnees.typePoste !== 'hotel' || (donnees.joursDisponibles.includes('samedi') && donnees.joursDisponibles.includes('dimanche')),
