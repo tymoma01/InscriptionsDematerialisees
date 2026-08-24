@@ -88,36 +88,48 @@
   color: var(--couleur-erreur);
 }
 
-/* Barre du bouton "Voir l'historique des rendez-vous sélectionnés" — au-dessus du tableau, sous
-   les filtres (décision produit) ; désactivé tant qu'aucune case n'est cochée (voir
-   Planification.jsx, dossiersSelectionnes). */
-.planification__actions-selection {
+/* Barre d'actions groupées — même style visuel que .tableau-bord-accueil__actions-groupees
+   (TableauDeBordAccueil.css, Dossiers candidats, audit 2026-08-24) : sticky juste sous
+   BarreNavigation (même calc que .page-verification-pieces__entete/.tableau-bord-accueil__
+   actions-groupees — rien d'autre n'est sticky au-dessus d'elle sur cette page), fond dégradé
+   back-office, compteur à gauche, boutons pleins à droite. Dupliqué plutôt que partagé (voir
+   CLAUDE.md, conventions du projet) : même raison que le mapping de statuts déjà dupliqué plus
+   haut dans ce fichier. N'apparaît qu'à partir de SEUIL_SELECTION_ACTIONS_GROUPEES sélections
+   (voir Planification.jsx) — plus de bouton `disabled`, cette classe n'est jamais rendue seule. */
+.planification__actions-groupees {
+  position: sticky;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
   margin-bottom: var(--espace-moyen);
+  padding: var(--espace-petit) var(--espace-moyen);
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-back-office), var(--couleur-back-office-dore));
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-/* Bouton plein, même convention que .notes-dossier__formulaire button/.historique-relances__
-   formulaire button (fond --couleur-back-office, texte blanc, hover -hover, disabled en
-   opacité) — remplace le bouton par défaut du navigateur (texte minuscule sur fond blanc),
-   jugé trop discret pour une action aussi visible (ouvre le panneau d'historique). Police
-   agrandie (1rem, poids 600) par rapport à la taille par défaut d'un bouton natif. */
-.planification__actions-selection button {
-  padding: 0.6rem 1.2rem;
+.planification__actions-groupees-compteur {
+  color: #ffffff;
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.planification__bouton-action-groupee {
+  padding: 0.5rem 0.9rem;
   border: none;
   border-radius: var(--rayon-bordure);
-  background-color: var(--couleur-back-office);
-  color: #ffffff;
-  font-size: 1rem;
+  background-color: #ffffff;
+  color: var(--couleur-back-office);
   font-weight: 600;
   cursor: pointer;
+  transition: filter 0.15s ease;
 }
 
-.planification__actions-selection button:hover:not(:disabled) {
-  background-color: var(--couleur-back-office-hover);
-}
-
-.planification__actions-selection button:disabled {
-  opacity: 0.6;
-  cursor: default;
+.planification__bouton-action-groupee:hover,
+.planification__bouton-action-groupee:focus-visible {
+  filter: brightness(0.95);
 }
 
 .planification__vide {

@@ -13,6 +13,11 @@ import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementA
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
 import './Planification.css';
 
+// Même seuil et même raisonnement que TableauDeBordAccueil.jsx (Dossiers candidats, audit
+// 2026-08-24) : en dessous, l'action reste accessible individuellement (colonne Actions,
+// "Voir le dossier") — une barre d'actions groupées n'apporte rien pour une seule ligne.
+const SEUIL_SELECTION_ACTIONS_GROUPEES = 2;
+
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   day: '2-digit',
   month: '2-digit',
@@ -523,16 +528,25 @@ export default function Planification() {
           />
         </div>
 
-        {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection
-            multi-candidats/"Voir l'historique..." reste une action de coordination (regroupement
-            de plusieurs dossiers), distincte de la simple consultation en lecture seule d'UN
-            dossier via "Voir le dossier" (colonne Actions ci-dessous, désormais accessible à ces
-            deux rôles — voir son commentaire). */}
-        {!estFormateurOuInspecteur && (
-          <div className="planification__actions-selection">
-            <button type="button" disabled={dossiersSelectionnes.size === 0} onClick={ouvrirHistorique}>
+        {/* Barre d'actions groupées — même style visuel que TableauDeBordAccueil.jsx (Dossiers
+            candidats, audit 2026-08-24) : sticky, fond dégradé back-office, compteur à gauche,
+            boutons pleins à droite. N'apparaît qu'à partir de SEUIL_SELECTION_ACTIONS_GROUPEES (2)
+            sélections, plutôt que toujours rendue avec un bouton désactivé (comportement
+            précédent) — même seuil et même logique de disparition que là-bas. Masquée pour
+            Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection multi-candidats/
+            "Voir l'historique..." reste une action de coordination (regroupement de plusieurs
+            dossiers), distincte de la simple consultation en lecture seule d'UN dossier via "Voir
+            le dossier" (colonne Actions ci-dessous, désormais accessible à ces deux rôles — voir
+            son commentaire). Un seul bouton aujourd'hui ("Voir l'historique...", logique métier
+            inchangée) — la structure (compteur + boutons) reste celle de Dossiers candidats pour
+            accueillir de futures actions groupées sans reprise visuelle. */}
+        {!estFormateurOuInspecteur && dossiersSelectionnes.size >= SEUIL_SELECTION_ACTIONS_GROUPEES && (
+          <div className="planification__actions-groupees" role="toolbar" aria-label="Actions groupées">
+            <span className="planification__actions-groupees-compteur">
+              {dossiersSelectionnes.size} candidats sélectionnés
+            </span>
+            <button type="button" className="planification__bouton-action-groupee" onClick={ouvrirHistorique}>
               Voir l&rsquo;historique des rendez-vous sélectionnés
-              {dossiersSelectionnes.size > 0 ? ` (${dossiersSelectionnes.size})` : ''}
             </button>
           </div>
         )}
