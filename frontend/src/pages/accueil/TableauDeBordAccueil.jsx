@@ -9,6 +9,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts } from '../../services/dossierService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './TableauDeBordAccueil.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
@@ -194,6 +195,15 @@ export default function TableauDeBordAccueil() {
       annule = true;
     };
   }, []);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : silencieux (ne touche jamais
+  // chargementDossiers/erreur ci-dessus, réservés au chargement initial) — un échec ponctuel de
+  // ce re-fetch en arrière-plan n'a pas à afficher d'erreur, le prochain tick réessaiera.
+  useRafraichissementAuto(() => {
+    listerDossiers()
+      .then(setDossiers)
+      .catch(() => {});
+  });
 
   // Recherche/dates uniquement (pas encore l'entité ni le statut) : base commune aux compteurs
   // "Hôtellerie"/"Tertiaire" ci-dessous, qui doivent chacun ignorer l'état courant du filtre

@@ -17,6 +17,13 @@ export async function listerStatuts() {
   return data;
 }
 
+// Signal de rafraîchissement automatique du back-office (audit 2026-08-24, voir
+// useRafraichissementAuto.js) — un seul horodatage (ISO), jamais les données elles-mêmes.
+export async function obtenirDerniereModification() {
+  const { data } = await api.get('/dossiers/derniere-modification');
+  return data.derniereModification;
+}
+
 // Un seul dossier (statut + nom/prénom du candidat déjà joints côté back) — sert par exemple à
 // afficher le nom du candidat en en-tête de l'écran de capture de pièces (CaptureTablette.jsx).
 export async function obtenirDossier(dossierId) {

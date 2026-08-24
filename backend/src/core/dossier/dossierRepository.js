@@ -257,6 +257,20 @@ function listerStatuts(bd, entiteId) {
   return bd('statuts').where({ entite_id: entiteId }).orderBy('ordre', 'asc');
 }
 
+// Rafraîchissement automatique du back-office par polling (audit 2026-08-24) : `journal_audit`
+// est déjà écrit par la quasi-totalité des points de mutation du parcours dossier (transitions,
+// rendez-vous, pièces, notes, et désormais la création — voir candidats.routes.js), MAX(date_action)
+// scopé à l'entité sert donc de signal unique "quelque chose a changé" sans avoir à interroger
+// une colonne de mise à jour différente par table (rendezvous/pieces_justificatives/notes_dossier
+// n'en ont d'ailleurs pas d'homogène). Index dédié : migration 052
+// (idx_journal_audit_entite_date_action), sans quoi ce MAX scanne toute la table à chaque appel
+// (30-60s par onglet actif, voir useRafraichissementAuto.js côté front). null si l'entité n'a
+// encore aucune ligne journal_audit (entité neuve) — au consommateur (dossierService) de décider
+// comment l'exposer, pas cette fonction.
+function obtenirDerniereModification(bd, entiteId) {
+  return bd('journal_audit').where({ entite_id: entiteId }).max('date_action as derniereModification').first();
+}
+
 // Même select/jointures que listerDossiers ci-dessus, mais filtré par une liste d'ids précise
 // plutôt qu'un statut — sert au tableau consolidé du dashboard KPI (voir
 // statistiquesService.listerDossiersParIndicateurs) : les indicateurs KPI (historique_statuts,
@@ -484,4 +498,5 @@ module.exports = {
   listerDossiers,
   listerDossiersParIds,
   listerStatuts,
+  obtenirDerniereModification,
 };

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { obtenirInscriptionComplete, modifierInscription } from '../../services/dossierService';
 import { listerPiecesJustificatives, obtenirApercuPiece } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
+import { useRafraichissementAuto } from './useRafraichissementAuto';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import StatutBadge from '../workflow/StatutBadge';
 import './InformationsInscription.css';
@@ -370,8 +371,7 @@ export default function InformationsInscription({ dossierId }) {
     };
   }, [photoIdentiteUrl]);
 
-  const gererOuverture = (evenement) => {
-    if (!evenement.target.open || inscription) return;
+  const chargerInscription = () => {
     setChargement(true);
     setErreur(null);
     Promise.all([obtenirInscriptionComplete(dossierId), listerPiecesJustificatives(dossierId)])
@@ -394,6 +394,22 @@ export default function InformationsInscription({ dossierId }) {
       })
       .finally(() => setChargement(false));
   };
+
+  const gererOuverture = (evenement) => {
+    if (!evenement.target.open || inscription) return;
+    chargerInscription();
+  };
+
+  // Rafraîchissement automatique (audit 2026-08-24) : cette section est un <details> chargé à la
+  // demande (gererOuverture ci-dessus), jamais au montage — rien à rafraîchir tant qu'elle n'a
+  // jamais été ouverte (inscription === null, voir le même guard que gererOuverture). Ne recharge
+  // jamais pendant une édition en cours (`edition`) : un agent qui corrige une erreur de saisie
+  // (bouton "Modifier") ne doit jamais voir son brouillon écrasé par un rafraîchissement en
+  // arrière-plan pendant qu'il tape — même principe que le guard déjà en place pour ne pas perdre
+  // une signature/capture en cours ailleurs dans ce projet (voir CaptureTablette.jsx).
+  useRafraichissementAuto(() => {
+    if (inscription && !edition) chargerInscription();
+  });
 
   const candidat = inscription?.candidat;
   const coordonnees = inscription?.blocs?.coordonnees ?? {};

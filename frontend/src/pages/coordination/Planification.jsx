@@ -9,6 +9,7 @@ import { useParametreURL } from '../../core/filtres/useParametreURL';
 import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
 import './Planification.css';
 
@@ -292,6 +293,16 @@ export default function Planification() {
       annule = true;
     };
   }, [aVenirSeulement, formateurFiltre]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : rejoue le fetch ci-dessus avec les filtres
+  // COURANTS (fermeture sur aVenirSeulement/formateurFiltre, toujours à jour via callbackRef, voir
+  // useRafraichissementAuto.js), silencieusement — jamais chargement/erreur, réservés au
+  // chargement initial.
+  useRafraichissementAuto(() => {
+    listerRendezvousTest({ aVenir: aVenirSeulement, formateurId: formateurFiltre || undefined })
+      .then(setRendezvous)
+      .catch(() => {});
+  });
 
   // Filtrage client élargi (nom/prénom, n° dossier, poste, formateur, statut — voir
   // rechercheCorrespond) + plage de date sur rdv.date_heure (dateDebutFiltre/dateFinFiltre), appliqués en plus des filtres serveur

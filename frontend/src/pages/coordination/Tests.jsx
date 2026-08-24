@@ -9,6 +9,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Tests.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
@@ -126,6 +127,10 @@ export default function Tests() {
     rechargerDossier();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : réutilise rechargerDossier tel quel, même
+  // fonction que le rechargement manuel post-replanification ci-dessus.
+  useRafraichissementAuto(rechargerDossier);
 
   return (
     <PageBackOffice>

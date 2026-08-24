@@ -6,6 +6,7 @@ import {
   changerStatutRendezvous,
   listerMotifsDesistement,
 } from '../../services/rendezvousService';
+import { useRafraichissementAuto } from './useRafraichissementAuto';
 import './GestionRendezvous.css';
 
 // Trois formats distincts plutôt qu'un seul date+heure combiné (comportement précédent) : la
@@ -196,6 +197,11 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : ne recharge que la liste des rendez-vous,
+  // jamais les motifs (config statique, sans intérêt à repoller) ni `desistementEnCours`/
+  // `motifChoisi` (le mini-formulaire de désistement en cours, état séparé ci-dessus).
+  useRafraichissementAuto(chargerRendezvous);
 
   const ouvrirDesistement = (rendezvousId, statutCible) => {
     setDesistementEnCours({ rendezvousId, statutCible });

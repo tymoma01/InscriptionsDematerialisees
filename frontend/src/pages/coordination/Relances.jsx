@@ -9,6 +9,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Relances.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
@@ -63,6 +64,15 @@ export default function Relances() {
       annule = true;
     };
   }, [dossierId]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : ce badge de titre uniquement — l'historique
+  // des relances (HistoriqueRelances.jsx) et les rendez-vous (GestionRendezvous.jsx) gèrent leur
+  // propre rafraîchissement indépendamment (voir leurs fichiers respectifs).
+  useRafraichissementAuto(() => {
+    obtenirDossier(dossierId)
+      .then(setDossier)
+      .catch(() => {});
+  });
 
   return (
     <PageBackOffice>

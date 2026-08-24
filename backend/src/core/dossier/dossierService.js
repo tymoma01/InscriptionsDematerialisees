@@ -455,6 +455,17 @@ async function listerStatuts(entite) {
   return dossierRepository.listerStatuts(bd, entite.id);
 }
 
+// Rafraîchissement automatique du back-office par polling (audit 2026-08-24) — voir le
+// commentaire de dossierRepository.obtenirDerniereModification pour le choix de journal_audit
+// comme signal unique. null (aucune ligne journal_audit pour cette entité, cas théorique — une
+// entité active a normalement déjà au moins une création de dossier) plutôt qu'une date arbitraire
+// : au front de traiter "jamais rien" comme "rien de nouveau à charger", pas comme une vraie date.
+async function obtenirDerniereModification(entite) {
+  const bd = await obtenirKnex();
+  const { derniereModification } = await dossierRepository.obtenirDerniereModification(bd, entite.id);
+  return derniereModification;
+}
+
 // Section repliable "Informations d'inscription complètes" de la fiche dossier (Validation.jsx/
 // Relances.jsx) — undefined si le dossier n'existe pas pour cette entité, à la route d'appel de
 // traduire ça en 404 (même contrat que obtenirDossier ci-dessus).
@@ -686,6 +697,7 @@ module.exports = {
   verifierDisponibilite,
   listerDossiers,
   listerStatuts,
+  obtenirDerniereModification,
   obtenirDossier,
   obtenirInscriptionComplete,
   modifierInscription,

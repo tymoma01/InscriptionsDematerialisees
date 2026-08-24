@@ -41,6 +41,14 @@ const ROLES_CONSULTATION_RENDEZVOUS_TEST = [...ROLES_CONSULTATION_DOSSIERS, ROLE
 // pas un seul).
 const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 
+// GET /derniere-modification ci-dessous (rafraîchissement automatique du back-office, audit
+// 2026-08-24) — les 5 rôles humains (ROLES.SYSTEME exclu, jamais connecté, voir rbac.js) : ce
+// signal est consulté par TOUTES les pages back-office existantes (TableauDeBordAccueil,
+// Tests/Planification/GestionRendezvous accessibles à Formateur/Inspecteur, Validation/Indicateurs
+// à Recruteur/Admin...), il n'a donc pas à restreindre par rôle au-delà de "utilisateur back-office
+// authentifié" — la donnée renvoyée (un simple horodatage) ne révèle rien de sensible par elle-même.
+const ROLES_TOUT_BACK_OFFICE = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+
 // GET /api/dossiers?statut=code — liste des dossiers de l'entité courante, filtrable par statut.
 // Le code de statut n'est jamais figé ici : il vient de la table `statuts`, configurable par
 // entité (voir Modularité, CLAUDE.md) — un code inconnu pour l'entité renvoie simplement une
@@ -61,6 +69,23 @@ router.get('/statuts', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, 
   try {
     const statuts = await dossierService.listerStatuts(req.entite);
     res.json(statuts);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// GET /api/dossiers/derniere-modification — rafraîchissement automatique du back-office par
+// polling (audit 2026-08-24, préféré à WebSocket/SSE : zéro nouvelle dépendance, zéro connexion
+// persistante à gérer, cohérent avec node-cron déjà en place — voir l'audit pour le détail des
+// options écartées). Renvoie un seul horodatage (MAX(date_action) de journal_audit, scopé à
+// l'entité) : chaque page back-office compare cette valeur à la dernière connue côté client
+// (useRafraichissementAuto.js) et ne redéclenche son fetch existant que si elle a changé — cette
+// route ne renvoie donc jamais les données elles-mêmes, seulement le signal "quelque chose a
+// changé, va re-vérifier".
+router.get('/derniere-modification', requireRole(...ROLES_TOUT_BACK_OFFICE), async (req, res, next) => {
+  try {
+    const derniereModification = await dossierService.obtenirDerniereModification(req.entite);
+    res.json({ derniereModification });
   } catch (erreur) {
     next(erreur);
   }

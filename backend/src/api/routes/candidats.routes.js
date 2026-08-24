@@ -2,6 +2,8 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { inscrireCandidat, verifierDisponibilite, ErreurInscriptionConflit } = require('../../core/dossier/dossierService');
 const { limiteurVerificationDisponibilite } = require('../middlewares/rateLimiter');
+const journalAudit = require('../../core/audit/journalAudit');
+const { obtenirKnex } = require('../../db/knex');
 
 const router = Router();
 
@@ -12,6 +14,24 @@ router.post('/', async (req, res, next) => {
   try {
     const { candidatId, dossierId } = await inscrireCandidat(req.entite, req.body);
     console.log(`Inscription réussie : candidat ${candidatId}, dossier ${dossierId} (entité ${req.entite.code}).`);
+
+    // Seul point d'écriture du parcours dossier qui n'appelait jamais journalAudit jusqu'ici
+    // (audit 2026-08-24, rafraîchissement automatique du back-office) — utilisateurId=null car
+    // c'est le candidat lui-même qui s'inscrit, sans session (voir commentaire de route
+    // ci-dessus), même convention que journalAudit.js pour une action sans utilisateur identifié.
+    // Même patron que notes.routes.js/pieces.routes.js/rendezvous.routes.js : l'appel vit dans la
+    // route, jamais dans dossierService.js (qui reste agnostique de la traçabilité RGPD).
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: null,
+      entiteId: req.entite.id,
+      action: 'dossier_inscription_creation',
+      tableCible: 'dossiers',
+      cibleId: dossierId,
+      donnees: { candidatId },
+      adresseIp: req.ip,
+    });
+
     res.status(201).json({ candidatId, dossierId });
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {

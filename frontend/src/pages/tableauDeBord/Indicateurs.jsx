@@ -16,6 +16,7 @@ import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirIndicateursKpi, listerDossiersParIndicateurs } from '../../services/statistiqueService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import TableauDossiersSelectionnes from './TableauDossiersSelectionnes';
 import './Indicateurs.css';
 
@@ -581,6 +582,34 @@ export default function Indicateurs() {
       annule = true;
     };
   }, [selectionIndicateurs, periode, typePoste, posteEffectif]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : rejoue les deux fetches ci-dessus avec les
+  // filtres COURANTS (fermeture sur periode/typePoste/posteEffectif/selectionIndicateurs, toujours
+  // à jour via callbackRef, voir useRafraichissementAuto.js) — silencieux, ne touche jamais
+  // chargement/chargementTableau pour éviter un flash de "Chargement…" toutes les 45s. Le tableau
+  // consolidé n'est rejoué que si une sélection est active, même garde que l'effet ci-dessus.
+  useRafraichissementAuto(() => {
+    obtenirIndicateursKpi({
+      dateDebut: periode.dateDebut,
+      dateFin: periode.dateFin,
+      typePoste: typePoste || undefined,
+      poste: posteEffectif || undefined,
+    })
+      .then(setIndicateurs)
+      .catch(() => {});
+
+    if (selectionIndicateurs.size > 0) {
+      listerDossiersParIndicateurs({
+        dateDebut: periode.dateDebut,
+        dateFin: periode.dateFin,
+        typePoste: typePoste || undefined,
+        poste: posteEffectif || undefined,
+        indicateurs: selectionIndicateurs,
+      })
+        .then(setDossiersSelectionnes)
+        .catch(() => {});
+    }
+  });
 
   if (chargementSession) {
     return (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSession } from '../auth/useSession';
 import { listerNotesDossier, ajouterNoteDossier } from '../../services/noteDossierService';
+import { useRafraichissementAuto } from './useRafraichissementAuto';
 import './NotesDossier.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -47,6 +48,11 @@ export default function NotesDossier({ dossierId }) {
     chargerNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : ne touche que la liste des notes déjà
+  // reçues, jamais `contenu` (le brouillon de note en cours de saisie, état séparé ci-dessus) —
+  // aucun risque de perdre une note en cours de frappe.
+  useRafraichissementAuto(chargerNotes);
 
   const gererEnvoi = async (evenement) => {
     evenement.preventDefault();

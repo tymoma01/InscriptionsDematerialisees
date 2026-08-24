@@ -13,6 +13,7 @@ import {
   creerUtilisateur,
   mettreAJourUtilisateur,
 } from '../../services/utilisateurService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Utilisateurs.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -97,6 +98,10 @@ export default function Utilisateurs() {
         // édition reste simplement désactivé (voir FormulaireUtilisateur).
       });
   }, []);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : réutilise chargerUtilisateurs tel quel —
+  // rôles non rejoués (config quasi-statique, sans intérêt à repoller toutes les 45s).
+  useRafraichissementAuto(chargerUtilisateurs);
 
   const gererFinFormulaire = () => {
     setFormulaireOuvert(null);

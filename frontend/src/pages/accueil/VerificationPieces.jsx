@@ -9,6 +9,7 @@ import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donn
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { obtenirDossier } from '../../services/dossierService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './VerificationPieces.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
@@ -85,6 +86,15 @@ export default function VerificationPieces() {
       annule = true;
     };
   }, [dossierId]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : ne rafraîchit que ce badge de titre — la
+  // capture de pièces (CaptureTablette.jsx) garde volontairement son propre état, jamais re-fetché
+  // automatiquement pendant une capture en cours (voir l'audit, composants exclus).
+  useRafraichissementAuto(() => {
+    obtenirDossier(dossierId)
+      .then(setDossier)
+      .catch(() => {});
+  });
 
   return (
     <PageBackOffice>

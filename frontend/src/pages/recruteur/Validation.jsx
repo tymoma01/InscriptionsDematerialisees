@@ -8,6 +8,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier } from '../../services/dossierService';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import api from '../../services/api';
 import './Validation.css';
 
@@ -146,6 +147,18 @@ export default function Validation() {
       annule = true;
     };
   }, [dossierId]);
+
+  // Rafraîchissement automatique (audit 2026-08-24) : les deux fetches de cette page (titre +
+  // liste de pièces) sont indépendants de tout formulaire en cours de saisie — sans risque à
+  // recharger silencieusement les deux.
+  useRafraichissementAuto(() => {
+    obtenirDossier(dossierId)
+      .then(setDossier)
+      .catch(() => {});
+    listerPiecesJustificatives(dossierId)
+      .then(setPieces)
+      .catch(() => {});
+  });
 
   return (
     <PageBackOffice>

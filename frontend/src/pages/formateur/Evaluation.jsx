@@ -6,6 +6,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ListeEvaluationsAFaire from '../../core/evaluation/ListeEvaluationsAFaire';
 import GrilleEvaluation from '../../core/evaluation/GrilleEvaluation';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Evaluation.css';
 
 // Écran formateur (CLAUDE.md, section Rôles : "Formateur ... évalue les candidats, valide/
@@ -25,6 +26,12 @@ export default function Evaluation() {
   // ListeEvaluationsAFaire.jsx, transmis tel quel pour qu'il surligne/scrolle jusqu'à la ligne
   // correspondante (voir ListeEvaluationsAFaire.jsx, rendezvousIdCible).
   const [rendezvousIdCible] = useParametreURL('rendezvousId', '');
+
+  // Rafraîchissement automatique (audit 2026-08-24) : réutilise le mécanisme déjà en place
+  // (compteurRafraichissement, voir son commentaire d'en-tête) plutôt que de dupliquer la logique
+  // de fetch — ListeEvaluationsAFaire n'est de toute façon montée que quand !rendezvousSelectionne,
+  // sans risque de perturber une évaluation en cours de saisie (GrilleEvaluation).
+  useRafraichissementAuto(() => setCompteurRafraichissement((compteur) => compteur + 1));
 
   if (chargementSession) {
     return (

@@ -6,6 +6,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ListeEvaluationsAFaire from '../../core/evaluation/ListeEvaluationsAFaire';
 import GrilleEvaluation from '../../core/evaluation/GrilleEvaluation';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Evaluation.css';
 
 // Écran inspecteur (rôle INSPECTEUR, voir backend rbac.js) : section dédiée pour les postes
@@ -33,6 +34,10 @@ export default function EvaluationInspecteur() {
   // correspondante (voir ListeEvaluationsAFaire.jsx, rendezvousIdCible). Même patron que
   // pages/formateur/Evaluation.jsx.
   const [rendezvousIdCible] = useParametreURL('rendezvousId', '');
+
+  // Rafraîchissement automatique (audit 2026-08-24) : même patron que pages/formateur/Evaluation.jsx
+  // (voir son commentaire) — réutilise compteurRafraichissement, aucune duplication de fetch.
+  useRafraichissementAuto(() => setCompteurRafraichissement((compteur) => compteur + 1));
 
   if (chargementSession) {
     return (
