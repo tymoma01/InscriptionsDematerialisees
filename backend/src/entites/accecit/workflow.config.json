@@ -6,9 +6,9 @@
     { "code": "test_planifie", "libelle": "Test planifié", "ordre": 30, "estInitial": false, "estFinal": false },
     { "code": "test_realise", "libelle": "Test réalisé", "ordre": 35, "estInitial": false, "estFinal": false },
     { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 40, "estInitial": false, "estFinal": false },
-    { "code": "invalide", "libelle": "Invalidé", "ordre": 60, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true },
     { "code": "valide_envoi_formation", "libelle": "Validé - envoyé en formation", "ordre": 110, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
-    { "code": "valide_pret_embauche", "libelle": "Validé - prêt à l'embauche", "ordre": 120, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true }
+    { "code": "valide_pret_embauche", "libelle": "Validé - prêt à l'embauche", "ordre": 120, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
+    { "code": "invalide", "libelle": "Invalidé", "ordre": 130, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true }
   ],
   "transitions": [
     {
