@@ -68,6 +68,15 @@ function varianteStatut(code) {
 // l'embauche" (décision utilisateur, 2026-08-12) — remplace "Orienté formation"/"Orienté embauche"
 // pour rester au plus près du texte déjà utilisé ailleurs sur l'écran (légende du camembert
 // "Formation vs prêt à l'embauche", et le statut "Validé - prêt à l'embauche").
+//
+// Clarification d'audit, 2026-08-24 (workflow v5) : la tuile "Inscrits" est devenue "Inscriptions"
+// (voir son rendu plus bas) — collision nouvelle avec le statut `nouveau`, qui porte désormais lui-
+// même le libellé exact "Inscrit" (workflow v5, workflow.config.json), alors que cette tuile reste
+// un total de cohorte tous statuts confondus. `LIBELLES_INDICATEURS.inscrits` ci-dessous ('Inscrit')
+// n'est PAS ce libellé de tuile : c'est celui du badge "Indicateurs"/de la colonne "Dates clés"
+// (TableauDossiersSelectionnes.jsx), un contexte différent (marque une LIGNE de dossier déjà
+// affichée à côté de son propre statut réel, pas une collision du même type) — laissé inchangé,
+// portée de cette correction volontairement limitée à la tuile.
 const LIBELLES_INDICATEURS = {
   inscrits: 'Inscrit',
   envoyes_en_test: 'Envoyé en test',
@@ -759,7 +768,14 @@ export default function Indicateurs() {
                 onClick={() => basculerIndicateur('inscrits')}
               >
                 <span className="indicateurs__tuile-valeur">{indicateurs.inscrits.total}</span>
-                <span className="indicateurs__tuile-libelle">Inscrits</span>
+                {/* "Inscriptions" (pas "Inscrits", audit 2026-08-24) : le workflow v5 a donné au
+                    statut `nouveau` le libellé exact "Inscrit" (voir workflow.config.json) — cette
+                    tuile reste un TOTAL DE COHORTE (tous statuts confondus sur la période, voir
+                    compterInscrits, statistiquesRepository.js), pas "combien de dossiers sont
+                    actuellement au statut Inscrit" ; même collision, même principe de correction
+                    que `conversion` ("Converti" → "Retenu", clarification du 2026-08-11), logique
+                    de calcul strictement inchangée. */}
+                <span className="indicateurs__tuile-libelle">Inscriptions</span>
               </button>
               <button
                 type="button"

@@ -258,12 +258,24 @@ function delaiInscriptionVersTestPlanifie(bd, entiteId, { debut, finExclusive, t
     .first();
 }
 
-// Stat 7b — délai test planifié -> verdict, entièrement sur historique_statuts (décision
+// Stat 7b — délai test réalisé -> verdict, entièrement sur historique_statuts (décision
 // validée : jamais evaluations.date_evaluation). Chaque ligne "verdict" est appariée au JOIN
-// LATERAL avec la ligne test_planifie la PLUS RÉCENTE qui la précède pour le même dossier — pas
+// LATERAL avec la ligne test_realise la PLUS RÉCENTE qui la précède pour le même dossier — pas
 // la première : sur un dossier reprogrammé plusieurs fois (absence, test_non_realise), c'est le
-// délai depuis la dernière mise en test avant l'issue finale qui est significatif, pas depuis la
+// délai depuis la dernière tenue du test avant l'issue finale qui est significatif, pas depuis la
 // toute première tentative (décision validée).
+//
+// Point de départ CORRIGÉ (audit 2026-08-24, workflow v5) : test_realise plutôt que test_planifie
+// — l'ancien point de départ mesurait "planification -> verdict" (incluant l'attente jusqu'à la
+// date du test lui-même, déjà couverte par le délai "inscription -> test planifié"), alors que le
+// libellé affiché est "test -> verdict". Le workflow v5 introduit test_realise (confirmation
+// explicite que le test A EU LIEU, distincte de la soumission du verdict) précisément pour cette
+// distinction ; les trois destinations de verdict (invalide/valide_envoi_formation/
+// valide_pret_embauche) ne sont d'ailleurs atteignables QUE depuis test_realise (voir
+// workflow.config.json, aucune transition test_planifie -> verdict), donc cette donnée existe
+// déjà pour l'intégralité des dossiers comptés ici — aucune perte de couverture par ce recalcul.
+// Isole ainsi le délai d'évaluation/décision administrative, distinct du délai de planification
+// déjà mesuré par delaiInscriptionVersTestPlanifie ci-dessus.
 //
 // Filtre poste/typePoste : historique_statuts n'a aucun lien vers evaluation_id/poste_code — la
 // granularité "par tentative de test précise" n'est pas atteignable ici. Approximation assumée :
@@ -280,11 +292,11 @@ function delaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, po
          FROM historique_statuts hs
          JOIN statuts s ON s.id = hs.statut_id
          WHERE hs.dossier_id = verdict.dossier_id
-           AND s.code = 'test_planifie'
+           AND s.code = 'test_realise'
            AND hs.date_changement < verdict.date_changement
          ORDER BY hs.date_changement DESC
          LIMIT 1
-       ) AS planification ON true`,
+       ) AS test_realise_le ON true`,
     )
     .where('dossiers.entite_id', entiteId)
     .whereIn('statut_verdict.code', ['invalide', 'valide_envoi_formation', 'valide_pret_embauche'])
@@ -300,7 +312,7 @@ function delaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, po
 
   return requete
     .select(
-      bd.raw('AVG(EXTRACT(EPOCH FROM (verdict.date_changement - planification.date_changement)) / 86400) as moyenne_jours'),
+      bd.raw('AVG(EXTRACT(EPOCH FROM (verdict.date_changement - test_realise_le.date_changement)) / 86400) as moyenne_jours'),
       bd.raw('COUNT(*) as nb_dossiers'),
     )
     .first();
@@ -428,10 +440,11 @@ function listerDelaiInscriptionVersTestPlanifie(bd, entiteId, { debut, finExclus
   return requete.select('premiere_planif.dossier_id as dossier_id', 'premiere_planif.date_changement as date_cle');
 }
 
-// Même JOIN LATERAL que delaiTestVersVerdict ci-dessus, indispensable ici aussi et pas seulement
-// pour le calcul de moyenne : c'est une jointure LATERAL implicitement INNER (ON true), donc tout
-// verdict SANS planification antérieure est déjà exclu par cette jointure — sans elle, la liste
-// inclurait des dossiers que le chiffre affiché sur la carte ne compte pas.
+// Même JOIN LATERAL que delaiTestVersVerdict ci-dessus (voir son commentaire pour le recalcul
+// test_realise plutôt que test_planifie, audit 2026-08-24), indispensable ici aussi et pas
+// seulement pour le calcul de moyenne : c'est une jointure LATERAL implicitement INNER (ON true),
+// donc tout verdict SANS test_realise antérieur est déjà exclu par cette jointure — sans elle, la
+// liste inclurait des dossiers que le chiffre affiché sur la carte ne compte pas.
 function listerDelaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('historique_statuts as verdict')
     .join('dossiers', 'dossiers.id', 'verdict.dossier_id')
@@ -442,11 +455,11 @@ function listerDelaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePos
          FROM historique_statuts hs
          JOIN statuts s ON s.id = hs.statut_id
          WHERE hs.dossier_id = verdict.dossier_id
-           AND s.code = 'test_planifie'
+           AND s.code = 'test_realise'
            AND hs.date_changement < verdict.date_changement
          ORDER BY hs.date_changement DESC
          LIMIT 1
-       ) AS planification ON true`,
+       ) AS test_realise_le ON true`,
     )
     .where('dossiers.entite_id', entiteId)
     .whereIn('statut_verdict.code', ['invalide', 'valide_envoi_formation', 'valide_pret_embauche'])
