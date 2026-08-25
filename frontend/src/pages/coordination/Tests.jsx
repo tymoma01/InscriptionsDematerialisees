@@ -4,13 +4,17 @@ import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest'
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
 import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
-import GestionRendezvous from '../../core/dossier/GestionRendezvous';
+import GestionRendezvous, { ROLES_GESTION_RENDEZVOUS } from '../../core/dossier/GestionRendezvous';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
+import { useSession } from '../../core/auth/useSession';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
+import { STATUTS_TEST_NON_PLANIFIE } from '../../core/pieceJustificative/premierePlanificationTest';
+import { usePiecesObligatoiresCompletes } from '../../core/pieceJustificative/usePiecesObligatoiresCompletes';
 import './Tests.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
@@ -51,6 +55,14 @@ function varianteStatut(code) {
 // constante que Validation.jsx (dupliquée, pas partagée, avant sa suppression de là-bas — voir
 // commentaire d'en-tête de Validation.jsx, section "Rendez-vous").
 const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
+
+// Code de la transition qui planifie le TOUT PREMIER test d'un dossier (voir workflow.config.json
+// ACCECIT) — même constante que CaptureTablette.jsx (CODE_ACTION_PLANIFIER_TEST), onglet "Pièces
+// justificatives", seul endroit où ce bouton vivait jusque-là (audit 2026-08-25) : proposé
+// désormais aussi ici, sur l'onglet "Tests", dès que STATUTS_TEST_NON_PLANIFIE +
+// piecesObligatoiresCompletes le permettent (voir plus bas), pour éviter à l'agent de repasser
+// par l'onglet Pièces justificatives une fois les pièces obligatoires déjà toutes chargées.
+const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
 
 // Statuts depuis lesquels l'action "Replanifier" est proposée (voir Modularité, CLAUDE.md : reste
 // propre à cette page/entité, pas au moteur générique GestionTransitions/ModalePlanificationTest).
@@ -99,8 +111,32 @@ function libellePoste(code) {
 export default function Tests() {
   const { dossierId } = useParams();
   const location = useLocation();
+  const { utilisateur } = useSession();
 
   const [dossier, setDossier] = useState(null);
+
+  // RBAC identique à celui déjà en place pour ce même bouton dans l'onglet "Pièces
+  // justificatives" (CaptureTablette.jsx) : là-bas, seuls Accueil/Coordination/Recruteur/Admin
+  // atteignent même l'écran (pas de lien "Pièces justificatives" pour Formateur/Inspecteur, voir
+  // BarreNavigation.jsx). Ici, l'onglet "Tests" est en revanche accessible à Formateur/Inspecteur
+  // aussi (Suivi des tests, même barre) : ROLES_GESTION_RENDEZVOUS (réutilisée depuis
+  // GestionRendezvous.jsx, même liste que le back — rendezvous.routes.js) rend ce masquage
+  // explicite ici, pour ne pas leur proposer un bouton dont la création de rendez-vous serait de
+  // toute façon refusée côté serveur.
+  const peutPlanifierTest = ROLES_GESTION_RENDEZVOUS.includes(utilisateur?.roleCode);
+
+  // Complétude des pièces obligatoires (voir premierePlanificationTest.js — même calcul
+  // qu'utilise CaptureTablette.jsx pour ce même bouton, jamais dupliqué) : fetch indépendant de
+  // celui de CaptureTablette.jsx (même patron que le reste de cet écran, ex. obtenirDossier
+  // ci-dessous, déjà rechargé séparément par VerificationPieces.jsx).
+  const { chargement: chargementPieces, piecesObligatoiresCompletes } = usePiecesObligatoiresCompletes(
+    dossierId,
+    typesPiecesConfigAccecitTest,
+  );
+
+  // Panneau de planification du TOUT PREMIER test (distinct de panneauReplanificationOuvert plus
+  // bas, qui rouvre le même composant ModalePlanificationTest mais avec CODE_ACTION_REPLANIFIER_TEST).
+  const [panneauPlanificationOuvert, setPanneauPlanificationOuvert] = useState(false);
 
   // Panneau de replanification (ModalePlanificationTest, voir plus bas) — ouvert/fermé, pas besoin
   // de retenir "quel dossier" (même raison que sur Validation.jsx avant elle) puisque cette page
@@ -134,6 +170,15 @@ export default function Tests() {
   // Rafraîchissement automatique (audit 2026-08-24) : réutilise rechargerDossier tel quel, même
   // fonction que le rechargement manuel post-replanification ci-dessus.
   useRafraichissementAuto(rechargerDossier);
+
+  // Dossier sans premier test encore planifié — même liste de statuts que CaptureTablette.jsx
+  // (STATUTS_TEST_NON_PLANIFIE, voir son import plus haut), jamais recalculée séparément.
+  const dossierTestNonPlanifie = Boolean(dossier) && STATUTS_TEST_NON_PLANIFIE.includes(dossier.statut_code);
+  // Condition complète d'affichage du bouton "Valider et planifier un test" — dérivée une seule
+  // fois, réutilisée à la fois pour le bouton lui-même et pour décider si le message
+  // "Replanification indisponible..." doit encore s'afficher en dessous.
+  const dossierPeutPlanifierTest =
+    dossierTestNonPlanifie && peutPlanifierTest && !chargementPieces && piecesObligatoiresCompletes;
 
   return (
     <PageBackOffice>
@@ -180,10 +225,29 @@ export default function Tests() {
                 Replanifier un test
               </button>
             )}
+            {/* Même bouton que CaptureTablette.jsx (onglet "Pièces justificatives"), même
+                condition (STATUTS_TEST_NON_PLANIFIE + piecesObligatoiresCompletes, voir
+                premierePlanificationTest.js) et même RBAC (ROLES_GESTION_RENDEZVOUS) — proposé
+                ici pour que l'agent n'ait plus à repasser par l'onglet Pièces justificatives une
+                fois les pièces obligatoires déjà toutes chargées (demande utilisateur,
+                2026-08-25). */}
+            {dossierPeutPlanifierTest && (
+              <button className="page-tests__action" type="button" onClick={() => setPanneauPlanificationOuvert(true)}>
+                Valider et planifier un test
+              </button>
+            )}
           </div>
-          {dossier && !STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && (
+          {dossier && !STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && !dossierPeutPlanifierTest && (
             <p className="page-tests__rendezvous-indisponible">
-              Replanification indisponible pour le statut actuel de ce dossier.
+              {/* Explicite la raison réelle (demande utilisateur, 2026-08-25) plutôt qu'un message
+                  générique qui ne dit pas pourquoi — seul le cas "pièces obligatoires manquantes"
+                  a une raison à expliciter ici : le statut lui-même (dossierTestNonPlanifie) et le
+                  RBAC (peutPlanifierTest) ne concernent jamais l'agent qui les lit (un agent sans
+                  droit de planification ne voit de toute façon aucun des deux boutons sur aucun
+                  onglet). */}
+              {dossierTestNonPlanifie && peutPlanifierTest && !chargementPieces
+                ? 'Le test ne peut être planifié tant que les pièces obligatoires ne sont pas toutes chargées.'
+                : 'Replanification indisponible pour le statut actuel de ce dossier.'}
             </p>
           )}
 
@@ -217,6 +281,27 @@ export default function Tests() {
               onAnnuler={() => setPanneauReplanificationOuvert(false)}
               onReussite={() => {
                 setPanneauReplanificationOuvert(false);
+                rechargerDossier();
+              }}
+            />
+          </ErrorBoundary>
+        )}
+
+        {/* Premier test (jamais encore planifié) — même composant/mêmes props que
+            CaptureTablette.jsx (dossierId/codeAction/postesBureau/postesHotel/libellePoste),
+            juste ouvert depuis ce bouton-ci plutôt que depuis l'onglet Pièces justificatives. */}
+        {panneauPlanificationOuvert && dossier && (
+          <ErrorBoundary key={`planification-${dossierId}`} titre="Planifier un test">
+            <ModalePlanificationTest
+              dossierId={dossierId}
+              codeAction={CODE_ACTION_PLANIFIER_TEST}
+              titre={`Planifier un test - ${dossier.candidat_prenom} ${dossier.candidat_nom}`}
+              postesBureau={dossier.postesBureau}
+              postesHotel={dossier.postesHotel}
+              libellePoste={libellePoste}
+              onAnnuler={() => setPanneauPlanificationOuvert(false)}
+              onReussite={() => {
+                setPanneauPlanificationOuvert(false);
                 rechargerDossier();
               }}
             />

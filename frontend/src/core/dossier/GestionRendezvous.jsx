@@ -123,6 +123,13 @@ const STATUTS_DOSSIER_RENDEZVOUS_CLOS = [
   'valide_pret_embauche',
 ];
 
+// Rôles autorisés à gérer un rendez-vous (reprogrammation/désistement ici, planification côté back
+// — voir ROLES_GESTION_RENDEZVOUS, rendezvous.routes.js) — exportée (audit 2026-08-25) pour que
+// Tests.jsx réutilise EXACTEMENT la même liste plutôt que de la dupliquer, pour son propre bouton
+// "Valider et planifier un test" (première planification d'un test, voir son commentaire d'en-tête) :
+// jamais deux listes de rôles à faire évoluer séparément pour une même action.
+export const ROLES_GESTION_RENDEZVOUS = ['accueil_coordination', 'recruteur', 'admin'];
+
 // Rendez-vous d'un dossier (CLAUDE.md, besoin Accueil/Coordination : "relances et
 // reprogrammations" + "motif de désistement enregistré systématiquement, pour objectiver le
 // phénomène"). dossierId reçu en prop, comme HistoriqueRelances.jsx — ce composant ne connaît
@@ -158,7 +165,7 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
   // réservées à Accueil/Coordination/Recruteur/Admin (voir ROLES_GESTION_RENDEZVOUS côté back —
   // ces routes PATCH restent fermées pour ces deux rôles, ce masquage d'affichage évite un bouton
   // visible mais non fonctionnel).
-  const peutGererRendezvous = ['accueil_coordination', 'recruteur', 'admin'].includes(utilisateur?.roleCode);
+  const peutGererRendezvous = ROLES_GESTION_RENDEZVOUS.includes(utilisateur?.roleCode);
 
   const [rendezvous, setRendezvous] = useState([]);
   const [motifs, setMotifs] = useState([]);

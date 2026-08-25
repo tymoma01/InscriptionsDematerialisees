@@ -7,6 +7,11 @@ import {
 import { useSession } from '../auth/useSession';
 import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
 import PanneauApercuPiece from './PanneauApercuPiece';
+import {
+  STATUTS_TEST_NON_PLANIFIE,
+  construirePiecesCapturees,
+  calculerPiecesObligatoiresCompletes,
+} from './premierePlanificationTest';
 import './CaptureTablette.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -29,11 +34,10 @@ const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
 // aligné sur STATUTS_SUPPRESSION_AUTORISES côté back (pieceJustificativeService.js), qui reste
 // seul juge en dernier ressort : cette constante n'est là que pour donner un retour immédiat à
 // l'agent (masquer des actions vouées à échouer une fois le test planifié), pas pour dupliquer la
-// règle métier. test_non_planifie ajouté (workflow v5, audit 2026-08-21) : la transition
-// automatique 'pieces_completes' fait désormais quitter en_attente_pieces dès la dernière pièce
-// obligatoire capturée, avant que le test soit planifié — sans cet ajout, le bouton "Valider et
-// planifier un test" ci-dessous disparaîtrait juste au moment où il doit devenir utile.
-const STATUTS_DOSSIER_PIECES_MODIFIABLES = ['en_attente_pieces', 'test_non_planifie'];
+// règle métier. Mêmes statuts qu'un dossier sans premier test encore planifié (voir
+// STATUTS_TEST_NON_PLANIFIE, premierePlanificationTest.js — extrait de cet écran, audit
+// 2026-08-25, pour que Tests.jsx réutilise exactement la même liste plutôt que de la dupliquer).
+const STATUTS_DOSSIER_PIECES_MODIFIABLES = STATUTS_TEST_NON_PLANIFIE;
 
 // Aligné sur la limite multer côté back (voir backend/src/api/routes/pieces.routes.js) — vérifié
 // ici uniquement pour donner un retour immédiat à l'agent, le back revalide de toute façon.
@@ -92,11 +96,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     listerPiecesJustificatives(dossierId)
       .then((pieces) => {
         if (annule) return;
-        const parType = new Map();
-        pieces.forEach((piece) => {
-          if (!parType.has(piece.type_piece_code)) parType.set(piece.type_piece_code, piece);
-        });
-        setPiecesCapturees(parType);
+        setPiecesCapturees(construirePiecesCapturees(pieces));
       })
       .catch((erreur) => {
         if (!annule) {
@@ -183,15 +183,13 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
 
   const nombreCapturees = typesPieces.filter((type) => piecesCapturees.has(type.code)).length;
 
-  // Seules les pièces obligatoires conditionnent le bouton de planification — les pièces
-  // optionnelles (RIB, justificatif de domicile, justificatif d'expérience, attestation mutuelle,
-  // voir typesPiecesConfig.accecit.js) n'ont jamais besoin d'être capturées pour avancer le
-  // dossier. `nombrePiecesObligatoires` dérivé de la même liste (pas une constante séparée) : le
-  // texte d'indication plus bas (voir piecesObligatoiresCompletes) reste juste si la config change
-  // à nouveau, sans autre modification à faire ici.
-  const piecesObligatoires = typesPieces.filter((type) => type.obligatoire);
-  const nombrePiecesObligatoires = piecesObligatoires.length;
-  const piecesObligatoiresCompletes = piecesObligatoires.every((type) => piecesCapturees.has(type.code));
+  // Seules les pièces obligatoires conditionnent le bouton de planification (voir
+  // premierePlanificationTest.js — extrait de cet écran, audit 2026-08-25, pour que Tests.jsx
+  // réutilise exactement le même calcul plutôt que de le dupliquer).
+  const { nombrePiecesObligatoires, piecesObligatoiresCompletes } = calculerPiecesObligatoiresCompletes(
+    piecesCapturees,
+    typesPieces,
+  );
 
   if (chargementSession) {
     return <p>Chargement de la session…</p>;
