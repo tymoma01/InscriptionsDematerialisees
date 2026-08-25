@@ -8,8 +8,9 @@ const rendezvousRepository = require('./rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
+const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const rendezvousService = require('./rendezvousService');
-const { ErreurRendezvousDossierClos } = rendezvousService;
+const { ErreurRendezvousDossierClos, ErreurPlanificationOutlook } = rendezvousService;
 
 // Le contrôle de date passée intervient avant tout accès DB (voir creerRendezvous) — testable
 // sans mock, entité/dossier fictifs compris, puisque l'exécution ne les atteint jamais.
@@ -36,6 +37,14 @@ function mockerNeutralisationSansEffet(t) {
   return t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => 0);
 }
 
+// Aucun rendez-vous actif préexistant (rien à nettoyer côté Outlook) et création Outlook toujours
+// réussie par défaut — les tests dédiés à ce comportement (plus bas, section "Intégration Outlook")
+// mockent ces deux fonctions différemment pour vérifier leurs appels/échecs spécifiques.
+function mockerOutlookSansEffet(t) {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  return t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-test' }));
+}
+
 function mockerKnexPourCapacite(t, { nombreDejaPresents }) {
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
   // trouverDossierAvecStatutParId (pas trouverDossierParId) : creerRendezvous s'appuie désormais
@@ -46,9 +55,13 @@ function mockerKnexPourCapacite(t, { nombreDejaPresents }) {
   t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
     id: 8,
     role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
   }));
   t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => nombreDejaPresents);
   mockerNeutralisationSansEffet(t);
+  mockerOutlookSansEffet(t);
 }
 
 test('creerRendezvous rejette une date/heure strictement antérieure à maintenant', async () => {
@@ -241,9 +254,16 @@ test('creerRendezvous accepte un inspecteur assigné à un dossier bureau (secte
     id: 42,
     donnees_disponibilites: { posteBureau: ['nettoyage'], posteHotel: [] },
   }));
-  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 9, role_code: 'inspecteur' }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 9,
+    role_code: 'inspecteur',
+    email: 'inspecteur@accecit.test',
+    prenom: 'Inspecteur',
+    nom: 'Test',
+  }));
   t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
   mockerNeutralisationSansEffet(t);
+  mockerOutlookSansEffet(t);
   const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 202 }));
 
   const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
@@ -263,9 +283,16 @@ test("creerRendezvous accepte n'importe quel rôle sur un dossier sans secteur d
     id: 42,
     donnees_disponibilites: null,
   }));
-  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 8, role_code: 'formateur' }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
   t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
   mockerNeutralisationSansEffet(t);
+  mockerOutlookSansEffet(t);
   const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 203 }));
 
   const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
@@ -277,6 +304,268 @@ test("creerRendezvous accepte n'importe quel rôle sur un dossier sans secteur d
 
   assert.deepEqual(resultat, { id: 203 });
   assert.equal(creerMock.mock.calls.length, 1);
+});
+
+// Intégration Outlook (audit 2026-08-26, décision utilisateur) : Outlook devient la seule source
+// de vérité pour la création d'un rendez-vous de test — creerEvenement doit réussir AVANT toute
+// écriture Neon, un échec ne doit rien laisser en base, et un rendez-vous replanifié doit libérer
+// l'ancien créneau Outlook (DELETE) sans jamais faire échouer la nouvelle planification déjà
+// confirmée si cette suppression best-effort échoue elle-même.
+test("creerRendezvous crée l'événement Outlook AVANT d'écrire en Neon et transmet outlookEventId au repository", async (t) => {
+  const appels = [];
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Jean',
+    candidat_nom: 'Dupont',
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async (emailCalendrier) => {
+    appels.push(`outlook:${emailCalendrier}`);
+    return { id: 'outlook-evenement-999' };
+  });
+  const creerRendezvousMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async (trx, donnees) => {
+    appels.push('neon');
+    return { id: 300, ...donnees };
+  });
+
+  const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+  });
+
+  assert.deepEqual(appels, ['outlook:formation@accecit.com', 'neon'], 'Outlook doit être appelé AVANT Neon');
+  assert.equal(creerEvenementMock.mock.calls.length, 1);
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].participantEmail, 'formateur@accecit.test');
+  assert.equal(creerRendezvousMock.mock.calls[0].arguments[1].outlookEventId, 'outlook-evenement-999');
+  assert.equal(resultat.outlookEventId, 'outlook-evenement-999');
+});
+
+test('creerRendezvous route un inspecteur vers le calendrier tertiaire2@accecit.com (pas formation@)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 9,
+    role_code: 'inspecteur',
+    email: 'inspecteur@accecit.test',
+    prenom: 'Inspecteur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-inspecteur' }));
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 301 }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 9,
+  });
+
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[0], 'tertiaire2@accecit.com');
+});
+
+test("creerRendezvous ne crée RIEN en Neon si la création de l'événement Outlook échoue", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  const neutraliserMock = t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => 0);
+  t.mock.method(graphCalendarService, 'creerEvenement', async () => {
+    throw Object.assign(new Error('Permissions Microsoft Graph insuffisantes (test).'), { statusCode: 403 });
+  });
+  const creerRendezvousMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 400 }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+        dossierId: 42,
+        typeRdv: 'test',
+        dateHeure: DATE_HEURE_FUTURE,
+        formateurId: 8,
+      }),
+    ErreurPlanificationOutlook,
+  );
+  assert.equal(creerRendezvousMock.mock.calls.length, 0, 'rien ne doit être écrit en Neon');
+  assert.equal(neutraliserMock.mock.calls.length, 0, 'la neutralisation ne doit pas non plus avoir lieu');
+});
+
+test('creerRendezvous ne tente aucun appel Outlook quand aucun formateur/inspecteur n\'est assigné', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => {
+    throw new Error('ne devrait jamais être appelé');
+  });
+  const trouverActifMock = t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => {
+    throw new Error('ne devrait jamais être appelé');
+  });
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 401 }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: null,
+  });
+
+  assert.equal(creerEvenementMock.mock.calls.length, 0);
+  assert.equal(trouverActifMock.mock.calls.length, 0);
+});
+
+test("creerRendezvous supprime l'ancien événement Outlook lors d'une replanification (libère le créneau)", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  // Deux formateurs distincts : celui déjà assigné à l'ancien rendez-vous actif (id 99) et le
+  // nouveau qu'on assigne ici (id 8) — trouverUtilisateurParId est appelé deux fois avec des id
+  // différents, la mock doit distinguer les deux réponses.
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async (bd, entiteId, id) =>
+    id === 99
+      ? { id: 99, role_code: 'formateur', email: 'ancien-formateur@accecit.test', prenom: 'Ancien', nom: 'Formateur' }
+      : { id: 8, role_code: 'formateur', email: 'formateur@accecit.test', prenom: 'Formateur', nom: 'Test' },
+  );
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({
+    id: 199,
+    formateur_id: 99,
+    outlook_event_id: 'outlook-ancien-evenement',
+  }));
+  mockerNeutralisationSansEffet(t);
+  t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-nouvel-evenement' }));
+  const supprimerMock = t.mock.method(graphCalendarService, 'supprimerEvenement', async () => {});
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 402 }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+  });
+
+  assert.equal(supprimerMock.mock.calls.length, 1);
+  assert.deepEqual(supprimerMock.mock.calls[0].arguments, ['formation@accecit.com', 'outlook-ancien-evenement']);
+});
+
+test("creerRendezvous réussit malgré tout si la suppression de l'ancien événement Outlook échoue (best-effort, non bloquant)", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async (bd, entiteId, id) =>
+    id === 99
+      ? { id: 99, role_code: 'formateur', email: 'ancien-formateur@accecit.test', prenom: 'Ancien', nom: 'Formateur' }
+      : { id: 8, role_code: 'formateur', email: 'formateur@accecit.test', prenom: 'Formateur', nom: 'Test' },
+  );
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({
+    id: 199,
+    formateur_id: 99,
+    outlook_event_id: 'outlook-ancien-evenement',
+  }));
+  mockerNeutralisationSansEffet(t);
+  t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-nouvel-evenement' }));
+  t.mock.method(graphCalendarService, 'supprimerEvenement', async () => {
+    throw new Error('Échec de suppression simulé.');
+  });
+  const creerRendezvousMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 403 }));
+
+  const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+  });
+
+  assert.deepEqual(resultat, { id: 403 });
+  assert.equal(creerRendezvousMock.mock.calls.length, 1);
+});
+
+test("creerRendezvous ne tente aucune suppression Outlook si l'ancien rendez-vous actif n'a pas d'outlook_event_id (créé avant ce chantier)", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({
+    id: 199,
+    formateur_id: 77,
+    outlook_event_id: null,
+  }));
+  mockerNeutralisationSansEffet(t);
+  t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-nouvel-evenement' }));
+  const supprimerMock = t.mock.method(graphCalendarService, 'supprimerEvenement', async () => {});
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 404 }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+  });
+
+  assert.equal(supprimerMock.mock.calls.length, 0);
+});
+
+test('obtenirDisponibilitesFormateur résout le calendrier départemental et l\'email individuel depuis formateurId, sans jamais exposer cet email au retour', async (t) => {
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'inspecteur',
+    email: 'inspecteur@accecit.test',
+  }));
+  const obtenirDisponibilitesMock = t.mock.method(graphCalendarService, 'obtenirDisponibilites', async () => [
+    { debut: '2026-09-01T08:00:00.000Z', fin: '2026-09-01T09:00:00.000Z' },
+  ]);
+
+  const resultat = await rendezvousService.obtenirDisponibilitesFormateur(ENTITE_FACTICE, {
+    formateurId: 8,
+    debut: '2026-09-01T00:00:00.000Z',
+    fin: '2026-09-08T00:00:00.000Z',
+  });
+
+  assert.deepEqual(obtenirDisponibilitesMock.mock.calls[0].arguments, [
+    'tertiaire2@accecit.com',
+    'inspecteur@accecit.test',
+    '2026-09-01T00:00:00.000Z',
+    '2026-09-08T00:00:00.000Z',
+  ]);
+  assert.deepEqual(resultat, [{ debut: '2026-09-01T08:00:00.000Z', fin: '2026-09-01T09:00:00.000Z' }]);
+  assert.equal(JSON.stringify(resultat).includes('inspecteur@accecit.test'), false, "l'email individuel ne doit jamais apparaître dans la réponse renvoyée au front");
+});
+
+test("obtenirDisponibilitesFormateur rejette si formateurId ne correspond à aucun formateur/inspecteur de l'entité", async (t) => {
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => undefined);
+
+  await assert.rejects(
+    () => rendezvousService.obtenirDisponibilitesFormateur(ENTITE_FACTICE, {
+      formateurId: 999,
+      debut: '2026-09-01T00:00:00.000Z',
+      fin: '2026-09-08T00:00:00.000Z',
+    }),
+    rendezvousService.ErreurFormateurInvalide,
+  );
 });
 
 // Neutralisation de l'ancien rendez-vous actif (voir rendezvousService.js, STATUT_REMPLACE) —

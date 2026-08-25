@@ -5,6 +5,8 @@ const rendezvousRepository = require('./rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
+const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
+const { DUREE_TEST_MINUTES } = require('../../integrations/notifications/generateurIcs');
 const { ROLES } = require('../auth/rbac');
 
 const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
@@ -96,6 +98,20 @@ class ErreurRendezvousDossierClos extends Error {
   constructor(message) {
     super(message);
     this.name = 'ErreurRendezvousDossierClos';
+  }
+}
+
+// Échec de l'appel Microsoft Graph au moment de créer l'événement réel sur le calendrier
+// départemental (voir creerRendezvous ci-dessous) — distincte d'une Error générique pour que
+// rendezvous.routes.js puisse renvoyer le message déjà traduit par traduireErreurGraph (401/403/
+// 429...) plutôt que le message opaque du gestionnaire d'erreurs générique (app.js). Outlook est
+// désormais la seule source de vérité pour la création d'un rendez-vous de test (décision
+// utilisateur, 2026-08-26) : cette erreur est levée AVANT toute écriture Neon, donc rien n'est créé
+// en base non plus quand elle survient — l'agent voit une erreur claire et peut retenter.
+class ErreurPlanificationOutlook extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurPlanificationOutlook';
   }
 }
 
@@ -325,6 +341,28 @@ async function listerHistoriqueRendezvousDossiers(entite, dossierIds) {
   };
 }
 
+// Créneaux réellement occupés (calendrier Outlook, pas seulement Neon) d'un formateur/inspecteur
+// précis, sur une plage de dates — alimente le calendrier hebdomadaire de ModalePlanificationTest.jsx
+// (audit 2026-08-26). `formateurId` reçu (jamais `email` directement, décision utilisateur) : cette
+// fonction résout elle-même, côté serveur, à la fois le calendrier départemental cible (via le
+// role_code) et l'email individuel de la personne (utilisé uniquement en interne pour filtrer les
+// événements Graph, voir graphCalendarService.obtenirDisponibilites) — jamais renvoyé au frontend.
+async function obtenirDisponibilitesFormateur(entite, { formateurId, debut, fin }) {
+  const bd = await db.obtenirKnex();
+  const utilisateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
+  if (!utilisateur || ![ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(utilisateur.role_code)) {
+    throw new ErreurFormateurInvalide(
+      `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur/inspecteur pour l'entité « ${entite.code} ».`,
+    );
+  }
+  const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(utilisateur.role_code);
+  try {
+    return await graphCalendarService.obtenirDisponibilites(emailCalendrier, utilisateur.email, debut, fin);
+  } catch (erreur) {
+    throw new ErreurPlanificationOutlook(erreur.message);
+  }
+}
+
 // Planifie un nouveau rendez-vous pour un dossier (ex. rendez-vous de test, CLAUDE.md étape
 // "Envoi en test" : "attribution selon poste et disponibilité, date fixée, notification envoyée
 // au formateur concerné"). Ne déclenche aucune transition de statut du dossier ici — c'est une
@@ -366,8 +404,9 @@ async function creerRendezvous(
   }
 
   let formateurIdValide = null;
+  let formateur = null;
   if (formateurId != null) {
-    const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
+    formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
     // INSPECTEUR accepté ici aussi (assignation à un test bureau) — le champ reste nommé
     // formateur_id en base (colonne historique, voir migration 018), mais porte indifféremment un
     // formateur (hôtel) ou un inspecteur (bureau) depuis l'ajout de ce second rôle.
@@ -420,12 +459,85 @@ async function creerRendezvous(
   }
 
   let lieuIdValide = null;
+  let lieu = null;
   if (lieuId != null) {
-    const lieu = await lieuRepository.trouverLieuParId(bd, entite.id, lieuId);
+    lieu = await lieuRepository.trouverLieuParId(bd, entite.id, lieuId);
     if (!lieu || !lieu.actif) {
       throw new ErreurLieuInvalide(`Lieu "${lieuId}" introuvable ou inactif pour l'entité « ${entite.code} ».`);
     }
     lieuIdValide = lieu.id;
+  }
+
+  // Outlook D'ABORD, Neon ENSUITE (décision utilisateur, 2026-08-26) : Outlook devient la seule
+  // source de vérité pour la disponibilité réelle d'un formateur/inspecteur — si cet appel échoue
+  // (token expiré, créneau pris entre-temps côté Outlook, erreur réseau...), RIEN n'est écrit en
+  // Neon non plus (l'exécution s'arrête ici, avant l'ouverture de la transaction plus bas). Hors
+  // transaction Neon volontairement : un appel HTTP externe lent ne doit jamais garder une
+  // connexion DB ouverte (même principe que invitationTestService.envoyerInvitationTest, best-
+  // effort et exécuté après coup) — seul bémol assumé : quand cette fonction est appelée avec
+  // bdExistante déjà ouverte par planificationRendezvousService.js (flux "avec-transitions"), ces
+  // deux appels Graph s'exécutent PENDANT que cette transaction externe est ouverte (elle a été
+  // ouverte par l'appelant avant de nous appeler) — connexion tenue un peu plus longtemps que
+  // l'idéal le temps des deux requêtes Graph, compromis accepté plutôt que de fractionner
+  // davantage la garantie d'atomicité création+transition qui a corrigé l'incident du dossier 62.
+  //
+  // Uniquement si un formateur/inspecteur est assigné : aucun calendrier départemental à cibler
+  // sinon (ex. typeRdv 'signature_contrat', qui n'assigne jamais de formateur_id).
+  let outlookEventIdCree = null;
+  if (formateurIdValide) {
+    const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(formateur.role_code);
+
+    // Ancien rendez-vous 'test' actif de ce dossier, s'il en existe un — cherché AVANT toute
+    // écriture, pour libérer son événement Outlook une fois le nouveau confirmé (voir plus bas,
+    // corrige la fuite identifiée à l'audit du 2026-08-26 : sans ça, un rendez-vous replanifié
+    // laissait son ancien créneau marqué "occupé" indéfiniment sur le calendrier départemental,
+    // recréant exactement le risque de double réservation que ce chantier vise à éliminer).
+    const ancienRendezVousActif = await rendezvousRepository.trouverRendezvousTestActifDossier(bd, dossierId);
+
+    let evenementCree;
+    try {
+      evenementCree = await graphCalendarService.creerEvenement(emailCalendrier, {
+        sujet: `Test ACCECIT — ${dossier.candidat_prenom} ${dossier.candidat_nom}`,
+        corps:
+          `<p>Dossier #${dossierId} — ${dossier.candidat_prenom} ${dossier.candidat_nom}</p>` +
+          (postesSelectionnes.length > 0 ? `<p>Poste(s) : ${postesSelectionnes.join(', ')}</p>` : '') +
+          (notePlanification ? `<p>Note : ${notePlanification}</p>` : ''),
+        debutIso: dateHeure,
+        finIso: new Date(new Date(dateHeure).getTime() + DUREE_TEST_MINUTES * 60 * 1000).toISOString(),
+        lieuLibelle: lieu?.adresse,
+        participantEmail: formateur.email,
+        participantNom: `${formateur.prenom} ${formateur.nom}`,
+      });
+    } catch (erreur) {
+      throw new ErreurPlanificationOutlook(erreur.message);
+    }
+    outlookEventIdCree = evenementCree.id;
+
+    // Suppression de l'ancien événement APRÈS que le nouveau soit confirmé (jamais avant) : si la
+    // création du nouveau avait échoué, on ne veut surtout pas avoir déjà supprimé un créneau
+    // toujours valide. Best-effort, non bloquant : un échec ici ne doit pas remettre en cause une
+    // planification déjà confirmée côté Outlook ET sur le point de l'être côté Neon — juste
+    // journalisé, comme le reste des nettoyages secondaires de ce module (voir
+    // invitationTestService.js pour le même principe côté email/SMS).
+    if (ancienRendezVousActif?.outlook_event_id && ancienRendezVousActif.formateur_id) {
+      try {
+        const ancienFormateur = await utilisateurRepository.trouverUtilisateurParId(
+          bd,
+          entite.id,
+          ancienRendezVousActif.formateur_id,
+        );
+        if (ancienFormateur) {
+          const ancienCalendrier = graphCalendarService.resoudreCalendrierParRole(ancienFormateur.role_code);
+          await graphCalendarService.supprimerEvenement(ancienCalendrier, ancienRendezVousActif.outlook_event_id);
+        }
+      } catch (erreur) {
+        console.error(
+          `Échec de la suppression de l'ancien événement Outlook ${ancienRendezVousActif.outlook_event_id} ` +
+            `(dossier ${dossierId}) :`,
+          erreur.message,
+        );
+      }
+    }
   }
 
   // Neutralise l'éventuel rendez-vous du même type déjà actif ('prevu'/'confirme') pour ce
@@ -454,6 +566,7 @@ async function creerRendezvous(
           lieuId: lieuIdValide,
           postesSelectionnes,
           notePlanification,
+          outlookEventId: outlookEventIdCree,
         }),
       );
 
@@ -508,6 +621,7 @@ module.exports = {
   CATEGORIES_STATUT_HISTORIQUE,
   STATUT_REMPLACE,
   creerRendezvous,
+  obtenirDisponibilitesFormateur,
   verifierDelaiAvantReplanification,
   ErreurFormateurInvalide,
   ErreurCreneauPris,
@@ -515,4 +629,5 @@ module.exports = {
   ErreurReplanificationTropTardive,
   ErreurLieuInvalide,
   ErreurRendezvousDossierClos,
+  ErreurPlanificationOutlook,
 };

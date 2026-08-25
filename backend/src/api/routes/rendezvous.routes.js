@@ -8,6 +8,7 @@ const {
   ErreurReplanificationTropTardive,
   ErreurLieuInvalide,
   ErreurRendezvousDossierClos,
+  ErreurPlanificationOutlook,
 } = rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
 const journalAudit = require('../../core/audit/journalAudit');
@@ -164,6 +165,13 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
     if (erreur instanceof ErreurLieuInvalide) {
       return res.status(400).json({ erreur: erreur.message });
     }
+    // 502 (échec en amont, pas une donnée invalide envoyée par l'agent) : Outlook est désormais la
+    // seule source de vérité pour la création d'un rendez-vous de test (décision utilisateur,
+    // 2026-08-26) — rien n'a été écrit en Neon quand cette erreur survient (voir
+    // rendezvousService.creerRendezvous), l'agent peut retenter sans risque de doublon.
+    if (erreur instanceof ErreurPlanificationOutlook) {
+      return res.status(502).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -229,6 +237,13 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
     }
     if (erreur instanceof ErreurLieuInvalide) {
       return res.status(400).json({ erreur: erreur.message });
+    }
+    // 502 (échec en amont, pas une donnée invalide envoyée par l'agent) : Outlook est désormais la
+    // seule source de vérité pour la création d'un rendez-vous de test (décision utilisateur,
+    // 2026-08-26) — rien n'a été écrit en Neon quand cette erreur survient (voir
+    // rendezvousService.creerRendezvous), l'agent peut retenter sans risque de doublon.
+    if (erreur instanceof ErreurPlanificationOutlook) {
+      return res.status(502).json({ erreur: erreur.message });
     }
     next(erreur);
   }

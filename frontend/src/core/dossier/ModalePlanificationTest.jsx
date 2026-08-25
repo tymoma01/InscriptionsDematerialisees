@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
 import { listerLieux, creerLieu, modifierLieu, listerRendezvousAssociesLieu, supprimerLieu } from '../../services/lieuService';
 import { creerRendezvousAvecTransitions, listerRendezvousTest, listerRendezvous } from '../../services/rendezvousService';
-import CalendrierDisponibiliteFormateur from '../pieceJustificative/CalendrierDisponibiliteFormateur';
+import CalendrierHebdomadaireDisponibilite from './CalendrierHebdomadaireDisponibilite';
 import { dateDuJourParis } from './dateDuJourParis';
 import { trouverLieuSimilaire } from './detectionLieuSimilaire';
 import './ModalePlanificationTest.css';
@@ -655,13 +655,21 @@ export default function ModalePlanificationTest({
             )}
           </label>
 
-          {/* Aide visuelle uniquement (voir commentaire de CalendrierDisponibiliteFormateur) : le
-              clic sur un jour se contente de préremplir le input date ci-dessous, qui reste la
-              seule source de vérité pour la date choisie. */}
-          <CalendrierDisponibiliteFormateur
+          {/* Calendrier hebdomadaire Outlook réel (voir son commentaire d'en-tête,
+              CalendrierHebdomadaireDisponibilite.jsx — remplace le calendrier mensuel Neon,
+              audit 2026-08-26) : un clic sur un créneau libre préremplit directement les trois
+              contrôles date/heure/minute ci-dessous, qui restent la seule source de vérité pour
+              la date/l'heure choisies (l'agent peut toujours les ajuster manuellement ensuite). */}
+          <CalendrierHebdomadaireDisponibilite
             formateurId={formateurId}
             dateSelectionnee={dateTest}
-            onSelectionnerJour={setDateTest}
+            heureSelectionnee={heureTest}
+            minuteSelectionnee={minuteTest}
+            onSelectionnerCreneau={(jour, heure, minute) => {
+              setDateTest(jour);
+              setHeureTest(heure);
+              setMinuteTest(minute);
+            }}
           />
 
           {/* Date/heure et lieu côte à côte sur la même ligne (décision produit) — deux fieldsets

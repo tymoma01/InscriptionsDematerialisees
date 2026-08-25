@@ -115,7 +115,11 @@ function construireMessageEmailFormateur({
     sujet: 'Nouveau candidat à évaluer',
     corps:
       `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
-      `<p>Vous êtes assigné(e) à l'évaluation du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)}.</p>` +
+      // "déjà inscrit à votre planning" (pas seulement "prévu le...", audit 2026-08-26) : depuis
+      // l'intégration Microsoft Graph/Outlook, ce rendez-vous existe déjà réellement sur le
+      // calendrier départemental (formation@/tertiaire2@) AVANT même l'envoi de cet email — la
+      // planification elle-même s'est faite via Outlook, pas via cet email ni sa pièce jointe.
+      `<p>Vous êtes assigné(e) à l'évaluation du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)} — déjà inscrit à votre planning.</p>` +
       // Même ligne, même source de donnée (rendezvous.postes_selectionnes) que l'email candidat
       // ci-dessus — le formateur/inspecteur doit savoir sur quel(s) poste(s) évaluer ce candidat
       // précis, qui peu(ven)t différer des postes déclarés à l'inscription.
@@ -124,6 +128,13 @@ function construireMessageEmailFormateur({
       // Après date/poste(s)/lieu (demande explicite) — réservée à cet email, voir
       // formaterLigneNoteHtml ci-dessus.
       formaterLigneNoteHtml(notePlanification) +
+      // Reformulé (audit 2026-08-26, décision utilisateur) : la pièce jointe .ics est désormais
+      // présentée comme un simple rappel du rendez-vous déjà confirmé (voir ligne ci-dessus), plus
+      // comme l'action qui inscrit le formateur/inspecteur — celui-ci reçoit par ailleurs une
+      // invitation Outlook native (le rendez-vous l'a ajouté en participant sur l'événement Graph,
+      // voir graphCalendarService.creerEvenement), distincte de cet email. Contenu technique de
+      // l'.ics lui-même INCHANGÉ (genererIcsInvitationTest, plus bas) — seul ce texte change.
+      '<p>Vous trouverez en pièce jointe un rappel (.ics) de ce rendez-vous, à ajouter à votre agenda personnel si besoin.</p>' +
       // Lien vers /formateur/evaluations ou /inspecteur/evaluations?rendezvousId=... (voir
       // construireLienEvaluation, formatageEmail.js) — surligne directement la ligne de ce
       // rendez-vous à l'arrivée (audit 2026-08-21, ListeEvaluationsAFaire.jsx/Evaluation.jsx).

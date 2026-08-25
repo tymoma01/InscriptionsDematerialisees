@@ -1,0 +1,187 @@
+/* Même carte que .calendrier-disponibilite (CalendrierDisponibiliteFormateur.css) — bordure/
+   rayon/padding identiques, pour rester visuellement cohérent dans ModalePlanificationTest.jsx même
+   si ce composant-ci n'est plus utilisé ailleurs (voir son commentaire d'en-tête). */
+.calendrier-hebdo {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: var(--espace-petit);
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+/* Même bandeau que .calendrier-disponibilite__entete (fond crème, débordement jusqu'aux bords). */
+.calendrier-hebdo__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-petit);
+  background: var(--couleur-back-office-clair);
+  margin: calc(-1 * var(--espace-petit)) calc(-1 * var(--espace-petit)) 0;
+  padding: 0.5rem var(--espace-petit);
+  border-radius: var(--rayon-bordure) var(--rayon-bordure) 0 0;
+}
+
+.calendrier-hebdo__entete > button {
+  border: 1px solid var(--couleur-bordure);
+  background: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  width: 2rem;
+  height: 2rem;
+  line-height: 1;
+  font-size: 1.1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.calendrier-hebdo__titre {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--couleur-texte);
+  text-align: center;
+}
+
+.calendrier-hebdo__aujourdhui {
+  border: 1px solid var(--couleur-back-office);
+  background: var(--couleur-fond);
+  color: var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.calendrier-hebdo__statut {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Conteneur scrollable (vertical ET horizontal) — la grille complète (heures 8h-19h par pas de 15
+   min x 7 jours) dépasse largement une hauteur d'écran raisonnable, contrairement au calendrier
+   mensuel qu'elle remplace (voir CalendrierDisponibiliteFormateur.css, jamais scrollable). Hauteur
+   plafonnée plutôt que "auto" : garde le reste de la modale (date/heure/lieu/postes/note) accessible
+   sans avoir à faire défiler toute la page. */
+.calendrier-hebdo__grille-scroll {
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.calendrier-hebdo__grille {
+  display: grid;
+  grid-template-columns: 3.5rem repeat(7, minmax(3.75rem, 1fr));
+  /* Empêche les bordures des cellules adjacentes de se chevaucher visuellement en un trait plus
+     épais par endroits — chaque cellule garde sa propre bordure fine et régulière. */
+  gap: 1px;
+  background: var(--couleur-bordure-legere);
+  min-width: 32rem;
+}
+
+.calendrier-hebdo__coin,
+.calendrier-hebdo__entete-jour {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--couleur-back-office-clair);
+}
+
+.calendrier-hebdo__coin {
+  left: 0;
+  z-index: 3;
+}
+
+.calendrier-hebdo__entete-jour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+.calendrier-hebdo__entete-jour-date {
+  font-weight: 400;
+  font-size: 0.7rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Dimanche : hors horaires ouvrés (décision utilisateur, 2026-08-26) — en-tête atténué pour
+   signaler visuellement que la colonne entière restera désactivée en dessous, avant même de
+   survoler une cellule précise. */
+.calendrier-hebdo__entete-jour--dimanche {
+  color: var(--couleur-texte-secondaire);
+  opacity: 0.6;
+}
+
+.calendrier-hebdo__heure-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--couleur-fond-secondaire);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0.1rem 0.3rem 0 0;
+  font-size: 0.7rem;
+  color: var(--couleur-texte-secondaire);
+  /* Hauteur d'UN créneau de 15 min (voir .calendrier-hebdo__creneau ci-dessous, même valeur) :
+     seul le libellé de l'heure pleine est affiché (voir CalendrierHebdomadaireDisponibilite.jsx),
+     les 3 lignes de 15 min suivantes restent vides mais gardent la même hauteur pour que la
+     grille de droite reste alignée sur des lignes régulières. */
+  height: 1.35rem;
+}
+
+.calendrier-hebdo__creneau {
+  height: 1.35rem;
+  border: none;
+  background: var(--couleur-fond);
+  cursor: pointer;
+  padding: 0;
+}
+
+.calendrier-hebdo__creneau:hover:not(:disabled) {
+  background: var(--couleur-back-office-clair);
+}
+
+.calendrier-hebdo__creneau:disabled {
+  cursor: default;
+  background: var(--couleur-fond-secondaire);
+  opacity: 0.5;
+}
+
+/* Dimanche : distinct d'un créneau simplement passé/occupé (opacité seule ne suffirait pas à
+   expliquer POURQUOI il est désactivé) — motif hachuré léger plutôt qu'une couleur pleine
+   supplémentaire, pour rester lisible sur une grille déjà dense sans ajouter de variable de
+   couleur pour ce seul usage. */
+.calendrier-hebdo__creneau--dimanche {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--couleur-fond-secondaire),
+    var(--couleur-fond-secondaire) 4px,
+    var(--gris-50) 4px,
+    var(--gris-50) 8px
+  );
+  opacity: 0.6;
+}
+
+/* Créneau occupé sur le calendrier Outlook réel — même teinte que
+   .calendrier-disponibilite__badge (--couleur-erreur), cohérent avec le vocabulaire de couleur
+   déjà utilisé pour "occupé" ailleurs dans ce composant partagé. */
+.calendrier-hebdo__creneau--occupe {
+  background: var(--couleur-erreur);
+  opacity: 0.35;
+}
+
+/* Même bleu plein que .calendrier-disponibilite__case--selectionne (CalendrierDisponibiliteFormateur.css)
+   — cohérence visuelle du "créneau choisi" entre les deux calendriers du projet. */
+.calendrier-hebdo__creneau--selectionne {
+  background: #1f4e9c;
+}

@@ -346,7 +346,7 @@ async function compterRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
 // plutôt que devoir aussi distinguer une chaîne vide d'une valeur absente.
 async function creerRendezvous(
   bd,
-  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [], notePlanification },
+  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [], notePlanification, outlookEventId },
 ) {
   const [rendezvous] = await bd('rendezvous')
     .insert({
@@ -361,6 +361,10 @@ async function creerRendezvous(
       // jsonb (migration 039).
       postes_selectionnes: JSON.stringify(postesSelectionnes),
       note_planification: notePlanification || null,
+      // Id de l'événement Microsoft Graph déjà créé (voir rendezvousService.creerRendezvous,
+      // migration 053) — null pour un rendez-vous sans formateur/inspecteur assigné (aucun
+      // calendrier départemental à cibler, ex. signature_contrat).
+      outlook_event_id: outlookEventId ?? null,
     })
     .returning('*');
   return rendezvous;

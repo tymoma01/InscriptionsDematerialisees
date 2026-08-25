@@ -68,6 +68,16 @@ export async function listerRendezvousTest({ aVenir, formateurId, dateDebut, dat
   return data;
 }
 
+// Créneaux réellement occupés (calendrier Outlook, formation@/tertiaire2@ selon le rôle) d'un
+// formateur/inspecteur précis, sur une plage debut/fin (ISO avec fuseau) — alimente
+// CalendrierHebdomadaireDisponibilite.jsx (audit 2026-08-26). formateurId envoyé, jamais l'email
+// individuel de la personne (résolu côté serveur, voir rendezvousService.obtenirDisponibilitesFormateur) :
+// [{ debut, fin }] en retour, jamais autre chose sur cette personne.
+export async function obtenirDisponibilitesFormateur({ formateurId, debut, fin }) {
+  const { data } = await api.get('/rendezvous/disponibilites', { params: { formateurId, debut, fin } });
+  return data;
+}
+
 // Historique COMPLET (passé et futur, tous statuts, catégorisés) des rendez-vous de test d'un ou
 // plusieurs dossiers (bouton "Voir l'historique des rendez-vous sélectionnés", Planification.jsx)
 // — distinct de listerRendezvousTest ci-dessus (rendez-vous à venir uniquement, tous dossiers).

@@ -10,6 +10,7 @@ const piecesRoutes = require('./api/routes/pieces.routes');
 const relancesRoutes = require('./api/routes/relances.routes');
 const notesRoutes = require('./api/routes/notes.routes');
 const rendezvousRoutes = require('./api/routes/rendezvous.routes');
+const rendezvousDisponibilitesRoutes = require('./api/routes/rendezvousDisponibilites.routes');
 const transitionsRoutes = require('./api/routes/transitions.routes');
 const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
@@ -65,6 +66,11 @@ async function creerApp() {
   // Reprogrammations et désistements (CLAUDE.md, besoin Accueil/Coordination : "motif de
   // désistement enregistré systématiquement") — même patron que les deux routeurs ci-dessus.
   app.use('/api/dossiers/:dossierId/rendezvous', rendezvousRoutes);
+  // Disponibilités Outlook réelles d'un formateur/inspecteur (calendrier hebdomadaire,
+  // ModalePlanificationTest.jsx) — top-level, PAS scopé à un dossier (voir
+  // rendezvousDisponibilites.routes.js) : préfixe distinct de '/api/dossiers/:dossierId/rendezvous'
+  // ci-dessus, aucune ambiguïté de routage possible entre les deux.
+  app.use('/api/rendezvous', rendezvousDisponibilitesRoutes);
   // Machine à états des dossiers (CLAUDE.md, contrainte de modularité n°1 : statuts/transitions
   // pilotés par configuration) — moteur générique, voir core/workflow/workflowEngine.js.
   app.use('/api/dossiers/:dossierId/transitions', transitionsRoutes);
