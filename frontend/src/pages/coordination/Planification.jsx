@@ -548,6 +548,18 @@ export default function Planification() {
             <button type="button" className="planification__bouton-action-groupee" onClick={ouvrirHistorique}>
               Voir l&rsquo;historique des rendez-vous sélectionnés
             </button>
+            {/* "Effacer la sélection" (audit 2026-08-25) — même libellé/logique que
+                TableauDeBordAccueil.jsx (Dossiers candidats) et que le bouton déjà en place sur le
+                panneau "Dossiers sélectionnés" du tableau de bord Indicateurs, voir leurs
+                commentaires respectifs : remet la sélection à zéro, ce qui fait disparaître cette
+                barre elle-même au rendu suivant. */}
+            <button
+              type="button"
+              className="planification__bouton-action-groupee"
+              onClick={() => setDossiersSelectionnes(new Set())}
+            >
+              Effacer la sélection
+            </button>
           </div>
         )}
 

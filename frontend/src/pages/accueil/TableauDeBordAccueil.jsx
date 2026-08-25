@@ -543,6 +543,20 @@ export default function TableauDeBordAccueil() {
             >
               Replanifier des tests
             </button>
+            {/* "Effacer la sélection" (audit 2026-08-25) — même libellé que le bouton déjà en place
+                sur le panneau "Dossiers sélectionnés" du tableau de bord Indicateurs (Indicateurs.jsx,
+                onClick={() => setSelectionIndicateurs(new Set())}), pour rester cohérent d'un écran à
+                l'autre malgré un state différent (ici dossiersSelectionnes, un Set d'ids de dossiers,
+                pas un Set de codes d'indicateurs) : remet la sélection à zéro, ce qui fait
+                disparaître cette barre elle-même au rendu suivant (le seuil
+                SEUIL_SELECTION_ACTIONS_GROUPEES n'est alors plus atteint). */}
+            <button
+              type="button"
+              className="tableau-bord-accueil__bouton-action-groupee"
+              onClick={() => setDossiersSelectionnes(new Set())}
+            >
+              Effacer la sélection
+            </button>
           </div>
         )}
 
