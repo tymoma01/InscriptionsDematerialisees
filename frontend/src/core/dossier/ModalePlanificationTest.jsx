@@ -236,11 +236,26 @@ export default function ModalePlanificationTest({
   const [dateTest, setDateTest] = useState('');
   const [heureTest, setHeureTest] = useState('');
   const [minuteTest, setMinuteTest] = useState('');
+  // Secteur du dossier (Hôtellerie vs Tertiaire/Bureau) — dérivé des postes déclarés (postesBureau
+  // et postesHotel ne sont jamais tous deux peuplés sur un même dossier, voir postesDisponibles
+  // plus bas) : détermine si un seul des deux onglets Formateurs/Inspecteurs a un sens ici (audit
+  // 2026-08-25, demande utilisateur — éviter qu'un agent assigne par erreur un Inspecteur à un
+  // test hôtel ou un Formateur à un test bureau, jusqu'ici une simple discipline procédurale, voir
+  // aussi le garde-fou correspondant côté back, rendezvousService.creerRendezvous). `null` si le
+  // dossier n'a déclaré aucun poste (cas déjà rencontré, dossiers sans poste) : les deux onglets
+  // restent alors visibles, comportement inchangé plutôt que de bloquer la planification.
+  const secteurDossier = postesBureau.length > 0 ? 'bureau' : postesHotel.length > 0 ? 'hotel' : null;
+  // Seul groupe pertinent quand le secteur est déterminé — jamais recalculé indépendamment de
+  // secteurDossier ci-dessus, pour ne jamais risquer de diverger entre la présélection et le
+  // filtrage des onglets affichés plus bas (GROUPES_ROLE.filter).
+  const groupeImposeParSecteur = secteurDossier === 'bureau' ? 'inspecteur' : secteurDossier === 'hotel' ? 'formateur' : null;
+
   // Groupe affiché avant le choix de la personne précise (voir GROUPES_ROLE ci-dessus) —
-  // présélectionné selon le type de poste déclaré sur le dossier (Inspecteurs pour un dossier
-  // bureau, Formateurs sinon/par défaut) plutôt que toujours le même groupe : évite à l'agent de
-  // devoir cliquer "Inspecteurs" à chaque planification d'un test bureau.
-  const [groupeRole, setGroupeRole] = useState(() => (postesBureau.length > 0 ? 'inspecteur' : 'formateur'));
+  // présélectionné selon le secteur du dossier ci-dessus (Inspecteurs pour un dossier bureau,
+  // Formateurs pour un dossier hôtel ou par défaut si le secteur est indéterminé) plutôt que
+  // toujours le même groupe : évite à l'agent de devoir cliquer "Inspecteurs" à chaque
+  // planification d'un test bureau.
+  const [groupeRole, setGroupeRole] = useState(() => groupeImposeParSecteur ?? 'formateur');
   const [formateurId, setFormateurId] = useState('');
   // Note libre optionnelle pour le formateur/inspecteur assigné (migration 049) — distincte des
   // notes générales du dossier (bloc "Notes" de la fiche candidat, NotesDossier.jsx) : propre à
@@ -280,11 +295,13 @@ export default function ModalePlanificationTest({
 
   // Même raison que l'effet ci-dessus (pas de démontage entre deux dossiers sur
   // TableauDeBordAccueil) : re-présélectionne le bon groupe (Inspecteurs/Formateurs) si l'agent
-  // ouvre ce panneau pour un autre dossier sans l'avoir fermé.
+  // ouvre ce panneau pour un autre dossier sans l'avoir fermé — groupeImposeParSecteur recalculé
+  // à chaque rendu à partir des props courantes (voir sa déclaration plus haut), jamais divergent
+  // de la valeur utilisée par le filtrage des onglets plus bas.
   useEffect(() => {
-    setGroupeRole(postesBureau.length > 0 ? 'inspecteur' : 'formateur');
+    setGroupeRole(groupeImposeParSecteur ?? 'formateur');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dossierId, JSON.stringify(postesBureau)]);
+  }, [dossierId, groupeImposeParSecteur]);
 
   // Vide d'abord la note (même raison que les deux effets ci-dessus : une note tapée pour un
   // premier candidat ne doit jamais rester affichée, ni a fortiori être pré-remplie, pour un
@@ -585,18 +602,27 @@ export default function ModalePlanificationTest({
               mutuellement exclusifs, pas de "Tous" (contrairement à FiltresStatut.jsx, pensé pour
               "Tous + N options" : ici un groupe doit toujours être actif, sinon aucune personne
               à proposer dans le <select> juste en dessous). Placé avant le <select> lui-même,
-              qui ne liste que les personnes du groupe actif. */}
+              qui ne liste que les personnes du groupe actif. Filtré sur le secteur du dossier
+              (groupeImposeParSecteur, voir sa déclaration plus haut) quand celui-ci est déterminé :
+              un seul onglet reste alors affiché, non togglable (disabled) puisqu'il n'y a plus
+              qu'une option — évite qu'un agent assigne par erreur un Inspecteur à un test hôtel ou
+              un Formateur à un test bureau (audit 2026-08-25). Les deux onglets restent visibles et
+              togglables comme avant si le secteur est indéterminé (aucun poste déclaré sur le
+              dossier). */}
           <div className="modale-planification-test__groupes-role" role="group" aria-label="Groupe">
-            {GROUPES_ROLE.map((groupe) => (
-              <button
-                key={groupe.code}
-                type="button"
-                className={groupeRole === groupe.code ? 'actif' : ''}
-                onClick={() => setGroupeRole(groupe.code)}
-              >
-                {groupe.libelle}
-              </button>
-            ))}
+            {GROUPES_ROLE.filter((groupe) => !groupeImposeParSecteur || groupe.code === groupeImposeParSecteur).map(
+              (groupe) => (
+                <button
+                  key={groupe.code}
+                  type="button"
+                  className={groupeRole === groupe.code ? 'actif' : ''}
+                  onClick={() => setGroupeRole(groupe.code)}
+                  disabled={Boolean(groupeImposeParSecteur)}
+                >
+                  {groupe.libelle}
+                </button>
+              ),
+            )}
           </div>
 
           {/* Texte du label regroupé dans un unique <span> (plutôt que texte + astérisque comme

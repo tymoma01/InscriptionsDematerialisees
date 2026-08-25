@@ -38,7 +38,11 @@ function mockerNeutralisationSansEffet(t) {
 
 function mockerKnexPourCapacite(t, { nombreDejaPresents }) {
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  // trouverDossierAvecStatutParId (pas trouverDossierParId) : creerRendezvous s'appuie désormais
+  // dessus pour lire le bloc 'disponibilites' du dossier (garde-fou secteur/rôle, voir
+  // rendezvousService.js) — donnees_disponibilites absent ici (dossier sans poste connu, secteur
+  // indéterminé) ne bloque jamais l'assignation, cohérent avec un formateur générique en test.
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
     id: 8,
     role_code: 'formateur',
@@ -120,7 +124,7 @@ test('creerRendezvous rejette un formateur qui a déjà 2 candidats sur ce crén
 
 test('creerRendezvous accepte un lieu actif de l\'entité et transmet son id au repository', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   const trouverLieuMock = t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({
     id: 3,
     entite_id: ENTITE_FACTICE.id,
@@ -146,7 +150,7 @@ test('creerRendezvous accepte un lieu actif de l\'entité et transmet son id au 
 
 test('creerRendezvous rejette un lieu introuvable pour cette entité', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   t.mock.method(lieuRepository, 'trouverLieuParId', async () => undefined);
   const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 5 }));
 
@@ -166,7 +170,7 @@ test('creerRendezvous rejette un lieu introuvable pour cette entité', async (t)
 
 test('creerRendezvous rejette un lieu désactivé', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   t.mock.method(lieuRepository, 'trouverLieuParId', async () => ({ id: 3, actif: false }));
   const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 6 }));
 
@@ -184,6 +188,97 @@ test('creerRendezvous rejette un lieu désactivé', async (t) => {
   assert.equal(creerMock.mock.calls.length, 0);
 });
 
+// Garde-fou secteur/rôle (audit 2026-08-25) : un formateur ne peut plus être assigné à un dossier
+// bureau, ni un inspecteur à un dossier hôtel — transforme en vraie vérification serveur une
+// contrainte jusque-là seulement procédurale (voir rendezvousService.js, ModalePlanificationTest.jsx).
+test('creerRendezvous rejette un formateur assigné à un dossier bureau (secteur incompatible)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    donnees_disponibilites: { posteBureau: ['nettoyage'], posteHotel: [] },
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 8, role_code: 'formateur' }));
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 200 }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+        dossierId: 42,
+        typeRdv: 'test',
+        dateHeure: DATE_HEURE_FUTURE,
+        formateurId: 8,
+      }),
+    rendezvousService.ErreurFormateurInvalide,
+  );
+  assert.equal(creerMock.mock.calls.length, 0);
+});
+
+test('creerRendezvous rejette un inspecteur assigné à un dossier hôtel (secteur incompatible)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    donnees_disponibilites: { posteBureau: [], posteHotel: ['femme_valet_chambre'] },
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 9, role_code: 'inspecteur' }));
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 201 }));
+
+  await assert.rejects(
+    () =>
+      rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+        dossierId: 42,
+        typeRdv: 'test',
+        dateHeure: DATE_HEURE_FUTURE,
+        formateurId: 9,
+      }),
+    rendezvousService.ErreurFormateurInvalide,
+  );
+  assert.equal(creerMock.mock.calls.length, 0);
+});
+
+test('creerRendezvous accepte un inspecteur assigné à un dossier bureau (secteur compatible)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    donnees_disponibilites: { posteBureau: ['nettoyage'], posteHotel: [] },
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 9, role_code: 'inspecteur' }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  mockerNeutralisationSansEffet(t);
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 202 }));
+
+  const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 9,
+  });
+
+  assert.deepEqual(resultat, { id: 202 });
+  assert.equal(creerMock.mock.calls.length, 1);
+});
+
+test("creerRendezvous accepte n'importe quel rôle sur un dossier sans secteur déterminé (aucun poste déclaré)", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    donnees_disponibilites: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 8, role_code: 'formateur' }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  mockerNeutralisationSansEffet(t);
+  const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 203 }));
+
+  const resultat = await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+  });
+
+  assert.deepEqual(resultat, { id: 203 });
+  assert.equal(creerMock.mock.calls.length, 1);
+});
+
 // Neutralisation de l'ancien rendez-vous actif (voir rendezvousService.js, STATUT_REMPLACE) —
 // corrige la cause racine des doublons observés en base (audit du 2026-08-13, dossier #88,
 // rendez-vous 61-65) : jusqu'ici rien ne referme l'ancien rendez-vous lors d'une replanification,
@@ -193,7 +288,7 @@ test('creerRendezvous rejette un lieu désactivé', async (t) => {
 test("creerRendezvous neutralise (STATUT_REMPLACE) l'ancien rendez-vous actif du même dossier+type avant de créer le nouveau, dans la même transaction", async (t) => {
   const bd = creerBdFactice();
   t.mock.method(db, 'obtenirKnex', async () => bd);
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   const appels = [];
   const neutraliserMock = t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async (trxRecu, args) => {
     appels.push('neutraliser');
@@ -223,7 +318,7 @@ test("creerRendezvous neutralise (STATUT_REMPLACE) l'ancien rendez-vous actif du
 
 test("creerRendezvous réussit sans erreur même quand un rendez-vous actif existe déjà (jamais bloquant, règle métier validée avec Florence)", async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => 1);
   const creerMock = t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 100 }));
 
@@ -243,7 +338,7 @@ test("creerRendezvous réutilise la transaction déjà ouverte par l'appelant (b
   // imbriquée par erreur, l'appel échouerait immédiatement ("trxExistante.transaction is not a
   // function") — l'absence d'erreur prouve qu'elle n'a jamais été invoquée.
   const trxExistante = {};
-  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 42 }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   const neutraliserMock = t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async (trxRecu) => {
     assert.equal(trxRecu, trxExistante);
     return 1;

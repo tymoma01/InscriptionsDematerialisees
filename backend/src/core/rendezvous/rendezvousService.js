@@ -357,21 +357,51 @@ async function creerRendezvous(
   }
 
   const bd = bdExistante ?? (await db.obtenirKnex());
-  await verifierDossierAppartientEntite(bd, entite, dossierId);
+  // trouverDossierAvecStatutParId (pas verifierDossierAppartientEntite, même vérification IDOR
+  // mais sans les postes déclarés) : le bloc 'disponibilites' joint ici sert au garde-fou
+  // secteur/rôle ci-dessous, voir son commentaire.
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  if (!dossier) {
+    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
 
   let formateurIdValide = null;
   if (formateurId != null) {
     const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
     // INSPECTEUR accepté ici aussi (assignation à un test bureau) — le champ reste nommé
     // formateur_id en base (colonne historique, voir migration 018), mais porte indifféremment un
-    // formateur (hôtel) ou un inspecteur (bureau) depuis l'ajout de ce second rôle. Aucune
-    // vérification ici que le poste du dossier correspond bien au rôle assigné (scope "bureau
-    // uniquement" de l'inspecteur reste procédural, pas technique — voir rbac.js).
+    // formateur (hôtel) ou un inspecteur (bureau) depuis l'ajout de ce second rôle.
     if (!formateur || ![ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(formateur.role_code)) {
       throw new ErreurFormateurInvalide(
         `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur/inspecteur pour l'entité « ${entite.code} ».`,
       );
     }
+
+    // Secteur du dossier (Hôtellerie vs Tertiaire/Bureau) — dérivé des postes déclarés au bloc
+    // 'disponibilites' (posteBureau/posteHotel, jamais tous deux peuplés en même temps, voir
+    // dossierService.donneesInscriptionSchema) : même extraction que dossierService.obtenirDossier/
+    // listerDossiers et que ModalePlanificationTest.jsx côté front (secteurDossier). Un formateur
+    // ne peut plus être assigné à un dossier bureau, ni un inspecteur à un dossier hôtel — jusqu'ici
+    // une discipline procédurale seulement (voir rbac.js), désormais une vraie garde technique
+    // (audit 2026-08-25, corrige le front qui se contentait jusque-là de proposer les deux onglets
+    // sans jamais empêcher l'assignation inverse au moment de l'envoi). `secteurDossier` reste null
+    // si aucun poste n'est déclaré (dossier de test/legacy sans bloc 'disponibilites', voir
+    // dossierRepository) : aucun blocage dans ce cas, cohérent avec le front (les deux onglets
+    // restent visibles, ModalePlanificationTest.jsx).
+    const posteBureauDossier = dossier.donnees_disponibilites?.posteBureau ?? [];
+    const posteHotelDossier = dossier.donnees_disponibilites?.posteHotel ?? [];
+    const secteurDossier = posteBureauDossier.length > 0 ? 'bureau' : posteHotelDossier.length > 0 ? 'hotel' : null;
+    if (secteurDossier === 'bureau' && formateur.role_code === ROLES.FORMATEUR) {
+      throw new ErreurFormateurInvalide(
+        `Le dossier "${dossierId}" recherche un poste bureau — seul un inspecteur peut y être assigné, pas un formateur.`,
+      );
+    }
+    if (secteurDossier === 'hotel' && formateur.role_code === ROLES.INSPECTEUR) {
+      throw new ErreurFormateurInvalide(
+        `Le dossier "${dossierId}" recherche un poste hôtel — seul un formateur peut y être assigné, pas un inspecteur.`,
+      );
+    }
+
     formateurIdValide = formateur.id;
 
     // Un même formateur ne peut pas être assigné à plus de CAPACITE_MAX_FORMATEUR_PAR_CRENEAU
