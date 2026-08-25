@@ -487,3 +487,24 @@
   font-size: 1.1rem;
   line-height: 1;
 }
+
+/* "Effacer la sélection" (audit 2026-08-25) — distinction visuelle d'avec le bouton
+   d'agrandissement voisin (»/«) : une réinitialisation d'affichage (vide selectionIndicateurs,
+   aucune donnée en base) plutôt qu'une action positive, teinte grise/ardoise plutôt que le survol
+   brun/doré générique hérité de .indicateurs__tableau-consolide-entete button:hover ci-dessus —
+   jamais de rouge (--couleur-erreur), pas d'action destructive ici.
+   Sélecteur qualifié par l'élément `button` (pas juste la classe seule) : nécessaire pour égaler la
+   spécificité de .indicateurs__tableau-consolide-entete button/:hover ci-dessus (même nombre de
+   classes ET d'éléments) — un sélecteur `.indicateurs__bouton-effacer-selection` seul, moins
+   spécifique d'un cran (pas d'élément), perdrait face à ces deux règles malgré un ordre de
+   cascade plus tardif dans ce fichier. */
+.indicateurs__tableau-consolide-entete button.indicateurs__bouton-effacer-selection {
+  border-color: var(--gris-400);
+  color: var(--couleur-texte-secondaire);
+}
+
+.indicateurs__tableau-consolide-entete button.indicateurs__bouton-effacer-selection:hover {
+  border-color: var(--gris-600);
+  background-color: var(--gris-50);
+  color: var(--gris-800);
+}

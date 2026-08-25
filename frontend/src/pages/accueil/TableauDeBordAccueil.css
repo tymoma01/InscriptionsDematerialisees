@@ -35,6 +35,15 @@
   flex-direction: column;
   align-items: stretch;
   width: 260px;
+  /* Espacement vertical "Tous" / Hôtellerie-Tertiaire (point 1, audit 2026-08-25) — remplace le
+     gap: var(--espace-petit) hérité de .filtres-statut__gauche (FiltresStatut.css, pensé pour une
+     disposition en RANGÉE, où ce même gap sépare des éléments côte à côte plutôt que deux lignes
+     empilées) : une fois passé en colonne ci-dessus, ce même petit espacement rapprochait trop les
+     deux lignes l'une de l'autre. var(--espace-grand) plutôt que --espace-moyen : la différence
+     avec le gap interne "Hôtellerie"/"Tertiaire" (--espace-petit, .tableau-bord-accueil__filtre-
+     entite ci-dessous) doit rester nette, pour que ces deux boutons continuent de se lire comme un
+     groupe, distinct de "Tous" au-dessus. */
+  gap: var(--espace-grand);
 }
 
 .tableau-bord-accueil .filtres-statut__tous button {
@@ -44,8 +53,9 @@
 /* Filtre "Entité" (Hôtellerie/Tertiaire), inséré via la prop `filtresSupplementaires` de
    FiltresStatut.jsx — sous "Tous" dans le bloc de gauche (voir .filtres-statut__gauche
    ci-dessus), même patron que .backoffice-recruteur__filtre-entite (Backoffice.css). Boutons non
-   stylés ici en dehors de width/flex : ils héritent de `.filtres-statut button`/`.actif`
-   (FiltresStatut.css), étant rendus à l'intérieur du même <nav>.
+   stylés ici en dehors de width/flex/couleur (voir data-entite ci-dessous) : ils héritent
+   sinon de `.filtres-statut button`/`.actif` (FiltresStatut.css), étant rendus à l'intérieur du
+   même <nav>.
    align-items: center indispensable (bug corrigé le 2026-08-17) : sans lui, ce conteneur flex
    étire ses boutons enfants sur toute sa propre hauteur (stretch, valeur par défaut d'un flex
    container pour ses propres enfants). */
@@ -61,6 +71,37 @@
    de longueur entre "Hôtellerie"/"Tertiaire". */
 .tableau-bord-accueil__filtre-entite button {
   flex: 1;
+}
+
+/* Couleurs Hôtellerie/Tertiaire (point 2, audit 2026-08-25) — chacune reprend la teinte déjà
+   associée à ce secteur ailleurs dans l'app, plutôt qu'une couleur inventée pour l'occasion :
+   - Hôtellerie -> bleu (--couleur-primaire/-clair, variables.css) : couleur de marque officielle
+     (échantillonnée sur le logo principal accecit.com, voir son commentaire) — confirmée par un
+     échantillonnage direct des pixels de icone-accecit-hotellerie.png (assets/), dont la teinte
+     dominante (~#2e3794) est quasi identique à --couleur-primaire (#2d3c92).
+   - Tertiaire -> doré (--statut-dore-*, variables.css), DÉJÀ documenté comme "dérivé du doré du
+     tourbillon des logos Hôtellerie/Tertiaire" dans ce même fichier — confirmé de la même façon,
+     teinte dominante de icone-accecit-tertiaire.png (~#b8955c) cohérente avec cette origine.
+   Même trio fond/texte/bordure que les variantes de StatutBadge.css (pale fond, texte saturé,
+   bordure intermédiaire), pour rester dans le langage visuel déjà établi par les filtres de
+   statut juste à côté — sans réutiliser --statut-bleu-* (déjà porté par "Test planifié" dans LA
+   MÊME barre de filtres, voir plus bas) qui aurait recréé une ambiguïté entre filtre de statut et
+   filtre d'entité.
+   :not(.actif) : même raison que les règles data-statut plus bas (le fond doré uni de
+   .filtres-statut button.actif doit rester prioritaire une fois le bouton sélectionné). Bordure en
+   rgba() plutôt que var() (limitation déjà documentée sur --ombre-bloc, variables.css : rgba()
+   n'accepte pas de var() dans ses canaux de couleur) — équivalent rgb de --couleur-primaire
+   (45, 60, 146). */
+.tableau-bord-accueil__filtre-entite button[data-entite='hotel']:not(.actif) {
+  background-color: var(--couleur-primaire-clair);
+  border-color: rgba(45, 60, 146, 0.35);
+  color: var(--couleur-primaire);
+}
+
+.tableau-bord-accueil__filtre-entite button[data-entite='bureau']:not(.actif) {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--statut-dore-bordure);
+  color: var(--statut-dore-texte);
 }
 
 /* Grille plutôt que flex-wrap (FiltresStatut.css) pour la boîte de statuts de cette page
@@ -257,6 +298,30 @@
 .tableau-bord-accueil__bouton-action-groupee:disabled {
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+/* "Effacer la sélection" (audit 2026-08-25) — distinction visuelle d'avec les 3 actions
+   positives voisines (Export des pièces/Relances/Replanifier des tests), toutes en pastille
+   blanche pleine : cette action-ci RÉINITIALISE la sélection à l'écran (aucune donnée en base,
+   voir onClick sur ce bouton, TableauDeBordAccueil.jsx), un traitement "fantôme" (fond
+   transparent, simple contour clair) la fait se lire immédiatement comme secondaire/annulation
+   plutôt que comme une quatrième action de même poids que les trois autres. Couleur neutre
+   (blanc translucide sur le dégradé brun/doré ambiant), jamais --couleur-erreur (rouge) : pas
+   d'action destructive ou irréversible ici, un rouge serait trompeur sur la gravité réelle de
+   l'action. `!important` absent : la seule règle plus spécifique/tardive qui s'applique déjà est
+   .tableau-bord-accueil__bouton-action-groupee:disabled ci-dessus (opacity), sans conflit avec
+   les propriétés redéfinies ici (background/border/color). */
+.tableau-bord-accueil__bouton-action-groupee--effacer {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+}
+
+.tableau-bord-accueil__bouton-action-groupee--effacer:hover,
+.tableau-bord-accueil__bouton-action-groupee--effacer:focus-visible {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: #ffffff;
+  filter: none;
 }
 
 /* Message d'exclusion de l'export groupé (point 4, audit 2026-08-25) — même teinte

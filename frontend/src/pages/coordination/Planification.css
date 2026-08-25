@@ -132,6 +132,24 @@
   filter: brightness(0.95);
 }
 
+/* "Effacer la sélection" (audit 2026-08-25) — même distinction visuelle et même raisonnement que
+   .tableau-bord-accueil__bouton-action-groupee--effacer (TableauDeBordAccueil.css, Dossiers
+   candidats) : traitement "fantôme" plutôt qu'une pastille blanche pleine identique à "Voir
+   l'historique...", pour se lire comme une réinitialisation d'affichage plutôt qu'une action
+   positive de même poids — jamais de rouge, cette action ne touche aucune donnée en base. */
+.planification__bouton-action-groupee--effacer {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+}
+
+.planification__bouton-action-groupee--effacer:hover,
+.planification__bouton-action-groupee--effacer:focus-visible {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: #ffffff;
+  filter: none;
+}
+
 .planification__vide {
   color: var(--couleur-texte-secondaire);
   padding: var(--espace-grand);

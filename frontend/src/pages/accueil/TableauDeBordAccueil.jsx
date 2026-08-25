@@ -487,8 +487,13 @@ export default function TableauDeBordAccueil() {
           compteurs={compteursParStatut}
           filtresSupplementaires={
             <div className="tableau-bord-accueil__filtre-entite" role="group" aria-label="Filtrer par entité">
+              {/* data-entite (même patron que data-statut, FiltresStatut.jsx) : accroche de style
+                  pour TableauDeBordAccueil.css (point 2, audit 2026-08-25 — couleurs Hôtellerie/
+                  Tertiaire distinctes), sans que ce bouton n'ait à porter la couleur lui-même en
+                  ligne. */}
               <button
                 type="button"
+                data-entite="hotel"
                 className={entitesFiltre.has('hotel') ? 'actif' : ''}
                 aria-pressed={entitesFiltre.has('hotel')}
                 onClick={() => basculerEntiteFiltre('hotel')}
@@ -497,6 +502,7 @@ export default function TableauDeBordAccueil() {
               </button>
               <button
                 type="button"
+                data-entite="bureau"
                 className={entitesFiltre.has('bureau') ? 'actif' : ''}
                 aria-pressed={entitesFiltre.has('bureau')}
                 onClick={() => basculerEntiteFiltre('bureau')}
@@ -549,10 +555,13 @@ export default function TableauDeBordAccueil() {
                 l'autre malgré un state différent (ici dossiersSelectionnes, un Set d'ids de dossiers,
                 pas un Set de codes d'indicateurs) : remet la sélection à zéro, ce qui fait
                 disparaître cette barre elle-même au rendu suivant (le seuil
-                SEUIL_SELECTION_ACTIONS_GROUPEES n'est alors plus atteint). */}
+                SEUIL_SELECTION_ACTIONS_GROUPEES n'est alors plus atteint). Classe modificatrice
+                --effacer (distinction visuelle, audit 2026-08-25) EN PLUS de la classe de base
+                (garde le même gabarit — padding/taille/police — que les 3 boutons voisins, voir
+                TableauDeBordAccueil.css) : seule la couleur change, pas la taille. */}
             <button
               type="button"
-              className="tableau-bord-accueil__bouton-action-groupee"
+              className="tableau-bord-accueil__bouton-action-groupee tableau-bord-accueil__bouton-action-groupee--effacer"
               onClick={() => setDossiersSelectionnes(new Set())}
             >
               Effacer la sélection

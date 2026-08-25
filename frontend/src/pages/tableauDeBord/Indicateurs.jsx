@@ -1060,7 +1060,17 @@ export default function Indicateurs() {
                       >
                         {panneauElargi ? '«' : '»'}
                       </button>
-                      <button type="button" onClick={() => setSelectionIndicateurs(new Set())}>
+                      {/* Classe --effacer (distinction visuelle, audit 2026-08-25) : même intention
+                          que sur Dossiers candidats/Suivi des tests (TableauDeBordAccueil.css/
+                          Planification.css) — une réinitialisation d'affichage doit se distinguer
+                          visuellement, ici du bouton d'agrandissement voisin. Teinte grise/ardoise
+                          (fond clair ici, pas de dégradé back-office) plutôt que le fantôme blanc
+                          translucide des deux autres pages, voir Indicateurs.css. */}
+                      <button
+                        type="button"
+                        className="indicateurs__bouton-effacer-selection"
+                        onClick={() => setSelectionIndicateurs(new Set())}
+                      >
                         Effacer la sélection
                       </button>
                     </div>

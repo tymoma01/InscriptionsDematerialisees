@@ -552,10 +552,12 @@ export default function Planification() {
                 TableauDeBordAccueil.jsx (Dossiers candidats) et que le bouton déjà en place sur le
                 panneau "Dossiers sélectionnés" du tableau de bord Indicateurs, voir leurs
                 commentaires respectifs : remet la sélection à zéro, ce qui fait disparaître cette
-                barre elle-même au rendu suivant. */}
+                barre elle-même au rendu suivant. Classe modificatrice --effacer (distinction
+                visuelle, audit 2026-08-25) EN PLUS de la classe de base — même patron que
+                TableauDeBordAccueil.css. */}
             <button
               type="button"
-              className="planification__bouton-action-groupee"
+              className="planification__bouton-action-groupee planification__bouton-action-groupee--effacer"
               onClick={() => setDossiersSelectionnes(new Set())}
             >
               Effacer la sélection
