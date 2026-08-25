@@ -89,29 +89,79 @@
   text-align: center;
 }
 
-/* Repère visuel rapide sur les trois issues finales du parcours (mêmes tokens statut-succes et
-   statut-echec que StatutBadge.css, pour rester cohérent avec le badge affiché dans la
-   colonne "Statut" du tableau ci-dessous — voir VARIANTE_PAR_CODE_ACCECIT plus haut dans ce
-   fichier : valide_envoi_formation/valide_pret_embauche → 'succes'/'vert-clair', invalide →
-   'echec'). Une seule teinte verte pour les deux statuts validés (pas succes vs vert-clair
-   séparément) : la demande porte sur un repère "validé vs invalidé", pas sur la nuance entre les
-   deux issues positives elles-mêmes.
-   data-statut posé par FiltresStatut.jsx (voir son en-tête) plutôt qu'un sélecteur de position
-   (nth-child) : robuste à un futur changement d'ordre des statuts en base (ordre piloté par
-   workflow.config.json, voir CLAUDE.md Modularité), qui ne casserait pas ce repère.
+/* Couleur de chaque filtre de statut alignée sur le badge correspondant dans la colonne "Statut"
+   du tableau (point 3, audit 2026-08-25) — mêmes tokens --statut-<variante>-* que StatutBadge.css,
+   fond ET texte (pas seulement la bordure, contrairement à la version précédente de ce bloc qui ne
+   teintait que 3 statuts) : cohérence immédiate entre filtre et badge pour les 9 statuts du filtre
+   (voir CODES_STATUTS_FILTRES_ACCUEIL, TableauDeBordAccueil.jsx). Une entrée par variante de
+   VARIANTE_PAR_CODE_ACCECIT (même fichier) : plusieurs `data-statut` peuvent partager une même
+   règle quand ils partagent la même variante. data-statut posé par FiltresStatut.jsx (voir son
+   en-tête) plutôt qu'un sélecteur de position (nth-child) : robuste à un futur changement d'ordre
+   des statuts en base (ordre piloté par workflow.config.json, voir CLAUDE.md Modularité), qui ne
+   casserait pas ce repère.
    :not(.actif) : le fond doré (.filtres-statut button.actif, FiltresStatut.css) doit rester
    prioritaire sur ce bouton une fois sélectionné, quel que soit l'ordre de chargement des feuilles
    de style — au lieu de dépendre d'un ordre de cascade entre FiltresStatut.css (générique) et ce
-   fichier (spécifique à la page). */
-.tableau-bord-accueil .filtres-statut__statuts button[data-statut='valide_envoi_formation']:not(.actif),
-.tableau-bord-accueil .filtres-statut__statuts button[data-statut='valide_pret_embauche']:not(.actif) {
-  background-color: var(--statut-succes-fond);
-  border-color: var(--statut-succes-bordure);
+   fichier (spécifique à la page).
+   'test_non_planifie' détaché de 'en_attente_pieces' (audit 2026-08-25, deux correctifs
+   successifs) : les deux partageaient à l'origine --statut-attente-* (même règle groupée), les
+   rendant indissociables au premier coup d'œil malgré deux étapes distinctes du workflow ; un
+   premier correctif vers --statut-neutre-fort-* (gris) restait ensuite jugé insuffisamment
+   distinctif à côté des 8 autres teintes toutes chromatiques du filtre — voir
+   VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx) pour le détail du choix final de
+   --statut-rose-*. */
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='nouveau']:not(.actif) {
+  background-color: var(--statut-neutre-fond);
+  border-color: var(--statut-neutre-bordure);
+  color: var(--statut-neutre-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='en_attente_pieces']:not(.actif) {
+  background-color: var(--statut-attente-fond);
+  border-color: var(--statut-attente-bordure);
+  color: var(--statut-attente-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='test_non_planifie']:not(.actif) {
+  background-color: var(--statut-rose-fond);
+  border-color: var(--statut-rose-bordure);
+  color: var(--statut-rose-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='test_planifie']:not(.actif) {
+  background-color: var(--statut-bleu-fond);
+  border-color: var(--statut-bleu-bordure);
+  color: var(--statut-bleu-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='test_realise']:not(.actif) {
+  background-color: var(--statut-violet-fond);
+  border-color: var(--statut-violet-bordure);
+  color: var(--statut-violet-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='test_non_realise']:not(.actif) {
+  background-color: var(--statut-alerte-fond);
+  border-color: var(--statut-alerte-bordure);
+  color: var(--statut-alerte-texte);
 }
 
 .tableau-bord-accueil .filtres-statut__statuts button[data-statut='invalide']:not(.actif) {
   background-color: var(--statut-echec-fond);
   border-color: var(--statut-echec-bordure);
+  color: var(--statut-echec-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='valide_envoi_formation']:not(.actif) {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+  color: var(--statut-succes-texte);
+}
+
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='valide_pret_embauche']:not(.actif) {
+  background-color: var(--statut-vert-clair-fond);
+  border-color: var(--statut-vert-clair-bordure);
+  color: var(--statut-vert-clair-texte);
 }
 
 /* Fenêtre réduite (audit 2026-08-23) : 2 colonnes plutôt que 3 dès que le bloc de gauche (260px
@@ -170,22 +220,68 @@
   margin-right: auto;
 }
 
-/* Bouton ET lien ("Export des pièces" est un <a href download>, voir TableauDeBordAccueil.jsx) —
-   même classe pour les deux, un lien de téléchargement n'a pas à se distinguer visuellement des
-   deux boutons voisins qui ouvrent une modale. */
+/* Les trois actions ("Export des pièces"/"Relances"/"Replanifier des tests") sont désormais
+   toutes des <button> (point 4, audit 2026-08-25 : "Export des pièces" nécessite une vérification
+   asynchrone avant de connaître l'URL de téléchargement finale, voir TableauDeBordAccueil.jsx
+   lancerExportPieces — un <a href> statique ne pouvait plus porter cette logique). Uniformisation
+   de taille (point 2, même audit) : `font: inherit` corrige l'écart visuel constaté quand ce
+   bouton était encore un <a> (hérite naturellement de la taille de police du corps de page) à
+   côté des deux <button> voisins (police UA par défaut du navigateur pour <button>, plus petite
+   que le corps de page sans cette règle) — un <button> HTML n'hérite jamais de `font-family`/
+   `font-size` par défaut, contrairement à un <a>. `appearance: none` retire le style natif
+   restant du <button> (fond/bordure système) au-delà de ce que background-color/border ci-dessous
+   redéfinissent déjà. */
 .tableau-bord-accueil__bouton-action-groupee {
+  box-sizing: border-box;
+  min-width: 9.5rem;
   padding: 0.5rem 0.9rem;
   border: none;
   border-radius: var(--rayon-bordure);
   background-color: #ffffff;
   color: var(--couleur-back-office);
+  font: inherit;
   font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
   text-decoration: none;
   cursor: pointer;
+  appearance: none;
   transition: filter 0.15s ease;
 }
 
 .tableau-bord-accueil__bouton-action-groupee:hover,
 .tableau-bord-accueil__bouton-action-groupee:focus-visible {
   filter: brightness(0.95);
+}
+
+.tableau-bord-accueil__bouton-action-groupee:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Message d'exclusion de l'export groupé (point 4, audit 2026-08-25) — même teinte
+   --statut-attente-* que .modale-replanification-groupee__exclusion (ModaleReplanificationGroupee.
+   css, point 5) : un repère informatif, pas une erreur (role="status" dans le JSX). */
+.tableau-bord-accueil__message-export {
+  background-color: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  border-radius: var(--rayon-bordure);
+  color: var(--statut-attente-texte);
+  padding: var(--espace-petit) var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+  font-size: 0.9rem;
+}
+
+.tableau-bord-accueil__message-export p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.tableau-bord-accueil__message-export details {
+  margin-top: 0.35rem;
+}
+
+.tableau-bord-accueil__message-export ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
 }

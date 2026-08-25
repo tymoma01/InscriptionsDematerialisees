@@ -27,7 +27,9 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   nouveau: 'neutre',
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
-  test_non_planifie: 'attente',
+  // 'rose' (pas 'attente' ni 'neutre-fort', second correctif audit 2026-08-25) : voir
+  // TableauDeBordAccueil.jsx, VARIANTE_PAR_CODE_ACCECIT, pour le détail des deux correctifs.
+  test_non_planifie: 'rose',
   test_planifie: 'bleu',
   test_realise: 'violet',
   test_non_realise: 'alerte',

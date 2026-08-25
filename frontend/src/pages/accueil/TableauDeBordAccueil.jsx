@@ -12,13 +12,28 @@ import { listerDossiers, listerStatuts } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
+import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import api from '../../services/api';
 import './TableauDeBordAccueil.css';
 
-// Actions groupées (audit 2026-08-24, "Dossiers candidats") : la barre apparaît à partir de 2
-// candidats sélectionnés — en dessous, chaque action reste accessible individuellement depuis la
-// fiche dossier (Validation.jsx), une sélection groupée n'apporte rien pour un seul candidat.
-const SEUIL_SELECTION_ACTIONS_GROUPEES = 2;
+// Actions groupées (audit 2026-08-24, "Dossiers candidats", seuil abaissé à 1 le 2026-08-25) : la
+// barre apparaît dès qu'un seul candidat est sélectionné — une action groupée reste utile même
+// pour un seul dossier (ex. export des pièces sans repasser par la fiche dossier).
+const SEUIL_SELECTION_ACTIONS_GROUPEES = 1;
+
+// Mêmes statuts que STATUTS_REPLANIFIABLES (pages/recruteur/Validation.jsx, pages/coordination/
+// Tests.jsx) — dupliqué ici plutôt que partagé (voir CLAUDE.md, conventions du projet) : sert à
+// exclure de la replanification groupée les dossiers qui n'ont encore jamais eu de test planifié
+// (nouveau/en_attente_pieces/test_non_planifie) ET ceux dont le test a eu lieu mais n'a pas encore
+// de verdict (test_realise, pas de transition replanifier_test depuis ce statut dans
+// workflow.config.json — il faut d'abord un verdict avant de pouvoir reprogrammer).
+const STATUTS_REPLANIFIABLES_ACCECIT = [
+  'test_planifie',
+  'test_non_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+];
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique DossierList/StatutBadge,
 // voir Modularité CLAUDE.md) — donnée de test locale au même titre que
@@ -39,9 +54,16 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   nouveau: 'neutre',
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente', // workflow hérité, plus jamais atteint
-  // 'test_non_planifie' (workflow v5) : même famille que en_attente_pieces (le dossier attend une
-  // action de la coordination, ici planifier le test plutôt que compléter les pièces).
-  test_non_planifie: 'attente',
+  // 'test_non_planifie' (workflow v5) : 'rose' (audit 2026-08-25, second correctif) — partageait
+  // à l'origine 'attente' avec en_attente_pieces (même badge ambre pour deux étapes distinctes du
+  // workflow), puis 'neutre-fort' (gris) dans un premier correctif, jugé encore insuffisamment
+  // distinctif à côté des 8 autres teintes toutes chromatiques (attente=ambre, bleu, violet,
+  // vert-clair, alerte=orange, echec=rouge, succes=vert, neutre=gris clair pour "Inscrit") — un
+  // gris reste perçu comme "pas de couleur" plutôt que comme une couleur à part entière. 'rose'
+  // (voir --statut-rose-* dans variables.css) ne recoupe aucune famille déjà utilisée (ni le
+  // rouge d'echec, ni le violet de test_realise, ni l'ambre d'attente/l'orange d'alerte) — 'dore'/
+  // 'echec-fort' restaient eux trop proches de ces deux dernières familles pour ce même besoin.
+  test_non_planifie: 'rose',
   test_planifie: 'bleu',
   // 'test_realise' (workflow v5) : violet, inutilisé ailleurs dans ce mapping — le test a eu lieu
   // mais aucun verdict n'est encore rendu, état à surveiller pour relancer un formateur qui tarde
@@ -280,10 +302,23 @@ export default function TableauDeBordAccueil() {
     [dossiers, dossiersSelectionnes],
   );
 
+  // Replanification groupée (point 5, audit 2026-08-25) : n'exclut QUE le statut courant, jamais
+  // l'historique du dossier (un dossier "test_non_planifie" a pu être planifié puis reprogrammé
+  // en amont, seul son statut ACTUEL détermine s'il l'est encore) — voir
+  // STATUTS_REPLANIFIABLES_ACCECIT ci-dessus.
+  const dossiersEligiblesReplanification = useMemo(
+    () => dossiersSelectionnesObjets.filter((dossier) => STATUTS_REPLANIFIABLES_ACCECIT.includes(dossier.statut_code)),
+    [dossiersSelectionnesObjets],
+  );
+  const dossiersExclusReplanification = useMemo(
+    () => dossiersSelectionnesObjets.filter((dossier) => !STATUTS_REPLANIFIABLES_ACCECIT.includes(dossier.statut_code)),
+    [dossiersSelectionnesObjets],
+  );
+
   // Modale ouverte pour les actions groupées "Relances"/"Replanifier des tests" — 'relance' |
-  // 'replanification' | null. "Export des pièces" n'en a pas besoin (lien de téléchargement direct,
-  // voir plus bas) : c'est la seule des trois actions qui ne demande aucune saisie supplémentaire
-  // à l'agent avant de s'exécuter.
+  // 'replanification' | null. "Export des pièces" n'en a pas besoin (téléchargement direct
+  // déclenché par lancerExportPieces ci-dessous) : c'est la seule des trois actions qui ne demande
+  // aucune saisie supplémentaire à l'agent avant de s'exécuter.
   const [modaleGroupeeOuverte, setModaleGroupeeOuverte] = useState(null);
 
   // Vide la sélection et ferme la modale — appelé quand une modale groupée se termine avec succès
@@ -292,6 +327,63 @@ export default function TableauDeBordAccueil() {
   const terminerActionGroupee = () => {
     setModaleGroupeeOuverte(null);
     setDossiersSelectionnes(new Set());
+  };
+
+  // Export groupé des pièces (point 4, audit 2026-08-25) : exclut du ZIP les dossiers n'ayant
+  // strictement aucune pièce chargée (une capture n'a jamais eu lieu pour eux), au lieu de laisser
+  // le back leur créer un sous-dossier vide avec un simple "_aucune_piece.txt" (comportement
+  // toujours en place pour un dossier isolé, voir dossiers.routes.js). Vérification faite ici,
+  // dossier par dossier via GET /dossiers/:id/pieces (même endpoint que CaptureTablette.jsx/
+  // Validation.jsx), avant de déclencher le téléchargement — pas d'endpoint groupé dédié, ce
+  // volume (quelques dizaines de dossiers au plus) ne justifie pas d'en ajouter un.
+  // Résultat conservé dans messageExportPieces (dossiersExclus, aucunExport) pour affichage sous la
+  // barre d'actions groupées ; réinitialisé plus bas dès que la sélection change (message qui ne
+  // correspondrait plus à ce qui est coché).
+  const [verificationExportEnCours, setVerificationExportEnCours] = useState(false);
+  const [messageExportPieces, setMessageExportPieces] = useState(null);
+
+  useEffect(() => {
+    setMessageExportPieces(null);
+  }, [dossiersSelectionnes]);
+
+  const lancerExportPieces = async () => {
+    if (verificationExportEnCours) return;
+    setVerificationExportEnCours(true);
+    setMessageExportPieces(null);
+    try {
+      const comptes = await Promise.all(
+        dossiersSelectionnesObjets.map((dossier) =>
+          listerPiecesJustificatives(dossier.id)
+            .then((pieces) => pieces.length)
+            .catch(() => 0),
+        ),
+      );
+      const dossiersAvecPieces = [];
+      const dossiersSansPiece = [];
+      dossiersSelectionnesObjets.forEach((dossier, index) => {
+        (comptes[index] > 0 ? dossiersAvecPieces : dossiersSansPiece).push(dossier);
+      });
+
+      if (dossiersSansPiece.length > 0) {
+        setMessageExportPieces({ dossiersExclus: dossiersSansPiece, aucunExport: dossiersAvecPieces.length === 0 });
+      }
+
+      if (dossiersAvecPieces.length === 0) return;
+
+      // Téléchargement réel (pas un fetch en blob) — même patron que le lien précédent : le back
+      // pose déjà Content-Disposition: attachment (voir dossiers.routes.js), le navigateur gère le
+      // téléchargement seul via le cookie de session (same-origin). Ancre créée dynamiquement
+      // plutôt qu'un <a> statique dans le JSX : l'URL dépend du résultat de la vérification
+      // ci-dessus (dossierIds filtrés), connu seulement à l'exécution.
+      const lien = document.createElement('a');
+      lien.href = `${api.defaults.baseURL}/dossiers/pieces/export-zip-groupe?dossierIds=${dossiersAvecPieces.map((dossier) => dossier.id).join(',')}`;
+      lien.setAttribute('download', '');
+      document.body.appendChild(lien);
+      lien.click();
+      lien.remove();
+    } finally {
+      setVerificationExportEnCours(false);
+    }
   };
 
   const compteursParStatut = useMemo(() => {
@@ -415,30 +507,28 @@ export default function TableauDeBordAccueil() {
           }
         />
 
-        {/* Barre d'actions groupées (audit 2026-08-24) — sticky en haut de la zone de contenu
-            (voir TableauDeBordAccueil.css) : reste visible pendant que l'agent défile la liste
-            pour continuer à cocher des candidats, plutôt que de disparaître dès que la barre de
-            filtres/le premier écran de lignes défile hors champ. Seuil à
-            SEUIL_SELECTION_ACTIONS_GROUPEES (2) : en dessous, chaque action reste accessible
-            individuellement depuis la fiche dossier (Validation.jsx). */}
+        {/* Barre d'actions groupées (audit 2026-08-24, seuil abaissé à 1 le 2026-08-25) — sticky
+            en haut de la zone de contenu (voir TableauDeBordAccueil.css) : reste visible pendant
+            que l'agent défile la liste pour continuer à cocher des candidats, plutôt que de
+            disparaître dès que la barre de filtres/le premier écran de lignes défile hors champ. */}
         {dossiersSelectionnes.size >= SEUIL_SELECTION_ACTIONS_GROUPEES && (
           <div className="tableau-bord-accueil__actions-groupees" role="toolbar" aria-label="Actions groupées">
             <span className="tableau-bord-accueil__actions-groupees-compteur">
-              {dossiersSelectionnes.size} candidats sélectionnés
+              {dossiersSelectionnes.size} candidat{dossiersSelectionnes.size > 1 ? 's' : ''} sélectionné
+              {dossiersSelectionnes.size > 1 ? 's' : ''}
             </span>
-            {/* Téléchargement réel (pas un aperçu intégré) : même patron qu'en export individuel
-                (Validation.jsx, "Télécharger toutes les pièces (ZIP)") — lien classique plutôt
-                qu'un fetch en blob, le back pose déjà Content-Disposition: attachment (voir
-                dossiers.routes.js), le navigateur gère le téléchargement seul via le cookie de
-                session (same-origin). Pas de state ouvert/fermé comme les deux boutons suivants :
-                cette action ne demande aucune saisie avant de s'exécuter. */}
-            <a
+            {/* Vérification asynchrone (lancerExportPieces) avant de déclencher le téléchargement
+                réel — voir son commentaire d'en-tête : le lien statique <a href download> a été
+                remplacé par un bouton, l'URL finale (dossiers filtrés) n'étant connue qu'une fois
+                la vérification terminée. */}
+            <button
+              type="button"
               className="tableau-bord-accueil__bouton-action-groupee"
-              href={`${api.defaults.baseURL}/dossiers/pieces/export-zip-groupe?dossierIds=${[...dossiersSelectionnes].join(',')}`}
-              download
+              onClick={lancerExportPieces}
+              disabled={verificationExportEnCours}
             >
-              Export des pièces
-            </a>
+              {verificationExportEnCours ? 'Vérification…' : 'Export des pièces'}
+            </button>
             <button
               type="button"
               className="tableau-bord-accueil__bouton-action-groupee"
@@ -453,6 +543,31 @@ export default function TableauDeBordAccueil() {
             >
               Replanifier des tests
             </button>
+          </div>
+        )}
+
+        {/* Résultat de l'exclusion des dossiers sans pièce (point 4, audit 2026-08-25) — affiché
+            sous la barre plutôt que dans une modale : "Export des pièces" ne s'ouvre jamais dans
+            une modale (voir plus haut), ce message est donc le seul retour disponible pour
+            l'agent. Réinitialisé (messageExportPieces) dès que la sélection change, voir l'effet
+            correspondant plus haut dans ce fichier. */}
+        {messageExportPieces && messageExportPieces.dossiersExclus.length > 0 && (
+          <div className="tableau-bord-accueil__message-export" role="status">
+            <p>
+              {messageExportPieces.aucunExport
+                ? `Aucun export généré : ${messageExportPieces.dossiersExclus.length} dossier(s) sélectionné(s) n'ont aucune pièce disponible.`
+                : `${messageExportPieces.dossiersExclus.length} dossier(s) non exporté(s), aucune pièce disponible.`}
+            </p>
+            <details>
+              <summary>Voir le détail</summary>
+              <ul>
+                {messageExportPieces.dossiersExclus.map((dossier) => (
+                  <li key={dossier.id}>
+                    N°{dossier.id} - {dossier.candidat_nom} {dossier.candidat_prenom}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </div>
         )}
 
@@ -505,7 +620,8 @@ export default function TableauDeBordAccueil() {
       {modaleGroupeeOuverte === 'replanification' && (
         <ModaleReplanificationGroupee
           key={[...dossiersSelectionnes].join(',')}
-          dossiers={dossiersSelectionnesObjets}
+          dossiers={dossiersEligiblesReplanification}
+          dossiersExclus={dossiersExclusReplanification}
           libellePoste={libellePoste}
           onFermer={() => setModaleGroupeeOuverte(null)}
           onTermine={terminerActionGroupee}

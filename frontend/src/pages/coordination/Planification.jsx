@@ -13,10 +13,9 @@ import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementA
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
 import './Planification.css';
 
-// Même seuil et même raisonnement que TableauDeBordAccueil.jsx (Dossiers candidats, audit
-// 2026-08-24) : en dessous, l'action reste accessible individuellement (colonne Actions,
-// "Voir le dossier") — une barre d'actions groupées n'apporte rien pour une seule ligne.
-const SEUIL_SELECTION_ACTIONS_GROUPEES = 2;
+// Même seuil que TableauDeBordAccueil.jsx (Dossiers candidats, seuil abaissé à 1 le 2026-08-25) :
+// la barre apparaît dès qu'un seul candidat est sélectionné.
+const SEUIL_SELECTION_ACTIONS_GROUPEES = 1;
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   day: '2-digit',
@@ -530,9 +529,9 @@ export default function Planification() {
 
         {/* Barre d'actions groupées — même style visuel que TableauDeBordAccueil.jsx (Dossiers
             candidats, audit 2026-08-24) : sticky, fond dégradé back-office, compteur à gauche,
-            boutons pleins à droite. N'apparaît qu'à partir de SEUIL_SELECTION_ACTIONS_GROUPEES (2)
-            sélections, plutôt que toujours rendue avec un bouton désactivé (comportement
-            précédent) — même seuil et même logique de disparition que là-bas. Masquée pour
+            boutons pleins à droite. N'apparaît qu'à partir de SEUIL_SELECTION_ACTIONS_GROUPEES (1,
+            même seuil que Dossiers candidats depuis le 2026-08-25) sélections, plutôt que toujours
+            rendue avec un bouton désactivé (comportement précédent). Masquée pour
             Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection multi-candidats/
             "Voir l'historique..." reste une action de coordination (regroupement de plusieurs
             dossiers), distincte de la simple consultation en lecture seule d'UN dossier via "Voir
@@ -543,7 +542,8 @@ export default function Planification() {
         {!estFormateurOuInspecteur && dossiersSelectionnes.size >= SEUIL_SELECTION_ACTIONS_GROUPEES && (
           <div className="planification__actions-groupees" role="toolbar" aria-label="Actions groupées">
             <span className="planification__actions-groupees-compteur">
-              {dossiersSelectionnes.size} candidats sélectionnés
+              {dossiersSelectionnes.size} candidat{dossiersSelectionnes.size > 1 ? 's' : ''} sélectionné
+              {dossiersSelectionnes.size > 1 ? 's' : ''}
             </span>
             <button type="button" className="planification__bouton-action-groupee" onClick={ouvrirHistorique}>
               Voir l&rsquo;historique des rendez-vous sélectionnés

@@ -136,6 +136,34 @@
   font-weight: 600;
 }
 
+/* Dossiers exclus de la replanification groupée (point 5, audit 2026-08-25) — teinte
+   --statut-attente-* (même famille que le badge "En attente de pièces"/"Test non planifié",
+   voir StatutBadge.css) : un simple repère informatif, pas une erreur (voir role="status" dans
+   le JSX, pas role="alert"). */
+.modale-replanification-groupee__exclusion {
+  background-color: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  border-radius: var(--rayon-bordure);
+  color: var(--statut-attente-texte);
+  padding: var(--espace-petit) var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+  font-size: 0.9rem;
+}
+
+.modale-replanification-groupee__exclusion p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.modale-replanification-groupee__exclusion details {
+  margin-top: 0.35rem;
+}
+
+.modale-replanification-groupee__exclusion ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+}
+
 .modale-replanification-groupee__actions {
   display: flex;
   justify-content: flex-end;

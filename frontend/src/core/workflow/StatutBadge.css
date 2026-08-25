@@ -74,3 +74,9 @@
   color: var(--statut-neutre-fort-texte);
   border-color: var(--statut-neutre-fort-bordure);
 }
+
+.statut-badge--rose {
+  background-color: var(--statut-rose-fond);
+  color: var(--statut-rose-texte);
+  border-color: var(--statut-rose-bordure);
+}

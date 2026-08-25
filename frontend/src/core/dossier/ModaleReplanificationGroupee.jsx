@@ -113,7 +113,7 @@ function postesBureauSeuls(dossier) {
 // neutraliserRendezvousActifsDossier inclus côté back, voir rendezvousService.js) — l'échec d'une
 // ligne (ex. créneau déjà pris, dossier plus dans un statut replanifiable) n'empêche jamais les
 // autres de s'enregistrer, voir soumettre.
-export default function ModaleReplanificationGroupee({ dossiers, libellePoste, onFermer, onTermine }) {
+export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus = [], libellePoste, onFermer, onTermine }) {
   const [formateurs, setFormateurs] = useState([]);
   const [lieux, setLieux] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -122,8 +122,16 @@ export default function ModaleReplanificationGroupee({ dossiers, libellePoste, o
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
   // dossiers figé pour toute la durée d'ouverture de la modale (voir TableauDeBordAccueil.jsx,
-  // remontée à chaque nouvelle ouverture via key) — chargé une seule fois au montage.
+  // remontée à chaque nouvelle ouverture via key) — chargé une seule fois au montage. dossiers
+  // déjà filtré par l'appelant (dossiersEligiblesReplanification, TableauDeBordAccueil.jsx) : ce
+  // composant ne connaît lui-même aucun code de statut (voir Modularité, CLAUDE.md). dossiers vide
+  // (sélection entièrement exclue) : aucun besoin d'aller chercher formateurs/lieux pour ne rien
+  // planifier.
   useEffect(() => {
+    if (dossiers.length === 0) {
+      setChargement(false);
+      return undefined;
+    }
     let annule = false;
     Promise.all([listerFormateurs(), listerLieux(), Promise.all(dossiers.map((dossier) => listerRendezvous(dossier.id).catch(() => [])))])
       .then(([formateursValeur, lieuxValeur, rendezvousParDossier]) => {
@@ -225,17 +233,44 @@ export default function ModaleReplanificationGroupee({ dossiers, libellePoste, o
       <div className="modale-replanification-groupee" role="dialog" aria-label="Replanifier des tests">
         <div className="modale-replanification-groupee__entete">
           <h2>
-            Replanifier des tests <span>({dossiers.length} candidats sélectionnés)</span>
+            Replanifier des tests <span>({dossiers.length} candidat{dossiers.length > 1 ? 's' : ''} éligible{dossiers.length > 1 ? 's' : ''})</span>
           </h2>
           <button type="button" onClick={onFermer} disabled={envoiEnCours}>
             Fermer
           </button>
         </div>
 
-        {chargement && <p>Chargement des formateurs et lieux…</p>}
+        {/* Dossiers écartés de la sélection initiale (statut courant hors STATUTS_REPLANIFIABLES_
+            ACCECIT, voir TableauDeBordAccueil.jsx) — affiché avant le formulaire, que dossiers soit
+            vide ou non : l'agent doit voir pourquoi la liste ci-dessous est plus courte que sa
+            sélection de départ. */}
+        {dossiersExclus.length > 0 && (
+          <div className="modale-replanification-groupee__exclusion" role="status">
+            <p>
+              {dossiersExclus.length} dossier{dossiersExclus.length > 1 ? 's' : ''} exclu{dossiersExclus.length > 1 ? 's' : ''} de la
+              replanification, aucun test planifié pour ce candidat.
+            </p>
+            <details>
+              <summary>Voir le détail</summary>
+              <ul>
+                {dossiersExclus.map((dossier) => (
+                  <li key={dossier.id}>
+                    N°{dossier.id} - {dossier.candidat_nom} {dossier.candidat_prenom} ({dossier.statut_libelle})
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        )}
+
+        {!chargement && !erreurChargement && dossiers.length === 0 && (
+          <p role="alert">Aucun dossier sélectionné n&rsquo;est éligible à la replanification.</p>
+        )}
+
+        {chargement && dossiers.length > 0 && <p>Chargement des formateurs et lieux…</p>}
         {erreurChargement && <p role="alert">{erreurChargement}</p>}
 
-        {!chargement && !erreurChargement && (
+        {!chargement && !erreurChargement && dossiers.length > 0 && (
           <form className="modale-replanification-groupee__formulaire" onSubmit={soumettre}>
             <ul className="modale-replanification-groupee__lignes">
               {lignes.map((ligne) => {

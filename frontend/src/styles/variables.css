@@ -165,4 +165,16 @@
   --statut-echec-fort-fond: #f5d6d1;
   --statut-echec-fort-texte: #7c2415;
   --statut-echec-fort-bordure: #e3a89f;
+
+  /* Rose/magenta (audit 2026-08-25, "Test non planifié") — teinte encore inutilisée par les
+     autres variantes ci-dessus : 'neutre-fort' (gris), essayé avant celle-ci pour ce même statut,
+     restait perçu comme un simple niveau de gris plutôt qu'une couleur à part entière à côté des
+     8 autres teintes toutes chromatiques (attente=ambre, bleu, violet, vert-clair, alerte=orange,
+     echec=rouge, succes=vert, neutre=gris clair pour "Inscrit"). Le rose ne recoupe aucune de ces
+     familles (ni le rouge d'echec, ni le violet de test_realise) et se distingue clairement même
+     en vision périphérique. Contraste fond/texte vérifié >= 6:1 (WCAG AA), même méthode que le
+     reste de la palette ci-dessus. */
+  --statut-rose-fond: #fce8f3;
+  --statut-rose-texte: #a3195b;
+  --statut-rose-bordure: #eec0da;
 }
