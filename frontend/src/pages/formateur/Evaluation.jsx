@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -17,7 +16,6 @@ import './Evaluation.css';
 // à recharger sans dupliquer sa logique de fetch ici.
 export default function Evaluation() {
   const { utilisateur, chargement: chargementSession } = useSession();
-  const location = useLocation();
   const [rendezvousSelectionne, setRendezvousSelectionne] = useState(null);
   const [compteurRafraichissement, setCompteurRafraichissement] = useState(0);
 
@@ -33,27 +31,14 @@ export default function Evaluation() {
   // sans risque de perturber une évaluation en cours de saisie (GrilleEvaluation).
   useRafraichissementAuto(() => setCompteurRafraichissement((compteur) => compteur + 1));
 
-  if (chargementSession) {
+  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers
+  // /connexion?redirection=... — avec rendezvousId toujours dans l'URL — avant même de monter
+  // cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très bref instant où
+  // le useSession() PROPRE à cette page (ci-dessus) n'a pas encore résolu le sien.
+  if (chargementSession || !utilisateur) {
     return (
       <PageBackOffice>
         <p>Chargement de la session…</p>
-      </PageBackOffice>
-    );
-  }
-
-  if (!utilisateur) {
-    return (
-      <PageBackOffice>
-        <p role="alert">
-          Vous devez être connecté pour évaluer un test.{' '}
-          {/* ?redirection=... (Connexion.jsx) ramène ici APRÈS connexion, avec rendezvousId
-              toujours dans l'URL — même construction que ConfirmationInscription.jsx : sans ça,
-              un formateur non connecté qui clique le lien de l'email perdrait le ciblage en se
-              connectant (retomberait sur la destination par défaut de son rôle, liste complète). */}
-          <Link to={`/connexion?redirection=${encodeURIComponent(location.pathname + location.search)}`}>
-            Se connecter
-          </Link>
-        </p>
       </PageBackOffice>
     );
   }

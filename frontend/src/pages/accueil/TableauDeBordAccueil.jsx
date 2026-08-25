@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
@@ -440,22 +440,13 @@ export default function TableauDeBordAccueil() {
     [statuts],
   );
 
-  if (chargementSession) {
+  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
+  // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
+  // bref instant où le useSession() PROPRE à cette page (ci-dessus) n'a pas encore résolu le sien.
+  if (chargementSession || !utilisateur) {
     return (
       <PageBackOffice>
         <p>Chargement de la session…</p>
-      </PageBackOffice>
-    );
-  }
-
-  // Le back refuserait de toute façon (401/403) sans session valide ou rôle autorisé : mieux
-  // vaut le dire tout de suite (même principe que CaptureTablette.jsx).
-  if (!utilisateur) {
-    return (
-      <PageBackOffice>
-        <p role="alert">
-          Vous devez être connecté pour accéder au tableau de bord. <Link to="/connexion">Se connecter</Link>
-        </p>
       </PageBackOffice>
     );
   }

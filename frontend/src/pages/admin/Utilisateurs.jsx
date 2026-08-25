@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ChampRecherche from '../../core/filtres/ChampRecherche';
@@ -173,20 +172,14 @@ export default function Utilisateurs() {
     });
   };
 
-  if (chargementSession) {
+  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
+  // même de monter cette page en l'absence de session) — `!utilisateurConnecte` ne couvre plus
+  // qu'un très bref instant où le useSession() PROPRE à cette page (ci-dessus) n'a pas encore
+  // résolu le sien.
+  if (chargementSession || !utilisateurConnecte) {
     return (
       <PageBackOffice>
         <p>Chargement de la session…</p>
-      </PageBackOffice>
-    );
-  }
-
-  if (!utilisateurConnecte) {
-    return (
-      <PageBackOffice>
-        <p role="alert">
-          Vous devez être connecté pour gérer les comptes. <Link to="/connexion">Se connecter</Link>
-        </p>
       </PageBackOffice>
     );
   }

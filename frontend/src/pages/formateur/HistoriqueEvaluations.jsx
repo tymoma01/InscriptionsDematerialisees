@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import HistoriqueEvaluations from '../../core/evaluation/HistoriqueEvaluations';
@@ -15,20 +14,13 @@ export default function PageHistoriqueEvaluations() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [evaluationSelectionnee, setEvaluationSelectionnee] = useState(null);
 
-  if (chargementSession) {
+  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
+  // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
+  // bref instant où le useSession() PROPRE à cette page (ci-dessus) n'a pas encore résolu le sien.
+  if (chargementSession || !utilisateur) {
     return (
       <PageBackOffice>
         <p>Chargement de la session…</p>
-      </PageBackOffice>
-    );
-  }
-
-  if (!utilisateur) {
-    return (
-      <PageBackOffice>
-        <p role="alert">
-          Vous devez être connecté pour consulter l’historique des évaluations. <Link to="/connexion">Se connecter</Link>
-        </p>
       </PageBackOffice>
     );
   }

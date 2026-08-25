@@ -439,18 +439,13 @@ export default function Planification() {
     setCompteurHistorique((precedent) => precedent + 1);
   };
 
-  if (chargementSession) {
+  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
+  // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
+  // bref instant où le useSession() PROPRE à cette page (ci-dessus) n'a pas encore résolu le sien.
+  if (chargementSession || !utilisateur) {
     return (
       <PageBackOffice>
         <p>Chargement de la session…</p>
-      </PageBackOffice>
-    );
-  }
-
-  if (!utilisateur) {
-    return (
-      <PageBackOffice>
-        <p role="alert">Vous devez être connecté pour accéder à la planification.</p>
       </PageBackOffice>
     );
   }
