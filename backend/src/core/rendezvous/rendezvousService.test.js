@@ -529,7 +529,7 @@ test("creerRendezvous ne tente aucune suppression Outlook si l'ancien rendez-vou
   assert.equal(supprimerMock.mock.calls.length, 0);
 });
 
-test('obtenirDisponibilitesFormateur résout le calendrier départemental et l\'email individuel depuis formateurId, sans jamais exposer cet email au retour', async (t) => {
+test('obtenirDisponibilitesFormateur résout le calendrier départemental depuis formateurId (role_code), sans filtrer les événements par personne', async (t) => {
   t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
     id: 8,
     role_code: 'inspecteur',
@@ -547,7 +547,6 @@ test('obtenirDisponibilitesFormateur résout le calendrier départemental et l\'
 
   assert.deepEqual(obtenirDisponibilitesMock.mock.calls[0].arguments, [
     'tertiaire2@accecit.com',
-    'inspecteur@accecit.test',
     '2026-09-01T00:00:00.000Z',
     '2026-09-08T00:00:00.000Z',
   ]);

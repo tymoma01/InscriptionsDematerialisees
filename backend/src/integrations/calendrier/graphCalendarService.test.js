@@ -91,7 +91,6 @@ test('obtenirDisponibilites interroge calendarView avec startDateTime/endDateTim
 
   await service.obtenirDisponibilites(
     'formation@accecit.com',
-    'formateur@accecit.test',
     '2026-09-01T00:00:00.000Z',
     '2026-09-08T00:00:00.000Z',
   );
@@ -103,10 +102,13 @@ test('obtenirDisponibilites interroge calendarView avec startDateTime/endDateTim
   assert.equal(requeteRecue.headers.Prefer, 'outlook.timezone="UTC"');
 });
 
-// Le cœur de la demande (décision utilisateur, 2026-08-26) : le calendrier est partagé par
-// département, mais la disponibilité renvoyée doit rester scopée à LA PERSONNE précise —
-// organisateur ou participant — pas à n'importe quel événement du département.
-test('obtenirDisponibilites ne retient que les événements où la personne est organisateur ou participant (jamais les autres du même calendrier partagé)', async (t) => {
+// Le cœur de la demande (décision utilisateur, 2026-08-26, révisée le même jour) : le calendrier
+// hebdomadaire est purement informatif (ne bloque plus aucune sélection), donc TOUS les événements
+// du calendrier départemental doivent être renvoyés — peu importe organisateur/participant. Ancien
+// comportement (filtrage par personne) abandonné : il masquait systématiquement les événements créés
+// directement dans Outlook par l'équipe (organisateur = boîte départementale, attendees = collègues
+// divers, jamais la personne précise sélectionnée côté app), causant un calendrier vide en pratique.
+test('obtenirDisponibilites retourne TOUS les événements du calendrier départemental, sans filtrage par organisateur/participant', async (t) => {
   const client = creerClientMock({
     'GET /users/formation@accecit.com/calendarView': {
       valeur: {
@@ -131,15 +133,19 @@ test('obtenirDisponibilites ne retient que les événements où la personne est 
 
   const resultat = await service.obtenirDisponibilites(
     'formation@accecit.com',
-    'formateur-a@accecit.test',
     '2026-09-01T00:00:00.000Z',
     '2026-09-08T00:00:00.000Z',
   );
 
-  assert.deepEqual(resultat, [{ debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z' }]);
+  assert.deepEqual(resultat, [
+    { debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z', sujet: null },
+    { debut: '2026-09-01T10:00:00.0000000Z', fin: '2026-09-01T11:00:00.0000000Z', sujet: null },
+  ]);
 });
 
-test('obtenirDisponibilites compare les emails sans tenir compte de la casse', async (t) => {
+// Affichage du libellé directement dans le bloc du créneau (CalendrierHebdomadaireDisponibilite.jsx)
+// plutôt qu'au seul survol — dépend de `subject` désormais demandé à Graph (voir `.select` ci-dessus).
+test('obtenirDisponibilites renvoie le subject Graph tel quel sous `sujet`, et `null` (jamais chaîne vide) quand absent/vide', async (t) => {
   const client = creerClientMock({
     'GET /users/formation@accecit.com/calendarView': {
       valeur: {
@@ -147,8 +153,16 @@ test('obtenirDisponibilites compare les emails sans tenir compte de la casse', a
           {
             start: { dateTime: '2026-09-01T08:00:00.0000000' },
             end: { dateTime: '2026-09-01T09:00:00.0000000' },
-            organizer: { emailAddress: { address: 'formation@accecit.com' } },
-            attendees: [{ emailAddress: { address: 'Formateur-A@Accecit.test' } }],
+            subject: 'MEP TOM Ford',
+          },
+          {
+            start: { dateTime: '2026-09-01T10:00:00.0000000' },
+            end: { dateTime: '2026-09-01T11:00:00.0000000' },
+            subject: '',
+          },
+          {
+            start: { dateTime: '2026-09-01T12:00:00.0000000' },
+            end: { dateTime: '2026-09-01T13:00:00.0000000' },
           },
         ],
       },
@@ -158,12 +172,15 @@ test('obtenirDisponibilites compare les emails sans tenir compte de la casse', a
 
   const resultat = await service.obtenirDisponibilites(
     'formation@accecit.com',
-    'formateur-a@accecit.test',
     '2026-09-01T00:00:00.000Z',
     '2026-09-08T00:00:00.000Z',
   );
 
-  assert.equal(resultat.length, 1);
+  assert.deepEqual(resultat, [
+    { debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z', sujet: 'MEP TOM Ford' },
+    { debut: '2026-09-01T10:00:00.0000000Z', fin: '2026-09-01T11:00:00.0000000Z', sujet: null },
+    { debut: '2026-09-01T12:00:00.0000000Z', fin: '2026-09-01T13:00:00.0000000Z', sujet: null },
+  ]);
 });
 
 test("creerEvenement construit un payload correct (start/end UTC, attendees, location) et renvoie l'événement créé", async (t) => {

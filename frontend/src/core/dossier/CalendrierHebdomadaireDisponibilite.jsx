@@ -29,6 +29,10 @@ const HEURE_FIN = 19;
 // du projet : dupliqué plutôt que partagé pour ce volume).
 const PAS_MINUTES = 15;
 
+// Repli affiché dans le bloc quand l'événement Outlook n'a pas de subject exploitable (événement
+// privé, ou champ jamais renseigné) — un bloc occupé ne doit jamais rester vide/illisible.
+const LIBELLE_OCCUPATION_PAR_DEFAUT = 'Occupé';
+
 const CRENEAUX_HORAIRES = [];
 for (let heure = HEURE_DEBUT; heure < HEURE_FIN; heure += 1) {
   for (let minute = 0; minute < 60; minute += PAS_MINUTES) {
@@ -72,6 +76,7 @@ function versInstant(jourIso, heure, minute) {
 }
 
 const FORMAT_JOUR_MOIS = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' });
+const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 function libelleJour(jourIso) {
   const [annee, mois, jour] = jourIso.split('-').map(Number);
   return FORMAT_JOUR_MOIS.format(new Date(annee, mois - 1, jour));
@@ -121,9 +126,15 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
     };
   }, [formateurId, lundiAffiche]);
 
-  const estOccupe = (jourIso, heure, minute) => {
+  // Retourne l'événement Outlook occupant ce créneau (ou undefined) plutôt qu'un simple booléen —
+  // audit 2026-08-26, décision utilisateur : le calendrier reste informatif ("l'agent voit d'un
+  // coup d'œil ce qui est déjà pris") mais ne bloque plus la sélection dessus (voir `desactive`
+  // ci-dessous, qui ne dépend plus de l'occupation). `evenement.sujet` (subject Graph, voir
+  // graphCalendarService.obtenirDisponibilites) est affiché directement dans le bloc — repli
+  // LIBELLE_OCCUPATION_PAR_DEFAUT quand `null` (événement privé ou sans objet).
+  const trouverEvenementOccupant = (jourIso, heure, minute) => {
     const instant = versInstant(jourIso, heure, minute);
-    return evenements.some((evenement) => instant >= new Date(evenement.debut).getTime() && instant < new Date(evenement.fin).getTime());
+    return evenements.find((evenement) => instant >= new Date(evenement.debut).getTime() && instant < new Date(evenement.fin).getTime());
   };
 
   const libelleSemaine = `${libelleJour(joursAffiches[0])} au ${libelleJour(joursAffiches[6])}`;
@@ -175,9 +186,16 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                 {joursAffiches.map((jourIso, indexJour) => {
                   const dimanche = indexJour === INDEX_DIMANCHE;
                   const passe = versInstant(jourIso, heure, minute) < Date.now();
-                  const occupe = !dimanche && !passe && estOccupe(jourIso, heure, minute);
+                  const evenementOccupant = trouverEvenementOccupant(jourIso, heure, minute);
+                  const occupe = Boolean(evenementOccupant);
+                  const libelleOccupation = occupe ? (evenementOccupant.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT) : null;
                   const selectionne = jourIso === dateSelectionnee && heure === heureSelectionnee && minute === minuteSelectionnee;
-                  const desactive = dimanche || passe || occupe || chargement;
+                  // Occupation Outlook : informative uniquement depuis l'audit 2026-08-26 (décision
+                  // utilisateur) — un créneau occupé reste sélectionnable, l'agent choisit en
+                  // connaissance de cause. Seules les dates/heures passées (et dimanche, hors
+                  // horaires ouvrés) restent bloquées ici ; le garde-fou qui fait foi reste de toute
+                  // façon compterRendezvousFormateurAuCreneau côté serveur à la confirmation.
+                  const desactive = dimanche || passe || chargement;
 
                   return (
                     <button
@@ -193,10 +211,16 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                         .trim()}
                       disabled={desactive}
                       aria-disabled={desactive}
-                      aria-label={`${JOURS_SEMAINE[indexJour]} ${libelleJour(jourIso)} à ${heure}h${minute}`}
-                      title={occupe ? 'Déjà occupé sur le calendrier Outlook' : undefined}
+                      aria-label={`${JOURS_SEMAINE[indexJour]} ${libelleJour(jourIso)} à ${heure}h${minute}${occupe ? ` (occupé : ${libelleOccupation})` : ''}`}
+                      title={
+                        occupe
+                          ? `${libelleOccupation} (${FORMAT_HEURE.format(new Date(evenementOccupant.debut))}–${FORMAT_HEURE.format(new Date(evenementOccupant.fin))}) — reste sélectionnable`
+                          : undefined
+                      }
                       onClick={() => onSelectionnerCreneau(jourIso, heure, minute)}
-                    />
+                    >
+                      {occupe && <span className="calendrier-hebdo__creneau-libelle">{libelleOccupation}</span>}
+                    </button>
                   );
                 })}
               </Fragment>

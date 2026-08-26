@@ -42,17 +42,23 @@ function versDateTimeGraphUtc(dateIso) {
   return new Date(dateIso).toISOString().replace('Z', '');
 }
 
-// Créneaux occupés du calendrier départemental, filtrés sur LA PERSONNE précise (organisateur ou
-// participant identifié par email) — le calendrier lui-même est partagé par département (voir
-// CALENDRIER_PAR_ROLE ci-dessus), mais la vérification de disponibilité reste scopée à un seul
-// formateur/inspecteur, cohérent avec CAPACITE_MAX_FORMATEUR_PAR_CRENEAU côté Neon (décision
-// utilisateur, 2026-08-26) : un créneau déjà occupé par un AUTRE formateur du même département ne
-// doit pas apparaître occupé ici. Suppose que creerEvenement (plus bas) ajoute toujours la
-// personne en `attendees` — c'est ce filtre qui en dépend pour les créations futures.
+// Tous les événements du calendrier départemental sur la plage demandée — le calendrier hebdomadaire
+// (CalendrierHebdomadaireDisponibilite.jsx) est purement informatif depuis l'audit 2026-08-26 (ne
+// bloque plus aucune sélection, voir `desactive` côté front), donc plus de filtrage par personne
+// ici : un calendrier partagé par département doit refléter TOUTE l'activité du département, pas
+// seulement celle du formateur/inspecteur actuellement sélectionné dans le dropdown. Filtrage par
+// organisateur/participant retiré le même jour (audit complémentaire) — c'était la cause du bug
+// "rien ne s'affiche" pour un inspecteur/formateur donné : les événements réels du calendrier
+// partagé (créés directement dans Outlook par l'équipe, ex. "MEP TOM Ford", "CROUS DAVIEL") ont pour
+// organisateur la boîte départementale elle-même et pour attendees des collègues divers — jamais la
+// personne précise sélectionnée côté app — donc l'ancien filtre organisateur===personne||
+// attendees.includes(personne) excluait systématiquement tout, même quand Graph renvoyait bien des
+// événements (vérifié par appel direct à calendarView : 18 événements bruts sur tertiaire2@accecit.com
+// pour la semaine du 24/08, tous éliminés par ce filtre).
 // `Prefer: outlook.timezone="UTC"` explicite plutôt que de compter sur le défaut Graph (UTC sans
 // header, mais non garanti selon la version d'API) : dateTime renvoyé sans suffixe de fuseau,
 // toujours interprété comme UTC ici.
-async function obtenirDisponibilites(emailCalendrier, emailPersonne, dateDebutIso, dateFinIso) {
+async function obtenirDisponibilites(emailCalendrier, dateDebutIso, dateFinIso) {
   const client = await graphClient.obtenirClientGraph();
   let reponse;
   try {
@@ -60,7 +66,7 @@ async function obtenirDisponibilites(emailCalendrier, emailPersonne, dateDebutIs
       .api(`/users/${emailCalendrier}/calendarView`)
       .header('Prefer', 'outlook.timezone="UTC"')
       .query({ startDateTime: dateDebutIso, endDateTime: dateFinIso })
-      .select('start,end,organizer,attendees')
+      .select('start,end,subject')
       // Volume hebdomadaire par département largement sous cette limite en pratique (quelques
       // dizaines de tests/semaine au plus) — pas de gestion de pagination (@odata.nextLink) ici,
       // à revisiter si ce volume change significativement.
@@ -72,19 +78,15 @@ async function obtenirDisponibilites(emailCalendrier, emailPersonne, dateDebutIs
     });
   }
 
-  const emailPersonneMinuscule = emailPersonne.toLowerCase();
-  return (reponse.value ?? [])
-    .filter((evenement) => {
-      const organisateur = evenement.organizer?.emailAddress?.address?.toLowerCase();
-      const participants = (evenement.attendees ?? [])
-        .map((participant) => participant.emailAddress?.address?.toLowerCase())
-        .filter(Boolean);
-      return organisateur === emailPersonneMinuscule || participants.includes(emailPersonneMinuscule);
-    })
-    .map((evenement) => ({
-      debut: `${evenement.start.dateTime}Z`,
-      fin: `${evenement.end.dateTime}Z`,
-    }));
+  // `subject` peut être absent/vide (événement privé, ou champ jamais renseigné côté Outlook) —
+  // le repli ("Occupé") est décidé côté front (CalendrierHebdomadaireDisponibilite.jsx), pas ici :
+  // ce service reste une transcription fidèle de ce que Graph renvoie, `sujet` peut donc valoir
+  // `null`.
+  return (reponse.value ?? []).map((evenement) => ({
+    debut: `${evenement.start.dateTime}Z`,
+    fin: `${evenement.end.dateTime}Z`,
+    sujet: evenement.subject || null,
+  }));
 }
 
 // Crée l'événement réel sur le calendrier départemental — `participantEmail`/`participantNom`

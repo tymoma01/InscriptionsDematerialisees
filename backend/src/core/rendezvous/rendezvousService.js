@@ -341,12 +341,13 @@ async function listerHistoriqueRendezvousDossiers(entite, dossierIds) {
   };
 }
 
-// Créneaux réellement occupés (calendrier Outlook, pas seulement Neon) d'un formateur/inspecteur
-// précis, sur une plage de dates — alimente le calendrier hebdomadaire de ModalePlanificationTest.jsx
-// (audit 2026-08-26). `formateurId` reçu (jamais `email` directement, décision utilisateur) : cette
-// fonction résout elle-même, côté serveur, à la fois le calendrier départemental cible (via le
-// role_code) et l'email individuel de la personne (utilisé uniquement en interne pour filtrer les
-// événements Graph, voir graphCalendarService.obtenirDisponibilites) — jamais renvoyé au frontend.
+// Tous les événements du calendrier départemental (calendrier Outlook, pas seulement Neon) sur une
+// plage de dates — alimente le calendrier hebdomadaire de ModalePlanificationTest.jsx, purement
+// informatif depuis l'audit 2026-08-26 (plus de filtrage par personne, voir
+// graphCalendarService.obtenirDisponibilites). `formateurId` reçu (jamais `email` directement,
+// décision utilisateur) sert uniquement à résoudre, côté serveur, QUEL calendrier départemental
+// interroger via le role_code (formation@ pour un formateur, tertiaire2@ pour un inspecteur) — plus
+// à filtrer les événements retournés, qui reflètent désormais toute l'activité du département.
 async function obtenirDisponibilitesFormateur(entite, { formateurId, debut, fin }) {
   const bd = await db.obtenirKnex();
   const utilisateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId);
@@ -357,7 +358,7 @@ async function obtenirDisponibilitesFormateur(entite, { formateurId, debut, fin 
   }
   const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(utilisateur.role_code);
   try {
-    return await graphCalendarService.obtenirDisponibilites(emailCalendrier, utilisateur.email, debut, fin);
+    return await graphCalendarService.obtenirDisponibilites(emailCalendrier, debut, fin);
   } catch (erreur) {
     throw new ErreurPlanificationOutlook(erreur.message);
   }

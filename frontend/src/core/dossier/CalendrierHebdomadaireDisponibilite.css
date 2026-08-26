@@ -144,7 +144,13 @@
   border: none;
   background: var(--couleur-fond);
   cursor: pointer;
-  padding: 0;
+  padding: 0 3px;
+  /* Accueille le libellé de l'événement occupant (voir .calendrier-hebdo__creneau-libelle
+     ci-dessous) — display:flex même sur un créneau libre (sans enfant) : pas de différence visuelle,
+     garde une seule règle de mise en page plutôt qu'une variante par état. */
+  display: flex;
+  align-items: center;
+  overflow: hidden;
 }
 
 .calendrier-hebdo__creneau:hover:not(:disabled) {
@@ -174,14 +180,60 @@
 
 /* Créneau occupé sur le calendrier Outlook réel — même teinte que
    .calendrier-disponibilite__badge (--couleur-erreur), cohérent avec le vocabulaire de couleur
-   déjà utilisé pour "occupé" ailleurs dans ce composant partagé. */
+   déjà utilisé pour "occupé" ailleurs dans ce composant partagé. color-mix (pas `opacity`) : le
+   libellé affiché dans le bloc (voir .calendrier-hebdo__creneau-libelle) doit rester net, `opacity`
+   sur ce conteneur atténuerait aussi le texte, pas seulement le fond. */
 .calendrier-hebdo__creneau--occupe {
-  background: var(--couleur-erreur);
-  opacity: 0.35;
+  background: color-mix(in srgb, var(--couleur-erreur) 32%, var(--couleur-fond));
+}
+
+/* Depuis l'audit 2026-08-26, un créneau occupé reste cliquable (voir
+   CalendrierHebdomadaireDisponibilite.jsx, `desactive` ne dépend plus de `occupe`) — sans cette
+   règle, la survol générique .calendrier-hebdo__creneau:hover:not(:disabled) (même spécificité,
+   déclarée avant) effacerait la teinte "occupé" pendant exactement le moment où l'agent vise le
+   clic. Redéclarée ici après pour gagner à spécificité égale (ordre source). */
+.calendrier-hebdo__creneau--occupe:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--couleur-erreur) 48%, var(--couleur-fond));
+}
+
+/* Libellé de l'événement occupant, affiché directement dans le bloc (plus seulement au survol via
+   `title`, conservé en complément pour le texte tronqué) — une ligne, ellipsis plutôt que
+   déborder/être illisible sur un créneau de 15-30 min (hauteur fixe .calendrier-hebdo__creneau,
+   1.35rem). `pointer-events: none` : le clic doit toujours cibler le bouton parent, jamais ce span. */
+.calendrier-hebdo__creneau-libelle {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6rem;
+  line-height: 1;
+  /* --couleur-texte (gris foncé), pas --couleur-erreur : le fond teinté porte déjà le sens
+     "occupé" (+ tooltip/aria-label) — un texte rouge sur fond rouge clair tombe sous ~3.5:1 de
+     contraste, --couleur-texte dessus reste largement au-dessus de 4.5:1. */
+  color: var(--couleur-texte);
+  text-align: left;
+  pointer-events: none;
+}
+
+/* Un créneau occupé reste sélectionnable (voir plus haut) : quand il l'est, .calendrier-hebdo__
+   creneau--selectionne (bleu plein, règle plus bas) prend le pas sur le fond rouge translucide —
+   le libellé doit alors passer en blanc pour rester lisible sur ce fond bleu plein. */
+.calendrier-hebdo__creneau--selectionne .calendrier-hebdo__creneau-libelle {
+  color: #fff;
 }
 
 /* Même bleu plein que .calendrier-disponibilite__case--selectionne (CalendrierDisponibiliteFormateur.css)
    — cohérence visuelle du "créneau choisi" entre les deux calendriers du projet. */
 .calendrier-hebdo__creneau--selectionne {
+  background: #1f4e9c;
+}
+
+/* Un créneau occupé ET sélectionné (possible depuis que l'occupation ne bloque plus la sélection) :
+   sans cette règle, .calendrier-hebdo__creneau--occupe:hover:not(:disabled) ci-dessus (même
+   spécificité — une classe + :hover + :not(:disabled)) gagnerait au survol et ferait disparaître le
+   bleu de sélection derrière la teinte rouge "occupé" pile quand l'agent regarde/vise ce créneau.
+   Redéclarée ici, après, pour gagner à spécificité égale (ordre source). */
+.calendrier-hebdo__creneau--selectionne:hover:not(:disabled) {
   background: #1f4e9c;
 }
