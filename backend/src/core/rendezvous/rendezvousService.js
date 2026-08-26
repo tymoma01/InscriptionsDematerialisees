@@ -56,6 +56,26 @@ const STATUTS_DESISTEMENT = ['absent', 'annule'];
 // changement de ce côté.
 const STATUT_REMPLACE = 'remplace';
 
+// Libellés des postes, propre à cette entité (voir Modularité, CLAUDE.md) — même mapping que
+// invitationTestService.js/TableauDeBordAccueil.jsx/VerificationPieces.jsx/Planification.jsx,
+// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent (poste
+// ajouté au formulaire mais pas encore ici) retombe simplement sur le code brut plutôt que
+// d'échouer. Utilisé ici pour le subject de l'événement Outlook (voir creerRendezvous ci-dessous).
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Erreurs métier distinctes d'une Error générique (500 opaque) : rendezvous.routes.js les
 // traduit en 400/409 avec un message directement affichable à l'agent — même principe que
 // ErreurInscriptionConflit dans dossierService.js.
@@ -495,10 +515,22 @@ async function creerRendezvous(
     // recréant exactement le risque de double réservation que ce chantier vise à éliminer).
     const ancienRendezVousActif = await rendezvousRepository.trouverRendezvousTestActifDossier(bd, dossierId);
 
+    // "Test ACCECIT — {Formateur/Inspecteur} / {Candidat} — {Poste(s)}" (décision utilisateur,
+    // 2026-08-26) : jusqu'ici le subject n'indiquait que le candidat, illisible dès que plusieurs
+    // événements du même calendrier départemental se ressemblent (voir l'audit "libellés visibles
+    // dans la grille" — même besoin de repérage en un coup d'œil, transposé au subject Outlook
+    // lui-même). Segment "— {Poste(s)}" omis si aucun poste retenu pour CE rendez-vous précis
+    // (postesSelectionnes, jamais les postes déclarés à l'inscription — voir
+    // formaterLignePostesHtml, invitationTestService.js, même choix). Ne s'applique qu'aux
+    // événements créés à partir de maintenant — aucune mise à jour rétroactive des événements déjà
+    // présents sur le calendrier Outlook (ce bloc ne fait que POST un nouvel événement).
+    const sujetPostes = postesSelectionnes.length > 0 ? ` — ${postesSelectionnes.map(libellePoste).join(', ')}` : '';
+    const sujet = `Test ACCECIT — ${formateur.prenom} ${formateur.nom} / ${dossier.candidat_prenom} ${dossier.candidat_nom}${sujetPostes}`;
+
     let evenementCree;
     try {
       evenementCree = await graphCalendarService.creerEvenement(emailCalendrier, {
-        sujet: `Test ACCECIT — ${dossier.candidat_prenom} ${dossier.candidat_nom}`,
+        sujet,
         corps:
           `<p>Dossier #${dossierId} — ${dossier.candidat_prenom} ${dossier.candidat_nom}</p>` +
           (postesSelectionnes.length > 0 ? `<p>Poste(s) : ${postesSelectionnes.join(', ')}</p>` : '') +
