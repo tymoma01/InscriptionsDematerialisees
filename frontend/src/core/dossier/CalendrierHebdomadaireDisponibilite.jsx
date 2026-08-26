@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { obtenirDisponibilitesFormateur } from '../../services/rendezvousService';
 import { dateDuJourParis } from './dateDuJourParis';
 import './CalendrierHebdomadaireDisponibilite.css';
@@ -126,16 +126,124 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
     };
   }, [formateurId, lundiAffiche]);
 
-  // Retourne l'événement Outlook occupant ce créneau (ou undefined) plutôt qu'un simple booléen —
-  // audit 2026-08-26, décision utilisateur : le calendrier reste informatif ("l'agent voit d'un
-  // coup d'œil ce qui est déjà pris") mais ne bloque plus la sélection dessus (voir `desactive`
-  // ci-dessous, qui ne dépend plus de l'occupation). `evenement.sujet` (subject Graph, voir
-  // graphCalendarService.obtenirDisponibilites) est affiché directement dans le bloc — repli
-  // LIBELLE_OCCUPATION_PAR_DEFAUT quand `null` (événement privé ou sans objet).
-  const trouverEvenementOccupant = (jourIso, heure, minute) => {
+  // Journée entière (ex. "CAFET BEGUM UDDIN FATEMA Report...") vs horaire — audit lisibilité
+  // 2026-08-26 : un événement journée entière s'affichait avant répété sur chaque créneau de 15 min
+  // de la journée (Outlook renvoie le même événement pour toute la plage horaire demandée). Séparés
+  // ici une fois pour toutes : les événements journée entière vont dans le bandeau dédié
+  // (calendrier-hebdo__bandeau-jour ci-dessous), les horaires seuls alimentent la grille de créneaux.
+  const evenementsJourneeEntiere = useMemo(() => evenements.filter((evenement) => evenement.journeeEntiere), [evenements]);
+  const evenementsHoraires = useMemo(() => evenements.filter((evenement) => !evenement.journeeEntiere), [evenements]);
+
+  // Un événement occupe ce créneau si l'instant de DÉBUT du créneau tombe dans [debut, fin[ —
+  // exactement le même calcul qu'avant l'audit lisibilité 2026-08-26 (teinte "occupé" du bouton,
+  // aria-label). Peut renvoyer plusieurs événements (créneau avec occupations simultanées, voir
+  // calculerBlocsJour ci-dessous pour leur affichage côte à côte).
+  const trouverEvenementsOccupantCreneau = (jourIso, heure, minute) => {
     const instant = versInstant(jourIso, heure, minute);
-    return evenements.find((evenement) => instant >= new Date(evenement.debut).getTime() && instant < new Date(evenement.fin).getTime());
+    return evenementsHoraires.filter((evenement) => instant >= new Date(evenement.debut).getTime() && instant < new Date(evenement.fin).getTime());
   };
+
+  // Un événement horaire recouvre le jour `jourIso` si un de ses créneaux affichés (CRENEAUX_HORAIRES)
+  // en fait partie — réutilise EXACTEMENT le même prédicat que trouverEvenementsOccupantCreneau ci-
+  // dessus (occupation par instant de début de créneau), pour que le bloc fusionné dessiné ci-dessous
+  // corresponde toujours pile aux créneaux effectivement teintés "occupé", jamais un calcul de durée
+  // séparé qui pourrait diverger (ex. arrondis différents sur un événement à cheval sur deux
+  // créneaux).
+  const calculerBlocEvenementJour = (evenement, jourIso) => {
+    const indicesOccupes = [];
+    CRENEAUX_HORAIRES.forEach(({ heure, minute }, indexCreneau) => {
+      const instant = versInstant(jourIso, heure, minute);
+      if (instant >= new Date(evenement.debut).getTime() && instant < new Date(evenement.fin).getTime()) {
+        indicesOccupes.push(indexCreneau);
+      }
+    });
+    if (indicesOccupes.length === 0) return null;
+    // Un seul bloc couvrant du premier au dernier créneau occupé (+1, borne exclusive) — suffisant
+    // ici puisque indicesOccupes est par construction une plage contiguë (le temps est linéaire et
+    // CRENEAUX_HORAIRES est trié), jamais besoin de détecter plusieurs runs séparés pour un même
+    // événement.
+    return { evenement, creneauDebut: indicesOccupes[0], creneauFin: indicesOccupes[indicesOccupes.length - 1] + 1 };
+  };
+
+  // Un événement horaire recouvre `jourIso` si ses bornes [debut, fin[ chevauchent la plage
+  // [00:00 jourIso, 00:00 lendemain[ EN HEURE LOCALE (Europe/Paris) — sert de pré-filtre à
+  // blocsParJour ci-dessous, cohérent avec calculerBlocEvenementJour qui compare lui aussi des
+  // instants locaux.
+  const evenementRecouvreJour = (evenement, jourIso) => {
+    const debutJour = versInstant(jourIso, '00', '00');
+    const finJour = versInstant(ajouterJours(jourIso, 1), '00', '00');
+    return new Date(evenement.debut).getTime() < finJour && new Date(evenement.fin).getTime() > debutJour;
+  };
+
+  // Un événement JOURNÉE ENTIÈRE recouvre `jourIso` si sa date civile de début (YYYY-MM-DD, lue
+  // directement sur la chaîne ISO renvoyée par Graph, jamais via `new Date(...)` + fuseau local) est
+  // `<= jourIso` et sa date civile de fin (bornée exclusive, même convention que dateFin ailleurs
+  // dans ce projet) est `> jourIso`. Ne PAS réutiliser evenementRecouvreJour ci-dessus pour ce cas :
+  // Graph renvoie un événement journée entière comme un minuit-à-minuit UTC « flottant » (ex.
+  // 2026-08-28T00:00:00Z → 2026-08-29T00:00:00Z pour un événement d'UN SEUL jour, le 28/08) — un
+  // recouvrement basé sur l'instant Europe/Paris (UTC+1/+2) ferait déborder ces 2h de décalage sur le
+  // jour suivant et l'événement apparaîtrait à tort dans DEUX bandeaux (bug constaté à l'audit
+  // lisibilité 2026-08-26 avec l'événement réel "FIN CT STEPHENSON CAMBON" sur tertiaire2@accecit.com,
+  // affiché à la fois le 28/08 ET le 29/08 avant ce correctif).
+  const evenementJourneeEntiereRecouvreJour = (evenement, jourIso) => {
+    const dateCiviledeDebut = evenement.debut.slice(0, 10);
+    const dateCivileDeFin = evenement.fin.slice(0, 10);
+    return dateCiviledeDebut <= jourIso && jourIso < dateCivileDeFin;
+  };
+
+  // Un bloc par jour et par événement horaire distinct (voir calculerBlocEvenementJour), puis
+  // affectation de colonnes par un algorithme glouton classique ("interval graph coloring") : la
+  // colonne réutilisée est la première dont le dernier bloc placé se termine avant (ou au moment où)
+  // celui-ci commence, sinon une nouvelle colonne est ouverte — répond au point 3 de l'audit lisibilité
+  // 2026-08-26 (plusieurs événements simultanés affichés côte à côte, jamais l'un masquant l'autre).
+  const blocsParJour = useMemo(() => {
+    const parJour = new Map();
+    joursAffiches.forEach((jourIso) => {
+      const blocs = evenementsHoraires
+        .filter((evenement) => evenementRecouvreJour(evenement, jourIso))
+        .map((evenement) => calculerBlocEvenementJour(evenement, jourIso))
+        .filter(Boolean)
+        .sort((a, b) => a.creneauDebut - b.creneauDebut || a.creneauFin - b.creneauFin);
+
+      const finColonnes = [];
+      blocs.forEach((bloc) => {
+        let colonne = finColonnes.findIndex((fin) => fin <= bloc.creneauDebut);
+        if (colonne === -1) colonne = finColonnes.length;
+        finColonnes[colonne] = bloc.creneauFin;
+        bloc.colonne = colonne;
+      });
+
+      parJour.set(jourIso, { blocs, nombreColonnes: Math.max(finColonnes.length, 1) });
+    });
+    return parJour;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evenementsHoraires est déjà une
+    // dépendance stable via son propre useMemo([evenements]) ci-dessus.
+  }, [joursAffiches, evenementsHoraires]);
+
+  // Événements journée entière par jour couvert (voir evenementJourneeEntiereRecouvreJour) — un
+  // événement multi-jours apparaît une fois dans le bandeau de CHAQUE jour qu'il couvre, jamais
+  // fusionné entre colonnes de jours différents (contrairement à blocsParJour, ce bandeau n'a pas de
+  // grille horaire à respecter).
+  const journeeEntiereParJour = useMemo(() => {
+    const parJour = new Map();
+    joursAffiches.forEach((jourIso) => {
+      parJour.set(
+        jourIso,
+        evenementsJourneeEntiere.filter((evenement) => evenementJourneeEntiereRecouvreJour(evenement, jourIso)),
+      );
+    });
+    return parJour;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- même remarque que blocsParJour ci-dessus.
+  }, [joursAffiches, evenementsJourneeEntiere]);
+
+  // Index du créneau actuellement sélectionné dans CRENEAUX_HORAIRES — sert uniquement à faire
+  // ressortir (léger contour bleu) le bloc Outlook qui recouvre la sélection en cours, pour que
+  // l'agent voie que le créneau choisi tombe sur une occupation existante sans que le bloc n'efface
+  // entièrement la couleur de sélection du bouton dessous (voir .calendrier-hebdo__evenement-bloc--
+  // selectionne, CSS).
+  const indexCreneauSelectionne = CRENEAUX_HORAIRES.findIndex(
+    (creneau) => creneau.heure === heureSelectionnee && creneau.minute === minuteSelectionnee,
+  );
 
   const libelleSemaine = `${libelleJour(joursAffiches[0])} au ${libelleJour(joursAffiches[6])}`;
 
@@ -180,51 +288,124 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
               </div>
             ))}
 
-            {CRENEAUX_HORAIRES.map(({ heure, minute }) => (
-              <Fragment key={`${heure}:${minute}`}>
-                <div className="calendrier-hebdo__heure-label">{minute === '00' ? `${heure}:00` : ''}</div>
-                {joursAffiches.map((jourIso, indexJour) => {
-                  const dimanche = indexJour === INDEX_DIMANCHE;
-                  const passe = versInstant(jourIso, heure, minute) < Date.now();
-                  const evenementOccupant = trouverEvenementOccupant(jourIso, heure, minute);
-                  const occupe = Boolean(evenementOccupant);
-                  const libelleOccupation = occupe ? (evenementOccupant.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT) : null;
-                  const selectionne = jourIso === dateSelectionnee && heure === heureSelectionnee && minute === minuteSelectionnee;
-                  // Occupation Outlook : informative uniquement depuis l'audit 2026-08-26 (décision
-                  // utilisateur) — un créneau occupé reste sélectionnable, l'agent choisit en
-                  // connaissance de cause. Seules les dates/heures passées (et dimanche, hors
-                  // horaires ouvrés) restent bloquées ici ; le garde-fou qui fait foi reste de toute
-                  // façon compterRendezvousFormateurAuCreneau côté serveur à la confirmation.
-                  const desactive = dimanche || passe || chargement;
+            {/* Bandeau "journée entière" (point 1 de l'audit lisibilité 2026-08-26) — une seule
+                ligne au-dessus de la grille horaire, un événement de ce type n'y apparaît qu'une
+                fois par jour qu'il couvre, jamais répété sur chaque créneau de 15 min en dessous.
+                Ligne entière masquée quand aucun événement journée entière cette semaine, pour ne
+                pas gaspiller de hauteur d'écran la majorité du temps. */}
+            {evenementsJourneeEntiere.length > 0 && (
+              <>
+                <div className="calendrier-hebdo__bandeau-coin">Journée</div>
+                {joursAffiches.map((jourIso) => (
+                  <div key={`bandeau-${jourIso}`} className="calendrier-hebdo__bandeau-jour">
+                    {journeeEntiereParJour.get(jourIso).map((evenement, indexEvenement) => (
+                      <span
+                        key={indexEvenement}
+                        className="calendrier-hebdo__bandeau-evenement"
+                        title={`${evenement.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT} (journée entière)`}
+                      >
+                        {evenement.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </>
+            )}
 
-                  return (
-                    <button
-                      type="button"
-                      key={`${jourIso}-${heure}${minute}`}
-                      className={[
-                        'calendrier-hebdo__creneau',
-                        dimanche ? 'calendrier-hebdo__creneau--dimanche' : '',
-                        occupe ? 'calendrier-hebdo__creneau--occupe' : '',
-                        selectionne ? 'calendrier-hebdo__creneau--selectionne' : '',
-                      ]
-                        .join(' ')
-                        .trim()}
-                      disabled={desactive}
-                      aria-disabled={desactive}
-                      aria-label={`${JOURS_SEMAINE[indexJour]} ${libelleJour(jourIso)} à ${heure}h${minute}${occupe ? ` (occupé : ${libelleOccupation})` : ''}`}
-                      title={
-                        occupe
-                          ? `${libelleOccupation} (${FORMAT_HEURE.format(new Date(evenementOccupant.debut))}–${FORMAT_HEURE.format(new Date(evenementOccupant.fin))}) — reste sélectionnable`
-                          : undefined
-                      }
-                      onClick={() => onSelectionnerCreneau(jourIso, heure, minute)}
-                    >
-                      {occupe && <span className="calendrier-hebdo__creneau-libelle">{libelleOccupation}</span>}
-                    </button>
-                  );
-                })}
-              </Fragment>
-            ))}
+            <div className="calendrier-hebdo__colonne-heures">
+              {CRENEAUX_HORAIRES.map(({ heure, minute }) => (
+                <div key={`${heure}:${minute}`} className="calendrier-hebdo__heure-label">
+                  {minute === '00' ? `${heure}:00` : ''}
+                </div>
+              ))}
+            </div>
+
+            {joursAffiches.map((jourIso, indexJour) => {
+              const dimanche = indexJour === INDEX_DIMANCHE;
+              const { blocs, nombreColonnes } = blocsParJour.get(jourIso);
+
+              return (
+                <div
+                  key={jourIso}
+                  className="calendrier-hebdo__colonne-jour"
+                  // `grid-template-rows` explicite (pas seulement `grid-auto-rows` en CSS) —
+                  // indispensable pour que `grid-row: 1 / -1` sur .calendrier-hebdo__evenements-
+                  // overlay ci-dessous résolve correctement : `-1` ne compte que les lignes de la
+                  // grille EXPLICITE, jamais les pistes implicites créées par l'auto-placement des
+                  // boutons créneaux — sans cette ligne, l'overlay se retrouvait à hauteur 0 (bloc
+                  // invisible, seule la teinte "occupé" du bouton dessous restait visible).
+                  style={{ gridTemplateRows: `repeat(${CRENEAUX_HORAIRES.length}, 2rem)` }}
+                >
+                  {CRENEAUX_HORAIRES.map(({ heure, minute }) => {
+                    const passe = versInstant(jourIso, heure, minute) < Date.now();
+                    const evenementsOccupants = trouverEvenementsOccupantCreneau(jourIso, heure, minute);
+                    const occupe = evenementsOccupants.length > 0;
+                    const libelleOccupation = occupe
+                      ? evenementsOccupants.map((evenement) => evenement.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT).join(', ')
+                      : null;
+                    const selectionne = jourIso === dateSelectionnee && heure === heureSelectionnee && minute === minuteSelectionnee;
+                    // Occupation Outlook : informative uniquement depuis l'audit 2026-08-26 (décision
+                    // utilisateur) — un créneau occupé reste sélectionnable, l'agent choisit en
+                    // connaissance de cause. Seules les dates/heures passées (et dimanche, hors
+                    // horaires ouvrés) restent bloquées ici ; le garde-fou qui fait foi reste de toute
+                    // façon compterRendezvousFormateurAuCreneau côté serveur à la confirmation.
+                    const desactive = dimanche || passe || chargement;
+
+                    return (
+                      <button
+                        type="button"
+                        key={`${jourIso}-${heure}${minute}`}
+                        className={[
+                          'calendrier-hebdo__creneau',
+                          dimanche ? 'calendrier-hebdo__creneau--dimanche' : '',
+                          occupe ? 'calendrier-hebdo__creneau--occupe' : '',
+                          selectionne ? 'calendrier-hebdo__creneau--selectionne' : '',
+                        ]
+                          .join(' ')
+                          .trim()}
+                        disabled={desactive}
+                        aria-disabled={desactive}
+                        aria-label={`${JOURS_SEMAINE[indexJour]} ${libelleJour(jourIso)} à ${heure}h${minute}${occupe ? ` (occupé : ${libelleOccupation})` : ''}`}
+                        onClick={() => onSelectionnerCreneau(jourIso, heure, minute)}
+                      />
+                    );
+                  })}
+
+                  {/* Un bloc par événement horaire distinct, positionné sur sa vraie plage de
+                      créneaux (points 2 et 3 de l'audit lisibilité 2026-08-26) — `pointer-events:
+                      none` en cascade depuis .calendrier-hebdo__evenements-overlay (CSS) : le clic
+                      doit toujours atteindre le bouton créneau dessous, jamais être intercepté par
+                      un bloc qui ne couvre qu'une partie de la largeur de la colonne (occupations
+                      simultanées côte à côte). */}
+                  <div
+                    className="calendrier-hebdo__evenements-overlay"
+                    style={{ gridTemplateColumns: `repeat(${nombreColonnes}, 1fr)`, gridTemplateRows: `repeat(${CRENEAUX_HORAIRES.length}, 1fr)` }}
+                  >
+                    {blocs.map((bloc, indexBloc) => {
+                      const selectionneDansBloc =
+                        jourIso === dateSelectionnee &&
+                        indexCreneauSelectionne >= bloc.creneauDebut &&
+                        indexCreneauSelectionne < bloc.creneauFin;
+                      const libelle = bloc.evenement.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT;
+
+                      return (
+                        <div
+                          key={indexBloc}
+                          className={`calendrier-hebdo__evenement-bloc${selectionneDansBloc ? ' calendrier-hebdo__evenement-bloc--selectionne' : ''}`}
+                          style={{
+                            gridRow: `${bloc.creneauDebut + 1} / ${bloc.creneauFin + 1}`,
+                            gridColumn: `${bloc.colonne + 1} / span 1`,
+                          }}
+                          title={`${libelle} (${FORMAT_HEURE.format(new Date(bloc.evenement.debut))}–${FORMAT_HEURE.format(new Date(bloc.evenement.fin))}) — reste sélectionnable`}
+                        >
+                          {libelle}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

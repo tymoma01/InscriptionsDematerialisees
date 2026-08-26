@@ -66,7 +66,7 @@ async function obtenirDisponibilites(emailCalendrier, dateDebutIso, dateFinIso) 
       .api(`/users/${emailCalendrier}/calendarView`)
       .header('Prefer', 'outlook.timezone="UTC"')
       .query({ startDateTime: dateDebutIso, endDateTime: dateFinIso })
-      .select('start,end,subject')
+      .select('start,end,subject,isAllDay')
       // Volume hebdomadaire par département largement sous cette limite en pratique (quelques
       // dizaines de tests/semaine au plus) — pas de gestion de pagination (@odata.nextLink) ici,
       // à revisiter si ce volume change significativement.
@@ -81,11 +81,14 @@ async function obtenirDisponibilites(emailCalendrier, dateDebutIso, dateFinIso) 
   // `subject` peut être absent/vide (événement privé, ou champ jamais renseigné côté Outlook) —
   // le repli ("Occupé") est décidé côté front (CalendrierHebdomadaireDisponibilite.jsx), pas ici :
   // ce service reste une transcription fidèle de ce que Graph renvoie, `sujet` peut donc valoir
-  // `null`.
+  // `null`. `journeeEntiere` (renommé depuis `isAllDay` Graph, convention française du projet) :
+  // permet au front de regrouper ces événements dans un bandeau dédié plutôt que de les répéter sur
+  // chaque créneau de 15 min de la journée (audit lisibilité 2026-08-26).
   return (reponse.value ?? []).map((evenement) => ({
     debut: `${evenement.start.dateTime}Z`,
     fin: `${evenement.end.dateTime}Z`,
     sujet: evenement.subject || null,
+    journeeEntiere: evenement.isAllDay === true,
   }));
 }
 

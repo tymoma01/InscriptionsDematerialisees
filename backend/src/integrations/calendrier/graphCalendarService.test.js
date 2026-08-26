@@ -138,8 +138,8 @@ test('obtenirDisponibilites retourne TOUS les événements du calendrier départ
   );
 
   assert.deepEqual(resultat, [
-    { debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z', sujet: null },
-    { debut: '2026-09-01T10:00:00.0000000Z', fin: '2026-09-01T11:00:00.0000000Z', sujet: null },
+    { debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z', sujet: null, journeeEntiere: false },
+    { debut: '2026-09-01T10:00:00.0000000Z', fin: '2026-09-01T11:00:00.0000000Z', sujet: null, journeeEntiere: false },
   ]);
 });
 
@@ -177,9 +177,46 @@ test('obtenirDisponibilites renvoie le subject Graph tel quel sous `sujet`, et `
   );
 
   assert.deepEqual(resultat, [
-    { debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z', sujet: 'MEP TOM Ford' },
-    { debut: '2026-09-01T10:00:00.0000000Z', fin: '2026-09-01T11:00:00.0000000Z', sujet: null },
-    { debut: '2026-09-01T12:00:00.0000000Z', fin: '2026-09-01T13:00:00.0000000Z', sujet: null },
+    { debut: '2026-09-01T08:00:00.0000000Z', fin: '2026-09-01T09:00:00.0000000Z', sujet: 'MEP TOM Ford', journeeEntiere: false },
+    { debut: '2026-09-01T10:00:00.0000000Z', fin: '2026-09-01T11:00:00.0000000Z', sujet: null, journeeEntiere: false },
+    { debut: '2026-09-01T12:00:00.0000000Z', fin: '2026-09-01T13:00:00.0000000Z', sujet: null, journeeEntiere: false },
+  ]);
+});
+
+// Regroupement en bandeau dédié côté front (CalendrierHebdomadaireDisponibilite.jsx, audit
+// lisibilité 2026-08-26) plutôt que répété sur chaque créneau de 15 min de la journée — dépend de
+// `isAllDay` désormais demandé à Graph (voir `.select` ci-dessus), retranscrit sous `journeeEntiere`
+// (convention française du projet).
+test('obtenirDisponibilites retranscrit isAllDay sous `journeeEntiere`', async (t) => {
+  const client = creerClientMock({
+    'GET /users/formation@accecit.com/calendarView': {
+      valeur: {
+        value: [
+          {
+            start: { dateTime: '2026-09-01T00:00:00.0000000' },
+            end: { dateTime: '2026-09-02T00:00:00.0000000' },
+            subject: 'CAFET Report',
+            isAllDay: true,
+          },
+        ],
+      },
+    },
+  });
+  const service = chargerServiceAvecClient(t, client);
+
+  const resultat = await service.obtenirDisponibilites(
+    'formation@accecit.com',
+    '2026-09-01T00:00:00.000Z',
+    '2026-09-08T00:00:00.000Z',
+  );
+
+  assert.deepEqual(resultat, [
+    {
+      debut: '2026-09-01T00:00:00.0000000Z',
+      fin: '2026-09-02T00:00:00.0000000Z',
+      sujet: 'CAFET Report',
+      journeeEntiere: true,
+    },
   ]);
 });
 

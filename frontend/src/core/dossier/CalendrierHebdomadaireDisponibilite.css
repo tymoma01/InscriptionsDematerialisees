@@ -96,6 +96,53 @@
   z-index: 3;
 }
 
+/* Bandeau "journée entière" (point 1 de l'audit lisibilité 2026-08-26) — sticky juste sous l'en-tête
+   des jours (même hauteur de ligne que .calendrier-hebdo__entete-jour, ~2.1rem, valeur approchée
+   suffisante ici : un léger chevauchement d'1-2px pendant le scroll n'est pas perceptible). Rendu
+   seulement quand au moins un événement journée entière existe cette semaine (voir JSX) — sinon la
+   grille garde sa hauteur habituelle. */
+.calendrier-hebdo__bandeau-coin,
+.calendrier-hebdo__bandeau-jour {
+  position: sticky;
+  top: 2.1rem;
+  z-index: 2;
+  background: var(--couleur-fond-secondaire);
+}
+
+.calendrier-hebdo__bandeau-coin {
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.2rem 0.3rem 0.2rem 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--couleur-texte-secondaire);
+}
+
+.calendrier-hebdo__bandeau-jour {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  min-height: 1.4rem;
+}
+
+/* Même teinte que .calendrier-hebdo__evenement-bloc (occupation Outlook) — un événement journée
+   entière est un cas particulier d'occupation, pas une catégorie visuelle différente. */
+.calendrier-hebdo__bandeau-evenement {
+  background: color-mix(in srgb, var(--couleur-erreur) 55%, var(--couleur-fond));
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  color: var(--couleur-texte);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .calendrier-hebdo__entete-jour {
   display: flex;
   flex-direction: column;
@@ -121,11 +168,20 @@
   opacity: 0.6;
 }
 
-.calendrier-hebdo__heure-label {
+/* Colonne des libellés d'heure (8:00, 9:00, ...) — sticky sur toute sa hauteur (un seul élément,
+   plus la sticky par-ligne d'avant l'audit lisibilité 2026-08-26 : voir .calendrier-hebdo__colonne-
+   jour ci-dessous, même refonte de structure). grid-auto-rows fixe la hauteur d'UN créneau de 15 min,
+   partagée avec .calendrier-hebdo__creneau pour que les deux colonnes restent alignées ligne à ligne. */
+.calendrier-hebdo__colonne-heures {
   position: sticky;
   left: 0;
   z-index: 1;
   background: var(--couleur-fond-secondaire);
+  display: grid;
+  grid-auto-rows: 2rem;
+}
+
+.calendrier-hebdo__heure-label {
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -133,29 +189,42 @@
   font-size: 0.7rem;
   font-weight: 700;
   color: var(--couleur-texte-secondaire);
-  /* Hauteur d'UN créneau de 15 min (voir .calendrier-hebdo__creneau ci-dessous, même valeur) :
-     seul le libellé de l'heure pleine est affiché (voir CalendrierHebdomadaireDisponibilite.jsx),
-     les 3 lignes de 15 min suivantes restent vides mais gardent la même hauteur pour que la
-     grille de droite reste alignée sur des lignes régulières. Portée à 2rem (au lieu de 1.35rem)
-     le 2026-08-26 : les libellés d'événement affichés dans les cellules (voir
-     .calendrier-hebdo__creneau-libelle) étaient trop compressés à 1.35rem — le défilement vertical
-     de .calendrier-hebdo__grille-scroll (max-height fixe, overflow:auto) absorbe la grille plus
-     haute sans changement, rien à ajuster côté scroll. */
-  height: 2rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
 }
 
+.calendrier-hebdo__heure-label:nth-child(4n) {
+  border-bottom-color: var(--couleur-bordure);
+}
+
+/* Une colonne jour = une mini-grille verticale (audit lisibilité 2026-08-26, remplace le découpage
+   ligne-par-ligne d'avant) : les boutons créneaux forment le calque de clic (auto-placés, un par
+   ligne, `grid-column: 1 / -1`), .calendrier-hebdo__evenements-overlay se superpose par-dessus
+   (`position: relative` sur ce conteneur, l'overlay lui-même est un item de grille explicitement
+   placé sur `1 / -1` en ligne ET colonne — pas besoin d'absolute/top/left séparés). */
+.calendrier-hebdo__colonne-jour {
+  position: relative;
+  display: grid;
+  grid-auto-rows: 2rem;
+}
+
+/* Bordures horizontales fines : depuis l'audit lisibilité 2026-08-26, une colonne jour est une seule
+   mini-grille (voir .calendrier-hebdo__colonne-jour ci-dessus) au lieu d'une rangée de cellules de
+   grille séparées par le `gap` de .calendrier-hebdo__grille — sans cette bordure explicite, les 44
+   créneaux de 15 min d'une même colonne n'auraient plus aucun repère visuel entre eux. `:nth-child(4n)`
+   marque en plus le passage à l'heure pleine (4 créneaux de 15 min), aligné sur les libellés
+   d'heure de .calendrier-hebdo__colonne-heures. */
 .calendrier-hebdo__creneau {
+  grid-column: 1 / -1;
   height: 2rem;
   border: none;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
   background: var(--couleur-fond);
   cursor: pointer;
-  padding: 0 3px;
-  /* Accueille le libellé de l'événement occupant (voir .calendrier-hebdo__creneau-libelle
-     ci-dessous) — display:flex même sur un créneau libre (sans enfant) : pas de différence visuelle,
-     garde une seule règle de mise en page plutôt qu'une variante par état. */
-  display: flex;
-  align-items: center;
-  overflow: hidden;
+  padding: 0;
+}
+
+.calendrier-hebdo__creneau:nth-child(4n) {
+  border-bottom-color: var(--couleur-bordure);
 }
 
 .calendrier-hebdo__creneau:hover:not(:disabled) {
@@ -185,9 +254,10 @@
 
 /* Créneau occupé sur le calendrier Outlook réel — même teinte que
    .calendrier-disponibilite__badge (--couleur-erreur), cohérent avec le vocabulaire de couleur
-   déjà utilisé pour "occupé" ailleurs dans ce composant partagé. color-mix (pas `opacity`) : le
-   libellé affiché dans le bloc (voir .calendrier-hebdo__creneau-libelle) doit rester net, `opacity`
-   sur ce conteneur atténuerait aussi le texte, pas seulement le fond. */
+   déjà utilisé pour "occupé" ailleurs dans ce composant partagé. Le bouton lui-même ne porte plus
+   que cette teinte de fond depuis l'audit lisibilité 2026-08-26 (le libellé de l'événement est
+   affiché par .calendrier-hebdo__evenement-bloc ci-dessous, superposé), donc `opacity` ne pose plus
+   le risque d'atténuer un texte porté par CE conteneur. */
 .calendrier-hebdo__creneau--occupe {
   background: color-mix(in srgb, var(--couleur-erreur) 32%, var(--couleur-fond));
 }
@@ -201,31 +271,47 @@
   background: color-mix(in srgb, var(--couleur-erreur) 48%, var(--couleur-fond));
 }
 
-/* Libellé de l'événement occupant, affiché directement dans le bloc (plus seulement au survol via
-   `title`, conservé en complément pour le texte tronqué) — une ligne, ellipsis plutôt que
-   déborder/être illisible sur un créneau de 15-30 min (hauteur fixe .calendrier-hebdo__creneau,
-   1.35rem). `pointer-events: none` : le clic doit toujours cibler le bouton parent, jamais ce span. */
-.calendrier-hebdo__creneau-libelle {
-  display: block;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.6rem;
-  line-height: 1;
-  /* --couleur-texte (gris foncé), pas --couleur-erreur : le fond teinté porte déjà le sens
-     "occupé" (+ tooltip/aria-label) — un texte rouge sur fond rouge clair tombe sous ~3.5:1 de
-     contraste, --couleur-texte dessus reste largement au-dessus de 4.5:1. */
-  color: var(--couleur-texte);
-  text-align: left;
+/* Calque des blocs Outlook fusionnés (points 2 et 3 de l'audit lisibilité 2026-08-26) — un item de
+   grille explicitement placé sur toute la grille du parent (`grid-row`/`grid-column: 1 / -1`),
+   superposé aux boutons créneaux (peints avant lui dans le DOM, donc en dessous). `pointer-events:
+   none` en cascade sur tout le calque et ses enfants : le clic doit toujours atteindre le bouton
+   créneau dessous, même sur la portion couverte par un bloc. Sa propre grille interne
+   (grid-template-rows/columns, en `style` inline car dépendante du nombre de créneaux/colonnes de CE
+   jour) aligne chaque bloc pile sur les lignes de la grille de clic en dessous. */
+.calendrier-hebdo__evenements-overlay {
+  grid-row: 1 / -1;
+  grid-column: 1 / -1;
+  display: grid;
   pointer-events: none;
 }
 
-/* Un créneau occupé reste sélectionnable (voir plus haut) : quand il l'est, .calendrier-hebdo__
-   creneau--selectionne (bleu plein, règle plus bas) prend le pas sur le fond rouge translucide —
-   le libellé doit alors passer en blanc pour rester lisible sur ce fond bleu plein. */
-.calendrier-hebdo__creneau--selectionne .calendrier-hebdo__creneau-libelle {
-  color: #fff;
+/* Bloc Outlook fusionné : une seule occurrence pour tout un événement, quelle que soit sa durée
+   (contre une répétition par créneau de 15 min avant cet audit) — `margin` (pas de bordure) pour
+   distinguer visuellement deux blocs adjacents dans la même colonne (occupations simultanées) sans
+   ajouter de couleur de bordure dédiée. */
+.calendrier-hebdo__evenement-bloc {
+  margin: 1px 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--couleur-erreur) 55%, var(--couleur-fond));
+  font-size: 0.6rem;
+  line-height: 1.2;
+  /* --couleur-texte (gris foncé), pas --couleur-erreur : le fond teinté porte déjà le sens
+     "occupé" (+ tooltip/aria-label du bouton dessous) — un texte rouge sur fond rouge clair tombe
+     sous ~3.5:1 de contraste, --couleur-texte dessus reste largement au-dessus de 4.5:1. */
+  color: var(--couleur-texte);
+}
+
+/* Créneau sélectionné qui tombe dans la plage d'un bloc Outlook (voir indexCreneauSelectionne,
+   CalendrierHebdomadaireDisponibilite.jsx) — léger contour bleu plutôt qu'un remplissage plein : le
+   bloc reste lisible tel quel (sujet + teinte "occupé"), l'agent voit simplement que son choix
+   chevauche cette occupation, sans que la couleur de sélection du bouton dessous (voir
+   .calendrier-hebdo__creneau--selectionne plus bas) ne soit totalement masquée par le bloc. */
+.calendrier-hebdo__evenement-bloc--selectionne {
+  box-shadow: 0 0 0 2px #1f4e9c inset;
 }
 
 /* Même bleu plein que .calendrier-disponibilite__case--selectionne (CalendrierDisponibiliteFormateur.css)
