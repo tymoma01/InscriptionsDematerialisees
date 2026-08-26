@@ -131,16 +131,21 @@
   justify-content: flex-end;
   padding: 0.1rem 0.3rem 0 0;
   font-size: 0.7rem;
+  font-weight: 700;
   color: var(--couleur-texte-secondaire);
   /* Hauteur d'UN créneau de 15 min (voir .calendrier-hebdo__creneau ci-dessous, même valeur) :
      seul le libellé de l'heure pleine est affiché (voir CalendrierHebdomadaireDisponibilite.jsx),
      les 3 lignes de 15 min suivantes restent vides mais gardent la même hauteur pour que la
-     grille de droite reste alignée sur des lignes régulières. */
-  height: 1.35rem;
+     grille de droite reste alignée sur des lignes régulières. Portée à 2rem (au lieu de 1.35rem)
+     le 2026-08-26 : les libellés d'événement affichés dans les cellules (voir
+     .calendrier-hebdo__creneau-libelle) étaient trop compressés à 1.35rem — le défilement vertical
+     de .calendrier-hebdo__grille-scroll (max-height fixe, overflow:auto) absorbe la grille plus
+     haute sans changement, rien à ajuster côté scroll. */
+  height: 2rem;
 }
 
 .calendrier-hebdo__creneau {
-  height: 1.35rem;
+  height: 2rem;
   border: none;
   background: var(--couleur-fond);
   cursor: pointer;
