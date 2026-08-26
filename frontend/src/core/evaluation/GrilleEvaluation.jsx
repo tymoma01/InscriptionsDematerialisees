@@ -50,16 +50,12 @@ const OUI_NON = [
   { code: 'oui', libelle: 'Oui' },
   { code: 'non', libelle: 'Non' },
 ];
-// Bleu ACCECIT (#1f4e9c), pas vert/rouge/gris : "DEBUTANT(E)" n'est pas un verdict de performance
-// comme Acquis/Non acquis (décision utilisateur, 2026-08-26) — un fait sur le profil du candidat,
-// jamais à colorer en positif/négatif. Décision révisée le même jour : le gris neutre passait
-// pour "désactivé/pas de jugement" plutôt que pour "sélectionné" — remplacé par le même bleu de
-// sélection déjà utilisé ailleurs dans l'app (CalendrierHebdomadaireDisponibilite.css
-// .calendrier-hebdo__creneau--selectionne, CalendrierDisponibiliteFormateur.css
-// .calendrier-disponibilite__case--selectionne, tous deux #1f4e9c) : une teinte de "ceci est
-// choisi", sans connotation bonne/mauvaise, cohérente avec ce qu'un agent a déjà appris ailleurs
-// dans l'app pour ce même bleu.
-const VARIANTE_PAR_CODE_OUI_NON = { oui: 'selection', non: 'selection' };
+// Même code couleur que la grille QCU ci-dessus (décision utilisateur, 2026-08-26 — remplace le
+// bleu de sélection neutre choisi plus tôt le même jour) : Oui -> vert (succes), Non -> rouge
+// (echec), les deux mêmes variantes que acquis/non_acquis dans VARIANTE_PAR_CODE_REPONSE, pour un
+// traitement visuel identique (rond rempli coloré + fond du mini-bloc teinté) sur tous les
+// mini-blocs du formulaire.
+const VARIANTE_PAR_CODE_OUI_NON = { oui: 'succes', non: 'echec' };
 
 // Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
 // postes (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx
