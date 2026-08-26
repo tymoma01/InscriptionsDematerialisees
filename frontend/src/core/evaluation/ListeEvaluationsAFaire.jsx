@@ -235,17 +235,19 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               </span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
-              {/* Grille d'évaluation accessible seulement une fois le test confirmé réalisé
-                  (workflow v5, audit 2026-08-21) — tant que le dossier est encore test_planifie,
-                  "Test non réalisé" (désistement) et "Confirmer que le test a eu lieu" restent les
-                  deux seules issues possibles ; passé test_realise (confirmé par le formateur/
-                  inspecteur assigné, voir confirmerRealise ci-dessus), plus de retour en arrière
-                  possible depuis cet écran — "Évaluer" seul reste pertinent. */}
-              {rdv.dossier_statut_code === 'test_realise' ? (
-                <button type="button" disabled={enCoursId === rdv.id} onClick={() => onSelectionner(rdv)}>
-                  Évaluer
-                </button>
-              ) : (
+              {/* "Évaluer" et "Confirmer que le test a eu lieu" sont deux actions distinctes, ni
+                  bloquante l'une envers l'autre (audit 2026-08-26, corrige la régression introduite
+                  par le workflow v5 du 2026-08-21 qui masquait "Évaluer" tant que la confirmation
+                  n'avait pas eu lieu séparément) — "Évaluer" reste donc proposé dès test_planifie,
+                  pas seulement une fois test_realise ; evaluationEngine.enregistrerEvaluation
+                  applique lui-même la confirmation manquante si l'agent évalue directement sans être
+                  passé par "Confirmer" au préalable, voir son commentaire. "Test non réalisé"
+                  (désistement) et "Confirmer" n'ont en revanche plus de sens une fois test_realise
+                  (le test a déjà eu lieu, confirmé) — seul "Évaluer" reste affiché à ce stade. */}
+              <button type="button" disabled={enCoursId === rdv.id} onClick={() => onSelectionner(rdv)}>
+                Évaluer
+              </button>
+              {rdv.dossier_statut_code !== 'test_realise' && (
                 <>
                   <button
                     type="button"

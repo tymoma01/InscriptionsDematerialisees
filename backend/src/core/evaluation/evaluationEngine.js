@@ -1,4 +1,5 @@
 const db = require('../../db/knex');
+const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const evaluationRepository = require('./evaluationRepository');
 const workflowEngine = require('../workflow/workflowEngine');
@@ -284,6 +285,33 @@ async function enregistrerEvaluation(
     // bureau va donc directement à valider_pret_embauche, réutilisé tel quel : le bureau n'a pas de
     // notion de formation, son seul verdict positif correspond exactement à ce que ce statut porte
     // déjà pour le hôtel — pas de statut/codeAction bureau distinct.
+    // Confirmation implicite du "test réalisé" si le formateur/inspecteur soumet directement une
+    // évaluation sans être passé par le bouton "Confirmer que le test a eu lieu" au préalable
+    // (audit 2026-08-26, corrige la régression ListeEvaluationsAFaire.jsx où "Évaluer" restait
+    // masqué tant que cette confirmation n'avait pas eu lieu séparément — décision utilisateur :
+    // évaluer et confirmer sont deux actions distinctes, ni bloquante l'une envers l'autre côté
+    // agent). L'invariant "jamais évalué tout en restant test_planifie" (voir commentaire plus haut,
+    // workflow v4) reste intact : valider_envoi_formation/valider_pret_embauche/invalider_test ne
+    // partent toujours QUE de test_realise (workflow.config.json, inchangé) — cette transition
+    // supplémentaire, dans la MÊME transaction, comble l'écart plutôt que d'assouplir la machine à
+    // états elle-même. Ignoré si déjà test_realise (l'agent avait confirmé séparément avant) :
+    // retenter confirmer_test_realise échouerait alors ("Action non autorisée depuis le statut
+    // courant"), cette transition n'ayant qu'une seule origine possible (test_planifie).
+    const dossierAvantVerdict = await dossierRepository.trouverDossierAvecStatutParId(trx, entite.id, rendezvous.dossier_id);
+    if (dossierAvantVerdict?.statut_code === 'test_planifie') {
+      await workflowEngine.appliquerTransition(
+        entite,
+        {
+          dossierId: rendezvous.dossier_id,
+          codeAction: 'confirmer_test_realise',
+          commentaire: 'Test confirmé réalisé automatiquement lors de la soumission de l’évaluation.',
+          utilisateurId: formateurId,
+          roleCode,
+        },
+        trx,
+      );
+    }
+
     let codeActionFinal;
     if (resultatGlobal !== 'valide') {
       codeActionFinal = CODE_ACTION_INVALIDATION;
@@ -338,12 +366,14 @@ async function enregistrerEvaluation(
 // "Confirmer que le test a eu lieu" (workflow v5, audit 2026-08-21) — distincte de
 // enregistrerEvaluation ci-dessus : ne fait avancer le dossier QUE vers test_realise
 // (codeAction 'confirmer_test_realise', voir workflow.config.json), aucune saisie de grille
-// associée. C'est cette confirmation qui ouvre ensuite l'accès au formulaire d'évaluation
-// lui-même : tant que le dossier reste à test_planifie, workflowEngine.appliquerTransition refuse
-// déjà valider_envoi_formation/valider_pret_embauche/invalider_test (plus aucune ligne
-// transitions_statut ne part de test_planifie pour ces codeAction, voir workflow.config.json) —
-// c'est ce refus normal, pas une vérification dupliquée ici, qui sert de garde-fou "formulaire
-// accessible uniquement une fois test_realise" (demande explicite).
+// associée. Reste utile en action isolée (l'agent confirme la présence sans évaluer tout de suite),
+// mais n'est plus un préalable OBLIGATOIRE à l'évaluation depuis l'audit 2026-08-26 : "Évaluer"
+// (ListeEvaluationsAFaire.jsx) est désormais toujours proposé dès test_planifie, et
+// enregistrerEvaluation ci-dessus applique lui-même cette même transition en premier si elle n'a
+// pas déjà eu lieu (voir plus haut) — les deux actions restent distinctes côté agent, ni bloquante
+// l'une envers l'autre, sans pour autant assouplir l'invariant "jamais évalué tout en restant
+// test_planifie" (valider_envoi_formation/valider_pret_embauche/invalider_test ne partent
+// toujours QUE de test_realise, workflow.config.json inchangé).
 //
 // Même garde d'assignation que listerQuestionnaire/enregistrerEvaluation ci-dessus (rendezvous.
 // formateur_id, ou Admin) : seul le formateur/inspecteur RÉELLEMENT assigné à ce rendez-vous peut

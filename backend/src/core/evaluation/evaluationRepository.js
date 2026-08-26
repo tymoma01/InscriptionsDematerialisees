@@ -39,10 +39,12 @@ async function listerQuestionsAvecItems(bd, questionnaireId) {
 // "à évaluer" une fois l'évaluation soumise, sans avoir besoin d'un statut dédié.
 //
 // dossiers.statut_id IN ('test_planifie', 'test_realise') (workflow v5, audit 2026-08-21 — élargi
-// depuis la seule égalité 'test_planifie' du workflow v2/v4) : cette liste sert désormais aussi de
-// support à "Confirmer que le test a eu lieu" (voir dossier_statut_code exposé ci-dessous,
-// ListeEvaluationsAFaire.jsx) — un rendez-vous dont le dossier est encore test_planifie affiche ce
-// bouton de confirmation, un dossier déjà test_realise affiche "Évaluer" à la place. Un rendez-vous
+// depuis la seule égalité 'test_planifie' du workflow v2/v4) : cette liste sert aussi de support à
+// "Confirmer que le test a eu lieu" (voir dossier_statut_code exposé ci-dessous,
+// ListeEvaluationsAFaire.jsx) — affiché uniquement tant que le dossier reste test_planifie.
+// "Évaluer" reste lui affiché dans les DEUX statuts (audit 2026-08-26, corrige la régression où il
+// restait masqué tant que "Confirmer" n'avait pas été cliqué séparément) — evaluationEngine.
+// enregistrerEvaluation applique lui-même confirmer_test_realise en premier si besoin. Un rendez-vous
 // disparaît toujours de cette liste une fois son dossier passé à test_non_realise (voir
 // evaluationEngine.enregistrerEvaluation / ListeEvaluationsAFaire.jsx, bouton "Test non réalisé")
 // ou à l'une des issues finales (invalide/valide_*) — sans ce filtre, ce même rendez-vous resterait

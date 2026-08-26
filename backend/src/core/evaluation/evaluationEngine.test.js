@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const db = require('../../db/knex');
+const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const evaluationRepository = require('./evaluationRepository');
 const workflowEngine = require('../workflow/workflowEngine');
@@ -44,8 +45,12 @@ function mockerKnex(t) {
   t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (callback) => callback(TRX_FACTICE) }));
 }
 
+// statut_code 'test_realise' par défaut : reproduit le cas déjà confirmé séparément par l'agent
+// avant d'évaluer (comportement historique de tous les tests ci-dessous, qui n'exercent pas la
+// confirmation implicite) — voir le test dédié plus bas pour 'test_planifie'.
 function mockerDependances(t, overrides = {}) {
   t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', overrides.trouverDossierAvecStatutParId ?? (async () => ({ statut_code: 'test_realise' })));
   t.mock.method(evaluationRepository, 'trouverEvaluationParRendezvous', async () => undefined);
   t.mock.method(evaluationRepository, 'trouverQuestionnairePourPoste', async () => QUESTIONNAIRE);
   t.mock.method(evaluationRepository, 'listerQuestionsAvecItems', async () => QUESTIONS);
@@ -83,6 +88,50 @@ test("enregistrerEvaluation accepte un verdict positif d'Inspecteur sans orienta
   assert.equal(mettreAJourStatutRendezvousMock.mock.calls.length, 1);
   assert.equal(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[1], 10);
   assert.deepEqual(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[2], { statut: 'honore', motifId: null });
+});
+
+// Audit 2026-08-26 : "Évaluer" est désormais proposé dès test_planifie côté front
+// (ListeEvaluationsAFaire.jsx), sans passer par "Confirmer que le test a eu lieu" au préalable —
+// enregistrerEvaluation doit donc appliquer lui-même confirmer_test_realise en premier dans ce cas,
+// avant la transition de verdict, plutôt que de laisser passer un dossier "évalué" en restant
+// test_planifie (invariant workflow v4).
+test('enregistrerEvaluation applique confirmer_test_realise AVANT le verdict si le dossier est encore test_planifie (évaluation directe, sans confirmation préalable)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t, { trouverDossierAvecStatutParId: async () => ({ statut_code: 'test_planifie' }) });
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'inspecteur',
+    resultatGlobal: 'valide',
+    orientation: undefined,
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.equal(appliquerTransitionMock.mock.calls.length, 2);
+  assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'confirmer_test_realise');
+  assert.equal(appliquerTransitionMock.mock.calls[1].arguments[1].codeAction, 'valider_pret_embauche');
+});
+
+test('enregistrerEvaluation n\'appelle PAS confirmer_test_realise si le dossier est déjà test_realise (confirmé séparément au préalable)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t, { trouverDossierAvecStatutParId: async () => ({ statut_code: 'test_realise' }) });
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'inspecteur',
+    resultatGlobal: 'valide',
+    orientation: undefined,
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  });
+
+  assert.equal(appliquerTransitionMock.mock.calls.length, 1);
+  assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'valider_pret_embauche');
 });
 
 test("enregistrerEvaluation ignore une orientation envoyée par erreur par un Inspecteur (toujours NULL persisté, jamais de confiance dans le payload)", async (t) => {
