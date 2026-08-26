@@ -55,6 +55,13 @@
   border-radius: var(--rayon-bordure);
   padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
   background-color: var(--couleur-fond-secondaire, transparent);
+  /* Sépare visuellement chaque section de question (audit 2026-08-26, ex. "Process de nettoyage",
+     "Sens du service") sans surcharger — un seul accent (pas une couleur par section, qui n'aurait
+     aucun sens à mapper) : le doré de l'identité ACCECIT (--couleur-back-office-dore, déjà utilisé
+     pour les titres de statut "dore" ailleurs), délibérément distinct de la palette vert/rouge/ambre
+     réservée plus bas aux jugements de réponse (grille_qcu, Résultat du test), pour ne jamais
+     laisser croire qu'une bordure de section porte elle-même un jugement. */
+  border-left: 4px solid var(--couleur-back-office-dore);
 }
 
 .grille-evaluation__question legend {
@@ -71,16 +78,53 @@
   resize: vertical;
 }
 
+/* Regroupe les mini-cartes critère d'UNE question grille_qcu (audit 2026-08-26 : jusqu'ici un seul
+   critère par ligne pleine largeur, très long à parcourir dès qu'un poste a de nombreux critères,
+   ex. 11 pour Femme/Valet de chambre). auto-fill/minmax plutôt qu'un nombre de colonnes fixe : le
+   nombre de mini-cartes par ligne s'ajuste tout seul à la largeur réelle disponible (plusieurs
+   côte à côte sur desktop, une seule par ligne dès que ça manque de place — tablette portrait
+   notamment), sans media query dédiée à maintenir. minmax(19rem, 1fr) : assez large pour garder les
+   3 options radio sur une seule ligne dans chaque carte (voir
+   .grille-evaluation__critere .grille-evaluation__choix ci-dessous), assez étroit pour tenir 2-3
+   cartes par ligne sur la largeur de formulaire habituelle (--largeur-max-formulaire). */
+.grille-evaluation__criteres-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: var(--espace-petit);
+}
+
+/* Mini-carte compacte (au lieu d'une ligne pleine largeur) — padding resserré symétrique (avant :
+   bas nettement plus grand que le haut) et bordure/rayon déjà utilisés ailleurs dans ce formulaire
+   (.grille-evaluation__question), cohérence de style. */
 .grille-evaluation__critere {
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
-  padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+  padding: var(--espace-petit);
 }
 
 .grille-evaluation__critere legend {
   padding: 0 0.4rem;
   font-weight: 600;
   color: var(--couleur-texte);
+}
+
+/* Fond légèrement teinté une fois une réponse cochée pour ce critère (audit 2026-08-26,
+   VARIANTE_PAR_CODE_REPONSE côté .jsx) — mêmes teintes que StatutBadge.jsx (palette ACCECIT
+   existante, var(--statut-*)), jamais avant qu'une option ne soit cochée (la carte reste neutre,
+   voir varianteChoisie côté .jsx : undefined tant que la réponse vaut null). border-color assortie
+   plutôt que la bordure neutre par défaut, pour renforcer la teinte sans dépendre uniquement du
+   fond. */
+.grille-evaluation__critere--succes {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+}
+.grille-evaluation__critere--echec {
+  background-color: var(--statut-echec-fond);
+  border-color: var(--statut-echec-bordure);
+}
+.grille-evaluation__critere--attente {
+  background-color: var(--statut-attente-fond);
+  border-color: var(--statut-attente-bordure);
 }
 
 .grille-evaluation__choix {
@@ -90,16 +134,15 @@
 }
 
 /* Options d'un critère grille_qcu (Acquis / Non acquis / A améliorer, voir ACQUIS dans
-   GrilleEvaluation.jsx) : toujours exactement 3 options, fixes quel que soit le poste — une
-   grille à 3 colonnes égales les répartit sur toute la largeur de la ligne au lieu de les laisser
-   collées à gauche par le flex-wrap générique de .grille-evaluation__choix ci-dessus (réutilisé
-   tel quel pour choix_multiple, Résultat du test et Orientation, où le regroupement à gauche
-   reste voulu). Plus spécifique (.grille-evaluation__critere en préfixe) : l'emporte sans
-   dupliquer .grille-evaluation__choix. */
+   GrilleEvaluation.jsx) : toujours exactement 3 options, fixes quel que soit le poste — affichées
+   en rang serré (row plutôt que la grille 3 colonnes égales d'avant, qui les étalait sur toute la
+   largeur de la ligne) maintenant que chaque critère tient dans une mini-carte compacte (voir
+   .grille-evaluation__criteres-grille ci-dessus) : les rapprocher davantage à l'intérieur d'une
+   carte déjà étroite serait redondant. Plus spécifique (.grille-evaluation__critere en préfixe) :
+   l'emporte sans dupliquer .grille-evaluation__choix, réutilisé tel quel pour choix_multiple,
+   Résultat du test et Orientation, où le regroupement à gauche reste voulu. */
 .grille-evaluation__critere .grille-evaluation__choix {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--espace-petit) var(--espace-moyen);
+  gap: var(--espace-petit);
 }
 
 .grille-evaluation__choix label {
@@ -110,11 +153,38 @@
   cursor: pointer;
 }
 
+/* Rond du radio coloré une fois coché (audit 2026-08-26) — `accent-color` ne teinte le contrôle
+   natif que dans son état coché, jamais au repos (voir les captures faites lors de l'implémentation :
+   les options non cochées restent grises par défaut) : exactement le comportement demandé, sans
+   avoir à coder cette distinction nous-mêmes. Même palette que les fonds de carte ci-dessus
+   (var(--statut-*)/--couleur-erreur), jamais une couleur vive inventée. */
+.grille-evaluation__option--succes input {
+  accent-color: var(--statut-succes-texte);
+}
+.grille-evaluation__option--echec input {
+  accent-color: var(--couleur-erreur);
+}
+.grille-evaluation__option--attente input {
+  accent-color: var(--statut-attente-texte);
+}
+
 .grille-evaluation__resultat-global,
 .grille-evaluation__orientation {
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   padding: var(--espace-petit) var(--espace-moyen) var(--espace-moyen);
+}
+
+/* Même traitement que les critères grille_qcu ci-dessus, appliqué au verdict global (audit
+   2026-08-26) : vert une fois Validé coché, rouge une fois Invalidé — voir GrilleEvaluation.jsx,
+   classe posée selon `resultatGlobal`. */
+.grille-evaluation__resultat-global--succes {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+}
+.grille-evaluation__resultat-global--echec {
+  background-color: var(--statut-echec-fond);
+  border-color: var(--statut-echec-bordure);
 }
 
 .grille-evaluation__resultat-global legend,

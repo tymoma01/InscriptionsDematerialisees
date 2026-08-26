@@ -25,6 +25,22 @@ const NIVEAUX_BUREAU = [
   { code: 'excellent', libelle: 'Excellent' },
 ];
 
+// Code couleur cohérent avec le reste de l'app (audit 2026-08-26) — mêmes variantes que
+// StatutBadge.jsx (var(--statut-*), palette ACCECIT existante), pas de couleur vive inventée ici :
+// 'succes' (vert) pour un jugement positif, 'echec' (rouge) pour un jugement négatif, 'attente'
+// (ambre — déjà utilisé pour les statuts "en attente"/à mi-chemin ailleurs dans l'app) pour "A
+// améliorer", jugement intermédiaire, pas une alerte franche ('alerte', orange plus soutenu,
+// réservé aux vrais échecs de procédure comme "Test non réalisé" ailleurs dans l'app). Couvre les
+// deux échelles (ACQUIS et NIVEAUX_BUREAU ci-dessus) par leurs codes, 'a_ameliorer' étant commun
+// aux deux.
+const VARIANTE_PAR_CODE_REPONSE = {
+  acquis: 'succes',
+  excellent: 'succes',
+  non_acquis: 'echec',
+  aucune_connaissance: 'echec',
+  a_ameliorer: 'attente',
+};
+
 // Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
 // postes (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx
 // (POSTES_HOTEL/POSTES_BUREAU), dupliqués ici plutôt que partagés : quelques lignes de données,
@@ -489,30 +505,51 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                   {question.obligatoire && <span className="champ-obligatoire"> *</span>}
                 </legend>
 
-                {question.type_question === 'grille_qcu' &&
-                  question.items.map((item) => (
-                    <fieldset key={item.code} className="grille-evaluation__critere">
-                      <legend>{item.libelle}</legend>
-                      <div className="grille-evaluation__choix">
-                        {(estInspecteur ? NIVEAUX_BUREAU : ACQUIS).map((v) => (
-                          <label key={v.code}>
-                            <input
-                              type="radio"
-                              // Nom d'input préfixé par le bloc (cleBloc) : deux postes différents
-                              // peuvent réutiliser le même questionCode/itemCode (questions_evaluation
-                              // n'est unique que par questionnaire côté back, migration 037) — sans ce
-                              // préfixe, deux radios de blocs distincts partageraient le même `name`
-                              // et le navigateur les grouperait à tort comme mutuellement exclusifs.
-                              name={`${cleBloc(bloc.posteCode)}-${question.code}-${item.code}-${v.code}`}
-                              checked={bloc.reponses[cleReponse(question.code, item.code)] === v.code}
-                              onChange={() => gererChangementReponse(indexBloc, cleReponse(question.code, item.code), v.code)}
-                            />
-                            {v.libelle}
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                  ))}
+                {question.type_question === 'grille_qcu' && (
+                  // Grille de mini-cartes compactes (audit 2026-08-26) — plusieurs critères côte à
+                  // côte plutôt qu'un seul par ligne pleine largeur (voir
+                  // .grille-evaluation__criteres-grille, GrilleEvaluation.css) : réduit fortement la
+                  // hauteur totale pour un questionnaire à de nombreux critères (ex. 11 pour
+                  // Femme/Valet de chambre), tout en gardant chaque carte lisible sur tablette
+                  // (auto-fill/minmax repasse à 1 colonne dès que la largeur manque, aucune media
+                  // query dédiée nécessaire). Générique par type_question, pas par questionnaire :
+                  // s'applique à toute question grille_qcu de tout poste, sans changement ici par
+                  // poste (voir Modularité, CLAUDE.md).
+                  <div className="grille-evaluation__criteres-grille">
+                    {question.items.map((item) => {
+                      // Variante de la réponse actuellement cochée pour CE critère (voir
+                      // VARIANTE_PAR_CODE_REPONSE ci-dessus) — undefined tant qu'aucune option n'est
+                      // cochée (valeur null, voir valeursParDefaut), la carte reste alors neutre.
+                      const varianteChoisie = VARIANTE_PAR_CODE_REPONSE[bloc.reponses[cleReponse(question.code, item.code)]];
+                      return (
+                        <fieldset
+                          key={item.code}
+                          className={`grille-evaluation__critere${varianteChoisie ? ` grille-evaluation__critere--${varianteChoisie}` : ''}`}
+                        >
+                          <legend>{item.libelle}</legend>
+                          <div className="grille-evaluation__choix">
+                            {(estInspecteur ? NIVEAUX_BUREAU : ACQUIS).map((v) => (
+                              <label key={v.code} className={`grille-evaluation__option grille-evaluation__option--${VARIANTE_PAR_CODE_REPONSE[v.code]}`}>
+                                <input
+                                  type="radio"
+                                  // Nom d'input préfixé par le bloc (cleBloc) : deux postes différents
+                                  // peuvent réutiliser le même questionCode/itemCode (questions_evaluation
+                                  // n'est unique que par questionnaire côté back, migration 037) — sans ce
+                                  // préfixe, deux radios de blocs distincts partageraient le même `name`
+                                  // et le navigateur les grouperait à tort comme mutuellement exclusifs.
+                                  name={`${cleBloc(bloc.posteCode)}-${question.code}-${item.code}-${v.code}`}
+                                  checked={bloc.reponses[cleReponse(question.code, item.code)] === v.code}
+                                  onChange={() => gererChangementReponse(indexBloc, cleReponse(question.code, item.code), v.code)}
+                                />
+                                {v.libelle}
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {question.type_question === 'choix_multiple' && (
                   <div className="grille-evaluation__choix">
@@ -548,12 +585,19 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           </section>
         ))}
 
-        <fieldset className="grille-evaluation__resultat-global">
+        <fieldset
+          // Même logique de couleur que les critères grille_qcu ci-dessus (audit 2026-08-26) :
+          // vert une fois Validé coché, rouge une fois Invalidé — neutre tant qu'aucun des deux
+          // n'est encore choisi (resultatGlobal vaut '', voir son état plus haut).
+          className={`grille-evaluation__resultat-global${
+            resultatGlobal === 'valide' ? ' grille-evaluation__resultat-global--succes' : resultatGlobal === 'invalide' ? ' grille-evaluation__resultat-global--echec' : ''
+          }`}
+        >
           <legend>
             Résultat du test <span className="champ-obligatoire">*</span>
           </legend>
           <div className="grille-evaluation__choix">
-            <label>
+            <label className="grille-evaluation__option grille-evaluation__option--succes">
               <input
                 type="radio"
                 name="resultat-global-valide"
@@ -562,7 +606,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
               />
               Validé
             </label>
-            <label>
+            <label className="grille-evaluation__option grille-evaluation__option--echec">
               <input
                 type="radio"
                 name="resultat-global-invalide"
