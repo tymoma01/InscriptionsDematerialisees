@@ -260,6 +260,94 @@ test('enregistrerEvaluation ne déclenche PAS smartOfService.envoyerCandidatEnFo
   assert.equal(envoyerMock.mock.calls.length, 0);
 });
 
+// Type de question 'oui_non' (audit 2026-08-26, ex. "DEBUTANT(E)") — une seule réponse par
+// question (pas par item, comme texte_libre), vocabulaire fermé oui/non contrairement au texte
+// libre.
+test("enregistrerEvaluation accepte une réponse 'oui'/'non' valide pour une question de type oui_non", async (t) => {
+  mockerKnex(t);
+  const { enregistrerMock } = mockerDependances(t, {
+    trouverDossierAvecStatutParId: async () => ({ statut_code: 'test_realise' }),
+  });
+  t.mock.method(evaluationRepository, 'listerQuestionsAvecItems', async () => [
+    ...QUESTIONS,
+    { id: 101, code: 'debutant', libelle: 'DEBUTANT(E)', type_question: 'oui_non', obligatoire: true, items: [] },
+  ]);
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 5,
+    roleCode: 'formateur',
+    resultatGlobal: 'valide',
+    orientation: 'pret_embauche',
+    commentaire: 'Bon candidat.',
+    blocs: [
+      {
+        posteCode: 'nettoyage',
+        reponses: [
+          { questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' },
+          { questionCode: 'debutant', valeur: 'oui' },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(enregistrerMock.mock.calls.length, 1);
+});
+
+test("enregistrerEvaluation rejette une réponse invalide pour une question de type oui_non (ni 'oui' ni 'non')", async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+  t.mock.method(evaluationRepository, 'listerQuestionsAvecItems', async () => [
+    ...QUESTIONS,
+    { id: 101, code: 'debutant', libelle: 'DEBUTANT(E)', type_question: 'oui_non', obligatoire: true, items: [] },
+  ]);
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 5,
+        roleCode: 'formateur',
+        resultatGlobal: 'valide',
+        orientation: 'pret_embauche',
+        commentaire: 'Bon candidat.',
+        blocs: [
+          {
+            posteCode: 'nettoyage',
+            reponses: [
+              { questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' },
+              { questionCode: 'debutant', valeur: 'peut-etre' },
+            ],
+          },
+        ],
+      }),
+    /Réponse "peut-etre" invalide pour « DEBUTANT\(E\) »/,
+  );
+});
+
+test("enregistrerEvaluation rejette une question oui_non non répondue, même si obligatoire vaut false", async (t) => {
+  mockerKnex(t);
+  mockerDependances(t);
+  t.mock.method(evaluationRepository, 'listerQuestionsAvecItems', async () => [
+    ...QUESTIONS,
+    { id: 101, code: 'debutant', libelle: 'DEBUTANT(E)', type_question: 'oui_non', obligatoire: false, items: [] },
+  ]);
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 5,
+        roleCode: 'formateur',
+        resultatGlobal: 'valide',
+        orientation: 'pret_embauche',
+        commentaire: 'Bon candidat.',
+        blocs: [{ posteCode: 'nettoyage', reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' }] }],
+      }),
+    /Réponse "undefined" invalide pour « DEBUTANT\(E\) »/,
+  );
+});
+
 // Voir audit "Poste non spécifié" (tableau de bord KPI) : une évaluation sans aucun poste résolu
 // (repli générique de resoudrePosteCode pour un bloc sans posteCode, jamais rejeté avant ce test)
 // pouvait s'enregistrer sans jamais écrire de ligne evaluations_postes — corrigé dans

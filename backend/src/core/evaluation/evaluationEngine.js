@@ -11,8 +11,8 @@ const smartOfService = require('../../integrations/smartof/smartOfService');
 // 037), un questionnaire par poste recherché, avec repli générique si le poste n'a pas de
 // questionnaire dédié (Modularité, CLAUDE.md). Seules les échelles de réponse ci-dessous sont
 // communes à toute entité : ce n'est pas un vocabulaire métier comme les questions elles-mêmes,
-// mais la forme même des 2 types de grille (grille_qcu / choix_multiple) — même statut que les
-// canaux de relance (petite énumération fixe, pas de table dédiée).
+// mais la forme même des types de question existants (grille_qcu / choix_multiple / oui_non) —
+// même statut que les canaux de relance (petite énumération fixe, pas de table dédiée).
 const RESULTATS_GLOBAUX_AUTORISES = ['valide', 'invalide'];
 // aucune_connaissance/excellent : échelle du questionnaire bureau (Inspecteur, voir
 // seedQuestionnairesEvaluation.js, questions savoir_etre/savoir_faire) — a_ameliorer déjà commun
@@ -21,6 +21,12 @@ const RESULTATS_GLOBAUX_AUTORISES = ['valide', 'invalide'];
 // seul le vocabulaire affiché diffère côté front (GrilleEvaluation.jsx, NIVEAUX_BUREAU vs ACQUIS).
 const ACQUIS_AUTORISEES = ['acquis', 'non_acquis', 'a_ameliorer', 'aucune_connaissance', 'excellent'];
 const CHOIX_MULTIPLE_VALEURS = ['coche', 'non_coche'];
+// Type de question générique 'oui_non' (audit 2026-08-26, ex. "DEBUTANT(E)") : une seule réponse
+// binaire par question, pas par item (voir resoudreEtValiderReponses ci-dessous, même traitement
+// que texte_libre côté forme — un questionId sans questionItemId — mais avec un vocabulaire fermé
+// contrairement au texte libre). Réutilisable par tout futur questionnaire ayant besoin d'une
+// question fermée simple, pas câblé en dur pour ce seul critère.
+const OUI_NON_AUTORISEES = ['oui', 'non'];
 // Orientation du candidat en cas de verdict positif (workflow v3, simplification du parcours
 // décidée avec la responsable de projet : plus d'étape de validation recruteur intermédiaire, le
 // formateur statue directement sur l'issue finale du dossier) — sans objet si resultatGlobal
@@ -89,6 +95,23 @@ function resoudreEtValiderReponses(questions, reponsesRecues) {
         throw new Error(`Réponse obligatoire manquante pour la question "${question.libelle}".`);
       }
       resolues.push({ questionId: question.id, questionItemId: null, valeur: valeur ?? '' });
+      continue;
+    }
+
+    // oui_non : une seule réponse par question, pas par item (même forme que texte_libre
+    // ci-dessus, questionItemId null) mais vocabulaire fermé — contrairement à texte_libre,
+    // toujours exigée quel que soit `obligatoire` (comme un item grille_qcu, voir plus bas : ni
+    // "oui" ni "non" ne représente une absence de réponse).
+    if (question.type_question === 'oui_non') {
+      const cle = `${question.code}:`;
+      clesAttendues.add(cle);
+      const valeur = reponsesParCle.get(cle);
+      if (!OUI_NON_AUTORISEES.includes(valeur)) {
+        throw new Error(
+          `Réponse "${valeur}" invalide pour « ${question.libelle} » (attendu : ${OUI_NON_AUTORISEES.join(', ')}).`,
+        );
+      }
+      resolues.push({ questionId: question.id, questionItemId: null, valeur });
       continue;
     }
 

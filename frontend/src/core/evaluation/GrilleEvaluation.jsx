@@ -41,6 +41,26 @@ const VARIANTE_PAR_CODE_REPONSE = {
   a_ameliorer: 'attente',
 };
 
+// Échelle d'une question 'oui_non' (audit 2026-08-26 — ex. "DEBUTANT(E)", jusqu'ici forcé dans
+// l'échelle Acquis/Non acquis/A améliorer alors que ce n'est pas un jugement de performance mais
+// une question fermée) — type de question à part entière, réutilisable par tout futur questionnaire
+// ayant besoin d'une réponse binaire (voir backend evaluationEngine.js, resoudreEtValiderReponses,
+// OUI_NON_AUTORISEES), pas un cas spécial câblé pour ce seul critère.
+const OUI_NON = [
+  { code: 'oui', libelle: 'Oui' },
+  { code: 'non', libelle: 'Non' },
+];
+// Bleu ACCECIT (#1f4e9c), pas vert/rouge/gris : "DEBUTANT(E)" n'est pas un verdict de performance
+// comme Acquis/Non acquis (décision utilisateur, 2026-08-26) — un fait sur le profil du candidat,
+// jamais à colorer en positif/négatif. Décision révisée le même jour : le gris neutre passait
+// pour "désactivé/pas de jugement" plutôt que pour "sélectionné" — remplacé par le même bleu de
+// sélection déjà utilisé ailleurs dans l'app (CalendrierHebdomadaireDisponibilite.css
+// .calendrier-hebdo__creneau--selectionne, CalendrierDisponibiliteFormateur.css
+// .calendrier-disponibilite__case--selectionne, tous deux #1f4e9c) : une teinte de "ceci est
+// choisi", sans connotation bonne/mauvaise, cohérente avec ce qu'un agent a déjà appris ailleurs
+// dans l'app pour ce même bleu.
+const VARIANTE_PAR_CODE_OUI_NON = { oui: 'selection', non: 'selection' };
+
 // Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
 // postes (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx
 // (POSTES_HOTEL/POSTES_BUREAU), dupliqués ici plutôt que partagés : quelques lignes de données,
@@ -90,6 +110,26 @@ function cleBloc(posteCode) {
   return posteCode ?? '__generique__';
 }
 
+// Regroupe pour l'affichage une question 'oui_non' sans item (ex. "DEBUTANT(E)") dans la grille de
+// mini-cartes de la question grille_qcu qui la précède immédiatement (audit 2026-08-26, demande
+// explicite : "dans la même grille... pas en dessous comme un bloc à part") — visuel uniquement,
+// bloc.questions/bloc.reponses restent inchangés (ces deux questions gardent chacune leur propre
+// code et leur propre clé de réponse, voir cleReponse). Une question oui_non qui ne suit PAS un
+// grille_qcu (aucun cas actuel, mais possible pour un futur questionnaire) retombe sur son propre
+// mini-bloc autonome, inchangé — voir plus bas, câblé par type_question, pas par code de question.
+function regrouperQuestionsPourAffichage(questions) {
+  const groupes = [];
+  for (const question of questions) {
+    const groupePrecedent = groupes[groupes.length - 1];
+    if (question.type_question === 'oui_non' && groupePrecedent?.principale.type_question === 'grille_qcu') {
+      groupePrecedent.fusionnees.push(question);
+      continue;
+    }
+    groupes.push({ principale: question, fusionnees: [] });
+  }
+  return groupes;
+}
+
 // Valeurs par défaut pour un questionnaire fraîchement chargé. choix_multiple part à 'non_coche'
 // (case réellement décochée à l'écran — un état "non coché" est une réponse légitime, pas un
 // vide). grille_qcu part à null : contrairement à choix_multiple, aucune des 3 valeurs de
@@ -97,12 +137,19 @@ function cleBloc(posteCode) {
 // formateur, donc en présélectionner une (ex. ACQUIS[0], comme avant) permettait de soumettre une
 // évaluation sans avoir réellement répondu à chaque critère. null ne correspond à aucun v.code
 // dans le rendu des radios (voir plus bas) : les 3 options restent visuellement décochées tant
-// que l'agent n'a pas cliqué. texte_libre part vide.
+// que l'agent n'a pas cliqué. oui_non part à null pour la même raison (ni "Oui" ni "Non" ne
+// représente une absence de réponse). texte_libre part vide.
 function valeursParDefaut(questions) {
   const valeurs = {};
   for (const question of questions) {
     if (question.type_question === 'texte_libre') {
       valeurs[cleReponse(question.code)] = '';
+      continue;
+    }
+    // oui_non : une seule réponse par question, comme texte_libre (pas d'item, voir
+    // question.items toujours vide côté seed) — jamais par item comme grille_qcu/choix_multiple.
+    if (question.type_question === 'oui_non') {
+      valeurs[cleReponse(question.code)] = null;
       continue;
     }
     const valeurDefaut = question.type_question === 'grille_qcu' ? null : 'non_coche';
@@ -131,12 +178,22 @@ async function chargerBlocs(rendezvousId, postesCodes) {
   return resultats;
 }
 
-function blocGrilleIncomplete(bloc) {
-  return bloc.questions.filter(
-    (question) =>
-      question.type_question === 'grille_qcu' &&
-      question.items.some((item) => !bloc.reponses[cleReponse(question.code, item.code)]),
-  );
+// grille_qcu (par item) ET oui_non (réponse unique, voir valeursParDefaut) : aucune des deux
+// n'a d'état "répondu mais vide" légitime, contrairement à texte_libre ci-dessous — chaque
+// question de ces deux types doit recevoir une réponse avant soumission, quel que soit
+// question.obligatoire (qui ne pilote que l'affichage de l'astérisque). Renommée depuis
+// blocGrilleIncomplete (audit 2026-08-26, ajout du type oui_non) pour refléter qu'elle ne porte
+// plus seulement sur les grilles.
+function blocQuestionsForceesIncompletes(bloc) {
+  return bloc.questions.filter((question) => {
+    if (question.type_question === 'grille_qcu') {
+      return question.items.some((item) => !bloc.reponses[cleReponse(question.code, item.code)]);
+    }
+    if (question.type_question === 'oui_non') {
+      return !bloc.reponses[cleReponse(question.code)];
+    }
+    return false;
+  });
 }
 
 function blocTexteLibreIncomplet(bloc) {
@@ -150,7 +207,9 @@ function blocTexteLibreIncomplet(bloc) {
 // evaluationEngine.enregistrerEvaluation, `blocs: [{ posteCode, reponses }]`).
 function construireReponsesBloc(bloc) {
   return bloc.questions.flatMap((question) => {
-    if (question.type_question === 'texte_libre') {
+    // oui_non : même forme d'envoi que texte_libre (une réponse, pas d'item) — voir
+    // resoudreEtValiderReponses côté back.
+    if (question.type_question === 'texte_libre' || question.type_question === 'oui_non') {
       return [{ questionCode: question.code, valeur: bloc.reponses[cleReponse(question.code)] }];
     }
     return question.items.map((item) => ({
@@ -299,7 +358,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     if (!resultatGlobal) return;
     if (!commentaire.trim()) return;
     if (orientationVisible && !orientation) return;
-    if (blocsQuestionnaire.some((bloc) => blocGrilleIncomplete(bloc).length > 0)) return;
+    if (blocsQuestionnaire.some((bloc) => blocQuestionsForceesIncompletes(bloc).length > 0)) return;
     if (blocsQuestionnaire.some((bloc) => blocTexteLibreIncomplet(bloc))) return;
 
     setEnvoiEnCours(true);
@@ -451,17 +510,17 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   // amont plutôt que de dépendre uniquement de la validation native du navigateur.
   const texteLibreIncomplet = blocsQuestionnaire.some((bloc) => blocTexteLibreIncomplet(bloc));
 
-  // Une question grille_qcu n'a pas d'état "répondu mais vide" légitime (contrairement à
-  // texte_libre) : les 3 valeurs de l'échelle ACQUIS sont toutes des jugements réels, aucune ne
-  // représente "pas encore répondu" — chaque item doit donc recevoir une réponse avant soumission,
-  // quel que soit question.obligatoire (qui ne pilote que l'affichage de l'astérisque ci-dessous).
-  // Le back revaliderait de toute façon, bloc par bloc (ACQUIS_AUTORISEES, evaluationEngine.js ne
-  // contient aucune valeur "non répondu") — ce contrôle évite juste à l'agent de le découvrir
-  // seulement à l'envoi.
-  const blocsAvecGrilleIncomplete = blocsQuestionnaire
-    .map((bloc) => ({ bloc, questionsIncompletes: blocGrilleIncomplete(bloc) }))
+  // Une question grille_qcu ou oui_non n'a pas d'état "répondu mais vide" légitime (contrairement
+  // à texte_libre) : les valeurs de ces deux échelles sont toutes des jugements/réponses réels,
+  // aucune ne représente "pas encore répondu" — chaque question doit donc recevoir une réponse
+  // avant soumission, quel que soit question.obligatoire (qui ne pilote que l'affichage de
+  // l'astérisque ci-dessous). Le back revaliderait de toute façon, bloc par bloc
+  // (ACQUIS_AUTORISEES/OUI_NON_AUTORISEES, evaluationEngine.js ne contient aucune valeur "non
+  // répondu") — ce contrôle évite juste à l'agent de le découvrir seulement à l'envoi.
+  const blocsAvecQuestionsIncompletes = blocsQuestionnaire
+    .map((bloc) => ({ bloc, questionsIncompletes: blocQuestionsForceesIncompletes(bloc) }))
     .filter(({ questionsIncompletes }) => questionsIncompletes.length > 0);
-  const grilleQcuIncomplete = blocsAvecGrilleIncomplete.length > 0;
+  const questionsForceesIncompletes = blocsAvecQuestionsIncompletes.length > 0;
 
   return (
     // Fragment plutôt qu'un <form> unique englobant tout : NotesDossier rend lui-même un <form>
@@ -498,7 +557,46 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
               <p className="grille-evaluation__vide">Aucune question configurée pour ce questionnaire.</p>
             )}
 
-            {bloc.questions.map((question) => (
+            {regrouperQuestionsPourAffichage(bloc.questions).map(({ principale: question, fusionnees }) => {
+              // oui_non isolée (aucun cas actuel — toute question oui_non de la config suit un
+              // grille_qcu et se retrouve donc fusionnée ci-dessous, voir
+              // regrouperQuestionsPourAffichage — gardé pour un futur questionnaire qui en aurait
+              // une hors de ce contexte) : un mini-bloc compact autonome, pas le fieldset
+              // .grille-evaluation__question pleine largeur utilisé pour les autres types
+              // ci-dessous. Enveloppé dans .grille-evaluation__criteres-grille (même grille
+              // responsive que les critères grille_qcu) pour hériter du même comportement de
+              // largeur — un seul élément dedans reste étroit, il ne s'étire pas sur toute la ligne.
+              if (question.type_question === 'oui_non') {
+                const varianteChoisie = VARIANTE_PAR_CODE_OUI_NON[bloc.reponses[cleReponse(question.code)]];
+                return (
+                  <div key={question.code} className="grille-evaluation__criteres-grille">
+                    <fieldset
+                      className={`grille-evaluation__critere${varianteChoisie ? ` grille-evaluation__critere--${varianteChoisie}` : ''}`}
+                    >
+                      <legend>
+                        {question.libelle}
+                        {question.obligatoire && <span className="champ-obligatoire"> *</span>}
+                      </legend>
+                      <div className="grille-evaluation__choix">
+                        {OUI_NON.map((v) => (
+                          <label key={v.code} className={`grille-evaluation__option grille-evaluation__option--${VARIANTE_PAR_CODE_OUI_NON[v.code]}`}>
+                            <input
+                              type="radio"
+                              // Même raison de préfixe que les radios grille_qcu ci-dessous.
+                              name={`${cleBloc(bloc.posteCode)}-${question.code}-${v.code}`}
+                              checked={bloc.reponses[cleReponse(question.code)] === v.code}
+                              onChange={() => gererChangementReponse(indexBloc, cleReponse(question.code), v.code)}
+                            />
+                            {v.libelle}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </div>
+                );
+              }
+
+              return (
               <fieldset key={question.code} className="grille-evaluation__question">
                 <legend>
                   {question.libelle}
@@ -548,6 +646,41 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                         </fieldset>
                       );
                     })}
+                    {/* Question(s) 'oui_non' fusionnées visuellement dans cette même grille (audit
+                        2026-08-26, ex. "DEBUTANT(E)" — voir regrouperQuestionsPourAffichage) : une
+                        mini-carte de plus dans la même disposition en colonnes, à la suite des
+                        critères ci-dessus, demande explicite ("pas en dessous comme un bloc à
+                        part"). bloc.reponses/gererChangementReponse gardent leur propre clé par
+                        question fusionnée (cleReponse(questionFusionnee.code), sans item) — la
+                        fusion est purement visuelle, aucune donnée n'est partagée avec `question`
+                        ci-dessus. */}
+                    {fusionnees.map((questionFusionnee) => {
+                      const varianteFusionnee = VARIANTE_PAR_CODE_OUI_NON[bloc.reponses[cleReponse(questionFusionnee.code)]];
+                      return (
+                        <fieldset
+                          key={questionFusionnee.code}
+                          className={`grille-evaluation__critere${varianteFusionnee ? ` grille-evaluation__critere--${varianteFusionnee}` : ''}`}
+                        >
+                          <legend>
+                            {questionFusionnee.libelle}
+                            {questionFusionnee.obligatoire && <span className="champ-obligatoire"> *</span>}
+                          </legend>
+                          <div className="grille-evaluation__choix">
+                            {OUI_NON.map((v) => (
+                              <label key={v.code} className={`grille-evaluation__option grille-evaluation__option--${VARIANTE_PAR_CODE_OUI_NON[v.code]}`}>
+                                <input
+                                  type="radio"
+                                  name={`${cleBloc(bloc.posteCode)}-${questionFusionnee.code}-${v.code}`}
+                                  checked={bloc.reponses[cleReponse(questionFusionnee.code)] === v.code}
+                                  onChange={() => gererChangementReponse(indexBloc, cleReponse(questionFusionnee.code), v.code)}
+                                />
+                                {v.libelle}
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -581,7 +714,8 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                   />
                 )}
               </fieldset>
-            ))}
+              );
+            })}
           </section>
         ))}
 
@@ -646,10 +780,10 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
 
         {!resultatGlobal && <p role="alert">Choisissez un résultat du test (Validé ou Invalidé) avant de soumettre.</p>}
 
-        {grilleQcuIncomplete && (
+        {questionsForceesIncompletes && (
           <p role="alert">
-            Répondez à toutes les questions de la grille avant de soumettre :{' '}
-            {blocsAvecGrilleIncomplete
+            Répondez à toutes les questions avant de soumettre :{' '}
+            {blocsAvecQuestionsIncompletes
               .map(({ bloc, questionsIncompletes }) => {
                 const libellesQuestions = questionsIncompletes.map((question) => question.libelle).join(', ');
                 return plusieursBlocs ? `${libellePoste(bloc.posteCode)} - ${libellesQuestions}` : libellesQuestions;
@@ -673,7 +807,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
               !commentaire.trim() ||
               blocsQuestionnaire.every((bloc) => bloc.questions.length === 0) ||
               (orientationVisible && !orientation) ||
-              grilleQcuIncomplete ||
+              questionsForceesIncompletes ||
               texteLibreIncomplet
             }
           >

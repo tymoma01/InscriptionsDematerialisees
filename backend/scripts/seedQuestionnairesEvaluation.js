@@ -100,15 +100,26 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'aspiration', libelle: 'Aspiration' },
           { code: 'auto_controle', libelle: 'Auto-contrôle' },
           { code: 'connaissance_linge', libelle: 'Connaissance du linge' },
-          { code: 'debutant', libelle: 'DEBUTANT(E)' },
         ],
+      },
+      // Retiré de la grille Acquis/Non acquis/A améliorer ci-dessus (audit 2026-08-26) : ce
+      // n'est pas un jugement de performance à 3 niveaux, une question fermée oui/non. Placé
+      // juste après "Process de nettoyage" (voir Modularité, CLAUDE.md : type 'oui_non'
+      // générique, réutilisable, pas câblé en dur pour ce seul critère).
+      {
+        code: 'debutant',
+        libelle: 'DEBUTANT(E)',
+        type: 'oui_non',
+        obligatoire: true,
+        ordre: 2,
+        items: [],
       },
       {
         code: 'vocabulaire_hotelier',
         libelle: 'Connaissance du vocabulaire hôtelier',
         type: 'choix_multiple',
         obligatoire: false,
-        ordre: 2,
+        ordre: 3,
         items: [
           { code: 'recouche', libelle: 'Recouche' },
           { code: 'depart', libelle: 'Départ' },
@@ -125,7 +136,7 @@ const QUESTIONNAIRES_ACCECIT = [
         libelle: 'Sens du service',
         type: 'grille_qcu',
         obligatoire: true,
-        ordre: 3,
+        ordre: 4,
         items: [
           { code: 'ponctualite', libelle: 'Ponctualité' },
           { code: 'courtoisie', libelle: 'Courtoisie' },
@@ -157,15 +168,24 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'vocabulaire_hotelier', libelle: 'Connaissance vocabulaire hôtelier' },
           { code: 'connaissance_linge', libelle: 'Connaissance du linge' },
           { code: 'suivi_recommandations', libelle: 'Suivi des recommandations' },
-          { code: 'debutante', libelle: 'Débutante' },
         ],
+      },
+      // Retiré de la grille Acquis/Non acquis/A améliorer ci-dessus (audit 2026-08-26) — voir le
+      // commentaire équivalent sur le poste femme_valet_chambre plus haut.
+      {
+        code: 'debutante',
+        libelle: 'Débutante',
+        type: 'oui_non',
+        obligatoire: true,
+        ordre: 2,
+        items: [],
       },
       {
         code: 'sens_service',
         libelle: 'Sens du service',
         type: 'grille_qcu',
         obligatoire: true,
-        ordre: 2,
+        ordre: 3,
         items: [
           { code: 'ponctualite', libelle: 'Ponctualité' },
           { code: 'courtoisie', libelle: 'Courtoisie' },
@@ -175,9 +195,9 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'accueil_client', libelle: 'Accueil client' },
         ],
       },
-      { code: 'langues_maitrisees', libelle: 'Langues maîtrisées', type: 'texte_libre', obligatoire: true, ordre: 3, items: [] },
-      { code: 'qualites', libelle: 'Qualités', type: 'texte_libre', obligatoire: false, ordre: 4, items: [] },
-      { code: 'points_ameliorer', libelle: 'Points à améliorer', type: 'texte_libre', obligatoire: false, ordre: 5, items: [] },
+      { code: 'langues_maitrisees', libelle: 'Langues maîtrisées', type: 'texte_libre', obligatoire: true, ordre: 4, items: [] },
+      { code: 'qualites', libelle: 'Qualités', type: 'texte_libre', obligatoire: false, ordre: 5, items: [] },
+      { code: 'points_ameliorer', libelle: 'Points à améliorer', type: 'texte_libre', obligatoire: false, ordre: 6, items: [] },
     ],
   },
   {
@@ -200,15 +220,24 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'nettoyage_vitres', libelle: 'Nettoyage vitres' },
           { code: 'sens_service', libelle: 'Sens du service' },
           { code: 'connaissance_linge', libelle: 'Connaissance du linge' },
-          { code: 'debutant', libelle: 'DEBUTANT(E)' },
         ],
+      },
+      // Retiré de la grille Acquis/Non acquis/A améliorer ci-dessus (audit 2026-08-26) — voir le
+      // commentaire équivalent sur le poste femme_valet_chambre plus haut.
+      {
+        code: 'debutant',
+        libelle: 'DEBUTANT(E)',
+        type: 'oui_non',
+        obligatoire: true,
+        ordre: 2,
+        items: [],
       },
       {
         code: 'vocabulaire_hotelier',
         libelle: 'Connaissance du vocabulaire hôtelier',
         type: 'choix_multiple',
         obligatoire: false,
-        ordre: 2,
+        ordre: 3,
         items: [
           { code: 'recouche', libelle: 'Recouche' },
           { code: 'depart', libelle: 'Départ' },
@@ -225,7 +254,7 @@ const QUESTIONNAIRES_ACCECIT = [
         libelle: 'Sens du service',
         type: 'grille_qcu',
         obligatoire: true,
-        ordre: 3,
+        ordre: 4,
         items: [
           { code: 'ponctualite', libelle: 'Ponctualité' },
           { code: 'courtoisie', libelle: 'Courtoisie' },

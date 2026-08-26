@@ -29,7 +29,11 @@ exports.up = (knex) =>
       table.string('libelle').notNullable();
       // 'grille_qcu' (une ligne par item, choix unique parmi 3 valeurs fixes — voir
       // evaluationEngine.js, ACQUIS_AUTORISEES), 'choix_multiple' (items = cases indépendantes),
-      // 'texte_libre' (pas d'item, une seule réponse texte, voir question_items_evaluation).
+      // 'texte_libre' (pas d'item, une seule réponse texte, voir question_items_evaluation),
+      // 'oui_non' (audit 2026-08-26 : pas d'item non plus, une seule réponse oui/non — voir
+      // evaluationEngine.js, OUI_NON_AUTORISEES). Simple valeur de colonne, jamais de contrainte
+      // CHECK ici : ajouter un type de question ne nécessite jamais de migration, seulement du
+      // code applicatif (voir Modularité, CLAUDE.md).
       table.string('type_question').notNullable();
       table.boolean('obligatoire').notNullable().defaultTo(false);
       table.integer('ordre').notNullable();

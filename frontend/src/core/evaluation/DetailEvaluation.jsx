@@ -39,10 +39,14 @@ const LIBELLES_ACQUIS = {
   excellent: 'Excellent',
 };
 const LIBELLES_CHOIX_MULTIPLE = { coche: 'Coché', non_coche: 'Non coché' };
+// 'oui_non' (audit 2026-08-26, ex. "DEBUTANT(E)") — voir backend evaluationEngine.js,
+// OUI_NON_AUTORISEES.
+const LIBELLES_OUI_NON = { oui: 'Oui', non: 'Non' };
 
 function libelleValeur(typeQuestion, valeur) {
   if (typeQuestion === 'grille_qcu') return LIBELLES_ACQUIS[valeur] ?? valeur;
   if (typeQuestion === 'choix_multiple') return LIBELLES_CHOIX_MULTIPLE[valeur] ?? valeur;
+  if (typeQuestion === 'oui_non') return LIBELLES_OUI_NON[valeur] ?? valeur;
   return valeur;
 }
 
@@ -145,6 +149,11 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
           <legend>{question.libelle}</legend>
           {question.type_question === 'texte_libre' ? (
             <p className="detail-evaluation__texte-libre">{question.valeur?.trim() ? question.valeur : '-'}</p>
+          ) : question.type_question === 'oui_non' ? (
+            // oui_non : une seule réponse portée par question.valeur (pas question.items, voir
+            // backend evaluationEngine.obtenirDetailEvaluation) — même forme que texte_libre
+            // ci-dessus, jamais question.items.map ici.
+            <p className="detail-evaluation__texte-libre">{libelleValeur('oui_non', question.valeur)}</p>
           ) : (
             <ul className="detail-evaluation__items">
               {question.items.map((item) => (

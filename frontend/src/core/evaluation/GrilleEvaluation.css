@@ -126,6 +126,21 @@
   background-color: var(--statut-attente-fond);
   border-color: var(--statut-attente-bordure);
 }
+/* Variante "sélection" bleu ACCECIT (révisée le 2026-08-26, question 'oui_non' type "DEBUTANT(E)")
+   — même poids visuel que les 3 teintes ci-dessus mais dans la teinte de sélection déjà utilisée
+   ailleurs dans l'app (#1f4e9c : CalendrierHebdomadaireDisponibilite.css
+   .calendrier-hebdo__creneau--selectionne, CalendrierDisponibiliteFormateur.css
+   .calendrier-disponibilite__case--selectionne), pas succes/echec/attente : ce n'est pas un
+   jugement de performance, une réponse cochée reste simplement visible comme "choisie", sans
+   connotation positive/négative. --couleur-fond-survol-tableau-opaque : précisément la version pâle
+   précalculée de ce même bleu (voir son commentaire, variables.css), pas une teinte inventée pour
+   ce seul usage. Bordure dérivée du même bleu via color-mix plutôt qu'un hex de plus à maintenir —
+   même technique déjà utilisée pour le fond "occupé" du calendrier hebdomadaire
+   (CalendrierHebdomadaireDisponibilite.css). */
+.grille-evaluation__critere--selection {
+  background-color: var(--couleur-fond-survol-tableau-opaque);
+  border-color: color-mix(in srgb, #1f4e9c 45%, white);
+}
 
 .grille-evaluation__choix {
   display: flex;
@@ -166,6 +181,9 @@
 }
 .grille-evaluation__option--attente input {
   accent-color: var(--statut-attente-texte);
+}
+.grille-evaluation__option--selection input {
+  accent-color: #1f4e9c;
 }
 
 .grille-evaluation__resultat-global,
