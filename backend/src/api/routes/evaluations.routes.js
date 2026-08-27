@@ -134,39 +134,6 @@ router.get('/historique/:id', async (req, res, next) => {
   }
 });
 
-// POST /api/evaluations/:rendezvousId/confirmer-test-realise — "Confirmer que le test a eu lieu"
-// (workflow v5, audit 2026-08-21), distincte de POST / ci-dessous : fait passer le dossier à
-// test_realise, aucune saisie de grille associée. formateurId vient toujours de la session, même
-// principe que /a-faire — l'assignation au rendez-vous précis est revérifiée côté service
-// (evaluationEngine.confirmerTestRealise), pas seulement le rôle ici.
-router.post('/:rendezvousId/confirmer-test-realise', async (req, res, next) => {
-  try {
-    const { rendezvousId } = z.object({ rendezvousId: idPositifSchema }).parse(req.params);
-
-    const resultat = await evaluationEngine.confirmerTestRealise(req.entite, {
-      rendezvousId,
-      formateurId: req.utilisateur.id,
-      roleCode: req.utilisateur.roleCode,
-    });
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
-      utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'dossier_transition_confirmer_test_realise',
-      tableCible: 'historique_statuts',
-      cibleId: resultat.dossierId,
-      donnees: { rendezvousId, dossierId: resultat.dossierId },
-      adresseIp: req.ip,
-    });
-
-    res.json(resultat);
-  } catch (erreur) {
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
-  }
-});
-
 // POST /api/evaluations — enregistre une évaluation complète (un ou plusieurs blocs de
 // questionnaire empilés, un par poste) pour un rendez-vous de test.
 router.post('/', async (req, res, next) => {

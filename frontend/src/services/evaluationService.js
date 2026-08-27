@@ -19,15 +19,6 @@ export async function listerRendezvousAEvaluer() {
   return data;
 }
 
-// "Confirmer que le test a eu lieu" (workflow v5, audit 2026-08-21) : fait passer le dossier de
-// test_planifie à test_realise, sans grille associée — voir ListeEvaluationsAFaire.jsx.
-// formateurId/roleCode jamais envoyés ici : dérivés de la session côté serveur, même principe que
-// listerRendezvousAEvaluer/enregistrerEvaluation ci-dessous.
-export async function confirmerTestRealise(rendezvousId) {
-  const { data } = await api.post(`/evaluations/${rendezvousId}/confirmer-test-realise`);
-  return data;
-}
-
 // blocs : [{ posteCode, reponses }] — un bloc par poste évalué (questionnaires empilés, voir
 // GrilleEvaluation.jsx), un seul verdict global (resultatGlobal/orientation/commentaire) pour
 // l'ensemble.

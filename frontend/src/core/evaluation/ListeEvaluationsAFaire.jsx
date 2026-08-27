@@ -3,7 +3,7 @@ import StatutBadge from '../workflow/StatutBadge';
 import { normaliserTexte } from '../filtres/normaliserTexte';
 import { useParametreURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
-import { listerRendezvousAEvaluer, confirmerTestRealise } from '../../services/evaluationService';
+import { listerRendezvousAEvaluer } from '../../services/evaluationService';
 import { appliquerTransition } from '../../services/transitionService';
 import './ListeEvaluationsAFaire.css';
 
@@ -156,33 +156,6 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
     }
   };
 
-  // "Confirmer que le test a eu lieu" (workflow v5, audit 2026-08-21) : fait passer le dossier de
-  // test_planifie à test_realise — voir evaluationEngine.confirmerTestRealise côté back,
-  // l'assignation au rendez-vous précis y est revérifiée, pas seulement supposée parce que la ligne
-  // vient déjà de cette liste scopée au formateur connecté. Contrairement à marquerNonRealise
-  // ci-dessus, la ligne n'est pas retirée au succès : le rendez-vous reste "à faire" (GET
-  // /evaluations/a-faire renvoie aussi test_realise, voir evaluationRepository.
-  // listerRendezvousAEvaluer) — seul dossier_statut_code change localement, ce qui bascule
-  // l'affichage des boutons ci-dessous vers "Évaluer" sans attendre un rechargement complet.
-  const confirmerRealise = async (rdv) => {
-    setEnCoursId(rdv.id);
-    setErreurAction(null);
-    try {
-      await confirmerTestRealise(rdv.id);
-      setRendezvous((precedent) =>
-        precedent.map((r) => (r.id === rdv.id ? { ...r, dossier_statut_code: 'test_realise' } : r)),
-      );
-    } catch (erreur) {
-      setErreurAction(
-        erreur.response
-          ? (erreur.response.data?.erreur ?? "Impossible de confirmer que ce test a eu lieu. Merci de réessayer.")
-          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
-      );
-    } finally {
-      setEnCoursId(null);
-    }
-  };
-
   if (chargement) {
     return <p>Chargement…</p>;
   }
@@ -235,32 +208,37 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               </span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
-              {/* "Évaluer" et "Confirmer que le test a eu lieu" sont deux actions distinctes, ni
-                  bloquante l'une envers l'autre (audit 2026-08-26, corrige la régression introduite
-                  par le workflow v5 du 2026-08-21 qui masquait "Évaluer" tant que la confirmation
-                  n'avait pas eu lieu séparément) — "Évaluer" reste donc proposé dès test_planifie,
-                  pas seulement une fois test_realise ; evaluationEngine.enregistrerEvaluation
-                  applique lui-même la confirmation manquante si l'agent évalue directement sans être
-                  passé par "Confirmer" au préalable, voir son commentaire. "Test non réalisé"
-                  (désistement) et "Confirmer" n'ont en revanche plus de sens une fois test_realise
-                  (le test a déjà eu lieu, confirmé) — seul "Évaluer" reste affiché à ce stade. */}
+              {/* Plus de bouton "Confirmer que le test a eu lieu" indépendant (audit 2026-08-28,
+                  corrige le workflow v5 du 2026-08-21 : ce bouton faisait passer le dossier à
+                  test_realise sans jamais exiger de grille soumise — constaté sur le dossier #88,
+                  resté "Test réalisé" sans aucune évaluation associée). La confirmation reste
+                  nécessaire côté workflow (les transitions de verdict — valider_envoi_formation,
+                  valider_pret_embauche, invalider_test — ne partent que de test_realise, voir
+                  workflow.config.json) mais n'est plus déclenchable qu'en même
+                  temps que l'évaluation elle-même : evaluationEngine.enregistrerEvaluation applique
+                  lui-même cette transition juste avant le verdict, dans la même transaction (voir
+                  son commentaire) — un seul clic "Soumettre l'évaluation" (GrilleEvaluation.jsx) fait
+                  donc les deux à la fois, jamais l'un sans l'autre. "Évaluer" reste proposé dès
+                  test_planifie, y compris pour un dossier resté bloqué à test_realise par un ancien
+                  clic sur ce bouton avant ce correctif (donnée déjà en base, pas seulement un état
+                  atteignable désormais). */}
               <button type="button" disabled={enCoursId === rdv.id} onClick={() => onSelectionner(rdv)}>
                 Évaluer
               </button>
+              {/* "Test non réalisé" (désistement) n'a plus de sens une fois test_realise (le test a
+                  déjà eu lieu) — condition conservée pour un dossier resté dans cet état avant ce
+                  correctif (voir commentaire ci-dessus), plus jamais atteignable pour un nouveau
+                  dossier depuis ce même correctif (test_realise n'est plus qu'un état transitoire,
+                  jamais persisté seul, voir enregistrerEvaluation). */}
               {rdv.dossier_statut_code !== 'test_realise' && (
-                <>
-                  <button
-                    type="button"
-                    className="liste-evaluations__bouton-secondaire"
-                    disabled={enCoursId === rdv.id}
-                    onClick={() => marquerNonRealise(rdv)}
-                  >
-                    {enCoursId === rdv.id ? 'Enregistrement...' : 'Test non réalisé'}
-                  </button>
-                  <button type="button" disabled={enCoursId === rdv.id} onClick={() => confirmerRealise(rdv)}>
-                    {enCoursId === rdv.id ? 'Enregistrement...' : 'Confirmer que le test a eu lieu'}
-                  </button>
-                </>
+                <button
+                  type="button"
+                  className="liste-evaluations__bouton-secondaire"
+                  disabled={enCoursId === rdv.id}
+                  onClick={() => marquerNonRealise(rdv)}
+                >
+                  {enCoursId === rdv.id ? 'Enregistrement...' : 'Test non réalisé'}
+                </button>
               )}
             </li>
             );

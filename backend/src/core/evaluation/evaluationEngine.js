@@ -308,18 +308,21 @@ async function enregistrerEvaluation(
     // bureau va donc directement à valider_pret_embauche, réutilisé tel quel : le bureau n'a pas de
     // notion de formation, son seul verdict positif correspond exactement à ce que ce statut porte
     // déjà pour le hôtel — pas de statut/codeAction bureau distinct.
-    // Confirmation implicite du "test réalisé" si le formateur/inspecteur soumet directement une
-    // évaluation sans être passé par le bouton "Confirmer que le test a eu lieu" au préalable
-    // (audit 2026-08-26, corrige la régression ListeEvaluationsAFaire.jsx où "Évaluer" restait
-    // masqué tant que cette confirmation n'avait pas eu lieu séparément — décision utilisateur :
-    // évaluer et confirmer sont deux actions distinctes, ni bloquante l'une envers l'autre côté
-    // agent). L'invariant "jamais évalué tout en restant test_planifie" (voir commentaire plus haut,
-    // workflow v4) reste intact : valider_envoi_formation/valider_pret_embauche/invalider_test ne
-    // partent toujours QUE de test_realise (workflow.config.json, inchangé) — cette transition
-    // supplémentaire, dans la MÊME transaction, comble l'écart plutôt que d'assouplir la machine à
-    // états elle-même. Ignoré si déjà test_realise (l'agent avait confirmé séparément avant) :
-    // retenter confirmer_test_realise échouerait alors ("Action non autorisée depuis le statut
-    // courant"), cette transition n'ayant qu'une seule origine possible (test_planifie).
+    // Confirmation du "test réalisé" appliquée ICI, dans la MÊME transaction que le verdict —
+    // audit 2026-08-28 (retrait du bouton "Confirmer que le test a eu lieu" comme action
+    // indépendante, ListeEvaluationsAFaire.jsx) : cette confirmation ne doit plus être possible SANS
+    // évaluation soumise dans le même geste, exactement ce que fait ce bloc. Avant cet audit, un
+    // bouton dédié permettait de confirmer le test réalisé sans jamais soumettre de grille — constaté
+    // sur le dossier #88, resté bloqué à test_realise sans évaluation associée (corrigé en évaluant
+    // ce dossier via ce même chemin). L'invariant "jamais évalué tout en restant test_planifie" (voir
+    // commentaire plus haut, workflow v4) reste intact : valider_envoi_formation/
+    // valider_pret_embauche/invalider_test ne partent toujours QUE de test_realise
+    // (workflow.config.json, inchangé) — cette transition supplémentaire, dans la MÊME transaction,
+    // fait passer par cet état intermédiaire sans jamais s'y arrêter (jamais persisté seul), plutôt
+    // que d'assouplir la machine à états elle-même. Ignoré si déjà test_realise — cas résiduel pour
+    // un dossier confirmé avant ce correctif (ex. #88 ci-dessus) : retenter confirmer_test_realise
+    // échouerait alors ("Action non autorisée depuis le statut courant"), cette transition n'ayant
+    // qu'une seule origine possible (test_planifie).
     const dossierAvantVerdict = await dossierRepository.trouverDossierAvecStatutParId(trx, entite.id, rendezvous.dossier_id);
     if (dossierAvantVerdict?.statut_code === 'test_planifie') {
       await workflowEngine.appliquerTransition(
@@ -386,47 +389,6 @@ async function enregistrerEvaluation(
   });
 }
 
-// "Confirmer que le test a eu lieu" (workflow v5, audit 2026-08-21) — distincte de
-// enregistrerEvaluation ci-dessus : ne fait avancer le dossier QUE vers test_realise
-// (codeAction 'confirmer_test_realise', voir workflow.config.json), aucune saisie de grille
-// associée. Reste utile en action isolée (l'agent confirme la présence sans évaluer tout de suite),
-// mais n'est plus un préalable OBLIGATOIRE à l'évaluation depuis l'audit 2026-08-26 : "Évaluer"
-// (ListeEvaluationsAFaire.jsx) est désormais toujours proposé dès test_planifie, et
-// enregistrerEvaluation ci-dessus applique lui-même cette même transition en premier si elle n'a
-// pas déjà eu lieu (voir plus haut) — les deux actions restent distinctes côté agent, ni bloquante
-// l'une envers l'autre, sans pour autant assouplir l'invariant "jamais évalué tout en restant
-// test_planifie" (valider_envoi_formation/valider_pret_embauche/invalider_test ne partent
-// toujours QUE de test_realise, workflow.config.json inchangé).
-//
-// Même garde d'assignation que listerQuestionnaire/enregistrerEvaluation ci-dessus (rendezvous.
-// formateur_id, ou Admin) : seul le formateur/inspecteur RÉELLEMENT assigné à ce rendez-vous peut
-// confirmer sa tenue, jamais n'importe quel titulaire du rôle Formateur/Inspecteur — transition_
-// roles (voir seedTransitionRoles.js) ne filtre que le RÔLE, cette vérification supplémentaire est
-// donc nécessaire ici, pas redondante.
-async function confirmerTestRealise(entite, { rendezvousId, formateurId, roleCode }) {
-  const bd = await db.obtenirKnex();
-  const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
-  if (!rendezvous) {
-    throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
-  }
-  if (rendezvous.type_rdv !== 'test') {
-    throw new Error(`Le rendez-vous "${rendezvousId}" n'est pas un rendez-vous de test.`);
-  }
-  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
-    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
-  }
-
-  const { statutDestinationId } = await workflowEngine.appliquerTransition(entite, {
-    dossierId: rendezvous.dossier_id,
-    codeAction: 'confirmer_test_realise',
-    commentaire: 'Test confirmé réalisé par le formateur/inspecteur assigné.',
-    utilisateurId: formateurId,
-    roleCode,
-  });
-
-  return { dossierId: rendezvous.dossier_id, statutDestinationId };
-}
-
 // Historique des évaluations déjà soumises par CE formateur connecté — jamais tous formateurs
 // confondus (voir evaluationRepository.listerEvaluationsParFormateur). Un candidat peut avoir
 // plusieurs entrées si repassé un test pour un poste différent (poste_code distinct par ligne,
@@ -491,7 +453,6 @@ module.exports = {
   listerQuestionnaire,
   listerRendezvousAEvaluer,
   enregistrerEvaluation,
-  confirmerTestRealise,
   listerHistorique,
   obtenirDetailEvaluation,
 };

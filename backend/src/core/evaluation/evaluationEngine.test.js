@@ -375,69 +375,7 @@ test('enregistrerEvaluation rejette une évaluation dont aucun bloc ne résout �
   );
 });
 
-// confirmerTestRealise (workflow v5, audit 2026-08-21) — "Confirmer que le test a eu lieu",
-// test_planifie -> test_realise, sans grille associée.
-test('confirmerTestRealise applique la transition confirmer_test_realise pour le formateur assigné à ce rendez-vous', async (t) => {
-  mockerKnex(t);
-  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
-  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 25 }));
-
-  const resultat = await evaluationEngine.confirmerTestRealise(ENTITE_ACCECIT, {
-    rendezvousId: 10,
-    formateurId: 5,
-    roleCode: 'formateur',
-  });
-
-  assert.deepEqual(resultat, { dossierId: 62, statutDestinationId: 25 });
-  assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'confirmer_test_realise');
-  assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].dossierId, 62);
-});
-
-test("confirmerTestRealise rejette un formateur/inspecteur non assigné à ce rendez-vous précis (transition_roles ne filtre que le rôle, pas l'assignation)", async (t) => {
-  mockerKnex(t);
-  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
-  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 25 }));
-
-  await assert.rejects(
-    () =>
-      evaluationEngine.confirmerTestRealise(ENTITE_ACCECIT, {
-        rendezvousId: 10,
-        formateurId: 999,
-        roleCode: 'formateur',
-      }),
-    /n'est pas assigné à ce formateur/,
-  );
-  assert.equal(appliquerTransitionMock.mock.calls.length, 0);
-});
-
-test('confirmerTestRealise contourne la vérification d\'assignation pour un Admin', async (t) => {
-  mockerKnex(t);
-  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
-  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 25 }));
-
-  const resultat = await evaluationEngine.confirmerTestRealise(ENTITE_ACCECIT, {
-    rendezvousId: 10,
-    formateurId: 999,
-    roleCode: 'admin',
-  });
-
-  assert.deepEqual(resultat, { dossierId: 62, statutDestinationId: 25 });
-  assert.equal(appliquerTransitionMock.mock.calls.length, 1);
-});
-
-test("confirmerTestRealise rejette un rendez-vous qui n'est pas de type 'test'", async (t) => {
-  mockerKnex(t);
-  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ ...RENDEZVOUS_TEST, type_rdv: 'formation' }));
-  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 25 }));
-
-  await assert.rejects(
-    () =>
-      evaluationEngine.confirmerTestRealise(ENTITE_ACCECIT, {
-        rendezvousId: 10,
-        formateurId: 5,
-        roleCode: 'formateur',
-      }),
-    /n'est pas un rendez-vous de test/,
-  );
-  assert.equal(appliquerTransitionMock.mock.calls.length, 0);
-});
+// confirmerTestRealise en tant que fonction indépendante a été retirée (audit 2026-08-28) — voir
+// les tests "enregistrerEvaluation applique/n'applique pas confirmer_test_realise" ci-dessus, qui
+// couvrent désormais la SEULE façon d'appliquer cette transition (dans le même geste que
+// l'évaluation elle-même, jamais indépendamment).
