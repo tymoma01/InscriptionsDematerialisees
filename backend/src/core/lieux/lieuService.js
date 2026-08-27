@@ -96,16 +96,36 @@ function normaliserChampOptionnel(valeur) {
 // compléments d'accès). Avant cette migration, un seul champ `libelle` texte libre portait les
 // trois informations concaténées à la main (voir audit du 2026-08-13) — remplacé ici par des
 // colonnes dédiées, plus besoin de convention de formatage côté agent.
-async function creerLieu(entite, { adresse, metroAcces, instructions }) {
+//
+// `secteur`/`parDefaut` (migration 054, audit 2026-08-27) : `secteur` seul est un simple champ de
+// plus, écrit tel quel. `parDefaut` coché ("Définir comme lieu par défaut pour ce secteur",
+// ModalePlanificationTest.jsx) déclenche la même bascule transactionnelle que
+// definirLieuParDefaut ci-dessous — englobée ici dans UNE SEULE transaction avec l'INSERT du lieu
+// lui-même (jamais un lieu créé d'abord puis basculé dans un second aller-retour) : soit la
+// création ET la bascule réussissent ensemble, soit aucune des deux n'est actée, cohérent avec le
+// reste des écritures multi-étapes de ce service (voir supprimerLieu plus bas).
+async function creerLieu(entite, { adresse, metroAcces, instructions, secteur, parDefaut }) {
   const bd = await db.obtenirKnex();
   const code = await obtenirCodeUnique(bd, entite.id, adresse);
-  const [lieu] = await lieuRepository.creerLieu(bd, entite.id, {
+  const secteurNormalise = normaliserChampOptionnel(secteur);
+  const donneesLieu = {
     code,
     adresse,
     metroAcces: normaliserChampOptionnel(metroAcces),
     instructions: normaliserChampOptionnel(instructions),
+    secteur: secteurNormalise,
+  };
+
+  if (!parDefaut) {
+    const [lieu] = await lieuRepository.creerLieu(bd, entite.id, donneesLieu);
+    return lieu;
+  }
+
+  return bd.transaction(async (trx) => {
+    const [lieuCree] = await lieuRepository.creerLieu(trx, entite.id, donneesLieu);
+    const [lieu] = await lieuRepository.definirLieuParDefaut(trx, entite.id, lieuCree.id, secteurNormalise);
+    return lieu;
   });
-  return lieu;
 }
 
 // Modification à la volée depuis la même modale (bouton crayon à côté du sélecteur, voir

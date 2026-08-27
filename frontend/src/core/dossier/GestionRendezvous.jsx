@@ -85,13 +85,19 @@ function varianteAffichee(rdv) {
   return varianteStatutRendezvous(rdv.statut);
 }
 
-// Titre générique fixe devant le badge (.gestion-rendezvous__type) — décision utilisateur,
-// 2026-08-21 : remplace l'ancien titre variable par statut (retiré la veille pour les statuts
-// clos, "Remplacé Remplacé" jugé redondant — voir git blame), qui changeait de mot selon
-// LIBELLES_STATUT/rendezvousPrevuExpire. "Test" reste identique quel que soit le statut, aucune
-// variation possible ici : seul le badge juste à côté (voir libelleAffiche/varianteAffichee
-// ci-dessus) porte l'information de statut, avec sa couleur habituelle.
-const TITRE_RENDEZVOUS = 'Test';
+// Titre devant le badge (.gestion-rendezvous__type) — "Test" seul reste la base fixe (décision
+// utilisateur, 2026-08-21, remplace l'ancien titre variable par statut : "Test" ne varie jamais
+// selon le statut, seul le badge juste à côté porte cette information), complété par "avec {Rôle}
+// {Prénom NOM}" du formateur/inspecteur assigné depuis l'audit du 2026-08-27 (ex. "Test avec
+// Formateur Ibra CHEICK") — rendezvous.formateur_id/formateur_prenom/formateur_nom/
+// formateur_role_libelle, voir rendezvousRepository.listerRendezvousParDossier. Repli sur "Test"
+// seul si aucun formateur n'est encore assigné (formateurId nullable, voir
+// rendezvousService.creerRendezvous) : ce cas existe réellement (rendez-vous créé sans personne
+// choisie), jamais un état d'erreur à masquer.
+function titreRendezvous(rdv) {
+  if (!rdv.formateur_prenom) return 'Test';
+  return `Test avec ${rdv.formateur_role_libelle} ${rdv.formateur_prenom} ${rdv.formateur_nom}`;
+}
 
 // "Test non réalisé" est désormais porté par le titre/badge "Manqué" ci-dessus (LIBELLES_STATUT)
 // pour un rendez-vous 'absent' — le motif affiché à côté ne doit plus le répéter (audit
@@ -325,7 +331,7 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
 
                 <div className="gestion-rendezvous__contenu">
                   <div className="gestion-rendezvous__ligne">
-                    <span className="gestion-rendezvous__type">{TITRE_RENDEZVOUS}</span>
+                    <span className="gestion-rendezvous__type">{titreRendezvous(rdv)}</span>
                     <StatutBadge libelle={libelleAffiche(rdv)} variante={varianteAffichee(rdv)} />
                     {rdv.motif_libelle && (
                       <span className="gestion-rendezvous__motif">Motif : {libelleMotifAffiche(rdv.motif_libelle)}</span>

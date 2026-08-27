@@ -101,6 +101,12 @@ export default function ModalePlanificationTest({
   const [lieuFormAdresse, setLieuFormAdresse] = useState('');
   const [lieuFormMetroAcces, setLieuFormMetroAcces] = useState('');
   const [lieuFormInstructions, setLieuFormInstructions] = useState('');
+  // Case "Définir comme lieu par défaut pour ce secteur" (migration 054, audit 2026-08-27) —
+  // création uniquement (voir le formulaire plus bas, n'apparaît que si secteurDossier est connu :
+  // rien à définir "par défaut pour ce secteur" si le dossier n'a déclaré aucun poste). Jamais
+  // affichée en édition : modifier un lieu existant n'est pas le moment de le rendre par défaut,
+  // ce cas n'a pas été demandé et resterait de toute façon ambigu pour un lieu déjà utilisé.
+  const [lieuFormParDefaut, setLieuFormParDefaut] = useState(false);
   const [lieuFormEnCours, setLieuFormEnCours] = useState(false);
   const [lieuFormErreur, setLieuFormErreur] = useState(null);
   // Avertissement anti-doublon (voir soumettreLieu plus bas) — uniquement en création, jamais en
@@ -116,6 +122,7 @@ export default function ModalePlanificationTest({
     setLieuFormAdresse('');
     setLieuFormMetroAcces('');
     setLieuFormInstructions('');
+    setLieuFormParDefaut(false);
     setLieuFormErreur(null);
     setLieuSimilaireDetecte(null);
   };
@@ -303,6 +310,21 @@ export default function ModalePlanificationTest({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, groupeImposeParSecteur]);
 
+  // Présélection du lieu par défaut du secteur (migration 054, audit 2026-08-27) — même raison de
+  // dépendre de dossierId que les deux effets ci-dessus (pas de démontage entre deux dossiers sur
+  // TableauDeBordAccueil) : re-présélectionne le bon lieu si l'agent ouvre ce panneau pour un autre
+  // dossier sans l'avoir fermé. Ne s'exécute que si un secteur est déterminé ET que la liste des
+  // lieux est déjà chargée (voir chargementLieux plus haut) ; sans lieu par_defaut trouvé pour ce
+  // secteur (aucun encore configuré, ou aucun actif), `lieuId` reste tel quel — jamais forcé à ''
+  // ici, ce champ reste par ailleurs librement modifiable par l'agent ensuite (setLieuId via le
+  // <select>, voir plus bas), cet effet ne fait que proposer un point de départ.
+  useEffect(() => {
+    if (!secteurDossier) return;
+    const lieuParDefaut = lieux.find((lieu) => lieu.secteur === secteurDossier && lieu.par_defaut);
+    if (lieuParDefaut) setLieuId(String(lieuParDefaut.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossierId, secteurDossier, lieux]);
+
   // Vide d'abord la note (même raison que les deux effets ci-dessus : une note tapée pour un
   // premier candidat ne doit jamais rester affichée, ni a fortiori être pré-remplie, pour un
   // second dossier ouvert sans fermer ce panneau) — puis reprend celle du rendez-vous de test
@@ -409,7 +431,11 @@ export default function ModalePlanificationTest({
         const lieu = await modifierLieu(lieuIdEnEdition, { adresse, metroAcces, instructions });
         setLieux((precedent) => precedent.map((l) => (l.id === lieu.id ? lieu : l)));
       } else {
-        const lieu = await creerLieu({ adresse, metroAcces, instructions });
+        // `secteur`/`parDefaut` (migration 054) lus depuis la fermeture plutôt que reçus en
+        // paramètre, même principe que panneauLieuMode/lieuIdEnEdition ci-dessus : `secteur` est
+        // toujours secteurDossier (jamais saisi librement, voir la case à cocher plus bas),
+        // `parDefaut` reflète la case au moment de l'envoi.
+        const lieu = await creerLieu({ adresse, metroAcces, instructions, secteur: secteurDossier, parDefaut: lieuFormParDefaut });
         setLieux((precedent) => [...precedent, lieu]);
         setLieuId(String(lieu.id));
       }
@@ -875,6 +901,26 @@ export default function ModalePlanificationTest({
                       placeholder="Ex. Munissez-vous de votre pièce d'identité originale. Appuyez sur l'interphone et dites « TEST » pour ACCECIT."
                     />
                   </label>
+                  {/* Création uniquement, et seulement si le secteur du dossier est déterminé
+                      (voir secteurDossier plus haut) : "par défaut pour ce secteur" n'a pas de
+                      sens sans secteur connu, et une édition ne recrée pas de lieu à basculer.
+                      Libellé dynamique ("Bureau"/"Hôtel") plutôt que générique "ce secteur" — même
+                      souci de clarté que le reste de ce formulaire (voir Poste(s) testé(s)). */}
+                  {panneauLieuMode === 'creation' && secteurDossier && (
+                    // Même classe que les cases "Poste(s) testé(s)" (.modale-planification-test__poste)
+                    // — précédent déjà en place dans ce formulaire pour un label case-à-cocher + texte
+                    // en ligne (flex-direction: row), plutôt qu'une nouvelle règle CSS dupliquée.
+                    <label className="modale-planification-test__poste">
+                      <input
+                        type="checkbox"
+                        checked={lieuFormParDefaut}
+                        onChange={(evenement) => setLieuFormParDefaut(evenement.target.checked)}
+                      />
+                      <span>
+                        Définir comme lieu par défaut pour le secteur {secteurDossier === 'bureau' ? 'Bureau' : 'Hôtel'}
+                      </span>
+                    </label>
+                  )}
                   {lieuFormErreur && <p role="alert">{lieuFormErreur}</p>}
 
                   {lieuSimilaireDetecte ? (

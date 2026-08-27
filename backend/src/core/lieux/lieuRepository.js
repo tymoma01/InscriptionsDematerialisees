@@ -25,19 +25,46 @@ function trouverLieuParCode(bd, entiteId, code) {
 
 // Colonnes renvoyées par creerLieu/modifierLieu — `libelle` n'y figure plus (migration 047, champs
 // structurés) : ni l'un ni l'autre ne l'écrit plus, elle resterait NULL sur toute ligne créée
-// après la bascule, sans intérêt pour l'appelant.
-const COLONNES_LIEU = ['id', 'code', 'adresse', 'metro_acces', 'instructions', 'actif'];
+// après la bascule, sans intérêt pour l'appelant. `secteur`/`par_defaut` (migration 054, lieu par
+// défaut par secteur) ajoutés en pur ajout de colonnes, même principe que l'ajout de
+// formateur_id/lieu_id à listerRendezvousParDossier (rendezvousRepository.js).
+const COLONNES_LIEU = ['id', 'code', 'adresse', 'metro_acces', 'instructions', 'actif', 'secteur', 'par_defaut'];
 
 // Création à la volée depuis la modale de planification de test (voir ModalePlanificationTest.jsx,
 // bouton "+" à côté du sélecteur de lieu) — `actif` non transmis, la colonne a déjà `true` en
 // valeur par défaut (migration 044). `metroAcces`/`instructions` optionnels (migration 047) :
 // reçus déjà normalisés en `null` par lieuService (jamais `undefined`) — knex/pg lève une erreur
 // "Undefined binding(s)" sur un binding `undefined` dans un insert/update, contrairement à `null`
-// qui s'écrit sans problème.
-function creerLieu(bd, entiteId, { code, adresse, metroAcces, instructions }) {
+// qui s'écrit sans problème. `secteur` (migration 054) même principe : normalisé en `null` par
+// lieuService si absent, jamais `undefined`. `par_defaut` n'est PAS écrit ici — toujours `false`
+// (défaut colonne), la bascule vers `true` passe exclusivement par definirLieuParDefaut ci-dessous
+// (seul chemin qui désactive aussi l'ancien défaut du même secteur).
+function creerLieu(bd, entiteId, { code, adresse, metroAcces, instructions, secteur }) {
   return bd('lieux')
-    .insert({ entite_id: entiteId, code, adresse, metro_acces: metroAcces, instructions })
+    .insert({ entite_id: entiteId, code, adresse, metro_acces: metroAcces, instructions, secteur })
     .returning(COLONNES_LIEU);
+}
+
+// Lieu par défaut de l'entité pour un secteur donné ('bureau'/'hotel') — sert à présélectionner le
+// champ "Lieu" de ModalePlanificationTest.jsx selon secteurDossier. `actif: true` : un lieu
+// désactivé ne doit jamais être proposé comme présélection (cohérent avec listerLieuxActifs
+// ci-dessus, qui l'exclut déjà du sélecteur lui-même).
+function trouverLieuParDefaut(bd, entiteId, secteur) {
+  return bd('lieux').where({ entite_id: entiteId, secteur, par_defaut: true, actif: true }).first();
+}
+
+// Bascule transactionnelle du lieu par défaut d'un secteur (audit 2026-08-27, demande
+// utilisateur : "quand un lieu est marqué par défaut, désactive automatiquement l'ancien défaut du
+// même secteur, dans une transaction") — désactive d'abord tout autre lieu par_defaut=true du même
+// (entite_id, secteur), puis active celui-ci et fige son secteur, dans la transaction `trx` fournie
+// par l'appelant (lieuService.creerLieu/definirLieuParDefaut) plutôt qu'ouverte ici : permet à
+// l'appelant d'englober l'INSERT du lieu lui-même dans la même transaction (cas de la création à la
+// volée avec case "par défaut" cochée) sans dépendre de l'ordre d'ouverture. Index unique partiel
+// idx_lieux_un_defaut_par_secteur (migration 054) reste le garde-fou final si jamais deux requêtes
+// concurrentes tentaient la même bascule en même temps.
+async function definirLieuParDefaut(trx, entiteId, lieuId, secteur) {
+  await trx('lieux').where({ entite_id: entiteId, secteur, par_defaut: true }).andWhereNot({ id: lieuId }).update({ par_defaut: false });
+  return trx('lieux').where({ id: lieuId, entite_id: entiteId }).update({ par_defaut: true, secteur }).returning(COLONNES_LIEU);
 }
 
 // Modification à la volée depuis la même modale (bouton crayon) — `code` n'est jamais modifiable
@@ -61,4 +88,13 @@ function supprimerLieu(bd, entiteId, lieuId) {
   return bd('lieux').where({ id: lieuId, entite_id: entiteId }).del();
 }
 
-module.exports = { trouverLieuParId, listerLieuxActifs, trouverLieuParCode, creerLieu, modifierLieu, supprimerLieu };
+module.exports = {
+  trouverLieuParId,
+  listerLieuxActifs,
+  trouverLieuParCode,
+  trouverLieuParDefaut,
+  creerLieu,
+  definirLieuParDefaut,
+  modifierLieu,
+  supprimerLieu,
+};

@@ -11,10 +11,13 @@ export async function listerLieux() {
 // Création à la volée (bouton "+" à côté du sélecteur de lieu, ModalePlanificationTest.jsx) —
 // trois champs structurés depuis la migration 047 (remplace l'ancien `libelle` texte libre unique,
 // voir audit du 2026-08-13) : `adresse` (obligatoire), `metroAcces`/`instructions` (optionnels).
-// Renvoie le lieu créé ({ id, code, adresse, metro_acces, instructions, actif }) pour que
-// l'appelant l'ajoute à sa liste locale et le présélectionne sans refetch.
-export async function creerLieu({ adresse, metroAcces, instructions }) {
-  const { data } = await api.post('/lieux', { adresse, metroAcces, instructions });
+// `secteur`/`parDefaut` (migration 054, audit 2026-08-27) : case "Définir comme lieu par défaut
+// pour ce secteur" de ModalePlanificationTest.jsx — `secteur` vaut alors `secteurDossier`
+// ('bureau'/'hotel'), jamais saisi librement par l'agent. Renvoie le lieu créé ({ id, code,
+// adresse, metro_acces, instructions, actif, secteur, par_defaut }) pour que l'appelant l'ajoute à
+// sa liste locale et le présélectionne sans refetch.
+export async function creerLieu({ adresse, metroAcces, instructions, secteur, parDefaut }) {
+  const { data } = await api.post('/lieux', { adresse, metroAcces, instructions, secteur, parDefaut });
   return data;
 }
 

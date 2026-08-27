@@ -34,19 +34,32 @@ router.get('/', async (req, res, next) => {
 // Trois champs structurés depuis la migration 047 (remplace l'ancien `libelle` texte libre, voir
 // audit du 2026-08-13) : `adresse` identifie le lieu physique (seul champ obligatoire),
 // `metroAcces`/`instructions` sont des compléments optionnels — voir lieuService.creerLieu.
-const creationLieuSchema = z.object({
-  adresse: z.string().trim().min(1),
-  metroAcces: z.string().trim().optional(),
-  instructions: z.string().trim().optional(),
-});
+// `secteur`/`parDefaut` (migration 054, audit 2026-08-27) : mêmes deux valeurs déjà en dur ailleurs
+// dans le moteur ('bureau'/'hotel', voir rendezvousService.js/ModalePlanificationTest.jsx), pas un
+// enum de config par entité (voir Modularité, CLAUDE.md — même choix que secteurDossier côté
+// front). `parDefaut` coché ("Définir comme lieu par défaut pour ce secteur") exige `secteur` :
+// sans lui, rien à basculer (voir lieuRepository.definirLieuParDefaut, qui a besoin du secteur
+// pour savoir QUEL ancien défaut désactiver) — refusé ici plutôt que silencieusement ignoré.
+const creationLieuSchema = z
+  .object({
+    adresse: z.string().trim().min(1),
+    metroAcces: z.string().trim().optional(),
+    instructions: z.string().trim().optional(),
+    secteur: z.enum(['bureau', 'hotel']).optional(),
+    parDefaut: z.boolean().optional(),
+  })
+  .refine((valeurs) => !valeurs.parDefaut || Boolean(valeurs.secteur), {
+    message: 'Un secteur est requis pour définir ce lieu comme lieu par défaut.',
+    path: ['secteur'],
+  });
 
 // POST /api/lieux — crée un lieu pour l'entité courante et le renvoie ({ id, code, adresse,
-// metro_acces, instructions, actif }), utilisé par ModalePlanificationTest.jsx pour l'ajouter et
-// le sélectionner immédiatement sans recharger la liste.
+// metro_acces, instructions, actif, secteur, par_defaut }), utilisé par ModalePlanificationTest.jsx
+// pour l'ajouter et le sélectionner immédiatement sans recharger la liste.
 router.post('/', async (req, res, next) => {
   try {
-    const { adresse, metroAcces, instructions } = creationLieuSchema.parse(req.body);
-    const lieu = await lieuService.creerLieu(req.entite, { adresse, metroAcces, instructions });
+    const { adresse, metroAcces, instructions, secteur, parDefaut } = creationLieuSchema.parse(req.body);
+    const lieu = await lieuService.creerLieu(req.entite, { adresse, metroAcces, instructions, secteur, parDefaut });
     res.status(201).json(lieu);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {

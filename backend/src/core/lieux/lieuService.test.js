@@ -76,6 +76,62 @@ test('creerLieu normalise metroAcces/instructions vides ou blancs en null avant 
   assert.equal(donneesRecues.instructions, null);
 });
 
+test('creerLieu sans parDefaut ne bascule aucun autre lieu (pas de transaction ouverte)', async (t) => {
+  mockerKnex(t);
+  t.mock.method(lieuRepository, 'trouverLieuParCode', async () => undefined);
+  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, donnees) => [
+    { id: 46, code: donnees.code, adresse: donnees.adresse, secteur: donnees.secteur, par_defaut: false },
+  ]);
+  const definirLieuParDefaut = t.mock.method(lieuRepository, 'definirLieuParDefaut', async () => {
+    throw new Error('ne doit pas être appelée sans parDefaut');
+  });
+
+  const lieu = await lieuService.creerLieu(ENTITE_ACCECIT, { adresse: 'Agence Sud', secteur: 'bureau' });
+
+  assert.equal(lieu.id, 46);
+  assert.equal(definirLieuParDefaut.mock.callCount(), 0);
+});
+
+// mockerKnex ci-dessus renvoie `{}` (aucune méthode `.transaction`) — insuffisant pour ce test,
+// qui doit vérifier ce qui se passe À L'INTÉRIEUR d'une transaction : mock local dédié, `trx`
+// distinct de `bd` (même valeur factice ici, un simple marqueur) pour vérifier qu'il est bien
+// transmis tel quel aux deux appels repository (création ET bascule dans la MÊME transaction,
+// jamais un aller-retour en deux temps qui laisserait une fenêtre où le nouveau lieu existe sans
+// être encore le défaut).
+test('creerLieu avec parDefaut:true crée le lieu ET bascule l\'ancien défaut dans la même transaction', async (t) => {
+  const trxMarqueur = { estUneTransaction: true };
+  t.mock.method(db, 'obtenirKnex', async () => ({
+    transaction: async (fn) => fn(trxMarqueur),
+  }));
+  t.mock.method(lieuRepository, 'trouverLieuParCode', async () => undefined);
+  const trxRecuesParCreerLieu = [];
+  t.mock.method(lieuRepository, 'creerLieu', async (bd, entiteId, donnees) => {
+    trxRecuesParCreerLieu.push(bd);
+    return [{ id: 47, code: donnees.code, adresse: donnees.adresse, secteur: donnees.secteur, par_defaut: false }];
+  });
+  const appelsDefinirParDefaut = [];
+  t.mock.method(lieuRepository, 'definirLieuParDefaut', async (trx, entiteId, lieuId, secteur) => {
+    appelsDefinirParDefaut.push({ trx, entiteId, lieuId, secteur });
+    return [{ id: lieuId, secteur, par_defaut: true }];
+  });
+
+  const lieu = await lieuService.creerLieu(ENTITE_ACCECIT, {
+    adresse: 'Bureau Nord',
+    secteur: 'bureau',
+    parDefaut: true,
+  });
+
+  assert.equal(trxRecuesParCreerLieu[0], trxMarqueur);
+  assert.equal(appelsDefinirParDefaut.length, 1);
+  assert.deepEqual(appelsDefinirParDefaut[0], {
+    trx: trxMarqueur,
+    entiteId: ENTITE_ACCECIT.id,
+    lieuId: 47,
+    secteur: 'bureau',
+  });
+  assert.equal(lieu.par_defaut, true);
+});
+
 test('modifierLieu met à jour adresse/metroAcces/instructions sans toucher au code', async (t) => {
   mockerKnex(t);
   let argsRecus;

@@ -96,6 +96,12 @@ function listerRendezvousParDossier(bd, dossierId) {
     })
     .leftJoin('utilisateurs as agent_planificateur', 'agent_planificateur.id', 'audit_planification.utilisateur_id')
     .leftJoin('roles as role_planificateur', 'role_planificateur.id', 'agent_planificateur.role_id')
+    // Formateur/inspecteur ASSIGNÉ à ce rendez-vous (rendezvous.formateur_id) — distinct de
+    // agent_planificateur ci-dessus (qui a PLANIFIÉ le rendez-vous, pas forcément la même
+    // personne). Sert au libellé "Test avec {Rôle} {Nom}" de GestionRendezvous.jsx (audit
+    // 2026-08-27, remplace le titre générique fixe "Test").
+    .leftJoin('utilisateurs as formateur_assigne', 'formateur_assigne.id', 'rendezvous.formateur_id')
+    .leftJoin('roles as role_formateur_assigne', 'role_formateur_assigne.id', 'formateur_assigne.role_id')
     .where({ 'rendezvous.dossier_id': dossierId })
     .select(
       'rendezvous.id',
@@ -116,6 +122,9 @@ function listerRendezvousParDossier(bd, dossierId) {
       'agent_planificateur.prenom as planifie_par_prenom',
       'agent_planificateur.nom as planifie_par_nom',
       'role_planificateur.libelle as planifie_par_role_libelle',
+      'formateur_assigne.prenom as formateur_prenom',
+      'formateur_assigne.nom as formateur_nom',
+      'role_formateur_assigne.libelle as formateur_role_libelle',
       // Date/heure de saisie de la note de planification (audit 2026-08-19, demande explicite) —
       // même colonne journal_audit.date_action que cree_le dans
       // listerHistoriqueRendezvousParDossiers ci-dessous : l'écriture de note_planification n'a

@@ -217,6 +217,23 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
   // colonne réutilisée est la première dont le dernier bloc placé se termine avant (ou au moment où)
   // celui-ci commence, sinon une nouvelle colonne est ouverte — répond au point 3 de l'audit lisibilité
   // 2026-08-26 (plusieurs événements simultanés affichés côte à côte, jamais l'un masquant l'autre).
+  //
+  // Regroupement par COMPOSANTE CONNEXE de chevauchement réel avant l'affectation de colonnes
+  // (correctif largeur, audit 2026-08-27) : appliquer l'algorithme glouton directement sur TOUS
+  // les blocs du jour donnait un nombre de colonnes GLOBAL à la journée entière (le plus grand
+  // nombre d'événements simultanés vus À N'IMPORTE QUEL MOMENT du jour), que le rendu appliquait
+  // ensuite à CHAQUE bloc de ce jour via une seule grille CSS partagée (gridTemplateColumns) — un
+  // événement parfaitement seul sur son créneau se retrouvait donc à occuper 1 colonne sur 2 (ou
+  // plus) dès qu'un AUTRE couple d'événements simultanés existait ailleurs dans la même journée,
+  // constaté en conditions réelles (dossier #88, plusieurs blocs à largeur partielle sans aucun
+  // chevauchement). Un bloc trié par creneauDebut ouvre un nouveau groupe dès que son début est
+  // au-delà de la fin la plus tardive de tout ce qui a été vu jusqu'ici dans le groupe courant :
+  // par construction, un tel bloc ne peut chevaucher AUCUN bloc du groupe précédent (transitivité
+  // incluse), donc les deux groupes n'ont aucune raison de partager un compte de colonnes. Chaque
+  // bloc porte son propre `groupeColonnes` (nombre de colonnes de SON groupe, pas de la journée
+  // entière) — voir le rendu plus bas, qui positionne chaque bloc en pourcentage (top/height/left/
+  // width) plutôt que via une grille CSS commune à tout le jour, justement pour ne plus jamais
+  // dépendre d'un seul nombre de colonnes partagé.
   const blocsParJour = useMemo(() => {
     const parJour = new Map();
     joursAffiches.forEach((jourIso) => {
@@ -226,15 +243,34 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
         .filter(Boolean)
         .sort((a, b) => a.creneauDebut - b.creneauDebut || a.creneauFin - b.creneauFin);
 
-      const finColonnes = [];
+      let groupeCourant = [];
+      let finMaxGroupeCourant = -Infinity;
+      const groupes = [];
       blocs.forEach((bloc) => {
-        let colonne = finColonnes.findIndex((fin) => fin <= bloc.creneauDebut);
-        if (colonne === -1) colonne = finColonnes.length;
-        finColonnes[colonne] = bloc.creneauFin;
-        bloc.colonne = colonne;
+        if (groupeCourant.length > 0 && bloc.creneauDebut >= finMaxGroupeCourant) {
+          groupes.push(groupeCourant);
+          groupeCourant = [];
+          finMaxGroupeCourant = -Infinity;
+        }
+        groupeCourant.push(bloc);
+        finMaxGroupeCourant = Math.max(finMaxGroupeCourant, bloc.creneauFin);
+      });
+      if (groupeCourant.length > 0) groupes.push(groupeCourant);
+
+      groupes.forEach((groupe) => {
+        const finColonnes = [];
+        groupe.forEach((bloc) => {
+          let colonne = finColonnes.findIndex((fin) => fin <= bloc.creneauDebut);
+          if (colonne === -1) colonne = finColonnes.length;
+          finColonnes[colonne] = bloc.creneauFin;
+          bloc.colonne = colonne;
+        });
+        groupe.forEach((bloc) => {
+          bloc.groupeColonnes = finColonnes.length;
+        });
       });
 
-      parJour.set(jourIso, { blocs, nombreColonnes: Math.max(finColonnes.length, 1) });
+      parJour.set(jourIso, blocs);
     });
     return parJour;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evenementsHoraires est déjà une
@@ -351,7 +387,7 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
 
             {joursAffiches.map((jourIso, indexJour) => {
               const dimanche = indexJour === INDEX_DIMANCHE;
-              const { blocs, nombreColonnes } = blocsParJour.get(jourIso);
+              const blocs = blocsParJour.get(jourIso);
 
               return (
                 <div key={jourIso} className="calendrier-hebdo__colonne-jour">
@@ -422,10 +458,7 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                       un bloc qui ne couvre qu'une partie de la largeur de la colonne (occupations
                       simultanées côte à côte). Purement visuel — voir l'infobulle portée par le
                       bouton créneau ci-dessus, pas par ce bloc. */}
-                  <div
-                    className="calendrier-hebdo__evenements-overlay"
-                    style={{ gridTemplateColumns: `repeat(${nombreColonnes}, 1fr)`, gridTemplateRows: `repeat(${CRENEAUX_HORAIRES.length}, 1fr)` }}
-                  >
+                  <div className="calendrier-hebdo__evenements-overlay">
                     {blocs.map((bloc, indexBloc) => {
                       const selectionneDansBloc =
                         jourIso === dateSelectionnee &&
@@ -438,8 +471,10 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                           key={indexBloc}
                           className={`calendrier-hebdo__evenement-bloc${selectionneDansBloc ? ' calendrier-hebdo__evenement-bloc--selectionne' : ''}`}
                           style={{
-                            gridRow: `${bloc.creneauDebut + 1} / ${bloc.creneauFin + 1}`,
-                            gridColumn: `${bloc.colonne + 1} / span 1`,
+                            top: `${(bloc.creneauDebut / CRENEAUX_HORAIRES.length) * 100}%`,
+                            height: `${((bloc.creneauFin - bloc.creneauDebut) / CRENEAUX_HORAIRES.length) * 100}%`,
+                            left: `${(bloc.colonne / bloc.groupeColonnes) * 100}%`,
+                            width: `${(1 / bloc.groupeColonnes) * 100}%`,
                           }}
                         >
                           <span className="calendrier-hebdo__evenement-bloc__libelle">{libelle}</span>

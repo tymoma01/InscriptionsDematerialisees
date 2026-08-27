@@ -315,15 +315,18 @@
    item de sa grille, voir le commentaire de cette règle — audit 2026-08-27, doublait le nombre de
    pistes de la grille du parent), superposé aux boutons créneaux (peints avant lui dans le DOM, donc
    en dessous). `pointer-events: none` en cascade sur tout le calque et ses enfants : le clic doit
-   toujours atteindre le bouton créneau dessous, même sur la portion couverte par un bloc. Sa propre
-   grille interne (grid-template-rows/columns, en `style` inline car dépendante du nombre de
-   créneaux/colonnes de CE jour) aligne chaque bloc pile sur les lignes de la grille de clic en
-   dessous — son `inset:0` lui donne exactement la même hauteur que son parent (44 × 2rem), donc les
-   mêmes proportions de ligne qu'une grille à 44 pistes de 1fr chacune. */
+   toujours atteindre le bouton créneau dessous, même sur la portion couverte par un bloc.
+   Simple conteneur de positionnement (plus de `display: grid` depuis le correctif largeur du
+   2026-08-27) : chaque bloc enfant se positionne lui-même en pourcentage (top/height/left/width,
+   voir `style` inline dans CalendrierHebdomadaireDisponibilite.jsx et .calendrier-hebdo__evenement-
+   bloc ci-dessous) à partir de SON PROPRE groupe de chevauchement (bloc.groupeColonnes), plutôt
+   qu'une seule grille CSS à N colonnes partagée par tous les blocs du jour — une grille commune
+   forçait un événement pourtant seul sur son créneau à partager une colonne étroite dès qu'un
+   AUTRE couple d'événements simultanés existait ailleurs dans la même journée (bug largeur
+   partielle constaté sur des créneaux à un seul événement, dossier #88). */
 .calendrier-hebdo__evenements-overlay {
   position: absolute;
   inset: 0;
-  display: grid;
   pointer-events: none;
 }
 
@@ -352,6 +355,13 @@
    distinctes — le bug était uniquement dans le dimensionnement CSS de ces colonnes, jamais dans le
    calcul lui-même. */
 .calendrier-hebdo__evenement-bloc {
+  position: absolute;
+  /* `box-sizing: border-box` (correctif largeur, 2026-08-27) : `top/height/left/width` sont
+     désormais des pourcentages calculés côté JS pour correspondre exactement à la plage de
+     créneaux/au groupe de colonnes du bloc (voir son commentaire ci-dessus) — sans border-box, le
+     `padding` s'ajouterait par-dessus cette largeur en px et ferait déborder le bloc au-delà de la
+     part qui lui a été allouée, surtout visible sur un groupe à 2+ colonnes étroites. */
+  box-sizing: border-box;
   min-width: 0;
   margin: 1px 2px;
   padding: 2px 5px;

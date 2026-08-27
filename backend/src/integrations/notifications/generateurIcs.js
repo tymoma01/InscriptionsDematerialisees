@@ -1,9 +1,15 @@
 const { createEvent } = require('ics');
 
-// Durée par défaut d'un créneau de test (décision 2026-07-30) : rendezvous.date_heure ne porte
-// qu'un instant de départ, aucune donnée de fin/durée n'existe sur ce modèle — à ajuster si le
-// besoin d'une durée variable par test se confirme un jour (table rendezvous à faire évoluer).
-const DUREE_TEST_MINUTES = 60;
+// Durée par défaut d'un créneau de test (décision 2026-07-30, ramenée de 60 à 30 min le
+// 2026-08-27 — décision produit) : rendezvous.date_heure ne porte qu'un instant de départ, aucune
+// donnée de fin/durée n'existe sur ce modèle — à ajuster si le besoin d'une durée variable par
+// test se confirme un jour (table rendezvous à faire évoluer). Seule source de vérité pour cette
+// durée (rendezvousService.creerEvenement Outlook, invitationTestService.js pour l'.ics et le
+// texte de convocation) : un changement ici se répercute automatiquement partout, y compris sur
+// l'affichage du bloc dans CalendrierHebdomadaireDisponibilite.jsx, qui ne fait que refléter les
+// bornes réelles debut/fin de l'événement Outlook tel que créé — aucune durée n'y est jamais codée
+// en dur séparément.
+const DUREE_TEST_MINUTES = 30;
 
 // Adresse ACCECIT déjà affichée en pied de page du back-office (voir PageBackOffice.jsx) —
 // aucune donnée "lieu" dédiée n'existe aujourd'hui (ni sur `rendezvous`, ni sur `entites`, voir
