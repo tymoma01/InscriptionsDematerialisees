@@ -442,3 +442,122 @@ test("envoyerInvitationTest tente quand même le sms si l'envoi de l'email écho
 
   assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: true, formateurEmailEnvoye: false });
 });
+
+// Audit 2026-08-28 : consolidation de la notification formateur/inspecteur lors d'une
+// replanification — un seul email envoyé (déjà garanti par envoyerInvitationTest, appelé une seule
+// fois par planificationRendezvousService.js dans les deux cas), mais avec un texte différent qui
+// mentionne EXPLICITEMENT l'ancien ET le nouveau créneau plutôt que le texte générique "Nouveau
+// candidat à évaluer" utilisé pour une planification initiale.
+const RENDEZVOUS_REPLANIFIE = {
+  ...RENDEZVOUS_AVEC_FORMATEUR,
+  date_heure: '2099-02-15T14:00:00.000Z',
+  ancienRendezVous: { id: 40, date_heure: '2099-01-01T10:00:00.000Z' },
+};
+
+test('envoyerInvitationTest envoie un email formateur "Test replanifié" mentionnant les deux créneaux quand rendezvous.ancienRendezVous est renseigné', async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({ email: null, telephone: null }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_REPLANIFIE);
+
+  assert.deepEqual(resultat, { emailEnvoye: false, smsEnvoye: false, formateurEmailEnvoye: true });
+  assert.equal(mailMock.mock.calls.length, 1, 'un seul envoi, jamais un email distinct pour l\'ancien créneau');
+
+  const appelFormateur = mailMock.mock.calls[0];
+  assert.equal(appelFormateur.arguments[0], 'marc.dupont@exemple.test');
+  assert.equal(appelFormateur.arguments[3].sujet, 'Test replanifié');
+  const corps = appelFormateur.arguments[2];
+  assert.ok(corps.includes('initialement prévu le'));
+  assert.ok(corps.includes('a été replanifié pour le'));
+  // Ancienne ET nouvelle date toutes les deux présentes (formatées en "long", voir FORMAT_DATE_SEULE)
+  assert.ok(corps.includes('janvier 2099'), "date de l'ANCIEN créneau absente du texte");
+  assert.ok(corps.includes('février 2099'), 'date du NOUVEAU créneau absente du texte');
+  // Jamais le texte de planification initiale dans ce cas.
+  assert.ok(!corps.includes('Vous êtes assigné'));
+});
+
+test("envoyerInvitationTest garde le texte « Nouveau candidat à évaluer » quand rendezvous.ancienRendezVous est absent (planification initiale)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({ email: null, telephone: null }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  const appelFormateur = mailMock.mock.calls[0];
+  assert.equal(appelFormateur.arguments[3].sujet, 'Nouveau candidat à évaluer');
+  assert.ok(appelFormateur.arguments[2].includes('Vous êtes assigné'));
+  assert.ok(!appelFormateur.arguments[2].includes('replanifié'));
+});
+
+// Annulation SIMPLE (pas une replanification) — audit 2026-08-28 : n'existait pas avant ce
+// chantier, changerStatutRendezvous ne notifiait jusqu'ici jamais le formateur/inspecteur.
+const RENDEZVOUS_ANNULE = { id: 60, dossier_id: 42, formateur_id: 7, date_heure: '2099-03-01T09:00:00.000Z' };
+
+test('envoyerNotificationAnnulationTest envoie un seul email "Test annulé" au formateur/inspecteur, sans pièce jointe', async (t) => {
+  mockerKnex(t);
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_ANNULE);
+
+  assert.deepEqual(resultat, { formateurEmailEnvoye: true });
+  assert.equal(mailMock.mock.calls.length, 1);
+
+  const appel = mailMock.mock.calls[0];
+  assert.equal(appel.arguments[0], 'marc.dupont@exemple.test');
+  assert.equal(appel.arguments[3].sujet, 'Test annulé');
+  assert.equal(appel.arguments[3].piecesJointes, undefined);
+  assert.ok(appel.arguments[2].includes('Bonjour Marc'));
+  assert.ok(appel.arguments[2].includes('Sophie Martin'));
+  assert.ok(appel.arguments[2].includes('est annulé'));
+});
+
+test("envoyerNotificationAnnulationTest n'envoie rien si sms_actif est faux pour l'entité", async (t) => {
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_INACTIF, RENDEZVOUS_ANNULE);
+
+  assert.deepEqual(resultat, { formateurEmailEnvoye: false, desactive: true });
+  assert.equal(mailMock.mock.calls.length, 0);
+});
+
+test("envoyerNotificationAnnulationTest n'envoie rien si le rendez-vous annulé n'a pas de formateur assigné", async (t) => {
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, {
+    ...RENDEZVOUS_ANNULE,
+    formateur_id: null,
+  });
+
+  assert.deepEqual(resultat, { formateurEmailEnvoye: false });
+  assert.equal(mailMock.mock.calls.length, 0);
+});
+
+test("envoyerNotificationAnnulationTest n'envoie rien si le formateur assigné n'a pas d'email renseigné", async (t) => {
+  mockerKnex(t);
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 7, nom: 'Dupont', prenom: 'Marc', email: null }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_ANNULE);
+
+  assert.deepEqual(resultat, { formateurEmailEnvoye: false });
+  assert.equal(mailMock.mock.calls.length, 0);
+});

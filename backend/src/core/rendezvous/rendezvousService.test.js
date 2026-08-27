@@ -97,7 +97,7 @@ test('creerRendezvous accepte un formateur qui a déjà 0 candidat sur ce créne
     formateurId: 8,
   });
 
-  assert.deepEqual(resultat, { id: 1 });
+  assert.deepEqual(resultat, { id: 1, ancienRendezVous: null });
   assert.equal(creerMock.mock.calls.length, 1);
 });
 
@@ -114,7 +114,7 @@ test('creerRendezvous accepte un formateur qui a déjà 1 candidat sur ce créne
     formateurId: 8,
   });
 
-  assert.deepEqual(resultat, { id: 2 });
+  assert.deepEqual(resultat, { id: 2, ancienRendezVous: null });
   assert.equal(creerMock.mock.calls.length, 1);
 });
 
@@ -273,7 +273,7 @@ test('creerRendezvous accepte un inspecteur assigné à un dossier bureau (secte
     formateurId: 9,
   });
 
-  assert.deepEqual(resultat, { id: 202 });
+  assert.deepEqual(resultat, { id: 202, ancienRendezVous: null });
   assert.equal(creerMock.mock.calls.length, 1);
 });
 
@@ -302,7 +302,7 @@ test("creerRendezvous accepte n'importe quel rôle sur un dossier sans secteur d
     formateurId: 8,
   });
 
-  assert.deepEqual(resultat, { id: 203 });
+  assert.deepEqual(resultat, { id: 203, ancienRendezVous: null });
   assert.equal(creerMock.mock.calls.length, 1);
 });
 
@@ -561,7 +561,10 @@ test("creerRendezvous réussit malgré tout si la suppression de l'ancien évén
     formateurId: 8,
   });
 
-  assert.deepEqual(resultat, { id: 403 });
+  assert.deepEqual(resultat, {
+    id: 403,
+    ancienRendezVous: { id: 199, formateur_id: 99, outlook_event_id: 'outlook-ancien-evenement' },
+  });
   assert.equal(creerRendezvousMock.mock.calls.length, 1);
 });
 
@@ -664,7 +667,7 @@ test("creerRendezvous neutralise (STATUT_REMPLACE) l'ancien rendez-vous actif du
     formateurId: null,
   });
 
-  assert.deepEqual(resultat, { id: 99 });
+  assert.deepEqual(resultat, { id: 99, ancienRendezVous: null });
   assert.equal(neutraliserMock.mock.calls.length, 1);
   assert.equal(creerMock.mock.calls.length, 1);
   // Neutraliser AVANT de créer — jamais l'inverse (le nouveau ne doit pas se neutraliser lui-même).
@@ -684,7 +687,7 @@ test("creerRendezvous réussit sans erreur même quand un rendez-vous actif exis
     formateurId: null,
   });
 
-  assert.deepEqual(resultat, { id: 100 });
+  assert.deepEqual(resultat, { id: 100, ancienRendezVous: null });
   assert.equal(creerMock.mock.calls.length, 1);
 });
 
@@ -709,7 +712,7 @@ test("creerRendezvous réutilise la transaction déjà ouverte par l'appelant (b
     trxExistante,
   );
 
-  assert.deepEqual(resultat, { id: 101 });
+  assert.deepEqual(resultat, { id: 101, ancienRendezVous: null });
   assert.equal(neutraliserMock.mock.calls.length, 1);
   assert.equal(creerMock.mock.calls.length, 1);
 });

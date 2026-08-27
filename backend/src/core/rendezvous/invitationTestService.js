@@ -3,7 +3,7 @@ const dossierRepository = require('../dossier/dossierRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
-const { genererIcsInvitationTest, composerAdresseCourte, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
+const { genererIcsInvitationTest, composerAdresseCourte, DUREE_TEST_MINUTES, LIEU_TEST_ACCECIT } = require('../../integrations/notifications/generateurIcs');
 const { echapperHtml, formaterLignesLieuHtml, construireLienEvaluation } = require('../../integrations/notifications/formatageEmail');
 const { FRONTEND_URL } = require('../../config/env');
 
@@ -12,6 +12,21 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   timeStyle: 'short',
   timeZone: 'Europe/Paris',
 });
+
+// Date seule / heure seule (audit 2026-08-28, textes "replanifié"/"annulé" ci-dessous) — distincts
+// de FORMAT_DATE_HEURE ci-dessus (les deux combinés en une seule chaîne) : ces textes ont besoin de
+// composer "{date} de {heure début} à {heure fin}", donc de la date et des deux heures séparément.
+const FORMAT_DATE_SEULE = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeZone: 'Europe/Paris' });
+const FORMAT_HEURE_SEULE = new Intl.DateTimeFormat('fr-FR', { timeStyle: 'short', timeZone: 'Europe/Paris' });
+
+// "{date} de {heure début} à {heure fin}" — même durée que l'.ics (DUREE_TEST_MINUTES,
+// generateurIcs.js) pour que l'heure de fin annoncée dans le texte corresponde exactement à celle
+// du rendez-vous réellement bloqué sur le calendrier Outlook.
+function formaterCreneau(dateHeureIso) {
+  const debut = new Date(dateHeureIso);
+  const fin = new Date(debut.getTime() + DUREE_TEST_MINUTES * 60_000);
+  return `${FORMAT_DATE_SEULE.format(debut)} de ${FORMAT_HEURE_SEULE.format(debut)} à ${FORMAT_HEURE_SEULE.format(fin)}`;
+}
 
 // Libellés des postes, propre à cette entité (voir Modularité, CLAUDE.md) — même mapping que
 // côté front (TableauDeBordAccueil.jsx/VerificationPieces.jsx/Planification.jsx/Validation.jsx),
@@ -99,29 +114,46 @@ function construireMessageEmail({
 // inclureInstructions: false) : ce sont des consignes d'accueil destinées au candidat qui se
 // présente sur place ("munissez-vous de votre pièce d'identité", "sonnez et dites TEST"), sans
 // objet pour le formateur/inspecteur qui les évalue — seul metroAcces reste utile aux deux.
+// `ancienneDateHeure` (audit 2026-08-28, consolidation de la notification formateur) : présente
+// uniquement pour une REPLANIFICATION (voir rendezvousService.creerRendezvous, `ancienRendezVous`
+// sur le rendez-vous transmis à envoyerInvitationTest ci-dessous) — remplace le paragraphe
+// "Vous êtes assigné(e)..." par un texte qui mentionne EXPLICITEMENT les deux créneaux. Avant ce
+// correctif, une replanification envoyait ce même email "Nouveau candidat à évaluer" pour le
+// nouveau créneau, sans un mot sur l'ancien — combiné à l'invitation Outlook native supprimée par
+// ailleurs (voir plus bas), le formateur/inspecteur n'avait alors aucun moyen de savoir QUEL
+// créneau avait changé sans rouvrir son calendrier. Un seul appel d'envoi reste déclenché dans les
+// deux cas (voir envoyerInvitationTest, aucun appel supplémentaire ici) — seul le TEXTE change
+// selon le contexte.
 function construireMessageEmailFormateur({
   formateurPrenom,
   candidatPrenom,
   candidatNom,
   dateHeure,
+  ancienneDateHeure,
   lieuAdresse,
   lieuMetroAcces,
   postesSelectionnes,
   notePlanification,
   lienEvaluation,
 }) {
-  const date = FORMAT_DATE_HEURE.format(new Date(dateHeure));
+  const nomCandidat = `${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}`;
+  // "L'évènement est présent sur votre calendrier outlook" (audit 2026-08-28, corrige le texte
+  // introduit le 2026-08-26) : depuis l'intégration Microsoft Graph/Outlook, ce rendez-vous existe
+  // déjà réellement sur le calendrier départemental (formation@/tertiaire2@) AVANT même l'envoi de
+  // cet email — la planification elle-même s'est faite via Outlook, pas via cet email ni sa pièce
+  // jointe. Tiret simple (pas cadratin), décision utilisateur du 2026-08-28.
+  const paragrapheCreneau = ancienneDateHeure
+    ? `<p>Le test de ${nomCandidat}, initialement prévu le ${echapperHtml(formaterCreneau(ancienneDateHeure))}, ` +
+      `a été replanifié pour le ${echapperHtml(formaterCreneau(dateHeure))} - L'évènement est présent sur votre ` +
+      'calendrier outlook.</p>'
+    : `<p>Vous êtes assigné(e) à l'évaluation du test de ${nomCandidat}, prévu le ` +
+      `${echapperHtml(FORMAT_DATE_HEURE.format(new Date(dateHeure)))} - L'évènement est présent sur votre ` +
+      'calendrier outlook.</p>';
   return {
-    sujet: 'Nouveau candidat à évaluer',
+    sujet: ancienneDateHeure ? 'Test replanifié' : 'Nouveau candidat à évaluer',
     corps:
       `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
-      // "L'évènement est présent sur votre calendrier outlook" (audit 2026-08-28, corrige le
-      // texte introduit le 2026-08-26) : depuis l'intégration Microsoft Graph/Outlook, ce
-      // rendez-vous existe déjà réellement sur le calendrier départemental (formation@/
-      // tertiaire2@) AVANT même l'envoi de cet email — la planification elle-même s'est faite via
-      // Outlook, pas via cet email ni sa pièce jointe. Tiret simple (pas cadratin), décision
-      // utilisateur du 2026-08-28.
-      `<p>Vous êtes assigné(e) à l'évaluation du test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ${echapperHtml(date)} - L'évènement est présent sur votre calendrier outlook.</p>` +
+      paragrapheCreneau +
       // Même ligne, même source de donnée (rendezvous.postes_selectionnes) que l'email candidat
       // ci-dessus — le formateur/inspecteur doit savoir sur quel(s) poste(s) évaluer ce candidat
       // précis, qui peu(ven)t différer des postes déclarés à l'inscription.
@@ -137,13 +169,34 @@ function construireMessageEmailFormateur({
       // double notification : l'invitation Outlook native — et son "Annulé : ..." lors d'une
       // replanification — s'ajoutait à cet email personnalisé) — cet .ics reste donc la SEULE
       // notification qui arrive dans la boîte mail du formateur/inspecteur. Contenu technique de
-      // l'.ics lui-même INCHANGÉ (genererIcsInvitationTest, plus bas) — seul ce texte change.
+      // l'.ics lui-même INCHANGÉ (genererIcsInvitationTest, plus bas) — seul ce texte change,
+      // toujours avec le NOUVEAU créneau (voir infos.dateHeure, envoyerInvitationTest) même pour
+      // une replanification.
       '<p>Vous trouverez en pièce jointe un rappel (.ics) de ce rendez-vous, à ajouter à votre agenda personnel si besoin.</p>' +
       // Lien vers /formateur/evaluations ou /inspecteur/evaluations?rendezvousId=... (voir
       // construireLienEvaluation, formatageEmail.js) — surligne directement la ligne de ce
       // rendez-vous à l'arrivée (audit 2026-08-21, ListeEvaluationsAFaire.jsx/Evaluation.jsx).
       // Placé juste avant la formule de clôture, comme dernière information de l'email.
       `<p><a href="${echapperHtml(lienEvaluation)}">Évaluer le candidat</a></p>` +
+      "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
+  };
+}
+
+// Annulation SIMPLE d'un test déjà planifié (pas une replanification, voir
+// construireMessageEmailFormateur ci-dessus pour ce cas) — audit 2026-08-28 : ce cas n'envoyait
+// jusqu'ici AUCUN email au formateur/inspecteur (changerStatutRendezvous ne fait que mettre à jour
+// `rendezvous.statut`, voir rendezvousService.js), qui découvrait l'annulation seulement en
+// rouvrant son calendrier Outlook (où l'événement était de toute façon supprimé, voir
+// rendezvousService.creerRendezvous — mais rien à supprimer ici puisqu'une annulation simple ne
+// crée jamais de nouveau rendez-vous). Aucune pièce jointe .ics : rien à ajouter à un agenda pour
+// un rendez-vous qui n'a plus lieu.
+function construireMessageEmailAnnulationFormateur({ formateurPrenom, candidatPrenom, candidatNom, dateHeure }) {
+  return {
+    sujet: 'Test annulé',
+    corps:
+      `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
+      `<p>Le test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, prévu le ` +
+      `${echapperHtml(formaterCreneau(dateHeure))}, est annulé.</p>` +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };
 }
@@ -283,6 +336,11 @@ async function envoyerInvitationTest(entite, rendezvous) {
         const { sujet, corps } = construireMessageEmailFormateur({
           ...infos,
           formateurPrenom: formateur.prenom,
+          // Présent uniquement pour une replanification (voir rendezvousService.creerRendezvous,
+          // qui ajoute `ancienRendezVous` au rendez-vous retourné SEULEMENT quand un rendez-vous
+          // 'test' actif préexistait) — undefined pour une planification initiale, auquel cas
+          // construireMessageEmailFormateur retombe sur le texte "Nouveau candidat à évaluer".
+          ancienneDateHeure: rendezvous.ancienRendezVous?.date_heure,
           notePlanification: rendezvous.note_planification,
           lienEvaluation: construireLienEvaluation(FRONTEND_URL, formateur.role_code, rendezvous.id),
         });
@@ -301,4 +359,51 @@ async function envoyerInvitationTest(entite, rendezvous) {
   return { emailEnvoye, smsEnvoye, formateurEmailEnvoye };
 }
 
-module.exports = { envoyerInvitationTest };
+// Annulation SIMPLE d'un rendez-vous de test déjà planifié — PAS une replanification (voir
+// envoyerInvitationTest ci-dessus, qui gère déjà ce second cas via `rendezvous.ancienRendezVous`).
+// Appelée depuis rendezvous.routes.js (PATCH /:rendezvousId) juste après que
+// rendezvousService.changerStatutRendezvous ait bien fait passer le rendez-vous à 'annule' — best-
+// effort, même principe que envoyerInvitationTest (jamais dans la transaction, un échec d'envoi ne
+// remet jamais en cause l'annulation elle-même déjà actée en base). Formateur/inspecteur
+// uniquement : le candidat n'a pas de compte/évaluation à consulter à ce stade, aucun lien à lui
+// envoyer, et sa propre notification d'annulation est hors périmètre de cet audit (2026-08-28).
+async function envoyerNotificationAnnulationTest(entite, rendezvousAnnule) {
+  if (!entite.sms_actif) {
+    return { formateurEmailEnvoye: false, desactive: true };
+  }
+  if (!rendezvousAnnule.formateur_id) {
+    return { formateurEmailEnvoye: false };
+  }
+
+  const bd = await db.obtenirKnex();
+  const [dossier, formateur] = await Promise.all([
+    dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, rendezvousAnnule.dossier_id),
+    utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvousAnnule.formateur_id),
+  ]);
+
+  if (!formateur?.email) {
+    console.error(
+      `Notification d'annulation ignorée pour le rendez-vous ${rendezvousAnnule.id} : pas d'email renseigné pour le formateur.`,
+    );
+    return { formateurEmailEnvoye: false };
+  }
+
+  const notificationProvider = notificationFactory();
+  let formateurEmailEnvoye = false;
+  try {
+    const { sujet, corps } = construireMessageEmailAnnulationFormateur({
+      formateurPrenom: formateur.prenom,
+      candidatPrenom: dossier?.candidat_prenom,
+      candidatNom: dossier?.candidat_nom,
+      dateHeure: rendezvousAnnule.date_heure,
+    });
+    await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
+    formateurEmailEnvoye = true;
+  } catch (erreur) {
+    console.error(`Échec de l'envoi de l'email d'annulation pour le rendez-vous ${rendezvousAnnule.id} :`, erreur.message);
+  }
+
+  return { formateurEmailEnvoye };
+}
+
+module.exports = { envoyerInvitationTest, envoyerNotificationAnnulationTest };

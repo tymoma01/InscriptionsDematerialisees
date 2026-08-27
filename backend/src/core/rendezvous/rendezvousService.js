@@ -503,8 +503,15 @@ async function creerRendezvous(
   // davantage la garantie d'atomicité création+transition qui a corrigé l'incident du dossier 62.
   //
   // Uniquement si un formateur/inspecteur est assigné : aucun calendrier départemental à cibler
-  // sinon (ex. typeRdv 'signature_contrat', qui n'assigne jamais de formateur_id).
+  // sinon (ex. typeRdv 'signature_contrat', qui n'assigne jamais de formateur_id). Portée hors du
+  // bloc `if` (audit 2026-08-28, consolidation de la notification formateur) : `ancienRendezVousActif`
+  // sert non seulement à libérer l'ancien événement Outlook ci-dessous, mais aussi à distinguer une
+  // replanification d'une planification initiale une fois remonté jusqu'à l'appelant (voir la
+  // valeur de retour de cette fonction, plus bas) — invitationTestService.envoyerInvitationTest en
+  // a besoin pour construire un texte unique "initialement prévu le ... replanifié pour le ..."
+  // plutôt que d'envoyer un second email distinct pour l'ancien créneau.
   let outlookEventIdCree = null;
+  let ancienRendezVousActif = null;
   if (formateurIdValide) {
     const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(formateur.role_code);
 
@@ -513,7 +520,9 @@ async function creerRendezvous(
     // corrige la fuite identifiée à l'audit du 2026-08-26 : sans ça, un rendez-vous replanifié
     // laissait son ancien créneau marqué "occupé" indéfiniment sur le calendrier départemental,
     // recréant exactement le risque de double réservation que ce chantier vise à éliminer).
-    const ancienRendezVousActif = await rendezvousRepository.trouverRendezvousTestActifDossier(bd, dossierId);
+    // `?? null` (jamais `undefined`, ce que renvoie Knex `.first()` sans résultat) : garantit une
+    // valeur de retour homogène pour `ancienRendezVous` ci-dessous, que ce bloc s'exécute ou non.
+    ancienRendezVousActif = (await rendezvousRepository.trouverRendezvousTestActifDossier(bd, dossierId)) ?? null;
 
     // "Test ACCECIT — {Formateur/Inspecteur} / {Candidat} — {Poste(s)}" (décision utilisateur,
     // 2026-08-26) : jusqu'ici le subject n'indiquait que le candidat, illisible dès que plusieurs
@@ -608,7 +617,15 @@ async function creerRendezvous(
   // :dossierId/rendezvous sans transitions), ouvrir sa propre transaction ici : neutraliser
   // l'ancien et créer le nouveau doivent réussir ou échouer ensemble, même hors du flux
   // "avec-transitions".
-  return bdExistante ? executerCreation(bdExistante) : bd.transaction(executerCreation);
+  const nouveauRendezvous = await (bdExistante ? executerCreation(bdExistante) : bd.transaction(executerCreation));
+
+  // `ancienRendezVous` ajouté au résultat (audit 2026-08-28) — jamais retiré des champs existants
+  // du rendez-vous créé, qui restent directement accessibles (rendezvous.id, .date_heure, ...) pour
+  // les deux appelants existants (POST / et planifierRendezvousAvecTransitions) : seule une
+  // propriété EN PLUS est ajoutée. `null` pour une planification initiale (aucun rendez-vous actif
+  // ne préexistait) — c'est justement cette valeur qu'invitationTestService.envoyerInvitationTest
+  // utilise pour décider si un texte "replanifié" doit remplacer le texte "nouveau candidat".
+  return { ...nouveauRendezvous, ancienRendezVous: ancienRendezVousActif };
 }
 
 // Appelée par planificationRendezvousService AVANT de créer le nouveau rendez-vous, pour toute

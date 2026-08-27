@@ -11,6 +11,7 @@ const {
   ErreurPlanificationOutlook,
 } = rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
+const invitationTestService = require('../../core/rendezvous/invitationTestService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -274,6 +275,21 @@ router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (
       donnees: { dossierId, statut, motifCode },
       adresseIp: req.ip,
     });
+
+    // Annulation SIMPLE d'un test déjà planifié (audit 2026-08-28) — PAS une replanification, qui
+    // a son propre texte consolidé via invitationTestService.envoyerInvitationTest
+    // (planificationRendezvousService.js). Uniquement 'annule' sur un rendez-vous 'test' avec un
+    // formateur/inspecteur assigné : jamais pour 'absent'/'confirme'/'prevu' (aucune notification
+    // adaptée à ces statuts), ni pour un rendez-vous sans formateur (rien à notifier). Best-effort,
+    // après coup, jamais dans la transaction de changerStatutRendezvous ci-dessus — un échec d'envoi
+    // ne doit jamais transformer une annulation déjà actée en erreur pour l'agent.
+    if (statut === 'annule' && rendezvous.type_rdv === 'test' && rendezvous.formateur_id) {
+      try {
+        await invitationTestService.envoyerNotificationAnnulationTest(req.entite, rendezvous);
+      } catch (erreur) {
+        console.error(`Échec de la notification d'annulation pour le rendez-vous ${rendezvousId} :`, erreur.message);
+      }
+    }
 
     res.json(rendezvous);
   } catch (erreur) {
