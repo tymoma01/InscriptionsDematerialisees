@@ -59,9 +59,15 @@ function versDateTimeGraphUtc(dateIso) {
 // header, mais non garanti selon la version d'API) : dateTime renvoyé sans suffixe de fuseau,
 // toujours interprété comme UTC ici.
 async function obtenirDisponibilites(emailCalendrier, dateDebutIso, dateFinIso) {
-  const client = await graphClient.obtenirClientGraph();
   let reponse;
   try {
+    // `obtenirClientGraph()` inclus dans ce try (audit 2026-08-27, pas seulement l'appel
+    // `.get()` plus bas) : la construction du client va chercher les secrets Key Vault puis
+    // acquiert un token Microsoft, deux appels réseau qui peuvent échouer avec le même genre
+    // d'erreur réseau (timeout, hôte injoignable) qu'un échec de `calendarView` lui-même — les
+    // deux méritent la même traduction en message métier lisible plutôt qu'une erreur technique
+    // brute remontée telle quelle jusqu'à rendezvousService/l'API.
+    const client = await graphClient.obtenirClientGraph();
     reponse = await client
       .api(`/users/${emailCalendrier}/calendarView`)
       .header('Prefer', 'outlook.timezone="UTC"')

@@ -3,6 +3,24 @@ const { creerApp } = require('./app');
 const { PORT } = require('./config/env');
 const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
 
+// Filet de sécurité contre les rejets de promesse jamais rattrapés — sans lui, Node (depuis la
+// v15, comportement par défaut) tue TOUT le process au premier rejet non observé. Constaté en
+// audit (2026-08-27, calendrier hebdomadaire Outlook, dossier #88) : le SDK Azure
+// (@azure/identity / @azure/keyvault-secrets, client HTTP @typespec/ts-http-runtime) peut, lors
+// d'un ECONNREFUSED en tentant de joindre Key Vault ou l'endpoint de token Microsoft, rejeter une
+// promesse INTERNE au SDK que notre code n'awaite jamais directement (donc qu'aucun try/catch
+// applicatif ne peut intercepter) — reproduit en pointant artificiellement la résolution DNS de
+// secretsforinscriptions.vault.azure.net vers une adresse sans service à l'écoute. Le symptôme
+// observé était un crash silencieux du serveur (le calendrier de la modale de planification/
+// replanification se retrouve bloqué, la trace Node brute de l'erreur apparaissant côté client
+// via la requête restée sans réponse). Chaque appel réseau applicatif reste par ailleurs déjà
+// couvert par son propre try/catch (voir graphCalendarService.js, keyVaultClient.js) : ce
+// handler global est un dernier filet pour ce qui échappe à ces couches, jamais un remplacement.
+process.on('unhandledRejection', (raison) => {
+  console.error('Rejet de promesse non intercepté (voir commentaire process.on(\'unhandledRejection\') dans server.js) :');
+  console.error(raison);
+});
+
 // creerApp() est asynchrone (attend la connection string Neon depuis Azure Key Vault pour
 // monter le middleware de session, voir core/auth/session.js) — le serveur n'écoute qu'une fois
 // l'app entièrement construite.

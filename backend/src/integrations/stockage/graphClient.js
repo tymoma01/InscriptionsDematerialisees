@@ -23,6 +23,14 @@ async function obtenirClientGraph() {
 
       return Client.initWithMiddleware({ authProvider });
     })();
+    // Ne pas garder en cache une construction en échec (même principe que keyVaultClient.js,
+    // obtenirSecret) : audit 2026-08-27, sans ce filet un échec transitoire (Key Vault ou
+    // Microsoft injoignable un court instant) restait cassé pour toute la durée de vie du
+    // process — chaque appel suivant au calendrier hebdomadaire aurait échoué à l'identique
+    // jusqu'au prochain redémarrage du serveur, même une fois le réseau redevenu disponible.
+    promesseClient.catch(() => {
+      promesseClient = undefined;
+    });
   }
   return promesseClient;
 }

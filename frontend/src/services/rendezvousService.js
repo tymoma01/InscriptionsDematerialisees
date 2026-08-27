@@ -73,8 +73,17 @@ export async function listerRendezvousTest({ aVenir, formateurId, dateDebut, dat
 // CalendrierHebdomadaireDisponibilite.jsx (audit 2026-08-26). formateurId envoyé, jamais l'email
 // individuel de la personne (résolu côté serveur, voir rendezvousService.obtenirDisponibilitesFormateur) :
 // [{ debut, fin }] en retour, jamais autre chose sur cette personne.
+//
+// `timeout` explicite (audit 2026-08-27, calendrier resté grisé/en "Chargement…" sur un
+// ECONNREFUSED backend en tentant de joindre Key Vault/Microsoft Graph) : sans lui, cet appel
+// suit le comportement par défaut d'axios (jamais de timeout) et peut rester en attente aussi
+// longtemps que la tentative + les ré-essais internes du SDK Azure du backend, gardant tous les
+// créneaux désactivés (voir `chargement` dans CalendrierHebdomadaireDisponibilite.jsx) pendant
+// toute cette durée. 10s : largement suffisant pour un aller-retour normal (quelques centaines de
+// ms en pratique), assez court pour qu'un problème réseau se traduise vite par le message d'erreur
+// et le retour à un calendrier pleinement sélectionnable, plutôt que par un blocage prolongé.
 export async function obtenirDisponibilitesFormateur({ formateurId, debut, fin }) {
-  const { data } = await api.get('/rendezvous/disponibilites', { params: { formateurId, debut, fin } });
+  const { data } = await api.get('/rendezvous/disponibilites', { params: { formateurId, debut, fin }, timeout: 10000 });
   return data;
 }
 

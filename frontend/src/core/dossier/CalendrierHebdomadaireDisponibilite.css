@@ -44,15 +44,27 @@
   text-align: center;
 }
 
+/* Même traitement que button.page-tests__action (Tests.css, bouton "Replanifier un test" qui ouvre
+   cette modale) — fond teinté plein + bordure dorée + gras, plutôt que le simple contour fin sur
+   fond blanc d'avant cet audit (2026-08-27, retour utilisateur : ce bouton ne se distinguait pas
+   assez comme une action cliquable au milieu du titre de la semaine). */
 .calendrier-hebdo__aujourdhui {
-  border: 1px solid var(--couleur-back-office);
-  background: var(--couleur-fond);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  background: var(--couleur-back-office-clair);
   color: var(--couleur-back-office);
   border-radius: var(--rayon-bordure);
-  padding: 0.15rem 0.5rem;
+  padding: 0.3rem 0.6rem;
   font-size: 0.8rem;
-  font-weight: 400;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.calendrier-hebdo__aujourdhui:hover {
+  background: var(--statut-dore-fond);
+  border-color: var(--couleur-back-office);
 }
 
 .calendrier-hebdo__statut {
@@ -198,9 +210,17 @@
 
 /* Une colonne jour = une mini-grille verticale (audit lisibilité 2026-08-26, remplace le découpage
    ligne-par-ligne d'avant) : les boutons créneaux forment le calque de clic (auto-placés, un par
-   ligne, `grid-column: 1 / -1`), .calendrier-hebdo__evenements-overlay se superpose par-dessus
-   (`position: relative` sur ce conteneur, l'overlay lui-même est un item de grille explicitement
-   placé sur `1 / -1` en ligne ET colonne — pas besoin d'absolute/top/left séparés). */
+   ligne, `grid-column: 1 / -1`). .calendrier-hebdo__evenements-overlay se superpose par-dessus en
+   `position: absolute` (voir sa règle plus bas) — PAS comme item de cette grille (`position:
+   relative` ici sert justement de repère pour ce positionnement absolu). Audit 2026-08-27 : un
+   essai antérieur plaçait l'overlay comme item de grille (`grid-row: 1 / -1`), ce qui doublait
+   silencieusement le nombre de pistes calculées par le navigateur dès qu'un 5e enfant à
+   positionnement explicite rejoignait 44 enfants auto-placés sur une grille à une seule colonne
+   (reproduit en isolation, avec ou sans `-1`, quelle que soit la syntaxe de placement) — la colonne
+   se retrouvait deux fois plus haute que prévu, poussant la moitié des créneaux hors de la zone
+   visible du calendrier (symptôme : grille "bloquée" avant une certaine heure, sans lien avec le
+   chargement Outlook). Un enfant en `position: absolute` sort entièrement du calcul des pistes de
+   la grille, donc de ce risque. */
 .calendrier-hebdo__colonne-jour {
   position: relative;
   display: grid;
@@ -231,17 +251,30 @@
   background: var(--couleur-back-office-clair);
 }
 
+/* Contraste renforcé (audit 2026-08-27) : --couleur-fond-secondaire (#f9fafb) combiné à opacity:0.5
+   rendait un créneau désactivé (passé/dimanche) quasiment indiscernable d'un créneau libre
+   (--couleur-fond, blanc pur) — un agent ne pouvait pas voir d'un coup d'œil quels créneaux
+   restaient sélectionnables sur le reste de la grille. `--gris-200` en fond plein (pas de mélange
+   par opacity avec ce qu'il y a dessous) tranche nettement avec le blanc des créneaux libres, sans
+   toucher à la teinte "occupé" (.calendrier-hebdo__creneau--occupe, redéclarée après pour la
+   cascade) ni au motif hachuré du dimanche (.calendrier-hebdo__creneau--dimanche, spécificité égale
+   mais déclarée après lui aussi). */
 .calendrier-hebdo__creneau:disabled {
-  cursor: default;
-  background: var(--couleur-fond-secondaire);
-  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--gris-200);
 }
 
 /* Dimanche : distinct d'un créneau simplement passé/occupé (opacité seule ne suffirait pas à
    expliquer POURQUOI il est désactivé) — motif hachuré léger plutôt qu'une couleur pleine
    supplémentaire, pour rester lisible sur une grille déjà dense sans ajouter de variable de
-   couleur pour ce seul usage. */
-.calendrier-hebdo__creneau--dimanche {
+   couleur pour ce seul usage. Sélecteur composé (`.calendrier-hebdo__creneau.…--dimanche`, pas
+   `.…--dimanche` seul) — audit 2026-08-27 : une classe seule a une spécificité plus faible que
+   `.calendrier-hebdo__creneau:disabled` ci-dessus (une classe + une pseudo-classe), qui écrasait
+   silencieusement ce motif hachuré depuis l'introduction de la teinte "disabled" pleine (le
+   dimanche rendait alors comme n'importe quel autre créneau désactivé, sans indice visuel sur la
+   raison). Même spécificité que `:disabled` désormais, donc c'est l'ordre déclaré ci-dessous
+   (après) qui tranche en sa faveur. */
+.calendrier-hebdo__creneau.calendrier-hebdo__creneau--dimanche {
   background: repeating-linear-gradient(
     45deg,
     var(--couleur-fond-secondaire),
@@ -249,7 +282,6 @@
     var(--gris-50) 4px,
     var(--gris-50) 8px
   );
-  opacity: 0.6;
 }
 
 /* Créneau occupé sur le calendrier Outlook réel — même teinte que
@@ -271,16 +303,19 @@
   background: color-mix(in srgb, var(--couleur-erreur) 48%, var(--couleur-fond));
 }
 
-/* Calque des blocs Outlook fusionnés (points 2 et 3 de l'audit lisibilité 2026-08-26) — un item de
-   grille explicitement placé sur toute la grille du parent (`grid-row`/`grid-column: 1 / -1`),
-   superposé aux boutons créneaux (peints avant lui dans le DOM, donc en dessous). `pointer-events:
-   none` en cascade sur tout le calque et ses enfants : le clic doit toujours atteindre le bouton
-   créneau dessous, même sur la portion couverte par un bloc. Sa propre grille interne
-   (grid-template-rows/columns, en `style` inline car dépendante du nombre de créneaux/colonnes de CE
-   jour) aligne chaque bloc pile sur les lignes de la grille de clic en dessous. */
+/* Calque des blocs Outlook fusionnés (points 2 et 3 de l'audit lisibilité 2026-08-26) — `position:
+   absolute; inset:0` sur le parent `.calendrier-hebdo__colonne-jour` en `position: relative` (PAS un
+   item de sa grille, voir le commentaire de cette règle — audit 2026-08-27, doublait le nombre de
+   pistes de la grille du parent), superposé aux boutons créneaux (peints avant lui dans le DOM, donc
+   en dessous). `pointer-events: none` en cascade sur tout le calque et ses enfants : le clic doit
+   toujours atteindre le bouton créneau dessous, même sur la portion couverte par un bloc. Sa propre
+   grille interne (grid-template-rows/columns, en `style` inline car dépendante du nombre de
+   créneaux/colonnes de CE jour) aligne chaque bloc pile sur les lignes de la grille de clic en
+   dessous — son `inset:0` lui donne exactement la même hauteur que son parent (44 × 2rem), donc les
+   mêmes proportions de ligne qu'une grille à 44 pistes de 1fr chacune. */
 .calendrier-hebdo__evenements-overlay {
-  grid-row: 1 / -1;
-  grid-column: 1 / -1;
+  position: absolute;
+  inset: 0;
   display: grid;
   pointer-events: none;
 }

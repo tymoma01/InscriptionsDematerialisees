@@ -33,6 +33,25 @@ const PAS_MINUTES = 15;
 // privé, ou champ jamais renseigné) — un bloc occupé ne doit jamais rester vide/illisible.
 const LIBELLE_OCCUPATION_PAR_DEFAUT = 'Occupé';
 
+// Message affiché quand /api/rendezvous/disponibilites échoue — audit 2026-08-27 (calendrier
+// bloqué + trace technique brute affichée suite à un ECONNREFUSED côté serveur, voir aussi
+// graphClient.js/server.js pour le correctif de la cause racine). Rassure explicitement l'agent
+// qu'il peut continuer : ce calendrier n'a jamais été qu'informatif (voir `desactive` plus bas,
+// qui ne dépend ni de `erreur` ni de `evenements` — un échec de chargement ne bloque donc déjà
+// aucun créneau futur), mais un message d'erreur qui ne le précise pas laisse penser le contraire.
+const MESSAGE_ERREUR_DISPONIBILITES =
+  'Impossible de charger les disponibilités Outlook, vous pouvez tout de même planifier.';
+
+// Un message d'erreur venant du serveur (ex. permissions Graph insuffisantes, secrets Key Vault
+// invalides) reste utile à afficher tel quel pour guider le diagnostic — MAIS ne jamais faire
+// confiance aveuglément à son contenu : si un jour une erreur technique brute (trace Node,
+// `AggregateError` non traduite) devait malgré tout remonter jusqu'ici plutôt que d'être
+// interceptée côté serveur, ce garde-fou l'écarte au profit de MESSAGE_ERREUR_DISPONIBILITES
+// plutôt que de l'afficher telle quelle à l'agent (audit 2026-08-27).
+function estMessageErreurAffichable(message) {
+  return typeof message === 'string' && message.length > 0 && message.length <= 300 && !/\bat\s+\S+[:(]/.test(message);
+}
+
 const CRENEAUX_HORAIRES = [];
 for (let heure = HEURE_DEBUT; heure < HEURE_FIN; heure += 1) {
   for (let minute = 0; minute < 60; minute += PAS_MINUTES) {
@@ -113,9 +132,11 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
       })
       .catch((erreurRequete) => {
         if (!annule) {
-          setErreur(
-            erreurRequete.response?.data?.erreur ?? 'Impossible de récupérer les disponibilités Outlook de cette personne.',
-          );
+          const messageBackend = erreurRequete.response?.data?.erreur;
+          // `evenements` n'est PAS réinitialisé ici : la grille garde son dernier état connu
+          // (ou reste vide au tout premier chargement) plutôt que de basculer sur un état
+          // fail-safe "tout occupé" — voir `desactive` plus bas, qui ne dépend jamais de `erreur`.
+          setErreur(estMessageErreurAffichable(messageBackend) ? messageBackend : MESSAGE_ERREUR_DISPONIBILITES);
         }
       })
       .finally(() => {
@@ -261,7 +282,11 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
               className="calendrier-hebdo__aujourdhui"
               onClick={() => setLundiAffiche(lundiDeLaSemaine(dateDuJourParis()))}
             >
-              Cette semaine
+              {/* Icône décorative seule (aria-hidden) : le texte du bouton porte déjà tout le sens
+                  pour un lecteur d'écran — audit 2026-08-27, le bouton devait surtout mieux se
+                  distinguer visuellement comme une action cliquable (voir CSS, même traitement que
+                  button.page-tests__action, Tests.css). */}
+              <span aria-hidden="true">↺</span> Revenir à la semaine en cours
             </button>
           )}
         </div>
@@ -274,6 +299,10 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
       {chargement && <p className="calendrier-hebdo__statut">Chargement des disponibilités Outlook…</p>}
       {erreur && <p className="calendrier-hebdo__statut" role="alert">{erreur}</p>}
 
+      {/* La grille reste affichée MÊME en cas d'erreur (`formateurId` est la seule condition ici,
+          jamais `!erreur`) — audit 2026-08-27 : ce calendrier n'a jamais été qu'informatif (voir
+          `desactive` plus bas), un échec de chargement des disponibilités Outlook ne doit donc
+          jamais empêcher l'agent de sélectionner un créneau futur. */}
       {formateurId && (
         <div className="calendrier-hebdo__grille-scroll">
           <div className="calendrier-hebdo__grille">
@@ -325,17 +354,7 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
               const { blocs, nombreColonnes } = blocsParJour.get(jourIso);
 
               return (
-                <div
-                  key={jourIso}
-                  className="calendrier-hebdo__colonne-jour"
-                  // `grid-template-rows` explicite (pas seulement `grid-auto-rows` en CSS) —
-                  // indispensable pour que `grid-row: 1 / -1` sur .calendrier-hebdo__evenements-
-                  // overlay ci-dessous résolve correctement : `-1` ne compte que les lignes de la
-                  // grille EXPLICITE, jamais les pistes implicites créées par l'auto-placement des
-                  // boutons créneaux — sans cette ligne, l'overlay se retrouvait à hauteur 0 (bloc
-                  // invisible, seule la teinte "occupé" du bouton dessous restait visible).
-                  style={{ gridTemplateRows: `repeat(${CRENEAUX_HORAIRES.length}, 2rem)` }}
-                >
+                <div key={jourIso} className="calendrier-hebdo__colonne-jour">
                   {CRENEAUX_HORAIRES.map(({ heure, minute }) => {
                     const passe = versInstant(jourIso, heure, minute) < Date.now();
                     const evenementsOccupants = trouverEvenementsOccupantCreneau(jourIso, heure, minute);
@@ -349,6 +368,10 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                     // connaissance de cause. Seules les dates/heures passées (et dimanche, hors
                     // horaires ouvrés) restent bloquées ici ; le garde-fou qui fait foi reste de toute
                     // façon compterRendezvousFormateurAuCreneau côté serveur à la confirmation.
+                    // `chargement` (bref, le temps d'une requête) est la SEULE dépendance liée au
+                    // réseau ici — volontairement PAS `erreur` : un échec de chargement des
+                    // disponibilités ne doit jamais transformer "on ne sait pas" en "tout est
+                    // occupé" (audit 2026-08-27, calendrier bloqué suite à un ECONNREFUSED serveur).
                     const desactive = dimanche || passe || chargement;
 
                     return (
