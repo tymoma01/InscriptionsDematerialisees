@@ -539,7 +539,6 @@ async function creerRendezvous(
         finIso: new Date(new Date(dateHeure).getTime() + DUREE_TEST_MINUTES * 60 * 1000).toISOString(),
         lieuLibelle: lieu?.adresse,
         participantEmail: formateur.email,
-        participantNom: `${formateur.prenom} ${formateur.nom}`,
       });
     } catch (erreur) {
       throw new ErreurPlanificationOutlook(erreur.message);

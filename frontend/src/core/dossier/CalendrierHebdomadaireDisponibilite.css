@@ -233,7 +233,14 @@
    créneaux de 15 min d'une même colonne n'auraient plus aucun repère visuel entre eux. `:nth-child(4n)`
    marque en plus le passage à l'heure pleine (4 créneaux de 15 min), aligné sur les libellés
    d'heure de .calendrier-hebdo__colonne-heures. */
+/* `position: relative` (audit lisibilité 2026-08-28) : repère d'ancrage pour l'infobulle
+   d'occupation (.calendrier-hebdo__creneau__infobulle plus bas, position absolue) — un simple
+   `position: relative` sur un item de grille auto-placé ne change rien à son placement ni au
+   nombre de pistes calculées par le parent (seuls des enfants en `position: absolute`/`fixed`
+   sortent du calcul des pistes, voir le commentaire de .calendrier-hebdo__colonne-jour plus haut
+   pour le bug que ça avait causé ailleurs) : aucun risque de régression du même ordre ici. */
 .calendrier-hebdo__creneau {
+  position: relative;
   grid-column: 1 / -1;
   height: 2rem;
   border: none;
@@ -323,21 +330,110 @@
 /* Bloc Outlook fusionné : une seule occurrence pour tout un événement, quelle que soit sa durée
    (contre une répétition par créneau de 15 min avant cet audit) — `margin` (pas de bordure) pour
    distinguer visuellement deux blocs adjacents dans la même colonne (occupations simultanées) sans
-   ajouter de couleur de bordure dédiée. */
+   ajouter de couleur de bordure dédiée. Reste un `<div>` purement visuel, `pointer-events: none`
+   hérité de .calendrier-hebdo__evenements-overlay (JAMAIS réactivé ici) : le clic doit toujours
+   atteindre le bouton créneau dessous — voir .calendrier-hebdo__creneau__infobulle plus bas pour où
+   vit désormais l'infobulle au survol (portée par ce bouton, pas par ce bloc, qui ne peut jamais
+   déclencher de `:hover` tant qu'il n'intercepte pas les événements pointeur). */
+/* `min-width: 0` (audit chevauchement 2026-08-28) : sans lui, un item de grille garde par défaut un
+   `min-width: auto` qui l'empêche de rétrécir sous la taille MIN-CONTENU de son texte — pour un
+   libellé long en `white-space: nowrap` (voir .calendrier-hebdo__evenement-bloc__libelle), ce
+   min-contenu est la largeur du texte NON tronqué, `text-overflow: ellipsis` n'y change rien
+   (l'ellipsis n'agit qu'après que la taille de la boîte est déjà déterminée). Conséquence concrète
+   avant ce correctif : la piste `1fr` d'un événement au libellé long (ex. "CAFET BEGUM UDDIN
+   FATEMA Report rv car tenue inadeqiate") s'étirait bien au-delà de sa part équitable — un
+   `getComputedStyle` a montré deux pistes de 335px/191px (526px cumulés) pour une colonne de jour
+   large de seulement 164px — poussant la piste voisine (donc l'événement simultané qui s'y trouve)
+   visuellement hors de sa propre colonne, dans celle du jour suivant, où elle se faisait recouvrir
+   par le contenu de CETTE colonne (peint après elle dans le DOM). Deux événements réellement
+   simultanés (ex. Lun 24/08 07h00, "VDC YANIS BEN FATTBUM" / "FDC MASINDA MAKILA JOCELINE")
+   semblaient donc s'occulter l'un l'autre, alors que l'algorithme de colonnes (blocsParJour,
+   CalendrierHebdomadaireDisponibilite.jsx) leur attribuait déjà correctement deux colonnes
+   distinctes — le bug était uniquement dans le dimensionnement CSS de ces colonnes, jamais dans le
+   calcul lui-même. */
 .calendrier-hebdo__evenement-bloc {
+  min-width: 0;
   margin: 1px 2px;
-  padding: 1px 4px;
+  padding: 2px 5px;
   border-radius: 3px;
+  background: color-mix(in srgb, var(--couleur-erreur) 55%, var(--couleur-fond));
+}
+
+/* Libellé tronqué affiché directement dans le bloc — taille et graisse relevées (0.6rem/400 ->
+   0.68rem/600, audit lisibilité 2026-08-28) : à 0.6rem un début de libellé comme "VDC YANIS BEN…"
+   restait illisible même abrégé, y compris sur les captures tablette visées par ce composant (voir
+   CLAUDE.md, usage tablette uniquement). */
+.calendrier-hebdo__evenement-bloc__libelle {
+  display: block;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: color-mix(in srgb, var(--couleur-erreur) 55%, var(--couleur-fond));
-  font-size: 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   line-height: 1.2;
   /* --couleur-texte (gris foncé), pas --couleur-erreur : le fond teinté porte déjà le sens
-     "occupé" (+ tooltip/aria-label du bouton dessous) — un texte rouge sur fond rouge clair tombe
+     "occupé" (+ infobulle/aria-label du bouton dessous) — un texte rouge sur fond rouge clair tombe
      sous ~3.5:1 de contraste, --couleur-texte dessus reste largement au-dessus de 4.5:1. */
   color: var(--couleur-texte);
+}
+
+/* Infobulle maison (audit lisibilité 2026-08-28) — portée par le VRAI bouton créneau
+   (.calendrier-hebdo__creneau, `position: relative` ajouté plus haut), pas par le bloc fusionné
+   ci-dessus qui est purement décoratif : comme ce bloc se superpose visuellement au bouton,
+   survoler le bloc revient concrètement à survoler ce bouton, donc l'infobulle apparaît au bon
+   endroit sans rien changer au clic/à la désactivation déjà en place sur le bouton. Fond sombre/
+   texte clair volontairement neutre (pas la teinte "occupé" du bloc) : reste lisible quel que soit
+   l'état du bouton dessous (occupé, sélectionné, désactivé passé...). Même mécanique CSS pure
+   (opacity 0->1 au survol/focus, aucun état React) que .bouton-nouvelle-inscription__infobulle
+   (BoutonNouvelleInscription.css), seul autre endroit du projet avec une infobulle maison — jamais
+   de librairie de tooltip, absente de ce projet. Positionnée SOUS le bouton, `left/right: 0` (pas de
+   largeur fixe ni de centrage par transform) pour rester calée sur la largeur de sa propre colonne
+   de jour plutôt que déborder sur les colonnes voisines — le calendrier défile aussi
+   horizontalement, un débordement latéral serait plus gênant qu'un débordement vertical bas.
+   `white-space: normal` : le libellé COMPLET doit pouvoir passer à la ligne, jamais être coupé une
+   deuxième fois. Point ouvert connu : `.calendrier-hebdo__grille-scroll` (ancêtre, `overflow: auto`)
+   peut rogner cette infobulle pour un créneau proche du bord haut/bas de la zone de défilement —
+   accepté comme limite d'une infobulle CSS pure sans lib de positionnement dynamique. */
+.calendrier-hebdo__creneau__infobulle {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--rayon-bordure);
+  background: var(--gris-800);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.calendrier-hebdo__creneau:hover .calendrier-hebdo__creneau__infobulle,
+.calendrier-hebdo__creneau:focus-visible .calendrier-hebdo__creneau__infobulle {
+  opacity: 1;
+}
+
+/* Une ligne par événement occupant ce créneau (occupations simultanées, plusieurs événements sur le
+   même quart d'heure) — séparateur fin plutôt qu'un simple retour à la ligne, pour bien distinguer
+   visuellement où un sujet finit et où le suivant commence quand il y en a plusieurs. */
+.calendrier-hebdo__creneau__infobulle-ligne:not(:last-child) {
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 /* Créneau sélectionné qui tombe dans la plage d'un bloc Outlook (voir indexCreneauSelectionne,

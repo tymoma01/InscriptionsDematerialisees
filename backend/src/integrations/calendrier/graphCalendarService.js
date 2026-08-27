@@ -98,22 +98,25 @@ async function obtenirDisponibilites(emailCalendrier, dateDebutIso, dateFinIso) 
   }));
 }
 
-// Crée l'événement réel sur le calendrier départemental — `participantEmail`/`participantNom`
-// ajoutés en `attendees` (jamais en `organizer`, que Graph impose de toute façon comme la boîte
-// propriétaire en contexte App-only) : c'est ce champ que obtenirDisponibilites ci-dessus relit
-// pour identifier les créneaux occupés PAR CETTE PERSONNE précise sur les lectures futures. Ajouter
-// un attendee déclenche l'envoi natif d'une invitation Outlook standard à `participantEmail` (via
-// Exchange, pas via notre propre envoi d'email) — effet secondaire attendu : le formateur/
-// inspecteur voit aussi ce rendez-vous apparaître directement dans SON propre calendrier Outlook,
-// en plus du calendrier départemental partagé.
-async function creerEvenement(emailCalendrier, { sujet, corps, debutIso, finIso, lieuLibelle, participantEmail, participantNom }) {
+// Crée l'événement réel sur le calendrier départemental — jamais d'`attendees` (audit 2026-08-28,
+// corrige une double notification) : le calendrier cible (formation@/tertiaire2@) appartient déjà
+// au département concerné, l'événement y est créé directement, aucun participant à inviter. Un
+// `attendee` sur ce payload déclenchait l'envoi natif d'une invitation Outlook standard au
+// formateur/inspecteur (boutons Accepté/À confirmer/Refusé/Proposer un nouvel horaire) EN PLUS de
+// notre propre email personnalisé ("Nouveau candidat à évaluer", voir invitationTestService.js) —
+// et son équivalent "Annulé : ..." lors de la suppression de l'événement au moment d'une
+// replanification (voir supprimerEvenement plus bas, appelé par rendezvousService.js) : deux
+// notifications pour une seule action, dont une jamais voulue. `participantEmail` conservé
+// uniquement pour identifier la personne dans le message d'erreur ci-dessous en cas d'échec —
+// `organizer` reste de toute façon imposé par Graph comme la boîte départementale elle-même en
+// contexte App-only, jamais modifiable ici.
+async function creerEvenement(emailCalendrier, { sujet, corps, debutIso, finIso, lieuLibelle, participantEmail }) {
   const client = await graphClient.obtenirClientGraph();
   const payload = {
     subject: sujet,
     body: { contentType: 'HTML', content: corps ?? '' },
     start: { dateTime: versDateTimeGraphUtc(debutIso), timeZone: 'UTC' },
     end: { dateTime: versDateTimeGraphUtc(finIso), timeZone: 'UTC' },
-    attendees: [{ emailAddress: { address: participantEmail, name: participantNom }, type: 'required' }],
   };
   if (lieuLibelle) {
     payload.location = { displayName: lieuLibelle };

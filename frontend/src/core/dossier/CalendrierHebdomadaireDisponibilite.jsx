@@ -390,7 +390,28 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                         aria-disabled={desactive}
                         aria-label={`${JOURS_SEMAINE[indexJour]} ${libelleJour(jourIso)} à ${heure}h${minute}${occupe ? ` (occupé : ${libelleOccupation})` : ''}`}
                         onClick={() => onSelectionnerCreneau(jourIso, heure, minute)}
-                      />
+                      >
+                        {/* Infobulle maison (audit lisibilité 2026-08-28) : portée par le VRAI
+                            bouton créneau (pas par le bloc fusionné ci-dessous, qui est purement
+                            visuel — `pointer-events: none`, voir son calque parent — et ne peut
+                            donc jamais déclencher de `:hover`). Comme le bloc se superpose
+                            visuellement à ce bouton, survoler le bloc revient concrètement à
+                            survoler ce bouton : l'agent voit l'infobulle apparaître au bon endroit
+                            sans qu'on touche au clic/désactivation déjà en place ici. N'est rendue
+                            que si `occupe` (jamais pour les 44×7 créneaux libres, qui n'ont rien à
+                            détailler) — voir CSS pour le déclenchement au survol/focus. */}
+                        {occupe && (
+                          <span className="calendrier-hebdo__creneau__infobulle" aria-hidden="true">
+                            {evenementsOccupants.map((evenement, indexEvenement) => (
+                              <span key={indexEvenement} className="calendrier-hebdo__creneau__infobulle-ligne">
+                                {evenement.sujet || LIBELLE_OCCUPATION_PAR_DEFAUT}
+                                {' — '}
+                                {FORMAT_HEURE.format(new Date(evenement.debut))}–{FORMAT_HEURE.format(new Date(evenement.fin))}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </button>
                     );
                   })}
 
@@ -399,7 +420,8 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                       none` en cascade depuis .calendrier-hebdo__evenements-overlay (CSS) : le clic
                       doit toujours atteindre le bouton créneau dessous, jamais être intercepté par
                       un bloc qui ne couvre qu'une partie de la largeur de la colonne (occupations
-                      simultanées côte à côte). */}
+                      simultanées côte à côte). Purement visuel — voir l'infobulle portée par le
+                      bouton créneau ci-dessus, pas par ce bloc. */}
                   <div
                     className="calendrier-hebdo__evenements-overlay"
                     style={{ gridTemplateColumns: `repeat(${nombreColonnes}, 1fr)`, gridTemplateRows: `repeat(${CRENEAUX_HORAIRES.length}, 1fr)` }}
@@ -419,9 +441,8 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
                             gridRow: `${bloc.creneauDebut + 1} / ${bloc.creneauFin + 1}`,
                             gridColumn: `${bloc.colonne + 1} / span 1`,
                           }}
-                          title={`${libelle} (${FORMAT_HEURE.format(new Date(bloc.evenement.debut))}–${FORMAT_HEURE.format(new Date(bloc.evenement.fin))}) — reste sélectionnable`}
                         >
-                          {libelle}
+                          <span className="calendrier-hebdo__evenement-bloc__libelle">{libelle}</span>
                         </div>
                       );
                     })}

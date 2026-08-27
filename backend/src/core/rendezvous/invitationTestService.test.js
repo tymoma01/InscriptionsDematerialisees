@@ -132,6 +132,12 @@ test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participa
   assert.equal(appelFormateur.arguments[3].sujet, 'Nouveau candidat à évaluer');
   assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
   assert.ok(appelFormateur.arguments[2].includes('Sophie Martin'));
+  // Texte revu (audit 2026-08-28, tiret simple, pas cadratin) : le rendez-vous n'ajoute plus le
+  // formateur/inspecteur en `attendee` sur l'événement Graph (voir graphCalendarService.js), donc
+  // cet email + son .ics restent la SEULE notification qu'il reçoit — le texte doit refléter
+  // explicitement que l'événement est déjà sur son calendrier Outlook, pas seulement "prévu".
+  assert.ok(appelFormateur.arguments[2].includes("prévu le"));
+  assert.ok(appelFormateur.arguments[2].includes("- L'évènement est présent sur votre calendrier outlook."));
 
   // Régression (audit 2026-08-20) : l'email formateur n'attachait jusqu'ici jamais l'.ics
   // (contenuIcs était scopé au seul bloc candidat) — même fichier que l'email candidat ci-dessus.

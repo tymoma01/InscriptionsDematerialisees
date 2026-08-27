@@ -220,7 +220,7 @@ test('obtenirDisponibilites retranscrit isAllDay sous `journeeEntiere`', async (
   ]);
 });
 
-test("creerEvenement construit un payload correct (start/end UTC, attendees, location) et renvoie l'événement créé", async (t) => {
+test("creerEvenement construit un payload correct (start/end UTC, location, SANS attendees) et renvoie l'événement créé", async (t) => {
   let corpsEnvoye;
   const client = creerClientMock({
     'POST /users/formation@accecit.com/events': {
@@ -239,19 +239,21 @@ test("creerEvenement construit un payload correct (start/end UTC, attendees, loc
     finIso: '2026-09-01T11:00:00.000Z',
     lieuLibelle: '14 rue de Valadon, 75007 Paris',
     participantEmail: 'formateur@accecit.test',
-    participantNom: 'Formateur Test',
   });
 
   assert.deepEqual(resultat, { id: 'outlook-evenement-abc' });
   // dateTime SANS suffixe 'Z' (voir versDateTimeGraphUtc, graphCalendarService.js) : Graph attend
   // un datetime nu pour dateTimeTimeZone, le fuseau étant porté séparément par `timeZone`.
+  // Pas de clé `attendees` du tout (audit 2026-08-28, corrige la double notification : un
+  // attendee déclenchait une invitation Outlook native EN PLUS de notre email personnalisé, et son
+  // "Annulé : ..." lors d'une replanification) — deepEqual vérifie l'objet exact, une régression
+  // qui réintroduirait `attendees` ferait donc échouer ce test.
   assert.deepEqual(corpsEnvoye, {
     subject: 'Test ACCECIT — Jean Dupont',
     body: { contentType: 'HTML', content: '<p>Dossier #42</p>' },
     start: { dateTime: '2026-09-01T10:00:00.000', timeZone: 'UTC' },
     end: { dateTime: '2026-09-01T11:00:00.000', timeZone: 'UTC' },
     location: { displayName: '14 rue de Valadon, 75007 Paris' },
-    attendees: [{ emailAddress: { address: 'formateur@accecit.test', name: 'Formateur Test' }, type: 'required' }],
   });
 });
 
@@ -272,7 +274,6 @@ test("creerEvenement omet location quand lieuLibelle n'est pas fourni", async (t
     debutIso: '2026-09-01T10:00:00.000Z',
     finIso: '2026-09-01T11:00:00.000Z',
     participantEmail: 'formateur@accecit.test',
-    participantNom: 'Formateur Test',
   });
 
   assert.equal('location' in corpsEnvoye, false);
@@ -291,7 +292,6 @@ test('creerEvenement traduit une erreur 403 en citant la permission Calendars.Re
         debutIso: '2026-09-01T10:00:00.000Z',
         finIso: '2026-09-01T11:00:00.000Z',
         participantEmail: 'formateur@accecit.test',
-        participantNom: 'Formateur Test',
       }),
     /Permissions Microsoft Graph insuffisantes.*"Calendars\.ReadWrite"/s,
   );
