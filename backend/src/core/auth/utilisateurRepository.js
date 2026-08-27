@@ -74,9 +74,12 @@ function trouverRoleParCode(bd, code) {
 
 // Rôles assignables depuis l'écran admin — systeme exclu : ce n'est pas un niveau de permission
 // réel pour un humain, seulement un marqueur d'attribution pour les transitions automatiques
-// (voir rbac.js).
+// (voir rbac.js). `assignable = true` (migration 055, audit du rôle Recruteur 2026-08-27) : un
+// rôle peut rester en base (comptes existants qui le portent encore, historique) sans plus jamais
+// être proposable à la création/modification d'un compte — Recruteur en est le premier cas
+// (assignable = false), sans que la ligne `roles` elle-même soit supprimée.
 function listerRolesAssignables(bd) {
-  return bd('roles').whereNot('code', 'systeme').orderBy('id', 'asc');
+  return bd('roles').whereNot('code', 'systeme').andWhere('assignable', true).orderBy('id', 'asc');
 }
 
 // Utilisateurs actifs d'un ou plusieurs rôles donnés pour l'entité — sert par ex. à peupler le

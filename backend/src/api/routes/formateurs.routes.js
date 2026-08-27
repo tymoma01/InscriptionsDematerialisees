@@ -5,12 +5,13 @@ const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
 
 // Monté sur '/api/formateurs' (voir app.js) — top-level, distinct de '/api/utilisateurs' (gestion
-// des comptes, admin uniquement) : un agent Accueil/Coordination ou Recruteur doit pouvoir lister
-// les formateurs pour assigner un rendez-vous de test (CLAUDE.md, étape "Envoi en test") sans
-// avoir les droits d'administration des comptes.
+// des comptes, admin uniquement) : un agent Accueil/Coordination doit pouvoir lister les
+// formateurs pour assigner un rendez-vous de test (CLAUDE.md, étape "Envoi en test") sans avoir
+// les droits d'administration des comptes.
 const router = Router();
 
-const ROLES_LECTURE_FORMATEURS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
+const ROLES_LECTURE_FORMATEURS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_LECTURE_FORMATEURS));

@@ -14,8 +14,9 @@ const router = Router({ mergeParams: true });
 // Historique des relances (CLAUDE.md, besoin Accueil/Coordination : "historique des relances par
 // candidat, pour ne pas relancer en double") — mêmes rôles que la gestion des pièces
 // justificatives : accueil et coordination sont un seul rôle (ROLES.ACCUEIL_COORDINATION, voir
-// core/auth/rbac.js), le recruteur et l'admin consultent/agissent aussi sur le dossier.
-const ROLES_GESTION_RELANCES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// core/auth/rbac.js), l'admin consulte/agit aussi sur le dossier. Rôle Recruteur retiré (audit
+// 2026-08-27) — voir suppression du rôle en base.
+const ROLES_GESTION_RELANCES = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais à POST, qui reste

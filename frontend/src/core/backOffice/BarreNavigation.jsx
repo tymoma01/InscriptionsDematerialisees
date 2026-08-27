@@ -40,8 +40,9 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Tableau de bord',
     chemin: '/tableau-de-bord/indicateurs',
     estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
-    // Mêmes rôles que statistiques.routes.js.
-    roles: ['accueil_coordination', 'recruteur', 'admin'],
+    // Mêmes rôles que statistiques.routes.js. Rôle Recruteur retiré (audit 2026-08-27) — voir
+    // suppression du rôle en base.
+    roles: ['accueil_coordination', 'admin'],
   },
   {
     cle: 'dossiers',
@@ -55,8 +56,9 @@ const ELEMENTS_NAVIGATION = [
       chemin.startsWith('/accueil/') ||
       chemin.startsWith('/coordination/dossiers/') ||
       chemin.startsWith('/recruteur/'),
-    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS.
-    roles: ['accueil_coordination', 'recruteur', 'admin'],
+    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS. Rôle Recruteur retiré
+    // (audit 2026-08-27) — voir suppression du rôle en base.
+    roles: ['accueil_coordination', 'admin'],
   },
   {
     cle: 'suivi-tests',
@@ -67,8 +69,8 @@ const ELEMENTS_NAVIGATION = [
     // rendez-vous assignés sur cette page (restriction posée côté serveur, voir
     // dossiers.routes.js — jamais une simple restriction d'affichage). Mêmes rôles que
     // dossiers.routes.js (route /rendezvous) et formateurs.routes.js pour Accueil/Coordination/
-    // Recruteur/Admin.
-    roles: ['accueil_coordination', 'recruteur', 'admin', 'formateur', 'inspecteur'],
+    // Admin. Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
+    roles: ['accueil_coordination', 'admin', 'formateur', 'inspecteur'],
   },
   {
     cle: 'comptes-utilisateurs',

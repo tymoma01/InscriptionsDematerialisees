@@ -7,14 +7,15 @@ const { ROLES } = require('../../core/auth/rbac');
 const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConstantes');
 
 // Monté sur '/api/statistiques' (voir app.js) — tableau de bord KPI back-office. Ouvert à
-// Accueil/Coordination (2026-08-17, refonte navigation back-office) en plus de Recruteur/Admin :
-// CLAUDE.md identifie explicitement le suivi des désistements comme un point mort pour la
-// Coordination ("Aucun moyen actuel d'anticiper les désistements"), ce tableau de bord en
-// lecture seule (aucune donnée sensible NIR/RIB/pièces) répond directement à ce besoin.
+// Accueil/Coordination (2026-08-17, refonte navigation back-office) en plus d'Admin : CLAUDE.md
+// identifie explicitement le suivi des désistements comme un point mort pour la Coordination
+// ("Aucun moyen actuel d'anticiper les désistements"), ce tableau de bord en lecture seule (aucune
+// donnée sensible NIR/RIB/pièces) répond directement à ce besoin. Rôle Recruteur retiré (audit
+// 2026-08-27) — voir suppression du rôle en base.
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireRole(ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN));
+router.use(requireRole(ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN));
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 

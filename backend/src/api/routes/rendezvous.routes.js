@@ -25,8 +25,9 @@ const router = Router({ mergeParams: true });
 
 // Reprogrammations et désistements (CLAUDE.md, besoins Accueil/Coordination : "relances et
 // reprogrammations" ; "motif de désistement enregistré systématiquement") — mêmes rôles que la
-// gestion des pièces justificatives et des relances.
-const ROLES_GESTION_RENDEZVOUS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// gestion des pièces justificatives et des relances. Rôle Recruteur retiré (audit 2026-08-27) —
+// voir suppression du rôle en base.
+const ROLES_GESTION_RENDEZVOUS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais aux routes

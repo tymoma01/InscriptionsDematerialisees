@@ -25,8 +25,9 @@ const router = Router({ mergeParams: true });
 // est fait par workflowEngine via `transition_roles` (migration 006), pas ici : un formateur/
 // inspecteur reste incapable de déclencher valider_dossier/pieces_completes/etc., faute de ligne
 // transition_roles pour ces couples-là. Défense en profondeur : les deux niveaux sont
-// complémentaires, ni redondants ni contradictoires.
-const ROLES_GESTION_TRANSITIONS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+// complémentaires, ni redondants ni contradictoires. Rôle Recruteur retiré (audit 2026-08-27) —
+// voir suppression du rôle en base.
+const ROLES_GESTION_TRANSITIONS = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
 

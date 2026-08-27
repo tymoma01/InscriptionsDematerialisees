@@ -41,9 +41,10 @@ export default function HistoriqueRelances({ dossierId }) {
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
   // dossier" sur Suivi des tests, voir relances.routes.js ROLES_LECTURE_RELANCES) : consultent
   // l'historique ci-dessous mais ne voient jamais le formulaire d'ajout, réservé à Accueil/
-  // Coordination/Recruteur/Admin (voir ROLES_GESTION_RELANCES côté back — la route POST reste
-  // fermée pour ces deux rôles, ce masquage évite un formulaire visible mais non fonctionnel).
-  const peutGererRelances = ['accueil_coordination', 'recruteur', 'admin'].includes(utilisateur?.roleCode);
+  // Coordination/Admin (voir ROLES_GESTION_RELANCES côté back — la route POST reste fermée pour
+  // ces deux rôles, ce masquage évite un formulaire visible mais non fonctionnel). Rôle Recruteur
+  // retiré (audit 2026-08-27) — voir suppression du rôle en base.
+  const peutGererRelances = ['accueil_coordination', 'admin'].includes(utilisateur?.roleCode);
 
   const [relances, setRelances] = useState([]);
   const [motifs, setMotifs] = useState([]);

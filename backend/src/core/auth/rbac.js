@@ -20,9 +20,12 @@
 // à ce que Accueil/Coordination ne l'assigne jamais à un test hôtel (voir
 // utilisateurService.listerFormateursEtInspecteurs, rendezvousService.js). Décision actée : audit
 // KPI Dashboard / rôle Inspecteur.
+// RECRUTEUR retiré (audit 2026-08-27) : plus aucune fonction dans le workflow v4 d'ACCECIT ni
+// dans celui d'Adaptel (transitions valider_dossier/rejeter_dossier réassignées à
+// ACCUEIL_COORDINATION, voir scripts/ajouterAccueilCoordinationValidationDossierAdaptel.js) —
+// rôle supprimé de la table `roles` en base, les 8 comptes qui le portaient désactivés.
 const ROLES = Object.freeze({
   ACCUEIL_COORDINATION: 'accueil_coordination',
-  RECRUTEUR: 'recruteur',
   FORMATEUR: 'formateur',
   INSPECTEUR: 'inspecteur',
   ADMIN: 'admin',

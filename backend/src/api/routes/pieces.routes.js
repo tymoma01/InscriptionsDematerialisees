@@ -25,11 +25,11 @@ const router = Router({ mergeParams: true });
 // (voir CLAUDE.auth-rbac.md pour le détail de ce qui était ouvert avant ce correctif).
 router.use(requireAuth);
 
-// Upload et vérification (valider/rejeter) restent du ressort de l'accueil/coordination et du
-// recruteur (CLAUDE.md, section Parcours fonctionnel : "Prise de pièces justificatives par
-// l'accueil" ; commentaire plus bas : "pas une décision qu'un recruteur/accueil choisit").
-// L'admin est inclus par cohérence avec son rôle de gestion globale.
-const ROLES_GESTION_PIECES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// Upload et vérification (valider/rejeter) restent du ressort de l'accueil/coordination (CLAUDE.md,
+// section Parcours fonctionnel : "Prise de pièces justificatives par l'accueil" ; commentaire plus
+// bas : "pas une décision qu'un recruteur/accueil choisit" — recruteur historique, rôle retiré,
+// audit 2026-08-27). L'admin est inclus par cohérence avec son rôle de gestion globale.
+const ROLES_GESTION_PIECES = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 // Consultation (liste, téléchargement) ouverte à tous les rôles internes.
 const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 // Export groupé (ZIP) : Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 — besoin RH

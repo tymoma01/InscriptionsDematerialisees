@@ -15,8 +15,9 @@ const router = Router({ mergeParams: true });
 // un accès direct à un dossier (mêmes rôles que ROLES_GESTION_TRANSITIONS, transitions.routes.js :
 // le formateur agit sur un dossier au moment de l'évaluation, il doit pouvoir y laisser une note
 // comme les autres — même chose pour l'inspecteur, côté bureau). Pas de distinction lecture/
-// écriture entre rôles : simple journal partagé.
-const ROLES_NOTES_DOSSIER = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+// écriture entre rôles : simple journal partagé. Rôle Recruteur retiré (audit 2026-08-27) — voir
+// suppression du rôle en base.
+const ROLES_NOTES_DOSSIER = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
 

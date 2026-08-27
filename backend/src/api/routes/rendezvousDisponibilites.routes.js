@@ -13,9 +13,9 @@ const { ROLES } = require('../../core/auth/rbac');
 const router = Router();
 
 // Mêmes rôles que ROLES_GESTION_RENDEZVOUS (rendezvous.routes.js) — seuls Accueil/Coordination/
-// Recruteur/Admin ouvrent la modale de planification (ModalePlanificationTest.jsx), jamais
-// Formateur/Inspecteur.
-const ROLES_LECTURE_DISPONIBILITES = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// Admin ouvrent la modale de planification (ModalePlanificationTest.jsx), jamais Formateur/
+// Inspecteur. Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
+const ROLES_LECTURE_DISPONIBILITES = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_LECTURE_DISPONIBILITES));

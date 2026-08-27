@@ -23,8 +23,9 @@ router.use(requireAuth);
 
 // Vue centralisée des dossiers (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
 // dossiers en attente") — mêmes rôles que la gestion des pièces justificatives (pieces.routes.js),
-// c'est la suite du même parcours interne.
-const ROLES_CONSULTATION_DOSSIERS = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// c'est la suite du même parcours interne. Rôle Recruteur retiré (audit 2026-08-27) : plus aucune
+// fonction dans le workflow v4, voir suppression du rôle en base.
+const ROLES_CONSULTATION_DOSSIERS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET /rendezvous ci-dessous (audit 2026-08-20,
 // accès à "Suivi des tests") — pas à ROLES_CONSULTATION_DOSSIERS lui-même : ces deux rôles n'ont
@@ -46,12 +47,13 @@ const ROLES_CONSULTATION_RENDEZVOUS_TEST = [...ROLES_CONSULTATION_DOSSIERS, ROLE
 const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 
 // GET /derniere-modification ci-dessous (rafraîchissement automatique du back-office, audit
-// 2026-08-24) — les 5 rôles humains (ROLES.SYSTEME exclu, jamais connecté, voir rbac.js) : ce
-// signal est consulté par TOUTES les pages back-office existantes (TableauDeBordAccueil,
-// Tests/Planification/GestionRendezvous accessibles à Formateur/Inspecteur, Validation/Indicateurs
-// à Recruteur/Admin...), il n'a donc pas à restreindre par rôle au-delà de "utilisateur back-office
-// authentifié" — la donnée renvoyée (un simple horodatage) ne révèle rien de sensible par elle-même.
-const ROLES_TOUT_BACK_OFFICE = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+// 2026-08-24) — les 4 rôles humains restants (ROLES.SYSTEME exclu, jamais connecté, voir rbac.js ;
+// ROLES.RECRUTEUR retiré, audit 2026-08-27) : ce signal est consulté par TOUTES les pages
+// back-office existantes (TableauDeBordAccueil, Tests/Planification/GestionRendezvous accessibles
+// à Formateur/Inspecteur, Validation/Indicateurs à Admin...), il n'a donc pas à restreindre par
+// rôle au-delà de "utilisateur back-office authentifié" — la donnée renvoyée (un simple
+// horodatage) ne révèle rien de sensible par elle-même.
+const ROLES_TOUT_BACK_OFFICE = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 // GET /api/dossiers?statut=code — liste des dossiers de l'entité courante, filtrable par statut.
 // Le code de statut n'est jamais figé ici : il vient de la table `statuts`, configurable par
@@ -100,7 +102,8 @@ router.get('/derniere-modification', requireRole(...ROLES_TOUT_BACK_OFFICE), asy
 // réexporte pas cette constante (déclarée localement là-bas), redéclarée ici à l'identique, même
 // convention que le reste du projet (voir CLAUDE.md, dupliqué plutôt que partagé pour quelques
 // lignes de données).
-const ROLES_EXPORT_ZIP_PIECES_GROUPE = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
+const ROLES_EXPORT_ZIP_PIECES_GROUPE = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 // Même schéma CSV que historiqueRendezvousQuerySchema plus bas (dossierIds="12,45,67") — pas
 // partagé entre les deux : ce fichier duplique déjà ce patron pour /rendezvous/historique, une

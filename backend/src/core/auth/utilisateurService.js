@@ -16,6 +16,17 @@ function rejeterRoleSysteme(roleCode) {
   }
 }
 
+// Défense en profondeur (audit du rôle Recruteur, 2026-08-27) : `listerRolesAssignables` filtre
+// déjà `assignable = true` pour le sélecteur du formulaire, mais rien n'empêchait jusqu'ici un
+// appel direct à l'API (roleCode envoyé à la main, en contournant le front) de réussir à attribuer
+// un rôle retiré de la circulation — vérifié ici, sur la ligne `role` déjà résolue par
+// trouverRoleParCode, dans les deux seuls chemins d'écriture (création/modification).
+function rejeterRoleNonAssignable(role) {
+  if (!role.assignable) {
+    throw new Error(`Le rôle "${role.code}" n'est plus attribuable.`);
+  }
+}
+
 async function listerUtilisateurs(entite) {
   const bd = await db.obtenirKnex();
   return utilisateurRepository.listerUtilisateurs(bd, entite.id);
@@ -48,6 +59,7 @@ async function creerUtilisateur(entite, { nom, prenom, email, telephone, motDePa
   if (!role) {
     throw new Error(`Rôle "${roleCode}" introuvable.`);
   }
+  rejeterRoleNonAssignable(role);
 
   // Vérification préalable pour un message clair — la contrainte UNIQUE en base reste le
   // garde-fou réel en cas de double soumission concurrente (voir migration 003).
@@ -110,6 +122,11 @@ async function mettreAJourUtilisateur(
     if (!role) {
       throw new Error(`Rôle "${roleCode}" introuvable.`);
     }
+    // Un compte qui porte DÉJÀ ce rôle (ex. un des 8 comptes Recruteur existants) reste modifiable
+    // sur ses autres champs (actif, nom...) sans jamais repasser par ce rôle non assignable dans
+    // le même appel — ce garde-fou ne bloque qu'un roleCode explicitement RESOUMIS dans la requête,
+    // jamais une simple absence de changement de rôle.
+    rejeterRoleNonAssignable(role);
     champs.role_id = role.id;
   }
   if (motDePasse) {

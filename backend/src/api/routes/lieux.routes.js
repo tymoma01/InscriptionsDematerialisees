@@ -8,14 +8,15 @@ const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
 
 // Monté sur '/api/lieux' (voir app.js) — top-level, même patron que formateurs.routes.js : un
-// agent Accueil/Coordination ou Recruteur doit pouvoir lister les lieux pour planifier un
-// rendez-vous de test (voir ModalePlanificationTest.jsx) sans avoir de droits d'administration.
-// Mêmes rôles pour la création (voir POST ci-dessous) : c'est justement l'agent Accueil qui a
-// besoin de créer un lieu à la volée pendant la planification, pas seulement l'Admin — voir bouton
-// "+" à côté du sélecteur de lieu, ModalePlanificationTest.jsx.
+// agent Accueil/Coordination doit pouvoir lister les lieux pour planifier un rendez-vous de test
+// (voir ModalePlanificationTest.jsx) sans avoir de droits d'administration. Mêmes rôles pour la
+// création (voir POST ci-dessous) : c'est justement l'agent Accueil qui a besoin de créer un lieu
+// à la volée pendant la planification, pas seulement l'Admin — voir bouton "+" à côté du
+// sélecteur de lieu, ModalePlanificationTest.jsx.
 const router = Router();
 
-const ROLES_GESTION_LIEUX = [ROLES.ACCUEIL_COORDINATION, ROLES.RECRUTEUR, ROLES.ADMIN];
+// Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
+const ROLES_GESTION_LIEUX = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_GESTION_LIEUX));
