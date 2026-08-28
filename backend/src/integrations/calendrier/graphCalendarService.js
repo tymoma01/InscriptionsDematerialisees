@@ -134,6 +134,32 @@ async function creerEvenement(emailCalendrier, { sujet, corps, debutIso, finIso,
   }
 }
 
+// Lit l'état ACTUEL d'un événement précis (voir syncCalendrierManuelService.js, dossier "un agent
+// modifie/annule un test directement dans Outlook") — un formateur/inspecteur ou un agent
+// Accueil/Coordination peut déplacer ou supprimer l'événement à même le calendrier départemental,
+// en dehors de l'app : c'est ce que ce sync détecte, périodiquement, en relisant chaque événement
+// par son id plutôt qu'en diffant tout le calendrier (voir obtenirDisponibilites ci-dessus, qui
+// reste, lui, un usage purement informatif/non scopé à nos propres rendez-vous).
+// 404 traité comme "événement supprimé" (renvoie null, jamais une erreur) — même convention que
+// supprimerEvenement ci-dessous : c'est justement le signal qu'utilise l'appelant pour détecter une
+// annulation manuelle. `Prefer: outlook.timezone="UTC"` : même raison qu'obtenirDisponibilites,
+// nécessaire pour comparer `start.dateTime` à rendezvous.date_heure sans ambiguïté de fuseau.
+async function obtenirEvenement(emailCalendrier, outlookEventId) {
+  const client = await graphClient.obtenirClientGraph();
+  try {
+    return await client
+      .api(`/users/${emailCalendrier}/events/${outlookEventId}`)
+      .header('Prefer', 'outlook.timezone="UTC"')
+      .select('start,end,subject')
+      .get();
+  } catch (erreur) {
+    if (erreur?.statusCode === 404) return null;
+    throw traduireErreurGraph(erreur, `lecture de l'événement "${outlookEventId}"`, {
+      permission: PERMISSION_GRAPH_CALENDRIER,
+    });
+  }
+}
+
 // Libère le créneau lors d'une replanification (voir rendezvousService.creerRendezvous, corrige la
 // fuite identifiée à l'audit du 2026-08-26 : sans cet appel, l'ancien événement restait occupé
 // indéfiniment sur le calendrier départemental même une fois le rendez-vous Neon neutralisé).
@@ -157,5 +183,6 @@ module.exports = {
   resoudreCalendrierParRole,
   obtenirDisponibilites,
   creerEvenement,
+  obtenirEvenement,
   supprimerEvenement,
 };

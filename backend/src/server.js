@@ -2,6 +2,8 @@ const http = require('http');
 const { creerApp } = require('./app');
 const { PORT } = require('./config/env');
 const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
+const { demarrerCronSyncCalendrierManuel } = require('./jobs/syncCalendrierManuelCron');
+const { demarrerCronRappel } = require('./jobs/rappelCron');
 
 // Filet de sécurité contre les rejets de promesse jamais rattrapés — sans lui, Node (depuis la
 // v15, comportement par défaut) tue TOUT le process au premier rejet non observé. Constaté en
@@ -35,6 +37,15 @@ async function demarrer() {
   // Démarré une seule fois au lancement du serveur (audit 2026-08-21, dossier #84) — voir
   // jobs/basculeTestNonRealiseCron.js pour la fréquence et le verrou anti-chevauchement.
   demarrerCronBasculeTestNonRealise();
+
+  // Démarré une seule fois au lancement du serveur (décision utilisateur, 2026-08-28) — voir
+  // jobs/syncCalendrierManuelCron.js pour la fréquence et le verrou anti-chevauchement.
+  demarrerCronSyncCalendrierManuel();
+
+  // Démarré une seule fois au lancement du serveur (décision utilisateur, 2026-08-28) — voir
+  // jobs/rappelCron.js pour la fréquence (13h30, après le passage de 13h00 ci-dessus) et le verrou
+  // anti-chevauchement.
+  demarrerCronRappel();
 
   // Arrêt propre : on attend la fin des requêtes en cours, mais serveur.close() seul ne coupe
   // pas les connexions keep-alive déjà établies (ex: onglet front resté ouvert) - sans ça son

@@ -22,6 +22,12 @@ const MOTIFS_DESISTEMENT_ACCECIT = [
   // que le futur tableau de bord (CLAUDE.md, "objectiver le phénomène") puisse isoler les absences
   // détectées automatiquement de celles remontées manuellement.
   { code: 'test_non_realise', libelle: 'Test non réalisé (absence constatée au créneau)' },
+  // Motif dédié (audit 2026-08-28) : posé par syncCalendrierManuelService.js quand le job de
+  // synchronisation détecte qu'un événement Outlook a été supprimé directement dans le calendrier
+  // départemental (formation@/test-tertiaire@accecit.com), sans passer par l'app — l'utilisateur
+  // Outlook a le dernier mot, ce motif distingue cette annulation-là des annulations manuelles
+  // posées depuis l'app (ne_repond_plus, indisponible...) sur le futur tableau de bord.
+  { code: 'annule_depuis_outlook', libelle: 'Annulé manuellement depuis le calendrier Outlook' },
 ];
 
 async function seedMotifsDesistement(codeEntite) {

@@ -306,6 +306,54 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
     .then(([rendezvous]) => rendezvous);
 }
 
+// Rendez-vous de test actifs ('prevu'/'confirme') dont l'événement Outlook est connu — cible du
+// job de synchronisation manuelle (syncCalendrierManuelService.js) : un agent (formateur/inspecteur
+// assigné, ou Accueil/Coordination) peut déplacer ou annuler l'événement directement dans Outlook,
+// en dehors de l'app. formateur_id obligatoire (whereNotNull) : aucun calendrier départemental à
+// vérifier sinon (voir graphCalendarService.resoudreCalendrierParRole — seul un rendez-vous assigné
+// en a un, voir rendezvousService.creerRendezvous). type_rdv='test' explicite en plus (même si
+// aujourd'hui redondant avec formateur_id non nul, aucun autre type n'assignant de formateur — voir
+// rendezvousService.creerRendezvous) : même défense en profondeur que
+// listerRendezvousTestNonRealisesAutomatiquement ci-dessus. Jointures identiques à
+// listerRendezvousParLieu (coordonnées candidat + infos formateur/rôle) : évite une requête
+// supplémentaire par rendez-vous pour la note dossier / l'email candidat / la résolution du
+// calendrier départemental à interroger.
+function listerRendezvousActifsAvecEvenementOutlook(bd, entiteId) {
+  return bd('rendezvous')
+    .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .join('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
+    .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
+    .whereIn('rendezvous.statut', ['prevu', 'confirme'])
+    .whereNotNull('rendezvous.outlook_event_id')
+    .whereNotNull('rendezvous.formateur_id')
+    .select(
+      'rendezvous.id',
+      'rendezvous.dossier_id',
+      'rendezvous.date_heure',
+      'rendezvous.outlook_event_id',
+      'candidats.prenom as candidat_prenom',
+      'candidats.nom as candidat_nom',
+      'utilisateurs.prenom as formateur_prenom',
+      'utilisateurs.nom as formateur_nom',
+      'roles.code as formateur_role_code',
+    );
+}
+
+// Ne touche QUE date_heure (voir syncCalendrierManuelService.js, "déplacé manuellement depuis
+// Outlook") — contrairement à une replanification depuis l'app (rendezvousService.creerRendezvous),
+// qui crée toujours une NOUVELLE ligne et neutralise l'ancienne : ici, c'est le MÊME événement
+// Outlook (même outlook_event_id) qui a simplement changé d'horaire, donc la même ligne
+// `rendezvous` est mise à jour en place, sans neutralisation ni nouvelle ligne.
+function mettreAJourDateHeureRendezvous(bd, rendezvousId, dateHeure) {
+  return bd('rendezvous')
+    .where({ id: rendezvousId })
+    .update({ date_heure: dateHeure })
+    .returning('*')
+    .then(([rendezvous]) => rendezvous);
+}
+
 // Neutralise le(s) rendez-vous du même dossier+type encore actif(s) ('prevu'/'confirme') — voir
 // rendezvousService.creerRendezvous, appelée juste avant la création d'un nouveau rendez-vous pour
 // corriger la cause racine des doublons (audit du 2026-08-13, dossier #88 rendez-vous 61-65) :
@@ -442,6 +490,8 @@ module.exports = {
   listerRendezvousTest,
   listerHistoriqueRendezvousParDossiers,
   mettreAJourStatutRendezvous,
+  listerRendezvousActifsAvecEvenementOutlook,
+  mettreAJourDateHeureRendezvous,
   compterRendezvousFormateurAuCreneau,
   trouverRendezvousTestActifDossier,
   neutraliserRendezvousActifsDossier,
