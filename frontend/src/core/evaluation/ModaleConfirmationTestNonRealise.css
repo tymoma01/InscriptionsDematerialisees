@@ -1,0 +1,86 @@
+/* Même patron que ModaleMonProfil.css (fond sous l'en-tête ACCECIT/BarreNavigation plutôt
+   qu'inset: 0, carte centrée via margin: auto plutôt qu'align-items — voir son commentaire pour
+   le détail des deux raisons) : ce composant est lui aussi monté à l'intérieur d'un
+   <PageBackOffice> (pages/formateur|inspecteur/Evaluation.jsx, via ListeEvaluationsAFaire.jsx),
+   --hauteur-entete/--hauteur-barre-navigation (PageBackOffice.css) y sont donc disponibles de la
+   même façon. */
+.modale-confirmation-non-realise__fond {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+/* Plus petite que ModaleMonProfil (26rem) : un seul message + deux boutons, pas de formulaire —
+   pas de raison de reprendre la même largeur. */
+.modale-confirmation-non-realise {
+  margin: auto;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 26rem;
+  padding: 1.75rem;
+}
+
+.modale-confirmation-non-realise p {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--couleur-texte);
+}
+
+/* Bleu ACCECIT (--couleur-primaire) — même accent que la ligne de contact d'urgence de l'email de
+   convocation (invitationTestService.js, construireMessageEmail) et
+   .informations-inscription__valeur--accent (InformationsInscription.css). */
+.modale-confirmation-non-realise__accent {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+.modale-confirmation-non-realise__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+  margin-top: 1.5rem;
+}
+
+.modale-confirmation-non-realise__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* "Annuler" : même contour neutre que .liste-evaluations__bouton-secondaire
+   (ListeEvaluationsAFaire.css, "Test non réalisé" lui-même) et les autres boutons secondaires du
+   projet (GestionTransitions.css). */
+.modale-confirmation-non-realise__annuler {
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.modale-confirmation-non-realise__annuler:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* "OK" : même style plein/affirmé que .liste-evaluations__item button "Évaluer"
+   (ListeEvaluationsAFaire.css) et .modale-mon-profil__actions button "Enregistrer"
+   (ModaleMonProfil.css). */
+.modale-confirmation-non-realise__ok {
+  border: 1px solid var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.modale-confirmation-non-realise__ok:hover {
+  background-color: var(--couleur-back-office-hover);
+}

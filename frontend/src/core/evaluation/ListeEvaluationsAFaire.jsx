@@ -5,6 +5,7 @@ import { useParametreURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerRendezvousAEvaluer } from '../../services/evaluationService';
 import { appliquerTransition } from '../../services/transitionService';
+import ModaleConfirmationTestNonRealise from './ModaleConfirmationTestNonRealise';
 import './ListeEvaluationsAFaire.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -55,6 +56,10 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   const [erreur, setErreur] = useState(null);
   const [enCoursId, setEnCoursId] = useState(null);
   const [erreurAction, setErreurAction] = useState(null);
+  // Rendez-vous en attente de confirmation "Test non réalisé" (audit 2026-08-28, remplace
+  // window.confirm() — voir marquerNonRealise plus bas) — null tant qu'aucune confirmation n'est
+  // en cours.
+  const [rdvAConfirmer, setRdvAConfirmer] = useState(null);
 
   // Ligne ciblée par rendezvousIdCible — même mécanisme que FormulaireUtilisateur
   // (pages/admin/Utilisateurs.jsx:349-352) : un ref posé sur le nœud DOM lui-même, scrollIntoView
@@ -125,19 +130,14 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   // Retrait local de la liste au succès : GET /evaluations/a-faire filtre déjà par dossier au
   // statut test_planifie (voir evaluationRepository.listerRendezvousAEvaluer), donc ce rendez-vous
   // ne réapparaîtrait de toute façon plus après un rechargement complet.
-  // Confirmation avant action réelle (audit 2026-08-28) — même patron que CaptureTablette.jsx
-  // (gererSuppression, window.confirm) : pas de composant modale dédié pour un simple "êtes-vous
-  // sûr", cohérent avec le reste du projet. Texte de réversibilité vérifié sur le workflow réel
-  // (workflow.config.json, transition replanifier_test depuis test_non_realise) plutôt que copié
-  // tel quel depuis la demande initiale : ROLES_PAR_ACTION_ACCECIT.replanifier_test
-  // (seedTransitionRoles.js) autorise Accueil/Coordination ET Admin, jamais Admin seul.
+  // Confirmation avant action réelle (audit 2026-08-28) — modale custom
+  // (ModaleConfirmationTestNonRealise, voir plus bas) plutôt que window.confirm() (choix initial) :
+  // nécessaire pour mettre en couleur "#{dossierId} {candidat}" dans le message, ce qu'un confirm()
+  // natif ne permet pas. Numéro de dossier + nom du candidat (audit 2026-08-28, ex. "#88 Ibrahima
+  // CHERIF") : rdv.dossier_id/candidat_prenom/candidat_nom déjà disponibles sur cette même ligne
+  // (voir leur affichage juste en dessous, .liste-evaluations__candidat).
   const marquerNonRealise = async (rdv) => {
-    const confirme = window.confirm(
-      'Êtes-vous sûr de vouloir marquer ce test comme non réalisé ? Cette action ne pourra être ' +
-        'annulée que par Accueil/Coordination ou un administrateur.',
-    );
-    if (!confirme) return;
-
+    setRdvAConfirmer(null);
     setEnCoursId(rdv.id);
     setErreurAction(null);
     try {
@@ -247,7 +247,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
                   type="button"
                   className="liste-evaluations__bouton-secondaire"
                   disabled={enCoursId === rdv.id}
-                  onClick={() => marquerNonRealise(rdv)}
+                  onClick={() => setRdvAConfirmer(rdv)}
                 >
                   {enCoursId === rdv.id ? 'Enregistrement...' : 'Test non réalisé'}
                 </button>
@@ -256,6 +256,14 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
             );
           })}
         </ul>
+      )}
+
+      {rdvAConfirmer && (
+        <ModaleConfirmationTestNonRealise
+          rdv={rdvAConfirmer}
+          onConfirmer={() => marquerNonRealise(rdvAConfirmer)}
+          onAnnuler={() => setRdvAConfirmer(null)}
+        />
       )}
     </>
   );
