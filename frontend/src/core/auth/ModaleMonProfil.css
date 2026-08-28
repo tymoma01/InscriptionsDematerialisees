@@ -1,24 +1,44 @@
 /* Même patron que ModaleRelanceGroupee.css (fond plein écran, carte centrée) — dupliqué plutôt
-   que partagé (voir CLAUDE.md, conventions du projet). */
+   que partagé (voir CLAUDE.md, conventions du projet), à une différence près : `top` démarre sous
+   l'en-tête ACCECIT (position: fixed, z-index: 10) et BarreNavigation (position: sticky,
+   z-index: 5, voir PageBackOffice.css/BarreNavigation.css) plutôt qu'`inset: 0` — cette modale est
+   la seule assez haute pour que son fond (z-index: 50, forcément au-dessus des deux) les recouvre
+   sinon complètement (constaté après l'agrandissement à 46rem, audit 2026-08-28). --hauteur-entete
+   et --hauteur-barre-navigation sont posées sur .page-back-office (PageBackOffice.css) et héritées
+   ici via la cascade des custom properties, indépendamment du position: fixed de cet élément — ce
+   composant n'est monté que dans un <PageBackOffice> (pages/formateur|inspecteur/Evaluation.jsx).
+   Centrage par `margin: auto` sur la carte ci-dessous (plutôt qu'align-items/justify-content ici)
+   : centre réellement la carte quand il y a de la place, ET reste scrollable proprement quand son
+   contenu dépasse la hauteur disponible — align-items: center sur ce conteneur couperait le haut
+   de la carte de façon inaccessible au scroll dans ce cas (comportement connu de Flexbox), alors
+   que des marges auto se réduisent naturellement à 0 dès que l'espace manque. */
 .modale-mon-profil__fond {
   position: fixed;
-  inset: 0;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
   background-color: rgba(0, 0, 0, 0.45);
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
   padding: var(--espace-grand) var(--espace-moyen);
   overflow-y: auto;
   z-index: 50;
 }
 
+/* Agrandie une première fois à 34rem (audit 2026-08-28, retour utilisateur : trop compacte), puis
+   élargie ici de +190px supplémentaires (~5cm à 96dpi ; 190px / 16px = 11.875rem) — 34rem +
+   11.875rem = 45.875rem, arrondi à 46rem (+192px, écart négligeable) pour une valeur ronde.
+   width:100% + max-width et le padding de .modale-mon-profil__fond restent le garde-fou
+   responsive (jamais plus large/haute que le viewport, quelle que soit la résolution — mobile/
+   tablette compris). */
 .modale-mon-profil {
+  margin: auto;
   background-color: var(--couleur-fond);
   border-radius: var(--rayon-bordure);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   width: 100%;
-  max-width: 28rem;
-  padding: var(--espace-grand);
+  max-width: 46rem;
+  padding: 2rem;
 }
 
 .modale-mon-profil__entete {
@@ -31,6 +51,7 @@
 
 .modale-mon-profil__entete h2 {
   margin: 0;
+  font-size: 1.4rem;
 }
 
 /* Espacement généreux entre les deux groupes (lecture seule / modifiable) et les messages
@@ -38,19 +59,19 @@
 .modale-mon-profil__contenu {
   display: flex;
   flex-direction: column;
-  gap: var(--espace-grand);
+  gap: 2rem;
 }
 
 /* Carte englobante par groupe — même fond légèrement teinté que
    .informations-inscription__carte (InformationsInscription.css), pour rester cohérent avec le
    style déjà utilisé ailleurs dans l'app pour ce type de résumé d'information. */
 .modale-mon-profil__groupe {
-  padding: var(--espace-moyen) var(--espace-grand);
+  padding: 1.25rem 1.75rem;
   background-color: var(--couleur-fond-secondaire);
   border-radius: var(--rayon-bordure);
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.4rem;
 }
 
 /* Paire libellé/valeur — même patron que .informations-inscription__ligne
@@ -61,9 +82,9 @@
   justify-content: space-between;
   align-items: baseline;
   gap: var(--espace-moyen);
-  padding: 0.5rem 0;
+  padding: 0.75rem 0;
   border-bottom: 1px solid var(--couleur-bordure-legere);
-  font-size: 0.95rem;
+  font-size: 1.05rem;
 }
 
 .modale-mon-profil__groupe .modale-mon-profil__ligne:last-child {
@@ -87,20 +108,26 @@
 }
 
 .modale-mon-profil__champ input[type='tel'] {
-  padding: 0.4rem 0.6rem;
+  padding: 0.6rem 0.8rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   font: inherit;
-  max-width: 12rem;
+  font-size: 1rem;
+  max-width: 14rem;
   text-align: left;
 }
 
 .modale-mon-profil__case-preference {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0 0.2rem;
-  font-size: 0.9rem;
+  gap: 0.65rem;
+  padding: 0.85rem 0 0.2rem;
+  font-size: 1rem;
+}
+
+.modale-mon-profil__case-preference input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .modale-mon-profil__succes {
@@ -122,12 +149,13 @@
 }
 
 .modale-mon-profil__actions button {
-  padding: 0.5rem 1.25rem;
+  padding: 0.7rem 2rem;
   border: 1px solid var(--couleur-back-office);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-back-office);
   color: #ffffff;
   font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
 }
 
