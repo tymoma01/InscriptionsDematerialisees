@@ -169,33 +169,42 @@ export default function Validation() {
   return (
     <PageBackOffice>
       <div className="page-validation">
-        <EnTeteBackOffice />
-        {/* Bouton "Retour au tableau de bord" retiré (refonte navigation, 2026-08-17) : couvert
-            par le lien "Back-office recruteur" de la barre de navigation commune, voir
-            BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
-        <div className="page-validation__titre-ligne">
-          <h1>
-            Dossier #{dossierId}
+        {/* Titre + EnTeteBackOffice regroupés dans un même <header> (audit 2026-08-28, correctif
+            alignement) — même patron que VerificationPieces.jsx/Tests.jsx/Relances.jsx (les 3
+            autres onglets de cette même fiche dossier) : EnTeteBackOffice y vivait jusqu'ici seul,
+            en dehors de toute ligne de titre, ce qui laissait sa propre justify-content:
+            space-between interne s'étirer sur toute la largeur de la page ("Mon profil" collé à
+            gauche, le nom de l'agent centré, "Déconnexion" collé à droite) au lieu de rester
+            groupé à droite comme partout ailleurs dans l'app. Bouton "Retour au tableau de bord"
+            retiré (refonte navigation, 2026-08-17) : couvert par le lien "Back-office recruteur"
+            de la barre de navigation commune, voir BarreNavigation.jsx (montée dans
+            PageBackOffice.jsx). */}
+        <header className="page-validation__entete">
+          <div className="page-validation__titre-ligne">
+            <h1>
+              Dossier #{dossierId}
+              {dossier && (
+                <>
+                  {' - '}
+                  <span className="page-validation__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
+                </>
+              )}
+            </h1>
+            {/* Aligné à l'extrême droite de la ligne de titre (voir .page-validation__titre-ligne,
+                justify-content: space-between — un seul enfant supplémentaire ici, "Statut :" +
+                badge regroupés dans ce <div> pour rester collés l'un à l'autre plutôt que
+                potentiellement séparés par le space-between à deux enfants) — même badge/mapping
+                que le tableau "Dossiers candidats" (TableauDeBordAccueil.jsx), pour que le statut
+                reste visible sans y retourner. */}
             {dossier && (
-              <>
-                {' - '}
-                <span className="page-validation__candidat-nom">{dossier.candidat_nom}</span> {dossier.candidat_prenom}
-              </>
+              <div className="page-validation__statut">
+                <span className="page-validation__statut-libelle">Statut :</span>
+                <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
+              </div>
             )}
-          </h1>
-          {/* Aligné à l'extrême droite de la ligne de titre (voir .page-validation__titre-ligne,
-              justify-content: space-between — un seul enfant supplémentaire ici, "Statut :" +
-              badge regroupés dans ce <div> pour rester collés l'un à l'autre plutôt que
-              potentiellement séparés par le space-between à deux enfants) — même badge/mapping
-              que le tableau "Dossiers candidats" (TableauDeBordAccueil.jsx), pour que le statut
-              reste visible sans y retourner. */}
-          {dossier && (
-            <div className="page-validation__statut">
-              <span className="page-validation__statut-libelle">Statut :</span>
-              <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
-            </div>
-          )}
-        </div>
+          </div>
+          <EnTeteBackOffice />
+        </header>
 
         {/* Bandeau d'accès rapide aux autres écrans du dossier (patch léger, décision utilisateur
             2026-08-21) — voir NavigationFicheDossier.jsx : évite de perdre le fil en arrivant sur

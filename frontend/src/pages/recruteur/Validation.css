@@ -1,5 +1,28 @@
 /* Plus de max-width/margin/padding ici : géré par le conteneur commun PageBackOffice
    (.page-back-office__contenu, voir core/backOffice/PageBackOffice.css). */
+
+/* Regroupe .page-validation__titre-ligne et EnTeteBackOffice sur une même ligne (audit 2026-08-28,
+   correctif alignement — voir le commentaire de Validation.jsx) — même patron que
+   .page-evaluation__entete (pages/formateur/Evaluation.css) : EnTeteBackOffice vivait jusqu'ici
+   seul, hors de toute ligne de titre, sa propre justify-content: space-between interne s'étirant
+   alors sur toute la largeur de la page au lieu de rester groupé à droite. */
+.page-validation__entete {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+  margin: 0 0 var(--espace-grand);
+}
+
+.page-validation__entete .en-tete-back-office {
+  margin-left: auto;
+}
+
+/* flex: 1 1 auto (ajouté au correctif ci-dessus) : occupe l'espace restant DANS .page-validation__entete
+   une fois EnTeteBackOffice placé, pour que son propre justify-content: space-between continue de
+   pousser le badge de statut à l'extrême droite de SA portion de ligne — comportement inchangé par
+   rapport à avant ce correctif, seulement borné à gauche d'EnTeteBackOffice désormais plutôt que de
+   toute la largeur de la page. */
 .page-validation__titre-ligne {
   display: flex;
   align-items: center;
@@ -10,7 +33,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--espace-moyen);
-  margin: 0 0 var(--espace-grand);
+  flex: 1 1 auto;
 }
 
 .page-validation__titre-ligne h1 {
