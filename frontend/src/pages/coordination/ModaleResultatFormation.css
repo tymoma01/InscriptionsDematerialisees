@@ -1,0 +1,112 @@
+/* Même patron que ModaleConfirmationTestNonRealise.css (fond sous l'en-tête ACCECIT/
+   BarreNavigation plutôt qu'inset: 0, carte centrée via margin: auto plutôt qu'align-items — voir
+   son commentaire pour le détail des deux raisons). Monté depuis SuiviFormation.jsx, lui aussi
+   toujours à l'intérieur d'un <PageBackOffice>. */
+.modale-resultat-formation__fond {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-resultat-formation {
+  margin: auto;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.75rem;
+}
+
+.modale-resultat-formation h2 {
+  margin: 0 0 0.5rem;
+  color: var(--couleur-back-office);
+}
+
+.modale-resultat-formation > p {
+  margin: 0 0 1.25rem;
+  font-size: 1.05rem;
+}
+
+/* Même bleu ACCECIT que ModaleConfirmationTestNonRealise.css (--accent) — accent déjà établi
+   ailleurs dans l'app, pas une nouvelle couleur introduite ici. */
+.modale-resultat-formation__accent {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+.modale-resultat-formation form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-resultat-formation label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+/* Même style que .gestion-transitions__formulaire textarea (GestionTransitions.css). */
+.modale-resultat-formation textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+}
+
+.modale-resultat-formation [role='alert'] {
+  margin: 0;
+  color: var(--couleur-erreur);
+  font-size: 0.9rem;
+}
+
+.modale-resultat-formation__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+}
+
+.modale-resultat-formation__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* "Annuler" : même contour neutre que ModaleConfirmationTestNonRealise.css. */
+.modale-resultat-formation__actions button[type='button'] {
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.modale-resultat-formation__actions button[type='button']:hover:not(:disabled) {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* "Confirmer" : même plein/affirmé que ModaleConfirmationTestNonRealise.css (--ok). */
+.modale-resultat-formation__actions button[type='submit'] {
+  border: 1px solid var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.modale-resultat-formation__actions button[type='submit']:hover:not(:disabled) {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.modale-resultat-formation__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

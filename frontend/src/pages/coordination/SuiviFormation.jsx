@@ -10,6 +10,7 @@ import { useParametreURL } from '../../core/filtres/useParametreURL';
 import { listerSuiviFormation } from '../../services/dossierService';
 import { appliquerTransition } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import ModaleResultatFormation from './ModaleResultatFormation';
 import './SuiviFormation.css';
 
 // Suivi de formation (audit 2026-08-28, révise une décision antérieure — "Validé - envoyé en
@@ -50,11 +51,13 @@ function varianteStatut(code) {
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Commentaire auto-généré (jamais tapé par l'agent, voir demande explicite "sans commentaire
-// obligatoire") — même patron que marquerNonRealise (ListeEvaluationsAFaire.jsx) : le serveur
-// (workflowEngine.appliquerTransition) exige quand même un commentaire non vide à l'insertion
-// dans historique_statuts, contrainte générique du moteur, non contournable transition par
-// transition — ce texte la satisfait sans jamais afficher de champ de saisie côté agent.
+// Commentaire désormais SAISI PAR L'AGENT, obligatoire (audit 2026-08-28, révise le choix initial
+// "sans commentaire obligatoire") — voir ModaleResultatFormation.jsx, ouverte au clic sur l'un des
+// deux boutons ci-dessous plutôt que d'appliquer la transition directement. Le texte tapé
+// REMPLACE le commentaire auto-généré, ne s'y ajoute pas — workflowEngine.appliquerTransition
+// n'exige qu'un commentaire non vide, sans distinguer sa provenance (déjà le cas pour
+// GestionTransitions.jsx, qui envoie un commentaire tapé pour d'autres transitions), donc ce
+// changement ne touche à rien côté backend.
 const CODE_ACTION_FORMATION_VALIDEE = 'valider_pret_embauche';
 const CODE_ACTION_FORMATION_NON_VALIDEE = 'invalider_formation';
 
@@ -115,6 +118,9 @@ export default function SuiviFormation() {
   const [enCoursId, setEnCoursId] = useState(null);
   const [erreurAction, setErreurAction] = useState(null);
   const [rafraichir, setRafraichir] = useState(0);
+  // Action en attente de confirmation via ModaleResultatFormation (audit 2026-08-28) — { dossier,
+  // codeAction, titre } ou null tant qu'aucune modale n'est ouverte.
+  const [actionAConfirmer, setActionAConfirmer] = useState(null);
 
   // Filtres persistés dans l'URL, même mécanisme que Planification.jsx/TableauDeBordAccueil.jsx
   // (useParametreURL.js, cohérence entre pages de filtres similaires). Défaut "En attente" (point
@@ -208,8 +214,12 @@ export default function SuiviFormation() {
     setErreurAction(null);
     try {
       await appliquerTransition(dossier.id, { codeAction, commentaire });
+      setActionAConfirmer(null);
       setRafraichir((compteur) => compteur + 1);
     } catch (erreur) {
+      // Modale gardée ouverte (pas de setActionAConfirmer(null) ici) : l'agent peut corriger/
+      // retenter sans retaper son commentaire depuis zéro — l'erreur s'affiche dans la modale
+      // elle-même (voir ModaleResultatFormation ci-dessous), pas sur la page en arrière-plan.
       setErreurAction(
         erreur.response
           ? (erreur.response.data?.erreur ?? "Impossible d'enregistrer ce résultat de formation. Merci de réessayer.")
@@ -240,7 +250,6 @@ export default function SuiviFormation() {
 
         {chargement && <p>Chargement…</p>}
         {erreur && <p role="alert">{erreur}</p>}
-        {erreurAction && <p role="alert">{erreurAction}</p>}
 
         {!chargement && !erreur && (
           <>
@@ -302,25 +311,47 @@ export default function SuiviFormation() {
                     <button
                       type="button"
                       disabled={enCoursId === dossier.id}
-                      onClick={() => enregistrerResultat(dossier, CODE_ACTION_FORMATION_VALIDEE, 'Formation validée.')}
+                      onClick={() =>
+                        setActionAConfirmer({ dossier, codeAction: CODE_ACTION_FORMATION_VALIDEE, titre: 'Formation validée' })
+                      }
                     >
-                      {enCoursId === dossier.id ? 'Enregistrement...' : 'Formation validée'}
+                      Formation validée
                     </button>
                     <button
                       type="button"
                       className="page-suivi-formation__bouton-secondaire"
                       disabled={enCoursId === dossier.id}
                       onClick={() =>
-                        enregistrerResultat(dossier, CODE_ACTION_FORMATION_NON_VALIDEE, 'Formation non validée.')
+                        setActionAConfirmer({
+                          dossier,
+                          codeAction: CODE_ACTION_FORMATION_NON_VALIDEE,
+                          titre: 'Formation non validée',
+                        })
                       }
                     >
-                      {enCoursId === dossier.id ? 'Enregistrement...' : 'Formation non validée'}
+                      Formation non validée
                     </button>
                   </div>
                 )}
               </li>
             ))}
           </ul>
+        )}
+
+        {actionAConfirmer && (
+          <ModaleResultatFormation
+            dossier={actionAConfirmer.dossier}
+            titre={actionAConfirmer.titre}
+            enCours={enCoursId === actionAConfirmer.dossier.id}
+            erreur={erreurAction}
+            onAnnuler={() => {
+              setActionAConfirmer(null);
+              setErreurAction(null);
+            }}
+            onConfirmer={(commentaire) =>
+              enregistrerResultat(actionAConfirmer.dossier, actionAConfirmer.codeAction, commentaire)
+            }
+          />
         )}
       </div>
     </PageBackOffice>
