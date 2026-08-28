@@ -83,6 +83,11 @@ function trouverDossierParId(trx, entiteId, dossierId) {
 // appelants de cette fonction (pieceJustificativeService.js, invitationTestService.js,
 // relanceService.js) n'utilisent jamais ce champ : leftJoin sans impact pour eux, la ligne
 // donnees_disponibilites brute reste simplement ignorée.
+//
+// candidat_civilite ajouté (audit 2026-08-28, sujet des événements Outlook formateur) : sert à
+// rendezvousService.creerRendezvous pour distinguer FDC/VDC sur le poste combiné
+// 'femme_valet_chambre' (aucun code poste distinct pour ce cas, voir postesConstantes.js — la
+// civilité du candidat est le seul signal disponible).
 function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
   return trx('dossiers')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -101,6 +106,7 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
       'statuts.libelle as statut_libelle',
       'candidats.nom as candidat_nom',
       'candidats.prenom as candidat_prenom',
+      'candidats.civilite as candidat_civilite',
       'bloc_disponibilites.donnees as donnees_disponibilites',
     )
     .first();

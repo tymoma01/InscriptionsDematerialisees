@@ -9,8 +9,21 @@ const motifRepository = require('../motifs/motifRepository');
 const utilisateurRepository = require('../auth/utilisateurRepository');
 const lieuRepository = require('../lieux/lieuRepository');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
+const env = require('../../config/env');
 const rendezvousService = require('./rendezvousService');
 const { ErreurRendezvousDossierClos, ErreurPlanificationOutlook } = rendezvousService;
+
+// rendezvousService lit env.NODE_ENV par référence à chaque appel (jamais déstructuré à son
+// chargement, voir prefixerSujetHorsProd) — permet de muter directement le singleton env.js ici,
+// même patron que notificationEchecSauvegarde.test.js pour SAUVEGARDE_EMAIL_ALERTE. `t.after`
+// restaure la valeur d'origine pour ne pas fuiter vers les tests suivants du fichier.
+function forcerNodeEnv(t, valeur) {
+  const original = env.NODE_ENV;
+  env.NODE_ENV = valeur;
+  t.after(() => {
+    env.NODE_ENV = original;
+  });
+}
 
 // Le contrôle de date passée intervient avant tout accès DB (voir creerRendezvous) — testable
 // sans mock, entité/dossier fictifs compris, puisque l'exécution ne les atteint jamais.
@@ -354,8 +367,11 @@ test("creerRendezvous crée l'événement Outlook AVANT d'écrire en Neon et tra
 
 // Décision utilisateur, 2026-08-26 : le subject doit désormais identifier le formateur/inspecteur
 // ET le(s) poste(s) testé(s), pas seulement le candidat — repérage en un coup d'œil sur un
-// calendrier départemental partagé par plusieurs formateurs/inspecteurs.
-test("creerRendezvous construit le subject Outlook « Test ACCECIT — Formateur / Candidat — Poste(s) » avec les libellés de poste", async (t) => {
+// calendrier départemental partagé par plusieurs formateurs/inspecteurs. Ce format reste réservé à
+// l'INSPECTEUR depuis l'audit du 2026-08-28 (voir plus bas, section "Subject Outlook — Formateur") :
+// ce test mocke délibérément role_code 'inspecteur' pour continuer à le couvrir.
+test("creerRendezvous construit le subject Outlook « Test ACCECIT — Formateur / Candidat — Poste(s) » avec les libellés de poste (inspecteur)", async (t) => {
+  forcerNodeEnv(t, 'production');
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
     id: 88,
@@ -389,7 +405,11 @@ test("creerRendezvous construit le subject Outlook « Test ACCECIT — Formateur
   );
 });
 
-test('creerRendezvous omet le segment "— Poste(s)" du subject Outlook si aucun poste retenu pour ce rendez-vous', async (t) => {
+// Subject Outlook — Formateur (audit 2026-08-28, décision utilisateur) : "<Position> <Prénom Nom
+// du candidat>" en majuscules, réservé au rôle FORMATEUR (jamais l'inspecteur, qui garde l'ancien
+// format "Test ACCECIT — ..." — voir le test ci-dessus).
+test('creerRendezvous construit le subject Outlook "<Position> <Candidat>" en majuscules pour un formateur, sans position si aucun poste retenu', async (t) => {
+  forcerNodeEnv(t, 'production');
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
     id: 42,
@@ -416,7 +436,189 @@ test('creerRendezvous omet le segment "— Poste(s)" du subject Outlook si aucun
     formateurId: 8,
   });
 
-  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'Test ACCECIT — Formateur Test / Jean Dupont');
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'JEAN DUPONT');
+});
+
+test('creerRendezvous préfixe le subject formateur par l\'abréviation du poste (un seul poste sélectionné)', async (t) => {
+  forcerNodeEnv(t, 'production');
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Jean',
+    candidat_nom: 'Dupont',
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-42' }));
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async (trx, donnees) => ({ id: 302, ...donnees }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+    postesSelectionnes: ['cafetier'],
+  });
+
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'CAF JEAN DUPONT');
+});
+
+test('creerRendezvous concatène les abréviations de poste par "/" quand plusieurs postes sont sélectionnés pour un formateur', async (t) => {
+  forcerNodeEnv(t, 'production');
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Jean',
+    candidat_nom: 'Dupont',
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-42' }));
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async (trx, donnees) => ({ id: 302, ...donnees }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+    postesSelectionnes: ['cafetier', 'equipier', 'gouvernant'],
+  });
+
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'CAF/EQP/GOV JEAN DUPONT');
+});
+
+// 'femme_valet_chambre' n'a pas de code poste distinct par genre (une seule case côté formulaire,
+// voir BlocDisponibilites.jsx) — FDC/VDC se décide donc à partir de candidats.civilite.
+test('creerRendezvous choisit FDC ou VDC pour "femme_valet_chambre" selon la civilité du candidat', async (t) => {
+  forcerNodeEnv(t, 'production');
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-42' }));
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async (trx, donnees) => ({ id: 302, ...donnees }));
+
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Marie',
+    candidat_nom: 'Durand',
+    candidat_civilite: 'madame',
+  }));
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+    postesSelectionnes: ['femme_valet_chambre'],
+  });
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'FDC MARIE DURAND');
+
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Jean',
+    candidat_nom: 'Dupont',
+    candidat_civilite: 'monsieur',
+  }));
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+    postesSelectionnes: ['femme_valet_chambre'],
+  });
+  assert.equal(creerEvenementMock.mock.calls[1].arguments[1].sujet, 'VDC JEAN DUPONT');
+
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Alex',
+    candidat_nom: 'Martin',
+    candidat_civilite: null,
+  }));
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+    postesSelectionnes: ['femme_valet_chambre'],
+  });
+  assert.equal(creerEvenementMock.mock.calls[2].arguments[1].sujet, 'FDC/VDC ALEX MARTIN');
+});
+
+// Placeholder de dev (audit 2026-08-28, décision utilisateur) : tant que NODE_ENV n'est pas
+// 'production' (le cas par défaut, config/env.js), le subject Outlook — formateur ET inspecteur —
+// commence par "TEST PLATEFORME — ", pour ne jamais confondre un événement créé en dev/recette
+// avec un vrai test candidat sur le calendrier départemental partagé. Retirer ce préfixe le jour
+// du déploiement en prod ne demandera aucun changement de code (voir prefixerSujetHorsProd).
+test('creerRendezvous préfixe le subject Outlook par "TEST PLATEFORME — " tant que NODE_ENV n\'est pas "production"', async (t) => {
+  forcerNodeEnv(t, 'development');
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-42' }));
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async (trx, donnees) => ({ id: 302, ...donnees }));
+
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Jean',
+    candidat_nom: 'Dupont',
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 8,
+    role_code: 'formateur',
+    email: 'formateur@accecit.test',
+    prenom: 'Formateur',
+    nom: 'Test',
+  }));
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 8,
+    postesSelectionnes: ['cafetier'],
+  });
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'TEST PLATEFORME — CAF JEAN DUPONT');
+
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 30,
+    role_code: 'inspecteur',
+    email: 'inspecteur@accecit.test',
+    prenom: 'Test',
+    nom: 'Inspecteur',
+  }));
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 30,
+  });
+  assert.equal(
+    creerEvenementMock.mock.calls[1].arguments[1].sujet,
+    'TEST PLATEFORME — Test ACCECIT — Test Inspecteur / Jean Dupont',
+  );
 });
 
 test('creerRendezvous route un inspecteur vers le calendrier test-tertiaire@accecit.com (pas formation@)', async (t) => {

@@ -8,6 +8,7 @@ const lieuRepository = require('../lieux/lieuRepository');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const { DUREE_TEST_MINUTES } = require('../../integrations/notifications/generateurIcs');
 const { ROLES } = require('../auth/rbac');
+const env = require('../../config/env');
 
 const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
 
@@ -74,6 +75,61 @@ const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
 };
 function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
+// Sujet des événements Outlook créés pour un FORMATEUR uniquement (jamais un inspecteur, voir son
+// branchement dans creerRendezvous ci-dessous — décision utilisateur, 2026-08-28) : "<Position>
+// <Prénom Nom du candidat>", tout en majuscules, la position étant une abréviation du poste testé
+// plutôt que son libellé complet (LIBELLES_POSTE_PAR_CODE_ACCECIT ci-dessus, réservé à
+// l'inspecteur/au corps de l'événement). Remplace l'ancien sujet "Test ACCECIT — {Formateur} /
+// {Candidat} — {Poste(s)}", jugé trop long pour un repérage rapide dans le calendrier
+// départemental formation@accecit.com.
+//
+// 'femme_valet_chambre' n'a pas de code poste distinct par genre (voir postesConstantes.js/
+// BlocDisponibilites.jsx, une seule case à cocher côté formulaire) — FDC/VDC se décide donc à
+// partir de candidats.civilite ('madame'/'monsieur', voir dossierRepository.
+// trouverDossierAvecStatutParId, candidat_civilite). Repli 'FDC/VDC' accolé si la civilité est
+// absente (dossier ancien/legacy) : garde une position affichée plutôt que de faire échouer la
+// création de l'événement pour ce seul motif.
+const ABREVIATIONS_POSTE_FORMATEUR_ACCECIT = {
+  cafetier: 'CAF',
+  equipier: 'EQP',
+  gouvernant: 'GOV',
+};
+function abreviationPosteFormateur(code, civiliteCandidat) {
+  if (code === 'femme_valet_chambre') {
+    if (civiliteCandidat === 'madame') return 'FDC';
+    if (civiliteCandidat === 'monsieur') return 'VDC';
+    return 'FDC/VDC';
+  }
+  return ABREVIATIONS_POSTE_FORMATEUR_ACCECIT[code] ?? code.toUpperCase();
+}
+
+// Plusieurs postes sélectionnés pour un même rendez-vous (ModalePlanificationTest.jsx, sélection
+// multiple) : toutes les abréviations concaténées par '/' (décision utilisateur, 2026-08-28) —
+// aucun poste sélectionné : nom du candidat seul, sans préfixe de position.
+function sujetEvenementFormateur(dossier, postesSelectionnes) {
+  const nomCandidat = `${dossier.candidat_prenom} ${dossier.candidat_nom}`.toUpperCase();
+  if (postesSelectionnes.length === 0) return nomCandidat;
+  const position = postesSelectionnes
+    .map((code) => abreviationPosteFormateur(code, dossier.candidat_civilite))
+    .join('/');
+  return `${position} ${nomCandidat}`;
+}
+
+// Placeholder de dev (audit 2026-08-28, décision utilisateur) : tant que NODE_ENV n'est pas
+// 'production' (voir config/env.js — vaut 'development' par défaut, y compris en local et sur un
+// environnement de recette/staging non explicitement marqué prod), tout événement Outlook créé
+// par ce module est préfixé "TEST PLATEFORME" pour qu'il ne soit jamais confondu avec un vrai test
+// candidat sur le calendrier départemental partagé formation@/test-tertiaire@accecit.com. Retirer
+// ce préfixe reviendra alors simplement à déployer avec NODE_ENV=production — aucun changement de
+// code nécessaire à ce moment-là, voir le commentaire de NODE_ENV dans config/env.js.
+// `env.NODE_ENV` lu par référence à chaque appel (jamais déstructuré au chargement du module) —
+// même patron que SAUVEGARDE_EMAIL_ALERTE dans notificationEchecSauvegarde.js, nécessaire pour que
+// les tests puissent muter le singleton env.js et voir l'effet sans recharger ce module.
+function prefixerSujetHorsProd(sujet) {
+  if (env.NODE_ENV === 'production') return sujet;
+  return `TEST PLATEFORME — ${sujet}`;
 }
 
 // Erreurs métier distinctes d'une Error générique (500 opaque) : rendezvous.routes.js les
@@ -524,17 +580,23 @@ async function creerRendezvous(
     // valeur de retour homogène pour `ancienRendezVous` ci-dessous, que ce bloc s'exécute ou non.
     ancienRendezVousActif = (await rendezvousRepository.trouverRendezvousTestActifDossier(bd, dossierId)) ?? null;
 
-    // "Test ACCECIT — {Formateur/Inspecteur} / {Candidat} — {Poste(s)}" (décision utilisateur,
-    // 2026-08-26) : jusqu'ici le subject n'indiquait que le candidat, illisible dès que plusieurs
-    // événements du même calendrier départemental se ressemblent (voir l'audit "libellés visibles
-    // dans la grille" — même besoin de repérage en un coup d'œil, transposé au subject Outlook
-    // lui-même). Segment "— {Poste(s)}" omis si aucun poste retenu pour CE rendez-vous précis
+    // FORMATEUR : "<Position> <Prénom Nom du candidat>" en majuscules (voir
+    // sujetEvenementFormateur ci-dessus pour le détail, décision utilisateur 2026-08-28).
+    // INSPECTEUR (calendrier bureau, jamais concerné par cette demande) : garde l'ancien format
+    // "Test ACCECIT — {Inspecteur} / {Candidat} — {Poste(s)}" (décision utilisateur, 2026-08-26) —
+    // Segment "— {Poste(s)}" omis si aucun poste retenu pour CE rendez-vous précis
     // (postesSelectionnes, jamais les postes déclarés à l'inscription — voir
     // formaterLignePostesHtml, invitationTestService.js, même choix). Ne s'applique qu'aux
     // événements créés à partir de maintenant — aucune mise à jour rétroactive des événements déjà
     // présents sur le calendrier Outlook (ce bloc ne fait que POST un nouvel événement).
-    const sujetPostes = postesSelectionnes.length > 0 ? ` — ${postesSelectionnes.map(libellePoste).join(', ')}` : '';
-    const sujet = `Test ACCECIT — ${formateur.prenom} ${formateur.nom} / ${dossier.candidat_prenom} ${dossier.candidat_nom}${sujetPostes}`;
+    let sujet;
+    if (formateur.role_code === ROLES.FORMATEUR) {
+      sujet = sujetEvenementFormateur(dossier, postesSelectionnes);
+    } else {
+      const sujetPostes = postesSelectionnes.length > 0 ? ` — ${postesSelectionnes.map(libellePoste).join(', ')}` : '';
+      sujet = `Test ACCECIT — ${formateur.prenom} ${formateur.nom} / ${dossier.candidat_prenom} ${dossier.candidat_nom}${sujetPostes}`;
+    }
+    sujet = prefixerSujetHorsProd(sujet);
 
     let evenementCree;
     try {
