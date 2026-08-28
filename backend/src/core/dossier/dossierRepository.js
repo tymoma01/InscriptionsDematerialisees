@@ -350,6 +350,38 @@ function listerSuiviFormation(bd, entiteId) {
     .orderBy('dates_entree_formation.date_entree_statut', 'desc');
 }
 
+// Historique de formation D'UN dossier précis (audit 2026-08-28, onglet "Formation" de la fiche
+// dossier) — distinct de listerSuiviFormation ci-dessus (liste TOUS les dossiers, statut courant
+// seulement) : ici, TOUTES les lignes historique_statuts liées à valide_envoi_formation et ses
+// deux issues (valide_pret_embauche/formation_non_validee), du plus ANCIEN au plus récent —
+// l'appelant (dossierService.listerHistoriqueFormation) reconstitue les "envois en formation" en
+// associant chaque entrée valide_envoi_formation à sa sortie éventuelle, la ligne suivante dans cet
+// ordre chronologique. Plusieurs lignes valide_envoi_formation sont possibles pour un même dossier
+// (confirmé sur le workflow réel : replanifier_test repart de valide_envoi_formation vers
+// test_planifie, voir workflow.config.json ACCECIT — un dossier peut donc être renvoyé en
+// formation plusieurs fois avant une décision définitive). Scopé par entiteId via la jointure
+// dossiers (même garde IDOR que le reste du projet) ; jointure utilisateurs/roles (jamais LEFT,
+// historique_statuts.utilisateur_id est NOT NULL, migration 010) pour "qui a effectué l'action".
+function listerHistoriqueFormation(bd, entiteId, dossierId) {
+  return bd('historique_statuts')
+    .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .join('utilisateurs', 'utilisateurs.id', 'historique_statuts.utilisateur_id')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
+    .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
+    .whereIn('statuts.code', ['valide_envoi_formation', 'valide_pret_embauche', 'formation_non_validee'])
+    .select(
+      'historique_statuts.commentaire',
+      'historique_statuts.date_changement',
+      'statuts.code as statut_code',
+      'statuts.libelle as statut_libelle',
+      'utilisateurs.nom as utilisateur_nom',
+      'utilisateurs.prenom as utilisateur_prenom',
+      'roles.libelle as role_libelle',
+    )
+    .orderBy('historique_statuts.date_changement', 'asc');
+}
+
 // Statuts configurés pour l'entité, dans l'ordre du workflow (colonne `ordre`) — sert à
 // construire les filtres du tableau de bord sans coder de code de statut en dur côté front
 // (voir Modularité, CLAUDE.md).
@@ -616,6 +648,7 @@ module.exports = {
   enregistrerChangementStatut,
   listerDossiers,
   listerSuiviFormation,
+  listerHistoriqueFormation,
   listerDossiersParIds,
   listerStatuts,
   listerResumesParIds,

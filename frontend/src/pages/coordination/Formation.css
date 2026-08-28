@@ -1,0 +1,40 @@
+/* Même patron que Relances.css : centre l'en-tête sur la même largeur que les cartes en dessous
+   (HistoriqueFormation.css/InformationsInscription.css). */
+.page-formation__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: 0 var(--espace-moyen);
+  box-sizing: border-box;
+}
+
+.page-formation__entete h1 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.page-formation__titre-bloc {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+.page-formation__statut {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.page-formation__statut-libelle {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.page-formation__candidat-nom {
+  text-transform: uppercase;
+}

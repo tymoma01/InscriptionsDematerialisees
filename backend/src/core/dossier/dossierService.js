@@ -441,6 +441,65 @@ async function listerSuiviFormation(entite) {
   }));
 }
 
+// Reconstitue les "envois en formation" (une entrée par ligne valide_envoi_formation, avec son
+// issue éventuelle) à partir de l'historique brut, déjà trié du plus ANCIEN au plus récent (voir
+// dossierRepository.listerHistoriqueFormation) — chaque entrée est fermée par la PROCHAINE ligne
+// valide_pret_embauche/formation_non_validee qui suit dans cet ordre chronologique ; elle reste
+// "en attente" (resultatCode: null) si la ligne suivante n'en est pas une (dossier replanifié en
+// test avant toute décision, voir replanifier_test, workflow.config.json ACCECIT) ou s'il n'y a
+// pas de ligne suivante du tout. `entreeOuverte` garantit qu'un résultat ne s'attache jamais à une
+// entrée déjà fermée : utile si, un jour, formation_non_validee gagnait elle-même une transition
+// de sortie vers un nouveau valide_envoi_formation sans jamais repasser par test_planifie — cas
+// non atteignable aujourd'hui (formation_non_validee n'a aucune transition sortante, voir
+// workflow.config.json), gardé par prudence plutôt que supposé impossible pour toujours.
+function construireHistoriqueFormation(lignes) {
+  const entrees = [];
+  let entreeOuverte = null;
+  for (const ligne of lignes) {
+    if (ligne.statut_code === 'valide_envoi_formation') {
+      entreeOuverte = {
+        dateEnvoi: ligne.date_changement,
+        commentaireEnvoi: ligne.commentaire,
+        envoyeParNom: ligne.utilisateur_nom,
+        envoyeParPrenom: ligne.utilisateur_prenom,
+        envoyeParRole: ligne.role_libelle,
+        dateResultat: null,
+        resultatCode: null,
+        resultatLibelle: null,
+        commentaireResultat: null,
+        decideParNom: null,
+        decideParPrenom: null,
+        decideParRole: null,
+      };
+      entrees.push(entreeOuverte);
+    } else if (entreeOuverte) {
+      entreeOuverte.dateResultat = ligne.date_changement;
+      entreeOuverte.resultatCode = ligne.statut_code;
+      entreeOuverte.resultatLibelle = ligne.statut_libelle;
+      entreeOuverte.commentaireResultat = ligne.commentaire;
+      entreeOuverte.decideParNom = ligne.utilisateur_nom;
+      entreeOuverte.decideParPrenom = ligne.utilisateur_prenom;
+      entreeOuverte.decideParRole = ligne.role_libelle;
+      entreeOuverte = null;
+    }
+  }
+  // Plus récent en premier, même convention que listerRelances (relanceRepository).
+  return entrees.reverse();
+}
+
+// Onglet "Formation" de la fiche dossier (audit 2026-08-28) — lecture seule, ces entrées sont
+// produites automatiquement par les transitions de "Suivi des formations" (SuiviFormation.jsx),
+// jamais saisies directement ici.
+async function listerHistoriqueFormation(entite, dossierId) {
+  const bd = await obtenirKnex();
+  const dossier = await dossierRepository.trouverDossierParId(bd, entite.id, dossierId);
+  if (!dossier) {
+    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  const lignes = await dossierRepository.listerHistoriqueFormation(bd, entite.id, dossierId);
+  return construireHistoriqueFormation(lignes);
+}
+
 // Un seul dossier, avec statut et nom/prénom du candidat déjà joints (voir
 // trouverDossierAvecStatutParId) — sert par exemple à afficher le nom du candidat en en-tête de
 // l'écran de capture de pièces (CaptureTablette.jsx), sans dupliquer une requête candidats à
@@ -716,6 +775,7 @@ module.exports = {
   verifierDisponibilite,
   listerDossiers,
   listerSuiviFormation,
+  listerHistoriqueFormation,
   listerStatuts,
   listerResumesParIds,
   obtenirDerniereModification,

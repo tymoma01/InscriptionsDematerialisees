@@ -1,0 +1,101 @@
+/* Même patron de carte que HistoriqueRelances.css. */
+.historique-formation {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.historique-formation h2 {
+  color: var(--couleur-back-office);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.historique-formation__vide {
+  color: var(--couleur-texte-secondaire);
+  margin: 0;
+}
+
+.historique-formation__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.historique-formation__item {
+  padding: var(--espace-moyen);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.historique-formation__envoi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+.historique-formation__libelle {
+  font-weight: 600;
+  color: var(--couleur-back-office);
+}
+
+/* "Formation validée" en bleu ACCECIT (même accent que .informations-inscription__valeur--accent),
+   "Formation non validée" en rouge (--couleur-erreur, même famille que le badge echec-fort du
+   statut) — un résultat déjà acté qu'on relit ici, pas un bouton d'action à ne pas colorer en
+   alerte (voir SuiviFormation.css pour ce second cas, différent). */
+.historique-formation__resultat--valide {
+  color: var(--couleur-primaire);
+}
+
+.historique-formation__resultat--non-valide {
+  color: var(--couleur-erreur);
+}
+
+.historique-formation__meta {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+/* Même patron que .historique-relances__commentaire-texte : filet léger, pas une bordure
+   complète. */
+.historique-formation__commentaire {
+  margin: 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--couleur-bordure-legere);
+  color: var(--couleur-texte);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+/* Sépare visuellement l'envoi et son résultat au sein d'une même entrée — filet + retrait léger,
+   sans reproduire une carte complète imbriquée. */
+.historique-formation__resultat-bloc {
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--couleur-bordure-legere);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.historique-formation__en-attente {
+  margin: 0.2rem 0 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.historique-formation [role='alert'] {
+  color: var(--couleur-erreur);
+  font-size: 0.875rem;
+}

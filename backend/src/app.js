@@ -9,6 +9,7 @@ const dossiersRoutes = require('./api/routes/dossiers.routes');
 const piecesRoutes = require('./api/routes/pieces.routes');
 const relancesRoutes = require('./api/routes/relances.routes');
 const notesRoutes = require('./api/routes/notes.routes');
+const formationRoutes = require('./api/routes/formation.routes');
 const rendezvousRoutes = require('./api/routes/rendezvous.routes');
 const rendezvousDisponibilitesRoutes = require('./api/routes/rendezvousDisponibilites.routes');
 const transitionsRoutes = require('./api/routes/transitions.routes');
@@ -64,6 +65,9 @@ async function creerApp() {
   // Journal de notes libres, indépendant des relances (voir notes.routes.js) — même patron que
   // le routeur relances ci-dessus.
   app.use('/api/dossiers/:dossierId/notes', notesRoutes);
+  // Historique de formation par dossier (onglet "Formation" de la fiche dossier, audit
+  // 2026-08-28) — lecture seule, même patron que le routeur relances ci-dessus.
+  app.use('/api/dossiers/:dossierId/formation', formationRoutes);
   // Reprogrammations et désistements (CLAUDE.md, besoin Accueil/Coordination : "motif de
   // désistement enregistré systématiquement") — même patron que les deux routeurs ci-dessus.
   app.use('/api/dossiers/:dossierId/rendezvous', rendezvousRoutes);

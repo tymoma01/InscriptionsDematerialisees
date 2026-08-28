@@ -3,6 +3,7 @@ import InscriptionTablette from './pages/accueil/InscriptionTablette';
 import VerificationPieces from './pages/accueil/VerificationPieces';
 import TableauDeBordAccueil from './pages/accueil/TableauDeBordAccueil';
 import Relances from './pages/coordination/Relances';
+import Formation from './pages/coordination/Formation';
 import Tests from './pages/coordination/Tests';
 import Planification from './pages/coordination/Planification';
 import SuiviFormation from './pages/coordination/SuiviFormation';
@@ -59,6 +60,14 @@ export default function App() {
           element={
             <RouteProtegee>
               <Relances />
+            </RouteProtegee>
+          }
+        />
+        <Route
+          path="/coordination/dossiers/:dossierId/formation"
+          element={
+            <RouteProtegee>
+              <Formation />
             </RouteProtegee>
           }
         />

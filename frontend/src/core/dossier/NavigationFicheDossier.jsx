@@ -18,6 +18,10 @@ const ONGLETS = [
   { cle: 'pieces', libelle: 'Pièces justificatives', vers: (dossierId) => `/accueil/dossiers/${dossierId}/pieces` },
   { cle: 'tests', libelle: 'Tests', vers: (dossierId) => `/coordination/dossiers/${dossierId}/tests` },
   { cle: 'relances', libelle: 'Relances', vers: (dossierId) => `/coordination/dossiers/${dossierId}/relances` },
+  // Historique de formation (audit 2026-08-28, révise une décision antérieure — voir CLAUDE.md) :
+  // même patron que les trois onglets ci-dessus, toujours affiché (voir commentaire d'en-tête de
+  // ce fichier — pas de règle de disponibilité propre à une entité ici).
+  { cle: 'formation', libelle: 'Formation', vers: (dossierId) => `/coordination/dossiers/${dossierId}/formation` },
 ];
 
 export default function NavigationFicheDossier({ dossierId, pageActuelle }) {

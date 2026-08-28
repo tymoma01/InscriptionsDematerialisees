@@ -52,3 +52,19 @@ test('listerSuiviFormation résout le formateur via une LATERAL JOIN sur evaluat
   assert.match(sql, /LEFT JOIN LATERAL[\s\S]*FROM evaluations e[\s\S]*ORDER BY e\.date_evaluation DESC[\s\S]*LIMIT 1/);
   assert.doesNotMatch(sql, /rendezvous/);
 });
+
+// Onglet "Formation" (audit 2026-08-28) — scopé au dossier ET à l'entité (garde IDOR), filtré sur
+// les 3 statuts formation, trié du plus ANCIEN au plus récent (c'est dossierService qui inverse
+// pour l'affichage, voir construireHistoriqueFormation) — l'inverse de listerSuiviFormation
+// ci-dessus (desc), nécessaire ici pour que l'algorithme d'association envoi/résultat parcoure
+// l'historique dans l'ordre chronologique réel.
+test("listerHistoriqueFormation scope par dossier ET entité, filtre les 3 statuts formation, trie par date_changement ASC", () => {
+  const sql = dossierRepository.listerHistoriqueFormation(bd, 1, 42).toString();
+  assert.match(sql, /"dossiers"\."id" = 42/);
+  assert.match(sql, /"dossiers"\."entite_id" = 1/);
+  assert.match(
+    sql,
+    /"statuts"\."code" in \('valide_envoi_formation', 'valide_pret_embauche', 'formation_non_validee'\)/,
+  );
+  assert.match(sql, /order by "historique_statuts"\."date_changement" asc/);
+});

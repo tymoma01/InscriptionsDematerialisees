@@ -45,6 +45,13 @@ export async function obtenirInscriptionComplete(dossierId) {
   return data;
 }
 
+// Historique de formation du dossier (onglet "Formation" de la fiche dossier, audit 2026-08-28) —
+// un envoi en formation par entrée, avec son issue éventuelle (Formation validée/non validée).
+export async function obtenirHistoriqueFormation(dossierId) {
+  const { data } = await api.get(`/dossiers/${dossierId}/formation`);
+  return data;
+}
+
 // Bouton "Modifier" de cette même section (correction d'une erreur de saisie, réservé à
 // Accueil/Coordination et Admin côté back — voir dossiers.routes.js) — renvoie la même forme que
 // obtenirInscriptionComplete ci-dessus, pour rafraîchir l'affichage sans second aller-retour.
