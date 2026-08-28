@@ -205,6 +205,15 @@
   color: var(--statut-vert-clair-texte);
 }
 
+/* Suivi de formation (audit 2026-08-28) : --statut-echec-fort-*, même teinte que le badge
+   "Formation non validée" (VARIANTE_PAR_CODE_ACCECIT, TableauDeBordAccueil.jsx) — distincte de
+   --statut-echec-* déjà utilisée par 'invalide' juste au-dessus. */
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='formation_non_validee']:not(.actif) {
+  background-color: var(--statut-echec-fort-fond);
+  border-color: var(--statut-echec-fort-bordure);
+  color: var(--statut-echec-fort-texte);
+}
+
 /* Fenêtre réduite (audit 2026-08-23) : 2 colonnes plutôt que 3 dès que le bloc de gauche (260px
    fixe) + la grille de statuts ne tiennent plus confortablement côte à côte sans compresser les
    libellés les plus longs ("Validé - prêt à l'embauche"). Le bloc de gauche et l'agencement

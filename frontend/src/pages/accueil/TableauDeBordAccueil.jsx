@@ -134,6 +134,10 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
   // mais impossibles à isoler par filtre sur cette page, contrairement au back-office recruteur.
   'valide_envoi_formation',
   'valide_pret_embauche',
+  // Suivi de formation (audit 2026-08-28) : oublié lors de l'ajout initial du statut lui-même
+  // (VARIANTE_PAR_CODE_ACCECIT le portait déjà, pas cette liste) — un dossier "Formation non
+  // validée" restait visible dans le tableau/"Tous" mais impossible à isoler par filtre dédié.
+  'formation_non_validee',
 ];
 
 // Codes agrégés sous le bouton "Test réalisé" (demande explicite, audit 2026-08-21) : à la
@@ -150,7 +154,18 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
 // bouton. Codes des dossiers eux-mêmes jamais réécrits ni uniformisés par cette agrégation :
 // chaque ligne du tableau garde son statut/badge réel (DossierList.jsx reste piloté par
 // dossier.statut_code, pas par ce filtre), seule la logique de filtrage/comptage est concernée.
-const CODES_STATUTS_TEST_REALISE_ACCECIT = ['test_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche'];
+// formation_non_validee ajouté (audit 2026-08-28) : par la règle même de ce commentaire ("tout
+// dossier dont le test a réellement eu lieu, quel que soit le verdict") — un dossier n'atteint ce
+// statut qu'après avoir déjà été confirmé test_realise puis valide_envoi_formation (voir
+// workflow.config.json), son test a donc, lui aussi, réellement eu lieu. Omis lors de l'ajout
+// initial du statut, corrigé ici pour rester cohérent avec les 4 codes déjà présents.
+const CODES_STATUTS_TEST_REALISE_ACCECIT = [
+  'test_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+  'formation_non_validee',
+];
 function codesPourFiltreStatut(code) {
   return code === 'test_realise' ? CODES_STATUTS_TEST_REALISE_ACCECIT : [code];
 }
