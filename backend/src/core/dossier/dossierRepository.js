@@ -256,6 +256,100 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
   return requete;
 }
 
+// Les 3 issues possibles d'un dossier ayant atteint valide_envoi_formation (audit 2026-08-28,
+// écran "Suivi des formations") — propre à ACCECIT (voir Modularité, CLAUDE.md), donc ici plutôt
+// que dans un paramètre générique : "En attente"/"Formation validée"/"Formation non validée"/
+// "Tous" (front, FiltresStatut.jsx) filtrent CLIENT-side sur ce sous-ensemble déjà connu à
+// l'avance, jamais un 4e statut qui n'aurait pas de sens sur cette page.
+const STATUTS_SUIVI_FORMATION = ['valide_envoi_formation', 'valide_pret_embauche', 'formation_non_validee'];
+
+// Tout dossier ayant un jour atteint valide_envoi_formation, quel que soit son statut COURANT
+// PARMI LES 3 ISSUES ci-dessus (pas seulement tant qu'il y est encore) — sert à l'écran "Suivi des
+// formations" (dossiers.routes.js GET /suivi-formation) à garder un dossier déjà traité
+// (Formation validée/non validée) consultable, au lieu de disparaître de la liste une fois la
+// décision prise (audit 2026-08-28, point 1). Un dossier repassé par replanifier_test depuis
+// valide_envoi_formation (retour à test_planifie, voir workflow.config.json ACCECIT) sort de cette
+// liste tant qu'il n'a pas de nouveau atteint l'une des 3 issues — scope volontairement restreint
+// à ces 3-là, pas "n'importe quel statut du moment qu'il a un jour touché valide_envoi_formation".
+//
+// date_entree_statut = MAX(historique_statuts.date_changement) où le statut de CETTE ligne
+// d'historique est valide_envoi_formation (PAS dossiers.date_maj, qui peut avoir bougé pour une
+// tout autre raison depuis, ex. une note ajoutée) — "date d'envoi en formation", toujours la même
+// donnée quel que soit le statut COURANT affiché (En attente/Validée/Non validée). MAX plutôt que
+// MIN : un dossier peut repasser plusieurs fois par valide_envoi_formation, seule la date de
+// l'entrée la plus récente a un sens ici. Même patron de sous-requête que listerDossiersParIds
+// plus bas (dates_test_planifie).
+//
+// formateur_nom/formateur_prenom = formateur/inspecteur de la DERNIÈRE évaluation soumise pour ce
+// dossier (evaluations.formateur_id, LATERAL JOIN trié par date_evaluation DESC — même technique
+// que statistiquesRepository.delaiTestVersVerdict) — PAS rendezvous.formateur_id du rendez-vous le
+// plus récent par date_heure : un rendez-vous peut exister sans avoir jamais été évalué
+// (replanifié/annulé après coup), evaluations.formateur_id reste le seul lien fiable vers "qui a
+// RÉELLEMENT fait passer le test" (audit 2026-08-28, point 2 — "même donnée que Suivi des tests"
+// concerne la donnée affichée, pas la source exacte : Suivi des tests affiche une ligne par
+// rendez-vous, cette page une ligne par dossier avec plusieurs rendez-vous possibles, la
+// désambiguïsation "lequel compte" n'existe donc que de ce côté-ci).
+//
+// donnees_disponibilites (posteBureau/posteHotel déclarés à l'inscription) exposé pour la
+// recherche "poste" (point 3) — même source et même LEFT JOIN que listerDossiers ci-dessus, pas
+// rendezvous.postes_selectionnes (retenus pour un rendez-vous précis, absent de cette liste
+// dossier-level).
+function listerSuiviFormation(bd, entiteId) {
+  return bd('dossiers')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .leftJoin(
+      bd('historique_statuts')
+        .join('statuts as statuts_formation', 'statuts_formation.id', 'historique_statuts.statut_id')
+        .where('statuts_formation.code', 'valide_envoi_formation')
+        .groupBy('historique_statuts.dossier_id')
+        .select(
+          'historique_statuts.dossier_id',
+          bd.raw('MAX(historique_statuts.date_changement) as date_entree_statut'),
+        )
+        .as('dates_entree_formation'),
+      'dates_entree_formation.dossier_id',
+      'dossiers.id',
+    )
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        bd.raw('?', ['disponibilites']),
+      );
+    })
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT e.formateur_id
+         FROM evaluations e
+         WHERE e.dossier_id = dossiers.id
+         ORDER BY e.date_evaluation DESC
+         LIMIT 1
+       ) AS derniere_evaluation ON true`,
+    )
+    .leftJoin('utilisateurs as formateur_test', 'formateur_test.id', 'derniere_evaluation.formateur_id')
+    .where('dossiers.entite_id', entiteId)
+    .whereIn('statuts.code', STATUTS_SUIVI_FORMATION)
+    // Un dossier n'apparaît que s'il a bien atteint valide_envoi_formation un jour (sinon
+    // dates_entree_formation.dossier_id est NULL, LEFT JOIN sans correspondance) — exclut
+    // notamment tout dossier bureau arrivé à valide_pret_embauche directement depuis test_realise,
+    // jamais passé par la formation (voir evaluationEngine.js, valider_envoi_formation n'a pas
+    // d'équivalent bureau).
+    .whereNotNull('dates_entree_formation.dossier_id')
+    .select(
+      'dossiers.id',
+      'candidats.nom as candidat_nom',
+      'candidats.prenom as candidat_prenom',
+      'statuts.code as statut_code',
+      'statuts.libelle as statut_libelle',
+      'dates_entree_formation.date_entree_statut',
+      'formateur_test.nom as formateur_nom',
+      'formateur_test.prenom as formateur_prenom',
+      'bloc_disponibilites.donnees as donnees_disponibilites',
+    )
+    .orderBy('dates_entree_formation.date_entree_statut', 'desc');
+}
+
 // Statuts configurés pour l'entité, dans l'ordre du workflow (colonne `ordre`) — sert à
 // construire les filtres du tableau de bord sans coder de code de statut en dur côté front
 // (voir Modularité, CLAUDE.md).
@@ -521,6 +615,7 @@ module.exports = {
   trouverUtilisateurSysteme,
   enregistrerChangementStatut,
   listerDossiers,
+  listerSuiviFormation,
   listerDossiersParIds,
   listerStatuts,
   listerResumesParIds,

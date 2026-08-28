@@ -73,6 +73,17 @@ const ELEMENTS_NAVIGATION = [
     roles: ['accueil_coordination', 'admin', 'formateur', 'inspecteur'],
   },
   {
+    cle: 'suivi-formation',
+    libelle: 'Suivi des formations',
+    chemin: '/coordination/suivi-formation',
+    estActif: (chemin) => chemin.startsWith('/coordination/suivi-formation'),
+    // Suivi de formation (audit 2026-08-28) — mêmes rôles que 'suivi-tests' ci-dessus (même
+    // patron : Accueil/Coordination lecture seule, Formateur/Inspecteur/Admin accès complet,
+    // différencié DANS la page — voir SuiviFormation.jsx — pas par un second onglet). Mêmes rôles
+    // que dossiers.routes.js, route /suivi-formation (ROLES_SUIVI_FORMATION).
+    roles: ['accueil_coordination', 'admin', 'formateur', 'inspecteur'],
+  },
+  {
     cle: 'comptes-utilisateurs',
     libelle: 'Comptes utilisateurs',
     chemin: '/admin/utilisateurs',

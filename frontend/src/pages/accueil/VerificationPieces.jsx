@@ -36,6 +36,11 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   invalide: 'echec',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
+  // Suivi de formation (audit 2026-08-28) : 'echec-fort' plutôt que 'echec' (déjà pris par
+  // "Invalidé", échec du TEST) — même famille "issue négative" mais teinte distincte
+  // (fond/texte/bordure différents, voir styles/variables.css), demande explicite de couleur
+  // distincte de "Invalidé".
+  formation_non_validee: 'echec-fort',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

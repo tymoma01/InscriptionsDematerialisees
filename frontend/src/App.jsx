@@ -5,6 +5,7 @@ import TableauDeBordAccueil from './pages/accueil/TableauDeBordAccueil';
 import Relances from './pages/coordination/Relances';
 import Tests from './pages/coordination/Tests';
 import Planification from './pages/coordination/Planification';
+import SuiviFormation from './pages/coordination/SuiviFormation';
 import Validation from './pages/recruteur/Validation';
 import Evaluation from './pages/formateur/Evaluation';
 import HistoriqueEvaluations from './pages/formateur/HistoriqueEvaluations';
@@ -74,6 +75,14 @@ export default function App() {
           element={
             <RouteProtegee>
               <Planification />
+            </RouteProtegee>
+          }
+        />
+        <Route
+          path="/coordination/suivi-formation"
+          element={
+            <RouteProtegee>
+              <SuiviFormation />
             </RouteProtegee>
           }
         />

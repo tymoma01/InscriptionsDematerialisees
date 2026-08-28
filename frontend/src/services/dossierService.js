@@ -17,6 +17,13 @@ export async function listerStatuts() {
   return data;
 }
 
+// Dossiers "Validé - envoyé en formation" (audit 2026-08-28, écran "Suivi des formations") — le
+// statut filtré est fixé côté serveur (voir dossiers.routes.js), jamais un paramètre envoyé ici.
+export async function listerSuiviFormation() {
+  const { data } = await api.get('/dossiers/suivi-formation');
+  return data;
+}
+
 // Signal de rafraîchissement automatique du back-office (audit 2026-08-24, voir
 // useRafraichissementAuto.js) — un seul horodatage (ISO), jamais les données elles-mêmes.
 export async function obtenirDerniereModification() {

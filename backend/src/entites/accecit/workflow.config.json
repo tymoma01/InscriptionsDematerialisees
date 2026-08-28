@@ -8,7 +8,8 @@
     { "code": "test_non_realise", "libelle": "Test non réalisé", "ordre": 40, "estInitial": false, "estFinal": false },
     { "code": "valide_envoi_formation", "libelle": "Validé - envoyé en formation", "ordre": 110, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
     { "code": "valide_pret_embauche", "libelle": "Validé - prêt à l'embauche", "ordre": 120, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
-    { "code": "invalide", "libelle": "Invalidé", "ordre": 130, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true }
+    { "code": "invalide", "libelle": "Invalidé", "ordre": 130, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true },
+    { "code": "formation_non_validee", "libelle": "Formation non validée", "ordre": 140, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true }
   ],
   "transitions": [
     {
@@ -87,6 +88,18 @@
       "codeAction": "replanifier_test",
       "statutOrigine": "valide_pret_embauche",
       "statutDestination": "test_planifie",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "valider_pret_embauche",
+      "statutOrigine": "valide_envoi_formation",
+      "statutDestination": "valide_pret_embauche",
+      "motifRequis": false
+    },
+    {
+      "codeAction": "invalider_formation",
+      "statutOrigine": "valide_envoi_formation",
+      "statutDestination": "formation_non_validee",
       "motifRequis": false
     }
   ]

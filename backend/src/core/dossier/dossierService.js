@@ -429,6 +429,18 @@ async function listerDossiers(entite, { statutCode } = {}) {
   }));
 }
 
+// "Suivi des formations" (audit 2026-08-28) — postesBureau/postesHotel extraits ici, même patron
+// que listerDossiers ci-dessus.
+async function listerSuiviFormation(entite) {
+  const bd = await obtenirKnex();
+  const dossiers = await dossierRepository.listerSuiviFormation(bd, entite.id);
+  return dossiers.map(({ donnees_disponibilites, ...reste }) => ({
+    ...reste,
+    postesBureau: donnees_disponibilites?.posteBureau ?? [],
+    postesHotel: donnees_disponibilites?.posteHotel ?? [],
+  }));
+}
+
 // Un seul dossier, avec statut et nom/prénom du candidat déjà joints (voir
 // trouverDossierAvecStatutParId) — sert par exemple à afficher le nom du candidat en en-tête de
 // l'écran de capture de pièces (CaptureTablette.jsx), sans dupliquer une requête candidats à
@@ -703,6 +715,7 @@ module.exports = {
   inscrireCandidat,
   verifierDisponibilite,
   listerDossiers,
+  listerSuiviFormation,
   listerStatuts,
   listerResumesParIds,
   obtenirDerniereModification,

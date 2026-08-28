@@ -68,6 +68,29 @@ router.get('/', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, ne
   }
 });
 
+// GET /api/dossiers/suivi-formation — tous les dossiers ayant atteint "Validé - envoyé en
+// formation", quel que soit leur statut courant PARMI LES 3 ISSUES possibles (audit 2026-08-28,
+// point 1 : un dossier déjà traité reste consultable, ne disparaît plus une fois la décision
+// prise — voir dossierRepository.STATUTS_SUIVI_FORMATION) — le filtre "En attente"/"Formation
+// validée"/"Formation non validée"/"Tous" (FiltresStatut.jsx) s'applique CLIENT-side sur cette
+// liste, pas un paramètre de requête ici. Rôles : Accueil/Coordination (lecture seule, pas
+// d'action, voir SuiviFormation.jsx) ET Formateur/Inspecteur (accès complet, boutons "Formation
+// validée"/"Formation non validée") — même patron restreint que GET /rendezvous ci-dessous
+// (ROLES_CONSULTATION_RENDEZVOUS_TEST), plutôt qu'élargir ROLES_CONSULTATION_DOSSIERS à ces deux
+// rôles (ce qui leur donnerait accès à la liste COMPLÈTE des dossiers, tous statuts confondus —
+// jamais voulu, voir le commentaire de ROLES_CONSULTATION_RENDEZVOUS_TEST plus bas). Le choix des
+// 3 statuts eux-mêmes reste propre à ACCECIT (voir Modularité, CLAUDE.md), porté par
+// dossierRepository.listerSuiviFormation plutôt qu'un paramètre client.
+const ROLES_SUIVI_FORMATION = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+router.get('/suivi-formation', requireRole(...ROLES_SUIVI_FORMATION), async (req, res, next) => {
+  try {
+    const dossiers = await dossierService.listerSuiviFormation(req.entite);
+    res.json(dossiers);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
 // GET /api/dossiers/statuts — statuts configurés pour l'entité courante, dans l'ordre du
 // workflow ; sert à construire les filtres du tableau de bord sans coder de code de statut en
 // dur côté front (voir core/workflow/StatutBadge.jsx, pages/accueil/TableauDeBordAccueil.jsx).

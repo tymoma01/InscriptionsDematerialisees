@@ -1,0 +1,119 @@
+/* Même patron que pages/formateur/Evaluation.css (en-tête flex, EnTeteBackOffice poussé à
+   droite). */
+.page-suivi-formation__entete {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
+.page-suivi-formation__titre-bloc h1 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.page-suivi-formation__entete .en-tete-back-office {
+  margin-left: auto;
+}
+
+.page-suivi-formation [role='alert'] {
+  color: var(--couleur-erreur);
+}
+
+.page-suivi-formation__vide {
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Recherche + plage de date, sous FiltresStatut.jsx — même patron que
+   .liste-evaluations__filtres (ListeEvaluationsAFaire.css)/.planification__filtres. */
+.page-suivi-formation__filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-grand);
+  margin: var(--espace-moyen) 0;
+}
+
+.page-suivi-formation__filtre-recherche {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  flex: 1 1 18rem;
+}
+
+.page-suivi-formation__filtre-recherche input {
+  flex: 1;
+  min-width: 18rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.page-suivi-formation__formateur {
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Même patron que .liste-evaluations (ListeEvaluationsAFaire.css). */
+.page-suivi-formation__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+}
+
+.page-suivi-formation__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.page-suivi-formation__candidat {
+  flex: 1 1 auto;
+  font-weight: 600;
+  color: var(--couleur-texte);
+}
+
+.page-suivi-formation__date {
+  color: var(--couleur-texte-secondaire);
+}
+
+.page-suivi-formation__actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+/* Même formule que .liste-evaluations__item button (ListeEvaluationsAFaire.css) : plein/affirmé
+   pour "Formation validée" (issue positive). */
+.page-suivi-formation__actions button {
+  padding: 0.5rem 1.2rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* "Formation non validée" : contour neutre, même formule que
+   .liste-evaluations__bouton-secondaire — pas une couleur d'alerte (rouge/orange), c'est une
+   action normale du workflow, pas un état d'erreur (le badge du statut résultant, lui, porte déjà
+   la couleur négative, voir StatutBadge/formation_non_validee). */
+.page-suivi-formation__actions button.page-suivi-formation__bouton-secondaire {
+  background-color: var(--couleur-fond);
+  border-color: var(--couleur-bordure);
+  color: var(--couleur-texte);
+}
+
+.page-suivi-formation__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

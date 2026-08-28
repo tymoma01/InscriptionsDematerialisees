@@ -73,6 +73,9 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   invalide: 'echec',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
+  // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
+  // VerificationPieces.jsx pour le détail du choix de couleur.
+  formation_non_validee: 'echec-fort',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

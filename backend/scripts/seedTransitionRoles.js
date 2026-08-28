@@ -68,8 +68,22 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // listé ici) — le bureau n'a pas de notion de formation, un verdict positif y passe toujours par
   // valider_pret_embauche (voir evaluationEngine.js, codeActionFinal).
   valider_envoi_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
+  // Réutilisé tel quel (audit 2026-08-28, suivi de formation) pour la NOUVELLE ligne
+  // valide_envoi_formation -> valide_pret_embauche (retour manuel "Formation validée",
+  // SuiviFormation.jsx) — même codeAction, même rôles que la ligne déjà existante
+  // test_realise -> valide_pret_embauche : la boucle ci-dessous applique cette liste à TOUTES les
+  // lignes transitions_statut qui partagent ce code_action, donc aucune autre entrée nécessaire
+  // ici pour que la nouvelle ligne soit elle aussi autorisée.
   valider_pret_embauche: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   invalider_test: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
+  // Nouveau (audit 2026-08-28, suivi de formation) : "Formation non validée"
+  // (valide_envoi_formation -> formation_non_validee, SuiviFormation.jsx) — distinct
+  // d'invalider_test ci-dessus (réservé à l'échec du TEST, pas de la formation) malgré le
+  // vocabulaire proche. Mêmes rôles que valider_pret_embauche/invalider_test : Formateur/
+  // Inspecteur assigné (accès complet, voir CLAUDE.md ce jour) ou Admin — jamais Accueil/
+  // Coordination (lecture seule sur cet écran, voir SuiviFormation.jsx côté front, qui ne rend
+  // même pas les boutons pour ce rôle — la garde ici est la barrière réelle si jamais contournée).
+  invalider_formation: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   // Décision finale du recruteur — workflow hérité (v2), retiré du parcours actif pour toute
   // nouvelle évaluation depuis le workflow v3 (voir evaluationEngine.js) : conservé uniquement le
   // temps que les derniers dossiers encore en_attente_validation_recruteur soient clos par un
