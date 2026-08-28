@@ -105,6 +105,11 @@ function construireMessageEmail({
       // la lecture naturelle d'une convocation.
       formaterLignePostesHtml(postesSelectionnes) +
       `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces, instructions: lieuInstructions })}</p>` +
+      // Coordonnées ACCECIT déjà affichées dans le footer de l'app (PiedDePageFormulaire.jsx /
+      // PiedDePageAccecit.jsx) — simple information de contact, pas une alerte : bleu ACCECIT
+      // (--couleur-primaire, styles/variables.css) plutôt qu'une couleur d'alerte type rouge/orange.
+      '<p style="color: #2d3c92;">En cas de besoin, vous pouvez nous contacter au ' +
+      '01 56 56 69 56 (47 avenue Paul Vaillant Couturier, 94250 Gentilly).</p>' +
       '<p>Vous trouverez en pièce jointe une invitation à ajouter directement à votre calendrier (Outlook, Google Calendar...).</p>' +
       "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
   };

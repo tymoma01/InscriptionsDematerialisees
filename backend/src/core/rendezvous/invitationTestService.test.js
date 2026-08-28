@@ -102,6 +102,33 @@ test('envoyerInvitationTest envoie un email avec .ics joint et un SMS quand emai
   assert.equal(appelSms.arguments[0], '0601020304');
 });
 
+// Ligne "Contact d'urgence" (audit 2026-08-28, reformulée le même jour — "le jour du test" retiré
+// pour rester valable même en cas de contact avant le jour J) : coordonnées ACCECIT déjà affichées
+// dans le footer de l'app (PiedDePageFormulaire.jsx/PiedDePageAccecit.jsx), positionnée après le
+// bloc lieu et avant la mention de la pièce jointe .ics, colorée en bleu ACCECIT
+// (--couleur-primaire, #2d3c92, styles/variables.css) — pas une couleur d'alerte.
+test("envoyerInvitationTest inclut une ligne « Contact d'urgence » en bleu ACCECIT dans l'email candidat, entre le lieu et la pièce jointe .ics", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(
+    corpsCandidat.includes(
+      '<p style="color: #2d3c92;">En cas de besoin, vous pouvez nous contacter au ' +
+        '01 56 56 69 56 (47 avenue Paul Vaillant Couturier, 94250 Gentilly).</p>',
+    ),
+  );
+  const indexContact = corpsCandidat.indexOf('En cas de besoin, vous pouvez nous contacter');
+  const indexIcs = corpsCandidat.indexOf('Vous trouverez en pièce jointe une invitation');
+  assert.ok(indexContact > 0 && indexContact < indexIcs, 'la ligne de contact doit précéder la mention .ics');
+});
+
 test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participant de l'.ics et lui envoie sa propre notification quand rendezvous.formateur_id est renseigné", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
