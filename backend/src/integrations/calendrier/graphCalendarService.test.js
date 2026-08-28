@@ -339,3 +339,51 @@ test('supprimerEvenement traduit une erreur 403 en citant la permission Calendar
     /Permissions Microsoft Graph insuffisantes.*"Calendars\.ReadWrite"/s,
   );
 });
+
+// obtenirEvenement (audit 2026-08-28, syncCalendrierManuelService.js — détection des modifications
+// manuelles Outlook) : lit l'état ACTUEL d'un événement précis par son id, avec le même header
+// `Prefer: outlook.timezone="UTC"` qu'obtenirDisponibilites, pour interpréter start.dateTime sans
+// ambiguïté de fuseau côté appelant.
+test('obtenirEvenement lit un événement précis avec le header Prefer UTC et renvoie son contenu tel quel', async (t) => {
+  let requeteCapturee;
+  const client = creerClientMock({
+    'GET /users/formation@accecit.com/events/outlook-evenement-abc': {
+      valeur: { id: 'outlook-evenement-abc', start: { dateTime: '2026-09-02T14:30:00.0000000' }, subject: 'VDC JEAN MARTIN' },
+      capture: ({ requete }) => {
+        requeteCapturee = requete;
+      },
+    },
+  });
+  const service = chargerServiceAvecClient(t, client);
+
+  const resultat = await service.obtenirEvenement('formation@accecit.com', 'outlook-evenement-abc');
+
+  assert.deepEqual(resultat, { id: 'outlook-evenement-abc', start: { dateTime: '2026-09-02T14:30:00.0000000' }, subject: 'VDC JEAN MARTIN' });
+  assert.equal(requeteCapturee.headers['Prefer'], 'outlook.timezone="UTC"');
+});
+
+// 404 = "événement supprimé" (renvoie null, jamais une erreur) — c'est le signal utilisé par
+// syncCalendrierManuelService.js pour détecter une annulation manuelle depuis Outlook, même
+// convention que supprimerEvenement ci-dessus.
+test('obtenirEvenement traite un 404 comme "événement supprimé" et renvoie null, pas une erreur', async (t) => {
+  const client = creerClientMock({
+    'GET /users/formation@accecit.com/events/outlook-evenement-abc': { erreur: { statusCode: 404 } },
+  });
+  const service = chargerServiceAvecClient(t, client);
+
+  const resultat = await service.obtenirEvenement('formation@accecit.com', 'outlook-evenement-abc');
+
+  assert.equal(resultat, null);
+});
+
+test('obtenirEvenement traduit une erreur 403 en citant la permission Calendars.ReadWrite', async (t) => {
+  const client = creerClientMock({
+    'GET /users/formation@accecit.com/events/outlook-evenement-abc': { erreur: { statusCode: 403 } },
+  });
+  const service = chargerServiceAvecClient(t, client);
+
+  await assert.rejects(
+    () => service.obtenirEvenement('formation@accecit.com', 'outlook-evenement-abc'),
+    /Permissions Microsoft Graph insuffisantes.*"Calendars\.ReadWrite"/s,
+  );
+});
