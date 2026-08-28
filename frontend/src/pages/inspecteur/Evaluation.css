@@ -23,7 +23,12 @@
   color: var(--couleur-back-office);
 }
 
-.page-evaluation-inspecteur__entete .en-tete-back-office {
+/* Regroupe "Mon profil" (audit 2026-08-28) et EnTeteBackOffice — même patron que
+   pages/formateur/Evaluation.css. */
+.page-evaluation-inspecteur__actions-entete {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
   margin-left: auto;
 }
 

@@ -1,0 +1,87 @@
+/* Même patron que ModaleRelanceGroupee.css (fond plein écran, carte centrée) — dupliqué plutôt
+   que partagé (voir CLAUDE.md, conventions du projet). */
+.modale-mon-profil__fond {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-mon-profil {
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 28rem;
+  padding: var(--espace-grand);
+}
+
+.modale-mon-profil__entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+}
+
+.modale-mon-profil__entete h2 {
+  margin: 0;
+}
+
+.modale-mon-profil__contenu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-grand);
+}
+
+.modale-mon-profil__lecture-seule {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.modale-mon-profil__lecture-seule div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.modale-mon-profil__lecture-seule dt {
+  color: var(--couleur-texte-secondaire);
+}
+
+.modale-mon-profil__lecture-seule dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.modale-mon-profil__formulaire-telephone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modale-mon-profil__formulaire-telephone label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.modale-mon-profil__succes {
+  color: var(--couleur-succes);
+  margin: 0;
+}
+
+.modale-mon-profil__case-preference {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

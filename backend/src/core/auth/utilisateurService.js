@@ -136,10 +136,29 @@ async function mettreAJourUtilisateur(
   return utilisateurRepository.mettreAJourUtilisateur(bd, utilisateurId, champs);
 }
 
+// Écran "Mon profil" (audit 2026-08-28, formateur/inspecteur connecté) — distinct de
+// mettreAJourUtilisateur ci-dessus (écran admin, tous champs, sur N'IMPORTE QUEL compte de
+// l'entité) : ici, seuls telephone et recevoirEmailPlanification sont modifiables, et
+// utilisateurId vient TOUJOURS de req.utilisateur.id côté route (jamais des params/body), jamais
+// un autre compte. Pas de vérification `cible` séparée (contrairement à mettreAJourUtilisateur) :
+// req.utilisateur.id est déjà garanti appartenir à l'entité courante par requireAuth
+// (auth.middleware.js, comparaison utilisateur.entiteId === req.entite.id).
+async function mettreAJourMonProfil(utilisateurId, { telephone, recevoirEmailPlanification }) {
+  const bd = await db.obtenirKnex();
+
+  const champs = {};
+  // '' vaut suppression du numéro, même convention que mettreAJourUtilisateur ci-dessus.
+  if (telephone !== undefined) champs.telephone = telephone || null;
+  if (recevoirEmailPlanification !== undefined) champs.recevoir_email_planification = recevoirEmailPlanification;
+
+  return utilisateurRepository.mettreAJourUtilisateur(bd, utilisateurId, champs);
+}
+
 module.exports = {
   listerUtilisateurs,
   listerRolesAssignables,
   listerFormateursEtInspecteurs,
   creerUtilisateur,
   mettreAJourUtilisateur,
+  mettreAJourMonProfil,
 };

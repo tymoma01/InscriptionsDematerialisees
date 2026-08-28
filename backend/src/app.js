@@ -14,6 +14,7 @@ const rendezvousDisponibilitesRoutes = require('./api/routes/rendezvousDisponibi
 const transitionsRoutes = require('./api/routes/transitions.routes');
 const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
+const moiRoutes = require('./api/routes/moi.routes');
 const formateursRoutes = require('./api/routes/formateurs.routes');
 const lieuxRoutes = require('./api/routes/lieux.routes');
 const statistiquesRoutes = require('./api/routes/statistiques.routes');
@@ -80,6 +81,9 @@ async function creerApp() {
   // Gestion des comptes (CLAUDE.md, section Rôles : "Admin : gestion globale") — admin
   // uniquement, voir utilisateurs.routes.js.
   app.use('/api/utilisateurs', utilisateursRoutes);
+  // Self-service "Mon profil" (n'importe quel rôle authentifié, sur SON PROPRE compte uniquement)
+  // — distinct de /api/utilisateurs ci-dessus (admin, tous comptes), voir moi.routes.js.
+  app.use('/api/moi', moiRoutes);
   // Liste des formateurs (Accueil/Coordination/Recruteur/Admin) — distinct de /api/utilisateurs
   // (admin uniquement) : sert à assigner un formateur lors de la planification d'un test, voir
   // formateurs.routes.js.

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useSession } from '../../core/auth/useSession';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
+import ModaleMonProfil from '../../core/auth/ModaleMonProfil';
 import ListeEvaluationsAFaire from '../../core/evaluation/ListeEvaluationsAFaire';
 import GrilleEvaluation from '../../core/evaluation/GrilleEvaluation';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -18,6 +19,7 @@ export default function Evaluation() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [rendezvousSelectionne, setRendezvousSelectionne] = useState(null);
   const [compteurRafraichissement, setCompteurRafraichissement] = useState(0);
+  const [profilOuvert, setProfilOuvert] = useState(false);
 
   // ?rendezvousId=... (lien "Voir l'évaluation de ce candidat" de l'email formateur, voir
   // formatageEmail.construireLienEvaluation) — même pattern que 'q' dans
@@ -55,8 +57,15 @@ export default function Evaluation() {
           <div className="page-evaluation__titre-bloc">
             <h1>Évaluations à venir</h1>
           </div>
-          <EnTeteBackOffice />
+          <div className="page-evaluation__actions-entete">
+            <button type="button" onClick={() => setProfilOuvert(true)}>
+              Mon profil
+            </button>
+            <EnTeteBackOffice />
+          </div>
         </header>
+
+        {profilOuvert && <ModaleMonProfil onFermer={() => setProfilOuvert(false)} />}
 
         {!rendezvousSelectionne && (
           <ListeEvaluationsAFaire

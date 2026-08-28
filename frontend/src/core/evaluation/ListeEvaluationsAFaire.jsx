@@ -125,7 +125,19 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   // Retrait local de la liste au succès : GET /evaluations/a-faire filtre déjà par dossier au
   // statut test_planifie (voir evaluationRepository.listerRendezvousAEvaluer), donc ce rendez-vous
   // ne réapparaîtrait de toute façon plus après un rechargement complet.
+  // Confirmation avant action réelle (audit 2026-08-28) — même patron que CaptureTablette.jsx
+  // (gererSuppression, window.confirm) : pas de composant modale dédié pour un simple "êtes-vous
+  // sûr", cohérent avec le reste du projet. Texte de réversibilité vérifié sur le workflow réel
+  // (workflow.config.json, transition replanifier_test depuis test_non_realise) plutôt que copié
+  // tel quel depuis la demande initiale : ROLES_PAR_ACTION_ACCECIT.replanifier_test
+  // (seedTransitionRoles.js) autorise Accueil/Coordination ET Admin, jamais Admin seul.
   const marquerNonRealise = async (rdv) => {
+    const confirme = window.confirm(
+      'Êtes-vous sûr de vouloir marquer ce test comme non réalisé ? Cette action ne pourra être ' +
+        'annulée que par Accueil/Coordination ou un administrateur.',
+    );
+    if (!confirme) return;
+
     setEnCoursId(rdv.id);
     setErreurAction(null);
     try {

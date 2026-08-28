@@ -331,7 +331,13 @@ async function envoyerInvitationTest(entite, rendezvous) {
   // échouer la planification, ni empêcher les envois déjà tentés côté candidat.
   let formateurEmailEnvoye = false;
   if (formateur) {
-    if (formateur.email) {
+    // Préférence "Mon profil" (migration 056, recevoir_email_planification, défaut true) — décochée
+    // par le formateur/inspecteur lui-même : plus d'email personnalisé envoyé à SON adresse pour une
+    // future planification le concernant. L'événement Outlook (calendrier départemental, créé plus
+    // haut dans rendezvousService.creerRendezvous, AVANT cet appel) reste créé normalement dans tous
+    // les cas — cette préférence ne joue que sur cet email, jamais sur l'événement lui-même. L'email
+    // candidat (bloc séparé plus haut) n'est pas non plus affecté par cette préférence.
+    if (formateur.email && formateur.recevoir_email_planification !== false) {
       try {
         // notePlanification passée UNIQUEMENT ici, jamais dans `infos` (partagé avec l'email
         // candidat construireMessageEmail ci-dessus) : réservée au formateur/inspecteur, voir
@@ -356,8 +362,12 @@ async function envoyerInvitationTest(entite, rendezvous) {
       } catch (erreur) {
         console.error(`Échec de l'envoi de l'email de notification formateur pour le rendez-vous ${rendezvous.id} :`, erreur.message);
       }
-    } else {
+    } else if (!formateur.email) {
       console.error(`Notification formateur ignorée pour le rendez-vous ${rendezvous.id} : pas d'email renseigné pour le formateur.`);
+    } else {
+      // Skip volontaire (préférence "Mon profil"), pas une erreur — console.log plutôt que
+      // console.error, contrairement aux deux cas ci-dessus (email manquant/échec d'envoi).
+      console.log(`Notification formateur non envoyée pour le rendez-vous ${rendezvous.id} : préférence recevoir_email_planification désactivée.`);
     }
   }
 

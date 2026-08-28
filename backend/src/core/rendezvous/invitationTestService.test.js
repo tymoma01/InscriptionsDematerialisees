@@ -174,6 +174,53 @@ test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participa
   assert.equal(piecesJointesFormateur[0].contenu.toString('utf8'), contenuIcs);
 });
 
+// Préférence "Mon profil" (migration 056, recevoir_email_planification) — audit 2026-08-28.
+test("envoyerInvitationTest n'envoie PAS l'email formateur quand recevoir_email_planification vaut false, mais envoie quand même l'email/SMS candidat", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: '0601020304',
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+    recevoir_email_planification: false,
+  }));
+  const { mailMock, smsMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  assert.deepEqual(resultat, { emailEnvoye: true, smsEnvoye: true, formateurEmailEnvoye: false });
+  // Un seul appel email (candidat) — aucun second appel vers marc.dupont@exemple.test.
+  assert.equal(mailMock.mock.calls.length, 1);
+  assert.equal(mailMock.mock.calls[0].arguments[0], 'sophie.martin@exemple.test');
+  assert.equal(smsMock.mock.calls.length, 1);
+});
+
+// Défaut true (migration 056, defaultTo) : un formateur/inspecteur dont le mock ne renseigne pas
+// explicitement ce champ (undefined, comme tous les autres tests de ce fichier écrits avant cette
+// préférence) doit continuer à recevoir l'email — comportement inchangé pour tout compte existant
+// tant qu'il n'a pas explicitement décoché la case dans "Mon profil".
+test("envoyerInvitationTest envoie l'email formateur quand recevoir_email_planification est absent (undefined), même défaut que la colonne en base", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({ email: null, telephone: null }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  assert.equal(resultat.formateurEmailEnvoye, true);
+  assert.equal(mailMock.mock.calls.length, 1);
+  assert.equal(mailMock.mock.calls[0].arguments[0], 'marc.dupont@exemple.test');
+});
+
 test("envoyerInvitationTest notifie aussi bien un inspecteur (test bureau) qu'un formateur (test hôtel) — le service ne distingue pas le role_code, voir rendezvous.formateur_id : colonne unique partagée par les deux rôles (migration 018)", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({

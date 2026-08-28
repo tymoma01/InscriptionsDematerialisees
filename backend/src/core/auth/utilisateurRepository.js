@@ -53,11 +53,14 @@ function listerUtilisateurs(bd, entiteId) {
 // pour que utilisateurService puisse refuser d'éditer un compte système même si son id est
 // deviné/forgé (l'exclusion de listerUtilisateurs ne suffit pas à elle seule, voir
 // utilisateurService.mettreAJourUtilisateur).
+// `roles.libelle` inclus (audit 2026-08-28, écran "Mon profil") : affiché en lecture seule côté
+// formateur/inspecteur connecté — les autres appelants (mettreAJourUtilisateur, invitationTestService)
+// ignorent simplement ce champ supplémentaire, même principe que role_code (ajout non disruptif).
 function trouverUtilisateurParId(bd, entiteId, utilisateurId) {
   return bd('utilisateurs')
     .join('roles', 'roles.id', 'utilisateurs.role_id')
     .where({ 'utilisateurs.id': utilisateurId, 'utilisateurs.entite_id': entiteId })
-    .select('utilisateurs.*', 'roles.code as role_code')
+    .select('utilisateurs.*', 'roles.code as role_code', 'roles.libelle as role_libelle')
     .first();
 }
 

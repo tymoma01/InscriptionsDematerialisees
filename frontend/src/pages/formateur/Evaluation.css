@@ -23,7 +23,13 @@
   color: var(--couleur-back-office);
 }
 
-.page-evaluation__entete .en-tete-back-office {
+/* Regroupe "Mon profil" (audit 2026-08-28) et EnTeteBackOffice (agent connecté/Déconnexion) —
+   margin-left: auto porté ici (plutôt que sur .en-tete-back-office comme avant l'ajout du bouton)
+   pousse le GROUPE entier à droite, les deux restant côte à côte à l'intérieur. */
+.page-evaluation__actions-entete {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-moyen);
   margin-left: auto;
 }
 
