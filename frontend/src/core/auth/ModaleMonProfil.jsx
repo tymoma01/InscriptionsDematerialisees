@@ -111,14 +111,24 @@ export default function ModaleMonProfil({ onFermer }) {
                 <input type="tel" value={telephone} onChange={(evenement) => setTelephone(evenement.target.value)} />
               </div>
 
-              <label className="modale-mon-profil__case-preference">
-                <input
-                  type="checkbox"
-                  checked={neSouhaitePasRecevoir}
-                  onChange={(evenement) => setNeSouhaitePasRecevoir(evenement.target.checked)}
-                />
-                <span>Je ne souhaite pas recevoir de second mail de RDV des Tests</span>
-              </label>
+              {/* Uniquement Formateur/Inspecteur (audit 2026-08-28) : seuls ces deux rôles
+                  reçoivent l'email personnalisé de planification (voir invitationTestService.js,
+                  construireMessageEmailFormateur) — la case n'a pas de sens pour Accueil/
+                  Coordination, Admin, ou tout futur rôle (ex. Suivi Formation), qui ne le reçoivent
+                  jamais. Même patron ['formateur', 'inspecteur'].includes(roleCode) que
+                  pages/coordination/Planification.jsx (estFormateurOuInspecteur). Champ
+                  Téléphone/bouton Enregistrer ci-dessus restent affichés pour tous les rôles —
+                  seule cette case est concernée. */}
+              {['formateur', 'inspecteur'].includes(profil.roleCode) && (
+                <label className="modale-mon-profil__case-preference">
+                  <input
+                    type="checkbox"
+                    checked={neSouhaitePasRecevoir}
+                    onChange={(evenement) => setNeSouhaitePasRecevoir(evenement.target.checked)}
+                  />
+                  <span>Je ne souhaite pas recevoir de second mail de RDV des Tests</span>
+                </label>
+              )}
             </div>
 
             {erreurEnregistrement && <p role="alert">{erreurEnregistrement}</p>}
