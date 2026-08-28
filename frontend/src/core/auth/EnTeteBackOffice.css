@@ -13,6 +13,27 @@
   margin: 0;
 }
 
+/* Slot d'action optionnel (audit 2026-08-28, "Mon profil" — voir EnTeteBackOffice.jsx, children)
+   — style plein/affirmé, même formule que .liste-evaluations__item button "Évaluer"
+   (ListeEvaluationsAFaire.css) et .informations-inscription__actions-edition button
+   "Enregistrer" (InformationsInscription.css), plutôt que le contour neutre de Déconnexion
+   ci-dessous : contrairement à Déconnexion (action de sortie, volontairement discrète), ce bouton
+   ouvre un écran, il doit rester visible à côté du nom de l'agent. */
+.en-tete-back-office__action {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.en-tete-back-office__action:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
 .en-tete-back-office__deconnexion {
   padding: 0.4rem 1rem;
   border: 1px solid var(--couleur-bordure);

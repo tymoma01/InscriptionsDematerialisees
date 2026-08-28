@@ -33,46 +33,74 @@
   margin: 0;
 }
 
+/* Espacement généreux entre les deux groupes (lecture seule / modifiable) et les messages
+   d'erreur/succès — audit 2026-08-28, lisibilité (les champs se touchaient trop). */
 .modale-mon-profil__contenu {
   display: flex;
   flex-direction: column;
   gap: var(--espace-grand);
 }
 
-.modale-mon-profil__lecture-seule {
+/* Carte englobante par groupe — même fond légèrement teinté que
+   .informations-inscription__carte (InformationsInscription.css), pour rester cohérent avec le
+   style déjà utilisé ailleurs dans l'app pour ce type de résumé d'information. */
+.modale-mon-profil__groupe {
+  padding: var(--espace-moyen) var(--espace-grand);
+  background-color: var(--couleur-fond-secondaire);
+  border-radius: var(--rayon-bordure);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin: 0;
+  gap: 0.2rem;
 }
 
-.modale-mon-profil__lecture-seule div {
+/* Paire libellé/valeur — même patron que .informations-inscription__ligne
+   (InformationsInscription.css) : libellé en couleur secondaire à gauche, valeur en gras à
+   droite, séparées par une fine bordure pour marquer chaque ligne sans alourdir la carte. */
+.modale-mon-profil__ligne {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: var(--espace-moyen);
-  padding-bottom: 0.5rem;
+  padding: 0.5rem 0;
   border-bottom: 1px solid var(--couleur-bordure-legere);
+  font-size: 0.95rem;
 }
 
-.modale-mon-profil__lecture-seule dt {
+.modale-mon-profil__groupe .modale-mon-profil__ligne:last-child {
+  border-bottom: none;
+}
+
+.modale-mon-profil__libelle {
   color: var(--couleur-texte-secondaire);
 }
 
-.modale-mon-profil__lecture-seule dd {
-  margin: 0;
+.modale-mon-profil__valeur {
+  text-align: right;
   font-weight: 600;
+  color: var(--couleur-texte);
 }
 
-.modale-mon-profil__formulaire-telephone {
+/* Champ Téléphone : même ligne libellé/valeur que ci-dessus, la "valeur" étant ici un champ de
+   saisie plutôt qu'un texte figé (voir .informations-inscription__champ, même principe). */
+.modale-mon-profil__champ {
+  align-items: center;
+}
+
+.modale-mon-profil__champ input[type='tel'] {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  max-width: 12rem;
+  text-align: left;
+}
+
+.modale-mon-profil__case-preference {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
-}
-
-.modale-mon-profil__formulaire-telephone label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  padding: 0.6rem 0 0.2rem;
+  font-size: 0.9rem;
 }
 
 .modale-mon-profil__succes {
@@ -80,8 +108,34 @@
   margin: 0;
 }
 
-.modale-mon-profil__case-preference {
+.modale-mon-profil__contenu [role='alert'] {
+  color: var(--couleur-erreur);
+  margin: 0;
+}
+
+/* "Enregistrer", en bas de la modale, après la case à cocher — même style plein/affirmé que
+   .informations-inscription__actions-edition button (InformationsInscription.css) et que
+   .liste-evaluations__item button "Évaluer" (ListeEvaluationsAFaire.css). */
+.modale-mon-profil__actions {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.modale-mon-profil__actions button {
+  padding: 0.5rem 1.25rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modale-mon-profil__actions button:hover:not(:disabled) {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.modale-mon-profil__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

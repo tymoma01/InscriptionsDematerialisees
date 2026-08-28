@@ -12,7 +12,15 @@ import './EnTeteBackOffice.css';
 // supplémentaire. Ne rend rien tant que la session n'est pas résolue ou si personne n'est
 // connecté : la page appelante affiche déjà son propre message "vous devez être connecté" dans
 // ce cas (voir TableauDeBordAccueil.jsx et les autres pages back-office).
-export default function EnTeteBackOffice() {
+//
+// `children` optionnel (audit 2026-08-28, bouton "Mon profil" côté Formateur/Inspecteur, voir
+// pages/formateur/Evaluation.jsx) : rendu avant le nom de l'agent, DANS la même ligne flex que
+// lui/Déconnexion — nécessaire pour un alignement vertical pixel-perfect des trois éléments (un
+// enfant placé dans un conteneur flex frère, plutôt que dans cette ligne elle-même, ne partage pas
+// exactement la même boîte englobante). Vide par défaut : aucune autre page back-office n'a
+// aujourd'hui besoin de ce slot, celles qui ne le renseignent pas gardent un rendu strictement
+// identique à avant son ajout.
+export default function EnTeteBackOffice({ children }) {
   const { utilisateur, chargement } = useSession();
   const navigate = useNavigate();
   const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
@@ -36,6 +44,7 @@ export default function EnTeteBackOffice() {
 
   return (
     <div className="en-tete-back-office">
+      {children}
       {/* Préfixe "Agent connecté : " retiré (audit 2026-08-20, décision utilisateur) : le nom seul
           suffit, cet en-tête n'apparaissant que sur les écrans internes déjà authentifiés. */}
       <p className="en-tete-back-office__agent">

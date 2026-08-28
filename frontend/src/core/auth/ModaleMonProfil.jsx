@@ -4,25 +4,27 @@ import './ModaleMonProfil.css';
 
 // Self-service "Mon profil" (audit 2026-08-28, formateur/inspecteur en premier usage, voir
 // pages/formateur/Evaluation.jsx et pages/inspecteur/Evaluation.jsx) — Nom/Prénom/Email/Rôle en
-// lecture seule (résolus côté serveur, jamais modifiables ici), Téléphone et la préférence email
-// planification modifiables séparément (bouton "Enregistrer" dédié au téléphone ; la case à cocher
-// s'enregistre elle-même au clic, pas de bouton séparé — décision utilisateur). Même patron de
-// modale que ModaleRelanceGroupee.jsx (fond plein écran, carte centrée), dupliqué plutôt que
-// partagé (voir CLAUDE.md, conventions du projet).
+// lecture seule (résolus côté serveur, jamais modifiables ici), même patron libellé/valeur que
+// InformationsInscription.css (.informations-inscription__ligne) pour rester cohérent avec le
+// reste de l'app. Téléphone et la préférence email planification partagent désormais UN SEUL
+// bouton "Enregistrer" en bas de modale (audit 2026-08-28, ajustement visuel : plus de sauvegarde
+// immédiate au clic sur la case, ni de bouton séparé pour le téléphone) — les deux valeurs
+// courantes du formulaire sont envoyées ensemble à chaque clic, que l'un des deux champs ait
+// changé ou non. Même patron de modale que ModaleRelanceGroupee.jsx (fond plein écran, carte
+// centrée), dupliqué plutôt que partagé (voir CLAUDE.md, conventions du projet).
 export default function ModaleMonProfil({ onFermer }) {
   const [profil, setProfil] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [erreurChargement, setErreurChargement] = useState(null);
 
-  // Champ local distinct de profil.telephone : ne doit être écrasé par la réponse serveur
-  // qu'après un enregistrement réussi, jamais pendant la frappe (voir enregistrerTelephone).
+  // Champs locaux du formulaire, distincts de `profil` : ne doivent être écrasés par la réponse
+  // serveur qu'après un enregistrement réussi, jamais pendant la saisie/le cochage.
   const [telephone, setTelephone] = useState('');
-  const [enregistrementTelephoneEnCours, setEnregistrementTelephoneEnCours] = useState(false);
-  const [erreurTelephone, setErreurTelephone] = useState(null);
-  const [telephoneEnregistre, setTelephoneEnregistre] = useState(false);
+  const [neSouhaitePasRecevoir, setNeSouhaitePasRecevoir] = useState(false);
 
-  const [enregistrementPreferenceEnCours, setEnregistrementPreferenceEnCours] = useState(false);
-  const [erreurPreference, setErreurPreference] = useState(null);
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const [erreurEnregistrement, setErreurEnregistrement] = useState(null);
+  const [enregistrementReussi, setEnregistrementReussi] = useState(false);
 
   useEffect(() => {
     let annule = false;
@@ -31,6 +33,8 @@ export default function ModaleMonProfil({ onFermer }) {
         if (annule) return;
         setProfil(valeur);
         setTelephone(valeur.telephone ?? '');
+        // La case affiche l'inverse de recevoirEmailPlanification, voir enregistrer() ci-dessous.
+        setNeSouhaitePasRecevoir(valeur.recevoirEmailPlanification === false);
       })
       .catch((erreur) => {
         if (!annule) setErreurChargement(erreur.response?.data?.erreur ?? 'Impossible de récupérer votre profil.');
@@ -43,40 +47,27 @@ export default function ModaleMonProfil({ onFermer }) {
     };
   }, []);
 
-  const enregistrerTelephone = async (evenement) => {
+  // Un seul appel, un seul bouton (audit 2026-08-28) : envoie systématiquement les DEUX champs
+  // ensemble, quel que soit celui réellement modifié — plus simple qu'un diff côté client, et le
+  // backend accepte les deux valeurs même inchangées (moi.routes.js).
+  const enregistrer = async (evenement) => {
     evenement.preventDefault();
-    setErreurTelephone(null);
-    setTelephoneEnregistre(false);
-    setEnregistrementTelephoneEnCours(true);
+    setErreurEnregistrement(null);
+    setEnregistrementReussi(false);
+    setEnregistrementEnCours(true);
     try {
-      const valeur = await mettreAJourMonProfil({ telephone });
+      const valeur = await mettreAJourMonProfil({
+        telephone,
+        recevoirEmailPlanification: !neSouhaitePasRecevoir,
+      });
       setProfil(valeur);
       setTelephone(valeur.telephone ?? '');
-      setTelephoneEnregistre(true);
+      setNeSouhaitePasRecevoir(valeur.recevoirEmailPlanification === false);
+      setEnregistrementReussi(true);
     } catch (erreur) {
-      setErreurTelephone(
-        erreur.response?.data?.erreur ?? "Impossible d'enregistrer votre numéro de téléphone. Merci de réessayer.",
-      );
+      setErreurEnregistrement(erreur.response?.data?.erreur ?? "Impossible d'enregistrer vos informations. Merci de réessayer.");
     } finally {
-      setEnregistrementTelephoneEnCours(false);
-    }
-  };
-
-  // La case affiche "Je ne souhaite pas recevoir..." (inverse de recevoirEmailPlanification) —
-  // cochée doit donc envoyer recevoirEmailPlanification: false, décochée envoyer true. Enregistre
-  // immédiatement au clic (pas de bouton dédié, contrairement au téléphone ci-dessus) : décision
-  // utilisateur, une préférence booléenne n'a pas besoin d'une étape de validation séparée.
-  const changerPreferenceEmail = async (evenement) => {
-    const neSouhaitePasRecevoir = evenement.target.checked;
-    setErreurPreference(null);
-    setEnregistrementPreferenceEnCours(true);
-    try {
-      const valeur = await mettreAJourMonProfil({ recevoirEmailPlanification: !neSouhaitePasRecevoir });
-      setProfil(valeur);
-    } catch (erreur) {
-      setErreurPreference(erreur.response?.data?.erreur ?? "Impossible d'enregistrer cette préférence. Merci de réessayer.");
-    } finally {
-      setEnregistrementPreferenceEnCours(false);
+      setEnregistrementEnCours(false);
     }
   };
 
@@ -94,56 +85,51 @@ export default function ModaleMonProfil({ onFermer }) {
         {erreurChargement && <p role="alert">{erreurChargement}</p>}
 
         {!chargement && !erreurChargement && profil && (
-          <div className="modale-mon-profil__contenu">
-            <dl className="modale-mon-profil__lecture-seule">
-              <div>
-                <dt>Nom</dt>
-                <dd>{profil.nom}</dd>
+          <form className="modale-mon-profil__contenu" onSubmit={enregistrer}>
+            <div className="modale-mon-profil__groupe">
+              <div className="modale-mon-profil__ligne">
+                <span className="modale-mon-profil__libelle">Nom</span>
+                <span className="modale-mon-profil__valeur">{profil.nom}</span>
               </div>
-              <div>
-                <dt>Prénom</dt>
-                <dd>{profil.prenom}</dd>
+              <div className="modale-mon-profil__ligne">
+                <span className="modale-mon-profil__libelle">Prénom</span>
+                <span className="modale-mon-profil__valeur">{profil.prenom}</span>
               </div>
-              <div>
-                <dt>Email</dt>
-                <dd>{profil.email}</dd>
+              <div className="modale-mon-profil__ligne">
+                <span className="modale-mon-profil__libelle">Email</span>
+                <span className="modale-mon-profil__valeur">{profil.email}</span>
               </div>
-              <div>
-                <dt>Rôle</dt>
-                <dd>{profil.roleLibelle ?? profil.roleCode}</dd>
+              <div className="modale-mon-profil__ligne">
+                <span className="modale-mon-profil__libelle">Rôle</span>
+                <span className="modale-mon-profil__valeur">{profil.roleLibelle ?? profil.roleCode}</span>
               </div>
-            </dl>
+            </div>
 
-            <form className="modale-mon-profil__formulaire-telephone" onSubmit={enregistrerTelephone}>
-              <label>
-                <span>Téléphone</span>
+            <div className="modale-mon-profil__groupe">
+              <div className="modale-mon-profil__ligne modale-mon-profil__champ">
+                <span className="modale-mon-profil__libelle">Téléphone</span>
+                <input type="tel" value={telephone} onChange={(evenement) => setTelephone(evenement.target.value)} />
+              </div>
+
+              <label className="modale-mon-profil__case-preference">
                 <input
-                  type="tel"
-                  value={telephone}
-                  onChange={(evenement) => {
-                    setTelephone(evenement.target.value);
-                    setTelephoneEnregistre(false);
-                  }}
+                  type="checkbox"
+                  checked={neSouhaitePasRecevoir}
+                  onChange={(evenement) => setNeSouhaitePasRecevoir(evenement.target.checked)}
                 />
+                <span>Je ne souhaite pas recevoir de second mail de RDV des Tests</span>
               </label>
-              {erreurTelephone && <p role="alert">{erreurTelephone}</p>}
-              {telephoneEnregistre && <p className="modale-mon-profil__succes">Numéro enregistré.</p>}
-              <button type="submit" disabled={enregistrementTelephoneEnCours}>
-                {enregistrementTelephoneEnCours ? 'Enregistrement...' : 'Enregistrer'}
-              </button>
-            </form>
+            </div>
 
-            <label className="modale-mon-profil__case-preference">
-              <input
-                type="checkbox"
-                checked={profil.recevoirEmailPlanification === false}
-                onChange={changerPreferenceEmail}
-                disabled={enregistrementPreferenceEnCours}
-              />
-              <span>Je ne souhaite pas recevoir de second mail de RDV des Tests</span>
-            </label>
-            {erreurPreference && <p role="alert">{erreurPreference}</p>}
-          </div>
+            {erreurEnregistrement && <p role="alert">{erreurEnregistrement}</p>}
+            {enregistrementReussi && <p className="modale-mon-profil__succes">Profil mis à jour.</p>}
+
+            <div className="modale-mon-profil__actions">
+              <button type="submit" disabled={enregistrementEnCours}>
+                {enregistrementEnCours ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </div>

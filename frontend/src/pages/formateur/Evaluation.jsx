@@ -57,12 +57,11 @@ export default function Evaluation() {
           <div className="page-evaluation__titre-bloc">
             <h1>Évaluations à venir</h1>
           </div>
-          <div className="page-evaluation__actions-entete">
-            <button type="button" onClick={() => setProfilOuvert(true)}>
+          <EnTeteBackOffice>
+            <button type="button" className="en-tete-back-office__action" onClick={() => setProfilOuvert(true)}>
               Mon profil
             </button>
-            <EnTeteBackOffice />
-          </div>
+          </EnTeteBackOffice>
         </header>
 
         {profilOuvert && <ModaleMonProfil onFermer={() => setProfilOuvert(false)} />}
