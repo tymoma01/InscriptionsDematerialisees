@@ -162,6 +162,13 @@ export default function Tests() {
       .catch(() => {});
   };
 
+  // Transmis à GestionRendezvous en prop `rafraichir` (voir son commentaire d'en-tête) : cette
+  // page reste montée d'une planification à l'autre (dossierId inchangé), donc le rechargement du
+  // dossier ci-dessus ne suffit pas à lui seul à forcer GestionRendezvous à recharger SA propre
+  // liste de rendez-vous — sans ce compteur, l'ancien rendez-vous restait affiché jusqu'au
+  // prochain passage de useRafraichissementAuto après une replanification.
+  const [compteurRendezvous, setCompteurRendezvous] = useState(0);
+
   useEffect(() => {
     rechargerDossier();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,6 +272,7 @@ export default function Tests() {
               codeStatutDossier={dossier?.statut_code}
               libelleStatutDossier={dossier?.statut_libelle}
               dernierSeulement
+              rafraichir={compteurRendezvous}
             />
           </ErrorBoundary>
         </section>
@@ -282,6 +290,7 @@ export default function Tests() {
               onReussite={() => {
                 setPanneauReplanificationOuvert(false);
                 rechargerDossier();
+                setCompteurRendezvous((compteur) => compteur + 1);
               }}
             />
           </ErrorBoundary>
@@ -303,6 +312,7 @@ export default function Tests() {
               onReussite={() => {
                 setPanneauPlanificationOuvert(false);
                 rechargerDossier();
+                setCompteurRendezvous((compteur) => compteur + 1);
               }}
             />
           </ErrorBoundary>

@@ -163,7 +163,21 @@ export const ROLES_GESTION_RENDEZVOUS = ['accueil_coordination', 'admin'];
 // composant). L'état "aucun rendez-vous" (voir plus bas) reste affiché tel quel dans les deux
 // modes : c'est déjà le message que ce cas d'usage doit reprendre (point 4 de la demande), pas la
 // peine d'en écrire un second.
-export default function GestionRendezvous({ dossierId, codeStatutDossier, libelleStatutDossier, dernierSeulement = false }) {
+//
+// rafraichir (audit 2026-08-28, dossier planifier/replanifier un test) : changer sa valeur force
+// un rechargement de la liste, même patron que ListeEvaluationsAFaire.jsx — sans lui, ce composant
+// ne rechargeait qu'au changement de dossierId (jamais après une (re)planification sur CE MÊME
+// dossier), donc Tests.jsx affichait encore l'ancien rendez-vous juste après une replanification
+// réussie, jusqu'au prochain passage de useRafraichissementAuto. Optionnel (undefined par défaut) :
+// Relances.jsx, seul autre point de montage, ne planifie jamais de test et n'a pas besoin de le
+// passer.
+export default function GestionRendezvous({
+  dossierId,
+  codeStatutDossier,
+  libelleStatutDossier,
+  dernierSeulement = false,
+  rafraichir,
+}) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
@@ -193,9 +207,16 @@ export default function GestionRendezvous({ dossierId, codeStatutDossier, libell
       .finally(() => setChargement(false));
   };
 
+  // Rendez-vous seuls dans cet effet (dossierId + rafraichir, voir son commentaire d'en-tête sur
+  // le composant) : les motifs ci-dessous sont une config statique, sans intérêt à recharger à
+  // chaque planification/replanification.
+  useEffect(() => {
+    chargerRendezvous();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dossierId, rafraichir]);
+
   useEffect(() => {
     let annule = false;
-    chargerRendezvous();
     listerMotifsDesistement()
       .then((valeur) => {
         if (annule) return;
