@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
-import ModaleMonProfil from '../../core/auth/ModaleMonProfil';
 import ListeEvaluationsAFaire from '../../core/evaluation/ListeEvaluationsAFaire';
 import GrilleEvaluation from '../../core/evaluation/GrilleEvaluation';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
@@ -19,13 +19,21 @@ export default function Evaluation() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [rendezvousSelectionne, setRendezvousSelectionne] = useState(null);
   const [compteurRafraichissement, setCompteurRafraichissement] = useState(0);
-  const [profilOuvert, setProfilOuvert] = useState(false);
 
   // ?rendezvousId=... (lien "Voir l'évaluation de ce candidat" de l'email formateur, voir
   // formatageEmail.construireLienEvaluation) — même pattern que 'q' dans
   // ListeEvaluationsAFaire.jsx, transmis tel quel pour qu'il surligne/scrolle jusqu'à la ligne
   // correspondante (voir ListeEvaluationsAFaire.jsx, rendezvousIdCible).
   const [rendezvousIdCible] = useParametreURL('rendezvousId', '');
+  const { key: cleNavigation } = useLocation();
+
+  // Reclic sur le lien de nav "Évaluations à venir" alors qu'on est déjà sur cette route :
+  // React Router ne démonte pas la page (même élément de route), donc `rendezvousSelectionne` ne
+  // se réinitialise pas tout seul. `location.key` change à chaque navigation, y compris vers
+  // l'URL déjà active — on s'en sert pour revenir à la liste.
+  useEffect(() => {
+    setRendezvousSelectionne(null);
+  }, [cleNavigation]);
 
   // Rafraîchissement automatique (audit 2026-08-24) : réutilise le mécanisme déjà en place
   // (compteurRafraichissement, voir son commentaire d'en-tête) plutôt que de dupliquer la logique
@@ -57,14 +65,8 @@ export default function Evaluation() {
           <div className="page-evaluation__titre-bloc">
             <h1>Évaluations à venir</h1>
           </div>
-          <EnTeteBackOffice>
-            <button type="button" className="en-tete-back-office__action" onClick={() => setProfilOuvert(true)}>
-              Mon profil
-            </button>
-          </EnTeteBackOffice>
+          <EnTeteBackOffice />
         </header>
-
-        {profilOuvert && <ModaleMonProfil onFermer={() => setProfilOuvert(false)} />}
 
         {!rendezvousSelectionne && (
           <ListeEvaluationsAFaire

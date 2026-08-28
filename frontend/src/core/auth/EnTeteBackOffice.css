@@ -13,9 +13,10 @@
   margin: 0;
 }
 
-/* Slot d'action optionnel (audit 2026-08-28, "Mon profil" — voir EnTeteBackOffice.jsx, children)
-   — juste milieu entre le remplissage plein --couleur-back-office (trop sombre à côté du nom de
-   l'agent/Déconnexion, retour utilisateur) et un bouton non stylé (trop discret, essai précédent) :
+/* Bouton "Mon profil" (audit 2026-08-28, présent sur toutes les pages back-office — voir
+   EnTeteBackOffice.jsx) — juste milieu entre le remplissage plein --couleur-back-office (trop
+   sombre à côté du nom de l'agent/Déconnexion, retour utilisateur) et un bouton non stylé
+   (trop discret, essai précédent) :
    fond clair + bordure/texte dans la couleur back-office, même formule que le surlignage
    .liste-evaluations__item--cible (ListeEvaluationsAFaire.css, --couleur-back-office-clair/-dore) —
    reste identifiable comme cliquable sans dominer visuellement la barre. */

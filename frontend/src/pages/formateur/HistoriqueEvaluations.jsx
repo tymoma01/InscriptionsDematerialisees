@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import HistoriqueEvaluations from '../../core/evaluation/HistoriqueEvaluations';
@@ -13,6 +14,15 @@ import './HistoriqueEvaluations.css';
 export default function PageHistoriqueEvaluations() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [evaluationSelectionnee, setEvaluationSelectionnee] = useState(null);
+  const { key: cleNavigation } = useLocation();
+
+  // Reclic sur le lien de nav "Historique des évaluations" alors qu'on est déjà sur cette route :
+  // React Router ne démonte pas la page (même élément de route), donc `evaluationSelectionnee`
+  // ne se réinitialise pas tout seul. `location.key` change à chaque navigation, y compris vers
+  // l'URL déjà active — on s'en sert pour revenir à la liste.
+  useEffect(() => {
+    setEvaluationSelectionnee(null);
+  }, [cleNavigation]);
 
   // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
   // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
