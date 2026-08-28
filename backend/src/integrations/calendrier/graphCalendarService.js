@@ -22,7 +22,10 @@ const PERMISSION_GRAPH_CALENDRIER = 'Calendars.ReadWrite';
 // reste, comme rendezvousService.js qui l'appelle, volontairement "ACCECIT-flavored").
 const CALENDRIER_PAR_ROLE = {
   formateur: 'formation@accecit.com',
-  inspecteur: 'tertiaire2@accecit.com',
+  // test-tertiaire@accecit.com remplace tertiaire2@accecit.com (audit 2026-08-28) — permissions
+  // Calendars.ReadWrite déjà accordées et testées sur cette nouvelle boîte (voir
+  // checklist-mise-en-prod.md), même app registration que ci-dessus.
+  inspecteur: 'test-tertiaire@accecit.com',
 };
 
 function resoudreCalendrierParRole(roleCode) {

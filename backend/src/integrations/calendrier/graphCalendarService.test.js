@@ -64,11 +64,11 @@ function chargerServiceAvecClient(t, clientMock) {
   return require('./graphCalendarService');
 }
 
-test('resoudreCalendrierParRole route formateur vers formation@accecit.com et inspecteur vers tertiaire2@accecit.com', async (t) => {
+test('resoudreCalendrierParRole route formateur vers formation@accecit.com et inspecteur vers test-tertiaire@accecit.com', async (t) => {
   const service = chargerServiceAvecClient(t, creerClientMock({}));
 
   assert.equal(service.resoudreCalendrierParRole('formateur'), 'formation@accecit.com');
-  assert.equal(service.resoudreCalendrierParRole('inspecteur'), 'tertiaire2@accecit.com');
+  assert.equal(service.resoudreCalendrierParRole('inspecteur'), 'test-tertiaire@accecit.com');
 });
 
 test('resoudreCalendrierParRole rejette un rôle sans calendrier configuré', async (t) => {

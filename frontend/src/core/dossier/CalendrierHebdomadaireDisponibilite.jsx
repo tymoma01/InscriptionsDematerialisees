@@ -6,7 +6,7 @@ import './CalendrierHebdomadaireDisponibilite.css';
 // Remplace CalendrierDisponibiliteFormateur.jsx (calendrier mensuel, aide visuelle basée sur Neon
 // uniquement) dans ModalePlanificationTest.jsx — audit 2026-08-26, décision utilisateur : la
 // planification s'appuie désormais sur le calendrier Outlook réel (formation@accecit.com /
-// tertiaire2@accecit.com selon le rôle), donc le calendrier de sélection doit refléter la
+// test-tertiaire@accecit.com selon le rôle), donc le calendrier de sélection doit refléter la
 // disponibilité RÉELLEMENT occupée sur Outlook, pas seulement ce qui a déjà été écrit dans Neon.
 // CalendrierDisponibiliteFormateur.jsx reste inchangé et continue d'être utilisé ailleurs
 // (PanneauHistoriqueRendezvous.jsx) — ce nouveau composant est spécifique à cette modale.

@@ -419,7 +419,7 @@ test('creerRendezvous omet le segment "— Poste(s)" du subject Outlook si aucun
   assert.equal(creerEvenementMock.mock.calls[0].arguments[1].sujet, 'Test ACCECIT — Formateur Test / Jean Dupont');
 });
 
-test('creerRendezvous route un inspecteur vers le calendrier tertiaire2@accecit.com (pas formation@)', async (t) => {
+test('creerRendezvous route un inspecteur vers le calendrier test-tertiaire@accecit.com (pas formation@)', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
   t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
@@ -442,7 +442,7 @@ test('creerRendezvous route un inspecteur vers le calendrier tertiaire2@accecit.
     formateurId: 9,
   });
 
-  assert.equal(creerEvenementMock.mock.calls[0].arguments[0], 'tertiaire2@accecit.com');
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[0], 'test-tertiaire@accecit.com');
 });
 
 test("creerRendezvous ne crée RIEN en Neon si la création de l'événement Outlook échoue", async (t) => {
@@ -616,7 +616,7 @@ test('obtenirDisponibilitesFormateur résout le calendrier départemental depuis
   });
 
   assert.deepEqual(obtenirDisponibilitesMock.mock.calls[0].arguments, [
-    'tertiaire2@accecit.com',
+    'test-tertiaire@accecit.com',
     '2026-09-01T00:00:00.000Z',
     '2026-09-08T00:00:00.000Z',
   ]);
