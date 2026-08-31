@@ -91,6 +91,30 @@
   gap: var(--espace-petit);
 }
 
+/* "Voir le dossier" — même cadre/couleur que .planification__action-voir (Planification.css,
+   "Suivi des tests") : dégradé bleu ACCECIT (--couleur-primaire), largeur fixe, toujours visible
+   (aucune classe --accesComplet ici), contrairement aux boutons "Formation validée"/"non validée"
+   ci-dessous. Dupliqué plutôt que partagé (voir CLAUDE.md, conventions du projet). */
+.page-suivi-formation__action-voir {
+  flex: 0 0 4.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background: linear-gradient(135deg, var(--couleur-primaire), var(--couleur-primaire-hover));
+  color: #ffffff;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.page-suivi-formation__action-voir:hover,
+.page-suivi-formation__action-voir:focus-visible {
+  filter: brightness(0.92);
+}
+
 /* Même formule que .liste-evaluations__item button (ListeEvaluationsAFaire.css) : plein/affirmé
    pour "Formation validée" (issue positive). */
 .page-suivi-formation__actions button {
