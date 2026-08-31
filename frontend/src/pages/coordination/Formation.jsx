@@ -25,6 +25,8 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
   formation_non_validee: 'echec-fort',
+  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css.
+  embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

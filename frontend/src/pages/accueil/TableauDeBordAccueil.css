@@ -218,6 +218,15 @@
   color: var(--statut-echec-fort-texte);
 }
 
+/* Statut terminal "Embauché" (audit 2026-08-31) : --statut-vert-fonce-*, troisième teinte verte
+   distincte de --statut-succes-* ('valide_envoi_formation' ci-dessus) et --statut-vert-clair-*
+   ('valide_pret_embauche' ci-dessus) — voir variables.css. */
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='embauche']:not(.actif) {
+  background-color: var(--statut-vert-fonce-fond);
+  border-color: var(--statut-vert-fonce-bordure);
+  color: var(--statut-vert-fonce-texte);
+}
+
 /* Palier "2 colonnes" (audit 2026-08-23) retiré avec la grille elle-même (voir le commentaire
    d'en-tête de .tableau-bord-accueil .filtres-statut__statuts plus haut) : flex-wrap recalcule déjà
    le nombre de boutons par ligne selon la largeur réellement disponible, sans palier fixe à

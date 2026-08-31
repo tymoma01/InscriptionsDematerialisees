@@ -177,4 +177,14 @@
   --statut-rose-fond: #fce8f3;
   --statut-rose-texte: #a3195b;
   --statut-rose-bordure: #eec0da;
+
+  /* Vert soutenu (audit 2026-08-31, statut terminal "Embauché") — troisième teinte de la famille
+     verte de ce funnel (succes=vert moyen pour "Validé - envoyé en formation", vert-clair=menthe
+     pâle pour "Validé - prêt à l'embauche"), les trois pouvant apparaître ensemble sur "Dossiers
+     candidats" : un vert plus dense/saturé que les deux précédents, pour rester distinguable d'un
+     coup d'œil plutôt qu'une simple variation de teinte à peine perceptible. Contraste fond/texte
+     visé du même ordre que les autres paires ci-dessus (texte foncé sur fond pastel). */
+  --statut-vert-fonce-fond: #b3e8c4;
+  --statut-vert-fonce-texte: #0a5c33;
+  --statut-vert-fonce-bordure: #7ecf9c;
 }

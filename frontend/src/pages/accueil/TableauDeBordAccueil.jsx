@@ -76,6 +76,9 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
+  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css pour le
+  // détail (troisième teinte verte de ce funnel, distincte de 'succes'/'vert-clair' ci-dessus).
+  embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
@@ -138,6 +141,10 @@ const CODES_STATUTS_FILTRES_ACCUEIL = [
   // (VARIANTE_PAR_CODE_ACCECIT le portait déjà, pas cette liste) — un dossier "Formation non
   // validée" restait visible dans le tableau/"Tous" mais impossible à isoler par filtre dédié.
   'formation_non_validee',
+  // Statut terminal "Embauché" (audit 2026-08-31) : même raison que les deux verdicts positifs
+  // ci-dessus — sans cette entrée, les dossiers embauchés restent visibles via "Tous" mais
+  // impossibles à isoler par filtre dédié.
+  'embauche',
 ];
 
 // Codes agrégés sous le bouton "Test réalisé" (demande explicite, audit 2026-08-21) : à la
@@ -165,6 +172,9 @@ const CODES_STATUTS_TEST_REALISE_ACCECIT = [
   'valide_envoi_formation',
   'valide_pret_embauche',
   'formation_non_validee',
+  // 'embauche' ajouté (audit 2026-08-31, même raison que 'formation_non_validee' ci-dessus) : un
+  // dossier embauché est passé par valide_pret_embauche, donc par un test réellement tenu.
+  'embauche',
 ];
 function codesPourFiltreStatut(code) {
   return code === 'test_realise' ? CODES_STATUTS_TEST_REALISE_ACCECIT : [code];

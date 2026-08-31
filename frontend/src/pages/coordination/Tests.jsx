@@ -44,6 +44,8 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
+  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css.
+  embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

@@ -202,6 +202,13 @@ function enregistrerChangementStatut(trx, { dossierId, statutId, utilisateurId, 
   });
 }
 
+// Date d'embauche (migration 057, audit 2026-08-31) — écrite par embaucheService.marquerEmbauche
+// dans la MÊME transaction que la transition de statut vers 'embauche' (voir son commentaire
+// d'en-tête) : jamais appelée seule en dehors de ce flux.
+function mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche }) {
+  return trx('dossiers').where({ id: dossierId }).update({ date_embauche: dateEmbauche });
+}
+
 // Vue centralisée des dossiers (CLAUDE.md, besoins Accueil/Coordination) : jointure candidats +
 // statuts pour éviter au front une résolution en plusieurs appels. statutCode reste optionnel —
 // non fourni, la requête renvoie tous les dossiers de l'entité.
@@ -646,6 +653,7 @@ module.exports = {
   trouverStatutParCode,
   trouverUtilisateurSysteme,
   enregistrerChangementStatut,
+  mettreAJourDateEmbauche,
   listerDossiers,
   listerSuiviFormation,
   listerHistoriqueFormation,

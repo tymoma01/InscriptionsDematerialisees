@@ -41,6 +41,8 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   // (fond/texte/bordure différents, voir styles/variables.css), demande explicite de couleur
   // distincte de "Invalidé".
   formation_non_validee: 'echec-fort',
+  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css.
+  embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

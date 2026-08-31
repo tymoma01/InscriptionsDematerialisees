@@ -48,3 +48,13 @@ export async function forcerStatut(dossierId, { statutCode, commentaire }) {
   const { data } = await api.post(`/dossiers/${dossierId}/transitions/forcer-statut`, { statutCode, commentaire });
   return data;
 }
+
+// Marquer un dossier "Validé - prêt à l'embauche" comme embauché (audit 2026-08-31, nouveau statut
+// terminal "Embauché" — voir ModaleMarquerEmbauche.jsx) : transition dédiée (marquer_embauche) +
+// date d'embauche, écrites atomiquement côté serveur (embaucheService.marquerEmbauche).
+// utilisateurId jamais envoyé ici non plus, même raison que pour appliquerTransition/forcerStatut
+// ci-dessus.
+export async function marquerEmbauche(dossierId, { commentaire, dateEmbauche }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/transitions/marquer-embauche`, { commentaire, dateEmbauche });
+  return data;
+}

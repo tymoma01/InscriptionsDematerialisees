@@ -84,6 +84,12 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // Coordination (lecture seule sur cet écran, voir SuiviFormation.jsx côté front, qui ne rend
   // même pas les boutons pour ce rôle — la garde ici est la barrière réelle si jamais contournée).
   invalider_formation: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
+  // Nouveau (audit 2026-08-31, nouveau statut terminal "Embauché") : marquer_embauche
+  // (valide_pret_embauche -> embauche, onglet "Dossier" de la fiche, Validation.jsx) — Accueil/
+  // Coordination (acteur qui accueille le candidat le jour de la signature de contrat, voir
+  // CLAUDE.md, étape 10 "Fin de formation") ou Admin, jamais Formateur/Inspecteur (rôle sans lien
+  // avec cette étape post-formation).
+  marquer_embauche: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
   // Décision finale du recruteur — workflow hérité (v2), retiré du parcours actif pour toute
   // nouvelle évaluation depuis le workflow v3 (voir evaluationEngine.js) : conservé uniquement le
   // temps que les derniers dossiers encore en_attente_validation_recruteur soient clos par un

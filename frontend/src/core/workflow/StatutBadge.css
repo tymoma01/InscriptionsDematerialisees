@@ -80,3 +80,9 @@
   color: var(--statut-rose-texte);
   border-color: var(--statut-rose-bordure);
 }
+
+.statut-badge--vert-fonce {
+  background-color: var(--statut-vert-fonce-fond);
+  color: var(--statut-vert-fonce-texte);
+  border-color: var(--statut-vert-fonce-bordure);
+}

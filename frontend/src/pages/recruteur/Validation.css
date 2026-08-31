@@ -241,6 +241,37 @@ button.page-validation__action:hover {
   margin: var(--espace-moyen) 0 0;
 }
 
+/* "Embauche" (audit 2026-08-31, nouveau statut terminal "Embauché") — même carte que
+   .page-validation__rendezvous/-relances/-forcer-statut ci-dessous, bouton .page-validation__action
+   standard (pas la variante "danger" : cette action ne contourne rien du parcours normal). */
+.page-validation__embauche {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.page-validation__embauche-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+}
+
+.page-validation__embauche-entete h2 {
+  color: var(--couleur-back-office);
+  margin: 0;
+}
+
+.page-validation__embauche-description {
+  color: var(--couleur-texte-secondaire);
+  margin: var(--espace-moyen) 0 0;
+}
+
 /* "Changement de statut manuel/forcé" (audit RBAC 2026-08-31, Admin uniquement) — même carte que
    .page-validation__rendezvous/-relances ci-dessus, pour rester visuellement cohérent avec le
    reste de la fiche dossier malgré le bouton "danger" qu'elle porte. */

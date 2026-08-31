@@ -5,6 +5,7 @@ const { cloturerRendezvousAvecTransition } = require('../../core/rendezvous/clot
 const { ErreurRendezvousDossierClos } = require('../../core/rendezvous/rendezvousService');
 const dossierRepository = require('../../core/dossier/dossierRepository');
 const { envoyerEmailFormationValidee } = require('../../core/dossier/notificationFormationValideeService');
+const embaucheService = require('../../core/dossier/embaucheService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -54,6 +55,13 @@ const ROLES_GESTION_TRANSITIONS = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, 
 // verrou avant l'écriture (avec la revérification défensive dans workflowEngine.forcerStatut).
 const ROLES_FORCER_STATUT = [ROLES.ADMIN];
 
+// Marquer un dossier comme embauché (audit 2026-08-31, nouveau statut terminal "Embauché", après
+// "Validé - prêt à l'embauche") — Accueil/Coordination (acteur qui accueille le candidat le jour
+// de la signature de contrat, CLAUDE.md étape 10) ou Admin, jamais Formateur/Inspecteur. Même
+// gate que scripts/seedTransitionRoles.js (marquer_embauche), posé ici en plus pour ne jamais
+// dépendre uniquement de `transition_roles` — cohérent avec ROLES_FORCER_STATUT ci-dessus.
+const ROLES_MARQUER_EMBAUCHE = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+
 router.use(requireAuth);
 
 const idPositifSchema = z.coerce.number().int().positive();
@@ -64,6 +72,17 @@ const forcerStatutBodySchema = z.object({
   // statut forcé contourne le parcours normal, la raison doit systématiquement être tracée (voir
   // journal_audit ci-dessous et son action dédiée 'changement_statut_force').
   commentaire: z.string().trim().min(1),
+});
+
+// dateEmbauche : chaîne 'AAAA-MM-JJ' (valeur brute d'un <input type="date">, voir
+// ModaleMarquerEmbauche.jsx) — revalidée ici (regex) plutôt que d'utiliser z.coerce.date() : évite
+// tout décalage de fuseau horaire à la conversion (même piège documenté sur
+// Indicateurs.jsx/formatDateLocaleISO), la chaîne est transmise telle quelle jusqu'à la colonne
+// `date` de Postgres (embaucheService.marquerEmbauche), qui n'a de toute façon aucune notion
+// d'heure/fuseau.
+const marquerEmbaucheBodySchema = z.object({
+  commentaire: z.string().trim().min(1),
+  dateEmbauche: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date d’embauche invalide (attendu AAAA-MM-JJ).'),
 });
 
 const transitionBodySchema = z.object({
@@ -224,6 +243,45 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, r
         statutApres: resultat.statutApresCode,
         commentaire,
       },
+      adresseIp: req.ip,
+    });
+
+    res.status(201).json(resultat);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// POST /api/dossiers/:dossierId/transitions/marquer-embauche — transition dédiée
+// valide_pret_embauche -> embauche (voir embaucheService.marquerEmbauche), avec écriture atomique
+// de dossiers.date_embauche. Distincte de POST / ci-dessus : dateEmbauche n'a de sens que pour
+// cette action précise, pas pour toute transition générique (onglet "Dossier" de la fiche,
+// Validation.jsx).
+router.post('/marquer-embauche', requireRole(...ROLES_MARQUER_EMBAUCHE), async (req, res, next) => {
+  try {
+    const dossierId = idPositifSchema.parse(req.params.dossierId);
+    const { commentaire, dateEmbauche } = marquerEmbaucheBodySchema.parse(req.body);
+
+    const resultat = await embaucheService.marquerEmbauche(req.entite, {
+      dossierId,
+      commentaire,
+      dateEmbauche,
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+    });
+
+    const bd = await obtenirKnex();
+    // Action dédiée 'dossier_marque_embauche' (même principe que 'changement_statut_force'
+    // ci-dessus) : repérable dans le journal d'audit sans avoir à filtrer sur
+    // 'dossier_transition_marquer_embauche' générique — commentaire ET date d'embauche tracés.
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'dossier_marque_embauche',
+      tableCible: 'historique_statuts',
+      cibleId: dossierId,
+      donnees: { dossierId, commentaire, dateEmbauche },
       adresseIp: req.ip,
     });
 

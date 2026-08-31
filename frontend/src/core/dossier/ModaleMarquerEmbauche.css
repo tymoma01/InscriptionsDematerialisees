@@ -1,0 +1,112 @@
+/* Même patron que ModaleForcerStatut.css — fond sous l'en-tête/la nav, carte centrée via
+   margin: auto — dupliqué plutôt que partagé (voir CLAUDE.md, conventions du projet). */
+.modale-marquer-embauche__fond {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-marquer-embauche {
+  margin: auto;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 30rem;
+  padding: 1.75rem;
+}
+
+.modale-marquer-embauche h2 {
+  margin: 0 0 0.5rem;
+  color: var(--couleur-back-office);
+}
+
+.modale-marquer-embauche > p {
+  margin: 0 0 1.25rem;
+  font-size: 1.05rem;
+}
+
+.modale-marquer-embauche__accent {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+.modale-marquer-embauche form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-marquer-embauche label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.modale-marquer-embauche input,
+.modale-marquer-embauche textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.modale-marquer-embauche textarea {
+  resize: vertical;
+}
+
+.modale-marquer-embauche form > [role='alert'] {
+  margin: 0;
+  color: var(--couleur-erreur);
+  font-size: 0.9rem;
+}
+
+.modale-marquer-embauche__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+}
+
+.modale-marquer-embauche__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.modale-marquer-embauche__actions button[type='button'] {
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.modale-marquer-embauche__actions button[type='button']:hover:not(:disabled) {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* "Confirmer l'embauche" : vert (statut positif terminal), pas le rouge/alerte de
+   ModaleForcerStatut — cette action ne contourne rien du parcours normal, contrairement au
+   changement de statut forcé. */
+.modale-marquer-embauche__actions button[type='submit'] {
+  border: 1px solid var(--statut-vert-fonce-bordure);
+  background-color: var(--statut-vert-fonce-texte);
+  color: #ffffff;
+}
+
+.modale-marquer-embauche__actions button[type='submit']:hover:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.modale-marquer-embauche__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

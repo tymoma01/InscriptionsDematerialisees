@@ -8,10 +8,11 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import ModaleForcerStatut from '../../core/dossier/ModaleForcerStatut';
+import ModaleMarquerEmbauche from '../../core/dossier/ModaleMarquerEmbauche';
 import { useSession } from '../../core/auth/useSession';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier, listerStatuts } from '../../services/dossierService';
-import { forcerStatut } from '../../services/transitionService';
+import { forcerStatut, marquerEmbauche } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import api from '../../services/api';
 import './Validation.css';
@@ -24,6 +25,11 @@ import './Validation.css';
 // (ROLES_FORCER_STATUT, transitions.routes.js) — ce test ne fait que masquer le bouton pour les
 // autres rôles.
 const ROLE_ADMIN = 'admin';
+// Rôle autorisé pour "Marquer comme embauché" (audit 2026-08-31, nouveau statut terminal
+// "Embauché") — même littéral en dur qu'ailleurs sur cette page (voir ROLE_ADMIN ci-dessus), même
+// raison : pas d'équivalent front de backend/src/core/auth/rbac.js. La vraie garde reste côté
+// serveur (ROLES_MARQUER_EMBAUCHE, transitions.routes.js).
+const ROLE_ACCUEIL_COORDINATION = 'accueil_coordination';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -79,6 +85,10 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
+  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', troisième teinte verte de ce
+  // funnel après 'succes' (valide_envoi_formation) et 'vert-clair' (valide_pret_embauche) — voir
+  // variables.css pour le détail du choix.
+  embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
@@ -126,6 +136,9 @@ export default function Validation() {
   const { dossierId } = useParams();
   const { utilisateur } = useSession();
   const estAdmin = utilisateur?.roleCode === ROLE_ADMIN;
+  // "Marquer comme embauché" (audit 2026-08-31) : Accueil/Coordination OU Admin — contrairement à
+  // estAdmin ci-dessus (réservé au changement de statut forcé), les deux rôles y ont accès.
+  const peutMarquerEmbauche = [ROLE_ACCUEIL_COORDINATION, ROLE_ADMIN].includes(utilisateur?.roleCode);
 
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -146,6 +159,12 @@ export default function Validation() {
   const [modaleForcerStatutOuverte, setModaleForcerStatutOuverte] = useState(false);
   const [forcageEnCours, setForcageEnCours] = useState(false);
   const [erreurForcage, setErreurForcage] = useState(null);
+
+  // "Marquer comme embauché" (audit 2026-08-31) — même patron que le changement de statut forcé
+  // ci-dessus (modale de confirmation + état en cours/erreur dédiés).
+  const [modaleEmbaucheOuverte, setModaleEmbaucheOuverte] = useState(false);
+  const [embaucheEnCours, setEmbaucheEnCours] = useState(false);
+  const [erreurEmbauche, setErreurEmbauche] = useState(null);
 
   useEffect(() => {
     let annule = false;
@@ -172,7 +191,7 @@ export default function Validation() {
     };
   }, [estAdmin]);
 
-  const rechargerDossierApresForcage = () => {
+  const rechargerDossierApresTransition = () => {
     obtenirDossier(dossierId)
       .then(setDossier)
       .catch(() => {});
@@ -184,7 +203,7 @@ export default function Validation() {
     try {
       await forcerStatut(dossierId, { statutCode, commentaire });
       setModaleForcerStatutOuverte(false);
-      rechargerDossierApresForcage();
+      rechargerDossierApresTransition();
     } catch (erreur) {
       // Modale gardée ouverte (même patron que SuiviFormation.jsx/ModaleResultatFormation.jsx) :
       // l'agent peut corriger/retenter sans retaper son commentaire depuis zéro.
@@ -195,6 +214,25 @@ export default function Validation() {
       );
     } finally {
       setForcageEnCours(false);
+    }
+  };
+
+  const gererMarquerEmbauche = async (dateEmbauche, commentaire) => {
+    setEmbaucheEnCours(true);
+    setErreurEmbauche(null);
+    try {
+      await marquerEmbauche(dossierId, { commentaire, dateEmbauche });
+      setModaleEmbaucheOuverte(false);
+      rechargerDossierApresTransition();
+    } catch (erreur) {
+      // Modale gardée ouverte, même patron que gererForcageStatut ci-dessus.
+      setErreurEmbauche(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? "Impossible d'enregistrer cette embauche. Merci de réessayer.")
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
+    } finally {
+      setEmbaucheEnCours(false);
     }
   };
 
@@ -403,6 +441,49 @@ export default function Validation() {
             </p>
           )}
         </section>
+
+        {/* "Marquer comme embauché" (audit 2026-08-31, nouveau statut terminal "Embauché", après
+            "Validé - prêt à l'embauche") — Accueil/Coordination OU Admin, contrairement au bloc
+            "Décision" ci-dessous (estAdmin seul) : action normale du parcours (transition
+            marquer_embauche déclarée dans transitions_statut, voir workflow.config.json), pas un
+            contournement, donc pas réservée à Admin. Visible uniquement quand le statut courant du
+            dossier est précisément "valide_pret_embauche" — la transition serait de toute façon
+            refusée côté serveur pour tout autre statut (workflowEngine.appliquerTransition), ce
+            garde-fou n'évite qu'un aller-retour réseau inutile pour un bouton qui n'aurait aucun
+            sens à afficher ailleurs dans le parcours. */}
+        {peutMarquerEmbauche && dossier?.statut_code === 'valide_pret_embauche' && (
+          <ErrorBoundary key={`embauche-${dossierId}`} titre="Embauche">
+            <section className="page-validation__embauche">
+              <div className="page-validation__embauche-entete">
+                <h2>Embauche</h2>
+                <button
+                  type="button"
+                  className="page-validation__action"
+                  onClick={() => setModaleEmbaucheOuverte(true)}
+                >
+                  Marquer comme embauché
+                </button>
+              </div>
+              <p className="page-validation__embauche-description">
+                Confirme que le candidat est venu signer son contrat et récupérer sa tenue — demande
+                la date d&rsquo;embauche et un commentaire, tous deux obligatoires.
+              </p>
+            </section>
+          </ErrorBoundary>
+        )}
+
+        {peutMarquerEmbauche && modaleEmbaucheOuverte && dossier && (
+          <ModaleMarquerEmbauche
+            dossier={dossier}
+            enCours={embaucheEnCours}
+            erreur={erreurEmbauche}
+            onAnnuler={() => {
+              setModaleEmbaucheOuverte(false);
+              setErreurEmbauche(null);
+            }}
+            onConfirmer={gererMarquerEmbauche}
+          />
+        )}
 
         {/* Bloc "Décision" (GestionTransitions) masqué sur cette fiche (audit 2026-08-19, voir
             rapport dans la conversation) : les boutons qu'il expose (replanifier_test,
