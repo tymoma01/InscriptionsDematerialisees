@@ -7,6 +7,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
 import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
+import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -79,6 +80,36 @@ function varianteAfficheeRendezvous(rdv) {
   if (rendezvousPrevuExpire(rdv)) return 'echec';
   return varianteStatutRendezvous(rdv.statut);
 }
+
+// Code STABLE du statut AFFICHÉ (colonne "Statut"), pour les boutons de filtre ci-dessous — jamais
+// le libellé français de libelleAfficheRendezvous ci-dessus (locale-dépendant, pas fait pour être
+// comparé) ni le rdv.statut brut seul : un 'prevu' expiré (rendezvousPrevuExpire) doit filtrer avec
+// les "Non réalisé", pas avec les "Prévu" encore à venir, alors que les deux partagent la même
+// valeur brute en base (voir le commentaire de rendezvousPrevuExpire plus haut — affichage
+// uniquement, jamais écrit en base). 'non_realise' choisi comme code plutôt que de réutiliser
+// 'prevu' : distinct de toute valeur réelle de rendezvous.statut, donc jamais ambigu.
+function codeStatutAffiche(rdv) {
+  if (rendezvousPrevuExpire(rdv)) return 'non_realise';
+  return rdv.statut;
+}
+
+// Boutons de filtre par statut (audit 2026-08-31, décision utilisateur — même pattern que
+// FiltresStatut.jsx sur "Dossiers candidats") — toutes les valeurs que codeStatutAffiche peut
+// renvoyer, dans le même ordre/libellé que LIBELLES_STATUT (+ 'non_realise', qui n'y figure pas
+// puisque ce n'est pas une valeur brute de rendezvous.statut, voir ci-dessus). Liste fixe côté
+// front, pas chargée depuis une config d'entité : rendezvous.statut est une petite énumération
+// commune au moteur générique (voir rendezvous.routes.js, statutBodySchema), pas un vocabulaire
+// propre à ACCECIT comme les statuts de dossier (table `statuts`, elle bien configurable par
+// entité) — même raisonnement que LIBELLES_STATUT ci-dessus, déjà en dur ici avant ce filtre.
+const STATUTS_FILTRABLES_RENDEZVOUS = [
+  { code: 'prevu', libelle: 'Prévu' },
+  { code: 'confirme', libelle: 'Confirmé' },
+  { code: 'honore', libelle: 'Réalisé' },
+  { code: 'absent', libelle: 'Manqué' },
+  { code: 'non_realise', libelle: 'Non réalisé' },
+  { code: 'annule', libelle: 'Annulé' },
+  { code: 'remplace', libelle: 'Remplacé' },
+];
 
 // Libellés des postes (colonne "Poste") — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx,
 // dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
@@ -231,6 +262,21 @@ export default function Planification() {
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
 
+  // Filtre par statut affiché (voir codeStatutAffiche/STATUTS_FILTRABLES_RENDEZVOUS ci-dessus) —
+  // même sentinelle 'tous' que SuiviFormation.jsx (statutFiltre === null se traduirait en
+  // absence de paramètre dans l'URL via useParametreURL, indiscernable de la valeur par défaut ;
+  // ici sans incidence puisque le défaut EST déjà "Tous"/null, gardé malgré tout pour rester
+  // cohérent avec le seul autre appelant de FiltresStatut qui persiste son filtre dans l'URL).
+  // Filtrage entièrement client (voir rendezvousParCandidatFiltres plus bas), sur la liste déjà
+  // groupée par candidat — pas les filtres serveur (aVenirSeulement/formateurFiltre) : une
+  // combinaison qui n'a pas de sens (ex. "À venir uniquement" + "Réalisé") ne renvoie simplement
+  // aucun résultat plutôt que d'être bloquée en amont, exactement comme n'importe quelle autre
+  // combinaison de filtres vide ailleurs dans l'app (voir compteursParStatut ci-dessous, qui
+  // affiche fidèlement "(0)" dans ce cas plutôt que de masquer le bouton).
+  const [statutFiltreBrut, setStatutFiltreBrut] = useParametreURL('statut', 'tous');
+  const statutFiltre = statutFiltreBrut === 'tous' ? null : statutFiltreBrut;
+  const setStatutFiltre = (valeur) => setStatutFiltreBrut(valeur === null ? 'tous' : valeur);
+
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
   // date et heure croissantes (comportement historique de cette page, prochain rendez-vous en
@@ -371,9 +417,29 @@ export default function Planification() {
     });
   }, [rendezvousFiltres]);
 
+  // Compteurs des boutons de filtre statut — calculés sur rendezvousParCandidat (une ligne par
+  // candidat, APRÈS recherche/plage de date/aVenirSeulement/formateurFiltre, mais AVANT le filtre
+  // statut lui-même), même principe que SuiviFormation.jsx/TableauDeBordAccueil.jsx : un agent qui
+  // cherche "Ibrahima" voit re-décompter les boutons sur les seuls candidats Ibrahima, pas sur la
+  // liste entière — et un statut qu'aucune combinaison de filtres actuelle ne peut produire
+  // (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement "(0)", jamais masqué.
+  const compteursParStatut = useMemo(() => {
+    const compteurs = {};
+    for (const rdv of rendezvousParCandidat) {
+      const code = codeStatutAffiche(rdv);
+      compteurs[code] = (compteurs[code] ?? 0) + 1;
+    }
+    return compteurs;
+  }, [rendezvousParCandidat]);
+
+  const rendezvousParCandidatFiltres = useMemo(() => {
+    if (!statutFiltre) return rendezvousParCandidat;
+    return rendezvousParCandidat.filter((rdv) => codeStatutAffiche(rdv) === statutFiltre);
+  }, [rendezvousParCandidat, statutFiltre]);
+
   const rendezvousTries = useMemo(() => {
     const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
-    const copie = [...rendezvousParCandidat];
+    const copie = [...rendezvousParCandidatFiltres];
     copie.sort((a, b) => {
       const valeurA = colonneTri.extraire(a);
       const valeurB = colonneTri.extraire(b);
@@ -382,7 +448,7 @@ export default function Planification() {
       return 0;
     });
     return copie;
-  }, [rendezvousParCandidat, tri]);
+  }, [rendezvousParCandidatFiltres, tri]);
 
   // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Date et heure"
   // repart croissant (le prochain rendez-vous en premier reste le repère le plus utile), les
@@ -521,6 +587,22 @@ export default function Planification() {
             onChangerDateFinFiltre={setDateFinFiltre}
           />
         </div>
+
+        {/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même composant/
+            pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un bouton par
+            statut affiché avec compteur dynamique entre parenthèses. Combinable avec "À venir
+            uniquement"/Formateur/Rechercher/Du-Au ci-dessus (voir statutFiltre, filtrage client sur
+            la liste déjà groupée par candidat) — une combinaison sans résultat (ex. "À venir
+            uniquement" + "Réalisé") affiche simplement "(0)" plutôt que d'être bloquée, voir le
+            commentaire de compteursParStatut. */}
+        <FiltresStatut
+          statuts={STATUTS_FILTRABLES_RENDEZVOUS}
+          statutFiltre={statutFiltre}
+          onChangerStatutFiltre={setStatutFiltre}
+          ariaLabel="Filtrer par statut de rendez-vous"
+          compteurTous={rendezvousParCandidat.length}
+          compteurs={compteursParStatut}
+        />
 
         {/* Barre d'actions groupées — même style visuel que TableauDeBordAccueil.jsx (Dossiers
             candidats, audit 2026-08-24) : sticky, fond dégradé back-office, compteur à gauche,
