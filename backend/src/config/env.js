@@ -27,4 +27,15 @@ module.exports = {
   // d'environnement classique, même logique que les identifiants AllMySMS ci-dessus (pas une
   // donnée candidat sensible).
   SAUVEGARDE_EMAIL_ALERTE: process.env.SAUVEGARDE_EMAIL_ALERTE,
+  // Démarrage des crons in-process (node-cron, voir jobs/rappelCron.js et consorts) — utile
+  // uniquement en dev local, pour ne pas avoir à lancer les scripts à la main. Désactivé par
+  // défaut en production (NODE_ENV=production) : le déclenchement en prod passe par des Azure
+  // Container Apps Jobs externes (voir scripts/executer*ToutesEntites.js), pas par le process web
+  // lui-même — décision utilisateur, 2026-08-31 (l'hébergement cible, Container Apps plan
+  // Consumption, scale-to-zero/scale-out, ce qui rend un cron in-process avec verrou en mémoire
+  // non fiable). Peut être forcé explicitement dans un sens ou l'autre via la variable d'env.
+  ACTIVER_CRONS_INTERNES:
+    process.env.ACTIVER_CRONS_INTERNES != null
+      ? process.env.ACTIVER_CRONS_INTERNES === 'true'
+      : (process.env.NODE_ENV ?? 'development') !== 'production',
 };

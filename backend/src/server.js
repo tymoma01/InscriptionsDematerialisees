@@ -1,6 +1,6 @@
 const http = require('http');
 const { creerApp } = require('./app');
-const { PORT } = require('./config/env');
+const { PORT, ACTIVER_CRONS_INTERNES } = require('./config/env');
 const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
 const { demarrerCronSyncCalendrierManuel } = require('./jobs/syncCalendrierManuelCron');
 const { demarrerCronRappel } = require('./jobs/rappelCron');
@@ -34,18 +34,25 @@ async function demarrer() {
     console.log(`Serveur démarré sur le port ${PORT}`);
   });
 
-  // Démarré une seule fois au lancement du serveur (audit 2026-08-21, dossier #84) — voir
-  // jobs/basculeTestNonRealiseCron.js pour la fréquence et le verrou anti-chevauchement.
-  demarrerCronBasculeTestNonRealise();
+  // Crons in-process réservés au dev local (voir config/env.js#ACTIVER_CRONS_INTERNES) — en prod,
+  // le déclenchement passe par des Azure Container Apps Jobs externes (voir
+  // scripts/executer*ToutesEntites.js), pas par ce process web qui, sur Container Apps plan
+  // Consumption, peut scaler à 0 ou à plusieurs replicas (décision utilisateur, 2026-08-31).
+  if (ACTIVER_CRONS_INTERNES) {
+    // voir jobs/basculeTestNonRealiseCron.js pour la fréquence et le verrou anti-chevauchement.
+    demarrerCronBasculeTestNonRealise();
 
-  // Démarré une seule fois au lancement du serveur (décision utilisateur, 2026-08-28) — voir
-  // jobs/syncCalendrierManuelCron.js pour la fréquence et le verrou anti-chevauchement.
-  demarrerCronSyncCalendrierManuel();
+    // voir jobs/syncCalendrierManuelCron.js pour la fréquence et le verrou anti-chevauchement.
+    demarrerCronSyncCalendrierManuel();
 
-  // Démarré une seule fois au lancement du serveur (décision utilisateur, 2026-08-28) — voir
-  // jobs/rappelCron.js pour la fréquence (13h30, après le passage de 13h00 ci-dessus) et le verrou
-  // anti-chevauchement.
-  demarrerCronRappel();
+    // voir jobs/rappelCron.js pour la fréquence (13h30, après le passage de 13h00 ci-dessus) et
+    // le verrou anti-chevauchement.
+    demarrerCronRappel();
+  } else {
+    console.log(
+      'Crons in-process désactivés (ACTIVER_CRONS_INTERNES=false) — déclenchement prod via Azure Container Apps Jobs.',
+    );
+  }
 
   // Arrêt propre : on attend la fin des requêtes en cours, mais serveur.close() seul ne coupe
   // pas les connexions keep-alive déjà établies (ex: onglet front resté ouvert) - sans ça son
