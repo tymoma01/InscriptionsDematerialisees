@@ -308,21 +308,6 @@ export default function SuiviFormation() {
                 </span>
                 <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
 
-                {/* "Voir le dossier" — même bouton (style/couleur/cadre/route fiche dossier) que sur
-                    "Suivi des tests" (Planification.jsx, .planification__action-voir) : consultation
-                    de la fiche dossier complète (onglet "Formation", historique complet — voir
-                    Formation.jsx), sans restriction de rôle, contrairement aux deux boutons "Formation
-                    validée"/"Formation non validée" ci-dessous (accesComplet). Accueil/Coordination,
-                    qui n'a ici qu'un accès lecture seule (voir commentaire d'en-tête de ce fichier),
-                    doit tout de même pouvoir consulter le dossier depuis cette page. */}
-                <button
-                  type="button"
-                  className="page-suivi-formation__action-voir"
-                  onClick={() => navigate(`/coordination/dossiers/${dossier.id}/formation`)}
-                >
-                  Voir le dossier
-                </button>
-
                 {accesComplet && dossier.statut_code === 'valide_envoi_formation' && (
                   <div className="page-suivi-formation__actions">
                     <button
@@ -350,6 +335,24 @@ export default function SuiviFormation() {
                     </button>
                   </div>
                 )}
+
+                {/* "Voir le dossier" — placé en dernier sur la ligne (audit 2026-08-31, décision
+                    utilisateur : ordre nom/date/formateur/statut/"Formation validée"/"Formation non
+                    validée"/"Voir le dossier"), déplacé depuis sa position d'origine juste après le
+                    badge de statut. Même bouton (style/couleur/cadre/route fiche dossier) que sur
+                    "Suivi des tests" (Planification.jsx, .planification__action-voir) : consultation
+                    de la fiche dossier complète (onglet "Formation", historique complet — voir
+                    Formation.jsx), sans restriction de rôle, contrairement aux deux boutons "Formation
+                    validée"/"Formation non validée" ci-dessus (accesComplet). Accueil/Coordination,
+                    qui n'a ici qu'un accès lecture seule (voir commentaire d'en-tête de ce fichier),
+                    doit tout de même pouvoir consulter le dossier depuis cette page. */}
+                <button
+                  type="button"
+                  className="page-suivi-formation__action-voir"
+                  onClick={() => navigate(`/coordination/dossiers/${dossier.id}/formation`)}
+                >
+                  Voir le dossier
+                </button>
               </li>
             ))}
           </ul>
