@@ -261,15 +261,23 @@ export default function Utilisateurs() {
                   </th>
                   {COLONNES.map((colonne) => {
                     const actif = tri.colonne === colonne.cle;
+                    // Une classe par colonne (table-utilisateurs__colonne-<cle>, voir
+                    // Utilisateurs.css) — largeur explicite de chaque colonne (table-layout: fixed,
+                    // audit 2026-08-31, décision utilisateur : le tableau doit tenir dans la largeur
+                    // de page standard sans défilement horizontal). Nommée par colonne.cle plutôt
+                    // qu'un sélecteur de position (nth-child) : robuste à un futur réordonnancement
+                    // de COLONNES, même raison déjà documentée ailleurs dans ce fichier/le projet
+                    // pour data-statut (voir FiltresStatut.jsx/TableauDeBordAccueil.css). "Nom"
+                    // cumule cette classe ET table-utilisateurs__colonne-figee (déjà en place,
+                    // défilement horizontal, voir son commentaire) — les deux classes coexistent
+                    // sans conflit, l'une pilote la largeur, l'autre le position: sticky.
+                    const classeColonne = `table-utilisateurs__colonne-${colonne.cle}`;
+                    const classeFigee = colonne.cle === 'nom' ? ' table-utilisateurs__colonne-figee' : '';
                     return (
                       <th
                         key={colonne.cle}
                         scope="col"
-                        // Colonne "Nom" figée au défilement horizontal (voir
-                        // .table-utilisateurs__colonne-figee, Utilisateurs.css) — première colonne
-                        // du tableau, repère constant pour identifier une ligne même une fois les
-                        // colonnes suivantes défilées hors champ sur tablette/écran étroit.
-                        className={colonne.cle === 'nom' ? 'table-utilisateurs__colonne-figee' : undefined}
+                        className={classeColonne + classeFigee}
                         aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <button type="button" className="table-utilisateurs__entete-tri" onClick={() => trierPar(colonne.cle)}>
@@ -281,24 +289,34 @@ export default function Utilisateurs() {
                       </th>
                     );
                   })}
-                  <th scope="col">Actions</th>
+                  <th scope="col" className="table-utilisateurs__colonne-actions">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {utilisateursTries.map((u, index) => (
                   <tr key={u.id}>
                     <td className="table-utilisateurs__colonne-numero">{index + 1}</td>
-                    <td className="table-utilisateurs__colonne-figee">
+                    <td className="table-utilisateurs__colonne-nom table-utilisateurs__colonne-figee">
                       {u.prenom} {u.nom}
                     </td>
-                    <td>{u.email}</td>
-                    <td>{u.telephone || '-'}</td>
-                    <td>{u.role_libelle}</td>
-                    <td>
+                    {/* title (tooltip natif du navigateur) : filet pour un email tronqué en
+                        ellipsis par la largeur fixe de cette colonne (voir Utilisateurs.css,
+                        .table-utilisateurs__colonne-email) — l'adresse complète reste consultable
+                        au survol sans dépendre d'un composant de tooltip dédié. */}
+                    <td className="table-utilisateurs__colonne-email" title={u.email}>
+                      {u.email}
+                    </td>
+                    <td className="table-utilisateurs__colonne-telephone">{u.telephone || '-'}</td>
+                    <td className="table-utilisateurs__colonne-role_libelle">{u.role_libelle}</td>
+                    <td className="table-utilisateurs__colonne-actif">
                       <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
                     </td>
-                    <td>{u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '-'}</td>
-                    <td>
+                    <td className="table-utilisateurs__colonne-derniere_connexion">
+                      {u.derniere_connexion ? FORMAT_DATE.format(new Date(u.derniere_connexion)) : '-'}
+                    </td>
+                    <td className="table-utilisateurs__colonne-actions">
                       {/* display: flex sur un <div> interne plutôt que directement sur le <td> :
                           posé sur la cellule elle-même, ça lui ferait perdre son
                           display: table-cell (donc son étirement/centrage vertical automatique

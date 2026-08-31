@@ -45,6 +45,113 @@
   color: var(--couleur-erreur);
 }
 
+/* Boutons de filtre (rôle + statut de compte) — même traitement que Dossiers candidats/Suivi des
+   formations (TableauDeBordAccueil.css/SuiviFormation.css) : centrés au lieu du flex-start par
+   défaut de FiltresStatut.css. S'applique aux DEUX <FiltresStatut> de cette page (filtre "rôle" et
+   filtre "statut de compte", voir Utilisateurs.jsx) — un seul sélecteur, sans distinction : les
+   deux barres veulent le même centrage, rien qui justifie de les cibler séparément ici.
+
+   align-items: center (audit 2026-08-31, décision utilisateur) surcharge le flex-start générique
+   de FiltresStatut.css (.filtres-statut, posé volontairement là-bas pour garder "Tous" compact en
+   haut plutôt qu'étiré sur toute la hauteur du cadre — voir son commentaire d'en-tête) : ce
+   flex-start laissait "Tous" (33px de haut, un seul bouton) plaqué en haut d'un cadre plus haut que
+   lui (51px, padding propre du cadre + boutons plus petits à l'intérieur), donc visuellement décalé
+   par rapport au reste du cadre au lieu d'y être aligné. center résout ce décalage SANS réintroduire
+   le problème que flex-start évitait (étirer "Tous" à la hauteur du cadre, ce que centrer ne fait
+   pas) — les deux barres de cette page (rôle et statut) partagent la même règle, donc la même
+   hauteur/le même alignement entre elles. */
+.page-utilisateurs .filtres-statut {
+  align-items: center;
+}
+
+.page-utilisateurs .filtres-statut__statuts {
+  justify-content: center;
+}
+
+/* Couleur du filtre "statut de compte" alignée sur le badge de la colonne Statut (même patron que
+   TableauDeBordAccueil.css/Planification.css/SuiviFormation.css) : StatutBadge y utilise
+   variante='succes' pour Actif et 'echec' pour Désactivé (voir Utilisateurs.jsx,
+   `variante={u.actif ? 'succes' : 'echec'}`), mêmes tokens --statut-<variante>-* repris ici, sur
+   les deux états (actif du filtre inclus, fond = teinte `texte` du badge, texte blanc).
+   'actif'/'desactive' (STATUTS_COMPTE) ne collisionnent avec aucun code de rôle existant
+   (accueil_coordination/formateur/admin/inspecteur, voir le bloc "filtre rôle" plus bas) : pas
+   besoin de scoper ces règles à la seule barre "statut de compte" par un sélecteur supplémentaire. */
+.page-utilisateurs .filtres-statut__statuts button[data-statut='actif']:not(.actif) {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+  color: var(--statut-succes-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='actif'].actif {
+  background-color: var(--statut-succes-texte);
+  border-color: var(--statut-succes-texte);
+  color: #ffffff;
+}
+
+.page-utilisateurs .filtres-statut__statuts button[data-statut='desactive']:not(.actif) {
+  background-color: var(--statut-echec-fond);
+  border-color: var(--statut-echec-bordure);
+  color: var(--statut-echec-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='desactive'].actif {
+  background-color: var(--statut-echec-texte);
+  border-color: var(--statut-echec-texte);
+  color: #ffffff;
+}
+
+/* Couleur du filtre "rôle" (audit 2026-08-31, décision utilisateur) — aucun code couleur par rôle
+   n'existe ailleurs dans l'app (grep vérifié sur src/ : ni badge, ni élément de nav ne colore
+   Accueil/Coordination-Formateur-Admin-Inspecteur différemment) : rien à reprendre pour rester
+   cohérent, donc 4 teintes choisies ici, sobres et déjà présentes dans la palette --statut-* du
+   projet (StatutBadge.css/variables.css) plutôt qu'une couleur inventée pour l'occasion — jamais
+   'succes'/'echec' (déjà pris par Actif/Désactivé juste au-dessus, éviterait toute lecture erronée
+   "bon/mauvais rôle") ni 'rose'/'alerte'/'echec-fort'/'vert-clair' (déjà attachées à des statuts de
+   DOSSIER précis ailleurs — Planification.jsx/TableauDeBordAccueil.jsx/SuiviFormation.jsx — pas
+   de raison de leur donner un second sens ici). Assignation arbitraire (aucune règle métier ne lie
+   un rôle à une teinte) : bleu/violet/doré/gris soutenu, quatre tons distincts et neutres entre eux. */
+.page-utilisateurs .filtres-statut__statuts button[data-statut='accueil_coordination']:not(.actif) {
+  background-color: var(--statut-bleu-fond);
+  border-color: var(--statut-bleu-bordure);
+  color: var(--statut-bleu-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='accueil_coordination'].actif {
+  background-color: var(--statut-bleu-texte);
+  border-color: var(--statut-bleu-texte);
+  color: #ffffff;
+}
+
+.page-utilisateurs .filtres-statut__statuts button[data-statut='formateur']:not(.actif) {
+  background-color: var(--statut-violet-fond);
+  border-color: var(--statut-violet-bordure);
+  color: var(--statut-violet-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='formateur'].actif {
+  background-color: var(--statut-violet-texte);
+  border-color: var(--statut-violet-texte);
+  color: #ffffff;
+}
+
+.page-utilisateurs .filtres-statut__statuts button[data-statut='admin']:not(.actif) {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--statut-dore-bordure);
+  color: var(--statut-dore-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='admin'].actif {
+  background-color: var(--statut-dore-texte);
+  border-color: var(--statut-dore-texte);
+  color: #ffffff;
+}
+
+.page-utilisateurs .filtres-statut__statuts button[data-statut='inspecteur']:not(.actif) {
+  background-color: var(--statut-neutre-fort-fond);
+  border-color: var(--statut-neutre-fort-bordure);
+  color: var(--statut-neutre-fort-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='inspecteur'].actif {
+  background-color: var(--statut-neutre-fort-texte);
+  border-color: var(--statut-neutre-fort-texte);
+  color: #ffffff;
+}
+
 /* Conteneur de défilement dédié : sur un écran étroit (tablette en portrait), seul le tableau
    défile horizontalement, jamais toute la page — même patron que DossierList.css. */
 .table-utilisateurs__scroll {
@@ -56,7 +163,15 @@
 
 .table-utilisateurs {
   width: 100%;
-  /* separate + border-spacing: 0 (pas collapse) : border-collapse: collapse casse le rendu de
+  /* table-layout: fixed (audit 2026-08-31, décision utilisateur) : sans lui, les largeurs de
+     colonnes ci-dessous (.table-utilisateurs__colonne-*) ne sont que des SUGGESTIONS que le
+     navigateur peut librement dépasser pour accueillir un contenu plus large (un email long,
+     "Accueil / Coordination"...) — exactement le débordement qu'on cherche à éliminer. En layout
+     fixe, la largeur de chaque colonne est prise une fois pour toutes sur la 1re ligne (ici le
+     <thead>, voir Utilisateurs.jsx) et respectée strictement pour tout le corps du tableau ; un
+     contenu trop long est alors tronqué (email, voir plus bas) ou passe à la ligne (Nom/Rôle,
+     white-space: normal) plutôt que d'élargir la colonne.
+     separate + border-spacing: 0 (pas collapse) : border-collapse: collapse casse le rendu de
      position: sticky sur une cellule (voir .table-utilisateurs__colonne-figee) dans plusieurs
      moteurs de rendu — la cellule figée se détache visuellement du reste de sa ligne au
      défilement (lignes désynchronisées, fond/texte de la colonne suivante qui chevauche).
@@ -64,6 +179,7 @@
      collapse — border-right (voir th/td ci-dessous) ne pose ici aucun risque de bordure doublée :
      un seul côté (droit) porte une bordure par cellule, jamais les deux, donc rien à fusionner
      entre deux cellules adjacentes. */
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   background-color: var(--couleur-fond);
@@ -87,7 +203,81 @@
      dernière colonne (règle suivante) pour ne pas doubler la bordure de
      .table-utilisateurs__scroll. */
   border-right: 1px solid var(--couleur-bordure-legere);
+  /* normal (pas nowrap, contrairement à la version précédente) : par défaut, une colonne un peu
+     juste (Nom, Rôle) passe sur deux lignes plutôt que d'élargir sa colonne en layout fixe (voir
+     .table-utilisateurs ci-dessus) — nowrap reposé explicitement colonne par colonne plus bas
+     (N°/Statut/Dernière connexion, contenu déjà toujours compact, jamais bon à couper au milieu ;
+     Email, tronqué en ellipsis plutôt que passé à la ligne, voir plus bas). */
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Largeurs explicites par colonne (audit 2026-08-31, décision utilisateur) — somme volontairement
+   inférieure à --largeur-max-formulaire (1300px, PageBackOffice.css, moins son padding latéral :
+   ~1268px de contenu réel à cette largeur ou plus) pour que le tableau tienne sans défilement
+   horizontal sur une largeur d'écran standard, marge de sécurité comprise pour l'arrondi des
+   polices réelles. Une classe par colonne (table-utilisateurs__colonne-<cle>, posée par
+   Utilisateurs.jsx à partir de COLONNES) plutôt qu'un sélecteur de position (nth-child) : voir le
+   commentaire de sa pose côté JSX. "Nom" et "Actions" ne sont pas dans COLONNES (respectivement
+   figée à part et dernière colonne à part, voir Utilisateurs.jsx) mais suivent la même convention
+   de nommage pour rester cohérentes avec le reste de cette liste.
+   N° (3rem, --table-utilisateurs-largeur-colonne-numero) + Nom (9rem) + Email (16rem) + Téléphone
+   (6.5rem) + Rôle (9rem) + Statut (6.5rem) + Dernière connexion (8.5rem) + Actions (10.5rem)
+   = 69rem (1104px), sous les ~1268px de budget disponible. */
+.table-utilisateurs__colonne-nom {
+  width: 9rem;
+}
+
+/* overflow-wrap seul (règle générique ci-dessus) ne tronque jamais un email SANS espace ni trait
+   d'union sur lequel couper : un identifiant local très long ("claude-audit-rbac-admin-temp-
+   1788161976259@accecit.test", déjà vu en QA) contient des tirets, mais ne PAS s'appuyer dessus —
+   ellipsis explicite ici, plus prévisible que de compter sur la présence fortuite d'un point de
+   coupure dans l'adresse. `title` (attribut natif, voir Utilisateurs.jsx) donne l'adresse complète
+   au survol, sans tooltip maison à construire pour un seul champ.
+   Qualifiée `.table-utilisateurs td.table-utilisateurs__colonne-email` (pas la classe seule) :
+   même bug de spécificité déjà documenté plus haut sur .table-utilisateurs__colonne-numero — la
+   règle générique `.table-utilisateurs th, .table-utilisateurs td` (1 classe + 1 type) l'emportait
+   sinon sur `.table-utilisateurs__colonne-email` seule (1 classe), reproduisant ici white-space:
+   normal envoyé par erreur (constaté à l'écran : l'email long passait sur deux lignes au lieu
+   d'être tronqué) — même correctif que .table-utilisateurs td.table-utilisateurs__colonne-numero
+   ci-dessous pour text-align, qualifié par `td` pour regagner la priorité. Même raison pour
+   Téléphone/Statut/Dernière connexion juste après (nowrap sans effet sans cette qualification). */
+.table-utilisateurs__colonne-email {
+  width: 16rem;
+}
+.table-utilisateurs td.table-utilisateurs__colonne-email {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-utilisateurs__colonne-telephone {
+  width: 6.5rem;
+}
+.table-utilisateurs td.table-utilisateurs__colonne-telephone {
+  white-space: nowrap;
+}
+
+.table-utilisateurs__colonne-role_libelle {
+  width: 9rem;
+}
+
+.table-utilisateurs__colonne-actif {
+  width: 6.5rem;
+}
+.table-utilisateurs td.table-utilisateurs__colonne-actif {
+  white-space: nowrap;
+}
+
+.table-utilisateurs__colonne-derniere_connexion {
+  width: 8.5rem;
+}
+.table-utilisateurs td.table-utilisateurs__colonne-derniere_connexion {
+  white-space: nowrap;
+}
+
+.table-utilisateurs__colonne-actions {
+  width: 10.5rem;
 }
 
 .table-utilisateurs th:last-child,
@@ -207,9 +397,37 @@
   background-color: var(--couleur-fond-survol-tableau-opaque);
 }
 
+/* flex-wrap (audit 2026-08-31, décision utilisateur "actions resserrées") : filet pour que
+   "Modifier"/"Désactiver" passent sur deux lignes plutôt que déborder si jamais la colonne Actions
+   (voir .table-utilisateurs__colonne-actions, 10.5rem) se retrouvait trop juste — n'arrive pas en
+   usage normal avec le padding/la taille de police resserrés ci-dessous, mais coûte rien à prévoir
+   en layout fixe (la colonne, elle, ne peut plus s'élargir toute seule pour absorber un débordement,
+   voir .table-utilisateurs plus haut). */
 .table-utilisateurs__actions {
   display: flex;
-  gap: var(--espace-petit);
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Boutons "Modifier"/"Désactiver"/"Réactiver" — jusqu'ici sans style dédié (boutons UA par défaut,
+   taille/apparence variable d'un navigateur à l'autre) : resserrés (padding/police réduits) pour
+   tenir à deux sur la largeur de colonne fixe ci-dessus, et alignés sur le style back-office déjà
+   utilisé ailleurs dans l'app (bordure + fond neutre, survol teinté) plutôt que le rendu natif du
+   navigateur. */
+.table-utilisateurs__actions button {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.table-utilisateurs__actions button:hover:not(:disabled) {
+  background-color: var(--couleur-fond-secondaire);
 }
 
 .formulaire-utilisateur {
