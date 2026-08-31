@@ -475,6 +475,13 @@ export default function Indicateurs() {
   // de cet écran (ex. selectionIndicateurs lui-même).
   const [panneauElargi, setPanneauElargi] = useState(false);
 
+  // Dérivé plutôt que `panneauElargi` seul, répété à trois endroits du rendu (disposition, contenu
+  // principal masqué, panneau) — n'agrandit réellement rien tant que le panneau lui-même n'est pas
+  // affiché (correctif 2026-08-24, 2e itération) : sans ce garde-fou combiné, activer "Agrandir"
+  // puis effacer la sélection laisserait la grille en une seule colonne et le contenu principal
+  // masqué alors qu'aucun panneau ne resterait affiché pour justifier l'un ou l'autre.
+  const panneauElargiActif = panneauElargi && selectionIndicateurs.size > 0;
+
   // Active `code` en retirant d'abord son opposé exclusif s'il y en a un et qu'il est
   // actuellement sélectionné (voir PAIRES_INDICATEURS_EXCLUSIFS plus haut) — seul l'AJOUT déclenche
   // cette exclusion ; désélectionner `code` (déjà actif) n'a aucun effet sur son opposé.
@@ -764,22 +771,25 @@ export default function Indicateurs() {
                 graphiques s'adapter. En dessous d'un certain seuil (Indicateurs.css, @media), les
                 deux colonnes s'empilent — le panneau repasse en pleine largeur SOUS le contenu
                 principal, comportement identique à avant cette réorganisation, jamais de
-                débordement horizontal forcé. Classe --panneau-elargi (audit 2026-08-24, correctif
-                largeur du mode agrandi) posée ici, sur ce conteneur grid, et pas seulement sur
+                débordement horizontal forcé. Classe --panneau-elargi (audit 2026-08-24, corrigée
+                une 2e fois le même jour) posée ici, sur ce conteneur grid, et pas seulement sur
                 .indicateurs__panneau-lateral : grid-template-columns se lit sur le PARENT grid,
                 jamais sur l'enfant (voir Indicateurs.css) — le panneau seul ne peut pas s'élargir
-                au-delà de la colonne que ce conteneur lui accorde. Conditionnée aussi à
-                selectionIndicateurs.size > 0 (pas seulement à panneauElargi) : sans ce garde-fou,
-                effacer la sélection après avoir agrandi le panneau laisserait ce conteneur alloué à
-                90%/10% pour une deuxième colonne devenue vide (l'aside ne se re-render plus du
-                tout, voir plus bas), compressant les graphiques sans aucun panneau visible pour le
-                justifier. */}
+                au-delà de la colonne que ce conteneur lui accorde. panneauElargiActif (pas
+                panneauElargi seul, voir sa déclaration plus haut) : combine la garantie qu'un
+                panneau réellement affiché justifie ce passage à une seule colonne. */}
             <div
-              className={`indicateurs__disposition${
-                panneauElargi && selectionIndicateurs.size > 0 ? ' indicateurs__disposition--panneau-elargi' : ''
-              }`}
+              className={`indicateurs__disposition${panneauElargiActif ? ' indicateurs__disposition--panneau-elargi' : ''}`}
             >
-            <div className="indicateurs__contenu-principal">
+            {/* Masqué entièrement (display: none, pas une simple diminution d'opacité/largeur) en
+                mode agrandi — correctif chevauchement 2026-08-24 : un précédent essai réduisait
+                cette colonne à ~10% de largeur via la grille plutôt que de la masquer, mais son
+                CONTENU (tuiles, camemberts recharts) ne suivait pas ce rétrécissement et débordait
+                visuellement par-dessus le panneau. display: none retire ce nœud de la mise en page,
+                aucun contenu ne peut donc plus déborder nulle part. */}
+            <div
+              className={`indicateurs__contenu-principal${panneauElargiActif ? ' indicateurs__contenu-principal--masque' : ''}`}
+            >
             <ErrorBoundary titre="Indicateurs (tuiles)">
             <div className="indicateurs__tuiles">
               {/* Bouton plutôt qu'un <div> statique : sélection multiple des cartes (voir
@@ -877,7 +887,7 @@ export default function Indicateurs() {
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
                   <div ref={suiviCurseurVerdicts.conteneurRef}>
-                    <ResponsiveContainer width="100%" height={320}>
+                    <ResponsiveContainer width="100%" height={185}>
                       <PieChart>
                         {/* cx décalé vers la droite du centre (pas 50%, ni le 38% initial — voir
                             historique) : avec la grille corrigée à deux colonnes fixes
@@ -889,9 +899,13 @@ export default function Indicateurs() {
                             "92%" (labels désormais À L'INTÉRIEUR de la part — labelPartCamembert
                             plus haut — donc plus besoin de marge extérieure pour un label+ligne de
                             rappel) : un camembert plus grand comble aussi une partie de ce vide par
-                            lui-même. height du ResponsiveContainer réduite à 320 (bloc ~60px moins
-                            haut, décision utilisateur) : outerRadius restant un pourcentage, le
-                            camembert rétrécit proportionnellement sans autre changement ici. */}
+                            lui-même. height du ResponsiveContainer réduite à 185 (audit 2026-08-31,
+                            décision utilisateur : la page doit tenir sans défilement sur un écran
+                            1080p — 320 restait disproportionné pour seulement 2 parts par camembert)
+                            : outerRadius restant un pourcentage, le camembert rétrécit
+                            proportionnellement sans autre changement ici ; la légende (layout
+                            vertical, voir <Legend> plus bas) reste lisible à cette taille, seuls
+                            deux libellés courts à afficher. */}
                         <Pie
                           data={donneesVerdicts}
                           dataKey="total"
@@ -949,7 +963,7 @@ export default function Indicateurs() {
                   <p className="indicateurs__vide">Aucune orientation sur la période.</p>
                 ) : (
                   <div ref={suiviCurseurOrientations.conteneurRef}>
-                    <ResponsiveContainer width="100%" height={320}>
+                    <ResponsiveContainer width="100%" height={185}>
                       <PieChart>
                         {/* Même camembert que "Tests réussis vs ratés" ci-dessus — taille et style
                             volontairement identiques (cx, outerRadius, label, légende) : cohérence
@@ -997,7 +1011,12 @@ export default function Indicateurs() {
                 {donneesRepartitionPoste.length === 0 ? (
                   <p className="indicateurs__vide">Aucune évaluation sur la période.</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
+                  // height réduite à 175 (audit 2026-08-31, décision utilisateur : la page doit
+                  // tenir sans défilement sur un écran 1080p, comme les deux camemberts ci-dessus)
+                  // — XAxis height=80 (espace réservé aux libellés de poste inclinés) inchangée,
+                  // toujours comprise dans ce total, donc toujours assez de place pour les libellés
+                  // les plus longs ("Femme/Valet de chambre") sans les couper.
+                  <ResponsiveContainer width="100%" height={175}>
                     <BarChart data={donneesRepartitionPoste}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="nom" interval={0} angle={-20} textAnchor="end" height={80} />
@@ -1034,7 +1053,11 @@ export default function Indicateurs() {
                 carte/segment est sélectionné (comportement inchangé, seulement repositionné en
                 colonne fixe à droite, voir .indicateurs__disposition ci-dessus) : garde la
                 sélection visible pendant qu'on consulte le détail, voir l'audit préalable à cette
-                fonctionnalité. */}
+                fonctionnalité. Hauteur alignée sur la colonne de gauche en CSS pur (grid
+                align-items: stretch + height: 100% sur .indicateurs__panneau-lateral, voir
+                Indicateurs.css) — plus de mesure JS (les itérations précédentes, mesure en px via
+                ResizeObserver/getBoundingClientRect appliquée en style inline, se sont révélées
+                fragiles face au timing de la transition CSS du bouton d'agrandissement). */}
             {selectionIndicateurs.size > 0 && (
               <aside
                 className={`indicateurs__panneau-lateral${panneauElargi ? ' indicateurs__panneau-lateral--elargi' : ''}`}
