@@ -104,28 +104,32 @@
   color: var(--statut-dore-texte);
 }
 
-/* Grille plutôt que flex-wrap (FiltresStatut.css) pour la boîte de statuts de cette page
-   précisément : 9 filtres (voir CODES_STATUTS_FILTRES_ACCUEIL, TableauDeBordAccueil.jsx) — avec
-   flex-wrap, le retour à la ligne dépend de la largeur disponible et peut isoler un seul bouton
-   sur la dernière ligne. 3 colonnes régulières donnent 3 lignes pleinement remplies, quelle que
-   soit la largeur de la fenêtre au-delà d'un desktop standard (voir la media query plus bas pour
-   les fenêtres réduites). Scopé à ce conteneur (pas dans FiltresStatut.css, générique) :
+/* Grille à 3 colonnes (repeat(3, minmax(0, 1fr))) retirée (audit 2026-08-31, décision utilisateur)
+   — pensée à l'origine (2026-08-23) pour 9 filtres tombant pile sur 3 lignes pleinement remplies,
+   elle ne tient plus depuis l'ajout de "Formation non validée" (audit 2026-08-28, 10 filtres) :
+   3 colonnes à largeur 1fr occupent TOUJOURS toute la largeur du conteneur, donc le 10e bouton
+   ("Formation non validée"), seul sur sa 4e ligne, reste plaqué dans la 1ère colonne (justify-
+   content n'a aucun effet sur une grille dont les pistes en 1fr comblent déjà tout l'espace
+   disponible — rien à redistribuer) : décalé à gauche, ligne visuellement déséquilibrée. Un correctif
+   par piste fixe + nth-child aurait pu cibler CE cas précis (10 = 3×3+1) mais casserait au prochain
+   statut ajouté/retiré (liste config-driven, voir Modularité CLAUDE.md et l'historique de ce
+   fichier — déjà 4 audits successifs sur ce même filtre) — flex-wrap, lui, recalcule et centre
+   chaque ligne indépendamment de son nombre d'éléments, y compris une dernière ligne incomplète,
+   sans dépendre du total. Scopé à ce conteneur (pas dans FiltresStatut.css, générique) :
    Utilisateurs.jsx réutilise le même composant avec seulement 2 à 4 filtres (rôles, statut de
-   compte), pour qui une grille à 3 colonnes fixes laisserait des cellules vides — flex-wrap y
-   reste le comportement par défaut adapté.
-   minmax(0, 1fr) plutôt que 1fr seul : une piste 1fr a un min-width: auto implicite, qui ne
-   descend jamais sous la largeur du contenu de son bouton le plus large — avec minmax(0, 1fr),
-   couplé à white-space: normal ci-dessous, un libellé long ("Validé - prêt à l'embauche") passe
-   sur deux lignes plutôt que de forcer les 3 colonnes à s'élargir au-delà du conteneur. */
+   compte), qui n'a jamais eu besoin de cet ajustement (flex-wrap déjà le comportement par défaut
+   de FiltresStatut.css, jamais surchargé pour lui). */
 .tableau-bord-accueil .filtres-statut__statuts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--espace-petit);
+  justify-content: center;
   padding: var(--espace-moyen);
 }
 
+/* white-space: normal (pas nowrap, hérité de .filtres-statut__statuts button générique) : un
+   libellé long ("Validé - prêt à l'embauche") passe sur deux lignes plutôt que d'imposer sa
+   largeur à tous les boutons de la ligne — chaque bouton garde sa largeur de contenu propre en
+   flex-wrap (contrairement à la grille retirée ci-dessus, où minmax(0, 1fr) forçait les 3 colonnes
+   d'une même ligne à la même largeur). */
 .tableau-bord-accueil .filtres-statut__statuts button {
-  width: 100%;
   white-space: normal;
   text-align: center;
 }
@@ -214,20 +218,16 @@
   color: var(--statut-echec-fort-texte);
 }
 
-/* Fenêtre réduite (audit 2026-08-23) : 2 colonnes plutôt que 3 dès que le bloc de gauche (260px
-   fixe) + la grille de statuts ne tiennent plus confortablement côte à côte sans compresser les
-   libellés les plus longs ("Validé - prêt à l'embauche"). Le bloc de gauche et l'agencement
-   horizontal restent inchangés à ce palier — seule la grille de droite se réorganise. */
-@media (max-width: 860px) {
-  .tableau-bord-accueil .filtres-statut__statuts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+/* Palier "2 colonnes" (audit 2026-08-23) retiré avec la grille elle-même (voir le commentaire
+   d'en-tête de .tableau-bord-accueil .filtres-statut__statuts plus haut) : flex-wrap recalcule déjà
+   le nombre de boutons par ligne selon la largeur réellement disponible, sans palier fixe à
+   maintenir manuellement à chaque évolution de la liste de statuts.
 
-/* En dessous de ce palier, même 2 colonnes ne suffit plus à garder le bloc de gauche (260px) et
-   la grille lisibles côte à côte sans les compresser excessivement (usage tablette/back-office,
-   pas de contrainte de largeur fixe forte, voir CLAUDE.md) : on empile les deux zones plutôt que
-   de continuer à les serrer horizontalement. */
+   Un seul palier restant, en dessous duquel le bloc de gauche (260px fixe) et les boutons de
+   statut ne tiennent plus confortablement côte à côte sans compresser les libellés les plus longs
+   ("Validé - prêt à l'embauche") — usage tablette/back-office, pas de contrainte de largeur fixe
+   forte (voir CLAUDE.md) : on empile les deux zones plutôt que de continuer à les serrer
+   horizontalement. */
 @media (max-width: 640px) {
   .tableau-bord-accueil .filtres-statut {
     flex-direction: column;
