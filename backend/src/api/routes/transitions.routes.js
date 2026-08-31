@@ -3,11 +3,29 @@ const { z } = require('zod');
 const workflowEngine = require('../../core/workflow/workflowEngine');
 const { cloturerRendezvousAvecTransition } = require('../../core/rendezvous/clotureRendezvousAvecTransitionService');
 const { ErreurRendezvousDossierClos } = require('../../core/rendezvous/rendezvousService');
+const dossierRepository = require('../../core/dossier/dossierRepository');
+const { envoyerEmailFormationValidee } = require('../../core/dossier/notificationFormationValideeService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
+
+// Email candidat "Formation validée" (audit 2026-08-31, décision utilisateur, texte définitif) —
+// déclenché UNIQUEMENT quand codeAction === CODE_ACTION_FORMATION_VALIDEE ET que le dossier venait
+// bien de STATUT_ORIGINE_FORMATION_VALIDEE juste avant cette transition (revérifié ci-dessous,
+// jamais supposé). Ce même codeAction ('valider_pret_embauche') est aussi utilisé par
+// evaluationEngine.enregistrerEvaluation pour le verdict positif Inspecteur (poste bureau, jamais
+// passé par la formation, statut d'origine test_realise) — mais ce chemin-là appelle
+// workflowEngine.appliquerTransition directement, jamais cette route HTTP, donc ne peut de toute
+// façon pas déclencher ce bloc. Le garde-fou sur le statut d'origine reste posé quand même : ne pas
+// s'appuyer sur "seul SuiviFormation.jsx envoie ce codeAction aujourd'hui" — un appelant futur (ex.
+// GestionTransitions.jsx, générique et actuellement démonté nulle part, voir Validation.jsx) ne
+// doit pas déclencher cet email hors de son contexte prévu ("Formation validée", Suivi des
+// formations). "Formation non validée" (invalider_formation) volontairement absente d'ici — aucun
+// email associé pour l'instant, chantier séparé.
+const CODE_ACTION_FORMATION_VALIDEE = 'valider_pret_embauche';
+const STATUT_ORIGINE_FORMATION_VALIDEE = 'valide_envoi_formation';
 
 // Monté sur '/api/dossiers/:dossierId/transitions' (voir app.js) — `mergeParams: true`
 // indispensable pour que req.params.dossierId reste visible ici, même patron que
@@ -92,6 +110,15 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
     const { codeAction, motifCode, commentaire, rendezvousId, statutRendezvous, motifCodeRendezvous } =
       transitionBodySchema.parse(req.body);
 
+    // Statut AVANT la transition — lu seulement pour ce codeAction précis (pas de requête
+    // supplémentaire pour toutes les autres transitions) : sert de garde-fou pour l'email
+    // "Formation validée" ci-dessous, voir le commentaire d'en-tête de ce fichier.
+    let dossierAvant = null;
+    if (codeAction === CODE_ACTION_FORMATION_VALIDEE) {
+      const bdAvant = await obtenirKnex();
+      dossierAvant = await dossierRepository.trouverDossierAvecStatutParId(bdAvant, req.entite.id, dossierId);
+    }
+
     // rendezvousId présent : ferme ce rendez-vous ET applique la transition en une seule
     // transaction (voir clotureRendezvousAvecTransitionService.js) — sinon, comportement inchangé
     // (transition seule, comme avant cet ajout).
@@ -124,6 +151,19 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
       donnees: { dossierId, codeAction, motifCode, commentaire },
       adresseIp: req.ip,
     });
+
+    // Email candidat "Formation validée" — voir le commentaire d'en-tête de ce fichier pour le
+    // détail du garde-fou (codeAction + statut d'origine). Attendu (comme envoyerInvitationTest
+    // pour la convocation de test) mais jamais capable de faire échouer cette route : la fonction
+    // elle-même ne lève jamais (voir notificationFormationValideeService.js), le .catch()
+    // ci-dessous n'est qu'un filet supplémentaire — la transition ci-dessus a de toute façon déjà
+    // été appliquée et actée à ce stade, quoi qu'il arrive à cet envoi.
+    if (codeAction === CODE_ACTION_FORMATION_VALIDEE && dossierAvant?.statut_code === STATUT_ORIGINE_FORMATION_VALIDEE) {
+      await envoyerEmailFormationValidee(req.entite, dossierId).catch((erreur) => {
+        console.error(`Échec de l'envoi de l'email "Formation validée" pour le dossier "${dossierId}" :`, erreur.message);
+      });
+    }
+
     if (rendezvousId) {
       // Journalisé séparément (même patron que PATCH /rendezvous/:id, rendezvous.routes.js) :
       // action distincte sur une table distincte, traçable indépendamment de la transition dossier
