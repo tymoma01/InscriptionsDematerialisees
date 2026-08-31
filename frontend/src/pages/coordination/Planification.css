@@ -88,6 +88,95 @@
   color: var(--couleur-erreur);
 }
 
+/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — cadre resserré à la
+   largeur de son contenu plutôt qu'étiré sur tout le reste de la ligne (.filtres-statut__statuts
+   porte flex: 1 par défaut, FiltresStatut.css — pertinent pour Dossiers candidats qui a 9 à 10
+   statuts et remplit déjà toute la largeur, pas ici avec seulement 7 boutons courts, ce qui
+   laissait un grand vide ivoire à droite). .filtres-statut passe de justify-content: space-between
+   à center pour que "Tous" + le cadre restent groupés ensemble au centre de la ligne, plutôt que
+   plaqués aux deux extrémités une fois le cadre lui-même resserré. */
+.planification .filtres-statut {
+  justify-content: center;
+}
+
+.planification .filtres-statut__statuts {
+  flex: 0 1 auto;
+  justify-content: center;
+}
+
+/* Couleur de chaque filtre de statut alignée sur le badge correspondant dans la colonne "Statut"
+   du tableau (même demande/patron que TableauDeBordAccueil.css, Dossiers candidats, point 3 de son
+   audit 2026-08-25 — voir son commentaire pour le détail du choix des tokens) : mêmes tokens
+   --statut-<variante>-* que StatutBadge.css, sur les DEUX états contrairement à
+   TableauDeBordAccueil.css (qui ne teinte que :not(.actif), l'état actif y retombant sur le fond
+   doré uni générique de FiltresStatut.css) — demande explicite ici que la couleur reste
+   identifiable "au moins sur son état actif/sélectionné" : état actif inversé (fond = teinte
+   `texte` du badge, texte blanc) plutôt que la même pâleur que l'état inactif, pour qu'un bouton
+   sélectionné se lise comme "plein" (sélectionné) sans perdre sa teinte distinctive.
+   Une entrée par variante de varianteStatutRendezvous/varianteAfficheeRendezvous (Planification.jsx) :
+   'absent' (Manqué), 'non_realise' (Non réalisé) et 'annule' (Annulé) partagent --statut-echec-*
+   (même variante 'echec' que leur badge respectif dans le tableau, voir
+   STATUTS_DESISTEMENT/rendezvousPrevuExpire) — pas une coïncidence de ce fichier CSS, un choix déjà
+   fait par le badge lui-même. */
+.planification .filtres-statut__statuts button[data-statut='prevu']:not(.actif) {
+  background-color: var(--statut-attente-fond);
+  border-color: var(--statut-attente-bordure);
+  color: var(--statut-attente-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='prevu'].actif {
+  background-color: var(--statut-attente-texte);
+  border-color: var(--statut-attente-texte);
+  color: #ffffff;
+}
+
+.planification .filtres-statut__statuts button[data-statut='confirme']:not(.actif) {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+  color: var(--statut-succes-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='confirme'].actif {
+  background-color: var(--statut-succes-texte);
+  border-color: var(--statut-succes-texte);
+  color: #ffffff;
+}
+
+.planification .filtres-statut__statuts button[data-statut='honore']:not(.actif) {
+  background-color: var(--statut-vert-clair-fond);
+  border-color: var(--statut-vert-clair-bordure);
+  color: var(--statut-vert-clair-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='honore'].actif {
+  background-color: var(--statut-vert-clair-texte);
+  border-color: var(--statut-vert-clair-texte);
+  color: #ffffff;
+}
+
+.planification .filtres-statut__statuts button[data-statut='absent']:not(.actif),
+.planification .filtres-statut__statuts button[data-statut='non_realise']:not(.actif),
+.planification .filtres-statut__statuts button[data-statut='annule']:not(.actif) {
+  background-color: var(--statut-echec-fond);
+  border-color: var(--statut-echec-bordure);
+  color: var(--statut-echec-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='absent'].actif,
+.planification .filtres-statut__statuts button[data-statut='non_realise'].actif,
+.planification .filtres-statut__statuts button[data-statut='annule'].actif {
+  background-color: var(--statut-echec-texte);
+  border-color: var(--statut-echec-texte);
+  color: #ffffff;
+}
+
+.planification .filtres-statut__statuts button[data-statut='remplace']:not(.actif) {
+  background-color: var(--statut-neutre-fort-fond);
+  border-color: var(--statut-neutre-fort-bordure);
+  color: var(--statut-neutre-fort-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='remplace'].actif {
+  background-color: var(--statut-neutre-fort-texte);
+  border-color: var(--statut-neutre-fort-texte);
+  color: #ffffff;
+}
+
 /* Barre d'actions groupées — même style visuel que .tableau-bord-accueil__actions-groupees
    (TableauDeBordAccueil.css, Dossiers candidats, audit 2026-08-24) : sticky juste sous
    BarreNavigation (même calc que .page-verification-pieces__entete/.tableau-bord-accueil__

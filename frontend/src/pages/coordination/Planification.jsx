@@ -101,9 +101,15 @@ function codeStatutAffiche(rdv) {
 // commune au moteur générique (voir rendezvous.routes.js, statutBodySchema), pas un vocabulaire
 // propre à ACCECIT comme les statuts de dossier (table `statuts`, elle bien configurable par
 // entité) — même raisonnement que LIBELLES_STATUT ci-dessus, déjà en dur ici avant ce filtre.
+// Libellé du bouton "confirme" volontairement DIFFÉRENT de LIBELLES_STATUT.confirme ("Confirmé",
+// badge de la colonne Statut, inchangé) — demande utilisateur, 2026-08-31 : "Confirmé" seul
+// pouvait laisser croire à un aboutissement du test au même titre que Réalisé/Manqué/Annulé, alors
+// que ce statut ne décrit qu'une confirmation de présence sur un test ENCORE À VENIR (dossier
+// toujours "Test planifié" à ce stade, voir CLAUDE.md workflow ACCECIT). Purement cosmétique :
+// même code 'confirme', donc strictement le même filtrage qu'avant (voir codeStatutAffiche).
 const STATUTS_FILTRABLES_RENDEZVOUS = [
   { code: 'prevu', libelle: 'Prévu' },
-  { code: 'confirme', libelle: 'Confirmé' },
+  { code: 'confirme', libelle: 'Présence confirmée' },
   { code: 'honore', libelle: 'Réalisé' },
   { code: 'absent', libelle: 'Manqué' },
   { code: 'non_realise', libelle: 'Non réalisé' },
