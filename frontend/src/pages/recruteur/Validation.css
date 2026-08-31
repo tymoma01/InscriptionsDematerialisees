@@ -267,11 +267,6 @@ button.page-validation__action:hover {
   margin: 0;
 }
 
-.page-validation__embauche-description {
-  color: var(--couleur-texte-secondaire);
-  margin: var(--espace-moyen) 0 0;
-}
-
 /* "Changement de statut manuel/forcé" (audit RBAC 2026-08-31, Admin uniquement) — même carte que
    .page-validation__rendezvous/-relances ci-dessus, pour rester visuellement cohérent avec le
    reste de la fiche dossier malgré le bouton "danger" qu'elle porte. */

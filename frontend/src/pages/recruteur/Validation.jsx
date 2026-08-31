@@ -328,6 +328,36 @@ export default function Validation() {
           <InformationsInscription dossierId={dossierId} />
         </ErrorBoundary>
 
+        {/* "Marquer comme embauché" (audit 2026-08-31, nouveau statut terminal "Embauché", après
+            "Validé - prêt à l'embauche") — Accueil/Coordination OU Admin, contrairement au bloc
+            "Décision" plus bas (estAdmin seul) : action normale du parcours (transition
+            marquer_embauche déclarée dans transitions_statut, voir workflow.config.json), pas un
+            contournement, donc pas réservée à Admin. Visible uniquement quand le statut courant du
+            dossier est précisément "valide_pret_embauche" — la transition serait de toute façon
+            refusée côté serveur pour tout autre statut (workflowEngine.appliquerTransition), ce
+            garde-fou n'évite qu'un aller-retour réseau inutile pour un bouton qui n'aurait aucun
+            sens à afficher ailleurs dans le parcours. Positionné juste sous les informations
+            d'inscription, AU-DESSUS de "Pièces justificatives" (audit 2026-08-31, décision
+            utilisateur — déplacé depuis le bas de la fiche, après "Relances") : la modale de
+            confirmation (ModaleMarquerEmbauche, rendue plus bas dans l'arbre) reste un overlay en
+            position fixe, sa position dans le JSX n'a aucune incidence sur son rendu visuel. */}
+        {peutMarquerEmbauche && dossier?.statut_code === 'valide_pret_embauche' && (
+          <ErrorBoundary key={`embauche-${dossierId}`} titre="Embauche">
+            <section className="page-validation__embauche">
+              <div className="page-validation__embauche-entete">
+                <h2>Embauche</h2>
+                <button
+                  type="button"
+                  className="page-validation__action"
+                  onClick={() => setModaleEmbaucheOuverte(true)}
+                >
+                  Marquer comme embauché
+                </button>
+              </div>
+            </section>
+          </ErrorBoundary>
+        )}
+
         <ErrorBoundary key={`pieces-${dossierId}`} titre="Pièces justificatives">
           <section className="page-validation__pieces">
             <div className="page-validation__pieces-entete">
@@ -441,36 +471,6 @@ export default function Validation() {
             </p>
           )}
         </section>
-
-        {/* "Marquer comme embauché" (audit 2026-08-31, nouveau statut terminal "Embauché", après
-            "Validé - prêt à l'embauche") — Accueil/Coordination OU Admin, contrairement au bloc
-            "Décision" ci-dessous (estAdmin seul) : action normale du parcours (transition
-            marquer_embauche déclarée dans transitions_statut, voir workflow.config.json), pas un
-            contournement, donc pas réservée à Admin. Visible uniquement quand le statut courant du
-            dossier est précisément "valide_pret_embauche" — la transition serait de toute façon
-            refusée côté serveur pour tout autre statut (workflowEngine.appliquerTransition), ce
-            garde-fou n'évite qu'un aller-retour réseau inutile pour un bouton qui n'aurait aucun
-            sens à afficher ailleurs dans le parcours. */}
-        {peutMarquerEmbauche && dossier?.statut_code === 'valide_pret_embauche' && (
-          <ErrorBoundary key={`embauche-${dossierId}`} titre="Embauche">
-            <section className="page-validation__embauche">
-              <div className="page-validation__embauche-entete">
-                <h2>Embauche</h2>
-                <button
-                  type="button"
-                  className="page-validation__action"
-                  onClick={() => setModaleEmbaucheOuverte(true)}
-                >
-                  Marquer comme embauché
-                </button>
-              </div>
-              <p className="page-validation__embauche-description">
-                Confirme que le candidat est venu signer son contrat et récupérer sa tenue — demande
-                la date d&rsquo;embauche et un commentaire, tous deux obligatoires.
-              </p>
-            </section>
-          </ErrorBoundary>
-        )}
 
         {peutMarquerEmbauche && modaleEmbaucheOuverte && dossier && (
           <ModaleMarquerEmbauche
