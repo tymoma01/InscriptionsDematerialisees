@@ -91,12 +91,17 @@ router.get('/questionnaire', async (req, res, next) => {
 
 // GET /api/evaluations/a-faire — rendez-vous de test assignés au formateur connecté, pas encore
 // évalués. formateurId vient toujours de la session (req.utilisateur.id), jamais d'un paramètre
-// de requête — un formateur ne voit que ses propres évaluations à faire (l'admin verrait une
-// liste vide ici, ce rôle n'étant assigné à aucun rendez-vous ; il agit via un autre canal si
-// besoin, pas prévu par cet écran).
+// de requête — un formateur/inspecteur ne voit que ses propres évaluations à faire. Admin (audit
+// RBAC 2026-08-31, corrige le comportement précédent où cet écran restait vide pour ce rôle) : voit
+// TOUTES les évaluations à faire, tous formateurs/inspecteurs confondus — voir
+// evaluationEngine.listerRendezvousAEvaluer, qui ignore formateurId quand roleCode === 'admin'.
 router.get('/a-faire', async (req, res, next) => {
   try {
-    const rendezvous = await evaluationEngine.listerRendezvousAEvaluer(req.entite, req.utilisateur.id);
+    const rendezvous = await evaluationEngine.listerRendezvousAEvaluer(
+      req.entite,
+      req.utilisateur.id,
+      req.utilisateur.roleCode,
+    );
     res.json(rendezvous);
   } catch (erreur) {
     next(erreur);

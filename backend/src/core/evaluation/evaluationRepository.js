@@ -38,6 +38,13 @@ async function listerQuestionsAvecItems(bd, questionnaireId) {
 // enregistrerEvaluation) — c'est ce NOT EXISTS qui fait disparaître un rendez-vous de la liste
 // "à évaluer" une fois l'évaluation soumise, sans avoir besoin d'un statut dédié.
 //
+// formateurId === null : aucun filtre par formateur (voir evaluationEngine.listerRendezvousAEvaluer,
+// audit RBAC — Admin voit tous les rendez-vous à évaluer, tous formateurs/inspecteurs confondus,
+// cohérent avec le contournement déjà en place côté soumission — enregistrerEvaluation accepte
+// déjà un Admin sur un rendez-vous qui ne lui est pas assigné). Formateur/Inspecteur reçoivent
+// toujours leur propre id ici (jamais null), cette règle est décidée par l'appelant, pas ici (voir
+// commentaire d'en-tête de ce fichier : aucune règle métier dans cette couche).
+//
 // dossiers.statut_id IN ('test_planifie', 'test_realise') (workflow v5, audit 2026-08-21 — élargi
 // depuis la seule égalité 'test_planifie' du workflow v2/v4) : cette liste sert aussi de support à
 // "Confirmer que le test a eu lieu" (voir dossier_statut_code exposé ci-dessous,
@@ -71,7 +78,9 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
     .where({
       'dossiers.entite_id': entiteId,
       'rendezvous.type_rdv': 'test',
-      'rendezvous.formateur_id': formateurId,
+    })
+    .modify((requete) => {
+      if (formateurId !== null) requete.where('rendezvous.formateur_id', formateurId);
     })
     .whereIn('statuts.code', ['test_planifie', 'test_realise'])
     .whereIn('rendezvous.statut', ['prevu', 'confirme'])

@@ -240,3 +240,54 @@ button.page-validation__action:hover {
   color: var(--couleur-texte-secondaire);
   margin: var(--espace-moyen) 0 0;
 }
+
+/* "Changement de statut manuel/forcé" (audit RBAC 2026-08-31, Admin uniquement) — même carte que
+   .page-validation__rendezvous/-relances ci-dessus, pour rester visuellement cohérent avec le
+   reste de la fiche dossier malgré le bouton "danger" qu'elle porte. */
+.page-validation__forcer-statut {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto var(--espace-grand);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+}
+
+.page-validation__forcer-statut-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--espace-moyen);
+}
+
+.page-validation__forcer-statut-entete h2 {
+  color: var(--couleur-back-office);
+  margin: 0;
+}
+
+.page-validation__forcer-statut-description {
+  color: var(--couleur-texte-secondaire);
+  margin: var(--espace-moyen) 0 0;
+}
+
+/* Variante "danger" de .page-validation__action (même taille/forme, couleur d'alerte à la place
+   du brun/doré habituel) — seule action de cette fiche qui contourne le parcours normal du
+   dossier, doit rester visuellement distincte de "Replanifier un test"/"Gérer les pièces
+   justificatives" au premier coup d'œil. */
+button.page-validation__action--danger {
+  border-color: var(--couleur-erreur);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-erreur);
+}
+
+button.page-validation__action--danger:hover:not(:disabled) {
+  background-color: var(--couleur-erreur);
+  color: #ffffff;
+}
+
+button.page-validation__action--danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -164,9 +164,19 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
 // proposer un choix de questionnaire (plusieurs postes hôtel cochés sur un même dossier — le
 // formulaire d'inscription le permet, voir BlocDisponibilites.jsx) ou le résoudre seul (un
 // unique poste).
-async function listerRendezvousAEvaluer(entite, formateurId) {
+//
+// Admin (audit RBAC 2026-08-31, corrige le comportement précédent où cet écran restait vide pour
+// ce rôle) : voit TOUS les rendez-vous à évaluer, tous formateurs/inspecteurs confondus, en passant
+// formateurId=null au repository (aucun filtre par formateur) — cohérent avec enregistrerEvaluation
+// ci-dessous, qui autorise déjà un Admin à soumettre une évaluation sur un rendez-vous qui ne lui
+// est pas assigné. Formateur/Inspecteur gardent la restriction stricte à leurs propres rendez-vous.
+async function listerRendezvousAEvaluer(entite, formateurId, roleCode) {
   const bd = await db.obtenirKnex();
-  const rendezvous = await evaluationRepository.listerRendezvousAEvaluer(bd, entite.id, formateurId);
+  const rendezvous = await evaluationRepository.listerRendezvousAEvaluer(
+    bd,
+    entite.id,
+    roleCode === ROLES.ADMIN ? null : formateurId,
+  );
   return rendezvous.map(({ donnees_disponibilites, ...reste }) => ({
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],

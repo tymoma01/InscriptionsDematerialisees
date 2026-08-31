@@ -7,6 +7,7 @@ const motifRepository = require('../motifs/motifRepository');
 // toutes des repositories, jamais un service métier) — voir neutraliserRendezvousActifsDossier
 // ci-dessous, seul point d'usage.
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
+const { ROLES } = require('../auth/rbac');
 
 // Valeur de `rendezvous.statut` pour un rendez-vous neutralisé — même sentinel que
 // rendezvousService.STATUT_REMPLACE (core/rendezvous/rendezvousService.js), dupliquée ici plutôt
@@ -141,4 +142,72 @@ async function listerMotifsPourAction(entite, codeAction) {
   return motifRepository.listerMotifsParCategorie(bd, entite.id, codeAction);
 }
 
-module.exports = { appliquerTransition, listerTransitionsDisponibles, listerMotifsPourAction };
+// Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur) — contourne
+// volontairement `transitions_statut` : contrairement à appliquerTransition ci-dessus, qui ne
+// permet jamais de sauter une étape (une seule origine possible par transition, voir Modularité),
+// cette action permet à un Admin de placer un dossier sur N'IMPORTE QUEL statut existant de
+// l'entité, indépendamment du statut courant — pensée pour les cas exceptionnels (correction d'une
+// erreur de saisie, rattrapage d'un dossier bloqué par un bug) que la machine à états normale ne
+// couvre pas. `roleCode` revérifié ici (pas seulement par `requireRole(ROLES.ADMIN)` posé sur la
+// route, voir transitions.routes.js) : dernier verrou avant écriture, même principe que le
+// contournement ADMIN déjà en place dans pieceJustificativeService.js/evaluationEngine.js — cette
+// action n'a par nature AUCUNE ligne `transition_roles` pour la protéger (elle ne passe justement
+// pas par cette table), donc pas de politique "fail closed" équivalente sans ce filet.
+//
+// Effets de bord alignés sur appliquerTransition (demande explicite) : neutralise tout
+// rendez-vous encore actif si le statut D'ARRIVÉE le demande (statuts.neutralise_rendezvous_actifs,
+// même mécanisme, voir son commentaire plus haut) — un saut direct vers un statut terminal
+// (ex. formation_non_validee) ne doit pas plus laisser de rendez-vous orphelin qu'un parcours
+// normal.
+async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilisateurId, roleCode }) {
+  if (roleCode !== ROLES.ADMIN) {
+    throw new Error('Seul le rôle Admin peut forcer le statut d’un dossier.');
+  }
+  if (!commentaire || !commentaire.trim()) {
+    throw new Error('Un commentaire est obligatoire pour forcer un changement de statut.');
+  }
+
+  const bd = await db.obtenirKnex();
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  if (!dossier) {
+    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+
+  const statutCible = await dossierRepository.trouverStatutParCode(bd, entite.id, statutCode);
+  if (!statutCible) {
+    throw new Error(`Statut "${statutCode}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  if (statutCible.id === dossier.statut_id) {
+    throw new Error(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
+  }
+
+  await bd.transaction(async (trx) => {
+    await dossierRepository.enregistrerChangementStatut(trx, {
+      dossierId,
+      statutId: statutCible.id,
+      utilisateurId,
+      commentaire,
+    });
+
+    if (statutCible.neutralise_rendezvous_actifs) {
+      await rendezvousRepository.neutraliserRendezvousActifsDossier(trx, {
+        dossierId,
+        statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
+      });
+    }
+  });
+
+  return {
+    statutAvantCode: dossier.statut_code,
+    statutAvantLibelle: dossier.statut_libelle,
+    statutApresCode: statutCible.code,
+    statutApresLibelle: statutCible.libelle,
+  };
+}
+
+module.exports = {
+  appliquerTransition,
+  listerTransitionsDisponibles,
+  listerMotifsPourAction,
+  forcerStatut,
+};

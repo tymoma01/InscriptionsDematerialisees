@@ -39,3 +39,12 @@ export async function listerMotifsPourAction(codeAction) {
   const { data } = await api.get('/dossiers/transitions/motifs', { params: { codeAction } });
   return data;
 }
+
+// Changement de statut manuel/forcé (audit RBAC 2026-08-31, réservé à Admin — voir
+// ForcerStatutDossier.jsx) : place le dossier directement sur `statutCode`, indépendamment du
+// statut courant et sans passer par `transitions_statut`/appliquerTransition ci-dessus. utilisateurId
+// jamais envoyé ici non plus, même raison que pour appliquerTransition.
+export async function forcerStatut(dossierId, { statutCode, commentaire }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/transitions/forcer-statut`, { statutCode, commentaire });
+  return data;
+}

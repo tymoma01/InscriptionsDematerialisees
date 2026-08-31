@@ -7,11 +7,23 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
+import ModaleForcerStatut from '../../core/dossier/ModaleForcerStatut';
+import { useSession } from '../../core/auth/useSession';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
-import { obtenirDossier } from '../../services/dossierService';
+import { obtenirDossier, listerStatuts } from '../../services/dossierService';
+import { forcerStatut } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import api from '../../services/api';
 import './Validation.css';
+
+// Rôle autorisé pour le changement de statut manuel/forcé (audit RBAC 2026-08-31, décision
+// utilisateur) — Admin SEUL, contrairement à ROLES_GESTION_TRANSITIONS (backend,
+// transitions.routes.js) : littéral en dur plutôt qu'une constante partagée, même choix déjà fait
+// par BoutonNouvelleInscription.jsx/Connexion.jsx (voir leur commentaire respectif) faute
+// d'équivalent front de backend/src/core/auth/rbac.js. La vraie garde reste côté serveur
+// (ROLES_FORCER_STATUT, transitions.routes.js) — ce test ne fait que masquer le bouton pour les
+// autres rôles.
+const ROLE_ADMIN = 'admin';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -112,6 +124,8 @@ const LIBELLE_PIECE_ORPHELINE = 'À recapturer (fichier perdu)';
 // encore fait côté API.
 export default function Validation() {
   const { dossierId } = useParams();
+  const { utilisateur } = useSession();
+  const estAdmin = utilisateur?.roleCode === ROLE_ADMIN;
 
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -122,6 +136,16 @@ export default function Validation() {
   // informatif, un échec de chargement ne bloque donc pas le reste de l'écran de décision
   // (catch silencieux, comme là-bas).
   const [dossier, setDossier] = useState(null);
+
+  // Changement de statut manuel/forcé (audit RBAC 2026-08-31) — statuts de l'entité et état de la
+  // modale, seulement utiles pour Admin (voir estAdmin plus bas) : jamais chargés pour les autres
+  // rôles, GET /dossiers/statuts leur étant de toute façon fermé côté serveur
+  // (ROLES_CONSULTATION_DOSSIERS, dossiers.routes.js) — un fetch inutile échouerait en 403 pour
+  // rien.
+  const [statuts, setStatuts] = useState([]);
+  const [modaleForcerStatutOuverte, setModaleForcerStatutOuverte] = useState(false);
+  const [forcageEnCours, setForcageEnCours] = useState(false);
+  const [erreurForcage, setErreurForcage] = useState(null);
 
   useEffect(() => {
     let annule = false;
@@ -134,6 +158,45 @@ export default function Validation() {
       annule = true;
     };
   }, [dossierId]);
+
+  useEffect(() => {
+    if (!estAdmin) return undefined;
+    let annule = false;
+    listerStatuts()
+      .then((valeur) => {
+        if (!annule) setStatuts(valeur);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [estAdmin]);
+
+  const rechargerDossierApresForcage = () => {
+    obtenirDossier(dossierId)
+      .then(setDossier)
+      .catch(() => {});
+  };
+
+  const gererForcageStatut = async (statutCode, commentaire) => {
+    setForcageEnCours(true);
+    setErreurForcage(null);
+    try {
+      await forcerStatut(dossierId, { statutCode, commentaire });
+      setModaleForcerStatutOuverte(false);
+      rechargerDossierApresForcage();
+    } catch (erreur) {
+      // Modale gardée ouverte (même patron que SuiviFormation.jsx/ModaleResultatFormation.jsx) :
+      // l'agent peut corriger/retenter sans retaper son commentaire depuis zéro.
+      setErreurForcage(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? "Impossible de forcer ce changement de statut. Merci de réessayer.")
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
+    } finally {
+      setForcageEnCours(false);
+    }
+  };
 
   useEffect(() => {
     let annule = false;
@@ -349,8 +412,50 @@ export default function Validation() {
             evaluationEngine enregistre l'évaluation) — même risque que le bouton planifier_test
             déjà retiré (incident dossier #75). Composant et route API (transitionService.js)
             volontairement INTACTS : GestionTransitions reste générique et réutilisable telle
-            quelle si un futur écran (ex. un outil d'override Admin) en a besoin — voir son
-            commentaire d'en-tête, qui ne connaît lui-même aucune page appelante en dur. */}
+            quelle si un futur écran en a besoin — voir son commentaire d'en-tête, qui ne connaît
+            lui-même aucune page appelante en dur. L'outil d'override Admin envisagé ici (voir
+            versions précédentes de ce commentaire) est finalement une modale dédiée ci-dessous
+            (ModaleForcerStatut.jsx), pas ce composant : GestionTransitions reste borné aux
+            transitions normales de `transitions_statut` (une seule origine possible chacune),
+            alors que le changement de statut forcé doit pouvoir cibler N'IMPORTE QUEL statut
+            indépendamment du statut courant — un besoin structurellement différent. */}
+        {estAdmin && (
+          <ErrorBoundary key={`forcer-statut-${dossierId}`} titre="Changement de statut manuel/forcé">
+            <section className="page-validation__forcer-statut">
+              <div className="page-validation__forcer-statut-entete">
+                <h2>Changement de statut manuel/forcé</h2>
+                <button
+                  type="button"
+                  className="page-validation__action page-validation__action--danger"
+                  onClick={() => setModaleForcerStatutOuverte(true)}
+                  disabled={!dossier || statuts.length === 0}
+                >
+                  Forcer le statut
+                </button>
+              </div>
+              <p className="page-validation__forcer-statut-description">
+                Réservé au rôle Admin — place le dossier directement sur le statut choisi, en
+                dehors du parcours normal (voir la modale de confirmation pour le détail des effets
+                de bord).
+              </p>
+            </section>
+          </ErrorBoundary>
+        )}
+
+        {estAdmin && modaleForcerStatutOuverte && dossier && (
+          <ModaleForcerStatut
+            dossier={dossier}
+            statuts={statuts}
+            enCours={forcageEnCours}
+            erreur={erreurForcage}
+            onAnnuler={() => {
+              setModaleForcerStatutOuverte(false);
+              setErreurForcage(null);
+            }}
+            onConfirmer={gererForcageStatut}
+          />
+        )}
+
         <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
           <NotesDossier dossierId={dossierId} />
         </ErrorBoundary>
