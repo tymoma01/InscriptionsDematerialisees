@@ -2,7 +2,7 @@
 // formateur/inspecteur assigné, ou un agent Accueil/Coordination, peut déplacer ou supprimer
 // directement dans Outlook un événement que l'app avait créé pour un rendez-vous de test — sans
 // jamais repasser par l'app elle-même. Ce module détecte ces changements, périodiquement (voir
-// jobs/syncCalendrierManuelCron.js), et les répercute sur `rendezvous` en considérant l'état
+// jobs/syncCalendrierManuelJob.js), et les répercute sur `rendezvous` en considérant l'état
 // Outlook comme la vérité — jamais l'inverse : ce module ne crée ni ne recrée aucun événement
 // Outlook, il ne fait que LIRE l'état actuel de ceux déjà créés par l'app (voir
 // rendezvousRepository.listerRendezvousActifsAvecEvenementOutlook) et ajuster `rendezvous` en
@@ -153,7 +153,7 @@ async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
 }
 
 // Point d'entrée par entité — appelé pour toutes les entités actives par
-// jobs/syncCalendrierManuelCron.js, même patron que basculeTestNonRealiseService.
+// jobs/syncCalendrierManuelJob.js, même patron que basculeTestNonRealiseService.
 // executerBasculeTestNonRealise. Une entité sans rendez-vous actif référencé sur Outlook (aucune
 // intégration calendrier configurée, ex. Adaptel aujourd'hui) obtient simplement 0 rendez-vous à
 // vérifier via listerRendezvousActifsAvecEvenementOutlook, sans cas particulier à gérer ici.
