@@ -48,3 +48,48 @@ test('listerOrientations("envoi_formation") reste inchangé : comparaison sur la
   assert.match(sql, /= 'envoi_formation'/);
   assert.doesNotMatch(sql, /'envoi_formation'.*CASE WHEN/);
 });
+
+// compterParStatut/listerParStatut (audit tableau de bord 2026-08-31, décision utilisateur) —
+// fonctions GÉNÉRIQUES pour les cartes "Effectifs par statut" : un seul couple de fonctions pour
+// n'importe quel code de statut de l'entité, pas une fonction dédiée par statut (voir
+// statistiquesService.CODES_STATUTS_EFFECTIF_ACCECIT/resoudreListeIndicateur). Ces deux tests
+// verrouillent que n'importe quel `statutCode` produit bien un WHERE sur `statuts.code`, filtré sur
+// la MÊME cohorte (dossiers.date_creation) que compterInscrits/compterDossiersConvertis.
+test('compterParStatut filtre sur le statut COURANT du dossier (jointure statuts) et sur la cohorte date_creation, pour un code de statut arbitraire', () => {
+  const sql = statistiquesRepository.compterParStatut(bd, ENTITE_ID, 'embauche', FILTRES).toString();
+  assert.match(sql, /inner join "statuts" on "statuts"\."id" = "dossiers"\."statut_id"/i);
+  assert.match(sql, /"statuts"\."code" = 'embauche'/);
+  assert.match(sql, /"dossiers"\."date_creation" >=/);
+  assert.match(sql, /"dossiers"\."date_creation" </);
+});
+
+test('listerParStatut reprend le même filtre que compterParStatut, avec dossier_id/date_creation en date_cle (même ancre de cohorte que listerInscrits)', () => {
+  const sql = statistiquesRepository.listerParStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
+  assert.match(sql, /"dossiers"\."id" as "dossier_id"/);
+  assert.match(sql, /"dossiers"\."date_creation" as "date_cle"/);
+});
+
+// compterParHistoriqueStatut/listerParHistoriqueStatut (audit tableau de bord 2026-08-31, 3e passe,
+// correctif "Test réalisé (effectif)") — même patron EXACT que compterEnvoyesEnTest/
+// listerEnvoyesEnTest ('test_planifie' en dur), généralisé à un statutCode arbitraire : filtre sur
+// historique_statuts.date_changement (pas dossiers.date_creation comme compterParStatut ci-dessus)
+// et compte les dossiers DISTINCTS, peu importe leur statut courant ensuite — nécessaire pour un
+// statut TRANSITOIRE comme test_realise, où compterParStatut (statut courant) donnerait quasi
+// toujours 0.
+test('compterParHistoriqueStatut filtre sur historique_statuts.date_changement (pas dossiers.date_creation) et compte les dossiers DISTINCTS', () => {
+  const sql = statistiquesRepository.compterParHistoriqueStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+  assert.match(sql, /inner join "dossiers" on "dossiers"\."id" = "historique_statuts"\."dossier_id"/i);
+  assert.match(sql, /inner join "statuts" on "statuts"\."id" = "historique_statuts"\."statut_id"/i);
+  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
+  assert.match(sql, /"historique_statuts"\."date_changement" >=/);
+  assert.match(sql, /"historique_statuts"\."date_changement" </);
+  assert.match(sql, /count\(distinct "historique_statuts"\."dossier_id"\)/i);
+});
+
+test('listerParHistoriqueStatut reprend le même filtre que compterParHistoriqueStatut, avec MIN(date_changement) en date_cle (même convention que listerEnvoyesEnTest)', () => {
+  const sql = statistiquesRepository.listerParHistoriqueStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
+  assert.match(sql, /group by "historique_statuts"\."dossier_id"/i);
+  assert.match(sql, /MIN\(historique_statuts\.date_changement\) as date_cle/);
+});

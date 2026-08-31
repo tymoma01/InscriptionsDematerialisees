@@ -170,6 +170,97 @@ function compterDossiersConvertis(bd, entiteId, { debut, finExclusive, typePoste
   return requete.count('dossiers.id as total').first();
 }
 
+// Stat 5bis — effectif de dossiers dont le STATUT COURANT (dossiers.statut_id) est `statutCode`,
+// sur la MÊME cohorte que compterInscrits/compterDossiersConvertis ci-dessus (dossiers créés dans
+// la période) — GÉNÉRIQUE (voir Modularité, CLAUDE.md) : une seule fonction pour n'importe quel
+// code de statut de l'entité, symétrique du filtre poste 'poste:<code>' déjà en place
+// (requeteBaseRepartitionParPoste plus bas) — audit tableau de bord 2026-08-31, décision
+// utilisateur : remplace ce qui aurait été 4 fonctions dédiées (une par nouvelle carte "effectif").
+// Aucune validation de `statutCode` ici (contrairement au poste, comparé à POSTES_BUREAU/HOTEL) :
+// un code inconnu de l'entité renvoie simplement 0/une liste vide (le WHERE ne trouve rien), pas
+// d'erreur — ce module n'a pas connaissance de la liste des statuts valides d'une entité (elle
+// vit en config, voir workflow.config.json), la valider imposerait une dépendance supplémentaire
+// pour un bénéfice marginal (un code invalide ne peut de toute façon rien casser).
+function compterParStatut(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('dossiers')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', statutCode)
+    .andWhere('dossiers.date_creation', '>=', debut)
+    .andWhere('dossiers.date_creation', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.count('dossiers.id as total').first();
+}
+
+// Variante "liste" de compterParStatut ci-dessus (tableau consolidé cliquable, voir
+// statistiquesService.resoudreListeIndicateur, préfixe 'statut:<code>') — date_cle = date_creation,
+// même ancre de cohorte que listerInscrits/listerDossiersConvertis (pas la date d'ENTRÉE dans ce
+// statut précis : celle-ci est affichée séparément dans la colonne "Dates clés", voir
+// dossierRepository.listerDossiersParIds, calculée par un LEFT JOIN dédié par statut suivi — cette
+// fonction-ci reste générique et ne fait qu'une requête simple sur `dossiers`, sans jointure vers
+// `historique_statuts`).
+function listerParStatut(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('dossiers')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', statutCode)
+    .andWhere('dossiers.date_creation', '>=', debut)
+    .andWhere('dossiers.date_creation', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.select('dossiers.id as dossier_id', 'dossiers.date_creation as date_cle');
+}
+
+// Effectif "historique" — nombre de dossiers DISTINCTS ayant eu AU MOINS UNE ligne
+// historique_statuts avec ce statutCode dans la période, peu importe leur statut COURANT ensuite
+// (audit tableau de bord 2026-08-31, 3e passe, décision utilisateur — corrige "Test réalisé
+// (effectif)", qui utilisait à tort compterParStatut/statut COURANT : test_realise est un statut
+// TRANSITOIRE, un dossier n'y reste que le temps de recevoir son verdict, donnant quasi toujours
+// 0/proche de 0 avec cette approche). GÉNÉRIQUE, comme compterParStatut/listerParStatut ci-dessus,
+// mais sur historique_statuts plutôt que sur le statut courant de `dossiers` — même patron EXACT
+// que compterEnvoyesEnTest/listerEnvoyesEnTest ('test_planifie' en dur), généralisé à un statutCode
+// arbitraire pour ne pas dupliquer une 3e fois la même requête. compterEnvoyesEnTest/
+// listerEnvoyesEnTest restent volontairement INTACTES (pas refactorées pour appeler celle-ci) :
+// fonctions déjà testées, aucune raison de les toucher pour ce correctif scopé à test_realise.
+function compterParHistoriqueStatut(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts')
+    .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', statutCode)
+    .andWhere('historique_statuts.date_changement', '>=', debut)
+    .andWhere('historique_statuts.date_changement', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.countDistinct('historique_statuts.dossier_id as total').first();
+}
+
+// Variante "liste" de compterParHistoriqueStatut ci-dessus — date_cle = MIN(date_changement),
+// première entrée dans ce statut sur la période, même convention que listerEnvoyesEnTest.
+function listerParHistoriqueStatut(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts')
+    .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', statutCode)
+    .andWhere('historique_statuts.date_changement', '>=', debut)
+    .andWhere('historique_statuts.date_changement', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete
+    .groupBy('historique_statuts.dossier_id')
+    .select('historique_statuts.dossier_id as dossier_id', bd.raw('MIN(historique_statuts.date_changement) as date_cle'));
+}
+
 function requeteBaseRepartitionParPoste(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('evaluations_postes')
     .join('evaluations', 'evaluations.id', 'evaluations_postes.evaluation_id')
@@ -524,6 +615,10 @@ module.exports = {
   compterVerdicts,
   compterOrientations,
   compterDossiersConvertis,
+  compterParStatut,
+  listerParStatut,
+  compterParHistoriqueStatut,
+  listerParHistoriqueStatut,
   listerRepartitionParEvaluation,
   listerRepartitionParOccurrence,
   compterEvaluationsSansPoste,

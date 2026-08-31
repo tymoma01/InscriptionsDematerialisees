@@ -64,6 +64,26 @@ function versMoyenneJours(valeur) {
   return Math.round(Number(valeur) * 10) / 10;
 }
 
+// Codes des 4 cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision
+// utilisateur — liste minimale validée, 3 autres reportées à une itération future) — propres à
+// ACCECIT (voir Modularité, CLAUDE.md : ce fichier porte déjà des codes de statut en dur pour
+// d'autres statistiques, ex. 'test_planifie' dans compterEnvoyesEnTest, même précédent).
+//
+// 'test_realise' à PART (3e passe, correctif) : statut TRANSITOIRE (le dossier n'y reste que le
+// temps de recevoir son verdict, valide_pret_embauche/valide_envoi_formation/invalide) — compté
+// sur son HISTORIQUE (compterParHistoriqueStatut, au moins une entrée dans la période), pas sur le
+// statut COURANT (compterParStatut), qui donnait quasi toujours 0/proche de 0 pour ce genre de
+// statut (confirmé par audit : 9 dossiers passés par test_realise sur la période testée, mais 0
+// encore à ce statut aujourd'hui — tous déjà sortis vers un verdict). Même patron EXACT que
+// "Envoyé en test" (compterEnvoyesEnTest, 'test_planifie' — lui aussi transitoire).
+//
+// Les 3 autres (valide_pret_embauche/formation_non_validee/embauche) restent sur le statut COURANT
+// (compterParStatut) : ce sont des statuts TERMINAUX, un dossier y reste — l'effectif "combien
+// sont actuellement à ce statut" a un sens opérationnel direct pour eux, contrairement à
+// test_realise.
+const CODES_STATUTS_EFFECTIF_COURANT_ACCECIT = ['valide_pret_embauche', 'formation_non_validee', 'embauche'];
+const CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT = 'test_realise';
+
 async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, poste }) {
   validerCoherencePosteTypePoste({ typePoste, poste });
   const bd = await obtenirKnex();
@@ -80,6 +100,8 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     evaluationsSansPoste,
     delaiInscriptionTest,
     delaiTestVerdict,
+    effectifTestRealise,
+    effectifsParStatutCourantBruts,
   ] = await Promise.all([
     statistiquesRepository.compterInscrits(bd, entite.id, filtres),
     statistiquesRepository.compterEnvoyesEnTest(bd, entite.id, filtres),
@@ -91,7 +113,18 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     statistiquesRepository.compterEvaluationsSansPoste(bd, entite.id, filtres),
     statistiquesRepository.delaiInscriptionVersTestPlanifie(bd, entite.id, filtres),
     statistiquesRepository.delaiTestVersVerdict(bd, entite.id, filtres),
+    statistiquesRepository.compterParHistoriqueStatut(bd, entite.id, CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT, filtres),
+    Promise.all(
+      CODES_STATUTS_EFFECTIF_COURANT_ACCECIT.map((statutCode) =>
+        statistiquesRepository.compterParStatut(bd, entite.id, statutCode, filtres),
+      ),
+    ),
   ]);
+
+  const effectifsParStatut = { [CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT]: versNombre(effectifTestRealise.total) };
+  CODES_STATUTS_EFFECTIF_COURANT_ACCECIT.forEach((statutCode, index) => {
+    effectifsParStatut[statutCode] = versNombre(effectifsParStatutCourantBruts[index].total);
+  });
 
   const totalInscrits = versNombre(inscrits.total);
   const totalConvertis = versNombre(dossiersConvertis.total);
@@ -150,6 +183,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
         nbDossiers: versNombre(delaiTestVerdict.nb_dossiers),
       },
     },
+    effectifsParStatut,
   };
 }
 
@@ -176,6 +210,14 @@ const CODES_INDICATEURS_STATIQUES = [
 ];
 
 const PREFIXE_POSTE = 'poste:';
+
+// Préfixe des indicateurs "effectif par statut" (audit tableau de bord 2026-08-31, décision
+// utilisateur) — GÉNÉRIQUE, symétrique de PREFIXE_POSTE ci-dessus : n'importe quel code de statut
+// de l'entité, pas seulement les 4 codes de CODES_STATUTS_EFFECTIF_ACCECIT (qui ne pilotent que
+// l'affichage des cartes du tableau de bord, voir plus haut) — un indicateur 'statut:<code>' non
+// affiché en carte resterait malgré tout résoluble ici si jamais un autre appelant le sélectionnait
+// un jour (même logique que 'poste:<code>', jamais limité à un sous-ensemble figé).
+const PREFIXE_STATUT = 'statut:';
 
 // Une seule fonction de résolution code -> requête "liste de dossiers", pour que
 // listerDossiersParIndicateurs ci-dessous n'ait qu'à itérer sur les codes demandés sans connaître
@@ -211,8 +253,26 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
         }
         return statistiquesRepository.listerRepartitionParPosteDossiers(bd, entiteId, filtres, posteCode);
       }
+      // 'statut:<code>' — GÉNÉRIQUE (voir PREFIXE_STATUT plus haut), pas de validation contre une
+      // liste figée (contrairement à 'poste:<code>' ci-dessus) : ce module n'a pas connaissance des
+      // codes de statut valides d'une entité (vivent en config, workflow.config.json) ; un code
+      // inconnu renvoie simplement une liste vide (voir statistiquesRepository.listerParStatut),
+      // jamais une erreur.
+      //
+      // 'test_realise' (CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT ci-dessus) fait exception : la LISTE
+      // de dossiers doit suivre la même logique HISTORIQUE que le CHIFFRE de sa carte
+      // (compterParHistoriqueStatut/obtenirIndicateursKpi, audit 2026-08-31 3e passe) — sinon le
+      // clic sur cette carte afficherait un chiffre positif mais un tableau "Dossiers sélectionnés"
+      // vide (statut courant quasi jamais test_realise, voir son commentaire plus haut).
+      if (code.startsWith(PREFIXE_STATUT)) {
+        const statutCode = code.slice(PREFIXE_STATUT.length);
+        if (statutCode === CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT) {
+          return statistiquesRepository.listerParHistoriqueStatut(bd, entiteId, statutCode, filtres);
+        }
+        return statistiquesRepository.listerParStatut(bd, entiteId, statutCode, filtres);
+      }
       throw new ErreurStatistiquesInvalide(
-        `Indicateur "${code}" inconnu (attendu : ${CODES_INDICATEURS_STATIQUES.join(', ')}, ou "${PREFIXE_POSTE}<code>").`,
+        `Indicateur "${code}" inconnu (attendu : ${CODES_INDICATEURS_STATIQUES.join(', ')}, "${PREFIXE_POSTE}<code>", ou "${PREFIXE_STATUT}<code>").`,
       );
   }
 }
@@ -269,6 +329,10 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         verdict_resultat_global,
         verdict_orientation,
         date_derniere_planification_avant_verdict,
+        date_entree_test_realise,
+        date_entree_valide_pret_embauche,
+        date_entree_formation_non_validee,
+        date_entree_embauche,
         ...reste
       }) => ({
         ...reste,
@@ -300,6 +364,19 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
             ? { code: verdict_resultat_global === 'invalide' ? 'verdict_invalide' : 'verdict_valide', date: date_verdict }
             : null,
           date_verdict && verdict_orientation ? { code: `orientation_${verdict_orientation}`, date: date_verdict } : null,
+          // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31, décision utilisateur) —
+          // code 'statut:<code>' (préfixe PREFIXE_STATUT ci-dessus), date = date d'ENTRÉE dans ce
+          // statut (dossierRepository.joindreDateEntreeStatut), pas la cohorte date_creation
+          // utilisée pour le comptage/la sélection (voir listerParStatut) : cette colonne affiche
+          // "quand" pour l'agent, distinct du calcul d'effectif lui-même.
+          date_entree_test_realise ? { code: 'statut:test_realise', date: date_entree_test_realise } : null,
+          date_entree_valide_pret_embauche
+            ? { code: 'statut:valide_pret_embauche', date: date_entree_valide_pret_embauche }
+            : null,
+          date_entree_formation_non_validee
+            ? { code: 'statut:formation_non_validee', date: date_entree_formation_non_validee }
+            : null,
+          date_entree_embauche ? { code: 'statut:embauche', date: date_entree_embauche } : null,
         ].filter(Boolean),
         // Ancre de FIN du délai "test → verdict" (colonne "Dates clés", construireColonnesAlignees)
         // — la ligne "Verdict" elle-même n'existant plus dans `datesCles` ci-dessus, ce champ dédié

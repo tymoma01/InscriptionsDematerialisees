@@ -23,6 +23,20 @@ test('listerDossiersParIds déduit verdict_orientation="pret_embauche" par COALE
   );
 });
 
+// Colonne "Dates clés" enrichie pour les 4 nouvelles cartes "Effectifs par statut" (audit tableau
+// de bord 2026-08-31, décision utilisateur) — une jointure LEFT JOIN dédiée par statut suivi
+// (joindreDateEntreeStatut), MAX(historique_statuts.date_changement), même calcul que
+// listerSuiviFormation.dates_entree_formation (voir plus bas) — pas un mécanisme dynamique unique,
+// seulement 4 statuts concernés pour l'instant.
+test('listerDossiersParIds joint une date d’entrée (MAX historique_statuts) par statut pour les 4 nouvelles cartes "Effectifs par statut"', () => {
+  const sql = dossierRepository.listerDossiersParIds(bd, 1, [74, 89]).toString();
+  for (const statutCode of ['test_realise', 'valide_pret_embauche', 'formation_non_validee', 'embauche']) {
+    assert.match(sql, new RegExp(`"statuts_${statutCode}"\\."code" = '${statutCode}'`));
+    assert.match(sql, new RegExp(`MAX\\(historique_statuts\\.date_changement\\) as date_entree_${statutCode}`));
+    assert.match(sql, new RegExp(`"dates_${statutCode}"\\."date_entree_${statutCode}"`));
+  }
+});
+
 test('listerDossiersParIds retourne un tableau vide sans construire de requête pour une liste de dossiers vide (comportement inchangé)', async () => {
   const resultat = await dossierRepository.listerDossiersParIds(bd, 1, []);
   assert.deepEqual(resultat, []);

@@ -478,9 +478,32 @@ function obtenirDerniereModification(bd, entiteId) {
 // LEFT JOIN LATERAL (pas INNER) : un dossier sans verdict encore (date_verdict NULL) doit rester
 // dans le résultat, simplement sans ligne de délai "test → verdict" (filtré côté front, voir
 // TableauDossiersSelectionnes.jsx).
+// Date d'ENTRÉE dans un statut donné (MAX(historique_statuts.date_changement) pour ce code) —
+// même calcul que listerSuiviFormation.dates_entree_formation plus haut, généralisé à un code
+// arbitraire pour les 4 nouvelles cartes "Effectifs par statut" (audit tableau de bord 2026-08-31,
+// décision utilisateur : "option simple", ce LEFT JOIN dédié par statut suivi, PAS un mécanisme
+// dynamique unique — resterait disproportionné pour seulement 4 codes). MAX (pas MIN) : cohérent
+// avec dates_entree_formation, la dernière entrée dans ce statut a plus de sens qu'une première
+// entrée si le dossier y est repassé plusieurs fois (ex. replanifier_test depuis valide_pret_embauche
+// puis re-validation). Sous-requête aliasée `dates_<statutCode>`, colonne `date_entree_<statutCode>`
+// — nom prévisible, retrouvé tel quel dans le .select() de listerDossiersParIds ci-dessous.
+function joindreDateEntreeStatut(requete, bd, statutCode) {
+  const colonne = `date_entree_${statutCode}`;
+  return requete.leftJoin(
+    bd('historique_statuts')
+      .join(`statuts as statuts_${statutCode}`, `statuts_${statutCode}.id`, 'historique_statuts.statut_id')
+      .where(`statuts_${statutCode}.code`, statutCode)
+      .groupBy('historique_statuts.dossier_id')
+      .select('historique_statuts.dossier_id', bd.raw(`MAX(historique_statuts.date_changement) as ${colonne}`))
+      .as(`dates_${statutCode}`),
+    `dates_${statutCode}.dossier_id`,
+    'dossiers.id',
+  );
+}
+
 function listerDossiersParIds(bd, entiteId, dossierIds) {
   if (dossierIds.length === 0) return Promise.resolve([]);
-  return bd('dossiers')
+  const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
@@ -502,7 +525,16 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
         .as('dates_test_planifie'),
       'dates_test_planifie.dossier_id',
       'dossiers.id',
-    )
+    );
+
+  // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — une jointure par statut suivi,
+  // voir joindreDateEntreeStatut ci-dessus.
+  joindreDateEntreeStatut(requete, bd, 'test_realise');
+  joindreDateEntreeStatut(requete, bd, 'valide_pret_embauche');
+  joindreDateEntreeStatut(requete, bd, 'formation_non_validee');
+  joindreDateEntreeStatut(requete, bd, 'embauche');
+
+  return requete
     .leftJoin(
       bd('evaluations')
         .groupBy('evaluations.dossier_id')
@@ -545,6 +577,12 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'statuts.est_final as statut_est_final',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'dates_test_planifie.date_test_planifie',
+      // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — voir joindreDateEntreeStatut
+      // plus haut (sous-requête `dates_<code>`, colonne `date_entree_<code>`).
+      'dates_test_realise.date_entree_test_realise',
+      'dates_valide_pret_embauche.date_entree_valide_pret_embauche',
+      'dates_formation_non_validee.date_entree_formation_non_validee',
+      'dates_embauche.date_entree_embauche',
       'dates_verdict.date_verdict',
       'evaluation_verdict.resultat_global as verdict_resultat_global',
       // Orientation EFFECTIVE, pas evaluation_verdict.orientation seule — règle générale (audit

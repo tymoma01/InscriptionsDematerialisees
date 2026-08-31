@@ -32,6 +32,21 @@ function mockerRepository(t, overrides = {}) {
     compterEvaluationsSansPoste: async () => ({ total: '1' }),
     delaiInscriptionVersTestPlanifie: async () => ({ moyenne_jours: '5.234', nb_dossiers: '6' }),
     delaiTestVersVerdict: async () => ({ moyenne_jours: null, nb_dossiers: '0' }),
+    // Effectifs par statut (audit tableau de bord 2026-08-31) — compterParStatut appelée 3 fois
+    // (une par code de CODES_STATUTS_EFFECTIF_COURANT_ACCECIT, statuts terminaux), et
+    // compterParHistoriqueStatut 1 fois (test_realise, statut transitoire, corrigé en 3e passe —
+    // voir son commentaire dans statistiquesService.js). Valeur par défaut identique pour les
+    // appels multiples tant qu'un test ne la surcharge pas explicitement (voir le test dédié plus
+    // bas, qui distingue les codes par argument). Indispensable, pas juste une bonne pratique : sans
+    // ces mocks, l'appel tombe sur la VRAIE implémentation du repository et tente une connexion
+    // réelle (obtenirKnex n'est PAS intercepté par mockerKnex ici — `const { obtenirKnex } =
+    // require(...)` capture la fonction par valeur à l'import, `t.mock.method(db, 'obtenirKnex', ...)`
+    // ne peut donc pas la remplacer rétroactivement), ce qui a fait suspendre indéfiniment
+    // `node --test` le temps de l'écrire (constaté en implémentant le correctif précédent) —
+    // exactement pourquoi chaque AUTRE appel de repository utilisé par obtenirIndicateursKpi a déjà
+    // son propre mock par défaut ci-dessus.
+    compterParStatut: async () => ({ total: '0' }),
+    compterParHistoriqueStatut: async () => ({ total: '0' }),
   };
   const valeurs = { ...valeursParDefaut, ...overrides };
   for (const [methode, implementation] of Object.entries(valeurs)) {
@@ -66,6 +81,46 @@ test('obtenirIndicateursKpi assemble les 7 statistiques, avec le taux de convers
   assert.equal(resultat.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours, 5.2);
   assert.equal(resultat.delaisMoyens.inscriptionVersTestPlanifie.nbDossiers, 6);
   assert.equal(resultat.delaisMoyens.testVersVerdict.moyenneJours, null);
+});
+
+// Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) —
+// compterParStatut appelée une fois par code de CODES_STATUTS_EFFECTIF_ACCECIT (4 appels),
+// résultat assemblé sous `effectifsParStatut` avec CE code de statut comme clé — distingue les 4
+// appels par leur 3e argument (statutCode), même patron que le test "transmet typePoste/poste"
+// plus bas pour un seul appel.
+// Corrigé (audit tableau de bord 2026-08-31, 3e passe) : test_realise (statut TRANSITOIRE) passe
+// désormais par compterParHistoriqueStatut, distinct des 3 autres (statuts TERMINAUX) qui restent
+// sur compterParStatut (statut courant) — voir CODES_STATUTS_EFFECTIF_COURANT_ACCECIT/
+// CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT, statistiquesService.js.
+test('obtenirIndicateursKpi assemble effectifsParStatut : test_realise via compterParHistoriqueStatut, les 3 autres via compterParStatut', async (t) => {
+  mockerKnex(t);
+  const VALEURS_STATUT_COURANT = {
+    valide_pret_embauche: '9',
+    formation_non_validee: '2',
+    embauche: '1',
+  };
+  mockerRepository(t, {
+    compterParHistoriqueStatut: async (bd, entiteId, statutCode) => {
+      assert.equal(statutCode, 'test_realise', 'compterParHistoriqueStatut ne doit être appelée que pour test_realise');
+      return { total: '8' };
+    },
+    compterParStatut: async (bd, entiteId, statutCode) => {
+      assert.notEqual(statutCode, 'test_realise', 'test_realise ne doit plus passer par compterParStatut (statut courant)');
+      return { total: VALEURS_STATUT_COURANT[statutCode] ?? '0' };
+    },
+  });
+
+  const resultat = await statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+  });
+
+  assert.deepEqual(resultat.effectifsParStatut, {
+    test_realise: 8,
+    valide_pret_embauche: 9,
+    formation_non_validee: 2,
+    embauche: 1,
+  });
 });
 
 test("obtenirIndicateursKpi renvoie un taux de conversion null plutôt qu'une division par zéro si aucun inscrit sur la période", async (t) => {
@@ -380,6 +435,53 @@ test('listerDossiersParIndicateurs route un code "poste:<code>" vers listerRepar
   });
 
   assert.equal(appel.mock.calls[0].arguments[3], 'cafetier');
+});
+
+// Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) — code
+// GÉNÉRIQUE 'statut:<code>' (PREFIXE_STATUT), symétrique du test 'poste:<code>' ci-dessus : route
+// vers listerParStatut avec le code de statut décodé, pour N'IMPORTE QUEL code (pas seulement les
+// 4 codes affichés en carte, voir CODES_STATUTS_EFFECTIF_ACCECIT).
+test('listerDossiersParIndicateurs route un code "statut:<code>" vers listerParStatut', async (t) => {
+  mockerKnex(t);
+  const appel = t.mock.method(statistiquesRepository, 'listerParStatut', async () => [
+    { dossier_id: 9, date_cle: new Date('2026-07-20') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 9, date_creation: '2026-07-20', date_maj: '2026-07-20', candidat_nom: 'Bernard', donnees_disponibilites: null },
+  ]);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['statut:embauche'],
+  });
+
+  assert.equal(appel.mock.calls[0].arguments[2], 'embauche');
+});
+
+// Exception 'statut:test_realise' (audit tableau de bord 2026-08-31, 3e passe) — la LISTE de
+// dossiers doit suivre la même logique HISTORIQUE que le CHIFFRE de sa carte
+// (compterParHistoriqueStatut, voir obtenirIndicateursKpi), jamais listerParStatut (statut
+// courant) comme les 3 autres codes 'statut:<code>' du dashboard.
+test('listerDossiersParIndicateurs route "statut:test_realise" vers listerParHistoriqueStatut, pas listerParStatut', async (t) => {
+  mockerKnex(t);
+  const appelHistorique = t.mock.method(statistiquesRepository, 'listerParHistoriqueStatut', async () => [
+    { dossier_id: 12, date_cle: new Date('2026-07-18') },
+  ]);
+  const appelStatutCourant = t.mock.method(statistiquesRepository, 'listerParStatut', async () => []);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 12, date_creation: '2026-07-18', date_maj: '2026-07-18', candidat_nom: 'Girard', donnees_disponibilites: null },
+  ]);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['statut:test_realise'],
+  });
+
+  assert.equal(appelHistorique.mock.calls.length, 1);
+  assert.equal(appelHistorique.mock.calls[0].arguments[2], 'test_realise');
+  assert.equal(appelStatutCourant.mock.calls.length, 0);
 });
 
 // Barre "Non spécifié" du graphique de répartition par poste — code statique 'poste_non_specifie'

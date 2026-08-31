@@ -161,6 +161,38 @@
   color: var(--statut-violet-texte);
 }
 
+/* 3 variantes ajoutées pour les cartes "Effectifs par statut" (audit tableau de bord 2026-08-31,
+   décision utilisateur) — mêmes tokens --statut-<variante>-* que les badges de statut affichés
+   ailleurs dans l'app pour ces mêmes codes (voir Indicateurs.jsx, VARIANTE_PAR_CODE_STATUT_ACCECIT),
+   jamais une couleur inventée pour l'occasion : la carte "Embauché" doit porter EXACTEMENT la même
+   teinte que le badge de statut "Embauché" vu ailleurs. */
+.indicateurs__tuile--vert-clair {
+  background-color: var(--statut-vert-clair-fond);
+  border-color: var(--statut-vert-clair-bordure);
+}
+.indicateurs__tuile--vert-clair .indicateurs__tuile-valeur,
+.indicateurs__tuile--vert-clair .indicateurs__tuile-libelle {
+  color: var(--statut-vert-clair-texte);
+}
+
+.indicateurs__tuile--echec-fort {
+  background-color: var(--statut-echec-fort-fond);
+  border-color: var(--statut-echec-fort-bordure);
+}
+.indicateurs__tuile--echec-fort .indicateurs__tuile-valeur,
+.indicateurs__tuile--echec-fort .indicateurs__tuile-libelle {
+  color: var(--statut-echec-fort-texte);
+}
+
+.indicateurs__tuile--vert-fonce {
+  background-color: var(--statut-vert-fonce-fond);
+  border-color: var(--statut-vert-fonce-bordure);
+}
+.indicateurs__tuile--vert-fonce .indicateurs__tuile-valeur,
+.indicateurs__tuile--vert-fonce .indicateurs__tuile-libelle {
+  color: var(--statut-vert-fonce-texte);
+}
+
 /* Sélectionnée : plein bronze (--couleur-back-office-dore) + texte crème (--couleur-back-office-
    clair) — MÊME paire déjà utilisée pour l'identité back-office (en-tête/pied de page), pas une
    nouvelle couleur inventée pour l'occasion (décision utilisateur, 2026-08-12 : l'ancienne version
@@ -219,6 +251,36 @@
   color: var(--couleur-texte-secondaire);
   font-size: 0.72rem;
   font-style: italic;
+}
+
+/* Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) — plus
+   compactes que les 5 tuiles KPI ci-dessus (padding réduit, valeur en plus petit) : ces cartes
+   n'ont qu'un libellé + un nombre (jamais de .indicateurs__tuile-precision), pas besoin de la même
+   respiration verticale ; absorbe la 2e rangée de tuiles sans trop peser sur la hauteur totale de
+   la page. */
+.indicateurs__tuile--compacte {
+  padding: 0.4rem var(--espace-moyen);
+}
+.indicateurs__tuile--compacte .indicateurs__tuile-valeur {
+  font-size: 1.15rem;
+}
+
+/* "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) — pas de gap
+   propre ici : cette section est un enfant flex de .indicateurs__contenu-principal, déjà espacé
+   des tuiles KPI au-dessus et des graphiques en dessous par le `gap` de ce parent (même principe
+   que .indicateurs__tuiles/.indicateurs__graphiques, qui n'ont eux non plus aucune marge propre). */
+.indicateurs__sous-titre {
+  margin: 0 0 var(--espace-petit) 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Gap resserré (var(--espace-petit), pas --espace-moyen comme .indicateurs__tuiles de base) : ces
+   4 cartes compactes n'ont pas besoin du même espacement que les 5 tuiles KPI plus grandes
+   au-dessus — contribue à absorber la 2e rangée sans repousser le reste de la page. */
+.indicateurs__tuiles--effectifs {
+  gap: var(--espace-petit);
 }
 
 /* Deux colonnes fixes plutôt qu'auto-fit(minmax(320px, 1fr)) : avec 3 éléments dans cette grille
@@ -325,40 +387,16 @@
   text-align: center;
 }
 
-/* Disposition deux colonnes (audit 2026-08-24, décision utilisateur) — voir le commentaire
-   d'en-tête d'Indicateurs.jsx pour le choix d'une colonne `auto` (dimensionnée par la largeur
-   explicite de .indicateurs__panneau-lateral) plutôt qu'une variable CSS posée sur ce conteneur.
-   align-items: stretch (CSS pur, audit 2026-08-24, 10e itération — remplace une mesure JS en px
-   via ResizeObserver/getBoundingClientRect, devenue fragile face au timing de la transition CSS
-   du bouton d'agrandissement) : les deux colonnes de cette rangée de grille prennent la hauteur de
-   la rangée elle-même, dimensionnée nativement sur son contenu le plus haut (en pratique
-   .indicateurs__contenu-principal, quasiment toujours plus grand que le panneau) — .indicateurs
-   __panneau-lateral (height: 100%, voir plus bas) hérite alors cette hauteur, sans jamais la
-   dépasser tant que sa propre chaîne flex/min-height: 0/overflow-y: auto (voir
-   .indicateurs__tableau-consolide et .tableau-dossiers-selectionnes__scroll plus bas) route
-   l'excédent vers un défilement interne plutôt que de laisser le panneau grandir. */
+/* Panneau "Dossiers sélectionnés" repositionné sous les graphiques, pleine largeur (audit
+   2026-08-31, décision utilisateur — remplace la colonne latérale fixe du 2026-08-24) :
+   .indicateurs__disposition n'est plus une grille à deux colonnes, seulement un empilement
+   vertical (contenu-principal, puis le panneau juste en dessous — déjà cet ordre dans le JSX,
+   aucune restructuration n'a été nécessaire pour ce repositionnement, seule cette mise en page
+   change). */
 .indicateurs__disposition {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
   gap: var(--espace-grand);
-}
-
-/* Mode agrandi (bouton »/«, Indicateurs.jsx) — corrigé le 2026-08-24 (2e itération) : un premier
-   essai gardait les deux colonnes (minmax(0,1fr) minmax(0,9fr), contenu principal réduit à ~10%)
-   mais le contenu de cette colonne (tuiles, camemberts, ResponsiveContainer de recharts) ne
-   rétrécit pas réellement jusqu'à 10% malgré min-width: 0 — un enfant de grid PEUT être compressé
-   par sa piste sans que son CONTENU suive, ce contenu débordait alors visuellement dans l'espace du
-   panneau (chevauchement rapporté). Retenu à la place : une seule piste (1fr, pleine largeur) —
-   .indicateurs__contenu-principal est entièrement MASQUÉ en mode agrandi (voir
-   .indicateurs__contenu-principal--masque plus bas, display: none posé côté JSX), donc plus aucun
-   contenu ne peut chevaucher quoi que ce soit ; le panneau (grid-template-columns: 1fr,
-   width: 100% sur .indicateurs__panneau-lateral--elargi ci-dessous) est alors le SEUL élément de la
-   grille et occupe toute la largeur. Classe posée sur CE conteneur (pas seulement sur
-   .indicateurs__panneau-lateral) : grid-template-columns se lit sur le parent, jamais sur
-   l'enfant. */
-.indicateurs__disposition--panneau-elargi {
-  grid-template-columns: 1fr;
 }
 
 .indicateurs__contenu-principal {
@@ -369,111 +407,32 @@
      verticaux de cet écran ; voir aussi le margin-bottom retiré de .indicateurs__tuiles plus haut,
      qui s'ajoutait par erreur à ce même gap. */
   gap: var(--espace-moyen);
-  /* Empêche le contenu (ex. les deux camemberts, largeur naturelle non compressible en dessous
-     d'un certain seuil) de forcer cette colonne à s'élargir au-delà de l'espace que la grille lui
-     accorde réellement — sans elle, le panneau latéral se ferait pousser hors du conteneur au lieu
-     que les graphiques s'adaptent (comportement par défaut d'un enfant de grid/flex, min-width:
-     auto implicite). Reste utile même après le passage à display: none en mode agrandi
-     (--masque ci-dessous) : cette règle protège le mode RÉDUIT, où les deux colonnes coexistent
-     réellement. */
-  min-width: 0;
 }
 
-/* Mode agrandi (suite) : masque complètement la colonne de gauche — pas seulement visuellement en
-   arrière-plan (un simple opacity/visibility aurait laissé l'espace réservé et le risque de
-   chevauchement), display: none la retire entièrement de la mise en page, elle n'occupe plus aucun
-   espace ni ne peut plus déborder. Posée en JSX (panneauElargi && selectionIndicateurs.size > 0,
-   voir Indicateurs.jsx), jamais en CSS pur via :has()/sélecteur de classe sur le parent : cohérent
-   avec .indicateurs__disposition--panneau-elargi et .indicateurs__panneau-lateral--elargi,
-   toujours posées ensemble depuis le même état React. */
+/* Mode agrandi (bouton »/«, Indicateurs.jsx) : masque la colonne tuiles/graphiques pour laisser le
+   panneau (désormais pleine largeur, voir ci-dessus) occuper toute la hauteur utile de la page —
+   même intention que la disposition à deux colonnes qu'il remplaçait (donner plus de place au
+   tableau), simplement plus besoin de retirer une colonne de grille puisqu'il n'y en a plus
+   qu'une. Posée en JSX (panneauElargi && selectionIndicateurs.size > 0, voir Indicateurs.jsx). */
 .indicateurs__contenu-principal--masque {
   display: none;
 }
 
-/* Panneau latéral "Dossiers sélectionnés" — largeur par défaut ~280px (fourchette 260-300px
-   demandée), passe à ~90% de la largeur disponible en mode agrandi (voir
-   .indicateurs__disposition--panneau-elargi ci-dessus et .indicateurs__panneau-lateral--elargi
-   plus bas) — transition douce plutôt qu'un changement de largeur brutal, aucun rechargement de
-   données (uniquement du CSS). flex-shrink: 0 : ne doit jamais rétrécir sous sa largeur explicite
-   tant que la disposition reste à deux colonnes (voir le @media plus bas pour le seuil
-   d'empilement).
-   height: 100% (CSS pur, audit 2026-08-24, 10e itération) : hérite la hauteur de la rangée de
-   grille (align-items: stretch, .indicateurs__disposition ci-dessus), donc automatiquement alignée
-   sur .indicateurs__contenu-principal — plus de mesure JS. display: flex/flex-direction: column/
-   min-height: 0/overflow-y: hidden : chaîne qui ROUTE cette hauteur vers la zone de liste plutôt
-   que vers ce conteneur lui-même — overflow-y: hidden clippe tout dépassement résiduel, min-height:
-   0 permet à ce conteneur de rétrécir sous la hauteur de contenu de la liste (sans lui, le
-   min-height: auto implicite d'un enfant de grid/flex empêcherait le rétrécissement même une fois
-   la hauteur héritée). Voir .indicateurs__tableau-consolide et .tableau-dossiers-selectionnes__scroll
-   plus bas pour la suite de la chaîne, jusqu'au défilement interne réel — c'est LÀ, pas sur ce
-   conteneur, que le scroll doit se produire (le panneau entier contient aussi le titre et le
-   bouton "Effacer la sélection", qui ne doivent jamais défiler). */
+/* Panneau "Dossiers sélectionnés" — largeur toujours pleine (plus de 280px par défaut/100% en
+   mode agrandi, obsolète depuis que ce n'est plus une colonne latérale). Sa hauteur n'a plus
+   besoin d'être étirée pour s'aligner sur un voisin (align-items: stretch de l'ancienne grille à
+   deux colonnes) : ce conteneur reprend une hauteur naturelle, seule la zone de défilement interne
+   (.tableau-dossiers-selectionnes__scroll ci-dessous) est bornée. */
 .indicateurs__panneau-lateral {
-  width: 280px;
-  height: 100%;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: hidden;
-  transition: width 0.2s ease;
-}
-
-/* width: 100% (pas une valeur fixe, audit 2026-08-24) : remplit la largeur de sa propre colonne de
-   grille — devenue l'UNIQUE colonne (1fr, .indicateurs__disposition--panneau-elargi ci-dessus,
-   contenu principal masqué) — donc 100% de la largeur totale disponible, un panneau réellement
-   plein écran plutôt qu'une augmentation modérée à largeur fixe (ex-480px, jugé insuffisant) ou un
-   partage de colonne avec un contenu principal compressé (ex-90%/10%, à l'origine du chevauchement
-   corrigé ici). Les trois classes (--panneau-elargi ici, sur .indicateurs__disposition, et
-   --masque sur .indicateurs__contenu-principal) sont toujours posées ensemble depuis le même état
-   React (voir Indicateurs.jsx) : les trois doivent changer de concert, aucune ne suffit seule. */
-.indicateurs__panneau-lateral--elargi {
   width: 100%;
-}
-
-/* En dessous de ce seuil, les deux colonnes n'ont plus la place de coexister proprement (le
-   contenu principal — tuiles + graphiques deux camemberts côte à côte dès 800px, voir
-   .indicateurs__graphiques plus haut — a déjà besoin de sa propre largeur minimale) : le panneau
-   repasse en pleine largeur SOUS le contenu principal plutôt que de forcer un débordement
-   horizontal, comportement identique à avant cette réorganisation (une seule colonne empilée).
-   Chaque rangée ne contient alors plus qu'un seul élément : align-items: stretch (ci-dessus) n'a
-   donc plus d'effet de plafonnement entre les deux colonnes, et .indicateurs__panneau-lateral
-   retrouve naturellement une hauteur `auto` (page qui défile normalement) sans règle
-   supplémentaire ici — voir le commentaire de .indicateurs__panneau-lateral plus haut.
-   grid-template-columns: 1fr répété sur le modificateur --panneau-elargi : redondant avec sa
-   valeur de base (elle aussi 1fr depuis le correctif chevauchement ci-dessus) mais gardé
-   explicitement — la logique de cette règle (un seul élément par rangée, empilement) doit rester
-   correcte indépendamment d'une éventuelle évolution future de la valeur de base. */
-@media (max-width: 900px) {
-  .indicateurs__disposition,
-  .indicateurs__disposition--panneau-elargi {
-    grid-template-columns: 1fr;
-  }
-  .indicateurs__panneau-lateral,
-  .indicateurs__panneau-lateral--elargi {
-    width: 100%;
-  }
 }
 
 /* Tableau consolidé (voir TableauDossiersSelectionnes.jsx) : même cadre que .indicateurs__graphique
    (bordure légère, fond plein) pour rester visuellement de la même famille que le reste de la
-   page. margin-top retiré (audit 2026-08-24) : ce bloc vit désormais toujours dans
-   .indicateurs__panneau-lateral (colonne à part, voir ci-dessus), plus jamais empilé directement
-   sous .indicateurs__graphiques — cet espacement horizontal est déjà fourni par le `gap` de
-   .indicateurs__disposition (colonnes côte à côte) ou .indicateurs__contenu-principal (une fois
-   empilé sous 900px, où le `gap` de .indicateurs__disposition joue le même rôle verticalement).
-   display: flex/flex-direction: column/height: 100%/min-height: 0 : deuxième maillon de la chaîne
-   — height: 100% se cale sur la hauteur héritée de .indicateurs__panneau-lateral juste au-dessus
-   (elle-même héritée de la rangée de grille, voir .indicateurs__disposition) ; l'en-tête
-   (.indicateurs__tableau-consolide-entete) et les messages de chargement/erreur restent à leur
-   taille naturelle
-   (flex-shrink: 0 implicite, ce sont les seuls enfants sans flex: 1), tout l'espace restant revient
-   à la zone de défilement (.tableau-dossiers-selectionnes__scroll, voir plus bas) via flex: 1. */
+   page. */
 .indicateurs__tableau-consolide {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
   padding: var(--espace-moyen);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
@@ -486,29 +445,28 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--espace-petit);
-  flex-shrink: 0;
 }
 
 /* Messages de chargement/erreur/liste vide (voir Indicateurs.jsx et
-   TableauDossiersSelectionnes.jsx, .tableau-dossiers-selectionnes__vide) : jamais responsables de
-   la zone de défilement, gardent leur taille naturelle même dans ce conteneur flex column. */
+   TableauDossiersSelectionnes.jsx, .tableau-dossiers-selectionnes__vide). */
 .indicateurs__tableau-consolide > p {
   flex-shrink: 0;
 }
 
-/* Dernier maillon de la chaîne de hauteur (voir .indicateurs__panneau-lateral/.indicateurs__tableau
-   -consolide plus haut) : la zone de défilement RÉELLE de la liste de dossiers
-   (TableauDossiersSelectionnes.jsx, .tableau-dossiers-selectionnes__scroll — overflow-x: auto déjà
-   défini dans TableauDossiersSelectionnes.css, pour le défilement horizontal du tableau lui-même)
-   prend tout l'espace restant sous l'en-tête (flex: 1) et défile verticalement en interne dès que
-   la liste dépasse la hauteur disponible, plutôt que d'étirer le panneau au-delà de la hauteur des
-   graphiques. Scopé à ce conteneur (pas dans TableauDossiersSelectionnes.css) : ce composant de
-   tableau reste générique, cette contrainte de hauteur est spécifique à SA position dans ce panneau
-   latéral précis. */
+/* Zone de défilement réelle de la liste (TableauDossiersSelectionnes.jsx, .tableau-dossiers-
+   selectionnes__scroll — overflow-x: auto déjà défini dans TableauDossiersSelectionnes.css, pour
+   le défilement horizontal du tableau lui-même) : plafonnée en hauteur pour que la liste ne pousse
+   pas indéfiniment la hauteur de la page une fois le panneau repositionné en pleine largeur sous
+   les graphiques (avant, elle héritait la hauteur de la colonne tuiles/graphiques voisine — il n'y
+   a plus de voisine à cette hauteur-là). Mode agrandi (--elargi ci-dessous) : plafond relevé à
+   70vh, le contenu-principal masqué juste au-dessus laisse la place. */
 .indicateurs__tableau-consolide .tableau-dossiers-selectionnes__scroll {
-  flex: 1;
-  min-height: 0;
+  max-height: 340px;
   overflow-y: auto;
+}
+
+.indicateurs__panneau-lateral--elargi .tableau-dossiers-selectionnes__scroll {
+  max-height: 70vh;
 }
 
 .indicateurs__tableau-consolide-entete h2 {

@@ -30,6 +30,9 @@ const VARIANTE_PAR_CODE_STATUT_ACCECIT = {
   en_attente_pieces: 'attente',
   en_attente_verification: 'attente',
   test_planifie: 'bleu',
+  // 'test_realise' (audit tableau de bord 2026-08-31, nouvelle carte "Effectifs par statut") :
+  // 'violet', même variante que sur Validation.jsx/TableauDeBordAccueil.jsx.
+  test_realise: 'violet',
   test_non_realise: 'alerte',
   invalide: 'echec',
   valide_envoi_formation: 'succes',
@@ -37,6 +40,9 @@ const VARIANTE_PAR_CODE_STATUT_ACCECIT = {
   // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
+  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', même variante que partout
+  // ailleurs dans l'app (voir variables.css, StatutBadge.css).
+  embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_STATUT_ACCECIT[code] ?? 'neutre';
@@ -137,6 +143,47 @@ const VARIANTE_PAR_INDICATEUR = {
 };
 const PREFIXE_POSTE = 'poste:';
 
+// Préfixe des 4 nouvelles cartes "Effectifs par statut" (audit tableau de bord 2026-08-31,
+// décision utilisateur) — GÉNÉRIQUE côté back (statistiquesService.PREFIXE_STATUT,
+// resoudreListeIndicateur), symétrique de PREFIXE_POSTE ci-dessus : basculerIndicateur/
+// selectionIndicateurs n'ont besoin d'aucune adaptation, un code de chaîne quelconque leur suffit
+// déjà (voir plus bas, libelleIndicateur/varianteIndicateur/varianteDateCle étendus pour ce
+// préfixe). CODES_STATUTS_EFFECTIF_ACCECIT : les 4 codes réellement affichés en carte sur cet
+// écran (liste éditoriale, voir la 2nde rangée de tuiles plus bas) — même liste et même ordre que
+// le CODES_STATUTS_EFFECTIF_ACCECIT du back (statistiquesService.js), dupliquée plutôt que
+// partagée (voir CLAUDE.md conventions du projet).
+const PREFIXE_STATUT = 'statut:';
+const CODES_STATUTS_EFFECTIF_ACCECIT = ['test_realise', 'valide_pret_embauche', 'formation_non_validee', 'embauche'];
+
+// Libellés des 4 nouvelles cartes — repris tels quels des libellés officiels de statut
+// (workflow.config.json), pas une reformulation propre à la tuile (contrairement à
+// LIBELLES_INDICATEURS plus haut, où "conversion"/"envoyes_en_test" ont un libellé délibérément
+// distinct de tout statut pour éviter une collision — ici, la tuile EST littéralement "combien de
+// dossiers sont à ce statut", aucune ambiguïté à lever).
+const LIBELLES_STATUT_EFFECTIF_ACCECIT = {
+  test_realise: 'Test réalisé',
+  valide_pret_embauche: "Validé - prêt à l'embauche",
+  formation_non_validee: 'Formation non validée',
+  embauche: 'Embauché',
+};
+function libelleStatutEffectif(code) {
+  return LIBELLES_STATUT_EFFECTIF_ACCECIT[code] ?? code;
+}
+
+// Libellé COURT pour la colonne "Indicateurs" du tableau consolidé (TableauDossiersSelectionnes.jsx)
+// — audit tableau de bord 2026-08-31 (2e passe), décision utilisateur : le libellé officiel complet
+// du statut ("Validé - prêt à l'embauche") fait doublon avec la colonne "Statut" juste à côté (qui
+// affiche déjà exactement ce badge) — même patron déjà établi pour LIBELLES_INDICATEURS plus haut
+// (4 des 5 cartes existantes ont un libellé DISTINCT et plus court dans cette colonne que sur leur
+// tuile, ex. "Retenu" pour "Taux de dossiers validés à ce jour"). Scope volontairement limité à
+// valide_pret_embauche (seul cas signalé) : test_realise/formation_non_validee/embauche gardent
+// leur libellé de statut complet dans cette colonne pour l'instant, non signalés comme redondants —
+// la tuile elle-même et la colonne "Dates clés" gardent aussi le libellé complet (libelleStatutEffectif
+// ci-dessus), seule la colonne "Indicateurs" est concernée par ce raccourci.
+const LIBELLES_COURTS_INDICATEUR_STATUT_ACCECIT = {
+  valide_pret_embauche: "Prêt à l'embauche",
+};
+
 // Paires d'indicateurs mutuellement exclusifs (décision utilisateur, 2026-08-12) — les deux parts
 // d'un même camembert cliquable ("Tests réussis vs ratés"/"Formation vs prêt à l'embauche")
 // représentent des résultats contraires pour un même événement (un dossier n'a qu'un seul verdict/
@@ -189,10 +236,23 @@ function libelleOptionTousLesPostes(typePosteFiltre) {
 // "Poste"/le graphique de répartition) plutôt que d'être dupliqué dans LIBELLES_INDICATEURS.
 function libelleIndicateur(code) {
   if (code.startsWith(PREFIXE_POSTE)) return libellePoste(code.slice(PREFIXE_POSTE.length));
+  if (code.startsWith(PREFIXE_STATUT)) {
+    const statutCode = code.slice(PREFIXE_STATUT.length);
+    // Raccourci dédié à cette colonne quand il existe (voir LIBELLES_COURTS_INDICATEUR_STATUT_ACCECIT
+    // ci-dessus), sinon repli sur le libellé de statut complet — jamais utilisé par la tuile
+    // elle-même ni par la colonne "Dates clés" (libelleDateCle plus bas), qui appellent directement
+    // libelleStatutEffectif.
+    return LIBELLES_COURTS_INDICATEUR_STATUT_ACCECIT[statutCode] ?? libelleStatutEffectif(statutCode);
+  }
   return LIBELLES_INDICATEURS[code] ?? code;
 }
 function varianteIndicateur(code) {
   if (code.startsWith(PREFIXE_POSTE)) return 'dore';
+  // 'statut:<code>' délègue à varianteStatut (même mapping que le badge de statut affiché ailleurs
+  // sur l'écran, VARIANTE_PAR_CODE_STATUT_ACCECIT tout en haut du fichier) plutôt qu'une nouvelle
+  // entrée dupliquée dans VARIANTE_PAR_INDICATEUR — la tuile "Embauché" doit porter EXACTEMENT la
+  // même couleur que le badge de statut "Embauché" ailleurs dans l'app.
+  if (code.startsWith(PREFIXE_STATUT)) return varianteStatut(code.slice(PREFIXE_STATUT.length));
   return VARIANTE_PAR_INDICATEUR[code] ?? 'neutre';
 }
 // Distingue les deux natures de code portées par `dossier.indicateurs` (voir
@@ -232,6 +292,10 @@ const LIBELLES_DATES_CLES = {
   orientation_pret_embauche: 'Orienté-embauche',
 };
 function libelleDateCle(code) {
+  // 'statut:<code>' (colonne "Dates clés" des 4 nouvelles cartes, date d'ENTRÉE dans ce statut —
+  // voir dossierRepository.joindreDateEntreeStatut côté back) : même libellé que la tuile
+  // elle-même, pas une entrée dupliquée dans LIBELLES_DATES_CLES.
+  if (code.startsWith(PREFIXE_STATUT)) return libelleStatutEffectif(code.slice(PREFIXE_STATUT.length));
   return LIBELLES_DATES_CLES[code] ?? code;
 }
 // Couleurs : `--statut-<variante>-*` (variables.css), MÊME variante que le badge de statut/
@@ -245,7 +309,10 @@ const VARIANTE_PAR_DATE_CLE = {
   test_planifie: 'bleu',
 };
 function varianteDateCle(code) {
-  return VARIANTE_PAR_DATE_CLE[code] ?? VARIANTE_PAR_INDICATEUR[code] ?? 'neutre';
+  // Délègue à varianteIndicateur (pas VARIANTE_PAR_INDICATEUR seul) : varianteIndicateur gère déjà
+  // 'poste:<code>'/'statut:<code>' en plus des codes statiques, avec son propre repli 'neutre' —
+  // évite de dupliquer cette même logique de préfixe ici pour 'statut:<code>' (audit 2026-08-31).
+  return VARIANTE_PAR_DATE_CLE[code] ?? varianteIndicateur(code);
 }
 
 // Une palette dédiée par graphique (couleurs fixes, PAR CLÉ — jamais par position/index) plutôt
@@ -758,35 +825,17 @@ export default function Indicateurs() {
             sections encore valides restent pleinement interactives. */}
         {!chargement && !erreur && indicateurs && (
           <>
-            {/* Disposition deux colonnes (audit 2026-08-24, décision utilisateur) : tuiles/
-                graphiques à gauche (majorité de la largeur), panneau "Dossiers sélectionnés" fixe
-                à droite — colonne CSS Grid `auto` dimensionnée par la largeur explicite du panneau
-                lui-même (.indicateurs__panneau-lateral), pas par une variable posée sur le
-                conteneur : une custom property CSS posée sur un enfant n'est jamais visible par le
-                grid-template-columns de son parent (elle ne "remonte" pas), contrairement à une
-                variable posée directement ici. min-width: 0 sur .indicateurs__contenu-principal
-                (voir Indicateurs.css) : sans elle, la grille de graphiques (deux camemberts
-                40%/40%) empêcherait la colonne principale de rétrécir sous sa largeur de contenu
-                naturelle, poussant le panneau hors de l'écran plutôt que de laisser le texte des
-                graphiques s'adapter. En dessous d'un certain seuil (Indicateurs.css, @media), les
-                deux colonnes s'empilent — le panneau repasse en pleine largeur SOUS le contenu
-                principal, comportement identique à avant cette réorganisation, jamais de
-                débordement horizontal forcé. Classe --panneau-elargi (audit 2026-08-24, corrigée
-                une 2e fois le même jour) posée ici, sur ce conteneur grid, et pas seulement sur
-                .indicateurs__panneau-lateral : grid-template-columns se lit sur le PARENT grid,
-                jamais sur l'enfant (voir Indicateurs.css) — le panneau seul ne peut pas s'élargir
-                au-delà de la colonne que ce conteneur lui accorde. panneauElargiActif (pas
-                panneauElargi seul, voir sa déclaration plus haut) : combine la garantie qu'un
-                panneau réellement affiché justifie ce passage à une seule colonne. */}
-            <div
-              className={`indicateurs__disposition${panneauElargiActif ? ' indicateurs__disposition--panneau-elargi' : ''}`}
-            >
-            {/* Masqué entièrement (display: none, pas une simple diminution d'opacité/largeur) en
-                mode agrandi — correctif chevauchement 2026-08-24 : un précédent essai réduisait
-                cette colonne à ~10% de largeur via la grille plutôt que de la masquer, mais son
-                CONTENU (tuiles, camemberts recharts) ne suivait pas ce rétrécissement et débordait
-                visuellement par-dessus le panneau. display: none retire ce nœud de la mise en page,
-                aucun contenu ne peut donc plus déborder nulle part. */}
+            {/* Empilement vertical simple (audit 2026-08-31, décision utilisateur : le panneau
+                "Dossiers sélectionnés" passe de colonne latérale fixe à pleine largeur SOUS les
+                graphiques, voir Indicateurs.css) — plus de grille à deux colonnes ici : l'ordre du
+                JSX (contenu-principal puis panneau) suffit à lui seul à placer le panneau juste en
+                dessous, .indicateurs__disposition ne fait plus qu'empiler ses deux enfants avec un
+                `gap`. */}
+            <div className="indicateurs__disposition">
+            {/* Masqué entièrement (display: none, pas une simple diminution d'opacité) en mode
+                agrandi : laisse le panneau "Dossiers sélectionnés" juste en dessous occuper toute
+                la hauteur utile de la page plutôt que de rester coincé sous des graphiques qui ne
+                servent plus à rien une fois le tableau consulté en détail. */}
             <div
               className={`indicateurs__contenu-principal${panneauElargiActif ? ' indicateurs__contenu-principal--masque' : ''}`}
             >
@@ -876,6 +925,45 @@ export default function Indicateurs() {
                 <span className="indicateurs__tuile-libelle">Délai moyen test → verdict</span>
                 <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
+            </div>
+            </ErrorBoundary>
+
+            {/* "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) —
+                2e rangée séparée sous sous-titre, DISTINCTE des 5 tuiles KPI ci-dessus : celles-ci
+                mesurent un flux/une moyenne sur la période (cohorte, délais), alors que ces 4
+                nouvelles cartes comptent "combien de dossiers sont actuellement à CE statut"
+                (parmi la même cohorte de dossiers créés dans la période, voir
+                statistiquesRepository.compterParStatut) — mélanger les deux familles dans la même
+                grille aurait laissé croire à des grandeurs comparables. Générées par
+                CODES_STATUTS_EFFECTIF_ACCECIT (liste éditoriale des 4 statuts retenus pour cette
+                itération, voir son commentaire plus haut), pas les 4 boutons recopiés en dur :
+                ajouter un 5e statut à surveiller plus tard ne demandera qu'une ligne dans cette
+                liste. Même mécanisme de sélection/filtrage que les tuiles ci-dessus (basculerIndicateur,
+                code 'statut:<code>' résolu génériquement côté back, voir PREFIXE_STATUT) — aucune
+                logique nouvelle ici, seulement l'affichage. `--compacte` (Indicateurs.css) : ces
+                cartes n'ont qu'un libellé + un nombre (pas de précision secondaire comme les deux
+                tuiles de délai ci-dessus), plus resserrées pour absorber cette 2e rangée sans
+                repousser le reste de la page. */}
+            <ErrorBoundary titre="Indicateurs (effectifs par statut)">
+            <div className="indicateurs__section-effectifs">
+              <h2 className="indicateurs__sous-titre">Effectifs par statut</h2>
+              <div className="indicateurs__tuiles indicateurs__tuiles--effectifs">
+                {CODES_STATUTS_EFFECTIF_ACCECIT.map((statutCode) => {
+                  const code = `${PREFIXE_STATUT}${statutCode}`;
+                  return (
+                    <button
+                      key={statutCode}
+                      type="button"
+                      className={`indicateurs__tuile indicateurs__tuile--compacte indicateurs__tuile--${varianteStatut(statutCode)}${selectionIndicateurs.has(code) ? ' indicateurs__tuile--active' : ''}`}
+                      aria-pressed={selectionIndicateurs.has(code)}
+                      onClick={() => basculerIndicateur(code)}
+                    >
+                      <span className="indicateurs__tuile-valeur">{indicateurs.effectifsParStatut[statutCode]}</span>
+                      <span className="indicateurs__tuile-libelle">{libelleStatutEffectif(statutCode)}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             </ErrorBoundary>
 
@@ -1049,15 +1137,15 @@ export default function Indicateurs() {
             </div>
             </div>
 
-            {/* Panneau latéral "Dossiers sélectionnés" — uniquement visible dès qu'au moins une
-                carte/segment est sélectionné (comportement inchangé, seulement repositionné en
-                colonne fixe à droite, voir .indicateurs__disposition ci-dessus) : garde la
-                sélection visible pendant qu'on consulte le détail, voir l'audit préalable à cette
-                fonctionnalité. Hauteur alignée sur la colonne de gauche en CSS pur (grid
-                align-items: stretch + height: 100% sur .indicateurs__panneau-lateral, voir
-                Indicateurs.css) — plus de mesure JS (les itérations précédentes, mesure en px via
-                ResizeObserver/getBoundingClientRect appliquée en style inline, se sont révélées
-                fragiles face au timing de la transition CSS du bouton d'agrandissement). */}
+            {/* Panneau "Dossiers sélectionnés" — uniquement visible dès qu'au moins une
+                carte/segment est sélectionné (comportement inchangé) : garde la sélection visible
+                pendant qu'on consulte le détail, voir l'audit préalable à cette fonctionnalité.
+                Repositionné pleine largeur SOUS les graphiques (audit 2026-08-31, décision
+                utilisateur — remplace la colonne latérale fixe du 2026-08-24, voir
+                .indicateurs__disposition ci-dessus) : purement une question de mise en page CSS,
+                aucun changement à la sélection de dossiers, au bouton "Effacer la sélection", au
+                bouton d'agrandissement, au défilement horizontal du tableau ni aux liens vers les
+                dossiers, tous inchangés (voir Indicateurs.css pour le détail du repositionnement). */}
             {selectionIndicateurs.size > 0 && (
               <aside
                 className={`indicateurs__panneau-lateral${panneauElargi ? ' indicateurs__panneau-lateral--elargi' : ''}`}
