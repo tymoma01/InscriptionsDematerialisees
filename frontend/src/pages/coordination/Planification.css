@@ -88,19 +88,18 @@
   color: var(--couleur-erreur);
 }
 
-/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — cadre resserré à la
-   largeur de son contenu plutôt qu'étiré sur tout le reste de la ligne (.filtres-statut__statuts
-   porte flex: 1 par défaut, FiltresStatut.css — pertinent pour Dossiers candidats qui a 9 à 10
-   statuts et remplit déjà toute la largeur, pas ici avec seulement 7 boutons courts, ce qui
-   laissait un grand vide ivoire à droite). .filtres-statut passe de justify-content: space-between
-   à center pour que "Tous" + le cadre restent groupés ensemble au centre de la ligne, plutôt que
-   plaqués aux deux extrémités une fois le cadre lui-même resserré. */
-.planification .filtres-statut {
-  justify-content: center;
-}
-
+/* Boutons de filtre par statut (audit 2026-08-31, révisé le même jour — décision utilisateur) :
+   "Tous" reste collé à l'extrême gauche (position fixe), seul le groupe des 7 autres filtres se
+   centre dans l'espace restant à sa droite — PAS l'ensemble "Tous" + cadre centré comme un seul
+   bloc (comportement précédent, retiré : .filtres-statut passait alors de justify-content:
+   space-between à center, ce qui décalait "Tous" vers la droite avec le reste plutôt que de le
+   garder à gauche). Revient donc au justify-content: space-between par défaut de FiltresStatut.css
+   pour .filtres-statut (rien à surcharger ici) et au flex: 1 par défaut de .filtres-statut__statuts
+   (rien à surcharger non plus) — même patron que TableauDeBordAccueil.css/SuiviFormation.css
+   ("Dossiers candidats"/"Suivi des formations") : le cadre s'étire sur tout l'espace restant après
+   "Tous", et justify-content: center CI-DESSOUS centre les boutons À L'INTÉRIEUR de ce cadre déjà
+   étiré, sans avoir besoin de le resserrer à la largeur de son contenu. */
 .planification .filtres-statut__statuts {
-  flex: 0 1 auto;
   justify-content: center;
 }
 
