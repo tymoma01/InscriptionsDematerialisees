@@ -21,6 +21,53 @@
   color: var(--couleur-erreur);
 }
 
+/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même traitement que
+   Dossiers candidats (TableauDeBordAccueil.css) : centrés au lieu du flex-start par défaut de
+   FiltresStatut.css (flex-wrap déjà son comportement de base ici, contrairement à la grille à 3
+   colonnes qu'il a fallu retirer là-bas — rien d'autre à changer). */
+.page-suivi-formation .filtres-statut__statuts {
+  justify-content: center;
+}
+
+/* Couleur de chaque filtre de statut alignée sur le badge correspondant dans la liste (même
+   patron que TableauDeBordAccueil.css/Planification.css : mêmes tokens --statut-<variante>-* que
+   StatutBadge.css/VARIANTE_PAR_CODE_ACCECIT, SuiviFormation.jsx) — sur les DEUX états, actif inclus
+   (fond = teinte `texte` du badge, texte blanc une fois sélectionné), même choix que
+   Planification.css : un bouton sélectionné doit rester identifiable à sa couleur, pas retomber
+   sur le fond doré générique uniforme de FiltresStatut.css. */
+.page-suivi-formation .filtres-statut__statuts button[data-statut='valide_envoi_formation']:not(.actif) {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+  color: var(--statut-succes-texte);
+}
+.page-suivi-formation .filtres-statut__statuts button[data-statut='valide_envoi_formation'].actif {
+  background-color: var(--statut-succes-texte);
+  border-color: var(--statut-succes-texte);
+  color: #ffffff;
+}
+
+.page-suivi-formation .filtres-statut__statuts button[data-statut='valide_pret_embauche']:not(.actif) {
+  background-color: var(--statut-vert-clair-fond);
+  border-color: var(--statut-vert-clair-bordure);
+  color: var(--statut-vert-clair-texte);
+}
+.page-suivi-formation .filtres-statut__statuts button[data-statut='valide_pret_embauche'].actif {
+  background-color: var(--statut-vert-clair-texte);
+  border-color: var(--statut-vert-clair-texte);
+  color: #ffffff;
+}
+
+.page-suivi-formation .filtres-statut__statuts button[data-statut='formation_non_validee']:not(.actif) {
+  background-color: var(--statut-echec-fort-fond);
+  border-color: var(--statut-echec-fort-bordure);
+  color: var(--statut-echec-fort-texte);
+}
+.page-suivi-formation .filtres-statut__statuts button[data-statut='formation_non_validee'].actif {
+  background-color: var(--statut-echec-fort-texte);
+  border-color: var(--statut-echec-fort-texte);
+  color: #ffffff;
+}
+
 .page-suivi-formation__vide {
   color: var(--couleur-texte-secondaire);
 }
