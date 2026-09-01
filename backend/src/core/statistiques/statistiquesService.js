@@ -351,6 +351,7 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         date_entree_valide_pret_embauche,
         date_entree_formation_non_validee,
         date_entree_embauche,
+        date_entree_statut_courant,
         ...reste
       }) => ({
         ...reste,
@@ -422,6 +423,14 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         // l'affichage du delta côté front (TableauDossiersSelectionnes.jsx).
         dateEntreeFormation: date_entree_valide_envoi_formation ?? null,
         dateSortieFormation: date_sortie_formation ?? null,
+        // Colonne "Dates clés" pour une sélection "Répartition par poste" (audit 2026-09-02,
+        // décision utilisateur) — un poste est un attribut du dossier, pas un événement daté :
+        // repli sur la date d'entrée dans le statut COURANT (dossierRepository.js, LEFT JOIN
+        // LATERAL corrélé à dossiers.statut_id, même calcul que les cartes "Effectifs par statut"
+        // mais générique). Champ dédié, pas une entrée dans `datesCles` : ne concerne que les
+        // lignes 'poste:<code>'/'poste_non_specifie' (voir TableauDossiersSelectionnes.jsx), pas
+        // affiché pour les indicateurs "normaux" qui ont déjà leur propre ancre.
+        dateEntreeStatutCourant: date_entree_statut_courant ?? null,
         // Respecte l'ordre de `indicateurs` demandé par l'appelant (pas l'ordre d'insertion dans la
         // Map, qui dépendrait de Promise.all) — affichage des badges stable d'un appel à l'autre.
         // Avec un ET strict, un dossier retenu satisfait de toute façon TOUS les codes demandés :

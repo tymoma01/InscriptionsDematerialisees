@@ -474,6 +474,54 @@ test('listerDossiersParIndicateurs route un code "poste:<code>" vers listerRepar
   assert.equal(appel.mock.calls[0].arguments[3], 'cafetier');
 });
 
+// Colonne "Dates clés" pour une sélection "Répartition par poste" (audit 2026-09-02, décision
+// utilisateur) — un poste n'a pas d'ancre dans construireColonnesAlignees (TableauDossiersSelectionnes.jsx),
+// le champ dédié dateEntreeStatutCourant (date d'entrée dans le statut COURANT du dossier, voir
+// dossierRepository.listerDossiersParIds) doit être exposé tel quel, comme dateEntreeFormation/
+// dateSortieFormation le sont déjà pour "Délai formation".
+test('listerDossiersParIndicateurs expose dateEntreeStatutCourant (repli "Dates clés" pour un filtre poste)', async (t) => {
+  mockerKnex(t);
+  t.mock.method(statistiquesRepository, 'listerRepartitionParPosteDossiers', async () => [
+    { dossier_id: 5, date_cle: new Date('2026-07-12') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    {
+      id: 5,
+      date_creation: '2026-07-12',
+      date_maj: '2026-07-12',
+      candidat_nom: 'Leroy',
+      donnees_disponibilites: null,
+      date_entree_statut_courant: '2026-07-20',
+    },
+  ]);
+
+  const resultat = await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['poste:cafetier'],
+  });
+
+  assert.equal(resultat[0].dateEntreeStatutCourant, '2026-07-20');
+});
+
+test('listerDossiersParIndicateurs renvoie dateEntreeStatutCourant à null quand la colonne SQL est NULL', async (t) => {
+  mockerKnex(t);
+  t.mock.method(statistiquesRepository, 'listerRepartitionParPosteDossiers', async () => [
+    { dossier_id: 5, date_cle: new Date('2026-07-12') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 5, date_creation: '2026-07-12', date_maj: '2026-07-12', candidat_nom: 'Leroy', donnees_disponibilites: null },
+  ]);
+
+  const resultat = await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['poste:cafetier'],
+  });
+
+  assert.equal(resultat[0].dateEntreeStatutCourant, null);
+});
+
 // Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) — code
 // GÉNÉRIQUE 'statut:<code>' (PREFIXE_STATUT), symétrique du test 'poste:<code>' ci-dessus : route
 // vers listerParStatut avec le code de statut décodé, pour N'IMPORTE QUEL code (pas seulement les

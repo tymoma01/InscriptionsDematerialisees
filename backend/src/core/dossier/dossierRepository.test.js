@@ -37,6 +37,20 @@ test('listerDossiersParIds joint une date d’entrée (MAX historique_statuts) p
   }
 });
 
+// Colonne "Dates clés" pour une sélection "Répartition par poste" (audit 2026-09-02, décision
+// utilisateur) — un poste n'a pas d'ancre dans construireColonnesAlignees (TableauDossiersSelectionnes.jsx),
+// repli sur la date d'ENTRÉE dans le statut COURANT du dossier. GÉNÉRIQUE (corrélée à
+// dossiers.statut_id, pas un code en dur comme joindreDateEntreeStatut) : verrouille le LEFT JOIN
+// LATERAL corrélé plutôt qu'une jointure statique par statut.
+test('listerDossiersParIds joint la date d’entrée dans le statut COURANT du dossier via un LEFT JOIN LATERAL corrélé à dossiers.statut_id', () => {
+  const sql = dossierRepository.listerDossiersParIds(bd, 1, [74, 89]).toString();
+  assert.match(sql, /LEFT JOIN LATERAL/);
+  assert.match(sql, /hs\.dossier_id = dossiers\.id/);
+  assert.match(sql, /hs\.statut_id = dossiers\.statut_id/);
+  assert.match(sql, /MAX\(hs\.date_changement\) AS date_entree_statut_courant/);
+  assert.match(sql, /"entree_statut_courant"\."date_entree_statut_courant"/);
+});
+
 test('listerDossiersParIds retourne un tableau vide sans construire de requête pour une liste de dossiers vide (comportement inchangé)', async () => {
   const resultat = await dossierRepository.listerDossiersParIds(bd, 1, []);
   assert.deepEqual(resultat, []);

@@ -225,6 +225,22 @@
   border-color: var(--statut-neutre-bordure);
 }
 
+/* "Statut actuel depuis" (audit 2026-09-02, décision utilisateur) — pendant, côté "Dates clés", du
+   séparateur pointillé déjà utilisé pour le bloc "puces poste" de la colonne "Indicateurs"
+   (.postes--indicateurs) : même `margin-top`/`padding-top`/`border-top`, pour que les deux blocs
+   suppléméntaires (poste hors alignement standard) restent visuellement alignés l'un sur l'autre.
+   SANS fond coloré (contrairement à --neutre/--bleu/... ci-dessus) — même famille visuelle que
+   --delai (texte secondaire, taille réduite) plutôt qu'un badge de statut plein : cette ligne est
+   une info dérivée/complémentaire (date d'entrée dans le statut courant), pas une étape du parcours
+   au même titre que les dates colorées au-dessus, il ne faut pas laisser croire au contraire. */
+.tableau-dossiers-selectionnes__date-ligne--poste-courant {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--couleur-bordure-legere);
+  font-size: 0.78rem;
+  color: var(--couleur-texte-secondaire);
+}
+
 .tableau-dossiers-selectionnes__date-ligne--bleu {
   background-color: var(--statut-bleu-fond);
   color: var(--statut-bleu-texte);

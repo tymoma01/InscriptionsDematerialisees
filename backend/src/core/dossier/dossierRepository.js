@@ -590,6 +590,23 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
          LIMIT 1
        ) AS sortie_formation ON true`,
     )
+    // Colonne "Dates clés" pour une sélection "Répartition par poste" (audit 2026-09-02, décision
+    // utilisateur) — un poste est un ATTRIBUT du dossier, pas un événement daté du parcours (voir
+    // TableauDossiersSelectionnes.construireColonnesAlignees, qui exclut déjà les codes 'poste:*'
+    // de son alignement ligne à ligne), donc aucune des ancres existantes ne s'applique. Repli sur
+    // la date d'ENTRÉE dans le statut COURANT du dossier — même calcul EXACT que les cartes
+    // "Effectifs par statut" (joindreDateEntreeStatut, MAX(historique_statuts.date_changement)),
+    // mais GÉNÉRIQUE (corrélé à `dossiers.statut_id`, pas un code fixe en dur) puisque le statut
+    // courant diffère d'un dossier à l'autre dans une même liste de résultats — joindreDateEntreeStatut
+    // ne convient pas ici (elle prend un code statique en paramètre).
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT MAX(hs.date_changement) AS date_entree_statut_courant
+         FROM historique_statuts hs
+         WHERE hs.dossier_id = dossiers.id
+           AND hs.statut_id = dossiers.statut_id
+       ) AS entree_statut_courant ON true`,
+    )
     .where('dossiers.entite_id', entiteId)
     .whereIn('dossiers.id', dossierIds)
     .select(
@@ -603,6 +620,7 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'statuts.est_final as statut_est_final',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'dates_test_planifie.date_test_planifie',
+      'entree_statut_courant.date_entree_statut_courant',
       // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — voir joindreDateEntreeStatut
       // plus haut (sous-requête `dates_<code>`, colonne `date_entree_<code>`).
       'dates_test_realise.date_entree_test_realise',

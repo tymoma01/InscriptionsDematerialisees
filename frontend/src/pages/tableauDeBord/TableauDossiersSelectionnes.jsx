@@ -482,6 +482,31 @@ export default function TableauDossiersSelectionnes({
                       ),
                     )}
                   </ul>
+                  {/* Pendant du bloc "puces poste" de la colonne "Indicateurs" ci-dessus (même
+                      condition `estIndicateurPoste`, même séparateur pointillé) — audit 2026-09-02,
+                      décision utilisateur : un poste n'a pas d'ancre dans construireColonnesAlignees
+                      (attribut du dossier, pas un événement daté, voir son commentaire d'en-tête),
+                      donc aucune ligne de `dateRows` ne lui correspond. Repli sur la date d'ENTRÉE
+                      dans le statut COURANT (dossier.dateEntreeStatutCourant, dossierRepository.js —
+                      même calcul que les cartes "Effectifs par statut", généralisé à un statut
+                      arbitraire) : juste une date ponctuelle, sans les parenthèses "(X j)" des
+                      lignes de délai ci-dessus (pas de segment à mesurer ici). Libellé + `title`
+                      explicites (pas seulement un badge "Indicateurs" comme pour verdict/orientation)
+                      : contrairement à ceux-là, rien côté "Indicateurs" ne porte déjà cette
+                      information. Style délibérément discret (voir CSS, même famille visuelle que
+                      --delai) pour ne pas laisser croire à une étape du parcours au même titre que
+                      les lignes colorées au-dessus. */}
+                  {dossier.indicateurs.some(({ code }) => estIndicateurPoste(code)) && dossier.dateEntreeStatutCourant && (
+                    <div
+                      className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--poste-courant"
+                      title="Date d'entrée dans le statut actuel du dossier"
+                    >
+                      <span className="tableau-dossiers-selectionnes__date-libelle">Statut actuel depuis</span>
+                      <span className="tableau-dossiers-selectionnes__date-valeur">
+                        {FORMAT_DATE.format(new Date(dossier.dateEntreeStatutCourant))}
+                      </span>
+                    </div>
+                  )}
                 </td>
               </tr>
             );
