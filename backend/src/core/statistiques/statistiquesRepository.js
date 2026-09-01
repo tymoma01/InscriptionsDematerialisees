@@ -332,6 +332,28 @@ function compterOccurrencesHistorique(bd, entiteId, statutCode, { debut, finExcl
   return requete.count('* as total').first();
 }
 
+// Pendant "lister" de compterOccurrencesHistorique ci-dessus (audit dashboard 2026-09-02, cartes
+// "Volumétrie sur la période" rendues cliquables/filtrantes) — MÊME requête, sans le count : une
+// ligne PAR OCCURRENCE (dossier_id, date_cle), jamais dédupliquée. `dossier_id` peut donc apparaître
+// plusieurs fois dans le résultat pour un dossier retesté sur la période — c'est le point (voir
+// statistiquesService.listerDossiersParIndicateurs, qui déduplique lui-même via un Set pour
+// construire la liste de dossiers, tout en conservant CHAQUE date_cle pour la colonne "Dates clés").
+function listerOccurrencesHistorique(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts')
+    .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', statutCode)
+    .andWhere('historique_statuts.date_changement', '>=', debut)
+    .andWhere('historique_statuts.date_changement', '<', finExclusive)
+    .select('historique_statuts.dossier_id as dossier_id', 'historique_statuts.date_changement as date_cle');
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete;
+}
+
 // Carte "Formation validée" — DISTINCTE de compterOccurrencesHistorique(..., 'valide_pret_embauche')
 // ci-dessus (qui compte TOUTES les entrées dans valide_pret_embauche, filière formation ET filière
 // bureau confondues) : ne retient que celles atteintes DEPUIS valide_envoi_formation, pour
@@ -377,6 +399,38 @@ function compterOccurrencesFormationValidee(bd, entiteId, { debut, finExclusive,
     filtrerPosteDossier(requete, { typePoste, poste });
   }
   return requete.count('* as total').first();
+}
+
+// Pendant "lister" de compterOccurrencesFormationValidee ci-dessus (audit dashboard 2026-09-02,
+// cartes "Volumétrie sur la période" rendues cliquables/filtrantes) — MÊME requête (même JOIN
+// LATERAL ancré sur l'entrée, voir le commentaire ci-dessus pour le choix de direction de
+// recherche), sans le count : une ligne PAR OCCURRENCE, jamais dédupliquée.
+function listerOccurrencesFormationValidee(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts as entree')
+    .join('dossiers', 'dossiers.id', 'entree.dossier_id')
+    .join('statuts as statut_entree', 'statut_entree.id', 'entree.statut_id')
+    .joinRaw(
+      `JOIN LATERAL (
+         SELECT hs.date_changement, s.code
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = entree.dossier_id
+           AND hs.date_changement > entree.date_changement
+         ORDER BY hs.date_changement ASC
+         LIMIT 1
+       ) AS sortie ON true`,
+    )
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statut_entree.code', 'valide_envoi_formation')
+    .andWhere('sortie.code', 'valide_pret_embauche')
+    .andWhere('sortie.date_changement', '>=', debut)
+    .andWhere('sortie.date_changement', '<', finExclusive)
+    .select('entree.dossier_id as dossier_id', 'sortie.date_changement as date_cle');
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete;
 }
 
 function requeteBaseRepartitionParPoste(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
@@ -865,6 +919,8 @@ module.exports = {
   delaiFormation,
   compterOccurrencesHistorique,
   compterOccurrencesFormationValidee,
+  listerOccurrencesHistorique,
+  listerOccurrencesFormationValidee,
   listerInscrits,
   listerEnvoyesEnTest,
   listerVerdicts,

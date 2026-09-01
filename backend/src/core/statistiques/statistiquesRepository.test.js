@@ -154,6 +154,32 @@ test('compterOccurrencesFormationValidee part de l\'entrée valide_envoi_formati
   assert.doesNotMatch(sql, /group by/i);
 });
 
+// listerOccurrencesHistorique/listerOccurrencesFormationValidee (audit dashboard 2026-09-02, cartes
+// "Volumétrie sur la période" rendues cliquables/filtrantes) — pendants "lister" des deux fonctions
+// "compter" ci-dessus, MÊME requête sans le count : une ligne par OCCURRENCE, jamais dédupliquée
+// (pas de countDistinct/GROUP BY ici non plus), avec dossier_id/date_cle en colonnes de sortie —
+// même contrat que listerParStatut/listerDelaiFormation.
+test('listerOccurrencesHistorique reprend la même requête que compterOccurrencesHistorique, avec dossier_id/date_cle en sortie', () => {
+  const sql = statistiquesRepository.listerOccurrencesHistorique(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+  assert.match(sql, /inner join "dossiers" on "dossiers"\."id" = "historique_statuts"\."dossier_id"/i);
+  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
+  assert.doesNotMatch(sql, /distinct/i);
+  assert.doesNotMatch(sql, /group by/i);
+  assert.match(sql, /"historique_statuts"\."dossier_id" as "dossier_id"/);
+  assert.match(sql, /"historique_statuts"\."date_changement" as "date_cle"/);
+});
+
+test('listerOccurrencesFormationValidee reprend le même JOIN LATERAL que compterOccurrencesFormationValidee, avec dossier_id/date_cle en sortie', () => {
+  const sql = statistiquesRepository.listerOccurrencesFormationValidee(bd, ENTITE_ID, FILTRES).toString();
+  assert.match(sql, /"statut_entree"\."code" = 'valide_envoi_formation'/);
+  assert.match(sql, /"sortie"\."code" = 'valide_pret_embauche'/);
+  assert.match(sql, /ORDER BY hs\.date_changement ASC\s*\n?\s*LIMIT 1/);
+  assert.doesNotMatch(sql, /distinct/i);
+  assert.doesNotMatch(sql, /group by/i);
+  assert.match(sql, /"entree"\."dossier_id" as "dossier_id"/);
+  assert.match(sql, /"sortie"\."date_changement" as "date_cle"/);
+});
+
 // delaiTestVersVerdict/listerDelaiTestVersVerdict (correctif 2026-09-01, audit tableau de bord
 // 2026-08-31, point #5) — chaque verdict n'est retenu que si le PRÉDÉCESSEUR IMMÉDIAT de son
 // dossier dans historique_statuts (n'importe quel statut, pas seulement test_realise) est bien
