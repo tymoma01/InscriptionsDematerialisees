@@ -278,17 +278,6 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* Sous-texte de "Volumétrie sur la période" (audit dashboard 2026-09-02, décision utilisateur) —
-   précise la nature "occurrences, pas dossiers distincts" de cette section, à distinguer de
-   "Effectifs par statut" juste au-dessus. Discret (petit, italique, couleur secondaire) : une note
-   de lecture, pas un second sous-titre. */
-.indicateurs__sous-texte {
-  margin: 0 0 var(--espace-petit) 0;
-  font-size: 0.78rem;
-  font-style: italic;
-  color: var(--couleur-texte-secondaire);
-}
-
 /* Gap resserré (var(--espace-petit), pas --espace-moyen comme .indicateurs__tuiles de base) : ces
    cartes compactes n'ont pas besoin du même espacement que les 5 tuiles KPI plus grandes
    au-dessus — contribue à absorber ces rangées supplémentaires sans repousser le reste de la page. */

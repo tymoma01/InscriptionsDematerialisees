@@ -595,6 +595,110 @@ test('listerDossiersParIndicateurs route "statut:test_realise" vers listerParHis
   assert.equal(appelStatutCourant.mock.calls.length, 0);
 });
 
+// Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit dashboard 2026-09-02) —
+// code 'volumetrie:<code>' (PREFIXE_VOLUMETRIE) route vers listerOccurrencesHistorique pour
+// test_realise/valide_envoi_formation (liste fermée, CODES_VOLUMETRIE_HISTORIQUE_ACCECIT), jamais
+// vers listerParStatut/listerParHistoriqueStatut (dossiers DISTINCTS, préfixe 'statut:').
+test('listerDossiersParIndicateurs route "volumetrie:test_realise" vers listerOccurrencesHistorique', async (t) => {
+  mockerKnex(t);
+  const appel = t.mock.method(statistiquesRepository, 'listerOccurrencesHistorique', async () => [
+    { dossier_id: 88, date_cle: new Date('2026-08-27') },
+    { dossier_id: 88, date_cle: new Date('2026-08-28') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 88, date_creation: '2026-08-05', date_maj: '2026-08-31', candidat_nom: 'Curie', donnees_disponibilites: null },
+  ]);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-08-01',
+    dateFin: '2026-08-31',
+    indicateurs: ['volumetrie:test_realise'],
+  });
+
+  assert.equal(appel.mock.calls[0].arguments[2], 'test_realise');
+});
+
+// 'volumetrie:formation_validee' est un cas à part (CODES_VOLUMETRIE_HISTORIQUE_ACCECIT ne le
+// contient pas, voir CARTES_VOLUMETRIE_ACCECIT côté front) — doit router vers
+// listerOccurrencesFormationValidee, pas listerOccurrencesHistorique.
+test('listerDossiersParIndicateurs route "volumetrie:formation_validee" vers listerOccurrencesFormationValidee', async (t) => {
+  mockerKnex(t);
+  const appel = t.mock.method(statistiquesRepository, 'listerOccurrencesFormationValidee', async () => []);
+  t.mock.method(statistiquesRepository, 'listerInscrits', async () => []);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => []);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-08-01',
+    dateFin: '2026-08-31',
+    indicateurs: ['volumetrie:formation_validee'],
+  });
+
+  assert.equal(appel.mock.calls.length, 1);
+});
+
+test('listerDossiersParIndicateurs rejette un code "volumetrie:<code>" inconnu', async (t) => {
+  mockerKnex(t);
+  await assert.rejects(
+    () =>
+      statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+        dateDebut: '2026-07-01',
+        dateFin: '2026-07-31',
+        indicateurs: ['volumetrie:code_inexistant'],
+      }),
+    statistiquesService.ErreurStatistiquesInvalide,
+  );
+});
+
+// Point central de la consigne utilisateur (2026-09-02, cartes "Volumétrie sur la période"
+// cliquables) : le dossier #88 a 2 sessions de test réalisées sur la période — la liste de
+// dossiers ne doit contenir #88 qu'UNE FOIS (dédup par le Set `ids`, voir
+// listerDossiersParIndicateurs), mais `occurrencesVolumetrie['volumetrie:test_realise']` doit
+// exposer les 2 dates, triées, pour que "Dates clés" affiche "(2) 27/08/2026, 28/08/2026" plutôt
+// qu'une seule date qui laisserait croire à un seul passage.
+test("listerDossiersParIndicateurs déduplique le dossier (une seule ligne) mais expose TOUTES les occurrences dans occurrencesVolumetrie", async (t) => {
+  mockerKnex(t);
+  t.mock.method(statistiquesRepository, 'listerOccurrencesHistorique', async () => [
+    { dossier_id: 88, date_cle: new Date('2026-08-28') },
+    { dossier_id: 88, date_cle: new Date('2026-08-27') },
+  ]);
+  const appelListerDossiers = t.mock.method(dossierRepository, 'listerDossiersParIds', async (bd, entiteId, ids) => {
+    assert.deepEqual([...ids], [88], 'le dossier #88 ne doit être demandé qu’une seule fois à listerDossiersParIds');
+    return [
+      { id: 88, date_creation: '2026-08-05', date_maj: '2026-08-31', candidat_nom: 'Curie', donnees_disponibilites: null },
+    ];
+  });
+
+  const resultat = await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-08-01',
+    dateFin: '2026-08-31',
+    indicateurs: ['volumetrie:test_realise'],
+  });
+
+  assert.equal(appelListerDossiers.mock.calls.length, 1);
+  assert.equal(resultat.length, 1, 'une seule ligne pour le dossier #88, pas une par occurrence');
+  assert.deepEqual(
+    resultat[0].occurrencesVolumetrie['volumetrie:test_realise'].map((d) => d.toISOString().slice(0, 10)),
+    ['2026-08-27', '2026-08-28'],
+    'les 2 dates doivent être présentes et triées chronologiquement, quel que soit l’ordre des lignes SQL',
+  );
+});
+
+test('listerDossiersParIndicateurs renvoie occurrencesVolumetrie à {} pour un dossier sans indicateur volumétrie sélectionné', async (t) => {
+  mockerKnex(t);
+  t.mock.method(statistiquesRepository, 'listerInscrits', async () => [{ dossier_id: 1, date_cle: new Date('2026-07-05') }]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 1, date_creation: '2026-07-05', date_maj: '2026-07-05', candidat_nom: 'Martin', donnees_disponibilites: null },
+  ]);
+
+  const resultat = await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['inscrits'],
+  });
+
+  assert.deepEqual(resultat[0].occurrencesVolumetrie, {});
+});
+
 // Barre "Non spécifié" du graphique de répartition par poste — code statique 'poste_non_specifie'
 // (pas 'poste:<code>', voir CODES_INDICATEURS_STATIQUES) : doit router vers
 // listerEvaluationsSansPosteDossiers, pas être rejeté comme un code inconnu.

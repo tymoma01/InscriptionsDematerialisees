@@ -29,6 +29,11 @@ const [CODE_DELAI_INSCRIPTION_TEST, CODE_DELAI_TEST_VERDICT, CODE_DELAI_FORMATIO
   'delai_formation',
 ];
 
+// Cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues cliquables/filtrantes le
+// même jour, 2e passe) — même préfixe que statistiquesService.PREFIXE_VOLUMETRIE/Indicateurs.jsx,
+// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
+const PREFIXE_VOLUMETRIE = 'volumetrie:';
+
 // Codes de "Dates clés" (dossier.datesCles, toujours inscription/test_planifie?/orientation_*? —
 // plus de "verdict_*", retiré le 2026-08-11 car redondant avec la colonne "Statut") dont le badge
 // "Indicateurs" correspondant porte EXACTEMENT le même sens (même événement, juste vu depuis deux
@@ -192,6 +197,31 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
     });
   }
 
+  // Ancres "volumétrie" (audit dashboard 2026-09-02, cartes "Volumétrie sur la période" rendues
+  // cliquables/filtrantes, 2e passe) — une par code 'volumetrie:<code>' sélectionné, à condition
+  // que le dossier ait au moins une occurrence sur la période (voir dossier.occurrencesVolumetrie,
+  // statistiquesService.listerDossiersParIndicateurs). Même principe que les ancres "délai"
+  // ci-dessus (aucune ligne `dates` existante à laquelle s'accrocher, une valeur CALCULÉE est
+  // insérée en fin de liste) mais type dédié 'volumetrie' : la valeur affichée n'est pas un delta
+  // en jours entre deux dates, mais TOUTES les dates d'occurrence de la période (consigne
+  // utilisateur : "(2) 27/08/2026, 28/08/2026", pas une seule date qui laisserait croire à un seul
+  // passage). Triée sur toutes les clés sélectionnées plutôt qu'une seule connue à l'avance
+  // (contrairement aux 2 délais ci-dessus, fixes) : n'importe laquelle des 3 cartes peut être
+  // sélectionnée, indépendamment des autres.
+  [...badgesParCode.keys()]
+    .filter((code) => code.startsWith(PREFIXE_VOLUMETRIE))
+    .forEach((code) => {
+      const occurrences = dossier.occurrencesVolumetrie?.[code];
+      if (!occurrences || occurrences.length === 0) return;
+      ancres.push({
+        codeBadge: code,
+        codeDate: code,
+        type: 'volumetrie',
+        positionDate: dates.length,
+        dates: occurrences,
+      });
+    });
+
   // Tri stable par position chronologique — à égalité (délai test→verdict sans orientation,
   // positionDate = dates.length pour lui ET pour un éventuel dernier élément "existante"), l'ordre
   // de construction ci-dessus (délai1 avant délai2, "existante" avant "délai") fait déjà foi.
@@ -284,6 +314,10 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
       });
       // curseurDate ne bouge pas : l'ancre s'insère AVANT dates[ancre.positionDate] (ou en fin de
       // liste), qui reste à consommer par le segment suivant (ou la boucle de fin ci-dessous).
+    } else if (ancre.type === 'volumetrie') {
+      // Même principe que 'delai' ci-dessus (valeur CALCULÉE, pas une ligne `dates` existante) —
+      // curseurDate ne bouge pas non plus ici, même raison.
+      dateRows.push({ type: 'volumetrie-valeur', code: ancre.codeDate, dates: ancre.dates });
     } else if (badgeEmis) {
       dateRows.push({ type: 'date', code: dates[ancre.positionDate].code, date: dates[ancre.positionDate].date });
       curseurDate = ancre.positionDate + 1; // celle-ci est bien consommée (ligne existante posée).
@@ -467,6 +501,22 @@ export default function TableauDossiersSelectionnes({
                           <span className="tableau-dossiers-selectionnes__date-valeur">
                             <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.jours} j)</span>{' '}
                             {FORMAT_DATE.format(new Date(ligne.dateDebut))} → {FORMAT_DATE.format(new Date(ligne.dateFin))}
+                          </span>
+                        </li>
+                      ) : ligne.type === 'volumetrie-valeur' ? (
+                        // Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit
+                        // dashboard 2026-09-02, 2e passe) — consigne utilisateur : lister TOUTES
+                        // les occurrences du dossier sur la période ("(2) 27/08/2026, 28/08/2026"),
+                        // pas une seule date qui laisserait croire à un seul passage alors que la
+                        // carte compte des occurrences, pas des dossiers distincts.
+                        <li
+                          key={ligne.code}
+                          className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--volumetrie"
+                          aria-label={libelleIndicateur(ligne.code)}
+                        >
+                          <span className="tableau-dossiers-selectionnes__date-valeur">
+                            <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.dates.length})</span>{' '}
+                            {ligne.dates.map((date) => FORMAT_DATE.format(new Date(date))).join(', ')}
                           </span>
                         </li>
                       ) : (

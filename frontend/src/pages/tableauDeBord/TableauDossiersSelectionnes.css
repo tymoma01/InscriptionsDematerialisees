@@ -204,6 +204,17 @@
   color: var(--couleur-texte-secondaire);
 }
 
+/* Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit dashboard 2026-09-02, 2e
+   passe) — MÊME traitement visuel que .date-ligne--delai ci-dessus (une valeur CALCULÉE, pas une
+   étape du parcours datée) : le "(N)" en tête (voir .date-valeur-jours ci-dessous, réutilisée telle
+   quelle) joue le même rôle que "(X j)" pour les délais — un repère chiffré en évidence devant la
+   liste des dates elles-mêmes. */
+.tableau-dossiers-selectionnes__date-ligne--volumetrie {
+  justify-content: flex-end;
+  font-size: 0.78rem;
+  color: var(--couleur-texte-secondaire);
+}
+
 /* "(X j)" en gras + bleu ACCECIT (décision utilisateur, 2026-09-02) pour le distinguer
    visuellement des deux dates qui l'entourent, restées en couleur de texte standard (héritée de
    .date-ligne--delai ci-dessus, --couleur-texte-secondaire) — même graisse que .date-libelle

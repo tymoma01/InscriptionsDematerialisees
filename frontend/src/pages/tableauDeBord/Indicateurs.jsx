@@ -169,28 +169,40 @@ const PREFIXE_POSTE = 'poste:';
 const PREFIXE_STATUT = 'statut:';
 const CODES_STATUTS_EFFECTIF_ACCECIT = ['test_realise', 'valide_pret_embauche', 'formation_non_validee', 'embauche'];
 
-// "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour : SÉPARÉE
-// de "Effectifs par statut" ci-dessus, coexiste avec elle plutôt que de la remplacer) — 3 cartes
-// comptant des OCCURRENCES d'événement sur la période, jamais dédupliquées par dossier (charge de
+// Préfixe des 3 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
+// cliquables/filtrantes le même jour, 2e passe — jusque-là de simples compteurs sans sélection) —
+// GÉNÉRIQUE côté back (statistiquesService.PREFIXE_VOLUMETRIE, resoudreListeIndicateur), même
+// mécanisme de sélection/filtrage que "Effectifs par statut" (basculerIndicateur/
+// selectionIndicateurs, aucune adaptation nécessaire) — mais DISTINCT de PREFIXE_STATUT ci-dessus :
+// ces cartes comptent des OCCURRENCES d'événement, jamais dédupliquées par dossier (charge de
 // travail réelle — sessions de test tenues, formations conduites : un dossier retesté/reformé
-// compte plusieurs fois, voir statistiquesRepository.compterOccurrencesHistorique/
-// compterOccurrencesFormationValidee). PAS de mécanisme de sélection/filtrage ici (contrairement à
-// "Effectifs par statut" et à toutes les autres tuiles de cet écran, voir leur rendu plus bas) :
-// ces cartes sont volontairement de simples compteurs, sans bouton ni tableau consolidé associé —
-// un clic donnerait un nombre de dossiers dédupliqué dans le tableau, incohérent avec le chiffre
-// affiché sur la carte elle-même (même nuance déjà documentée pour "Répartition par poste", ici
-// assumée dès la conception plutôt que découverte après coup). "Test validé"/"Test invalidé"
-// (redondant avec le camembert "Tests réussis vs ratés") et "Embauché" (jugé non pertinent en
-// volume) ne sont volontairement PAS repris ici — décision utilisateur, liste réduite depuis les 8
-// cartes initialement envisagées. `code` correspond aux clés de `indicateurs.volumetrieParStatut`
-// (statistiquesService.js) — PAS au préfixe PREFIXE_STATUT ci-dessus, ces cartes n'étant pas
-// rattachées au mécanisme générique 'statut:<code>'. `variante` reprend la palette déjà en place
-// sur cet écran (voir Indicateurs.css).
+// compte plusieurs fois, voir statistiquesRepository.listerOccurrencesHistorique/
+// listerOccurrencesFormationValidee), alors que 'statut:<code>' compte des dossiers DISTINCTS — le
+// tableau "Dossiers sélectionnés" affiche malgré tout chaque dossier UNE SEULE FOIS pour les deux
+// (même mécanisme de dédup côté back, voir listerDossiersParIndicateurs), seule la colonne "Dates
+// clés" diffère : plusieurs dates listées pour 'volumetrie:<code>' (voir
+// TableauDossiersSelectionnes.jsx, occurrencesVolumetrie), une seule pour 'statut:<code>'. "Test
+// validé"/"Test invalidé" (redondant avec le camembert "Tests réussis vs ratés") et "Embauché"
+// (jugé non pertinent en volume) ne sont volontairement PAS repris ici — décision utilisateur,
+// liste réduite depuis les 8 cartes initialement envisagées. `code` (dans CARTES_VOLUMETRIE_ACCECIT
+// ci-dessous) correspond aux clés de `indicateurs.volumetrieParStatut` (statistiquesService.js) —
+// le code CLIQUABLE est `${PREFIXE_VOLUMETRIE}${code}` (voir son rendu plus bas), pas `code` seul.
+// `variante` reprend la palette déjà en place sur cet écran (voir Indicateurs.css).
+const PREFIXE_VOLUMETRIE = 'volumetrie:';
 const CARTES_VOLUMETRIE_ACCECIT = [
   { code: 'test_realise', libelle: 'Sessions de test réalisées', variante: 'violet' },
-  { code: 'valide_envoi_formation', libelle: 'Entrées en formation', variante: 'bleu' },
+  { code: 'valide_envoi_formation', libelle: 'Envoyés en formation', variante: 'bleu' },
   { code: 'formation_validee', libelle: 'Formations validées', variante: 'vert-clair' },
 ];
+const LIBELLES_VOLUMETRIE_ACCECIT = Object.fromEntries(
+  CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle }) => [code, libelle]),
+);
+function libelleVolumetrie(code) {
+  return LIBELLES_VOLUMETRIE_ACCECIT[code] ?? code;
+}
+function varianteVolumetrie(code) {
+  return CARTES_VOLUMETRIE_ACCECIT.find((carte) => carte.code === code)?.variante ?? 'neutre';
+}
 
 // Libellés des 4 nouvelles cartes — repris tels quels des libellés officiels de statut
 // (workflow.config.json), pas une reformulation propre à la tuile (contrairement à
@@ -281,6 +293,12 @@ function libelleIndicateur(code) {
     // libelleStatutEffectif.
     return LIBELLES_COURTS_INDICATEUR_STATUT_ACCECIT[statutCode] ?? libelleStatutEffectif(statutCode);
   }
+  // 'volumetrie:<code>' (audit dashboard 2026-09-02, 2e passe) : même libellé que la tuile (voir
+  // libelleVolumetrie/CARTES_VOLUMETRIE_ACCECIT plus haut), pour le badge "Indicateurs" ET pour
+  // l'aria-label de la ligne "Dates clés" multi-occurrences (TableauDossiersSelectionnes.jsx, ligne
+  // de type 'volumetrie-valeur') — pas de raccourci court dédié (contrairement à 'statut:<code>'
+  // ci-dessus) : ces 3 libellés sont déjà courts.
+  if (code.startsWith(PREFIXE_VOLUMETRIE)) return libelleVolumetrie(code.slice(PREFIXE_VOLUMETRIE.length));
   return LIBELLES_INDICATEURS[code] ?? code;
 }
 function varianteIndicateur(code) {
@@ -290,6 +308,10 @@ function varianteIndicateur(code) {
   // entrée dupliquée dans VARIANTE_PAR_INDICATEUR — la tuile "Embauché" doit porter EXACTEMENT la
   // même couleur que le badge de statut "Embauché" ailleurs dans l'app.
   if (code.startsWith(PREFIXE_STATUT)) return varianteStatut(code.slice(PREFIXE_STATUT.length));
+  // 'volumetrie:<code>' délègue à varianteVolumetrie (même palette que la tuile, voir
+  // CARTES_VOLUMETRIE_ACCECIT plus haut) — le badge "Indicateurs" garde la même couleur que sa
+  // carte d'origine, comme 'statut:<code>' ci-dessus le fait déjà avec varianteStatut.
+  if (code.startsWith(PREFIXE_VOLUMETRIE)) return varianteVolumetrie(code.slice(PREFIXE_VOLUMETRIE.length));
   return VARIANTE_PAR_INDICATEUR[code] ?? 'neutre';
 }
 // Distingue les deux natures de code portées par `dossier.indicateurs` (voir
@@ -985,40 +1007,47 @@ export default function Indicateurs() {
             </ErrorBoundary>
 
             {/* "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
-                jour : SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule) — 3 cartes,
-                comptent "combien de FOIS cet événement s'est produit" (charge de travail réelle,
-                JAMAIS dédupliquée par dossier : un dossier retesté/reformé compte plusieurs fois,
-                voir statistiquesRepository.compterOccurrencesHistorique/
-                compterOccurrencesFormationValidee) — mélanger avec "Effectifs par statut"
-                aurait laissé croire à des grandeurs comparables, d'où le sous-titre explicite et le
-                style visuellement distinct (bordure en tirets, voir
-                .indicateurs__tuiles--volumetrie/.indicateurs__tuile--volumetrie, Indicateurs.css).
-                Générées par CARTES_VOLUMETRIE_ACCECIT (liste éditoriale, voir son commentaire plus
-                haut), pas les 3 <div> recopiés en dur. `<div>`, PAS `<button>` (contrairement à
-                "Effectifs par statut" et à toutes les autres tuiles de cet écran) : ces cartes sont
-                volontairement de simples compteurs, sans sélection ni tableau consolidé associé
-                (un clic donnerait un nombre de dossiers dédupliqué dans le tableau, incohérent avec
-                le chiffre affiché sur la carte elle-même — même nuance déjà documentée pour
-                "Répartition par poste", ici assumée dès la conception plutôt que découverte après
-                coup). `--compacte` (Indicateurs.css) : mêmes proportions resserrées que les cartes
-                "Effectifs" juste au-dessus. */}
+                jour : SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule ; rendue
+                cliquable/filtrante le même jour, 2e passe — jusque-là de simples compteurs) — 3
+                cartes, comptent "combien de FOIS cet événement s'est produit" (charge de travail
+                réelle, JAMAIS dédupliquée par dossier : un dossier retesté/reformé compte plusieurs
+                fois, voir statistiquesRepository.listerOccurrencesHistorique/
+                listerOccurrencesFormationValidee) — mélanger avec "Effectifs par statut" aurait
+                laissé croire à des grandeurs comparables, d'où le style visuellement distinct
+                (bordure en tirets, voir .indicateurs__tuiles--volumetrie/
+                .indicateurs__tuile--volumetrie, Indicateurs.css) — le sous-texte explicatif qui
+                accompagnait initialement ce style a été retiré (décision utilisateur, 2e passe),
+                la bordure en tirets reste seule porteuse de la distinction. Générées par
+                CARTES_VOLUMETRIE_ACCECIT (liste éditoriale, voir son commentaire plus haut), pas
+                les 3 boutons recopiés en dur. `<button>`, MÊME mécanisme de sélection/filtrage que
+                "Effectifs par statut" ci-dessus (basculerIndicateur, code
+                '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté back, voir
+                PREFIXE_VOLUMETRIE) — un dossier avec plusieurs occurrences n'apparaît qu'UNE FOIS
+                dans le tableau consolidé (dédup côté back), mais sa colonne "Dates clés" liste
+                TOUTES ses occurrences (voir TableauDossiersSelectionnes.jsx,
+                dossier.occurrencesVolumetrie) : il est normal et attendu que le nombre affiché ici
+                (occurrences) soit supérieur ou égal au nombre de lignes du tableau (dossiers
+                distincts), pas une incohérence à corriger. `--compacte` (Indicateurs.css) : mêmes
+                proportions resserrées que les cartes "Effectifs" juste au-dessus. */}
             <ErrorBoundary titre="Indicateurs (volumétrie sur la période)">
             <div className="indicateurs__section-volumetrie">
               <h2 className="indicateurs__sous-titre">Volumétrie sur la période</h2>
-              <p className="indicateurs__sous-texte">
-                Nombre d’occurrences sur la période — un même dossier peut compter plusieurs fois (charge réelle
-                d’activité)
-              </p>
               <div className="indicateurs__tuiles indicateurs__tuiles--volumetrie">
-                {CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle, variante }) => (
-                  <div
-                    key={code}
-                    className={`indicateurs__tuile indicateurs__tuile--volumetrie indicateurs__tuile--compacte indicateurs__tuile--${variante}`}
-                  >
-                    <span className="indicateurs__tuile-valeur">{indicateurs.volumetrieParStatut[code]}</span>
-                    <span className="indicateurs__tuile-libelle">{libelle}</span>
-                  </div>
-                ))}
+                {CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle, variante }) => {
+                  const codeIndicateur = `${PREFIXE_VOLUMETRIE}${code}`;
+                  return (
+                    <button
+                      type="button"
+                      key={code}
+                      className={`indicateurs__tuile indicateurs__tuile--volumetrie indicateurs__tuile--compacte indicateurs__tuile--${variante}${selectionIndicateurs.has(codeIndicateur) ? ' indicateurs__tuile--active' : ''}`}
+                      aria-pressed={selectionIndicateurs.has(codeIndicateur)}
+                      onClick={() => basculerIndicateur(codeIndicateur)}
+                    >
+                      <span className="indicateurs__tuile-valeur">{indicateurs.volumetrieParStatut[code]}</span>
+                      <span className="indicateurs__tuile-libelle">{libelle}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             </ErrorBoundary>

@@ -262,13 +262,25 @@ const PREFIXE_POSTE = 'poste:';
 
 // Préfixe des indicateurs "statut du dossier" (audit tableau de bord 2026-08-31, décision
 // utilisateur) — GÉNÉRIQUE, symétrique de PREFIXE_POSTE ci-dessus : n'importe quel code de statut
-// de l'entité, pas seulement ceux qui pilotaient l'affichage des cartes "Effectifs par statut"
-// (section retirée le 2026-09-02, remplacée par "Volumétrie par statut", voir
-// CODES_VOLUMETRIE_HISTORIQUE_ACCECIT plus haut, qui n'utilise pas ce préfixe) — un indicateur
-// 'statut:<code>' reste résoluble ici même sans aucune carte pour le sélectionner sur cet écran
-// (même logique que 'poste:<code>'/'delai_test_verdict', jamais limité aux seuls codes affichés en
-// carte).
+// de l'entité, pas seulement les 4 qui pilotent l'affichage des cartes "Effectifs par statut"
+// (CODES_STATUTS_EFFECTIF_COURANT_ACCECIT/CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT plus haut) — un
+// indicateur 'statut:<code>' reste résoluble ici même sans aucune carte pour le sélectionner sur
+// cet écran (même logique que 'poste:<code>'/'delai_test_verdict', jamais limité aux seuls codes
+// affichés en carte).
 const PREFIXE_STATUT = 'statut:';
+
+// Préfixe des 3 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
+// cliquables/filtrantes le même jour) — DISTINCT de PREFIXE_STATUT ci-dessus : un code
+// 'volumetrie:<code>' route vers les fonctions "lister" en OCCURRENCES (listerOccurrencesHistorique/
+// listerOccurrencesFormationValidee, plusieurs lignes possibles par dossier), jamais vers
+// listerParStatut/listerParHistoriqueStatut (dossiers DISTINCTS, un seul date_cle par dossier) —
+// mélanger les deux préfixes sur un même code donnerait un effectif à la carte mais une seule date
+// dans "Dates clés" pour un dossier qui a pourtant plusieurs occurrences, exactement l'incohérence
+// que ce préfixe séparé évite. `resoudreListeIndicateur` valide le code contre
+// CODES_VOLUMETRIE_HISTORIQUE_ACCECIT/'formation_validee' (liste fermée, comme PREFIXE_POSTE) —
+// contrairement à PREFIXE_STATUT, pas de repli générique pour un code de statut arbitraire : ce
+// préfixe ne représente que les 3 cartes réellement affichées, aucun usage prévu au-delà.
+const PREFIXE_VOLUMETRIE = 'volumetrie:';
 
 // Une seule fonction de résolution code -> requête "liste de dossiers", pour que
 // listerDossiersParIndicateurs ci-dessous n'ait qu'à itérer sur les codes demandés sans connaître
@@ -325,8 +337,21 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
         }
         return statistiquesRepository.listerParStatut(bd, entiteId, statutCode, filtres);
       }
+      // 'volumetrie:<code>' (voir PREFIXE_VOLUMETRIE plus haut) — liste fermée aux 3 cartes
+      // réellement affichées (contrairement à 'statut:<code>' ci-dessus, générique) : un code
+      // inconnu lève une erreur plutôt qu'une liste vide silencieuse, même choix que 'poste:<code>'.
+      if (code.startsWith(PREFIXE_VOLUMETRIE)) {
+        const statutCode = code.slice(PREFIXE_VOLUMETRIE.length);
+        if (statutCode === 'formation_validee') {
+          return statistiquesRepository.listerOccurrencesFormationValidee(bd, entiteId, filtres);
+        }
+        if (CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.includes(statutCode)) {
+          return statistiquesRepository.listerOccurrencesHistorique(bd, entiteId, statutCode, filtres);
+        }
+        throw new ErreurStatistiquesInvalide(`Code de volumétrie "${statutCode}" inconnu.`);
+      }
       throw new ErreurStatistiquesInvalide(
-        `Indicateur "${code}" inconnu (attendu : ${CODES_INDICATEURS_STATIQUES.join(', ')}, "${PREFIXE_POSTE}<code>", ou "${PREFIXE_STATUT}<code>").`,
+        `Indicateur "${code}" inconnu (attendu : ${CODES_INDICATEURS_STATIQUES.join(', ')}, "${PREFIXE_POSTE}<code>", "${PREFIXE_STATUT}<code>", ou "${PREFIXE_VOLUMETRIE}<code>").`,
       );
   }
 }
@@ -350,14 +375,35 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
 
   // dossierId -> code indicateur -> date_cle (pour les badges/dates du tableau, voir plus bas) —
   // construite en même temps que la liste des ids par indicateur ci-dessous, qui sert elle à
-  // l'intersection.
+  // l'intersection. `.set(code, ...)` ÉCRASE une valeur précédente si `lignes` porte plusieurs
+  // occurrences pour le même dossier : sans conséquence pour tous les indicateurs existants (au
+  // plus une ligne par dossier), mais PAS utilisable tel quel pour 'volumetrie:<code>' ci-dessous,
+  // qui peut légitimement en porter plusieurs (retest, reformation) — voir
+  // occurrencesVolumetrieParDossier, qui accumule plutôt que d'écraser pour ces codes précis.
   const indicateursParDossier = new Map();
+  // dossierId -> code 'volumetrie:<code>' -> Date[] (TOUTES les occurrences, pas la dernière) —
+  // audit dashboard 2026-09-02, cartes "Volumétrie sur la période" rendues cliquables/filtrantes :
+  // la colonne "Dates clés" doit lister CHAQUE occurrence du dossier sur la période (ex. "(2)
+  // 27/08/2026, 28/08/2026" pour 2 sessions de test), pas une seule date qui laisserait croire à un
+  // seul passage — voir son usage plus bas, au moment de construire l'objet dossier retourné.
+  const occurrencesVolumetrieParDossier = new Map();
   const idsParIndicateur = resultatsParIndicateur.map(({ code, lignes }) => {
     const ids = new Set();
+    const estVolumetrie = code.startsWith(PREFIXE_VOLUMETRIE);
     for (const ligne of lignes) {
       const dossierId = ligne.dossier_id;
       if (!indicateursParDossier.has(dossierId)) indicateursParDossier.set(dossierId, new Map());
       indicateursParDossier.get(dossierId).set(code, ligne.date_cle);
+      if (estVolumetrie) {
+        if (!occurrencesVolumetrieParDossier.has(dossierId)) occurrencesVolumetrieParDossier.set(dossierId, new Map());
+        const occurrencesParCode = occurrencesVolumetrieParDossier.get(dossierId);
+        if (!occurrencesParCode.has(code)) occurrencesParCode.set(code, []);
+        occurrencesParCode.get(code).push(ligne.date_cle);
+      }
+      // Un même dossier peut apparaître plusieurs fois dans `lignes` pour un indicateur
+      // 'volumetrie:<code>' (une ligne par occurrence) — `ids` reste un Set, donc TOUJOURS
+      // dédupliqué par dossier ici : c'est ce qui garantit que le tableau final affiche chaque
+      // dossier une seule fois (voir consigne utilisateur), sans traitement supplémentaire.
       ids.add(dossierId);
     }
     return ids;
@@ -435,6 +481,21 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
             : null,
           date_entree_embauche ? { code: 'statut:embauche', date: date_entree_embauche } : null,
         ].filter(Boolean),
+        // Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit dashboard
+        // 2026-09-02) — PAS une entrée dans `datesCles` ci-dessus (qui ne porte qu'UNE date par
+        // couple dossier/code) : `occurrencesVolumetrieParDossier` accumule TOUTES les occurrences
+        // pour un code 'volumetrie:<code>' donné (voir plus haut), champ dédié pour que le front
+        // affiche "(2) 27/08/2026, 28/08/2026" plutôt qu'une seule date qui laisserait croire à un
+        // seul passage. Converti en objet simple { code: Date[] } — trié chronologiquement, pas
+        // dans l'ordre d'arrivée des lignes SQL (non garanti) — vide `{}` plutôt qu'absent si aucun
+        // code 'volumetrie:<code>' n'est sélectionné, pour que le front n'ait pas à distinguer
+        // "absent" de "vide".
+        occurrencesVolumetrie: Object.fromEntries(
+          [...(occurrencesVolumetrieParDossier.get(reste.id)?.entries() ?? [])].map(([code, dates]) => [
+            code,
+            [...dates].sort((a, b) => a - b),
+          ]),
+        ),
         // Ancre de FIN du délai "test → verdict" (colonne "Dates clés", construireColonnesAlignees)
         // — la ligne "Verdict" elle-même n'existant plus dans `datesCles` ci-dessus, ce champ dédié
         // reste le seul moyen pour le front de connaître la date exacte du verdict (nécessaire au
