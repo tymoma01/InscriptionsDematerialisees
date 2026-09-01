@@ -134,15 +134,22 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
     }
   });
 
-  // Ancre "délai inscription → test" : insérée juste après "Test planifié" (comme avant).
+  // Ancre "délai inscription → envoi en test" : insérée juste après "Test planifié" (comme avant).
+  // dateDebut/dateFin (audit 2026-09-01) : les deux dates brutes du segment, affichées EN PLUS du
+  // nombre de jours dans "Dates clés" (voir le rendu de 'delai-valeur' plus bas) — jusqu'ici seul
+  // le delta était visible ("8 J"), sans les dates elles-mêmes.
   const indexTestPlanifie = dates.findIndex((d) => d.code === 'test_planifie');
   if (badgesParCode.has(CODE_DELAI_INSCRIPTION_TEST) && indexTestPlanifie !== -1) {
+    const dateDebut = trouverDateCle(dossier, 'inscription');
+    const dateFin = dates[indexTestPlanifie].date;
     ancres.push({
       codeBadge: CODE_DELAI_INSCRIPTION_TEST,
       codeDate: CODE_DELAI_INSCRIPTION_TEST,
       type: 'delai',
       positionDate: indexTestPlanifie + 1,
-      jours: joursCalendairesEntre(trouverDateCle(dossier, 'inscription'), dates[indexTestPlanifie].date),
+      jours: joursCalendairesEntre(dateDebut, dateFin),
+      dateDebut,
+      dateFin,
     });
   }
 
@@ -160,6 +167,8 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
       type: 'delai',
       positionDate: dates.length,
       jours: joursCalendairesEntre(dossier.dateDernierTestPlanifieAvantVerdict, dossier.dateVerdict),
+      dateDebut: dossier.dateDernierTestPlanifieAvantVerdict,
+      dateFin: dossier.dateVerdict,
     });
   }
 
@@ -178,6 +187,8 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
       type: 'delai',
       positionDate: dates.length,
       jours: joursCalendairesEntre(dossier.dateEntreeFormation, dossier.dateSortieFormation),
+      dateDebut: dossier.dateEntreeFormation,
+      dateFin: dossier.dateSortieFormation,
     });
   }
 
@@ -264,7 +275,13 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
     }
     const badgeEmis = emettreBadge(ancre.indexBadge);
     if (ancre.type === 'delai') {
-      dateRows.push({ type: 'delai-valeur', code: ancre.codeDate, jours: ancre.jours });
+      dateRows.push({
+        type: 'delai-valeur',
+        code: ancre.codeDate,
+        jours: ancre.jours,
+        dateDebut: ancre.dateDebut,
+        dateFin: ancre.dateFin,
+      });
       // curseurDate ne bouge pas : l'ancre s'insère AVANT dates[ancre.positionDate] (ou en fin de
       // liste), qui reste à consommer par le segment suivant (ou la boucle de fin ci-dessous).
     } else if (badgeEmis) {
@@ -387,7 +404,7 @@ export default function TableauDossiersSelectionnes({
                       pour que le rapprochement visuel entre les deux colonnes soit immédiat.
                       `indicateurRows` (pas dossier.indicateurs directement) : mêmes badges dans le
                       même ordre, ENTRECOUPÉS de lignes vides là où construireColonnesAlignees a dû
-                      compenser pour que "Délai inscription → test"/"Délai test → verdict" tombent à
+                      compenser pour que "Délai inscription → envoi en test"/"Délai formation" tombent à
                       la même hauteur que leur valeur dans "Dates clés" (voir la colonne suivante) —
                       aucun autre badge n'est concerné (item 4, décision utilisateur 2026-08-11). */}
                   <div className="tableau-dossiers-selectionnes__indicateurs">
@@ -424,8 +441,11 @@ export default function TableauDossiersSelectionnes({
                       comme les badges de la colonne "Indicateurs" — revient sur le "toujours tout
                       l'historique" du 2026-08-11 (voir construireColonnesAlignees,
                       estDateBadgeSelectionne, ci-dessus). AVEC leur libellé texte (revenu le
-                      2026-08-11, inchangé par ce nouveau changement). Valeurs de délai ("X J", sans
-                      libellé — déjà porté par le badge "Indicateurs" à la même hauteur) : déjà
+                      2026-08-11, inchangé par ce nouveau changement). Valeurs de délai (audit
+                      2026-09-01 : "(X j) DD/MM/AAAA → DD/MM/AAAA", plus seulement "X J" — format
+                      revu le 2026-09-02, jours entre parenthèses en tête — les deux dates du
+                      segment sont désormais affichées EN PLUS du delta, sans libellé texte propre
+                      — déjà porté par le badge "Indicateurs" à la même hauteur) : déjà
                       conditionnées à la sélection de leur propre tuile depuis un précédent
                       changement, non affectées ici — toujours à la même position verticale que
                       leur badge, voir `dateRows`/construireColonnesAlignees plus haut, qui insère
@@ -444,7 +464,10 @@ export default function TableauDossiersSelectionnes({
                           className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--delai"
                           aria-label={libelleIndicateur(ligne.code)}
                         >
-                          <span className="tableau-dossiers-selectionnes__date-valeur">{ligne.jours} J</span>
+                          <span className="tableau-dossiers-selectionnes__date-valeur">
+                            <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.jours} j)</span>{' '}
+                            {FORMAT_DATE.format(new Date(ligne.dateDebut))} → {FORMAT_DATE.format(new Date(ligne.dateFin))}
+                          </span>
                         </li>
                       ) : (
                         <li

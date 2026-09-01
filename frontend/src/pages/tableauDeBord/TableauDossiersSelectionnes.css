@@ -185,17 +185,38 @@
   visibility: hidden;
 }
 
-/* Valeur de délai seule ("X J", SANS libellé — inchangé par le retour en arrière du 2026-08-11 :
-   ce n'était déjà plus du texte répété, contrairement aux dates simples ci-dessus). Alignée à
-   droite (flex-end, pas l'space-between de la règle de base : il n'y a qu'un seul élément dans
-   cette ligne) pour rester dans la même colonne visuelle que les valeurs de date au-dessus/
-   dessous. SANS couleur de statut : ce n'est pas une étape du parcours mais une mesure dérivée de
-   deux dates déjà colorées ailleurs, un fond plein ferait doublon. Texte plus petit + couleur
-   secondaire pour rester visuellement en retrait des dates. */
+/* Valeur de délai ("(X j) DD/MM/AAAA → DD/MM/AAAA" depuis l'audit 2026-09-02, jours entre
+   parenthèses en tête ; "X j — DD/MM/AAAA → ..." la veille, "X J" seul avant le 2026-09-01),
+   SANS libellé — ce n'était déjà plus du texte répété, contrairement aux dates simples
+   ci-dessus. Alignée à droite (flex-end, pas l'space-between de la règle de base : il n'y a qu'un
+   seul élément dans cette ligne) pour rester dans la même colonne visuelle que les valeurs de date
+   au-dessus/dessous. SANS couleur de statut : ce n'est pas une étape du parcours mais une mesure
+   dérivée de deux dates déjà colorées ailleurs, un fond plein ferait doublon. Texte plus petit +
+   couleur secondaire pour rester visuellement en retrait des dates. `white-space: nowrap` hérité de
+   .tableau-dossiers-selectionnes__dates (pas de retour à la ligne) : la ligne peut désormais
+   dépasser la largeur habituelle de la colonne, absorbé par le défilement horizontal déjà en place
+   sur .tableau-dossiers-selectionnes__scroll — un retour à la ligne casserait l'alignement ligne à
+   ligne avec la colonne "Indicateurs" (construireColonnesAlignees, TableauDossiersSelectionnes.jsx),
+   qui suppose une hauteur de ligne fixe. */
 .tableau-dossiers-selectionnes__date-ligne--delai {
   justify-content: flex-end;
   font-size: 0.78rem;
   color: var(--couleur-texte-secondaire);
+}
+
+/* "(X j)" en gras + bleu ACCECIT (décision utilisateur, 2026-09-02) pour le distinguer
+   visuellement des deux dates qui l'entourent, restées en couleur de texte standard (héritée de
+   .date-ligne--delai ci-dessus, --couleur-texte-secondaire) — même graisse que .date-libelle
+   ci-dessus (600), pas 700 : reste un repère visuel dans une ligne déjà en retrait (taille
+   réduite), pas une valeur aussi proéminente qu'un chiffre de tuile KPI. Couleur : --couleur-
+   primaire (#2d3c92), même variable que la ligne de contact "En cas de besoin..." de l'email de
+   convocation au test (invitationTestService.js) — précédent cité explicitement par l'utilisateur
+   pour cette mise en évidence, repris tel quel plutôt qu'une des deux autres teintes "bleu ACCECIT"
+   du projet (--couleur-back-office-* n'est pas bleu ; le bleu de survol des tableaux back-office,
+   #1f4e9c, est une AUTRE teinte, voir styles/variables.css) — ne pas confondre les trois. */
+.tableau-dossiers-selectionnes__date-valeur-jours {
+  font-weight: 600;
+  color: var(--couleur-primaire);
 }
 
 .tableau-dossiers-selectionnes__date-ligne--neutre {

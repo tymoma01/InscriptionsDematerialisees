@@ -71,10 +71,16 @@ function varianteStatut(code) {
 //   2026-08-11, décision utilisateur ultérieure du même jour) — reste distinct du badge de STATUT
 //   "Test planifié" déjà existant (mots différents), sans reprendre "Test envoyé"/"Envoyés en
 //   test" (libellé d'origine, plus ambigu sur "test réalisé ou non").
-// `delai_inscription_test`/`delai_test_verdict` : libellés laissés inchangés (confirmé) — jamais
-// ambigus vis-à-vis du statut affiché à côté, contrairement aux indicateurs renommés ci-dessus.
-// Leur ambiguïté à eux est d'une autre nature (moyenne de période vs valeur par dossier) — traitée
-// au niveau des TUILES agrégées (voir `title`/`.indicateurs__tuile-precision` plus bas), pas ici.
+// `delai_test_verdict` : libellé laissé inchangé (confirmé) — jamais ambigu vis-à-vis du statut
+// affiché à côté, contrairement aux indicateurs renommés ci-dessus. Son ambiguïté à lui est d'une
+// autre nature (moyenne de période vs valeur par dossier) — traitée au niveau des TUILES agrégées
+// (voir `title`/`.indicateurs__tuile-precision` plus bas), pas ici.
+// `delai_inscription_test` : renommé le 2026-09-02 (décision utilisateur) — "Délai inscription →
+// envoi en test" plutôt que "Délai inscription → test" (badge)/"Délai moyen inscription → test
+// planifié" (tuile, voir plus bas) : "test" seul prêtait à confusion avec le statut "Test planifié"
+// déjà affiché à côté, alors que l'événement mesuré est bien l'ENVOI en test (transition vers
+// test_planifie), pas le déroulement du test lui-même. Logique de calcul strictement inchangée
+// (statistiquesRepository.delaiInscriptionVersTestPlanifie) — uniquement le texte affiché.
 // `orientation_envoi_formation`/`orientation_pret_embauche` : "Envoyé en formation"/"Prêt à
 // l'embauche" (décision utilisateur, 2026-08-12) — remplace "Orienté formation"/"Orienté embauche"
 // pour rester au plus près du texte déjà utilisé ailleurs sur l'écran (légende du camembert
@@ -92,7 +98,7 @@ const LIBELLES_INDICATEURS = {
   inscrits: 'Inscrit',
   envoyes_en_test: 'Envoyé en test',
   conversion: 'Retenu',
-  delai_inscription_test: 'Délai inscription → test',
+  delai_inscription_test: 'Délai inscription → envoi en test',
   delai_test_verdict: 'Délai test → verdict',
   // Introduit le 2026-09-01 (audit tableau de bord 2026-08-31, point #5) — remplace la tuile
   // "Délai moyen test → verdict" ci-dessus (delai_test_verdict reste un code back-end valide, mais
@@ -116,18 +122,16 @@ const LIBELLES_INDICATEURS = {
 // même hérité de l'ordre du Set `selectionIndicateurs` (ordre d'insertion = ordre de clic).
 const ORDRE_CANONIQUE_INDICATEURS = Object.keys(LIBELLES_INDICATEURS);
 
-// Tuiles "Délai moyen inscription → test planifié"/"Délai moyen test → verdict" — clarification
+// Tuiles "Délai moyen inscription → envoi en test"/"Délai moyen formation" — clarification
 // d'audit, 2026-08-11 : le chiffre affiché ici est une MOYENNE en jours ÉCOULÉS (temps réel,
 // valeur fractionnaire arrondie à 1 décimale, voir statistiquesService.versMoyenneJours) sur TOUS
 // les dossiers de la période, alors que la même mesure affichée PAR DOSSIER dans la colonne
 // "Dates clés" (TableauDossiersSelectionnes.jsx) est un nombre de jours CALENDAIRES entiers pour
 // UN dossier — deux échelles différentes pour un intitulé proche, d'où le risque de confusion
-// relevé par l'audit. `title` (tooltip natif au survol/focus clavier) plutôt qu'un composant de
-// tooltip dédié : pas d'autre tooltip dans ce projet, un attribut natif suffit ici. Complété par
-// `.indicateurs__tuile-precision` (texte visible, pas seulement au survol) sur les deux tuiles
-// concernées, pour que la nuance reste lisible même sans interaction (tactile/tablette).
-const PRECISION_DELAI_MOYEN =
-  'Moyenne en jours écoulés (temps réel) sur l’ensemble des dossiers de la période — distincte des valeurs en jours calendaires entiers affichées par dossier dans la colonne "Dates clés".';
+// relevé par l'audit. Un tooltip natif (`title`) portait cette précision au survol jusqu'au
+// 2026-09-02 (décision utilisateur : retiré, gênait la lecture de l'écran au survol) —
+// `.indicateurs__tuile-precision` (texte visible, pas seulement au survol) reste seul porteur de
+// cette nuance sur les deux tuiles concernées.
 
 // Variantes de badge (StatutBadge) par indicateur — regroupées par famille visuelle : succès/échec
 // alignés sur les couleurs déjà utilisées pour les statuts de dossier équivalents (vert pour un
@@ -891,12 +895,11 @@ export default function Indicateurs() {
                 className={`indicateurs__tuile indicateurs__tuile--attente${selectionIndicateurs.has('delai_inscription_test') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_inscription_test')}
                 onClick={() => basculerIndicateur('delai_inscription_test')}
-                title={PRECISION_DELAI_MOYEN}
               >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours ?? '-'} j
                 </span>
-                <span className="indicateurs__tuile-libelle">Délai moyen inscription → test planifié</span>
+                <span className="indicateurs__tuile-libelle">Délai moyen inscription → envoi en test</span>
                 <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
               <button
@@ -904,7 +907,6 @@ export default function Indicateurs() {
                 className={`indicateurs__tuile indicateurs__tuile--violet${selectionIndicateurs.has('delai_formation') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_formation')}
                 onClick={() => basculerIndicateur('delai_formation')}
-                title={PRECISION_DELAI_MOYEN}
               >
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.formation.moyenneJours ?? '-'} j
