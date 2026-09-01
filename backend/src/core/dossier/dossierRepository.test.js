@@ -23,6 +23,18 @@ test('listerDossiersParIds déduit verdict_orientation="pret_embauche" par COALE
   );
 });
 
+// Correctif 2026-09-02 (audit dashboard, dossier #88, décision utilisateur : "c'est la DERNIÈRE
+// évaluation qui fait foi partout") — date_verdict doit être ancré sur la DERNIÈRE évaluation du
+// dossier (MAX), pas la première (MIN, comportement avant ce correctif) : sinon la colonne
+// "Dates clés" pouvait afficher la date ET le résultat d'un échec initial alors que le badge
+// "Indicateurs" (statistiquesRepository.listerVerdicts, corrigé de la même façon) affichait déjà
+// "Test réussi" pour ce même dossier.
+test('listerDossiersParIds ancre date_verdict sur la DERNIÈRE évaluation du dossier (MAX), pas la première', () => {
+  const sql = dossierRepository.listerDossiersParIds(bd, 1, [74, 89]).toString();
+  assert.match(sql, /MAX\(evaluations\.date_evaluation\) as date_verdict/);
+  assert.doesNotMatch(sql, /MIN\(evaluations\.date_evaluation\) as date_verdict/);
+});
+
 // Colonne "Dates clés" enrichie pour les 4 nouvelles cartes "Effectifs par statut" (audit tableau
 // de bord 2026-08-31, décision utilisateur) — une jointure LEFT JOIN dédiée par statut suivi
 // (joindreDateEntreeStatut), MAX(historique_statuts.date_changement), même calcul que

@@ -443,12 +443,19 @@ function obtenirDerniereModification(bd, entiteId) {
 // période filtrée sur l'écran (contrairement à statistiquesRepository.listerEnvoyesEnTest/
 // listerVerdicts, qui bornent par date_cle pour déterminer QUELS dossiers afficher) : une fois
 // qu'un dossier fait partie du résultat, sa colonne "Dates clés" doit refléter son historique réel
-// complet, pas seulement ce qui tombe dans la période KPI en cours. MIN() : premier passage en
-// "test_planifie"/première évaluation, cohérent avec listerEnvoyesEnTest/listerVerdicts (mêmes
-// dates que les indicateurs KPI correspondants, juste sans le filtre de période). NULL si l'étape
-// n'a pas encore été atteinte — laissé tel quel, c'est justement ce qui permet au front de
-// n'afficher que les lignes pertinentes (pas de date vide/placeholder, voir
-// statistiquesService.listerDossiersParIndicateurs).
+// complet, pas seulement ce qui tombe dans la période KPI en cours.
+// date_test_planifie reste MIN() : première planification, cohérent avec le délai
+// "inscription → test" (voir plus bas). date_verdict est en revanche MAX() depuis le correctif du
+// 2026-09-02 (audit dashboard, dossier #88, décision utilisateur : "c'est la DERNIÈRE évaluation qui
+// fait foi partout") — la PREMIÈRE évaluation (MIN, avant ce correctif) pouvait ne plus correspondre
+// au verdict réellement affiché par le badge "Indicateurs" (statistiquesRepository.listerVerdicts,
+// lui aussi corrigé pour ne retenir que la dernière évaluation) : un dossier retesté avec succès
+// après un premier échec affichait encore la date ET le résultat de l'échec initial en "Dates clés",
+// alors que son badge affichait "Test réussi" — colonne vide au final, aucune ligne `datesCles` ne
+// portait le code `verdict_valide` attendu par l'alignement (voir construireColonnesAlignees,
+// TableauDossiersSelectionnes.jsx). NULL si aucune évaluation n'existe encore — laissé tel quel,
+// c'est justement ce qui permet au front de n'afficher que les lignes pertinentes (pas de date
+// vide/placeholder, voir statistiquesService.listerDossiersParIndicateurs).
 //
 // evaluation_verdict : deuxième jointure sur `evaluations`, cette fois pour récupérer
 // resultat_global/orientation de LA évaluation dont la date correspond exactement à date_verdict
@@ -477,7 +484,12 @@ function obtenirDerniereModification(bd, entiteId) {
 // statut sont insérées ensemble par evaluationEngine), vérifié bit à bit sur les dossiers #74/#88.
 // LEFT JOIN LATERAL (pas INNER) : un dossier sans verdict encore (date_verdict NULL) doit rester
 // dans le résultat, simplement sans ligne de délai "test → verdict" (filtré côté front, voir
-// TableauDossiersSelectionnes.jsx).
+// TableauDossiersSelectionnes.jsx). Conséquence du correctif du 2026-09-02 ci-dessus (date_verdict
+// passé de MIN à MAX) : cette borne suit désormais la DERNIÈRE évaluation, pas la première — sans
+// effet sur la tuile/agrégat "délai test → verdict" elle-même (statistiquesRepository.
+// delaiTestVersVerdict, entièrement indépendante de `evaluations`), seulement sur cette ligne de
+// détail par dossier, aujourd'hui inatteignable depuis l'écran (plus de tuile pour sélectionner
+// `delai_test_verdict`, voir Indicateurs.jsx).
 // Date d'ENTRÉE dans un statut donné (MAX(historique_statuts.date_changement) pour ce code) —
 // même calcul que listerSuiviFormation.dates_entree_formation plus haut, généralisé à un code
 // arbitraire pour les 4 nouvelles cartes "Effectifs par statut" (audit tableau de bord 2026-08-31,
@@ -542,7 +554,7 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
     .leftJoin(
       bd('evaluations')
         .groupBy('evaluations.dossier_id')
-        .select('evaluations.dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_verdict'))
+        .select('evaluations.dossier_id', bd.raw('MAX(evaluations.date_evaluation) as date_verdict'))
         .as('dates_verdict'),
       'dates_verdict.dossier_id',
       'dossiers.id',
