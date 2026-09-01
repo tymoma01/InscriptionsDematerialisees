@@ -75,12 +75,13 @@ function varianteStatut(code) {
 // affiché à côté, contrairement aux indicateurs renommés ci-dessus. Son ambiguïté à lui est d'une
 // autre nature (moyenne de période vs valeur par dossier) — traitée au niveau des TUILES agrégées
 // (voir `title`/`.indicateurs__tuile-precision` plus bas), pas ici.
-// `delai_inscription_test` : renommé le 2026-09-02 (décision utilisateur) — "Délai inscription →
-// envoi en test" plutôt que "Délai inscription → test" (badge)/"Délai moyen inscription → test
-// planifié" (tuile, voir plus bas) : "test" seul prêtait à confusion avec le statut "Test planifié"
-// déjà affiché à côté, alors que l'événement mesuré est bien l'ENVOI en test (transition vers
-// test_planifie), pas le déroulement du test lui-même. Logique de calcul strictement inchangée
-// (statistiquesRepository.delaiInscriptionVersTestPlanifie) — uniquement le texte affiché.
+// `delai_inscription_test` : renommé le 2026-09-02 (décision utilisateur) — "Délai Inscription →
+// Envoi en test" (casse du "E" puis du "I" corrigée le même jour) plutôt que "Délai inscription →
+// test" (badge)/"Délai moyen inscription → test planifié" (tuile, voir plus bas) : "test" seul prêtait à
+// confusion avec le statut "Test planifié" déjà affiché à côté, alors que l'événement mesuré est
+// bien l'ENVOI en test (transition vers test_planifie), pas le déroulement du test lui-même.
+// Logique de calcul strictement inchangée (statistiquesRepository.delaiInscriptionVersTestPlanifie)
+// — uniquement le texte affiché.
 // `orientation_envoi_formation`/`orientation_pret_embauche` : "Envoyé en formation"/"Prêt à
 // l'embauche" (décision utilisateur, 2026-08-12) — remplace "Orienté formation"/"Orienté embauche"
 // pour rester au plus près du texte déjà utilisé ailleurs sur l'écran (légende du camembert
@@ -98,7 +99,7 @@ const LIBELLES_INDICATEURS = {
   inscrits: 'Inscrit',
   envoyes_en_test: 'Envoyé en test',
   conversion: 'Retenu',
-  delai_inscription_test: 'Délai inscription → envoi en test',
+  delai_inscription_test: 'Délai Inscription → Envoi en test',
   delai_test_verdict: 'Délai test → verdict',
   // Introduit le 2026-09-01 (audit tableau de bord 2026-08-31, point #5) — remplace la tuile
   // "Délai moyen test → verdict" ci-dessus (delai_test_verdict reste un code back-end valide, mais
@@ -122,7 +123,7 @@ const LIBELLES_INDICATEURS = {
 // même hérité de l'ordre du Set `selectionIndicateurs` (ordre d'insertion = ordre de clic).
 const ORDRE_CANONIQUE_INDICATEURS = Object.keys(LIBELLES_INDICATEURS);
 
-// Tuiles "Délai moyen inscription → envoi en test"/"Délai moyen formation" — clarification
+// Tuiles "Délai moyen Inscription → Envoi en test"/"Délai moyen formation" — clarification
 // d'audit, 2026-08-11 : le chiffre affiché ici est une MOYENNE en jours ÉCOULÉS (temps réel,
 // valeur fractionnaire arrondie à 1 décimale, voir statistiquesService.versMoyenneJours) sur TOUS
 // les dossiers de la période, alors que la même mesure affichée PAR DOSSIER dans la colonne
@@ -899,7 +900,7 @@ export default function Indicateurs() {
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours ?? '-'} j
                 </span>
-                <span className="indicateurs__tuile-libelle">Délai moyen inscription → envoi en test</span>
+                <span className="indicateurs__tuile-libelle">Délai moyen Inscription → Envoi en test</span>
                 <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
               <button

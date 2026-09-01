@@ -75,7 +75,7 @@
    enfant non textuel s'ajoutait un jour). */
 /* padding vertical resserré (0.65rem, pas var(--espace-moyen)=1rem — audit 2026-08-31, décision
    utilisateur "page sans défilement 1080p") : horizontal inchangé (le texte du libellé le plus
-   long, "Délai moyen inscription → envoi en test", a besoin de sa largeur habituelle), seule la
+   long, "Délai moyen Inscription → Envoi en test", a besoin de sa largeur habituelle), seule la
    hauteur de la carte se resserre. */
 .indicateurs__tuile {
   display: flex;

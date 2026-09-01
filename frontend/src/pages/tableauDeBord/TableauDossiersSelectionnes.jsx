@@ -134,7 +134,7 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
     }
   });
 
-  // Ancre "délai inscription → envoi en test" : insérée juste après "Test planifié" (comme avant).
+  // Ancre "Délai Inscription → Envoi en test" : insérée juste après "Test planifié" (comme avant).
   // dateDebut/dateFin (audit 2026-09-01) : les deux dates brutes du segment, affichées EN PLUS du
   // nombre de jours dans "Dates clés" (voir le rendu de 'delai-valeur' plus bas) — jusqu'ici seul
   // le delta était visible ("8 J"), sans les dates elles-mêmes.
@@ -404,7 +404,7 @@ export default function TableauDossiersSelectionnes({
                       pour que le rapprochement visuel entre les deux colonnes soit immédiat.
                       `indicateurRows` (pas dossier.indicateurs directement) : mêmes badges dans le
                       même ordre, ENTRECOUPÉS de lignes vides là où construireColonnesAlignees a dû
-                      compenser pour que "Délai inscription → envoi en test"/"Délai formation" tombent à
+                      compenser pour que "Délai Inscription → Envoi en test"/"Délai formation" tombent à
                       la même hauteur que leur valeur dans "Dates clés" (voir la colonne suivante) —
                       aucun autre badge n'est concerné (item 4, décision utilisateur 2026-08-11). */}
                   <div className="tableau-dossiers-selectionnes__indicateurs">
