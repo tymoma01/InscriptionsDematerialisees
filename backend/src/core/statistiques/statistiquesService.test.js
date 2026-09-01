@@ -33,12 +33,14 @@ function mockerRepository(t, overrides = {}) {
     delaiInscriptionVersTestPlanifie: async () => ({ moyenne_jours: '5.234', nb_dossiers: '6' }),
     delaiTestVersVerdict: async () => ({ moyenne_jours: null, nb_dossiers: '0' }),
     delaiFormation: async () => ({ moyenne_jours: null, nb_dossiers: '0' }),
-    // Effectifs par statut (audit tableau de bord 2026-08-31) — compterParStatut appelée 3 fois
-    // (une par code de CODES_STATUTS_EFFECTIF_COURANT_ACCECIT, statuts terminaux), et
-    // compterParHistoriqueStatut 1 fois (test_realise, statut transitoire, corrigé en 3e passe —
-    // voir son commentaire dans statistiquesService.js). Valeur par défaut identique pour les
-    // appels multiples tant qu'un test ne la surcharge pas explicitement (voir le test dédié plus
-    // bas, qui distingue les codes par argument). Indispensable, pas juste une bonne pratique : sans
+    // "Effectifs par statut" (audit tableau de bord 2026-08-31, restaurée le 2026-09-02 — décision
+    // affinée, deux sections distinctes) : compterParHistoriqueStatut appelée 1 fois (test_realise),
+    // compterParStatut 3 fois (une par code de CODES_STATUTS_EFFECTIF_COURANT_ACCECIT).
+    // "Volumétrie sur la période" (audit dashboard 2026-09-02) : compterOccurrencesHistorique
+    // appelée 2 fois (une par code de CODES_VOLUMETRIE_HISTORIQUE_ACCECIT),
+    // compterOccurrencesFormationValidee 1 fois. Valeur par défaut identique pour les appels
+    // multiples tant qu'un test ne la surcharge pas explicitement (voir les tests dédiés plus bas,
+    // qui distinguent les codes par argument). Indispensable, pas juste une bonne pratique : sans
     // ces mocks, l'appel tombe sur la VRAIE implémentation du repository et tente une connexion
     // réelle (obtenirKnex n'est PAS intercepté par mockerKnex ici — `const { obtenirKnex } =
     // require(...)` capture la fonction par valeur à l'import, `t.mock.method(db, 'obtenirKnex', ...)`
@@ -46,8 +48,10 @@ function mockerRepository(t, overrides = {}) {
     // `node --test` le temps de l'écrire (constaté en implémentant le correctif précédent) —
     // exactement pourquoi chaque AUTRE appel de repository utilisé par obtenirIndicateursKpi a déjà
     // son propre mock par défaut ci-dessus.
-    compterParStatut: async () => ({ total: '0' }),
     compterParHistoriqueStatut: async () => ({ total: '0' }),
+    compterParStatut: async () => ({ total: '0' }),
+    compterOccurrencesHistorique: async () => ({ total: '0' }),
+    compterOccurrencesFormationValidee: async () => ({ total: '0' }),
   };
   const valeurs = { ...valeursParDefaut, ...overrides };
   for (const [methode, implementation] of Object.entries(valeurs)) {
@@ -102,16 +106,13 @@ test('obtenirIndicateursKpi assemble delaisMoyens.formation à partir de delaiFo
   assert.equal(resultat.delaisMoyens.formation.nbDossiers, 3);
 });
 
-// Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) —
-// compterParStatut appelée une fois par code de CODES_STATUTS_EFFECTIF_ACCECIT (4 appels),
-// résultat assemblé sous `effectifsParStatut` avec CE code de statut comme clé — distingue les 4
-// appels par leur 3e argument (statutCode), même patron que le test "transmet typePoste/poste"
-// plus bas pour un seul appel.
-// Corrigé (audit tableau de bord 2026-08-31, 3e passe) : test_realise (statut TRANSITOIRE) passe
-// désormais par compterParHistoriqueStatut, distinct des 3 autres (statuts TERMINAUX) qui restent
-// sur compterParStatut (statut courant) — voir CODES_STATUTS_EFFECTIF_COURANT_ACCECIT/
-// CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT, statistiquesService.js.
-test('obtenirIndicateursKpi assemble effectifsParStatut : test_realise via compterParHistoriqueStatut, les 3 autres via compterParStatut', async (t) => {
+// Section "Effectifs par statut" (audit tableau de bord 2026-08-31, restaurée le 2026-09-02 —
+// décision affinée, deux sections distinctes plutôt qu'une bascule) — 4 cartes assemblées sous
+// `effectifsParStatut`, toutes DÉDUPLIQUÉES par dossier : test_realise via
+// compterParHistoriqueStatut (statut TRANSITOIRE, historique), les 3 autres via compterParStatut
+// (statuts TERMINAUX, statut courant) — voir les tests SQL dédiés dans statistiquesRepository.test.js
+// pour la garantie countDistinct.
+test('obtenirIndicateursKpi assemble effectifsParStatut : test_realise (historique) + 3 codes statut courant', async (t) => {
   mockerKnex(t);
   const VALEURS_STATUT_COURANT = {
     valide_pret_embauche: '9',
@@ -119,14 +120,8 @@ test('obtenirIndicateursKpi assemble effectifsParStatut : test_realise via compt
     embauche: '1',
   };
   mockerRepository(t, {
-    compterParHistoriqueStatut: async (bd, entiteId, statutCode) => {
-      assert.equal(statutCode, 'test_realise', 'compterParHistoriqueStatut ne doit être appelée que pour test_realise');
-      return { total: '8' };
-    },
-    compterParStatut: async (bd, entiteId, statutCode) => {
-      assert.notEqual(statutCode, 'test_realise', 'test_realise ne doit plus passer par compterParStatut (statut courant)');
-      return { total: VALEURS_STATUT_COURANT[statutCode] ?? '0' };
-    },
+    compterParHistoriqueStatut: async () => ({ total: '8' }),
+    compterParStatut: async (bd, entiteId, statutCode) => ({ total: VALEURS_STATUT_COURANT[statutCode] ?? '0' }),
   });
 
   const resultat = await statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
@@ -139,6 +134,37 @@ test('obtenirIndicateursKpi assemble effectifsParStatut : test_realise via compt
     valide_pret_embauche: 9,
     formation_non_validee: 2,
     embauche: 1,
+  });
+});
+
+// Section "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour :
+// SÉPARÉE de "Effectifs par statut" ci-dessus) — 3 cartes assemblées sous `volumetrieParStatut` :
+// compterOccurrencesHistorique appelée une fois par code de CODES_VOLUMETRIE_HISTORIQUE_ACCECIT (2
+// appels, distingués par leur 3e argument statutCode), compterOccurrencesFormationValidee une fois
+// (clé `formation_validee`). Aucune déduplication attendue nulle part ici — voir les tests SQL
+// dédiés dans statistiquesRepository.test.js pour la garantie "pas de countDistinct/GROUP BY".
+// "Test validé"/"Test invalidé"/"Embauché" n'ont volontairement PAS de déclinaison volumétrique
+// (décision utilisateur : redondant avec l'effectif ou avec le camembert "Tests réussis vs ratés").
+test('obtenirIndicateursKpi assemble volumetrieParStatut : 2 codes historique + formation_validee, sans test_valide/test_invalide', async (t) => {
+  mockerKnex(t);
+  const VALEURS_HISTORIQUE = {
+    test_realise: '8',
+    valide_envoi_formation: '11',
+  };
+  mockerRepository(t, {
+    compterOccurrencesHistorique: async (bd, entiteId, statutCode) => ({ total: VALEURS_HISTORIQUE[statutCode] ?? '0' }),
+    compterOccurrencesFormationValidee: async () => ({ total: '5' }),
+  });
+
+  const resultat = await statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+  });
+
+  assert.deepEqual(resultat.volumetrieParStatut, {
+    test_realise: 8,
+    valide_envoi_formation: 11,
+    formation_validee: 5,
   });
 });
 

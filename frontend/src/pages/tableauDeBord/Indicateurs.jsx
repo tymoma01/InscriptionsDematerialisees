@@ -155,17 +155,42 @@ const VARIANTE_PAR_INDICATEUR = {
 };
 const PREFIXE_POSTE = 'poste:';
 
-// Préfixe des 4 nouvelles cartes "Effectifs par statut" (audit tableau de bord 2026-08-31,
-// décision utilisateur) — GÉNÉRIQUE côté back (statistiquesService.PREFIXE_STATUT,
-// resoudreListeIndicateur), symétrique de PREFIXE_POSTE ci-dessus : basculerIndicateur/
-// selectionIndicateurs n'ont besoin d'aucune adaptation, un code de chaîne quelconque leur suffit
-// déjà (voir plus bas, libelleIndicateur/varianteIndicateur/varianteDateCle étendus pour ce
-// préfixe). CODES_STATUTS_EFFECTIF_ACCECIT : les 4 codes réellement affichés en carte sur cet
-// écran (liste éditoriale, voir la 2nde rangée de tuiles plus bas) — même liste et même ordre que
-// le CODES_STATUTS_EFFECTIF_ACCECIT du back (statistiquesService.js), dupliquée plutôt que
-// partagée (voir CLAUDE.md conventions du projet).
+// Préfixe des 4 cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision
+// utilisateur ; section retirée le 2026-09-02 au profit de "Volumétrie par statut", PUIS restaurée
+// le même jour — décision affinée : deux sections distinctes, pas une bascule, voir
+// CARTES_VOLUMETRIE_ACCECIT plus bas pour la section séparée) — GÉNÉRIQUE côté back
+// (statistiquesService.PREFIXE_STATUT, resoudreListeIndicateur), symétrique de PREFIXE_POSTE
+// ci-dessus : basculerIndicateur/selectionIndicateurs n'ont besoin d'aucune adaptation, un code de
+// chaîne quelconque leur suffit déjà (voir plus bas, libelleIndicateur/varianteIndicateur/
+// varianteDateCle étendus pour ce préfixe). CODES_STATUTS_EFFECTIF_ACCECIT : les 4 codes réellement
+// affichés en carte sur cet écran (liste éditoriale, voir la 2nde rangée de tuiles plus bas) — même
+// liste et même ordre que le CODES_STATUTS_EFFECTIF_ACCECIT du back (statistiquesService.js),
+// dupliquée plutôt que partagée (voir CLAUDE.md conventions du projet).
 const PREFIXE_STATUT = 'statut:';
 const CODES_STATUTS_EFFECTIF_ACCECIT = ['test_realise', 'valide_pret_embauche', 'formation_non_validee', 'embauche'];
+
+// "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour : SÉPARÉE
+// de "Effectifs par statut" ci-dessus, coexiste avec elle plutôt que de la remplacer) — 3 cartes
+// comptant des OCCURRENCES d'événement sur la période, jamais dédupliquées par dossier (charge de
+// travail réelle — sessions de test tenues, formations conduites : un dossier retesté/reformé
+// compte plusieurs fois, voir statistiquesRepository.compterOccurrencesHistorique/
+// compterOccurrencesFormationValidee). PAS de mécanisme de sélection/filtrage ici (contrairement à
+// "Effectifs par statut" et à toutes les autres tuiles de cet écran, voir leur rendu plus bas) :
+// ces cartes sont volontairement de simples compteurs, sans bouton ni tableau consolidé associé —
+// un clic donnerait un nombre de dossiers dédupliqué dans le tableau, incohérent avec le chiffre
+// affiché sur la carte elle-même (même nuance déjà documentée pour "Répartition par poste", ici
+// assumée dès la conception plutôt que découverte après coup). "Test validé"/"Test invalidé"
+// (redondant avec le camembert "Tests réussis vs ratés") et "Embauché" (jugé non pertinent en
+// volume) ne sont volontairement PAS repris ici — décision utilisateur, liste réduite depuis les 8
+// cartes initialement envisagées. `code` correspond aux clés de `indicateurs.volumetrieParStatut`
+// (statistiquesService.js) — PAS au préfixe PREFIXE_STATUT ci-dessus, ces cartes n'étant pas
+// rattachées au mécanisme générique 'statut:<code>'. `variante` reprend la palette déjà en place
+// sur cet écran (voir Indicateurs.css).
+const CARTES_VOLUMETRIE_ACCECIT = [
+  { code: 'test_realise', libelle: 'Sessions de test réalisées', variante: 'violet' },
+  { code: 'valide_envoi_formation', libelle: 'Entrées en formation', variante: 'bleu' },
+  { code: 'formation_validee', libelle: 'Formations validées', variante: 'vert-clair' },
+];
 
 // Libellés des 4 nouvelles cartes — repris tels quels des libellés officiels de statut
 // (workflow.config.json), pas une reformulation propre à la tuile (contrairement à
@@ -918,22 +943,24 @@ export default function Indicateurs() {
             </div>
             </ErrorBoundary>
 
-            {/* "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) —
-                2e rangée séparée sous sous-titre, DISTINCTE des tuiles KPI ci-dessus : celles-ci
-                mesurent un flux/une moyenne sur la période (cohorte, délais), alors que ces 4
-                nouvelles cartes comptent "combien de dossiers sont actuellement à CE statut"
-                (parmi la même cohorte de dossiers créés dans la période, voir
-                statistiquesRepository.compterParStatut) — mélanger les deux familles dans la même
-                grille aurait laissé croire à des grandeurs comparables. Générées par
-                CODES_STATUTS_EFFECTIF_ACCECIT (liste éditoriale des 4 statuts retenus pour cette
-                itération, voir son commentaire plus haut), pas les 4 boutons recopiés en dur :
-                ajouter un 5e statut à surveiller plus tard ne demandera qu'une ligne dans cette
-                liste. Même mécanisme de sélection/filtrage que les tuiles ci-dessus (basculerIndicateur,
-                code 'statut:<code>' résolu génériquement côté back, voir PREFIXE_STATUT) — aucune
-                logique nouvelle ici, seulement l'affichage. `--compacte` (Indicateurs.css) : ces
-                cartes n'ont qu'un libellé + un nombre (pas de précision secondaire comme les deux
-                tuiles de délai ci-dessus), plus resserrées pour absorber cette 2e rangée sans
-                repousser le reste de la page. */}
+            {/* "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur ;
+                retirée le 2026-09-02 lors de la bascule "Volumétrie par statut", puis RESTAURÉE le
+                même jour — décision affinée : deux sections distinctes coexistent, celle-ci et
+                "Volumétrie sur la période" juste en dessous, ce ne sont pas des remplaçantes l'une
+                de l'autre) — 2e rangée séparée sous sous-titre, DISTINCTE des tuiles KPI ci-dessus :
+                celles-ci mesurent un flux/une moyenne sur la période (cohorte, délais), alors que
+                ces 4 cartes comptent "combien de dossiers sont actuellement à CE statut" (parmi la
+                même cohorte de dossiers créés dans la période, voir
+                statistiquesRepository.compterParStatut/compterParHistoriqueStatut, DÉDUPLIQUÉ par
+                dossier) — mélanger les deux familles dans la même grille aurait laissé croire à des
+                grandeurs comparables. Générées par CODES_STATUTS_EFFECTIF_ACCECIT (liste éditoriale
+                des 4 statuts retenus pour cette itération, voir son commentaire plus haut), pas les
+                4 boutons recopiés en dur. Même mécanisme de sélection/filtrage que les tuiles
+                ci-dessus (basculerIndicateur, code 'statut:<code>' résolu génériquement côté back,
+                voir PREFIXE_STATUT) — aucune logique nouvelle ici, seulement l'affichage.
+                `--compacte` (Indicateurs.css) : ces cartes n'ont qu'un libellé + un nombre (pas de
+                précision secondaire comme les deux tuiles de délai ci-dessus), plus resserrées pour
+                absorber cette 2e rangée sans repousser le reste de la page. */}
             <ErrorBoundary titre="Indicateurs (effectifs par statut)">
             <div className="indicateurs__section-effectifs">
               <h2 className="indicateurs__sous-titre">Effectifs par statut</h2>
@@ -953,6 +980,45 @@ export default function Indicateurs() {
                     </button>
                   );
                 })}
+              </div>
+            </div>
+            </ErrorBoundary>
+
+            {/* "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
+                jour : SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule) — 3 cartes,
+                comptent "combien de FOIS cet événement s'est produit" (charge de travail réelle,
+                JAMAIS dédupliquée par dossier : un dossier retesté/reformé compte plusieurs fois,
+                voir statistiquesRepository.compterOccurrencesHistorique/
+                compterOccurrencesFormationValidee) — mélanger avec "Effectifs par statut"
+                aurait laissé croire à des grandeurs comparables, d'où le sous-titre explicite et le
+                style visuellement distinct (bordure en tirets, voir
+                .indicateurs__tuiles--volumetrie/.indicateurs__tuile--volumetrie, Indicateurs.css).
+                Générées par CARTES_VOLUMETRIE_ACCECIT (liste éditoriale, voir son commentaire plus
+                haut), pas les 3 <div> recopiés en dur. `<div>`, PAS `<button>` (contrairement à
+                "Effectifs par statut" et à toutes les autres tuiles de cet écran) : ces cartes sont
+                volontairement de simples compteurs, sans sélection ni tableau consolidé associé
+                (un clic donnerait un nombre de dossiers dédupliqué dans le tableau, incohérent avec
+                le chiffre affiché sur la carte elle-même — même nuance déjà documentée pour
+                "Répartition par poste", ici assumée dès la conception plutôt que découverte après
+                coup). `--compacte` (Indicateurs.css) : mêmes proportions resserrées que les cartes
+                "Effectifs" juste au-dessus. */}
+            <ErrorBoundary titre="Indicateurs (volumétrie sur la période)">
+            <div className="indicateurs__section-volumetrie">
+              <h2 className="indicateurs__sous-titre">Volumétrie sur la période</h2>
+              <p className="indicateurs__sous-texte">
+                Nombre d’occurrences sur la période — un même dossier peut compter plusieurs fois (charge réelle
+                d’activité)
+              </p>
+              <div className="indicateurs__tuiles indicateurs__tuiles--volumetrie">
+                {CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle, variante }) => (
+                  <div
+                    key={code}
+                    className={`indicateurs__tuile indicateurs__tuile--volumetrie indicateurs__tuile--compacte indicateurs__tuile--${variante}`}
+                  >
+                    <span className="indicateurs__tuile-valeur">{indicateurs.volumetrieParStatut[code]}</span>
+                    <span className="indicateurs__tuile-libelle">{libelle}</span>
+                  </div>
+                ))}
               </div>
             </div>
             </ErrorBoundary>

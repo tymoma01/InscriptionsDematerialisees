@@ -49,49 +49,109 @@ test('listerOrientations("envoi_formation") reste inchangé : comparaison sur la
   assert.doesNotMatch(sql, /'envoi_formation'.*CASE WHEN/);
 });
 
-// compterParStatut/listerParStatut (audit tableau de bord 2026-08-31, décision utilisateur) —
-// fonctions GÉNÉRIQUES pour les cartes "Effectifs par statut" : un seul couple de fonctions pour
-// n'importe quel code de statut de l'entité, pas une fonction dédiée par statut (voir
-// statistiquesService.CODES_STATUTS_EFFECTIF_ACCECIT/resoudreListeIndicateur). Ces deux tests
-// verrouillent que n'importe quel `statutCode` produit bien un WHERE sur `statuts.code`, filtré sur
-// la MÊME cohorte (dossiers.date_creation) que compterInscrits/compterDossiersConvertis.
-test('compterParStatut filtre sur le statut COURANT du dossier (jointure statuts) et sur la cohorte date_creation, pour un code de statut arbitraire', () => {
+// compterVerdicts/listerVerdicts/compterOrientations/listerOrientations (correctif 2026-09-02,
+// audit dashboard : dossier #88, 3 évaluations dont 1 invalide puis 2 valides) — ces 4 fonctions
+// doivent désormais toutes exclure les évaluations qui ne sont pas la DERNIÈRE de leur dossier
+// (filtrerDerniereEvaluation, anti-jointure sur `evaluations` elle-même), pour qu'un dossier retesté
+// ne compte/n'apparaisse plus qu'une seule fois, sous son verdict/orientation le plus récent.
+test('compterVerdicts exclut les évaluations qui ne sont pas la DERNIÈRE de leur dossier (anti-jointure sur evaluations)', () => {
+  const sql = statistiquesRepository.compterVerdicts(bd, ENTITE_ID, FILTRES).toString();
+  assert.match(sql, /not exists/i);
+  assert.match(sql, /plus_recente\.dossier_id = evaluations\.dossier_id/);
+  assert.match(sql, /"plus_recente"\."date_evaluation" > evaluations\.date_evaluation/);
+});
+
+test('listerVerdicts exclut les évaluations qui ne sont pas la DERNIÈRE de leur dossier, et ne fait plus de MIN/GROUP BY (un seul candidat possible par dossier)', () => {
+  const sql = statistiquesRepository.listerVerdicts(bd, ENTITE_ID, FILTRES, 'valide').toString();
+  assert.match(sql, /not exists/i);
+  assert.doesNotMatch(sql, /MIN\(evaluations\.date_evaluation\)/);
+  assert.match(sql, /"evaluations"\."date_evaluation" as "date_cle"/);
+});
+
+test('compterOrientations exclut les évaluations qui ne sont pas la DERNIÈRE de leur dossier (toutes confondues, avant le filtre resultat_global)', () => {
+  const sql = statistiquesRepository.compterOrientations(bd, ENTITE_ID, FILTRES).toString();
+  assert.match(sql, /not exists/i);
+  assert.match(sql, /plus_recente\.dossier_id = evaluations\.dossier_id/);
+});
+
+test('listerOrientations exclut les évaluations qui ne sont pas la DERNIÈRE de leur dossier, et ne fait plus de MIN/GROUP BY', () => {
+  const sql = statistiquesRepository.listerOrientations(bd, ENTITE_ID, FILTRES, 'envoi_formation').toString();
+  assert.match(sql, /not exists/i);
+  assert.doesNotMatch(sql, /MIN\(evaluations\.date_evaluation\)/);
+  assert.match(sql, /"evaluations"\."date_evaluation" as "date_cle"/);
+});
+
+// compterParStatut/compterParHistoriqueStatut + listerParStatut/listerParHistoriqueStatut (audit
+// tableau de bord 2026-08-31, décision utilisateur ; retirées le 2026-09-02 lors de la bascule
+// "Volumétrie par statut", puis RESTAURÉES le même jour — décision affinée : deux sections
+// distinctes, "Effectifs par statut" (ces 4 fonctions, dossiers DISTINCTS) et "Volumétrie sur la
+// période" (compterOccurrencesHistorique/compterOccurrencesFormationValidee plus bas, occurrences
+// BRUTES) coexistent, ce ne sont pas des remplaçantes l'une de l'autre). Les fonctions "lister"
+// restent aussi la source du mécanisme générique 'statut:<code>'
+// (statistiquesService.resoudreListeIndicateur), pour n'importe quel code, pas seulement les 4
+// affichés en carte.
+test('compterParStatut filtre sur le statut COURANT du dossier (jointure statuts) et déduplique par countDistinct', () => {
   const sql = statistiquesRepository.compterParStatut(bd, ENTITE_ID, 'embauche', FILTRES).toString();
+  assert.match(sql, /inner join "statuts" on "statuts"\."id" = "dossiers"\."statut_id"/i);
+  assert.match(sql, /"statuts"\."code" = 'embauche'/);
+  assert.match(sql, /count\("dossiers"\."id"\) as "total"/i);
+});
+
+test('compterParHistoriqueStatut filtre sur historique_statuts.date_changement et déduplique par countDistinct(dossier_id)', () => {
+  const sql = statistiquesRepository.compterParHistoriqueStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+  assert.match(sql, /inner join "dossiers" on "dossiers"\."id" = "historique_statuts"\."dossier_id"/i);
+  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
+  assert.match(sql, /count\(distinct "historique_statuts"\."dossier_id"\) as "total"/i);
+});
+
+test('listerParStatut filtre sur le statut COURANT du dossier (jointure statuts) et sur la cohorte date_creation, pour un code de statut arbitraire', () => {
+  const sql = statistiquesRepository.listerParStatut(bd, ENTITE_ID, 'embauche', FILTRES).toString();
   assert.match(sql, /inner join "statuts" on "statuts"\."id" = "dossiers"\."statut_id"/i);
   assert.match(sql, /"statuts"\."code" = 'embauche'/);
   assert.match(sql, /"dossiers"\."date_creation" >=/);
   assert.match(sql, /"dossiers"\."date_creation" </);
-});
-
-test('listerParStatut reprend le même filtre que compterParStatut, avec dossier_id/date_creation en date_cle (même ancre de cohorte que listerInscrits)', () => {
-  const sql = statistiquesRepository.listerParStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
-  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
   assert.match(sql, /"dossiers"\."id" as "dossier_id"/);
   assert.match(sql, /"dossiers"\."date_creation" as "date_cle"/);
 });
 
-// compterParHistoriqueStatut/listerParHistoriqueStatut (audit tableau de bord 2026-08-31, 3e passe,
-// correctif "Test réalisé (effectif)") — même patron EXACT que compterEnvoyesEnTest/
-// listerEnvoyesEnTest ('test_planifie' en dur), généralisé à un statutCode arbitraire : filtre sur
-// historique_statuts.date_changement (pas dossiers.date_creation comme compterParStatut ci-dessus)
-// et compte les dossiers DISTINCTS, peu importe leur statut courant ensuite — nécessaire pour un
-// statut TRANSITOIRE comme test_realise, où compterParStatut (statut courant) donnerait quasi
-// toujours 0.
-test('compterParHistoriqueStatut filtre sur historique_statuts.date_changement (pas dossiers.date_creation) et compte les dossiers DISTINCTS', () => {
-  const sql = statistiquesRepository.compterParHistoriqueStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+test('listerParHistoriqueStatut filtre sur historique_statuts.date_changement (pas dossiers.date_creation), pour un code de statut arbitraire', () => {
+  const sql = statistiquesRepository.listerParHistoriqueStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
   assert.match(sql, /inner join "dossiers" on "dossiers"\."id" = "historique_statuts"\."dossier_id"/i);
   assert.match(sql, /inner join "statuts" on "statuts"\."id" = "historique_statuts"\."statut_id"/i);
   assert.match(sql, /"statuts"\."code" = 'test_realise'/);
   assert.match(sql, /"historique_statuts"\."date_changement" >=/);
   assert.match(sql, /"historique_statuts"\."date_changement" </);
-  assert.match(sql, /count\(distinct "historique_statuts"\."dossier_id"\)/i);
-});
-
-test('listerParHistoriqueStatut reprend le même filtre que compterParHistoriqueStatut, avec MIN(date_changement) en date_cle (même convention que listerEnvoyesEnTest)', () => {
-  const sql = statistiquesRepository.listerParHistoriqueStatut(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
-  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
   assert.match(sql, /group by "historique_statuts"\."dossier_id"/i);
   assert.match(sql, /MIN\(historique_statuts\.date_changement\) as date_cle/);
+});
+
+// Section "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour :
+// SÉPARÉE de "Effectifs par statut" ci-dessus, coexiste avec elle plutôt que de la remplacer) —
+// comptage d'OCCURRENCES, jamais de dossiers distincts. Ces tests verrouillent l'absence de
+// dédoublonnage (pas de countDistinct/GROUP BY) — le point central de cette section, pas un détail
+// accessoire.
+test('compterOccurrencesHistorique compte TOUTES les lignes historique_statuts du bon statut, sans countDistinct ni GROUP BY, pour un code arbitraire', () => {
+  const sql = statistiquesRepository.compterOccurrencesHistorique(bd, ENTITE_ID, 'test_realise', FILTRES).toString();
+  assert.match(sql, /inner join "dossiers" on "dossiers"\."id" = "historique_statuts"\."dossier_id"/i);
+  assert.match(sql, /"statuts"\."code" = 'test_realise'/);
+  assert.doesNotMatch(sql, /distinct/i);
+  assert.doesNotMatch(sql, /group by/i);
+  assert.match(sql, /count\(\*\) as "total"/i);
+});
+
+// Ancrée sur l'ENTRÉE (comme delaiFormation), pas une recherche arrière depuis la sortie (essayé
+// d'abord, abandonné : test_realise et valide_envoi_formation partagent parfois un date_changement
+// RIGOUREUSEMENT IDENTIQUE — même transaction evaluationEngine — rendant une recherche arrière sans
+// tie-breaker non déterministe, démontré sur le dossier #88). Ce test verrouille la direction de
+// recherche (ASC depuis l'entrée), pas l'inverse.
+test('compterOccurrencesFormationValidee part de l\'entrée valide_envoi_formation et cherche la PROCHAINE occurrence (ASC), pas une recherche arrière depuis la sortie', () => {
+  const sql = statistiquesRepository.compterOccurrencesFormationValidee(bd, ENTITE_ID, FILTRES).toString();
+  assert.match(sql, /"statut_entree"\."code" = 'valide_envoi_formation'/);
+  assert.match(sql, /"sortie"\."code" = 'valide_pret_embauche'/);
+  assert.match(sql, /ORDER BY hs\.date_changement ASC\s*\n?\s*LIMIT 1/);
+  assert.doesNotMatch(sql, /ORDER BY hs\.date_changement DESC/);
+  assert.doesNotMatch(sql, /distinct/i);
+  assert.doesNotMatch(sql, /group by/i);
 });
 
 // delaiTestVersVerdict/listerDelaiTestVersVerdict (correctif 2026-09-01, audit tableau de bord

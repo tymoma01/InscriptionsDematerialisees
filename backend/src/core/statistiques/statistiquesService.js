@@ -65,17 +65,19 @@ function versMoyenneJours(valeur) {
 }
 
 // Codes des 4 cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision
-// utilisateur — liste minimale validée, 3 autres reportées à une itération future) — propres à
-// ACCECIT (voir Modularité, CLAUDE.md : ce fichier porte déjà des codes de statut en dur pour
-// d'autres statistiques, ex. 'test_planifie' dans compterEnvoyesEnTest, même précédent).
+// utilisateur — liste minimale validée, 3 autres reportées à une itération future ; section
+// retirée le 2026-09-02 au profit de "Volumétrie par statut", PUIS restaurée le même jour —
+// décision affinée : deux sections distinctes, pas une bascule, voir CODES_VOLUMETRIE_ACCECIT plus
+// bas pour la section séparée) — propres à ACCECIT (voir Modularité, CLAUDE.md : ce fichier porte
+// déjà des codes de statut en dur pour d'autres statistiques, ex. 'test_planifie' dans
+// compterEnvoyesEnTest, même précédent).
 //
 // 'test_realise' à PART (3e passe, correctif) : statut TRANSITOIRE (le dossier n'y reste que le
 // temps de recevoir son verdict, valide_pret_embauche/valide_envoi_formation/invalide) — compté
 // sur son HISTORIQUE (compterParHistoriqueStatut, au moins une entrée dans la période), pas sur le
 // statut COURANT (compterParStatut), qui donnait quasi toujours 0/proche de 0 pour ce genre de
-// statut (confirmé par audit : 9 dossiers passés par test_realise sur la période testée, mais 0
-// encore à ce statut aujourd'hui — tous déjà sortis vers un verdict). Même patron EXACT que
-// "Envoyé en test" (compterEnvoyesEnTest, 'test_planifie' — lui aussi transitoire).
+// statut. Même patron EXACT que "Envoyé en test" (compterEnvoyesEnTest, 'test_planifie' — lui aussi
+// transitoire).
 //
 // Les 3 autres (valide_pret_embauche/formation_non_validee/embauche) restent sur le statut COURANT
 // (compterParStatut) : ce sont des statuts TERMINAUX, un dossier y reste — l'effectif "combien
@@ -83,6 +85,20 @@ function versMoyenneJours(valeur) {
 // test_realise.
 const CODES_STATUTS_EFFECTIF_COURANT_ACCECIT = ['valide_pret_embauche', 'formation_non_validee', 'embauche'];
 const CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT = 'test_realise';
+
+// Section "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour :
+// SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule) — 3 cartes seulement (décision
+// utilisateur, liste réduite depuis les 8 initialement envisagées) comptant des OCCURRENCES
+// d'événement, jamais dédupliquées par dossier : "combien de fois" plutôt que "combien de dossiers
+// distincts" (charge de travail réelle — sessions de test tenues, formations conduites).
+// "Sessions de test réalisées"/"Entrées en formation" reposent sur historique_statuts
+// (compterOccurrencesHistorique, GÉNÉRIQUE) ; "Formations validées" sur historique_statuts avec
+// distinction par occurrence suivante (compterOccurrencesFormationValidee, seul cas où
+// valide_pret_embauche a deux origines possibles). "Test validé"/"Test invalidé" (redondant avec le
+// camembert "Tests réussis vs ratés") et les versions volume de "Embauché"/"Validé - prêt à
+// l'embauche"/"Formation non validée" (jugées non pertinentes hors de leur effectif) ne sont pas
+// reprises ici. Liste éditoriale, propre à ACCECIT (voir Modularité, CLAUDE.md).
+const CODES_VOLUMETRIE_HISTORIQUE_ACCECIT = ['test_realise', 'valide_envoi_formation'];
 
 async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, poste }) {
   validerCoherencePosteTypePoste({ typePoste, poste });
@@ -103,6 +119,8 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     delaiFormation,
     effectifTestRealise,
     effectifsParStatutCourantBruts,
+    volumetrieHistoriqueBrute,
+    volumetrieFormationValidee,
   ] = await Promise.all([
     statistiquesRepository.compterInscrits(bd, entite.id, filtres),
     statistiquesRepository.compterEnvoyesEnTest(bd, entite.id, filtres),
@@ -121,12 +139,28 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
         statistiquesRepository.compterParStatut(bd, entite.id, statutCode, filtres),
       ),
     ),
+    Promise.all(
+      CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.map((statutCode) =>
+        statistiquesRepository.compterOccurrencesHistorique(bd, entite.id, statutCode, filtres),
+      ),
+    ),
+    statistiquesRepository.compterOccurrencesFormationValidee(bd, entite.id, filtres),
   ]);
 
+  // "Effectifs par statut" (dossiers DISTINCTS, voir CODES_STATUTS_EFFECTIF_COURANT_ACCECIT/
+  // CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT plus haut).
   const effectifsParStatut = { [CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT]: versNombre(effectifTestRealise.total) };
   CODES_STATUTS_EFFECTIF_COURANT_ACCECIT.forEach((statutCode, index) => {
     effectifsParStatut[statutCode] = versNombre(effectifsParStatutCourantBruts[index].total);
   });
+
+  // "Volumétrie sur la période" (audit dashboard 2026-09-02) — 3 cartes, décomptes d'OCCURRENCES,
+  // jamais de dossiers distincts (voir CODES_VOLUMETRIE_HISTORIQUE_ACCECIT plus haut).
+  const volumetrieParStatut = {};
+  CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.forEach((statutCode, index) => {
+    volumetrieParStatut[statutCode] = versNombre(volumetrieHistoriqueBrute[index].total);
+  });
+  volumetrieParStatut.formation_validee = versNombre(volumetrieFormationValidee.total);
 
   const totalInscrits = versNombre(inscrits.total);
   const totalConvertis = versNombre(dossiersConvertis.total);
@@ -194,6 +228,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
       },
     },
     effectifsParStatut,
+    volumetrieParStatut,
   };
 }
 
@@ -225,12 +260,14 @@ const CODES_INDICATEURS_STATIQUES = [
 
 const PREFIXE_POSTE = 'poste:';
 
-// Préfixe des indicateurs "effectif par statut" (audit tableau de bord 2026-08-31, décision
+// Préfixe des indicateurs "statut du dossier" (audit tableau de bord 2026-08-31, décision
 // utilisateur) — GÉNÉRIQUE, symétrique de PREFIXE_POSTE ci-dessus : n'importe quel code de statut
-// de l'entité, pas seulement les 4 codes de CODES_STATUTS_EFFECTIF_ACCECIT (qui ne pilotent que
-// l'affichage des cartes du tableau de bord, voir plus haut) — un indicateur 'statut:<code>' non
-// affiché en carte resterait malgré tout résoluble ici si jamais un autre appelant le sélectionnait
-// un jour (même logique que 'poste:<code>', jamais limité à un sous-ensemble figé).
+// de l'entité, pas seulement ceux qui pilotaient l'affichage des cartes "Effectifs par statut"
+// (section retirée le 2026-09-02, remplacée par "Volumétrie par statut", voir
+// CODES_VOLUMETRIE_HISTORIQUE_ACCECIT plus haut, qui n'utilise pas ce préfixe) — un indicateur
+// 'statut:<code>' reste résoluble ici même sans aucune carte pour le sélectionner sur cet écran
+// (même logique que 'poste:<code>'/'delai_test_verdict', jamais limité aux seuls codes affichés en
+// carte).
 const PREFIXE_STATUT = 'statut:';
 
 // Une seule fonction de résolution code -> requête "liste de dossiers", pour que
@@ -275,11 +312,12 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
       // inconnu renvoie simplement une liste vide (voir statistiquesRepository.listerParStatut),
       // jamais une erreur.
       //
-      // 'test_realise' (CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT ci-dessus) fait exception : la LISTE
-      // de dossiers doit suivre la même logique HISTORIQUE que le CHIFFRE de sa carte
-      // (compterParHistoriqueStatut/obtenirIndicateursKpi, audit 2026-08-31 3e passe) — sinon le
-      // clic sur cette carte afficherait un chiffre positif mais un tableau "Dossiers sélectionnés"
-      // vide (statut courant quasi jamais test_realise, voir son commentaire plus haut).
+      // 'test_realise' (CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT ci-dessus) fait exception : c'est un
+      // statut TRANSITOIRE (le dossier n'y reste que le temps de recevoir son verdict), son statut
+      // COURANT n'a donc quasi jamais cette valeur — listerParStatut (statut courant) y renverrait
+      // presque toujours une liste vide. listerParHistoriqueStatut (au moins une entrée dans la
+      // période, peu importe le statut courant ensuite) reste la seule variante cohérente pour ce
+      // code précis, qu'un éventuel appelant soit encore lié à une carte ou non.
       if (code.startsWith(PREFIXE_STATUT)) {
         const statutCode = code.slice(PREFIXE_STATUT.length);
         if (statutCode === CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT) {

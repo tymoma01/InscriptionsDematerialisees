@@ -266,10 +266,11 @@
   font-size: 1.15rem;
 }
 
-/* "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) — pas de gap
-   propre ici : cette section est un enfant flex de .indicateurs__contenu-principal, déjà espacé
-   des tuiles KPI au-dessus et des graphiques en dessous par le `gap` de ce parent (même principe
-   que .indicateurs__tuiles/.indicateurs__graphiques, qui n'ont eux non plus aucune marge propre). */
+/* "Effectifs par statut"/"Volumétrie sur la période" (audit tableau de bord 2026-08-31 et
+   2026-09-02, décisions utilisateur) — pas de gap propre ici : chaque section est un enfant flex
+   de .indicateurs__contenu-principal, déjà espacé des tuiles KPI au-dessus et des graphiques en
+   dessous par le `gap` de ce parent (même principe que .indicateurs__tuiles/.indicateurs__graphiques,
+   qui n'ont eux non plus aucune marge propre). */
 .indicateurs__sous-titre {
   margin: 0 0 var(--espace-petit) 0;
   font-size: 0.95rem;
@@ -277,11 +278,35 @@
   color: var(--couleur-texte-secondaire);
 }
 
+/* Sous-texte de "Volumétrie sur la période" (audit dashboard 2026-09-02, décision utilisateur) —
+   précise la nature "occurrences, pas dossiers distincts" de cette section, à distinguer de
+   "Effectifs par statut" juste au-dessus. Discret (petit, italique, couleur secondaire) : une note
+   de lecture, pas un second sous-titre. */
+.indicateurs__sous-texte {
+  margin: 0 0 var(--espace-petit) 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--couleur-texte-secondaire);
+}
+
 /* Gap resserré (var(--espace-petit), pas --espace-moyen comme .indicateurs__tuiles de base) : ces
-   4 cartes compactes n'ont pas besoin du même espacement que les 5 tuiles KPI plus grandes
-   au-dessus — contribue à absorber la 2e rangée sans repousser le reste de la page. */
-.indicateurs__tuiles--effectifs {
+   cartes compactes n'ont pas besoin du même espacement que les 5 tuiles KPI plus grandes
+   au-dessus — contribue à absorber ces rangées supplémentaires sans repousser le reste de la page. */
+.indicateurs__tuiles--effectifs,
+.indicateurs__tuiles--volumetrie {
   gap: var(--espace-petit);
+}
+
+/* Différenciation visuelle de "Volumétrie sur la période" vis-à-vis de "Effectifs par statut"
+   (décision utilisateur, 2026-09-02 : "bordure ou icône distincte") — bordure en tirets plutôt
+   qu'une nouvelle couleur : la couleur de fond reste porteuse du sens (famille test/formation, même
+   palette que partout ailleurs sur cet écran), la bordure en tirets porte seule la distinction
+   "occurrences brutes, pas un effectif dédupliqué". `!important` non nécessaire : cette classe est
+   déclarée après .indicateurs__tuile--<variante> dans le DOM (voir Indicateurs.jsx, l'ordre des
+   classes n'influence pas la spécificité CSS, mais border-style ne fait ici l'objet d'aucune autre
+   règle contradictoire). */
+.indicateurs__tuile--volumetrie {
+  border-style: dashed;
 }
 
 /* Deux colonnes fixes plutôt qu'auto-fit(minmax(320px, 1fr)) : avec 3 éléments dans cette grille

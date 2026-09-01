@@ -70,6 +70,28 @@ function filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste } = 
   return requete;
 }
 
+// Ne retient que la DERNIÈRE évaluation de chaque dossier (décision utilisateur, 2026-09-02, audit
+// dashboard : dossier #88, 3 évaluations sur la même période — 1 invalide puis 2 valides) — un
+// dossier retesté plusieurs fois n'a qu'UN SEUL verdict/orientation qui fait foi : le plus récent,
+// jamais le premier ni un simple COUNT sur toutes les lignes. Anti-jointure sur `evaluations`
+// elle-même (aucune ligne `plus_recente` postérieure pour ce dossier), même patron que
+// delaiInscriptionVersTestPlanifie ci-dessous pour la PREMIÈRE occurrence (whereNotExists), mais
+// inversé (`>` au lieu de `<`) pour la DERNIÈRE. Corrige le bug où un dossier retesté pouvait
+// apparaître à la fois dans "Test réussi" ET "Test raté" (compterVerdicts/listerVerdicts comptaient
+// des LIGNES d'évaluation, pas des dossiers), et sur-contribuer à "Formation vs prêt à l'embauche"
+// (compterOrientations/listerOrientations). Appelée sur la table `evaluations` non aliasée : reste
+// compatible avec filtrerPostesEvaluationParSemiJoin ci-dessus (qui référence `evaluations.id` en
+// dur), pas de paramètre d'alias nécessaire — tous les appelants de ce fichier utilisent
+// bd('evaluations') sans alias.
+function filtrerDerniereEvaluation(requete, bd) {
+  return requete.whereNotExists(function () {
+    this.select(1)
+      .from('evaluations as plus_recente')
+      .whereRaw('plus_recente.dossier_id = evaluations.dossier_id')
+      .andWhere('plus_recente.date_evaluation', '>', bd.raw('evaluations.date_evaluation'));
+  });
+}
+
 // Stat 1 — nombre d'inscrits (dossiers créés) sur la période, pour l'entité courante.
 function compterInscrits(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('dossiers')
@@ -101,13 +123,18 @@ function compterEnvoyesEnTest(bd, entiteId, { debut, finExclusive, typePoste, po
   return requete.countDistinct('historique_statuts.dossier_id as total').first();
 }
 
-// Stat 3 — verdicts (evaluations.resultat_global), groupés, sur la période.
+// Stat 3 — verdicts (evaluations.resultat_global), groupés, sur la période. Correctif 2026-09-02
+// (audit dashboard, dossier #88) : ne compte plus que la DERNIÈRE évaluation de chaque dossier
+// (filtrerDerniereEvaluation ci-dessus) — un dossier avec plusieurs évaluations sur la période
+// (retest après échec) ne doit compter qu'une fois, sous son verdict le plus récent, jamais sous
+// les deux à la fois.
 function compterVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
     .where('dossiers.entite_id', entiteId)
     .andWhere('evaluations.date_evaluation', '>=', debut)
     .andWhere('evaluations.date_evaluation', '<', finExclusive);
+  filtrerDerniereEvaluation(requete, bd);
   filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
   return requete.groupBy('evaluations.resultat_global').select('evaluations.resultat_global').count('evaluations.id as total');
 }
@@ -136,7 +163,13 @@ const ORIENTATION_EFFECTIVE_SQL = `
 `;
 
 // Stat 4 — orientation EFFECTIVE (voir ORIENTATION_EFFECTIVE_SQL ci-dessus), uniquement pour les
-// verdicts positifs, groupée, sur la période.
+// verdicts positifs, groupée, sur la période. Correctif 2026-09-02 (même audit, même raison que
+// compterVerdicts ci-dessus) : filtrerDerniereEvaluation retient la DERNIÈRE évaluation du dossier,
+// TOUTES confondues (avant le filtre resultat_global='valide' ci-dessous) — un dossier dont la
+// dernière évaluation est invalide n'a par définition plus d'orientation à afficher, même s'il a eu
+// une évaluation valide plus tôt ; un dossier dont la dernière évaluation est valide ne contribue
+// qu'une fois à son orientation, même s'il a plusieurs évaluations valides (dossier #88 : 2
+// évaluations valides à la même orientation, comptait pour 2 avant ce correctif).
 function compterOrientations(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
@@ -145,6 +178,7 @@ function compterOrientations(bd, entiteId, { debut, finExclusive, typePoste, pos
     .andWhere('evaluations.resultat_global', 'valide')
     .andWhere('evaluations.date_evaluation', '>=', debut)
     .andWhere('evaluations.date_evaluation', '<', finExclusive);
+  filtrerDerniereEvaluation(requete, bd);
   filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
   return requete
     .groupByRaw(ORIENTATION_EFFECTIVE_SQL)
@@ -170,17 +204,19 @@ function compterDossiersConvertis(bd, entiteId, { debut, finExclusive, typePoste
   return requete.count('dossiers.id as total').first();
 }
 
-// Stat 5bis — effectif de dossiers dont le STATUT COURANT (dossiers.statut_id) est `statutCode`,
-// sur la MÊME cohorte que compterInscrits/compterDossiersConvertis ci-dessus (dossiers créés dans
-// la période) — GÉNÉRIQUE (voir Modularité, CLAUDE.md) : une seule fonction pour n'importe quel
-// code de statut de l'entité, symétrique du filtre poste 'poste:<code>' déjà en place
-// (requeteBaseRepartitionParPoste plus bas) — audit tableau de bord 2026-08-31, décision
-// utilisateur : remplace ce qui aurait été 4 fonctions dédiées (une par nouvelle carte "effectif").
-// Aucune validation de `statutCode` ici (contrairement au poste, comparé à POSTES_BUREAU/HOTEL) :
-// un code inconnu de l'entité renvoie simplement 0/une liste vide (le WHERE ne trouve rien), pas
-// d'erreur — ce module n'a pas connaissance de la liste des statuts valides d'une entité (elle
-// vit en config, voir workflow.config.json), la valider imposerait une dépendance supplémentaire
-// pour un bénéfice marginal (un code invalide ne peut de toute façon rien casser).
+// Stat 5bis — effectif de dossiers DISTINCTS dont le STATUT COURANT (dossiers.statut_id) est
+// `statutCode`, sur la MÊME cohorte que compterInscrits/compterDossiersConvertis ci-dessus
+// (dossiers créés dans la période) — GÉNÉRIQUE (voir Modularité, CLAUDE.md) : une seule fonction
+// pour n'importe quel code de statut de l'entité, symétrique du filtre poste 'poste:<code>' déjà en
+// place (requeteBaseRepartitionParPoste plus bas). Aucune validation de `statutCode` ici
+// (contrairement au poste, comparé à POSTES_BUREAU/HOTEL) : un code inconnu de l'entité renvoie
+// simplement 0/une liste vide, pas d'erreur.
+//
+// Alimente la section "Effectifs par statut" (retirée le 2026-09-02 pour "Volumétrie par statut",
+// PUIS restaurée le même jour — décision affinée : deux sections distinctes, une carte "effectif"
+// n'a pas la même valeur métier qu'une carte "volume d'occurrences", pas de raison de choisir entre
+// les deux). Voir plus bas (compterOccurrencesHistorique/compterOccurrencesFormationValidee) pour
+// la section "Volumétrie sur la période", séparée, qui coexiste désormais avec celle-ci.
 function compterParStatut(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('dossiers')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -217,16 +253,12 @@ function listerParStatut(bd, entiteId, statutCode, { debut, finExclusive, typePo
 }
 
 // Effectif "historique" — nombre de dossiers DISTINCTS ayant eu AU MOINS UNE ligne
-// historique_statuts avec ce statutCode dans la période, peu importe leur statut COURANT ensuite
-// (audit tableau de bord 2026-08-31, 3e passe, décision utilisateur — corrige "Test réalisé
-// (effectif)", qui utilisait à tort compterParStatut/statut COURANT : test_realise est un statut
-// TRANSITOIRE, un dossier n'y reste que le temps de recevoir son verdict, donnant quasi toujours
-// 0/proche de 0 avec cette approche). GÉNÉRIQUE, comme compterParStatut/listerParStatut ci-dessus,
-// mais sur historique_statuts plutôt que sur le statut courant de `dossiers` — même patron EXACT
-// que compterEnvoyesEnTest/listerEnvoyesEnTest ('test_planifie' en dur), généralisé à un statutCode
-// arbitraire pour ne pas dupliquer une 3e fois la même requête. compterEnvoyesEnTest/
-// listerEnvoyesEnTest restent volontairement INTACTES (pas refactorées pour appeler celle-ci) :
-// fonctions déjà testées, aucune raison de les toucher pour ce correctif scopé à test_realise.
+// historique_statuts avec ce statutCode dans la période, peu importe leur statut COURANT ensuite —
+// nécessaire pour un statut TRANSITOIRE comme test_realise (le dossier n'y reste que le temps de
+// recevoir son verdict), où compterParStatut (statut courant) donnerait quasi toujours 0. GÉNÉRIQUE,
+// comme compterParStatut/listerParStatut ci-dessus, mais sur historique_statuts plutôt que sur le
+// statut courant de `dossiers`. Alimente elle aussi "Effectifs par statut" (voir compterParStatut
+// ci-dessus pour l'historique de cette section).
 function compterParHistoriqueStatut(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('historique_statuts')
     .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
@@ -259,6 +291,92 @@ function listerParHistoriqueStatut(bd, entiteId, statutCode, { debut, finExclusi
   return requete
     .groupBy('historique_statuts.dossier_id')
     .select('historique_statuts.dossier_id as dossier_id', bd.raw('MIN(historique_statuts.date_changement) as date_cle'));
+}
+
+// --- Section "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
+// jour : SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule — les deux sections
+// coexistent, une carte "effectif" et une carte "volume d'occurrences" répondent à des questions
+// différentes, pas interchangeables) ---
+//
+// Les fonctions ci-dessous répondent à "combien de FOIS cet événement s'est produit sur la
+// période" (charge de travail réelle — sessions de test tenues, formations conduites),
+// VOLONTAIREMENT non dédupliquée : un dossier repassé plusieurs fois par le même événement (retest,
+// reformation) compte donc plusieurs fois ici, contrairement à compterParStatut/
+// compterParHistoriqueStatut ci-dessus (dossiers DISTINCTS, section "Effectifs par statut") — aucune
+// de ces fonctions n'appelle countDistinct/GROUP BY : la non-déduplication est le point, pas un
+// oubli. Seulement 3 cartes retenues (décision utilisateur) : "Sessions de test réalisées",
+// "Entrées en formation", "Formations validées" — "Test validé"/"Test invalidé" (redondant avec le
+// camembert "Tests réussis vs ratés") et "Embauché"/"Validé - prêt à l'embauche"/"Formation non
+// validée" en version volume (jugés non pertinents en dehors de leur effectif) ne sont pas repris
+// ici.
+
+// Cartes "Sessions de test réalisées" et "Entrées en formation" — GÉNÉRIQUE (statutCode arbitraire),
+// un simple COUNT(*) sur historique_statuts suffit pour ces deux codes (test_realise,
+// valide_envoi_formation) : chacun n'a qu'UNE SEULE transition source dans workflow.config.json,
+// donc pas besoin de connaître le codeAction (toujours absent d'historique_statuts) pour identifier
+// l'événement — le statut de destination suffit à lui seul. Contrairement à valide_pret_embauche
+// (deux origines possibles, voir compterOccurrencesFormationValidee ci-dessous), aucune ambiguïté
+// ici.
+function compterOccurrencesHistorique(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts')
+    .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statuts.code', statutCode)
+    .andWhere('historique_statuts.date_changement', '>=', debut)
+    .andWhere('historique_statuts.date_changement', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.count('* as total').first();
+}
+
+// Carte "Formation validée" — DISTINCTE de compterOccurrencesHistorique(..., 'valide_pret_embauche')
+// ci-dessus (qui compte TOUTES les entrées dans valide_pret_embauche, filière formation ET filière
+// bureau confondues) : ne retient que celles atteintes DEPUIS valide_envoi_formation, pour
+// distinguer les deux origines possibles de valide_pret_embauche (marquer_formation_validee vs
+// valider_pret_embauche d'evaluationEngine.js), historique_statuts n'ayant toujours aucune colonne
+// code_action — la distinction vient uniquement de la séquence déjà enregistrée.
+//
+// ANCRÉE SUR L'ENTRÉE (comme statistiquesRepository.delaiFormation), PAS sur une recherche arrière
+// depuis la sortie (essayé d'abord, abandonné le 2026-09-02 — audit dashboard, dossier #88) :
+// evaluationEngine insère test_realise ET valide_envoi_formation dans LA MÊME transaction (`now()`
+// figé pour toute la transaction, voir dossierRepository.js) quand un Formateur valide un dossier —
+// les deux lignes historique_statuts partagent alors un date_changement RIGOUREUSEMENT IDENTIQUE.
+// Une recherche arrière ("quel est le prédécesseur immédiat de cette sortie ?", ORDER BY
+// date_changement DESC LIMIT 1 SANS tie-breaker) devient alors non déterministe sur cette égalité :
+// vérifié sur le dossier #88 (sortie du 28/08 14:24:07, prédécesseur réel = valide_envoi_formation
+// à 11:55:57.939, mais la requête arrière renvoyait tantôt test_realise, à la MÊME milliseconde).
+// La recherche AVANT depuis une entrée valide_envoi_formation déjà identifiée sans ambiguïté (JOIN
+// direct sur son propre statut, pas une recherche par égalité de date) puis vers l'occurrence
+// SUIVANTE (ORDER BY ASC, un seul candidat possible : la première ligne strictement postérieure)
+// n'a pas ce problème — c'est le même choix qui rend delaiFormation déjà correct sur ce point.
+function compterOccurrencesFormationValidee(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts as entree')
+    .join('dossiers', 'dossiers.id', 'entree.dossier_id')
+    .join('statuts as statut_entree', 'statut_entree.id', 'entree.statut_id')
+    .joinRaw(
+      `JOIN LATERAL (
+         SELECT hs.date_changement, s.code
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = entree.dossier_id
+           AND hs.date_changement > entree.date_changement
+         ORDER BY hs.date_changement ASC
+         LIMIT 1
+       ) AS sortie ON true`,
+    )
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statut_entree.code', 'valide_envoi_formation')
+    .andWhere('sortie.code', 'valide_pret_embauche')
+    .andWhere('sortie.date_changement', '>=', debut)
+    .andWhere('sortie.date_changement', '<', finExclusive);
+  if (typePoste || poste) {
+    joindreDisponibilitesDossier(requete, bd);
+    filtrerPosteDossier(requete, { typePoste, poste });
+  }
+  return requete.count('* as total').first();
 }
 
 function requeteBaseRepartitionParPoste(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
@@ -535,6 +653,10 @@ function listerEnvoyesEnTest(bd, entiteId, { debut, finExclusive, typePoste, pos
 
 // resultatGlobal : 'valide' | 'invalide' — une des deux entrées du camembert "Tests réussis vs
 // ratés" (Indicateurs.jsx).
+// Correctif 2026-09-02 (voir filtrerDerniereEvaluation/compterVerdicts) : un dossier dont la
+// dernière évaluation ne correspond pas à `resultatGlobal` demandé n'apparaît plus dans cette liste
+// — même si une évaluation ANTÉRIEURE correspondait, elle n'est plus le verdict qui fait foi.
+// `date_cle` = date de cette dernière évaluation (plus jamais MIN, un seul candidat possible ici).
 function listerVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}, resultatGlobal) {
   const requete = bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
@@ -542,10 +664,9 @@ function listerVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste } 
     .andWhere('evaluations.resultat_global', resultatGlobal)
     .andWhere('evaluations.date_evaluation', '>=', debut)
     .andWhere('evaluations.date_evaluation', '<', finExclusive);
+  filtrerDerniereEvaluation(requete, bd);
   filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
-  return requete
-    .groupBy('evaluations.dossier_id')
-    .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
+  return requete.select('evaluations.dossier_id as dossier_id', 'evaluations.date_evaluation as date_cle');
 }
 
 // orientation : 'envoi_formation' | 'pret_embauche' — une des deux entrées du camembert
@@ -555,6 +676,10 @@ function listerVerdicts(bd, entiteId, { debut, finExclusive, typePoste, poste } 
 // (paramètre, 'envoi_formation' ou 'pret_embauche') à l'expression COALESCE reste sans effet pour
 // 'envoi_formation' (jamais produit par la déduction bureau, seulement par la valeur enregistrée),
 // et inclut désormais les dossiers Inspecteur pour 'pret_embauche'.
+// Correctif 2026-09-02 — même principe que listerVerdicts ci-dessus : filtrerDerniereEvaluation
+// retient la dernière évaluation du dossier (toutes confondues) avant de comparer son orientation
+// effective ; un dossier ne peut donc plus apparaître deux fois (une par évaluation valide) dans
+// cette liste.
 function listerOrientations(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}, orientation) {
   const requete = bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
@@ -564,10 +689,9 @@ function listerOrientations(bd, entiteId, { debut, finExclusive, typePoste, post
     .andWhereRaw(`${ORIENTATION_EFFECTIVE_SQL} = ?`, [orientation])
     .andWhere('evaluations.date_evaluation', '>=', debut)
     .andWhere('evaluations.date_evaluation', '<', finExclusive);
+  filtrerDerniereEvaluation(requete, bd);
   filtrerPostesEvaluationParSemiJoin(requete, bd, { typePoste, poste });
-  return requete
-    .groupBy('evaluations.dossier_id')
-    .select('evaluations.dossier_id as dossier_id', bd.raw('MIN(evaluations.date_evaluation) as date_cle'));
+  return requete.select('evaluations.dossier_id as dossier_id', 'evaluations.date_evaluation as date_cle');
 }
 
 function listerDossiersConvertis(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
@@ -739,6 +863,8 @@ module.exports = {
   delaiInscriptionVersTestPlanifie,
   delaiTestVersVerdict,
   delaiFormation,
+  compterOccurrencesHistorique,
+  compterOccurrencesFormationValidee,
   listerInscrits,
   listerEnvoyesEnTest,
   listerVerdicts,
