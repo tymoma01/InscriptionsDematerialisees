@@ -104,7 +104,7 @@ const LIBELLES_INDICATEURS = {
   // Introduit le 2026-09-01 (audit tableau de bord 2026-08-31, point #5) — remplace la tuile
   // "Délai moyen test → verdict" ci-dessus (delai_test_verdict reste un code back-end valide, mais
   // n'a plus de tuile pour le sélectionner sur cet écran).
-  delai_formation: 'Délai formation',
+  delai_formation: 'Délai Test → Formation',
   verdict_valide: 'Test réussi',
   verdict_invalide: 'Test échoué',
   orientation_envoi_formation: 'Envoyé en formation',
@@ -123,7 +123,7 @@ const LIBELLES_INDICATEURS = {
 // même hérité de l'ordre du Set `selectionIndicateurs` (ordre d'insertion = ordre de clic).
 const ORDRE_CANONIQUE_INDICATEURS = Object.keys(LIBELLES_INDICATEURS);
 
-// Tuiles "Délai moyen Inscription → Envoi en test"/"Délai moyen formation" — clarification
+// Tuiles "Délai moyen Inscription → Envoi en test"/"Délai moyen Test → Formation" — clarification
 // d'audit, 2026-08-11 : le chiffre affiché ici est une MOYENNE en jours ÉCOULÉS (temps réel,
 // valeur fractionnaire arrondie à 1 décimale, voir statistiquesService.versMoyenneJours) sur TOUS
 // les dossiers de la période, alors que la même mesure affichée PAR DOSSIER dans la colonne
@@ -912,7 +912,7 @@ export default function Indicateurs() {
                 <span className="indicateurs__tuile-valeur">
                   {indicateurs.delaisMoyens.formation.moyenneJours ?? '-'} j
                 </span>
-                <span className="indicateurs__tuile-libelle">Délai moyen formation</span>
+                <span className="indicateurs__tuile-libelle">Délai moyen Test → Formation</span>
                 <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
             </div>

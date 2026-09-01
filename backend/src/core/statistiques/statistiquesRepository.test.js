@@ -125,22 +125,34 @@ test('listerDelaiTestVersVerdict reprend le même JOIN LATERAL corrigé que dela
   assert.match(sql, /"verdict"\."date_changement" as "date_cle"/);
 });
 
-// delaiFormation/listerDelaiFormation (introduits le 2026-09-01, même audit) — entrée en
-// valide_envoi_formation -> sortie vers valide_pret_embauche OU formation_non_validee, JOIN LATERAL
-// vers la PROCHAINE occurrence (ASC) après l'entrée, filtré sur la date de SORTIE (comme
-// delaiTestVersVerdict filtre sur la date de verdict, pas l'entrée).
-test("delaiFormation filtre sur l'entrée en valide_envoi_formation et apparie à la PROCHAINE sortie (valide_pret_embauche ou formation_non_validee)", () => {
+// delaiFormation/listerDelaiFormation (introduits le 2026-09-01, corrigés le 2026-09-02, audit
+// dashboard dossier #88) — entrée en valide_envoi_formation -> sortie vers valide_pret_embauche OU
+// formation_non_validee. JOIN LATERAL vers le PRÉDÉCESSEUR IMMÉDIAT (n'importe quel statut, pas
+// seulement les deux codes de sortie), retenu seulement si CE prédécesseur est bien l'un des deux —
+// même correctif que delaiTestVersVerdict : avant, le JOIN LATERAL cherchait la PROCHAINE occurrence
+// du bon type dans le futur, peu importe ce qui s'intercalait (ex. un retour en test_planifie via
+// replanifier_test), pouvant apparier une boucle de formation INTERROMPUE à la sortie d'une boucle
+// ULTÉRIEURE (dossier #88 : entrée du 27/08 repartie en test 50 min plus tard, appariée à tort à la
+// sortie du 28/08 14:24 qui appartenait en réalité à l'entrée suivante, déjà correctement comptée).
+test("delaiFormation apparie chaque entrée à son PRÉDÉCESSEUR IMMÉDIAT et exige que ce prédécesseur soit une sortie valide (valide_pret_embauche ou formation_non_validee)", () => {
   const sql = statistiquesRepository.delaiFormation(bd, ENTITE_ID, FILTRES).toString();
   assert.match(sql, /"statut_entree"\."code" = 'valide_envoi_formation'/);
-  assert.match(sql, /s\.code IN \('valide_pret_embauche', 'formation_non_validee'\)/);
+  assert.doesNotMatch(
+    sql,
+    /AND s\.code IN \('valide_pret_embauche', 'formation_non_validee'\)/,
+    'le JOIN LATERAL ne doit plus filtrer sur le type de statut à l’intérieur de la sous-requête (prédécesseur = n’importe quel statut)',
+  );
   assert.match(sql, /ORDER BY hs\.date_changement ASC\s*\n?\s*LIMIT 1/);
+  assert.match(sql, /"sortie"\."code" in \('valide_pret_embauche', 'formation_non_validee'\)/);
   assert.match(sql, /"sortie"\."date_changement" >=/);
   assert.match(sql, /"sortie"\."date_changement" </);
   assert.match(sql, /sortie\.date_changement - entree\.date_changement/);
 });
 
-test('listerDelaiFormation reprend le même JOIN LATERAL que delaiFormation, avec dossier_id/date_cle', () => {
+test('listerDelaiFormation reprend le même JOIN LATERAL corrigé que delaiFormation, avec dossier_id/date_cle', () => {
   const sql = statistiquesRepository.listerDelaiFormation(bd, ENTITE_ID, FILTRES).toString();
+  assert.doesNotMatch(sql, /AND s\.code IN \('valide_pret_embauche', 'formation_non_validee'\)/);
+  assert.match(sql, /"sortie"\."code" in \('valide_pret_embauche', 'formation_non_validee'\)/);
   assert.match(sql, /"statut_entree"\."code" = 'valide_envoi_formation'/);
   assert.match(sql, /"entree"\."dossier_id" as "dossier_id"/);
   assert.match(sql, /"sortie"\."date_changement" as "date_cle"/);

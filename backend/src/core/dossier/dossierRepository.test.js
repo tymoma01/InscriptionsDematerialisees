@@ -51,6 +51,27 @@ test('listerDossiersParIds joint la date d’entrée dans le statut COURANT du d
   assert.match(sql, /"entree_statut_courant"\."date_entree_statut_courant"/);
 });
 
+// Colonne "Dates clés" pour "Délai moyen Test → Formation" (correctif 2026-09-02, audit dashboard
+// dossier #88) — même correctif que statistiquesRepository.delaiFormation : le LEFT JOIN LATERAL
+// sortie_formation doit matcher le PRÉDÉCESSEUR IMMÉDIAT (n'importe quel statut), pas la prochaine
+// occurrence du bon type — la validité de la sortie est vérifiée dans le SELECT final (CASE), pas
+// dans le WHERE de la sous-requête (LEFT JOIN LATERAL doit continuer à matcher même quand la ligne
+// suivante n'est pas une sortie valide).
+test('listerDossiersParIds joint sortie_formation sur le PRÉDÉCESSEUR IMMÉDIAT et filtre la sortie valide via un CASE dans le SELECT (pas dans le WHERE de la sous-requête)', () => {
+  const sql = dossierRepository.listerDossiersParIds(bd, 1, [74, 89]).toString();
+  assert.doesNotMatch(
+    sql,
+    /AND s\.code IN \('valide_pret_embauche', 'formation_non_validee'\)/,
+    'le LEFT JOIN LATERAL sortie_formation ne doit plus filtrer sur le type de statut dans la sous-requête',
+  );
+  assert.match(sql, /SELECT hs\.date_changement, s\.code\s*\n?\s*FROM historique_statuts hs/);
+  assert.match(sql, /hs\.date_changement > dates_valide_envoi_formation\.date_entree_valide_envoi_formation/);
+  assert.match(
+    sql,
+    /CASE WHEN sortie_formation\.code IN \('valide_pret_embauche', 'formation_non_validee'\)\s*\n?\s*THEN sortie_formation\.date_changement\s*\n?\s*END as date_sortie_formation/,
+  );
+});
+
 test('listerDossiersParIds retourne un tableau vide sans construire de requête pour une liste de dossiers vide (comportement inchangé)', async () => {
   const resultat = await dossierRepository.listerDossiersParIds(bd, 1, []);
   assert.deepEqual(resultat, []);

@@ -429,9 +429,20 @@ function delaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, po
 // distinguo désormais propre entre les deux mesures (verdict initial vs déroulement de la
 // formation elle-même).
 //
-// Même patron EXACT que delaiTestVersVerdict : JOIN LATERAL vers la PROCHAINE occurrence (ASC,
-// pas DESC) d'une des deux destinations après l'entrée en formation, filtré sur la date de SORTIE
-// (comme verdict.date_changement ci-dessus, pas l'entrée) — cohérent avec
+// Même patron EXACT que delaiTestVersVerdict (corrigé le 2026-09-02, audit dashboard : dossier
+// #88) : JOIN LATERAL vers la ligne IMMÉDIATEMENT SUIVANTE dans historique_statuts pour ce dossier
+// (n'importe quel statut, pas seulement valide_pret_embauche/formation_non_validee), retenue
+// seulement si CETTE ligne est bien l'un des deux codes de sortie. Avant ce correctif, le JOIN
+// LATERAL cherchait la PROCHAINE occurrence du bon type, peu importe ce qui s'intercalait entre
+// l'entrée et elle : une entrée suivie d'un retour en test (replanifier_test, boucle de formation
+// interrompue avant sa conclusion) restait quand même appariée à la sortie d'une boucle
+// ULTÉRIEURE — la même sortie comptée deux fois pour deux entrées différentes (dossier #88 :
+// entrée du 27/08 13:33, repartie en test 50 min plus tard, appariée à tort à la sortie du 28/08
+// 14:24 qui appartient en réalité à l'entrée du 28/08 11:55, déjà correctement comptée). Le
+// prédécesseur immédiat exclut naturellement ces boucles interrompues, sans avoir besoin de savoir
+// QUEL codeAction a produit chaque ligne (historique_statuts n'a toujours aucune colonne
+// code_action) — la distinction vient uniquement de la séquence déjà enregistrée. Filtré sur la
+// date de SORTIE (comme verdict.date_changement ci-dessus, pas l'entrée) — cohérent avec
 // delaiInscriptionVersTestPlanifie/delaiTestVersVerdict, qui filtrent tous deux sur la date de FIN
 // du segment mesuré, pas sur son point de départ.
 //
@@ -444,11 +455,10 @@ function delaiFormation(bd, entiteId, { debut, finExclusive, typePoste, poste } 
     .join('statuts as statut_entree', 'statut_entree.id', 'entree.statut_id')
     .joinRaw(
       `JOIN LATERAL (
-         SELECT hs.date_changement
+         SELECT hs.date_changement, s.code AS code
          FROM historique_statuts hs
          JOIN statuts s ON s.id = hs.statut_id
          WHERE hs.dossier_id = entree.dossier_id
-           AND s.code IN ('valide_pret_embauche', 'formation_non_validee')
            AND hs.date_changement > entree.date_changement
          ORDER BY hs.date_changement ASC
          LIMIT 1
@@ -456,6 +466,7 @@ function delaiFormation(bd, entiteId, { debut, finExclusive, typePoste, poste } 
     )
     .where('dossiers.entite_id', entiteId)
     .andWhere('statut_entree.code', 'valide_envoi_formation')
+    .whereIn('sortie.code', ['valide_pret_embauche', 'formation_non_validee'])
     .andWhere('sortie.date_changement', '>=', debut)
     .andWhere('sortie.date_changement', '<', finExclusive);
 
@@ -636,19 +647,19 @@ function listerDelaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePos
   return requete.select('verdict.dossier_id as dossier_id', 'verdict.date_changement as date_cle');
 }
 
-// Variante "liste" de delaiFormation ci-dessus — même JOIN LATERAL (prochaine sortie de formation
-// après l'entrée), même patron que listerDelaiTestVersVerdict.
+// Variante "liste" de delaiFormation ci-dessus — même JOIN LATERAL corrigé (prédécesseur immédiat
+// requis, voir son commentaire pour le correctif du 2026-09-02, dossier #88), même patron que
+// listerDelaiTestVersVerdict.
 function listerDelaiFormation(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('historique_statuts as entree')
     .join('dossiers', 'dossiers.id', 'entree.dossier_id')
     .join('statuts as statut_entree', 'statut_entree.id', 'entree.statut_id')
     .joinRaw(
       `JOIN LATERAL (
-         SELECT hs.date_changement
+         SELECT hs.date_changement, s.code AS code
          FROM historique_statuts hs
          JOIN statuts s ON s.id = hs.statut_id
          WHERE hs.dossier_id = entree.dossier_id
-           AND s.code IN ('valide_pret_embauche', 'formation_non_validee')
            AND hs.date_changement > entree.date_changement
          ORDER BY hs.date_changement ASC
          LIMIT 1
@@ -656,6 +667,7 @@ function listerDelaiFormation(bd, entiteId, { debut, finExclusive, typePoste, po
     )
     .where('dossiers.entite_id', entiteId)
     .andWhere('statut_entree.code', 'valide_envoi_formation')
+    .whereIn('sortie.code', ['valide_pret_embauche', 'formation_non_validee'])
     .andWhere('sortie.date_changement', '>=', debut)
     .andWhere('sortie.date_changement', '<', finExclusive);
 

@@ -411,7 +411,7 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         // Ancres du délai "formation" (colonne "Dates clés", construireColonnesAlignees) — même
         // principe que dateVerdict/dateDernierTestPlanifieAvantVerdict ci-dessus : deux champs
         // dédiés plutôt qu'une entrée dans `datesCles`, introduits le 2026-09-01 (audit tableau de
-        // bord 2026-08-31, point #5) pour la nouvelle carte "Délai moyen formation".
+        // bord 2026-08-31, point #5) pour la nouvelle carte "Délai moyen Test → Formation".
         // dateSortieFormation vient du LEFT JOIN LATERAL sortie_formation (dossierRepository.js),
         // ancré sur CETTE entrée en formation précise — pas un COALESCE de deux MAX indépendants
         // (date_entree_valide_pret_embauche/date_entree_formation_non_validee, utilisés ailleurs

@@ -85,7 +85,7 @@ test('obtenirIndicateursKpi assemble les 7 statistiques, avec le taux de convers
   assert.equal(resultat.delaisMoyens.formation.moyenneJours, null);
 });
 
-// Carte "Délai moyen formation" (introduite le 2026-09-01, audit tableau de bord 2026-08-31,
+// Carte "Délai moyen Test → Formation" (introduite le 2026-09-01, audit tableau de bord 2026-08-31,
 // point #5, en remplacement de "Délai moyen test → verdict" sur le dashboard) — assemblée à partir
 // de statistiquesRepository.delaiFormation, même patron que delaiInscriptionVersTestPlanifie/
 // delaiTestVersVerdict ci-dessus.
@@ -478,7 +478,7 @@ test('listerDossiersParIndicateurs route un code "poste:<code>" vers listerRepar
 // utilisateur) — un poste n'a pas d'ancre dans construireColonnesAlignees (TableauDossiersSelectionnes.jsx),
 // le champ dédié dateEntreeStatutCourant (date d'entrée dans le statut COURANT du dossier, voir
 // dossierRepository.listerDossiersParIds) doit être exposé tel quel, comme dateEntreeFormation/
-// dateSortieFormation le sont déjà pour "Délai formation".
+// dateSortieFormation le sont déjà pour "Délai Test → Formation".
 test('listerDossiersParIndicateurs expose dateEntreeStatutCourant (repli "Dates clés" pour un filtre poste)', async (t) => {
   mockerKnex(t);
   t.mock.method(statistiquesRepository, 'listerRepartitionParPosteDossiers', async () => [

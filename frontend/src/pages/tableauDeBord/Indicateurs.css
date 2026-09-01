@@ -109,7 +109,7 @@
    même code dans VARIANTE_PAR_INDICATEUR (Indicateurs.jsx) — la tuile "Inscrits" et le badge
    "Inscrit" de la colonne "Indicateurs" partagent ainsi la même couleur partout sur l'écran, même
    principe que "Dates clés"/StatutBadge plus tôt dans cette conversation. Exception : la tuile
-   "Délai moyen formation" (remplace "Délai moyen test → verdict" le 2026-09-01, audit tableau de
+   "Délai moyen Test → Formation" (remplace "Délai moyen test → verdict" le 2026-09-01, audit tableau de
    bord 2026-08-31, point d'audit) prend `violet` (pas `attente`, sa variante de badge) — les deux
    tuiles de délai partagent la même variante `attente` côté badge, ce qui les aurait rendues
    indiscernables l'une de l'autre une fois en tuile colorée ; `violet` n'est utilisée par aucune
