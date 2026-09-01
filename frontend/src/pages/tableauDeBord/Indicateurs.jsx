@@ -50,7 +50,7 @@ function varianteStatut(code) {
 
 // Codes des indicateurs cliquables des cartes/camemberts (statiques — la répartition par poste,
 // dynamique, a son propre préfixe 'poste:<code>', voir libelleIndicateur/varianteIndicateur plus
-// bas) — mêmes 9 codes que backend/src/core/statistiques/statistiquesService.js
+// bas) — mêmes codes que backend/src/core/statistiques/statistiquesService.js
 // (CODES_INDICATEURS_STATIQUES), dupliqué plutôt que partagé (voir plus haut).
 // Libellés pensés pour rester compréhensibles isolément, sans dépendre du statut affiché juste à
 // côté (colonne "Indicateurs" de TableauDossiersSelectionnes.jsx) — un badge peut désormais rester
@@ -60,11 +60,13 @@ function varianteStatut(code) {
 // Clarifications d'audit, 2026-08-11 (pas de changement de comportement, uniquement de libellé) :
 // - `conversion` : "Retenu" plutôt que "Converti" — l'audit a relevé que cet indicateur est un
 //   INSTANTANÉ du statut ACTUEL d'une cohorte d'inscrits (valide_pret_embauche OU
-//   valide_envoi_formation), pas un événement daté dans la période (voir aussi la tuile "Taux de
-//   dossiers validés à ce jour" plus bas, même clarification). "Validé" seul aurait fait doublon
-//   visuel avec la colonne "Statut", qui affiche déjà "Validé - prêt à l'embauche"/"Validé - envoyé
-//   en formation" ; "Recruté" sur-affirmerait pour la branche "envoyé en formation" (pas encore
-//   embauché à ce stade du parcours) — "Retenu" couvre les deux sans ambiguïté.
+//   valide_envoi_formation), pas un événement daté dans la période. "Validé" seul aurait fait
+//   doublon visuel avec la colonne "Statut", qui affiche déjà "Validé - prêt à l'embauche"/"Validé -
+//   envoyé en formation" ; "Recruté" sur-affirmerait pour la branche "envoyé en formation" (pas
+//   encore embauché à ce stade du parcours) — "Retenu" couvre les deux sans ambiguïté. Sa tuile
+//   "Taux de dossiers validés à ce jour" a été retirée de la rangée de KPI le 2026-09-01 (audit
+//   tableau de bord 2026-08-31, point d'audit) : l'indicateur back-end (conversion) reste inchangé,
+//   seul l'affichage disparaît de cet écran.
 // - `envoyes_en_test` : "Envoyé en test" (revenu du "Mis en test" choisi juste après l'audit du
 //   2026-08-11, décision utilisateur ultérieure du même jour) — reste distinct du badge de STATUT
 //   "Test planifié" déjà existant (mots différents), sans reprendre "Test envoyé"/"Envoyés en
@@ -92,6 +94,10 @@ const LIBELLES_INDICATEURS = {
   conversion: 'Retenu',
   delai_inscription_test: 'Délai inscription → test',
   delai_test_verdict: 'Délai test → verdict',
+  // Introduit le 2026-09-01 (audit tableau de bord 2026-08-31, point #5) — remplace la tuile
+  // "Délai moyen test → verdict" ci-dessus (delai_test_verdict reste un code back-end valide, mais
+  // n'a plus de tuile pour le sélectionner sur cet écran).
+  delai_formation: 'Délai formation',
   verdict_valide: 'Test réussi',
   verdict_invalide: 'Test échoué',
   orientation_envoi_formation: 'Envoyé en formation',
@@ -133,6 +139,7 @@ const VARIANTE_PAR_INDICATEUR = {
   conversion: 'dore',
   delai_inscription_test: 'attente',
   delai_test_verdict: 'attente',
+  delai_formation: 'attente',
   verdict_valide: 'succes',
   verdict_invalide: 'echec',
   orientation_envoi_formation: 'violet',
@@ -448,8 +455,6 @@ function useSuiviCurseurCamembert() {
   };
   return { conteneurRef, position, gererSurvol };
 }
-
-const FORMAT_POURCENTAGE = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 });
 
 // Label directement lisible sur chaque part des deux camemberts ("Réussis vs ratés",
 // "Formation vs prêt à l'embauche") — remplace le label par défaut de recharts (petit chiffre
@@ -849,11 +854,13 @@ export default function Indicateurs() {
                   distincte par tuile, décision utilisateur 2026-08-11 — réutilise EXACTEMENT les
                   variantes déjà attribuées à ces mêmes codes dans VARIANTE_PAR_INDICATEUR plus haut
                   (badges de la colonne "Indicateurs"), pour que la couleur d'une tuile et celle de
-                  son badge restent cohérentes partout sur l'écran. Exception : `delai_test_verdict`
+                  son badge restent cohérentes partout sur l'écran. Exception : `delai_formation`
                   prend `violet` ici (pas `attente`, son variante de badge) — les deux tuiles de
                   délai partagent la même variante `attente` côté badge, ce qui les aurait rendues
                   indiscernables l'une de l'autre en tuile ; `violet` n'est déjà utilisée par aucune
-                  autre tuile. */}
+                  autre tuile (même exception, reprise telle quelle, que l'ancienne tuile
+                  `delai_test_verdict` qu'elle remplace ici — audit tableau de bord 2026-08-31,
+                  point d'audit, corrigé le 2026-09-01). */}
               <button
                 type="button"
                 className={`indicateurs__tuile indicateurs__tuile--neutre${selectionIndicateurs.has('inscrits') ? ' indicateurs__tuile--active' : ''}`}
@@ -881,26 +888,6 @@ export default function Indicateurs() {
               </button>
               <button
                 type="button"
-                className={`indicateurs__tuile indicateurs__tuile--dore${selectionIndicateurs.has('conversion') ? ' indicateurs__tuile--active' : ''}`}
-                aria-pressed={selectionIndicateurs.has('conversion')}
-                onClick={() => basculerIndicateur('conversion')}
-              >
-                <span className="indicateurs__tuile-valeur">
-                  {indicateurs.conversion.taux !== null ? FORMAT_POURCENTAGE.format(indicateurs.conversion.taux) : '-'}
-                </span>
-                {/* "Taux de dossiers validés à ce jour" (pas "Taux de validation") : clarification
-                    d'audit 2026-08-11 — l'indicateur est un instantané du statut ACTUEL de la
-                    cohorte d'inscrits de la période, pas les validations survenues PENDANT la
-                    période ; revisiter ce même dashboard plus tard pour la même période passée
-                    donnerait un chiffre différent (voir LIBELLES_INDICATEURS.conversion, badge
-                    "Retenu" associé). */}
-                <span className="indicateurs__tuile-libelle">
-                  Taux de dossiers validés à ce jour ({indicateurs.conversion.numerateur}/
-                  {indicateurs.conversion.denominateur})
-                </span>
-              </button>
-              <button
-                type="button"
                 className={`indicateurs__tuile indicateurs__tuile--attente${selectionIndicateurs.has('delai_inscription_test') ? ' indicateurs__tuile--active' : ''}`}
                 aria-pressed={selectionIndicateurs.has('delai_inscription_test')}
                 onClick={() => basculerIndicateur('delai_inscription_test')}
@@ -914,22 +901,22 @@ export default function Indicateurs() {
               </button>
               <button
                 type="button"
-                className={`indicateurs__tuile indicateurs__tuile--violet${selectionIndicateurs.has('delai_test_verdict') ? ' indicateurs__tuile--active' : ''}`}
-                aria-pressed={selectionIndicateurs.has('delai_test_verdict')}
-                onClick={() => basculerIndicateur('delai_test_verdict')}
+                className={`indicateurs__tuile indicateurs__tuile--violet${selectionIndicateurs.has('delai_formation') ? ' indicateurs__tuile--active' : ''}`}
+                aria-pressed={selectionIndicateurs.has('delai_formation')}
+                onClick={() => basculerIndicateur('delai_formation')}
                 title={PRECISION_DELAI_MOYEN}
               >
                 <span className="indicateurs__tuile-valeur">
-                  {indicateurs.delaisMoyens.testVersVerdict.moyenneJours ?? '-'} j
+                  {indicateurs.delaisMoyens.formation.moyenneJours ?? '-'} j
                 </span>
-                <span className="indicateurs__tuile-libelle">Délai moyen test → verdict</span>
+                <span className="indicateurs__tuile-libelle">Délai moyen formation</span>
                 <span className="indicateurs__tuile-precision">Moyenne, jours écoulés</span>
               </button>
             </div>
             </ErrorBoundary>
 
             {/* "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) —
-                2e rangée séparée sous sous-titre, DISTINCTE des 5 tuiles KPI ci-dessus : celles-ci
+                2e rangée séparée sous sous-titre, DISTINCTE des tuiles KPI ci-dessus : celles-ci
                 mesurent un flux/une moyenne sur la période (cohorte, délais), alors que ces 4
                 nouvelles cartes comptent "combien de dossiers sont actuellement à CE statut"
                 (parmi la même cohorte de dossiers créés dans la période, voir

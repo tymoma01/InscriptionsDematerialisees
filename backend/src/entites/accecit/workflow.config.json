@@ -92,7 +92,7 @@
       "motifRequis": false
     },
     {
-      "codeAction": "valider_pret_embauche",
+      "codeAction": "marquer_formation_validee",
       "statutOrigine": "valide_envoi_formation",
       "statutDestination": "valide_pret_embauche",
       "motifRequis": false

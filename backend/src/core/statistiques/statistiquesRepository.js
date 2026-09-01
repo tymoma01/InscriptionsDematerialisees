@@ -350,23 +350,32 @@ function delaiInscriptionVersTestPlanifie(bd, entiteId, { debut, finExclusive, t
 }
 
 // Stat 7b — délai test réalisé -> verdict, entièrement sur historique_statuts (décision
-// validée : jamais evaluations.date_evaluation). Chaque ligne "verdict" est appariée au JOIN
-// LATERAL avec la ligne test_realise la PLUS RÉCENTE qui la précède pour le même dossier — pas
-// la première : sur un dossier reprogrammé plusieurs fois (absence, test_non_realise), c'est le
-// délai depuis la dernière tenue du test avant l'issue finale qui est significatif, pas depuis la
-// toute première tentative (décision validée).
+// validée : jamais evaluations.date_evaluation). Chaque ligne "verdict" est appariée à la ligne
+// PRÉCÉDENTE IMMÉDIATE de son dossier dans historique_statuts (n'importe quel statut, pas
+// spécifiquement test_realise — voir correctif ci-dessous), et retenue seulement si ce
+// prédécesseur immédiat est bien test_realise.
 //
 // Point de départ CORRIGÉ (audit 2026-08-24, workflow v5) : test_realise plutôt que test_planifie
 // — l'ancien point de départ mesurait "planification -> verdict" (incluant l'attente jusqu'à la
 // date du test lui-même, déjà couverte par le délai "inscription -> test planifié"), alors que le
-// libellé affiché est "test -> verdict". Le workflow v5 introduit test_realise (confirmation
-// explicite que le test A EU LIEU, distincte de la soumission du verdict) précisément pour cette
-// distinction ; les trois destinations de verdict (invalide/valide_envoi_formation/
-// valide_pret_embauche) ne sont d'ailleurs atteignables QUE depuis test_realise (voir
-// workflow.config.json, aucune transition test_planifie -> verdict), donc cette donnée existe
-// déjà pour l'intégralité des dossiers comptés ici — aucune perte de couverture par ce recalcul.
-// Isole ainsi le délai d'évaluation/décision administrative, distinct du délai de planification
-// déjà mesuré par delaiInscriptionVersTestPlanifie ci-dessus.
+// libellé affiché est "test -> verdict". Isole ainsi le délai d'évaluation/décision administrative,
+// distinct du délai de planification déjà mesuré par delaiInscriptionVersTestPlanifie ci-dessus.
+//
+// Correctif 2026-09-01 (audit tableau de bord 2026-08-31, point #5) : contrairement à ce
+// qu'affirmait ce commentaire jusqu'ici, valide_pret_embauche N'EST PAS atteignable QUE depuis
+// test_realise — la transition "Formation validée" (SuiviFormation.jsx) y mène aussi depuis
+// valide_envoi_formation, après un passage en formation potentiellement long. Avant ce correctif,
+// le JOIN LATERAL appariait chaque verdict à la ligne test_realise la PLUS RÉCENTE qui le précède
+// (peu importe ce qui s'intercalait entre les deux) : un dossier "Formation validée" longtemps
+// après son test se voyait donc apparié au MÊME test_realise que son verdict initial
+// (valide_envoi_formation), gonflant artificiellement la moyenne avec la durée de la formation
+// elle-même. Le prédécesseur immédiat (n'importe quel statut, pas seulement test_realise) exclut
+// naturellement ces lignes : leur prédécesseur immédiat est valide_envoi_formation, pas
+// test_realise, sans qu'aucune donnée existante n'ait besoin d'être corrigée — la distinction vient
+// de la séquence déjà enregistrée dans historique_statuts, pas d'un nouveau champ. Le codeAction
+// dédié marquer_formation_validee (workflow.config.json, transitions.routes.js) empêche toute
+// nouvelle occurrence du bug côté écriture ; ce recalcul répare aussi, sans aucune migration de
+// données, tous les dossiers déjà passés par la formation avant ce correctif.
 //
 // Filtre poste/typePoste : historique_statuts n'a aucun lien vers evaluation_id/poste_code — la
 // granularité "par tentative de test précise" n'est pas atteignable ici. Approximation assumée :
@@ -379,18 +388,18 @@ function delaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, po
     .join('statuts as statut_verdict', 'statut_verdict.id', 'verdict.statut_id')
     .joinRaw(
       `JOIN LATERAL (
-         SELECT hs.date_changement
+         SELECT hs.date_changement, s.code AS code
          FROM historique_statuts hs
          JOIN statuts s ON s.id = hs.statut_id
          WHERE hs.dossier_id = verdict.dossier_id
-           AND s.code = 'test_realise'
            AND hs.date_changement < verdict.date_changement
          ORDER BY hs.date_changement DESC
          LIMIT 1
-       ) AS test_realise_le ON true`,
+       ) AS precedent ON true`,
     )
     .where('dossiers.entite_id', entiteId)
     .whereIn('statut_verdict.code', ['invalide', 'valide_envoi_formation', 'valide_pret_embauche'])
+    .andWhere('precedent.code', 'test_realise')
     .andWhere('verdict.date_changement', '>=', debut)
     .andWhere('verdict.date_changement', '<', finExclusive);
 
@@ -403,7 +412,63 @@ function delaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, po
 
   return requete
     .select(
-      bd.raw('AVG(EXTRACT(EPOCH FROM (verdict.date_changement - test_realise_le.date_changement)) / 86400) as moyenne_jours'),
+      bd.raw('AVG(EXTRACT(EPOCH FROM (verdict.date_changement - precedent.date_changement)) / 86400) as moyenne_jours'),
+      bd.raw('COUNT(*) as nb_dossiers'),
+    )
+    .first();
+}
+
+// Stat 7c — délai formation : date d'ENTRÉE en valide_envoi_formation ("Formation validée"/
+// "Formation non validée" pas encore décidée) -> date de SORTIE vers valide_pret_embauche
+// (formation validée, codeAction dédié marquer_formation_validee) OU formation_non_validee
+// (formation non validée, codeAction invalider_formation) — les deux SEULES destinations
+// possibles depuis valide_envoi_formation qui concluent la formation (voir workflow.config.json ;
+// replanifier_test y mène aussi mais reboucle vers test_planifie, ne conclut rien). Introduit le
+// 2026-09-01 (audit tableau de bord 2026-08-31, point #5) en remplacement de la carte "Délai moyen
+// test → verdict" du dashboard — voir le commentaire de delaiTestVersVerdict ci-dessus pour le
+// distinguo désormais propre entre les deux mesures (verdict initial vs déroulement de la
+// formation elle-même).
+//
+// Même patron EXACT que delaiTestVersVerdict : JOIN LATERAL vers la PROCHAINE occurrence (ASC,
+// pas DESC) d'une des deux destinations après l'entrée en formation, filtré sur la date de SORTIE
+// (comme verdict.date_changement ci-dessus, pas l'entrée) — cohérent avec
+// delaiInscriptionVersTestPlanifie/delaiTestVersVerdict, qui filtrent tous deux sur la date de FIN
+// du segment mesuré, pas sur son point de départ.
+//
+// Filtre poste/typePoste : même semi-join evaluations_postes que delaiTestVersVerdict ci-dessus
+// (historique_statuts n'a toujours aucun lien direct vers poste_code) — pertinent ici aussi, la
+// formation intervenant après une évaluation déjà rattachée à un poste.
+function delaiFormation(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts as entree')
+    .join('dossiers', 'dossiers.id', 'entree.dossier_id')
+    .join('statuts as statut_entree', 'statut_entree.id', 'entree.statut_id')
+    .joinRaw(
+      `JOIN LATERAL (
+         SELECT hs.date_changement
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = entree.dossier_id
+           AND s.code IN ('valide_pret_embauche', 'formation_non_validee')
+           AND hs.date_changement > entree.date_changement
+         ORDER BY hs.date_changement ASC
+         LIMIT 1
+       ) AS sortie ON true`,
+    )
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statut_entree.code', 'valide_envoi_formation')
+    .andWhere('sortie.date_changement', '>=', debut)
+    .andWhere('sortie.date_changement', '<', finExclusive);
+
+  if (typePoste || poste) {
+    const sousRequetePostes = poste
+      ? bd('evaluations_postes').select('evaluation_id').where('poste_code', poste)
+      : bd('evaluations_postes').select('evaluation_id').whereIn('poste_code', codesPostesPourTypePoste(typePoste));
+    requete.whereIn('dossiers.id', bd('evaluations').select('evaluations.dossier_id').whereIn('evaluations.id', sousRequetePostes));
+  }
+
+  return requete
+    .select(
+      bd.raw('AVG(EXTRACT(EPOCH FROM (sortie.date_changement - entree.date_changement)) / 86400) as moyenne_jours'),
       bd.raw('COUNT(*) as nb_dossiers'),
     )
     .first();
@@ -531,29 +596,30 @@ function listerDelaiInscriptionVersTestPlanifie(bd, entiteId, { debut, finExclus
   return requete.select('premiere_planif.dossier_id as dossier_id', 'premiere_planif.date_changement as date_cle');
 }
 
-// Même JOIN LATERAL que delaiTestVersVerdict ci-dessus (voir son commentaire pour le recalcul
-// test_realise plutôt que test_planifie, audit 2026-08-24), indispensable ici aussi et pas
-// seulement pour le calcul de moyenne : c'est une jointure LATERAL implicitement INNER (ON true),
-// donc tout verdict SANS test_realise antérieur est déjà exclu par cette jointure — sans elle, la
-// liste inclurait des dossiers que le chiffre affiché sur la carte ne compte pas.
+// Même JOIN LATERAL corrigé que delaiTestVersVerdict ci-dessus (prédécesseur immédiat = test_realise
+// requis, voir son commentaire pour le correctif du 2026-09-01), indispensable ici aussi et pas
+// seulement pour le calcul de moyenne : tout verdict dont le prédécesseur immédiat n'est pas
+// test_realise (ex. "Formation validée" venant de valide_envoi_formation) est déjà exclu par cette
+// jointure — sans elle, la liste inclurait des dossiers que le chiffre affiché sur la carte ne
+// compte pas.
 function listerDelaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('historique_statuts as verdict')
     .join('dossiers', 'dossiers.id', 'verdict.dossier_id')
     .join('statuts as statut_verdict', 'statut_verdict.id', 'verdict.statut_id')
     .joinRaw(
       `JOIN LATERAL (
-         SELECT hs.date_changement
+         SELECT hs.date_changement, s.code AS code
          FROM historique_statuts hs
          JOIN statuts s ON s.id = hs.statut_id
          WHERE hs.dossier_id = verdict.dossier_id
-           AND s.code = 'test_realise'
            AND hs.date_changement < verdict.date_changement
          ORDER BY hs.date_changement DESC
          LIMIT 1
-       ) AS test_realise_le ON true`,
+       ) AS precedent ON true`,
     )
     .where('dossiers.entite_id', entiteId)
     .whereIn('statut_verdict.code', ['invalide', 'valide_envoi_formation', 'valide_pret_embauche'])
+    .andWhere('precedent.code', 'test_realise')
     .andWhere('verdict.date_changement', '>=', debut)
     .andWhere('verdict.date_changement', '<', finExclusive);
 
@@ -568,6 +634,42 @@ function listerDelaiTestVersVerdict(bd, entiteId, { debut, finExclusive, typePos
   }
 
   return requete.select('verdict.dossier_id as dossier_id', 'verdict.date_changement as date_cle');
+}
+
+// Variante "liste" de delaiFormation ci-dessus — même JOIN LATERAL (prochaine sortie de formation
+// après l'entrée), même patron que listerDelaiTestVersVerdict.
+function listerDelaiFormation(bd, entiteId, { debut, finExclusive, typePoste, poste } = {}) {
+  const requete = bd('historique_statuts as entree')
+    .join('dossiers', 'dossiers.id', 'entree.dossier_id')
+    .join('statuts as statut_entree', 'statut_entree.id', 'entree.statut_id')
+    .joinRaw(
+      `JOIN LATERAL (
+         SELECT hs.date_changement
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = entree.dossier_id
+           AND s.code IN ('valide_pret_embauche', 'formation_non_validee')
+           AND hs.date_changement > entree.date_changement
+         ORDER BY hs.date_changement ASC
+         LIMIT 1
+       ) AS sortie ON true`,
+    )
+    .where('dossiers.entite_id', entiteId)
+    .andWhere('statut_entree.code', 'valide_envoi_formation')
+    .andWhere('sortie.date_changement', '>=', debut)
+    .andWhere('sortie.date_changement', '<', finExclusive);
+
+  if (typePoste || poste) {
+    const sousRequetePostes = poste
+      ? bd('evaluations_postes').select('evaluation_id').where('poste_code', poste)
+      : bd('evaluations_postes').select('evaluation_id').whereIn('poste_code', codesPostesPourTypePoste(typePoste));
+    requete.whereIn(
+      'dossiers.id',
+      bd('evaluations').select('evaluations.dossier_id').whereIn('evaluations.id', sousRequetePostes),
+    );
+  }
+
+  return requete.select('entree.dossier_id as dossier_id', 'sortie.date_changement as date_cle');
 }
 
 // Un seul poste précis (posteCode) plutôt que le filtre poste/typePoste du tableau de bord — ce
@@ -624,6 +726,7 @@ module.exports = {
   compterEvaluationsSansPoste,
   delaiInscriptionVersTestPlanifie,
   delaiTestVersVerdict,
+  delaiFormation,
   listerInscrits,
   listerEnvoyesEnTest,
   listerVerdicts,
@@ -631,6 +734,7 @@ module.exports = {
   listerDossiersConvertis,
   listerDelaiInscriptionVersTestPlanifie,
   listerDelaiTestVersVerdict,
+  listerDelaiFormation,
   listerRepartitionParPosteDossiers,
   listerEvaluationsSansPosteDossiers,
 };

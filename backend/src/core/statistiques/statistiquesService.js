@@ -100,6 +100,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     evaluationsSansPoste,
     delaiInscriptionTest,
     delaiTestVerdict,
+    delaiFormation,
     effectifTestRealise,
     effectifsParStatutCourantBruts,
   ] = await Promise.all([
@@ -113,6 +114,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     statistiquesRepository.compterEvaluationsSansPoste(bd, entite.id, filtres),
     statistiquesRepository.delaiInscriptionVersTestPlanifie(bd, entite.id, filtres),
     statistiquesRepository.delaiTestVersVerdict(bd, entite.id, filtres),
+    statistiquesRepository.delaiFormation(bd, entite.id, filtres),
     statistiquesRepository.compterParHistoriqueStatut(bd, entite.id, CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT, filtres),
     Promise.all(
       CODES_STATUTS_EFFECTIF_COURANT_ACCECIT.map((statutCode) =>
@@ -182,6 +184,14 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
         moyenneJours: versMoyenneJours(delaiTestVerdict.moyenne_jours),
         nbDossiers: versNombre(delaiTestVerdict.nb_dossiers),
       },
+      // Remplace la carte "Délai moyen test → verdict" du dashboard (audit tableau de bord
+      // 2026-08-31, point #5, corrigé le 2026-09-01) — testVersVerdict ci-dessus reste calculé
+      // (désormais fiable, voir statistiquesRepository.delaiTestVersVerdict) mais n'a plus de
+      // tuile dédiée sur Indicateurs.jsx.
+      formation: {
+        moyenneJours: versMoyenneJours(delaiFormation.moyenne_jours),
+        nbDossiers: versNombre(delaiFormation.nb_dossiers),
+      },
     },
     effectifsParStatut,
   };
@@ -203,6 +213,10 @@ const CODES_INDICATEURS_STATIQUES = [
   'conversion',
   'delai_inscription_test',
   'delai_test_verdict',
+  // Introduit le 2026-09-01 (audit tableau de bord 2026-08-31, point #5) — carte "Délai moyen
+  // formation" du dashboard, remplace 'delai_test_verdict' ci-dessus dans la rangée de tuiles KPI
+  // (celui-ci reste un code valide, simplement plus sélectionnable via aucune tuile aujourd'hui).
+  'delai_formation',
   // Barre "Non spécifié" du graphique de répartition par poste (Indicateurs.jsx) — statique
   // (contrairement aux barres 'poste:<code>' ci-dessous) : "aucun poste renseigné" n'est pas un
   // poste parmi POSTES_BUREAU/POSTES_HOTEL, ne peut donc pas prendre le préfixe 'poste:'.
@@ -243,6 +257,8 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
       return statistiquesRepository.listerDelaiInscriptionVersTestPlanifie(bd, entiteId, filtres);
     case 'delai_test_verdict':
       return statistiquesRepository.listerDelaiTestVersVerdict(bd, entiteId, filtres);
+    case 'delai_formation':
+      return statistiquesRepository.listerDelaiFormation(bd, entiteId, filtres);
     case 'poste_non_specifie':
       return statistiquesRepository.listerEvaluationsSansPosteDossiers(bd, entiteId, filtres);
     default:
@@ -330,6 +346,8 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         verdict_orientation,
         date_derniere_planification_avant_verdict,
         date_entree_test_realise,
+        date_entree_valide_envoi_formation,
+        date_sortie_formation,
         date_entree_valide_pret_embauche,
         date_entree_formation_non_validee,
         date_entree_embauche,
@@ -389,6 +407,21 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         // dédié plutôt qu'une entrée dans `datesCles` : ce n'est pas une ligne à afficher telle
         // quelle, seulement une donnée d'entrée du calcul de délai.
         dateDernierTestPlanifieAvantVerdict: date_derniere_planification_avant_verdict ?? null,
+        // Ancres du délai "formation" (colonne "Dates clés", construireColonnesAlignees) — même
+        // principe que dateVerdict/dateDernierTestPlanifieAvantVerdict ci-dessus : deux champs
+        // dédiés plutôt qu'une entrée dans `datesCles`, introduits le 2026-09-01 (audit tableau de
+        // bord 2026-08-31, point #5) pour la nouvelle carte "Délai moyen formation".
+        // dateSortieFormation vient du LEFT JOIN LATERAL sortie_formation (dossierRepository.js),
+        // ancré sur CETTE entrée en formation précise — pas un COALESCE de deux MAX indépendants
+        // (date_entree_valide_pret_embauche/date_entree_formation_non_validee, utilisés ailleurs
+        // pour les cartes "Effectifs par statut") : sur un dossier repassé plusieurs fois par la
+        // formation, deux MAX indépendants peuvent produire une paire chronologiquement incohérente
+        // (sortie antérieure à l'entrée), le LATERAL l'exclut par construction. Un dossier resté en
+        // valide_envoi_formation, ou passé par valide_pret_embauche via le chemin bureau direct
+        // sans jamais passer par la formation, a alors l'un des deux champs NULL, ce qui bloque déjà
+        // l'affichage du delta côté front (TableauDossiersSelectionnes.jsx).
+        dateEntreeFormation: date_entree_valide_envoi_formation ?? null,
+        dateSortieFormation: date_sortie_formation ?? null,
         // Respecte l'ordre de `indicateurs` demandé par l'appelant (pas l'ordre d'insertion dans la
         // Map, qui dépendrait de Promise.all) — affichage des badges stable d'un appel à l'autre.
         // Avec un ET strict, un dossier retenu satisfait de toute façon TOUS les codes demandés :

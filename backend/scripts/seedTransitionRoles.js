@@ -68,14 +68,20 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // listé ici) — le bureau n'a pas de notion de formation, un verdict positif y passe toujours par
   // valider_pret_embauche (voir evaluationEngine.js, codeActionFinal).
   valider_envoi_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
-  // Réutilisé tel quel (audit 2026-08-28, suivi de formation) pour la NOUVELLE ligne
-  // valide_envoi_formation -> valide_pret_embauche (retour manuel "Formation validée",
-  // SuiviFormation.jsx) — même codeAction, même rôles que la ligne déjà existante
-  // test_realise -> valide_pret_embauche : la boucle ci-dessous applique cette liste à TOUTES les
-  // lignes transitions_statut qui partagent ce code_action, donc aucune autre entrée nécessaire
-  // ici pour que la nouvelle ligne soit elle aussi autorisée.
+  // Verdict positif d'un Inspecteur, poste bureau (evaluationEngine.js, CODE_ACTION_VALIDE_BUREAU)
+  // — seule origine restante pour ce code_action depuis le correctif du 2026-09-01 (audit tableau
+  // de bord du 2026-08-31, point #5) : la ligne valide_envoi_formation -> valide_pret_embauche
+  // ("Formation validée", SuiviFormation.jsx) porte désormais son propre code_action dédié,
+  // marquer_formation_validee (voir plus bas), pour ne plus polluer "Délai moyen test → verdict"
+  // avec des dossiers passés par la formation.
   valider_pret_embauche: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   invalider_test: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
+  // Nouveau (audit tableau de bord 2026-08-31, point #5, corrigé le 2026-09-01) : code_action dédié
+  // pour "Formation validée" (valide_envoi_formation -> valide_pret_embauche, SuiviFormation.jsx),
+  // distinct de valider_pret_embauche ci-dessus — même principe que marquer_embauche plus bas
+  // (jamais réutilisé ailleurs). Mêmes rôles que l'ancienne ligne partagée (Formateur/Inspecteur
+  // assigné, ou Admin), rôles inchangés, seul le code_action change.
+  marquer_formation_validee: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   // Nouveau (audit 2026-08-28, suivi de formation) : "Formation non validée"
   // (valide_envoi_formation -> formation_non_validee, SuiviFormation.jsx) — distinct
   // d'invalider_test ci-dessus (réservé à l'échec du TEST, pas de la formation) malgré le

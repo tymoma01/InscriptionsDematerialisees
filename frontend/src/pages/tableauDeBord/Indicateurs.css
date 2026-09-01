@@ -75,7 +75,7 @@
    enfant non textuel s'ajoutait un jour). */
 /* padding vertical resserré (0.65rem, pas var(--espace-moyen)=1rem — audit 2026-08-31, décision
    utilisateur "page sans défilement 1080p") : horizontal inchangé (le texte du libellé le plus
-   long, "Taux de dossiers validés à ce jour (x/y)", a besoin de sa largeur habituelle), seule la
+   long, "Délai moyen inscription → test planifié", a besoin de sa largeur habituelle), seule la
    hauteur de la carte se resserre. */
 .indicateurs__tuile {
   display: flex;
@@ -109,7 +109,8 @@
    même code dans VARIANTE_PAR_INDICATEUR (Indicateurs.jsx) — la tuile "Inscrits" et le badge
    "Inscrit" de la colonne "Indicateurs" partagent ainsi la même couleur partout sur l'écran, même
    principe que "Dates clés"/StatutBadge plus tôt dans cette conversation. Exception : la tuile
-   "Délai moyen test → verdict" prend `violet` (pas `attente`, sa variante de badge) — les deux
+   "Délai moyen formation" (remplace "Délai moyen test → verdict" le 2026-09-01, audit tableau de
+   bord 2026-08-31, point d'audit) prend `violet` (pas `attente`, sa variante de badge) — les deux
    tuiles de délai partagent la même variante `attente` côté badge, ce qui les aurait rendues
    indiscernables l'une de l'autre une fois en tuile colorée ; `violet` n'est utilisée par aucune
    autre tuile. Fond pastel clair (`-fond`) + texte fortement contrasté (`-texte`, déjà vérifié

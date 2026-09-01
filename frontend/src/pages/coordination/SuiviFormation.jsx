@@ -59,7 +59,11 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // n'exige qu'un commentaire non vide, sans distinguer sa provenance (déjà le cas pour
 // GestionTransitions.jsx, qui envoie un commentaire tapé pour d'autres transitions), donc ce
 // changement ne touche à rien côté backend.
-const CODE_ACTION_FORMATION_VALIDEE = 'valider_pret_embauche';
+// codeAction dédié (corrigé le 2026-09-01, audit tableau de bord 2026-08-31 point #5) — distinct de
+// 'valider_pret_embauche', réservé au verdict initial du test (evaluationEngine.js), pour ne plus
+// fausser "Délai moyen test → verdict" avec des dossiers passés par la formation (voir
+// transitions.routes.js, embaucheService.js pour le même patron déjà appliqué à "Embauché").
+const CODE_ACTION_FORMATION_VALIDEE = 'marquer_formation_validee';
 const CODE_ACTION_FORMATION_NON_VALIDEE = 'invalider_formation';
 
 // Libellés des postes — même mapping que Planification.jsx (Suivi des tests)/TableauDeBordAccueil.jsx,

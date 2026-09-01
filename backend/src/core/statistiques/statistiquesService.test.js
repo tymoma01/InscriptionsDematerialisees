@@ -32,6 +32,7 @@ function mockerRepository(t, overrides = {}) {
     compterEvaluationsSansPoste: async () => ({ total: '1' }),
     delaiInscriptionVersTestPlanifie: async () => ({ moyenne_jours: '5.234', nb_dossiers: '6' }),
     delaiTestVersVerdict: async () => ({ moyenne_jours: null, nb_dossiers: '0' }),
+    delaiFormation: async () => ({ moyenne_jours: null, nb_dossiers: '0' }),
     // Effectifs par statut (audit tableau de bord 2026-08-31) — compterParStatut appelée 3 fois
     // (une par code de CODES_STATUTS_EFFECTIF_COURANT_ACCECIT, statuts terminaux), et
     // compterParHistoriqueStatut 1 fois (test_realise, statut transitoire, corrigé en 3e passe —
@@ -81,6 +82,24 @@ test('obtenirIndicateursKpi assemble les 7 statistiques, avec le taux de convers
   assert.equal(resultat.delaisMoyens.inscriptionVersTestPlanifie.moyenneJours, 5.2);
   assert.equal(resultat.delaisMoyens.inscriptionVersTestPlanifie.nbDossiers, 6);
   assert.equal(resultat.delaisMoyens.testVersVerdict.moyenneJours, null);
+  assert.equal(resultat.delaisMoyens.formation.moyenneJours, null);
+});
+
+// Carte "Délai moyen formation" (introduite le 2026-09-01, audit tableau de bord 2026-08-31,
+// point #5, en remplacement de "Délai moyen test → verdict" sur le dashboard) — assemblée à partir
+// de statistiquesRepository.delaiFormation, même patron que delaiInscriptionVersTestPlanifie/
+// delaiTestVersVerdict ci-dessus.
+test('obtenirIndicateursKpi assemble delaisMoyens.formation à partir de delaiFormation', async (t) => {
+  mockerKnex(t);
+  mockerRepository(t, { delaiFormation: async () => ({ moyenne_jours: '12.34', nb_dossiers: '3' }) });
+
+  const resultat = await statistiquesService.obtenirIndicateursKpi(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+  });
+
+  assert.equal(resultat.delaisMoyens.formation.moyenneJours, 12.3);
+  assert.equal(resultat.delaisMoyens.formation.nbDossiers, 3);
 });
 
 // Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) —
@@ -391,6 +410,24 @@ test('listerDossiersParIndicateurs renvoie un résultat vide si un des indicateu
 
   assert.deepEqual(resultat, []);
   assert.deepEqual(appelListerDossiers.mock.calls[0].arguments[2], []);
+});
+
+test('listerDossiersParIndicateurs route "delai_formation" vers listerDelaiFormation', async (t) => {
+  mockerKnex(t);
+  const appel = t.mock.method(statistiquesRepository, 'listerDelaiFormation', async () => [
+    { dossier_id: 3, date_cle: new Date('2026-07-22') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 3, date_creation: '2026-07-10', date_maj: '2026-07-22', candidat_nom: 'Dupont', donnees_disponibilites: null },
+  ]);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-07-01',
+    dateFin: '2026-07-31',
+    indicateurs: ['delai_formation'],
+  });
+
+  assert.equal(appel.mock.calls.length, 1);
 });
 
 test('listerDossiersParIndicateurs rejette un code de poste inconnu', async (t) => {

@@ -13,19 +13,21 @@ const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
 
 // Email candidat "Formation validée" (audit 2026-08-31, décision utilisateur, texte définitif) —
-// déclenché UNIQUEMENT quand codeAction === CODE_ACTION_FORMATION_VALIDEE ET que le dossier venait
-// bien de STATUT_ORIGINE_FORMATION_VALIDEE juste avant cette transition (revérifié ci-dessous,
-// jamais supposé). Ce même codeAction ('valider_pret_embauche') est aussi utilisé par
-// evaluationEngine.enregistrerEvaluation pour le verdict positif Inspecteur (poste bureau, jamais
-// passé par la formation, statut d'origine test_realise) — mais ce chemin-là appelle
-// workflowEngine.appliquerTransition directement, jamais cette route HTTP, donc ne peut de toute
-// façon pas déclencher ce bloc. Le garde-fou sur le statut d'origine reste posé quand même : ne pas
-// s'appuyer sur "seul SuiviFormation.jsx envoie ce codeAction aujourd'hui" — un appelant futur (ex.
-// GestionTransitions.jsx, générique et actuellement démonté nulle part, voir Validation.jsx) ne
-// doit pas déclencher cet email hors de son contexte prévu ("Formation validée", Suivi des
-// formations). "Formation non validée" (invalider_formation) volontairement absente d'ici — aucun
-// email associé pour l'instant, chantier séparé.
-const CODE_ACTION_FORMATION_VALIDEE = 'valider_pret_embauche';
+// déclenché quand codeAction === CODE_ACTION_FORMATION_VALIDEE. Ce codeAction est dédié
+// (marquer_formation_validee, corrigé le 2026-09-01 — audit tableau de bord 2026-08-31, point #5) :
+// avant ce correctif, la transition valide_envoi_formation -> valide_pret_embauche réutilisait à
+// tort 'valider_pret_embauche', le codeAction déjà porté par le verdict positif Inspecteur (poste
+// bureau, statut d'origine test_realise, voir evaluationEngine.CODE_ACTION_VALIDE_BUREAU) — même
+// symptôme, même solution que marquer_embauche (embaucheService.js) : un codeAction neuf, à statut
+// d'origine unique (valide_envoi_formation), ne peut plus reproduire cette confusion, faussée
+// ensuite dans "Délai moyen test → verdict" (statistiquesRepository.delaiTestVersVerdict). Le
+// garde-fou sur le statut d'origine (STATUT_ORIGINE_FORMATION_VALIDEE) reste posé en défense en
+// profondeur — ne pas s'appuyer uniquement sur "seul SuiviFormation.jsx envoie ce codeAction
+// aujourd'hui" : un appelant futur (ex. GestionTransitions.jsx, générique et actuellement démonté
+// nulle part, voir Validation.jsx) ne doit pas déclencher cet email hors de son contexte prévu.
+// "Formation non validée" (invalider_formation) volontairement absente d'ici — aucun email associé
+// pour l'instant, chantier séparé.
+const CODE_ACTION_FORMATION_VALIDEE = 'marquer_formation_validee';
 const STATUT_ORIGINE_FORMATION_VALIDEE = 'valide_envoi_formation';
 
 // Monté sur '/api/dossiers/:dossierId/transitions' (voir app.js) — `mergeParams: true`

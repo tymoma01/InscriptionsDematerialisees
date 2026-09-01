@@ -23,7 +23,11 @@ function joursCalendairesEntre(dateDebut, dateFin) {
   return Math.round((finMinuit - debutMinuit) / UN_JOUR_MS);
 }
 
-const [CODE_DELAI_INSCRIPTION_TEST, CODE_DELAI_TEST_VERDICT] = ['delai_inscription_test', 'delai_test_verdict'];
+const [CODE_DELAI_INSCRIPTION_TEST, CODE_DELAI_TEST_VERDICT, CODE_DELAI_FORMATION] = [
+  'delai_inscription_test',
+  'delai_test_verdict',
+  'delai_formation',
+];
 
 // Codes de "Dates clés" (dossier.datesCles, toujours inscription/test_planifie?/orientation_*? —
 // plus de "verdict_*", retiré le 2026-08-11 car redondant avec la colonne "Statut") dont le badge
@@ -156,6 +160,24 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
       type: 'delai',
       positionDate: dates.length,
       jours: joursCalendairesEntre(dossier.dateDernierTestPlanifieAvantVerdict, dossier.dateVerdict),
+    });
+  }
+
+  // Ancre "délai formation" (audit tableau de bord 2026-08-31, point #5, corrigé le 2026-09-01) —
+  // même principe que "délai test → verdict" ci-dessus : pas de ligne "Dates clés" existante à
+  // laquelle s'accrocher, calcul via les champs dédiés dossier.dateEntreeFormation/
+  // dossier.dateSortieFormation (voir statistiquesService.listerDossiersParIndicateurs). Placée
+  // elle aussi en fin de liste (`dates.length`, même positionDate que CODE_DELAI_TEST_VERDICT
+  // ci-dessus) : à égalité, l'ordre de construction fait foi (voir commentaire de fonction), donc
+  // "délai formation" suit toujours "délai test → verdict" quand les deux sont sélectionnés — ordre
+  // chronologique cohérent, la formation se déroulant après le verdict.
+  if (badgesParCode.has(CODE_DELAI_FORMATION) && dossier.dateEntreeFormation && dossier.dateSortieFormation) {
+    ancres.push({
+      codeBadge: CODE_DELAI_FORMATION,
+      codeDate: CODE_DELAI_FORMATION,
+      type: 'delai',
+      positionDate: dates.length,
+      jours: joursCalendairesEntre(dossier.dateEntreeFormation, dossier.dateSortieFormation),
     });
   }
 

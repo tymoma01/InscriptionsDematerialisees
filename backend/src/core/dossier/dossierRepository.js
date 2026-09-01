@@ -533,6 +533,10 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
   joindreDateEntreeStatut(requete, bd, 'valide_pret_embauche');
   joindreDateEntreeStatut(requete, bd, 'formation_non_validee');
   joindreDateEntreeStatut(requete, bd, 'embauche');
+  // Carte "Délai moyen formation" (audit tableau de bord 2026-08-31, point #5, corrigé le
+  // 2026-09-01) — ancre de DÉPART du délai formation pour la colonne "Dates clés" (voir
+  // statistiquesService.listerDossiersParIndicateurs, dateEntreeFormation).
+  joindreDateEntreeStatut(requete, bd, 'valide_envoi_formation');
 
   return requete
     .leftJoin(
@@ -564,6 +568,28 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
          LIMIT 1
        ) AS derniere_planification ON true`,
     )
+    // Carte "Délai moyen formation" (audit tableau de bord 2026-08-31, point #5, corrigé le
+    // 2026-09-01) — ancre de SORTIE, LATERAL vers la PROCHAINE occurrence après l'entrée en
+    // formation (dates_valide_envoi_formation, jointure MAX posée par joindreDateEntreeStatut
+    // ci-dessus), plutôt qu'un COALESCE des deux MAX indépendants
+    // dates_valide_pret_embauche/dates_formation_non_validee (déjà présentes plus bas pour les
+    // cartes "Effectifs par statut") : sur un dossier repassé plusieurs fois par la formation
+    // (replanifier_test), ces deux MAX ne sont pas nécessairement en phase avec l'entrée retenue
+    // (elle aussi un MAX), pouvant produire une paire chronologiquement incohérente (sortie
+    // antérieure à l'entrée) — même risque déjà écarté pour date_verdict/
+    // date_derniere_planification_avant_verdict ci-dessus via ce même patron LATERAL.
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT hs.date_changement AS date_sortie_formation
+         FROM historique_statuts hs
+         JOIN statuts s ON s.id = hs.statut_id
+         WHERE hs.dossier_id = dossiers.id
+           AND s.code IN ('valide_pret_embauche', 'formation_non_validee')
+           AND hs.date_changement > dates_valide_envoi_formation.date_entree_valide_envoi_formation
+         ORDER BY hs.date_changement ASC
+         LIMIT 1
+       ) AS sortie_formation ON true`,
+    )
     .where('dossiers.entite_id', entiteId)
     .whereIn('dossiers.id', dossierIds)
     .select(
@@ -583,6 +609,11 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'dates_valide_pret_embauche.date_entree_valide_pret_embauche',
       'dates_formation_non_validee.date_entree_formation_non_validee',
       'dates_embauche.date_entree_embauche',
+      // Carte "Délai moyen formation" (audit tableau de bord 2026-08-31, point #5, corrigé le
+      // 2026-09-01) — voir joindreDateEntreeStatut(requete, bd, 'valide_envoi_formation') et le
+      // LEFT JOIN LATERAL sortie_formation plus haut.
+      'dates_valide_envoi_formation.date_entree_valide_envoi_formation',
+      'sortie_formation.date_sortie_formation',
       'dates_verdict.date_verdict',
       'evaluation_verdict.resultat_global as verdict_resultat_global',
       // Orientation EFFECTIVE, pas evaluation_verdict.orientation seule — règle générale (audit
