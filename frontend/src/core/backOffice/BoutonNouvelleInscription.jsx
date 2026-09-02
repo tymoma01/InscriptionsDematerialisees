@@ -2,10 +2,17 @@ import { Link } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
 import './BoutonNouvelleInscription.css';
 
-// Code du rôle Accueil/Coordination — littéral en dur plutôt qu'une constante partagée : le
-// projet n'exporte aujourd'hui aucun équivalent front de ROLES (backend/src/core/auth/rbac.js),
-// même choix déjà fait par Connexion.jsx pour ses propres comparaisons de rôle.
-const ROLE_ACCUEIL_COORDINATION = 'accueil_coordination';
+// Codes de rôle en dur plutôt qu'une constante partagée : le projet n'exporte aujourd'hui aucun
+// équivalent front de ROLES (backend/src/core/auth/rbac.js), même choix déjà fait ailleurs (ex.
+// GestionRendezvous.ROLES_GESTION_RENDEZVOUS, HistoriqueRelances.jsx) pour leurs propres
+// comparaisons de rôle.
+// Admin ajouté (audit 2026-09-02, capture utilisateur : bouton absent pour ce rôle) — même
+// périmètre que ROLES_GESTION_RENDEZVOUS/BarreNavigation.jsx (entrée "Dossiers candidats") :
+// Admin voit et peut utiliser toutes les actions d'Accueil/Coordination sur cette page, jamais
+// une exception isolée. POST /api/candidats (route liée, voir Link ci-dessous) reste public côté
+// API — aucune vérification de rôle à assouplir là-bas, ce bouton n'ouvre qu'une porte déjà
+// ouverte à quiconque connaît l'URL "/".
+const ROLES_AUTORISES = ['accueil_coordination', 'admin'];
 
 // SVG dessiné à la main (silhouette + badge "+"), dans le même esprit épuré qu'une icône
 // lucide-react — le projet n'a aucune bibliothèque d'icônes installée (voir package.json), pas de
@@ -35,12 +42,13 @@ function IconePersonnePlus() {
 // que EnTeteBackOffice.jsx pour appeler son propre useSession() plutôt que de recevoir le rôle en
 // prop — permet de monter ce bouton une seule fois dans PageBackOffice.jsx (partagé par les 9
 // pages back-office, tous rôles) sans toucher chaque page individuellement. Ne rend rien tant que
-// la session n'est pas résolue ou pour tout rôle autre qu'Accueil/Coordination — Recruteur,
-// Formateur et Admin ne voient jamais ce bouton.
+// la session n'est pas résolue ou pour tout rôle hors ROLES_AUTORISES — Recruteur et Formateur/
+// Inspecteur ne voient jamais ce bouton (une inscription ne relève ni de leur rôle ni de leur
+// écran).
 export default function BoutonNouvelleInscription() {
   const { utilisateur, chargement } = useSession();
 
-  if (chargement || utilisateur?.roleCode !== ROLE_ACCUEIL_COORDINATION) {
+  if (chargement || !ROLES_AUTORISES.includes(utilisateur?.roleCode)) {
     return null;
   }
 
