@@ -25,6 +25,74 @@
   color: var(--couleur-erreur);
 }
 
+/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle en badges) — réutilise directement
+   .filtres-statut__statuts (FiltresStatut.css : boîte ivoire, boutons pilule, wrap) pour que cette
+   rangée de badges se lise comme une extension naturelle de la barre de filtres juste en dessous,
+   pas comme un composant isolé. margin-bottom aligné sur .filtres-statut (même espacement avant
+   la rangée de statuts). */
+.tableau-bord-accueil__filtres-experience {
+  margin-bottom: var(--espace-moyen);
+}
+
+/* Titre "Expérience" à l'intérieur du cadre (audit 2026-09-02) — texte nu, sans poids ajouté :
+   même traitement que les libellés "Poste"/"Formateur" devant un filtre ailleurs dans l'app
+   (Indicateurs.jsx/Planification.jsx), pas un style de titre inventé pour l'occasion. flex-shrink:
+   0 (comme les badges eux-mêmes, .filtres-statut__statuts button) pour ne jamais se faire
+   comprimer par le flex-wrap du cadre. */
+.tableau-bord-accueil__filtres-experience-titre {
+  flex-shrink: 0;
+  color: var(--couleur-texte);
+}
+
+/* Forme pilule + curseur — normalement hérités de `.filtres-statut button` (FiltresStatut.css),
+   mais ce sélecteur exige un ancêtre `<nav className="filtres-statut">` que ce bloc n'a pas (seule
+   sa boîte .filtres-statut__statuts est réutilisée) : posés ici explicitement pour ne pas dépendre
+   de cet ancêtre absent. */
+.tableau-bord-accueil__filtres-experience button {
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* Couleurs par tranche d'expérience (palette dédiée, voir --experience-*, variables.css) — même
+   patron `[data-xxx]:not(.actif)` que les couleurs de statut juste en dessous : le badge garde sa
+   teinte propre au repos, et bascule sur le remplissage plein .filtres-statut button.actif une
+   fois sélectionné (même langage visuel que "Tous"/Hôtellerie/Tertiaire/les badges de statut). */
+.tableau-bord-accueil__filtres-experience button[data-experience='aucune']:not(.actif) {
+  background-color: var(--experience-aucune-fond);
+  border-color: var(--experience-aucune-bordure);
+  color: var(--experience-aucune-texte);
+}
+
+.tableau-bord-accueil__filtres-experience button[data-experience='plus_6_mois']:not(.actif) {
+  background-color: var(--experience-6mois-fond);
+  border-color: var(--experience-6mois-bordure);
+  color: var(--experience-6mois-texte);
+}
+
+.tableau-bord-accueil__filtres-experience button[data-experience='plus_2_ans']:not(.actif) {
+  background-color: var(--experience-2ans-fond);
+  border-color: var(--experience-2ans-bordure);
+  color: var(--experience-2ans-texte);
+}
+
+.tableau-bord-accueil__filtres-experience button[data-experience='plus_5_ans']:not(.actif) {
+  background-color: var(--experience-5ans-fond);
+  border-color: var(--experience-5ans-bordure);
+  color: var(--experience-5ans-texte);
+}
+
+/* État actif — même remplissage plein que .filtres-statut button.actif (FiltresStatut.css), posé
+   ici explicitement plutôt que compté sur cette règle générique : ce bloc n'est PAS un <nav
+   className="filtres-statut"> (seule sa boîte .filtres-statut__statuts est réutilisée, voir
+   TableauDeBordAccueil.jsx), donc le sélecteur `.filtres-statut button.actif` — qui exige cet
+   ancêtre — ne le cible jamais. Sans cette règle, un badge actif retombait sur le style de bouton
+   par défaut du navigateur (constaté à l'écran, audit 2026-09-02). */
+.tableau-bord-accueil__filtres-experience button.actif {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
 /* Bloc de gauche (refonte 2026-08-23) : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire côte
    à côte juste en dessous — colonne de largeur fixe, distincte de la boîte de statuts à droite
    (.filtres-statut__statuts ci-dessous). Surcharge .filtres-statut__gauche (générique, en rangée

@@ -74,6 +74,13 @@ const LIBELLES_COMMENT_CONNU = {
   cooptation: 'Cooptation',
   autre: 'Autre',
 };
+const LIBELLES_EXPERIENCE = {
+  aucune: "Pas d'expérience",
+  plus_6_mois: 'Plus de 6 mois',
+  plus_2_ans: 'Plus de 2 ans',
+  plus_5_ans: 'Plus de 5 ans',
+};
+const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 const SITUATIONS_FAMILIALES = [
   { code: 'celibataire', libelle: 'Célibataire' },
   { code: 'marie', libelle: 'Marié(e)' },
@@ -212,6 +219,9 @@ const LIBELLES_CHAMPS_ERREUR = {
   typePoste: 'Type de poste recherché',
   posteBureau: 'Poste(s) recherché(s)',
   posteHotel: 'Poste(s) recherché(s)',
+  experience: 'Expérience',
+  experienceLieu: "Lieu de l'expérience",
+  experienceMissions: 'Mission(s) effectuée(s)',
   commentConnu: 'Comment nous a connu',
   commentConnuPrecision: 'Précision',
   certificationAucuneDispense: 'Dispense certifiée',
@@ -465,6 +475,9 @@ export default function InformationsInscription({ dossierId }) {
       typePoste,
       posteBureau: disponibilites.posteBureau ?? [],
       posteHotel: disponibilites.posteHotel ?? [],
+      experience: disponibilites.experience ?? 'aucune',
+      experienceLieu: disponibilites.experienceLieu ?? '',
+      experienceMissions: disponibilites.experienceMissions ?? '',
       commentConnu: disponibilites.commentConnu ?? 'bouche_a_oreille',
       commentConnuPrecision: disponibilites.commentConnuPrecision ?? '',
       cas1CmuC: mutuelle.cas1CmuC ?? 'non',
@@ -687,9 +700,12 @@ export default function InformationsInscription({ dossierId }) {
                       <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
                       <Ligne libelle="Langues parlées" valeur={languesValeur} />
                       <Ligne libelle="Comment nous a connu" valeur={commentConnuValeur} />
+                      <Ligne libelle="Expérience" valeur={libelle(LIBELLES_EXPERIENCE, disponibilites.experience)} />
                     </div>
                     <Ligne libelle="Jours disponibles" valeur={libelleListe(LIBELLES_JOUR, disponibilites.joursDisponibles)} />
                     <Ligne libelle="Poste(s) recherché(s)" valeur={libelleListe(LIBELLES_POSTE, postesRecherches)} />
+                    <Ligne libelle="Lieu de l'expérience" valeur={disponibilites.experienceLieu} />
+                    <Ligne libelle="Mission(s) effectuée(s)" valeur={disponibilites.experienceMissions} />
 
                     <hr className="informations-inscription__separateur" />
 
@@ -974,6 +990,42 @@ export default function InformationsInscription({ dossierId }) {
                       />
                     </Champ>
                     <ErreurChamp erreursChamps={erreursChamps} cle={brouillon.typePoste === 'bureau' ? 'posteBureau' : 'posteHotel'} />
+                    <Champ id="edition-experience" libelle="Expérience">
+                      <select
+                        id="edition-experience"
+                        value={brouillon.experience}
+                        onChange={(e) => modifierChamp('experience')(e.target.value)}
+                      >
+                        {EXPERIENCE.map((code) => (
+                          <option key={code} value={code}>
+                            {LIBELLES_EXPERIENCE[code]}
+                          </option>
+                        ))}
+                      </select>
+                    </Champ>
+                    {brouillon.experience !== 'aucune' && (
+                      <>
+                        <Champ id="edition-experience-lieu" libelle="Lieu de l'expérience">
+                          <input
+                            id="edition-experience-lieu"
+                            required
+                            value={brouillon.experienceLieu}
+                            onChange={(e) => modifierChamp('experienceLieu')(e.target.value)}
+                          />
+                        </Champ>
+                        <ErreurChamp erreursChamps={erreursChamps} cle="experienceLieu" />
+                        <Champ id="edition-experience-missions" libelle="Mission(s) effectuée(s)">
+                          <textarea
+                            id="edition-experience-missions"
+                            rows={3}
+                            required
+                            value={brouillon.experienceMissions}
+                            onChange={(e) => modifierChamp('experienceMissions')(e.target.value)}
+                          />
+                        </Champ>
+                        <ErreurChamp erreursChamps={erreursChamps} cle="experienceMissions" />
+                      </>
+                    )}
                     <Champ id="edition-comment-connu" libelle="Comment nous a connu">
                       <select
                         id="edition-comment-connu"

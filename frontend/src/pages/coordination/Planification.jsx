@@ -155,6 +155,21 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
+// Libellés/options du filtre + colonne "Expérience" (audit 2026-09-02) — mêmes codes que
+// BlocDisponibilites.jsx (formulaire d'inscription), dupliqués plutôt que partagés (même
+// convention que LIBELLES_POSTE_PAR_CODE_ACCECIT ci-dessus).
+const LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT = {
+  aucune: "Pas d'expérience",
+  plus_6_mois: 'Plus de 6 mois',
+  plus_2_ans: 'Plus de 2 ans',
+  plus_5_ans: 'Plus de 5 ans',
+};
+const CODES_EXPERIENCE_ACCECIT = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
+function libelleExperience(code) {
+  if (!code) return '-';
+  return LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s), nom du formateur,
 // libellé du statut) — toutes les colonnes visibles du tableau (audit 2026-08-20, généralisation
 // à toute l'app), filtrage entièrement client (comme aVenirSeulement/formateurFiltre sont eux filtrés côté back —
@@ -230,6 +245,7 @@ const COLONNES = [
     libelle: 'Poste',
     extraire: (rdv) => [...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])].join(', '),
   },
+  { cle: 'experience', libelle: 'Expérience', extraire: (rdv) => rdv.experience ?? '' },
   { cle: 'formateur_nom', libelle: 'Formateur', extraire: (rdv) => (rdv.formateur_nom ?? '').toLowerCase() },
   {
     cle: 'statut',
@@ -303,6 +319,10 @@ export default function Planification() {
   const [statutFiltreBrut, setStatutFiltreBrut] = useParametreURL('statut', 'tous');
   const statutFiltre = statutFiltreBrut === 'tous' ? null : statutFiltreBrut;
   const setStatutFiltre = (valeur) => setStatutFiltreBrut(valeur === null ? 'tous' : valeur);
+
+  // Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur" ci-dessus,
+  // filtrage entièrement client (comme statutFiltre). '' = toutes les tranches confondues.
+  const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -450,19 +470,27 @@ export default function Planification() {
   // cherche "Ibrahima" voit re-décompter les boutons sur les seuls candidats Ibrahima, pas sur la
   // liste entière — et un statut qu'aucune combinaison de filtres actuelle ne peut produire
   // (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement "(0)", jamais masqué.
+  // Expérience appliquée AVANT le statut (comme entitesFiltre sur TableauDeBordAccueil.jsx) : les
+  // compteurs de chaque bouton de statut reflètent la tranche d'expérience actuellement
+  // sélectionnée, pas la liste entière.
+  const rendezvousParCandidatAvantStatut = useMemo(() => {
+    if (!experienceFiltre) return rendezvousParCandidat;
+    return rendezvousParCandidat.filter((rdv) => rdv.experience === experienceFiltre);
+  }, [rendezvousParCandidat, experienceFiltre]);
+
   const compteursParStatut = useMemo(() => {
     const compteurs = {};
-    for (const rdv of rendezvousParCandidat) {
+    for (const rdv of rendezvousParCandidatAvantStatut) {
       const code = codeStatutAffiche(rdv);
       compteurs[code] = (compteurs[code] ?? 0) + 1;
     }
     return compteurs;
-  }, [rendezvousParCandidat]);
+  }, [rendezvousParCandidatAvantStatut]);
 
   const rendezvousParCandidatFiltres = useMemo(() => {
-    if (!statutFiltre) return rendezvousParCandidat;
-    return rendezvousParCandidat.filter((rdv) => codeStatutAffiche(rdv) === statutFiltre);
-  }, [rendezvousParCandidat, statutFiltre]);
+    if (!statutFiltre) return rendezvousParCandidatAvantStatut;
+    return rendezvousParCandidatAvantStatut.filter((rdv) => codeStatutAffiche(rdv) === statutFiltre);
+  }, [rendezvousParCandidatAvantStatut, statutFiltre]);
 
   const rendezvousTries = useMemo(() => {
     const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
@@ -587,6 +615,20 @@ export default function Planification() {
             </label>
           )}
 
+          {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur"
+              ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatut). */}
+          <label className="planification__filtre-formateur">
+            <span>Expérience</span>
+            <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
+              <option value="">Toutes</option>
+              {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                <option key={code} value={code}>
+                  {libelleExperience(code)}
+                </option>
+              ))}
+            </select>
+          </label>
+
           {/* Filtrage client (voir rechercheCorrespond/rendezvousFiltres ci-dessus) : se combine
               avec aVenirSeulement/formateurFiltre sans logique dédiée, ceux-ci étant déjà
               appliqués côté back avant que cette recherche ne s'exécute sur le résultat. Couvre
@@ -627,7 +669,7 @@ export default function Planification() {
           statutFiltre={statutFiltre}
           onChangerStatutFiltre={setStatutFiltre}
           ariaLabel="Filtrer par statut de rendez-vous"
-          compteurTous={rendezvousParCandidat.length}
+          compteurTous={rendezvousParCandidatAvantStatut.length}
           compteurs={compteursParStatut}
         />
 
@@ -779,6 +821,7 @@ export default function Planification() {
                         ))}
                       </div>
                     </td>
+                    <td>{libelleExperience(rdv.experience)}</td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
                     <td className="planification__colonne-statut">
                       <StatutBadge

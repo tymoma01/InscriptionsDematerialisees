@@ -37,6 +37,10 @@ const CRENEAUX = [...CRENEAUX_HOTEL, ...CRENEAUX_BUREAU];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
+// Même contrat que BlocDisponibilites.schema.js (front), revalidé ici — 'aucune' est la seule
+// option qui ne rend pas experienceLieu/experienceMissions obligatoires (voir les .refine dédiés
+// des deux schémas ci-dessous).
+const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 const OUI_NON = ['oui', 'non'];
 const CHOIX_DIFFUSION = ['autorise', 'refuse'];
 const MENTION_CHARTE_ATTENDUE = 'lu et approuvé'.normalize('NFC');
@@ -80,6 +84,9 @@ const donneesInscriptionSchema = z
     typePoste: z.enum(TYPES_POSTE),
     posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
     posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
+    experience: z.enum(EXPERIENCE),
+    experienceLieu: z.string().trim().optional().default(''),
+    experienceMissions: z.string().trim().optional().default(''),
     commentConnu: z.enum(COMMENT_CONNU),
     commentConnuPrecision: z.string().trim().optional().default(''),
     cas1CmuC: z.enum(OUI_NON),
@@ -162,6 +169,16 @@ const donneesInscriptionSchema = z
       path: ['creneaux'],
     },
   )
+  // Lieu/Missions obligatoires dès que "Expérience" vaut autre chose que "Pas d'expérience"
+  // ('aucune') — même règle que BlocDisponibilites.schema.js côté front, revalidée ici.
+  .refine((donnees) => donnees.experience === 'aucune' || donnees.experienceLieu !== '', {
+    message: 'Veuillez préciser le lieu de cette expérience',
+    path: ['experienceLieu'],
+  })
+  .refine((donnees) => donnees.experience === 'aucune' || donnees.experienceMissions !== '', {
+    message: 'Veuillez préciser la ou les mission(s) effectuée(s)',
+    path: ['experienceMissions'],
+  })
   // Précision obligatoire uniquement si "Internet" ou "Autre" est sélectionné
   .refine(
     (donnees) => !['internet', 'autre'].includes(donnees.commentConnu) || donnees.commentConnuPrecision !== '',
@@ -297,6 +314,9 @@ async function inscrireCandidat(entite, donneesBrutes) {
         typePoste: donnees.typePoste,
         posteBureau: donnees.posteBureau,
         posteHotel: donnees.posteHotel,
+        experience: donnees.experience,
+        experienceLieu: donnees.experienceLieu,
+        experienceMissions: donnees.experienceMissions,
         commentConnu: donnees.commentConnu,
         commentConnuPrecision: donnees.commentConnuPrecision,
       },
@@ -424,6 +444,9 @@ async function listerDossiers(entite, { statutCode } = {}) {
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
+    // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
+    // ci-dessus : extrait du même bloc JSONB déjà joint, aucune requête supplémentaire.
+    experience: donnees_disponibilites?.experience ?? null,
     candidat_telephone: donnees_coordonnees?.telephone ?? null,
     candidat_email: donnees_coordonnees?.email ?? null,
   }));
@@ -438,6 +461,7 @@ async function listerSuiviFormation(entite) {
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
+    experience: donnees_disponibilites?.experience ?? null,
   }));
 }
 
@@ -604,6 +628,9 @@ const modificationInscriptionSchema = z
     typePoste: z.enum(TYPES_POSTE),
     posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
     posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
+    experience: z.enum(EXPERIENCE),
+    experienceLieu: z.string().trim().optional().default(''),
+    experienceMissions: z.string().trim().optional().default(''),
     commentConnu: z.enum(COMMENT_CONNU),
     commentConnuPrecision: z.string().trim().optional().default(''),
     cas1CmuC: z.enum(OUI_NON),
@@ -674,6 +701,16 @@ const modificationInscriptionSchema = z
       path: ['commentConnuPrecision'],
     },
   )
+  // Même règle que donneesInscriptionSchema ci-dessus (Lieu/Missions obligatoires hors "Pas
+  // d'expérience"), revalidée ici pour le bouton "Modifier".
+  .refine((donnees) => donnees.experience === 'aucune' || donnees.experienceLieu !== '', {
+    message: 'Veuillez préciser le lieu de cette expérience',
+    path: ['experienceLieu'],
+  })
+  .refine((donnees) => donnees.experience === 'aucune' || donnees.experienceMissions !== '', {
+    message: 'Veuillez préciser la ou les mission(s) effectuée(s)',
+    path: ['experienceMissions'],
+  })
   .refine(
     (donnees) =>
       !donnees.certificationAucuneDispense ||
@@ -749,6 +786,9 @@ async function modifierInscription(entite, dossierId, donneesBrutes) {
         typePoste: donnees.typePoste,
         posteBureau: donnees.posteBureau,
         posteHotel: donnees.posteHotel,
+        experience: donnees.experience,
+        experienceLieu: donnees.experienceLieu,
+        experienceMissions: donnees.experienceMissions,
         commentConnu: donnees.commentConnu,
         commentConnuPrecision: donnees.commentConnuPrecision,
       },

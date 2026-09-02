@@ -62,3 +62,29 @@
   flex-basis: 100%;
   margin: 0;
 }
+
+/* Variante large pour "Lieu" (expérience) — même largeur de champ de saisie que le reste du
+   formulaire (Email, Nom du contact d'urgence, voir BlocCoordonnees.css), contrairement aux
+   autres champs "Précisez" ci-dessus (langue "Autre", comment nous avez-vous connu) qui restent
+   volontairement courts (un mot ou deux) et donc hors de cette variante. */
+.bloc-disponibilites__champ-precision--large input {
+  flex: 1 1 var(--largeur-champ-saisie);
+  width: auto;
+  max-width: 32rem;
+  box-sizing: border-box;
+}
+
+/* Variante empilée (label au-dessus, plutôt que côte à côte) pour "Mission(s) effectuée(s)" —
+   un textarea multi-lignes à côté d'un label sur une seule ligne (comme .champ-precision par
+   défaut ci-dessus) reste mal aligné visuellement, contrairement à un <input type="text">
+   classique. */
+.bloc-disponibilites__champ-precision--empile {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.bloc-disponibilites__champ-precision--empile textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}

@@ -85,6 +85,12 @@ function construirePayload(candidat, index) {
     typePoste: candidat.typePoste,
     posteBureau: candidat.typePoste === 'bureau' ? candidat.postes : [],
     posteHotel: candidat.typePoste === 'hotel' ? candidat.postes : [],
+    // Alterne avec/sans expérience (audit 2026-09-02, nouveau bloc "Expérience") pour que ce
+    // script de seed couvre les deux cas sans avoir à y repenser : impair -> 'aucune' (Lieu/
+    // Missions omis), pair -> 'plus_2_ans' (Lieu/Missions renseignés).
+    experience: index % 2 === 0 ? 'plus_2_ans' : 'aucune',
+    experienceLieu: index % 2 === 0 ? `Entreprise Test ${index + 1}` : '',
+    experienceMissions: index % 2 === 0 ? 'Nettoyage des locaux, gestion des stocks.' : '',
     commentConnu: 'bouche_a_oreille',
     commentConnuPrecision: '',
     cas1CmuC: 'non',

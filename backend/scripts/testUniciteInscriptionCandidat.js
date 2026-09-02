@@ -32,6 +32,7 @@ function donneesInscriptionValides(overrides = {}) {
     joursDisponibles: ['lundi'],
     typePoste: 'hotel',
     posteHotel: ['equipier'],
+    experience: 'aucune',
     commentConnu: 'internet',
     commentConnuPrecision: 'recherche google',
     cas1CmuC: 'non',

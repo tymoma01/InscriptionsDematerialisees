@@ -86,3 +86,32 @@
   color: var(--statut-vert-fonce-texte);
   border-color: var(--statut-vert-fonce-bordure);
 }
+
+/* Colonne "Expérience" (Dossiers candidats, audit 2026-09-02) — palette dédiée --experience-*
+   (variables.css), volontairement séparée de --statut-* : même lien visuel direct que les badges
+   de statut avec les badges du filtre correspondant (voir TableauDeBordAccueil.css,
+   [data-experience]), mais une famille de couleurs à part pour ne pas confondre les deux filtres
+   de cette même page. */
+.statut-badge--experience-aucune {
+  background-color: var(--experience-aucune-fond);
+  color: var(--experience-aucune-texte);
+  border-color: var(--experience-aucune-bordure);
+}
+
+.statut-badge--experience-6mois {
+  background-color: var(--experience-6mois-fond);
+  color: var(--experience-6mois-texte);
+  border-color: var(--experience-6mois-bordure);
+}
+
+.statut-badge--experience-2ans {
+  background-color: var(--experience-2ans-fond);
+  color: var(--experience-2ans-texte);
+  border-color: var(--experience-2ans-bordure);
+}
+
+.statut-badge--experience-5ans {
+  background-color: var(--experience-5ans-fond);
+  color: var(--experience-5ans-texte);
+  border-color: var(--experience-5ans-bordure);
+}

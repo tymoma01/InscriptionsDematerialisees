@@ -8,7 +8,9 @@ import './StatutBadge.css';
 // pages/accueil/TableauDeBordAccueil.jsx), de fournir la variante. Valeurs supportées (chacune
 // une couleur définie dans styles/variables.css, `--statut-<variante>-*`, jamais codée en dur
 // ici) : 'neutre' | 'neutre-fort' | 'attente' | 'succes' | 'echec' | 'bleu' | 'violet' |
-// 'vert-clair' | 'alerte' | 'dore' | 'echec-fort' | 'rose' | 'vert-fonce'. Une variante inconnue de variables.css
+// 'vert-clair' | 'alerte' | 'dore' | 'echec-fort' | 'rose' | 'vert-fonce' | 'experience-aucune' | 'experience-6mois' | 'experience-2ans' |
+// 'experience-5ans' (ces 4 dernières lisent `--experience-*`, palette dédiée à la colonne
+// "Expérience", voir TableauDeBordAccueil.css). Une variante inconnue de variables.css
 // retomberait simplement sur les couleurs par défaut de .statut-badge (voir ci-dessous) faute de
 // règle --statut-badge--X correspondante, jamais une erreur.
 export default function StatutBadge({ libelle, variante = 'neutre' }) {

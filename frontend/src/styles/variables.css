@@ -187,4 +187,34 @@
   --statut-vert-fonce-fond: #b3e8c4;
   --statut-vert-fonce-texte: #0a5c33;
   --statut-vert-fonce-bordure: #7ecf9c;
+
+  /* Palette "Expérience" (audit 2026-09-02, filtre + colonne "Expérience" sur Dossiers
+     candidats) — famille DISTINCTE de la palette de statuts ci-dessus (décision utilisateur
+     explicite : éviter toute confusion visuelle entre les deux familles de filtre sur la même
+     page), même si certaines teintes appartiennent à la même famille de couleur (gris/bleu/vert) —
+     valeurs volontairement différentes des `--statut-*` correspondantes, jamais réutilisées telles
+     quelles. Progression délibérée du plus neutre (aucune expérience) au plus affirmé (5 ans et
+     plus) : gris -> bleu clair -> bleu-cyan/teal -> vert, quatre teintes qui s'enchaînent
+     naturellement sur le cercle chromatique plutôt que quatre couleurs choisies sans rapport entre
+     elles. Même structure fond pastel clair / texte foncé saturé / bordure intermédiaire que la
+     palette de statuts (contraste WCAG AA visé, >= 4,5:1 texte/fond, même méthode). */
+  --experience-aucune-fond: #e7e9ed;
+  --experience-aucune-texte: #4b5768;
+  --experience-aucune-bordure: #c7ced8;
+
+  --experience-6mois-fond: #dbeefc;
+  --experience-6mois-texte: #0f6fa8;
+  --experience-6mois-bordure: #a6d6f2;
+
+  --experience-2ans-fond: #d2f2ee;
+  --experience-2ans-texte: #0a7d70;
+  --experience-2ans-bordure: #93ddd3;
+
+  /* Vert délibérément à dominante olive/sage (pas le vert franc de --statut-succes/vert-clair/
+     vert-fonce déjà en place, tous les trois utilisés sur cette même page) : reste lisible comme
+     "vert" en fin de progression tout en restant visuellement distinct des trois autres verts déjà
+     à l'écran. */
+  --experience-5ans-fond: #e3edc7;
+  --experience-5ans-texte: #4c6b1a;
+  --experience-5ans-bordure: #c2d896;
 }

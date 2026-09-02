@@ -104,6 +104,37 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
+// Libellés/options du filtre "Expérience" (colonne DossierList.jsx, audit 2026-09-02) — mêmes
+// codes que BlocDisponibilites.jsx (formulaire d'inscription), dupliqués plutôt que partagés
+// (même convention que LIBELLES_POSTE_PAR_CODE_ACCECIT ci-dessus, voir CLAUDE.md conventions du
+// projet).
+const LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT = {
+  aucune: "Pas d'expérience",
+  plus_6_mois: 'Plus de 6 mois',
+  plus_2_ans: 'Plus de 2 ans',
+  plus_5_ans: 'Plus de 5 ans',
+};
+const CODES_EXPERIENCE_ACCECIT = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
+function libelleExperience(code) {
+  if (!code) return '-';
+  return LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
+// Variante StatutBadge par code d'expérience (audit 2026-09-02, badge coloré colonne
+// "Expérience") — même principe que varianteStatut ci-dessous : DossierList.jsx reste générique,
+// c'est cette page (qui connaît le vocabulaire ACCECIT) qui fournit la traduction code -> variante.
+// Noms de variante alignés sur les codes eux-mêmes (StatutBadge.css, `--experience-*`), pas de
+// mapping arbitraire à retenir séparément.
+const VARIANTE_EXPERIENCE_PAR_CODE_ACCECIT = {
+  aucune: 'experience-aucune',
+  plus_6_mois: 'experience-6mois',
+  plus_2_ans: 'experience-2ans',
+  plus_5_ans: 'experience-5ans',
+};
+function varianteExperience(code) {
+  return VARIANTE_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? 'neutre';
+}
+
 // Tous les statuts réellement atteignables aujourd'hui dans le workflow actif — propre à cette
 // page, pas au moteur générique FiltresStatut.jsx qui reste piloté entièrement par la prop
 // `statuts` qu'on lui passe. "En attente de vérification" (workflow hérité) n'y figure
@@ -220,6 +251,13 @@ export default function TableauDeBordAccueil() {
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
   const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
 
+  // Filtre "Expérience" (audit 2026-09-02) — même mécanisme que le sélecteur "Poste" du tableau
+  // de bord Indicateurs (Indicateurs.jsx) : un <select> simple, persistant dans l'URL comme les
+  // autres filtres de cette page, filtrage entièrement client (dossier.experience déjà présent
+  // sur chaque dossier renvoyé par GET /api/dossiers, voir dossierService.listerDossiers).
+  // '' = toutes les tranches d'expérience confondues, jamais une valeur de code réelle.
+  const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
+
   useEffect(() => {
     listerStatuts()
       .then(setStatuts)
@@ -272,19 +310,48 @@ export default function TableauDeBordAccueil() {
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
   );
 
-  // Recherche/dates/entité (pas encore le statut) : c'est cette liste, group par statut_code, qui
-  // donne le compteur de CHAQUE bouton de statut (y compris "Tous") — le nombre de résultats qu'on
-  // obtiendrait en cliquant ce bouton compte tenu des autres filtres actifs.
-  const dossiersFiltresSansStatut = useMemo(
+  // Recherche/dates/entité (ni statut ni expérience) : base commune aux DEUX familles de
+  // compteurs ci-dessous (statut et expérience, chacune devant ignorer SON PROPRE filtre pour
+  // répondre à "combien de dossiers si je clique CE bouton", tout en tenant compte de l'AUTRE
+  // filtre déjà actif) — même principe que dossiersRechercheDate ci-dessus pour Hôtellerie/
+  // Tertiaire, généralisé aux deux filtres à badges de cette page.
+  const dossiersFiltresBase = useMemo(
     () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }),
     [dossiers, recherche, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
-  const dossiersFiltres = useMemo(() => {
-    if (!statutFiltre) return dossiersFiltresSansStatut;
+  // Recherche/dates/entité/expérience (pas encore le statut) : c'est cette liste, group par
+  // statut_code, qui donne le compteur de CHAQUE bouton de statut (y compris "Tous") — le nombre
+  // de résultats qu'on obtiendrait en cliquant ce bouton compte tenu des autres filtres actifs.
+  const dossiersFiltresSansStatut = useMemo(
+    () => dossiersFiltresBase.filter((dossier) => !experienceFiltre || dossier.experience === experienceFiltre),
+    [dossiersFiltresBase, experienceFiltre],
+  );
+
+  // Recherche/dates/entité/statut (pas encore l'expérience) : symétrique de
+  // dossiersFiltresSansStatut ci-dessus, pour les compteurs des badges "Expérience" (audit
+  // 2026-09-02) — chaque badge doit lui aussi refléter le statut déjà sélectionné.
+  const dossiersFiltresSansExperience = useMemo(() => {
+    if (!statutFiltre) return dossiersFiltresBase;
     const codes = codesPourFiltreStatut(statutFiltre);
-    return dossiersFiltresSansStatut.filter((dossier) => codes.includes(dossier.statut_code));
-  }, [dossiersFiltresSansStatut, statutFiltre]);
+    return dossiersFiltresBase.filter((dossier) => codes.includes(dossier.statut_code));
+  }, [dossiersFiltresBase, statutFiltre]);
+
+  const compteursParExperience = useMemo(() => {
+    const compte = {};
+    dossiersFiltresSansExperience.forEach((dossier) => {
+      if (!dossier.experience) return;
+      compte[dossier.experience] = (compte[dossier.experience] ?? 0) + 1;
+    });
+    return compte;
+  }, [dossiersFiltresSansExperience]);
+
+  // Liste finale affichée : les deux filtres à badges (statut + expérience) combinés en ET, en
+  // plus de recherche/dates/entité déjà dans dossiersFiltresBase.
+  const dossiersFiltres = useMemo(
+    () => dossiersFiltresSansExperience.filter((dossier) => !experienceFiltre || dossier.experience === experienceFiltre),
+    [dossiersFiltresSansExperience, experienceFiltre],
+  );
 
   // Sélection multiple + actions groupées (audit 2026-08-24) — même patron que Planification.jsx
   // (Suivi des tests) : un Set d'ids, jamais réinitialisé au changement de filtre/recherche (une
@@ -449,18 +516,20 @@ export default function TableauDeBordAccueil() {
       dossiersRechercheDate.filter(
         (dossier) =>
           (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
+          (!experienceFiltre || dossier.experience === experienceFiltre) &&
           (dossier.postesHotel ?? []).length > 0,
       ).length,
-    [dossiersRechercheDate, statutFiltre],
+    [dossiersRechercheDate, statutFiltre, experienceFiltre],
   );
   const compteurBureau = useMemo(
     () =>
       dossiersRechercheDate.filter(
         (dossier) =>
           (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
+          (!experienceFiltre || dossier.experience === experienceFiltre) &&
           (dossier.postesBureau ?? []).length > 0,
       ).length,
-    [dossiersRechercheDate, statutFiltre],
+    [dossiersRechercheDate, statutFiltre, experienceFiltre],
   );
 
   const statutsFiltres = useMemo(
@@ -498,6 +567,39 @@ export default function TableauDeBordAccueil() {
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
+        {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
+            disposition/composant visuel que la boîte de badges de statut juste en dessous
+            (.filtres-statut__statuts, réutilisée telle quelle plutôt que dupliquée) : boîte
+            ivoire, boutons pilule, compteur entre parenthèses. Comportement de sélection
+            DÉLIBÉRÉMENT différent de FiltresStatut.jsx (pas de bouton "Tous" séparé) : cliquer le
+            badge déjà actif le désactive (retour à experienceFiltre === ''), alors qu'un bouton de
+            statut ne se désactive que via "Tous" — demande explicite, cohérente avec l'absence
+            d'équivalent "Tous" pour ce filtre à 4 valeurs seulement. data-experience (comme
+            data-statut) : accroche de couleur par valeur, voir TableauDeBordAccueil.css. */}
+        <div
+          className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
+          role="group"
+          aria-label="Filtrer par expérience"
+        >
+          {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
+              <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
+              badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
+              filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
+              inventé ici. */}
+          <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
+          {CODES_EXPERIENCE_ACCECIT.map((code) => (
+            <button
+              key={code}
+              type="button"
+              data-experience={code}
+              className={experienceFiltre === code ? 'actif' : ''}
+              onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
+            >
+              {libelleExperience(code)}
+              <strong> ({compteursParExperience[code] ?? 0})</strong>
+            </button>
+          ))}
+        </div>
         <FiltresStatut
           statuts={statutsFiltres}
           statutFiltre={statutFiltre}
@@ -621,6 +723,8 @@ export default function TableauDeBordAccueil() {
             dossiers={dossiersFiltres}
             varianteStatut={varianteStatut}
             libellePoste={libellePoste}
+            libelleExperience={libelleExperience}
+            varianteExperience={varianteExperience}
             dossiersSelectionnes={dossiersSelectionnes}
             onTogglerSelectionDossier={togglerSelectionDossier}
             toutSelectionne={tousVisiblesSelectionnes}

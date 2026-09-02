@@ -15,6 +15,10 @@ const TYPES_POSTE = ['bureau', 'hotel'];
 const POSTES_BUREAU = ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autres'];
 const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
+// Bloc "Expérience" (ajout 2026-09-02) — choix unique, 'aucune' est la seule option qui ne
+// déclenche pas les deux champs de précision (Lieu/Missions), voir le .refine dédié plus bas et
+// experienceChampsVisibles côté BlocDisponibilites.jsx.
+const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 
 export const blocDisponibilitesSchema = z
   .object({
@@ -29,6 +33,9 @@ export const blocDisponibilitesSchema = z
     posteBureau: z.array(z.enum(POSTES_BUREAU)).default([]),
     autrePosteBureauPrecision: z.string().trim().optional().default(''),
     posteHotel: z.array(z.enum(POSTES_HOTEL)).default([]),
+    experience: z.enum(EXPERIENCE, { required_error: "L'expérience est obligatoire" }),
+    experienceLieu: z.string().trim().optional().default(''),
+    experienceMissions: z.string().trim().optional().default(''),
     commentConnu: z.enum(COMMENT_CONNU, { required_error: 'Merci de préciser comment vous nous avez connu' }),
     commentConnuPrecision: z.string().trim().optional().default(''),
   })
@@ -100,6 +107,17 @@ export const blocDisponibilitesSchema = z
       path: ['joursDisponibles'],
     },
   )
+  // Lieu/Missions obligatoires dès que "Expérience" vaut autre chose que "Pas d'expérience"
+  // ('aucune') — les deux champs de précision affichés par experienceChampsVisibles,
+  // BlocDisponibilites.jsx.
+  .refine((valeurs) => valeurs.experience === 'aucune' || valeurs.experienceLieu !== '', {
+    message: 'Veuillez préciser le lieu de cette expérience',
+    path: ['experienceLieu'],
+  })
+  .refine((valeurs) => valeurs.experience === 'aucune' || valeurs.experienceMissions !== '', {
+    message: 'Veuillez préciser la ou les mission(s) effectuée(s)',
+    path: ['experienceMissions'],
+  })
   // Précision obligatoire pour "Internet", "Autre" et "Cooptation" — les 3 options où le champ
   // "Précisez" est affiché (voir commentConnuPrecisionVisible, BlocDisponibilites.jsx)
   .refine(

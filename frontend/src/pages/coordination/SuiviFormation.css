@@ -98,7 +98,29 @@
   font: inherit;
 }
 
+/* Filtre "Expérience" (audit 2026-09-02) — même patron que .planification__filtre-formateur
+   (Planification.jsx, Suivi des tests). */
+.page-suivi-formation__filtre-experience {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.page-suivi-formation__filtre-experience select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
 .page-suivi-formation__formateur {
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Colonne "Expérience" (audit 2026-09-02) — même style discret que .formateur ci-dessus, cette
+   page n'ayant pas de colonne "Poste" existante à ses côtés (voir commentaire de
+   LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT, SuiviFormation.jsx). */
+.page-suivi-formation__experience {
   color: var(--couleur-texte-secondaire);
 }
 

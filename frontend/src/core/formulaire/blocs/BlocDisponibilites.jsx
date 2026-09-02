@@ -63,6 +63,13 @@ const COMMENT_CONNU = [
   { code: 'autre', libelle: 'Autre' },
 ];
 
+const EXPERIENCE = [
+  { code: 'aucune', libelle: "Pas d'expérience" },
+  { code: 'plus_6_mois', libelle: 'Plus de 6 mois' },
+  { code: 'plus_2_ans', libelle: 'Plus de 2 ans' },
+  { code: 'plus_5_ans', libelle: 'Plus de 5 ans' },
+];
+
 // Bloc générique "disponibilités" : même contrat que BlocCoordonnees (valeurs, onChange,
 // onValiditeChange) — rendu par BlocRenderer via blocRegistry, aucune connaissance du parcours global.
 export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange }) {
@@ -86,6 +93,9 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       posteBureau: valeurs?.posteBureau ?? [],
       autrePosteBureauPrecision: valeurs?.autrePosteBureauPrecision ?? '',
       posteHotel: valeurs?.posteHotel ?? [],
+      experience: valeurs?.experience,
+      experienceLieu: valeurs?.experienceLieu ?? '',
+      experienceMissions: valeurs?.experienceMissions ?? '',
       commentConnu: valeurs?.commentConnu,
       commentConnuPrecision: valeurs?.commentConnuPrecision ?? '',
     },
@@ -137,6 +147,10 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       ? 'Sélectionnez au moins un créneau 6h-9h ou 18h-21h (9h-18h seul ne suffit pas)'
       : null;
   const autrePosteBureauCoche = (valeursSaisies.posteBureau ?? []).includes('autres');
+  const experienceSelectionnee = valeursSaisies.experience;
+  // Visible dès que le candidat a choisi une option AUTRE que "Pas d'expérience" — les 3 options
+  // avec expérience, jamais 'aucune' (voir le .refine dédié, BlocDisponibilites.schema.js).
+  const experienceChampsVisibles = experienceSelectionnee != null && experienceSelectionnee !== 'aucune';
   const commentConnuSelectionne = valeursSaisies.commentConnu;
   // Visible et obligatoire pour les 3 mêmes options (voir BlocDisponibilites.schema.js) :
   // Internet, Autre et Cooptation.
@@ -147,6 +161,16 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       setValue('autrePosteBureauPrecision', '');
     }
   }, [autrePosteBureauCoche]);
+
+  // Vide Lieu/Missions dès que le candidat repasse à "Pas d'expérience" (ou n'a encore rien
+  // choisi) — même patron que l'effet ci-dessus (autrePosteBureauPrecision) : leur contenu ne
+  // doit jamais rester en mémoire pour bloquer la validation une fois les champs masqués.
+  useEffect(() => {
+    if (!experienceChampsVisibles) {
+      setValue('experienceLieu', '');
+      setValue('experienceMissions', '');
+    }
+  }, [experienceChampsVisibles]);
 
   // Vide les créneaux déjà cochés dès que le candidat CHANGE réellement de type de poste
   // (bureau <-> hôtel) : les deux vocabulaires (Matin/Midi/Soir vs 6h-9h/9h-18h/18h-21h) n'ont pas
@@ -398,6 +422,55 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
             </div>
           </fieldset>
           {errors.posteHotel && <p role="alert">{errors.posteHotel.message}</p>}
+        </>
+      )}
+
+      {/* Expérience — même style boutons radio que Type de poste recherché/Comment nous
+          avez-vous connu ci-dessus (choix unique garanti nativement, pas des cases à cocher).
+          Placé après Poste recherché (bureau)/(hôtel), avant Comment nous avez-vous connu, quel
+          que soit le typePoste (jamais conditionné par lui, contrairement aux blocs postes). */}
+      <fieldset>
+        <legend>
+          Expérience <span className="champ-obligatoire">*</span>
+        </legend>
+        <div className="bloc-disponibilites__options">
+          {EXPERIENCE.map((option) => (
+            <label key={option.code} htmlFor={`experience-${option.code}`}>
+              <input
+                id={`experience-${option.code}`}
+                type="radio"
+                value={option.code}
+                {...propsRadioAccessible({
+                  register,
+                  setValue,
+                  champ: 'experience',
+                  valeur: option.code,
+                  valeurCourante: experienceSelectionnee,
+                })}
+              />
+              {option.libelle}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {errors.experience && <p role="alert">{errors.experience.message}</p>}
+
+      {experienceChampsVisibles && (
+        <>
+          <div className="bloc-disponibilites__champ-precision bloc-disponibilites__champ-precision--large">
+            <label htmlFor="experienceLieu">
+              Lieu <span className="champ-obligatoire">*</span>
+            </label>
+            <input id="experienceLieu" type="text" {...register('experienceLieu')} />
+            {errors.experienceLieu && <p role="alert">{errors.experienceLieu.message}</p>}
+          </div>
+          <div className="bloc-disponibilites__champ-precision bloc-disponibilites__champ-precision--empile">
+            <label htmlFor="experienceMissions">
+              Mission(s) effectuée(s) <span className="champ-obligatoire">*</span>
+            </label>
+            <textarea id="experienceMissions" rows={3} {...register('experienceMissions')} />
+            {errors.experienceMissions && <p role="alert">{errors.experienceMissions.message}</p>}
+          </div>
         </>
       )}
 

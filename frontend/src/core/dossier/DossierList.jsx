@@ -34,6 +34,10 @@ const COLONNES = [
     libelle: 'Poste',
     extraire: (dossier) => [...(dossier.postesBureau ?? []), ...(dossier.postesHotel ?? [])].join(', '),
   },
+  // Colonne "Expérience" (audit 2026-09-02) — même patron que "Poste" juste au-dessus : trie sur
+  // le code brut (dossier.experience), pas le libellé traduit par `libelleExperience` (prop
+  // optionnelle, voir plus bas), pour un tri stable indépendant de ce traducteur.
+  { cle: 'experience', libelle: 'Expérience', extraire: (dossier) => dossier.experience ?? '' },
   { cle: 'statut_libelle', libelle: 'Statut', extraire: (dossier) => (dossier.statut_libelle ?? '').toLowerCase() },
   { cle: 'date_maj', libelle: 'Dernière mise à jour', extraire: (dossier) => new Date(dossier.date_maj).getTime() },
 ];
@@ -59,6 +63,12 @@ const COLONNES = [
 // propre à ACCECIT (voir BlocDisponibilites.jsx), ce composant générique ne les traduit pas
 // lui-même. Sans `libellePoste` fourni, affiche le code brut plutôt que d'échouer.
 //
+// `libelleExperience` (audit 2026-09-02) : même principe pour la colonne "Expérience"
+// (dossier.experience, un seul code — pas un tableau comme postesBureau/postesHotel).
+// `varianteExperience` (audit 2026-09-02, badge coloré) : même principe que `varianteStatut`
+// ci-dessus, appliqué à cette même colonne — sans lui, retombe sur la variante 'neutre' de
+// StatutBadge plutôt que d'échouer.
+//
 // Tri entièrement client, sur la liste déjà reçue (déjà filtrée par statut/recherche/date par
 // l'appelant, voir TableauDeBordAccueil.jsx/Backoffice.jsx) : ni l'une ni l'autre des deux pages
 // qui utilisent ce composant ne pagine côté serveur, un paramètre de tri sur GET /api/dossiers
@@ -78,6 +88,8 @@ export default function DossierList({
   dossiers,
   varianteStatut,
   libellePoste,
+  libelleExperience,
+  varianteExperience,
   actions = [],
   dossiersSelectionnes,
   onTogglerSelectionDossier,
@@ -208,6 +220,16 @@ export default function DossierList({
                     </span>
                   ))}
                 </div>
+              </td>
+              <td>
+                {dossier.experience ? (
+                  <StatutBadge
+                    libelle={libelleExperience ? libelleExperience(dossier.experience) : dossier.experience}
+                    variante={varianteExperience ? varianteExperience(dossier.experience) : 'neutre'}
+                  />
+                ) : (
+                  '-'
+                )}
               </td>
               <td>
                 <StatutBadge

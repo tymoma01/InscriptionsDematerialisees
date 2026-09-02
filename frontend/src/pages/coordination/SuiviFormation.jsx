@@ -83,6 +83,24 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
+// Libellés/options du filtre + colonne "Expérience" (audit 2026-09-02) — mêmes codes que
+// BlocDisponibilites.jsx (formulaire d'inscription)/Planification.jsx (Suivi des tests), dupliqués
+// plutôt que partagés (voir CLAUDE.md conventions du projet). Cette page n'affichait jusqu'ici
+// aucune colonne "Poste" (contrairement à Dossiers candidats/Suivi des tests) : "Expérience" est
+// donc la première information candidat de ce type ajoutée ici, sans colonne "Poste" existante à
+// ses côtés.
+const LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT = {
+  aucune: "Pas d'expérience",
+  plus_6_mois: 'Plus de 6 mois',
+  plus_2_ans: 'Plus de 2 ans',
+  plus_5_ans: 'Plus de 5 ans',
+};
+const CODES_EXPERIENCE_ACCECIT = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
+function libelleExperience(code) {
+  if (!code) return '-';
+  return LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? code;
+}
+
 // Recherche élargie (nom/prénom, n° de dossier, poste(s) déclaré(s), nom du formateur, libellé du
 // statut) — même patron que Planification.jsx (rechercheCorrespond), dupliqué plutôt que partagé
 // (voir CLAUDE.md conventions du projet, et son commentaire d'en-tête : la forme d'un dossier
@@ -146,6 +164,9 @@ export default function SuiviFormation() {
   const [recherche, setRecherche] = useParametreURL('q', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
+  // Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que Planification.jsx (Suivi
+  // des tests), filtrage entièrement client. '' = toutes les tranches confondues.
+  const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
   const accesComplet = ['formateur', 'inspecteur', 'admin'].includes(utilisateur?.roleCode);
 
@@ -202,18 +223,26 @@ export default function SuiviFormation() {
     });
   }, [dossiers, recherche, dateDebutFiltre, dateFinFiltre]);
 
+  // Expérience appliquée AVANT le statut (même patron que TableauDeBordAccueil.jsx/
+  // Planification.jsx) : les compteurs de chaque bouton de statut reflètent la tranche
+  // d'expérience actuellement sélectionnée, pas la liste entière.
+  const dossiersRechercheDateExperience = useMemo(() => {
+    if (!experienceFiltre) return dossiersRechercheDate;
+    return dossiersRechercheDate.filter((dossier) => dossier.experience === experienceFiltre);
+  }, [dossiersRechercheDate, experienceFiltre]);
+
   const compteursParStatut = useMemo(() => {
     const compteurs = {};
-    for (const dossier of dossiersRechercheDate) {
+    for (const dossier of dossiersRechercheDateExperience) {
       compteurs[dossier.statut_code] = (compteurs[dossier.statut_code] ?? 0) + 1;
     }
     return compteurs;
-  }, [dossiersRechercheDate]);
+  }, [dossiersRechercheDateExperience]);
 
   const dossiersFiltres = useMemo(() => {
-    if (!statutFiltre) return dossiersRechercheDate;
-    return dossiersRechercheDate.filter((dossier) => dossier.statut_code === statutFiltre);
-  }, [dossiersRechercheDate, statutFiltre]);
+    if (!statutFiltre) return dossiersRechercheDateExperience;
+    return dossiersRechercheDateExperience.filter((dossier) => dossier.statut_code === statutFiltre);
+  }, [dossiersRechercheDateExperience, statutFiltre]);
 
   const enregistrerResultat = async (dossier, codeAction, commentaire) => {
     setEnCoursId(dossier.id);
@@ -263,7 +292,7 @@ export default function SuiviFormation() {
               statuts={STATUTS_FILTRABLES}
               statutFiltre={statutFiltre}
               onChangerStatutFiltre={setStatutFiltre}
-              compteurTous={dossiersRechercheDate.length}
+              compteurTous={dossiersRechercheDateExperience.length}
               compteurs={compteursParStatut}
             />
 
@@ -276,6 +305,20 @@ export default function SuiviFormation() {
                   onChange={(evenement) => setRecherche(evenement.target.value)}
                   placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
                 />
+              </label>
+
+              {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que
+                  Planification.jsx (Suivi des tests), filtrage entièrement client. */}
+              <label className="page-suivi-formation__filtre-experience">
+                <span>Expérience</span>
+                <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
+                  <option value="">Toutes</option>
+                  {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                    <option key={code} value={code}>
+                      {libelleExperience(code)}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               {/* Même composant que Dossiers candidats/Suivi des tests (FiltrePlageDate.jsx) —
@@ -310,6 +353,7 @@ export default function SuiviFormation() {
                     ? `${dossier.formateur_prenom ?? ''} ${dossier.formateur_nom ?? ''}`.trim()
                     : '—'}
                 </span>
+                <span className="page-suivi-formation__experience">{libelleExperience(dossier.experience)}</span>
                 <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
 
                 {accesComplet && dossier.statut_code === 'valide_envoi_formation' && (

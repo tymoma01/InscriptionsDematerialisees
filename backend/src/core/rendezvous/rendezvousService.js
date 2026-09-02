@@ -321,6 +321,9 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
+    // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
+    // ci-dessus.
+    experience: donnees_disponibilites?.experience ?? null,
   }));
 }
 
