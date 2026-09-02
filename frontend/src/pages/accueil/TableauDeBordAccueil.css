@@ -52,6 +52,22 @@
   cursor: default;
 }
 
+/* Bloc des 4 badges (audit 2026-09-02) — prend le reste de la largeur du cadre (flex: 1) une fois
+   le titre casé à gauche (largeur naturelle, premier item), et centre les badges EN SON SEIN
+   (justify-content: center) plutôt que de les laisser collés au titre comme le ferait le
+   justify-content: flex-start hérité de .filtres-statut__statuts sur le cadre entier — le titre
+   reste ainsi calé sur le bord gauche du cadre, indépendamment de la position des badges. Wrap
+   propre : si ce bloc lui-même passe sur sa propre ligne (écran étroit, cadre entier déjà en
+   flex-wrap), ses badges restent centrés sur TOUTE la largeur alors disponible. */
+.tableau-bord-accueil__filtres-experience-badges {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
 /* Forme pilule + curseur — normalement hérités de `.filtres-statut button` (FiltresStatut.css),
    mais ce sélecteur exige un ancêtre `<nav className="filtres-statut">` que ce bloc n'a pas (seule
    sa boîte .filtres-statut__statuts est réutilisée) : posés ici explicitement pour ne pas dépendre

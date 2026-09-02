@@ -587,18 +587,24 @@ export default function TableauDeBordAccueil() {
               filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
               inventé ici. */}
           <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
-          {CODES_EXPERIENCE_ACCECIT.map((code) => (
-            <button
-              key={code}
-              type="button"
-              data-experience={code}
-              className={experienceFiltre === code ? 'actif' : ''}
-              onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
-            >
-              {libelleExperience(code)}
-              <strong> ({compteursParExperience[code] ?? 0})</strong>
-            </button>
-          ))}
+          {/* Badges regroupés dans leur propre bloc flex (audit 2026-09-02) — le titre reste
+              calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
+              bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
+              TableauDeBordAccueil.css. */}
+          <div className="tableau-bord-accueil__filtres-experience-badges">
+            {CODES_EXPERIENCE_ACCECIT.map((code) => (
+              <button
+                key={code}
+                type="button"
+                data-experience={code}
+                className={experienceFiltre === code ? 'actif' : ''}
+                onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
+              >
+                {libelleExperience(code)}
+                <strong> ({compteursParExperience[code] ?? 0})</strong>
+              </button>
+            ))}
+          </div>
         </div>
         <FiltresStatut
           statuts={statutsFiltres}
