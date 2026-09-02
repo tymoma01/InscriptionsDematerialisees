@@ -8,6 +8,7 @@ const rendezvousRepository = require('./rendezvousRepository');
 const rendezvousService = require('./rendezvousService');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const notificationDeplacementManuelService = require('./notificationDeplacementManuelService');
+const invitationTestService = require('./invitationTestService');
 const journalAudit = require('../audit/journalAudit');
 const { executerSyncCalendrierManuel } = require('./syncCalendrierManuelService');
 
@@ -27,15 +28,27 @@ function mockerBase(t) {
   t.mock.method(dossierRepository, 'trouverUtilisateurSysteme', async () => UTILISATEUR_SYSTEME_FACTICE);
   t.mock.method(journalAudit, 'enregistrerAction', async () => {});
   t.mock.method(notesDossierRepository, 'ajouterNote', async () => 1);
-  t.mock.method(notificationDeplacementManuelService, 'envoyerNotificationDeplacementManuel', async () => ({ emailEnvoye: true }));
+  t.mock.method(notificationDeplacementManuelService, 'envoyerNotificationDeplacementManuel', async () => ({
+    candidatEmailEnvoye: true,
+    formateurEmailEnvoye: true,
+  }));
+  t.mock.method(invitationTestService, 'envoyerNotificationAnnulationTest', async () => ({
+    candidatEmailEnvoye: true,
+    formateurEmailEnvoye: true,
+  }));
 }
 
+// formateur_id (audit 2026-09-02) : listerRendezvousActifsAvecEvenementOutlook le sélectionne
+// désormais (voir rendezvousRepository.js), requis par invitationTestService.
+// envoyerNotificationAnnulationTest/notificationDeplacementManuelService.
+// envoyerNotificationDeplacementManuel pour résoudre l'email du formateur/inspecteur.
 const RDV_FACTICE = {
   id: 10,
   dossier_id: 42,
   date_heure: '2026-09-01T10:00:00.000Z',
   outlook_event_id: 'outlook-evenement-10',
   formateur_role_code: 'formateur',
+  formateur_id: 7,
 };
 
 test("executerSyncCalendrierManuel n'appelle rien si aucun rendez-vous actif n'a d'événement Outlook", async (t) => {
@@ -61,10 +74,15 @@ test('executerSyncCalendrierManuel annule le rendez-vous quand son événement O
   const mettreAJourDateHeureRendezvous = t.mock.method(rendezvousRepository, 'mettreAJourDateHeureRendezvous', async () => ({}));
   const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
   const ajouterNote = t.mock.method(notesDossierRepository, 'ajouterNote', async () => 1);
-  const envoyerNotification = t.mock.method(
+  const envoyerNotificationAnnulation = t.mock.method(
+    invitationTestService,
+    'envoyerNotificationAnnulationTest',
+    async () => ({ candidatEmailEnvoye: true, formateurEmailEnvoye: true }),
+  );
+  const envoyerNotificationDeplacement = t.mock.method(
     notificationDeplacementManuelService,
     'envoyerNotificationDeplacementManuel',
-    async () => ({ emailEnvoye: true }),
+    async () => ({ candidatEmailEnvoye: true, formateurEmailEnvoye: true }),
   );
 
   const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
@@ -87,9 +105,19 @@ test('executerSyncCalendrierManuel annule le rendez-vous quand son événement O
   assert.equal(enregistrerAction.mock.callCount(), 1);
   assert.equal(enregistrerAction.mock.calls[0].arguments[1].action, 'rendezvous_annule_sync_outlook');
 
-  // Jamais d'email candidat pour une annulation (décision utilisateur, 2026-08-28 : seul le
-  // déplacement en envoie un).
-  assert.equal(envoyerNotification.mock.callCount(), 0);
+  // Candidat ET formateur/inspecteur notifiés (décision utilisateur, 2026-09-02 : "en cas de
+  // changement de planification, toutes les parties prenantes doivent être notifiées" — annule la
+  // règle du 2026-08-28 qui excluait le candidat ici). Même fonction que le chemin UI "Marquer
+  // annulé" (invitationTestService.envoyerNotificationAnnulationTest), appelée avec le rendez-vous
+  // tel que lu par listerRendezvousActifsAvecEvenementOutlook (id/dossier_id/date_heure/
+  // formateur_id).
+  assert.equal(envoyerNotificationAnnulation.mock.callCount(), 1);
+  const appelAnnulation = envoyerNotificationAnnulation.mock.calls[0].arguments;
+  assert.equal(appelAnnulation[0], ENTITE_FACTICE);
+  assert.equal(appelAnnulation[1].id, 10);
+  assert.equal(appelAnnulation[1].dossier_id, 42);
+  assert.equal(appelAnnulation[1].formateur_id, 7);
+  assert.equal(envoyerNotificationDeplacement.mock.callCount(), 0, 'une annulation ne déclenche jamais la notification de déplacement');
 
   assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, total: 1 });
 });
@@ -134,6 +162,10 @@ test('executerSyncCalendrierManuel déplace le rendez-vous et notifie le candida
   const appelEmail = envoyerNotification.mock.calls[0].arguments;
   assert.equal(appelEmail[0], ENTITE_FACTICE);
   assert.equal(appelEmail[1].dossierId, 42);
+  // formateurId transmis (audit 2026-09-02, "toutes les parties prenantes sont notifiées") — la
+  // fonction appelée le résout elle-même en email formateur/inspecteur, voir
+  // notificationDeplacementManuelService.js.
+  assert.equal(appelEmail[1].formateurId, 7);
   assert.equal(appelEmail[1].ancienneDateHeure, '2026-09-01T10:00:00.000Z');
   assert.equal(appelEmail[1].nouvelleDateHeure, '2026-09-02T14:30:00.000Z');
 

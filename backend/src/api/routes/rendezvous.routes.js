@@ -277,14 +277,17 @@ router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (
       adresseIp: req.ip,
     });
 
-    // Annulation SIMPLE d'un test déjà planifié (audit 2026-08-28) — PAS une replanification, qui
-    // a son propre texte consolidé via invitationTestService.envoyerInvitationTest
-    // (planificationRendezvousService.js). Uniquement 'annule' sur un rendez-vous 'test' avec un
-    // formateur/inspecteur assigné : jamais pour 'absent'/'confirme'/'prevu' (aucune notification
-    // adaptée à ces statuts), ni pour un rendez-vous sans formateur (rien à notifier). Best-effort,
-    // après coup, jamais dans la transaction de changerStatutRendezvous ci-dessus — un échec d'envoi
-    // ne doit jamais transformer une annulation déjà actée en erreur pour l'agent.
-    if (statut === 'annule' && rendezvous.type_rdv === 'test' && rendezvous.formateur_id) {
+    // Annulation SIMPLE d'un test déjà planifié (audit 2026-08-28, notification étendue au candidat
+    // le 2026-09-02) — PAS une replanification, qui a son propre texte consolidé via
+    // invitationTestService.envoyerInvitationTest (planificationRendezvousService.js). Uniquement
+    // 'annule' sur un rendez-vous 'test' : jamais pour 'absent'/'confirme'/'prevu' (aucune
+    // notification adaptée à ces statuts). Ne filtre plus sur rendezvous.formateur_id (décision
+    // utilisateur 2026-09-02, "toutes les parties prenantes sont notifiées") : le candidat doit être
+    // notifié même sans formateur/inspecteur assigné — envoyerNotificationAnnulationTest gère les
+    // deux destinataires indépendamment, chacun best-effort. Best-effort, après coup, jamais dans la
+    // transaction de changerStatutRendezvous ci-dessus — un échec d'envoi ne doit jamais transformer
+    // une annulation déjà actée en erreur pour l'agent.
+    if (statut === 'annule' && rendezvous.type_rdv === 'test') {
       try {
         await invitationTestService.envoyerNotificationAnnulationTest(req.entite, rendezvous);
       } catch (erreur) {

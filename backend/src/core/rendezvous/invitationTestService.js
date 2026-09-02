@@ -206,6 +206,27 @@ function construireMessageEmailAnnulationFormateur({ formateurPrenom, candidatPr
   };
 }
 
+// Email CANDIDAT sur annulation simple (décision utilisateur, 2026-09-02 : "en cas de changement
+// de planification — annulation ou déplacement — toutes les parties prenantes doivent être
+// notifiées, candidat ET Formateur/Inspecteur") — annule explicitement la restriction "Formateur/
+// inspecteur uniquement" actée le 2026-08-28 (voir envoyerNotificationAnnulationTest ci-dessous et
+// son ancien commentaire, et syncCalendrierManuelService.test.js avant ce correctif). La seule
+// exception qui reste : "Formation non validée" (dossierService/notificationFormationValideeService.js)
+// n'a jamais eu et n'a toujours pas d'email candidat associé — exception validée explicitement,
+// pas concernée par ce changement. Texte volontairement plus sobre que
+// construireMessageEmailAnnulationFormateur : le candidat n'a ni lien ni pièce jointe à recevoir
+// ici, juste être informé et rassuré qu'ACCECIT revient vers lui.
+function construireMessageEmailAnnulationCandidat({ candidatPrenom, candidatNom, dateHeure }) {
+  return {
+    sujet: 'Votre test ACCECIT est annulé',
+    corps:
+      `<p>Bonjour ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)},</p>` +
+      `<p>Votre test prévu le ${echapperHtml(formaterCreneau(dateHeure))} est annulé. ` +
+      'Nous reviendrons vers vous prochainement.</p>' +
+      "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
+  };
+}
+
 // Envoi de la convocation (email avec .ics joint + SMS) au candidat, une fois un test planifié
 // ou replanifié — best-effort, jamais dans la transaction qui a créé le rendez-vous (voir
 // planificationRendezvousService.js, appelée seulement après que la transaction ait déjà validé)
@@ -376,49 +397,73 @@ async function envoyerInvitationTest(entite, rendezvous) {
 
 // Annulation SIMPLE d'un rendez-vous de test déjà planifié — PAS une replanification (voir
 // envoyerInvitationTest ci-dessus, qui gère déjà ce second cas via `rendezvous.ancienRendezVous`).
-// Appelée depuis rendezvous.routes.js (PATCH /:rendezvousId) juste après que
-// rendezvousService.changerStatutRendezvous ait bien fait passer le rendez-vous à 'annule' — best-
-// effort, même principe que envoyerInvitationTest (jamais dans la transaction, un échec d'envoi ne
-// remet jamais en cause l'annulation elle-même déjà actée en base). Formateur/inspecteur
-// uniquement : le candidat n'a pas de compte/évaluation à consulter à ce stade, aucun lien à lui
-// envoyer, et sa propre notification d'annulation est hors périmètre de cet audit (2026-08-28).
+// Appelée depuis rendezvous.routes.js (PATCH /:rendezvousId, chemin UI "Marquer annulé") ET depuis
+// syncCalendrierManuelService.js (chemin sync Outlook, événement supprimé côté calendrier) — un
+// seul point de vérité pour le texte/mécanisme des DEUX chemins, décision utilisateur 2026-09-02
+// ("même texte/mécanisme que le chemin UI"). Best-effort, même principe que envoyerInvitationTest
+// (jamais dans la transaction qui a déjà acté 'annule' en base, chaque canal tenté indépendamment
+// de l'autre — l'échec de l'un n'empêche jamais la tentative de l'autre).
+//
+// Candidat ET Formateur/Inspecteur (décision utilisateur, 2026-09-02 : "en cas de changement de
+// planification, toutes les parties prenantes doivent être notifiées") — remplace la restriction
+// "Formateur/inspecteur uniquement" actée le 2026-08-28 (le candidat "n'a pas de compte/évaluation
+// à consulter à ce stade" restait vrai, mais n'empêche pas de le prévenir par email que son
+// créneau n'a plus lieu). Ne dépend plus de rendezvousAnnule.formateur_id pour partir : le
+// candidat doit être notifié même si aucun formateur/inspecteur n'est (ou n'est plus) assigné.
 async function envoyerNotificationAnnulationTest(entite, rendezvousAnnule) {
   if (!entite.sms_actif) {
-    return { formateurEmailEnvoye: false, desactive: true };
-  }
-  if (!rendezvousAnnule.formateur_id) {
-    return { formateurEmailEnvoye: false };
+    return { candidatEmailEnvoye: false, formateurEmailEnvoye: false, desactive: true };
   }
 
   const bd = await db.obtenirKnex();
-  const [dossier, formateur] = await Promise.all([
+  const [dossier, coordonnees, formateur] = await Promise.all([
     dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, rendezvousAnnule.dossier_id),
-    utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvousAnnule.formateur_id),
+    dossierRepository.trouverCoordonneesCandidat(bd, rendezvousAnnule.dossier_id),
+    rendezvousAnnule.formateur_id
+      ? utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvousAnnule.formateur_id)
+      : null,
   ]);
 
-  if (!formateur?.email) {
-    console.error(
-      `Notification d'annulation ignorée pour le rendez-vous ${rendezvousAnnule.id} : pas d'email renseigné pour le formateur.`,
-    );
-    return { formateurEmailEnvoye: false };
-  }
-
   const notificationProvider = notificationFactory();
-  let formateurEmailEnvoye = false;
-  try {
-    const { sujet, corps } = construireMessageEmailAnnulationFormateur({
-      formateurPrenom: formateur.prenom,
-      candidatPrenom: dossier?.candidat_prenom,
-      candidatNom: dossier?.candidat_nom,
-      dateHeure: rendezvousAnnule.date_heure,
-    });
-    await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
-    formateurEmailEnvoye = true;
-  } catch (erreur) {
-    console.error(`Échec de l'envoi de l'email d'annulation pour le rendez-vous ${rendezvousAnnule.id} :`, erreur.message);
+
+  let candidatEmailEnvoye = false;
+  if (coordonnees?.email) {
+    try {
+      const { sujet, corps } = construireMessageEmailAnnulationCandidat({
+        candidatPrenom: dossier?.candidat_prenom,
+        candidatNom: dossier?.candidat_nom,
+        dateHeure: rendezvousAnnule.date_heure,
+      });
+      await notificationProvider.envoyer(coordonnees.email, 'email', corps, { sujet, html: true });
+      candidatEmailEnvoye = true;
+    } catch (erreur) {
+      console.error(`Échec de l'envoi de l'email d'annulation candidat pour le rendez-vous ${rendezvousAnnule.id} :`, erreur.message);
+    }
+  } else {
+    console.error(`Notification d'annulation candidat ignorée pour le rendez-vous ${rendezvousAnnule.id} : pas d'email renseigné.`);
   }
 
-  return { formateurEmailEnvoye };
+  let formateurEmailEnvoye = false;
+  if (formateur?.email) {
+    try {
+      const { sujet, corps } = construireMessageEmailAnnulationFormateur({
+        formateurPrenom: formateur.prenom,
+        candidatPrenom: dossier?.candidat_prenom,
+        candidatNom: dossier?.candidat_nom,
+        dateHeure: rendezvousAnnule.date_heure,
+      });
+      await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
+      formateurEmailEnvoye = true;
+    } catch (erreur) {
+      console.error(`Échec de l'envoi de l'email d'annulation formateur pour le rendez-vous ${rendezvousAnnule.id} :`, erreur.message);
+    }
+  } else if (rendezvousAnnule.formateur_id) {
+    console.error(
+      `Notification d'annulation formateur ignorée pour le rendez-vous ${rendezvousAnnule.id} : pas d'email renseigné pour le formateur.`,
+    );
+  }
+
+  return { candidatEmailEnvoye, formateurEmailEnvoye };
 }
 
 module.exports = { envoyerInvitationTest, envoyerNotificationAnnulationTest };

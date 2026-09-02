@@ -578,10 +578,18 @@ test("envoyerInvitationTest garde le texte « Nouveau candidat à évaluer » qu
 
 // Annulation SIMPLE (pas une replanification) — audit 2026-08-28 : n'existait pas avant ce
 // chantier, changerStatutRendezvous ne notifiait jusqu'ici jamais le formateur/inspecteur.
+// Candidat ET formateur/inspecteur depuis le 2026-09-02 (décision utilisateur : "en cas de
+// changement de planification, toutes les parties prenantes doivent être notifiées") — annule la
+// restriction "formateur/inspecteur uniquement" du 2026-08-28.
 const RENDEZVOUS_ANNULE = { id: 60, dossier_id: 42, formateur_id: 7, date_heure: '2099-03-01T09:00:00.000Z' };
 
-test('envoyerNotificationAnnulationTest envoie un seul email "Test annulé" au formateur/inspecteur, sans pièce jointe', async (t) => {
+function mockerCoordonneesCandidat(t, coordonnees = { email: 'sophie.martin@exemple.test' }) {
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => coordonnees);
+}
+
+test('envoyerNotificationAnnulationTest envoie un email "Votre test ACCECIT est annulé" au candidat ET un email "Test annulé" au formateur/inspecteur, sans pièce jointe', async (t) => {
   mockerKnex(t);
+  mockerCoordonneesCandidat(t);
   t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
     id: 7,
     nom: 'Dupont',
@@ -592,16 +600,24 @@ test('envoyerNotificationAnnulationTest envoie un seul email "Test annulé" au f
 
   const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_ANNULE);
 
-  assert.deepEqual(resultat, { formateurEmailEnvoye: true });
-  assert.equal(mailMock.mock.calls.length, 1);
+  assert.deepEqual(resultat, { candidatEmailEnvoye: true, formateurEmailEnvoye: true });
+  assert.equal(mailMock.mock.calls.length, 2);
 
-  const appel = mailMock.mock.calls[0];
-  assert.equal(appel.arguments[0], 'marc.dupont@exemple.test');
-  assert.equal(appel.arguments[3].sujet, 'Test annulé');
-  assert.equal(appel.arguments[3].piecesJointes, undefined);
-  assert.ok(appel.arguments[2].includes('Bonjour Marc'));
-  assert.ok(appel.arguments[2].includes('Sophie Martin'));
-  assert.ok(appel.arguments[2].includes('est annulé'));
+  const appelCandidat = mailMock.mock.calls[0];
+  assert.equal(appelCandidat.arguments[0], 'sophie.martin@exemple.test');
+  assert.equal(appelCandidat.arguments[3].sujet, 'Votre test ACCECIT est annulé');
+  assert.equal(appelCandidat.arguments[3].piecesJointes, undefined);
+  assert.ok(appelCandidat.arguments[2].includes('Bonjour Sophie Martin'));
+  assert.ok(appelCandidat.arguments[2].includes('est annulé'));
+  assert.ok(appelCandidat.arguments[2].includes('Nous reviendrons vers vous prochainement'));
+
+  const appelFormateur = mailMock.mock.calls[1];
+  assert.equal(appelFormateur.arguments[0], 'marc.dupont@exemple.test');
+  assert.equal(appelFormateur.arguments[3].sujet, 'Test annulé');
+  assert.equal(appelFormateur.arguments[3].piecesJointes, undefined);
+  assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
+  assert.ok(appelFormateur.arguments[2].includes('Sophie Martin'));
+  assert.ok(appelFormateur.arguments[2].includes('est annulé'));
 });
 
 test("envoyerNotificationAnnulationTest n'envoie rien si sms_actif est faux pour l'entité", async (t) => {
@@ -609,11 +625,13 @@ test("envoyerNotificationAnnulationTest n'envoie rien si sms_actif est faux pour
 
   const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_INACTIF, RENDEZVOUS_ANNULE);
 
-  assert.deepEqual(resultat, { formateurEmailEnvoye: false, desactive: true });
+  assert.deepEqual(resultat, { candidatEmailEnvoye: false, formateurEmailEnvoye: false, desactive: true });
   assert.equal(mailMock.mock.calls.length, 0);
 });
 
-test("envoyerNotificationAnnulationTest n'envoie rien si le rendez-vous annulé n'a pas de formateur assigné", async (t) => {
+test("envoyerNotificationAnnulationTest notifie quand même le candidat si le rendez-vous annulé n'a pas de formateur assigné", async (t) => {
+  mockerKnex(t);
+  mockerCoordonneesCandidat(t);
   const { mailMock } = mockerProviders(t);
 
   const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, {
@@ -621,17 +639,38 @@ test("envoyerNotificationAnnulationTest n'envoie rien si le rendez-vous annulé 
     formateur_id: null,
   });
 
-  assert.deepEqual(resultat, { formateurEmailEnvoye: false });
-  assert.equal(mailMock.mock.calls.length, 0);
+  assert.deepEqual(resultat, { candidatEmailEnvoye: true, formateurEmailEnvoye: false });
+  assert.equal(mailMock.mock.calls.length, 1);
+  assert.equal(mailMock.mock.calls[0].arguments[0], 'sophie.martin@exemple.test');
 });
 
-test("envoyerNotificationAnnulationTest n'envoie rien si le formateur assigné n'a pas d'email renseigné", async (t) => {
+test("envoyerNotificationAnnulationTest n'envoie rien au formateur si son email n'est pas renseigné, mais notifie quand même le candidat", async (t) => {
   mockerKnex(t);
+  mockerCoordonneesCandidat(t);
   t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({ id: 7, nom: 'Dupont', prenom: 'Marc', email: null }));
   const { mailMock } = mockerProviders(t);
 
   const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_ANNULE);
 
-  assert.deepEqual(resultat, { formateurEmailEnvoye: false });
-  assert.equal(mailMock.mock.calls.length, 0);
+  assert.deepEqual(resultat, { candidatEmailEnvoye: true, formateurEmailEnvoye: false });
+  assert.equal(mailMock.mock.calls.length, 1);
+  assert.equal(mailMock.mock.calls[0].arguments[0], 'sophie.martin@exemple.test');
+});
+
+test("envoyerNotificationAnnulationTest n'envoie rien au candidat si son email n'est pas renseigné, mais notifie quand même le formateur/inspecteur", async (t) => {
+  mockerKnex(t);
+  mockerCoordonneesCandidat(t, { email: null });
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  const resultat = await invitationTestService.envoyerNotificationAnnulationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_ANNULE);
+
+  assert.deepEqual(resultat, { candidatEmailEnvoye: false, formateurEmailEnvoye: true });
+  assert.equal(mailMock.mock.calls.length, 1);
+  assert.equal(mailMock.mock.calls[0].arguments[0], 'marc.dupont@exemple.test');
 });

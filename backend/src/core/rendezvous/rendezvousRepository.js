@@ -333,6 +333,13 @@ function listerRendezvousActifsAvecEvenementOutlook(bd, entiteId) {
       'rendezvous.dossier_id',
       'rendezvous.date_heure',
       'rendezvous.outlook_event_id',
+      // formateur_id (audit 2026-09-02, notification "toutes parties prenantes" sur annulation/
+      // déplacement détecté via sync — voir syncCalendrierManuelService.js) : le JOIN ci-dessus sur
+      // utilisateurs le garantit déjà non NULL pour chaque ligne renvoyée (whereNotNull plus haut),
+      // simple ajout au SELECT pour que invitationTestService.envoyerNotificationAnnulationTest/
+      // notificationDeplacementManuelService.envoyerNotificationDeplacementManuel (qui en ont
+      // besoin pour résoudre l'email du formateur/inspecteur) n'aient pas à refaire une requête.
+      'rendezvous.formateur_id',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       'utilisateurs.prenom as formateur_prenom',

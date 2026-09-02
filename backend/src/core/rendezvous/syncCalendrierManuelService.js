@@ -27,6 +27,10 @@ const rendezvousRepository = require('./rendezvousRepository');
 const rendezvousService = require('./rendezvousService');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const notificationDeplacementManuelService = require('./notificationDeplacementManuelService');
+// Notification candidat + formateur/inspecteur sur annulation détectée via sync (décision
+// utilisateur, 2026-09-02 — voir son commentaire au point d'appel plus bas) : même fonction,
+// même texte/mécanisme que le chemin UI "Marquer annulé" (rendezvous.routes.js).
+const invitationTestService = require('./invitationTestService');
 const journalAudit = require('../audit/journalAudit');
 
 const CODE_MOTIF_ANNULE_DEPUIS_OUTLOOK = 'annule_depuis_outlook';
@@ -139,11 +143,28 @@ async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
     return { type: 'deplace', dossierId: rendezvous.dossier_id, ancienneDateIso, nouvelleDateIso };
   });
 
-  // Email candidat — best-effort, APRÈS la transaction (jamais dans la transaction déjà commitée,
-  // même principe que le reste du projet, voir notificationDeplacementManuelService.js).
+  // Notifications — best-effort, APRÈS la transaction (jamais dans la transaction déjà commitée,
+  // même principe que le reste du projet, voir notificationDeplacementManuelService.js). Candidat
+  // ET formateur/inspecteur pour les deux cas (décision utilisateur, 2026-09-02 : "en cas de
+  // changement de planification — annulation ou déplacement — toutes les parties prenantes
+  // doivent être notifiées, candidat ET Formateur/Inspecteur") — annule la règle du 2026-08-28
+  // ("jamais d'email candidat pour une annulation", encore documentée jusqu'ici dans ce fichier et
+  // son test) et étend celle du déplacement (candidat seul jusqu'ici) au formateur/inspecteur.
+  //
+  // Cas 'annule' : réutilise invitationTestService.envoyerNotificationAnnulationTest, EXACTEMENT
+  // la même fonction que le chemin UI "Marquer annulé" (rendezvous.routes.js PATCH /:rendezvousId)
+  // — même texte, même mécanisme best-effort par canal, sur les deux chemins qui mènent à
+  // 'annule'. `rendezvous` (paramètre de cette fonction, pas `rendezvousActuel` scopé à la
+  // transaction ci-dessus) porte déjà id/dossier_id/date_heure/formateur_id — aucune requête
+  // supplémentaire nécessaire.
+  if (resultat.type === 'annule') {
+    await invitationTestService.envoyerNotificationAnnulationTest(entite, rendezvous);
+  }
+
   if (resultat.type === 'deplace') {
     await notificationDeplacementManuelService.envoyerNotificationDeplacementManuel(entite, {
       dossierId: resultat.dossierId,
+      formateurId: rendezvous.formateur_id,
       ancienneDateHeure: resultat.ancienneDateIso,
       nouvelleDateHeure: resultat.nouvelleDateIso,
     });

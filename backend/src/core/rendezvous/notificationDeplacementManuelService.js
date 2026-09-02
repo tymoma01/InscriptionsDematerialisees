@@ -7,21 +7,25 @@
 // (notificationChangementLieuService.js), mais un événement Outlook modifié directement par un
 // humain EN DEHORS de l'app, détecté après coup.
 //
-// Candidat SEULEMENT, jamais le formateur/inspecteur (contrairement à envoyerInvitationTest, qui
-// notifie les deux lors d'une replanification depuis l'app) : c'est justement un humain — le
-// formateur/inspecteur assigné, ou un agent Accueil/Coordination éditant le calendrier
-// départemental partagé — qui a fait ce changement à la main dans Outlook ; lui envoyer un email
-// pour lui apprendre son propre geste n'aurait pas de sens, et rien ne permet ici de savoir avec
-// certitude QUI a fait la modification (voir syncCalendrierManuelService.js, qui ne lit que l'état
-// résultant de l'événement, jamais son historique de modification côté Graph).
+// Candidat ET Formateur/Inspecteur depuis le 2026-09-02 ("en cas de changement de planification,
+// toutes les parties prenantes doivent être notifiées") — annule la restriction "candidat
+// SEULEMENT" actée le 2026-08-28 : le formateur/inspecteur assigné n'était jusqu'ici jamais notifié
+// ici, au motif qu'on ne peut pas savoir avec certitude s'il est lui-même l'auteur du déplacement
+// Outlook (lui envoyer un email pour lui apprendre son propre geste n'aurait pas eu de sens). Ce
+// risque d'auto-notification reste réel (toujours aucune visibilité sur QUI a fait la modification
+// côté Graph, voir syncCalendrierManuelService.js), mais la nouvelle règle privilégie
+// délibérément la symétrie et la fiabilité de l'information à toutes les parties prenantes plutôt
+// que d'éviter ce cas précis — même arbitrage que pour le candidat lors d'une annulation détectée
+// via sync (invitationTestService.envoyerNotificationAnnulationTest, même décision du 2026-09-02).
 //
-// Pas de pièce jointe .ics (contrairement à invitationTestService.js/
+// Pas de pièce jointe .ics pour le candidat (contrairement à invitationTestService.js/
 // notificationChangementLieuService.js) : l'événement Outlook existe déjà et a déjà été modifié à
 // la main par un humain — il n'y a rien à "pousser" côté calendrier, ce mail est une simple
-// information au candidat du nouveau créneau.
+// information du nouveau créneau. Idem pour le formateur/inspecteur, par cohérence.
 
 const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
+const utilisateurRepository = require('../auth/utilisateurRepository');
 const notificationFactory = require('../../integrations/notifications/notificationFactory');
 const { echapperHtml } = require('../../integrations/notifications/formatageEmail');
 
@@ -31,7 +35,7 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   timeZone: 'Europe/Paris',
 });
 
-function construireMessageEmail({ candidatPrenom, candidatNom, ancienneDateHeure, nouvelleDateHeure }) {
+function construireMessageEmailCandidat({ candidatPrenom, candidatNom, ancienneDateHeure, nouvelleDateHeure }) {
   return {
     sujet: 'Votre test ACCECIT a été déplacé',
     corps:
@@ -46,44 +50,83 @@ function construireMessageEmail({ candidatPrenom, candidatNom, ancienneDateHeure
   };
 }
 
+// Formateur/inspecteur (ajouté 2026-09-02, voir commentaire d'en-tête) — texte volontairement
+// sobre, même registre que invitationTestService.construireMessageEmailAnnulationFormateur : pas
+// de lien évaluation ni de pièce jointe .ics, juste l'information du changement de créneau.
+function construireMessageEmailFormateur({ formateurPrenom, candidatPrenom, candidatNom, ancienneDateHeure, nouvelleDateHeure }) {
+  return {
+    sujet: 'Test déplacé',
+    corps:
+      `<p>Bonjour ${echapperHtml(formateurPrenom)},</p>` +
+      `<p>Le test de ${echapperHtml(candidatPrenom)} ${echapperHtml(candidatNom)}, initialement prévu le ` +
+      `${echapperHtml(FORMAT_DATE_HEURE.format(new Date(ancienneDateHeure)))}, a été déplacé. Il aura désormais lieu le ` +
+      `${echapperHtml(FORMAT_DATE_HEURE.format(new Date(nouvelleDateHeure)))}.</p>` +
+      "<p>À bientôt,<br>\nL'équipe ACCECIT</p>",
+  };
+}
+
 // best-effort, jamais dans la transaction qui a déjà acté le nouveau date_heure en base (voir
 // syncCalendrierManuelService.js) — même principe que invitationTestService.js/
 // notificationChangementLieuService.js : un échec d'envoi ne doit jamais remettre en cause une
-// synchronisation déjà actée. Gate sur entite.sms_actif : même convention que les autres services
-// de notification de ce module — c'est l'interrupteur général notifications de l'entité, pas un
-// réglage spécifique au SMS malgré son nom.
-async function envoyerNotificationDeplacementManuel(entite, { dossierId, ancienneDateHeure, nouvelleDateHeure }) {
+// synchronisation déjà actée. Chaque destinataire tenté indépendamment de l'autre (même patron que
+// invitationTestService.envoyerInvitationTest/envoyerNotificationAnnulationTest) — l'échec de l'un
+// n'empêche jamais la tentative de l'autre. Gate sur entite.sms_actif : même convention que les
+// autres services de notification de ce module — c'est l'interrupteur général notifications de
+// l'entité, pas un réglage spécifique au SMS malgré son nom. `formateurId` optionnel : absent pour
+// un appelant qui ne l'aurait pas résolu, auquel cas seul le candidat est notifié (comportement
+// avant ce correctif).
+async function envoyerNotificationDeplacementManuel(entite, { dossierId, formateurId, ancienneDateHeure, nouvelleDateHeure }) {
   if (!entite.sms_actif) {
-    return { emailEnvoye: false, desactive: true };
+    return { candidatEmailEnvoye: false, formateurEmailEnvoye: false, desactive: true };
   }
 
   const bd = await db.obtenirKnex();
-  const [dossier, coordonnees] = await Promise.all([
+  const [dossier, coordonnees, formateur] = await Promise.all([
     dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId),
     dossierRepository.trouverCoordonneesCandidat(bd, dossierId),
+    formateurId ? utilisateurRepository.trouverUtilisateurParId(bd, entite.id, formateurId) : null,
   ]);
 
-  if (!coordonnees?.email) {
-    console.error(`Notification de déplacement manuel ignorée pour le dossier ${dossierId} : pas d'email renseigné.`);
-    return { emailEnvoye: false };
-  }
-
   const notificationProvider = notificationFactory();
-  let emailEnvoye = false;
-  try {
-    const { sujet, corps } = construireMessageEmail({
-      candidatPrenom: dossier?.candidat_prenom,
-      candidatNom: dossier?.candidat_nom,
-      ancienneDateHeure,
-      nouvelleDateHeure,
-    });
-    await notificationProvider.envoyer(coordonnees.email, 'email', corps, { sujet, html: true });
-    emailEnvoye = true;
-  } catch (erreur) {
-    console.error(`Échec de l'envoi de l'email de déplacement manuel pour le dossier ${dossierId} :`, erreur.message);
+
+  let candidatEmailEnvoye = false;
+  if (coordonnees?.email) {
+    try {
+      const { sujet, corps } = construireMessageEmailCandidat({
+        candidatPrenom: dossier?.candidat_prenom,
+        candidatNom: dossier?.candidat_nom,
+        ancienneDateHeure,
+        nouvelleDateHeure,
+      });
+      await notificationProvider.envoyer(coordonnees.email, 'email', corps, { sujet, html: true });
+      candidatEmailEnvoye = true;
+    } catch (erreur) {
+      console.error(`Échec de l'envoi de l'email de déplacement manuel (candidat) pour le dossier ${dossierId} :`, erreur.message);
+    }
+  } else {
+    console.error(`Notification de déplacement manuel ignorée pour le dossier ${dossierId} : pas d'email renseigné.`);
   }
 
-  return { emailEnvoye };
+  let formateurEmailEnvoye = false;
+  if (formateur?.email) {
+    try {
+      const { sujet, corps } = construireMessageEmailFormateur({
+        formateurPrenom: formateur.prenom,
+        candidatPrenom: dossier?.candidat_prenom,
+        candidatNom: dossier?.candidat_nom,
+        ancienneDateHeure,
+        nouvelleDateHeure,
+      });
+      await notificationProvider.envoyer(formateur.email, 'email', corps, { sujet, html: true });
+      formateurEmailEnvoye = true;
+    } catch (erreur) {
+      console.error(`Échec de l'envoi de l'email de déplacement manuel (formateur) pour le dossier ${dossierId} :`, erreur.message);
+    }
+  } else if (formateurId) {
+    console.error(`Notification de déplacement manuel (formateur) ignorée pour le dossier ${dossierId} : pas d'email renseigné.`);
+  }
+
+  return { candidatEmailEnvoye, formateurEmailEnvoye };
 }
 
 module.exports = { envoyerNotificationDeplacementManuel };
