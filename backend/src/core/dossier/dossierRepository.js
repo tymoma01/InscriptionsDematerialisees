@@ -545,10 +545,6 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
   joindreDateEntreeStatut(requete, bd, 'valide_pret_embauche');
   joindreDateEntreeStatut(requete, bd, 'formation_non_validee');
   joindreDateEntreeStatut(requete, bd, 'embauche');
-  // Carte "Délai moyen Test → Formation" (audit tableau de bord 2026-08-31, point #5, corrigé le
-  // 2026-09-01) — ancre de DÉPART du délai formation pour la colonne "Dates clés" (voir
-  // statistiquesService.listerDossiersParIndicateurs, dateEntreeFormation).
-  joindreDateEntreeStatut(requete, bd, 'valide_envoi_formation');
 
   return requete
     .leftJoin(
@@ -580,35 +576,46 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
          LIMIT 1
        ) AS derniere_planification ON true`,
     )
-    // Carte "Délai moyen Test → Formation" (audit tableau de bord 2026-08-31, point #5, corrigé le
-    // 2026-09-01, puis le 2026-09-02) — ancre de SORTIE, LATERAL vers la ligne IMMÉDIATEMENT
-    // SUIVANTE après l'entrée en formation retenue (dates_valide_envoi_formation, jointure MAX
-    // posée par joindreDateEntreeStatut ci-dessus), retenue seulement si CETTE ligne est bien
-    // valide_pret_embauche/formation_non_validee — même correctif et même raison que
-    // statistiquesRepository.delaiFormation (voir son commentaire) : avant le 2026-09-02, ce LATERAL
-    // cherchait la PROCHAINE occurrence du bon type, peu importe ce qui s'intercalait entre l'entrée
-    // et elle, pouvant apparier l'entrée retenue à la sortie d'une boucle de formation ULTÉRIEURE
-    // (via un retour en test, replanifier_test) si l'entrée retenue elle-même n'aboutit à rien.
-    // COALESCE des deux MAX indépendants dates_valide_pret_embauche/dates_formation_non_validee
-    // (déjà présentes plus bas pour les cartes "Effectifs par statut") toujours écarté pour la même
-    // raison qu'avant : sur un dossier repassé plusieurs fois par la formation, ces deux MAX ne sont
-    // pas nécessairement en phase avec l'entrée retenue (elle aussi un MAX), pouvant produire une
-    // paire chronologiquement incohérente (sortie antérieure à l'entrée) — même risque déjà écarté
-    // pour date_verdict/date_derniere_planification_avant_verdict ci-dessus via ce même patron
-    // LATERAL. `code` sélectionné en plus de `date_changement` : filtré dans le SELECT final (CASE),
-    // pas dans le WHERE de la sous-requête — LEFT JOIN LATERAL doit continuer à matcher (ON true)
-    // même quand la ligne suivante n'est pas une sortie valide, pour que sortie_formation.code reste
-    // lisible et distinguable d'une absence totale de ligne suivante.
+    // Carte "Délai moyen Test → Formation" (audit tableau de bord 2026-08-31, point #5, corrigé les
+    // 2026-09-01, 2026-09-02, puis le 2026-09-02 — dossier #69). Avant ce dernier correctif, l'ENTRÉE
+    // était ancrée sur MAX(historique_statuts.date_changement) parmi TOUTES les occurrences de
+    // valide_envoi_formation (joindreDateEntreeStatut), et la SORTIE sur la ligne immédiatement
+    // suivante — mais si le dossier est reparti dans une NOUVELLE boucle de formation encore ouverte
+    // (aucune sortie), ce MAX pointait sur cette boucle ouverte plutôt que sur le dernier cycle
+    // réellement clos : "Dates clés" affichait alors NULL/NULL alors que le badge "Délai Test →
+    // Formation" restait affiché (calculé par statistiquesRepository.delaiFormation, qui lui
+    // parcourt CHAQUE entrée indépendamment et avait bien retrouvé le cycle clos). Cas réel : dossier
+    // #69, reparti en valide_envoi_formation 379 ms après sa sortie du premier cycle (06/08 → 28/08,
+    // 21,99 j, celui-là même compté dans la moyenne), et resté depuis sur cette 2ᵉ boucle sans issue.
+    // Corrigé en reprenant ICI le même patron EXACT que statistiquesRepository.delaiFormation (LATERAL
+    // imbriqué : sortie = ligne immédiatement suivante, retenue seulement si valide_pret_embauche/
+    // formation_non_validee), mais en choisissant ensuite, PARMI les entrées ainsi CLOSES, la plus
+    // RÉCENTE (ORDER BY entree.date_changement DESC LIMIT 1) — une boucle encore ouverte comme la 2ᵉ
+    // de #69 n'a pas de sortie valide, elle est donc simplement absente des lignes candidates et ne
+    // peut plus masquer le dernier cycle réellement clos. Remplace à la fois l'ancienne jointure
+    // dates_valide_envoi_formation (joindreDateEntreeStatut, supprimée) et l'ancien LATERAL
+    // sortie_formation : entrée et sortie sont désormais résolues ENSEMBLE, dans la même sous-requête,
+    // pour ne jamais désynchroniser l'une de l'autre.
     .joinRaw(
       `LEFT JOIN LATERAL (
-         SELECT hs.date_changement, s.code
-         FROM historique_statuts hs
-         JOIN statuts s ON s.id = hs.statut_id
-         WHERE hs.dossier_id = dossiers.id
-           AND hs.date_changement > dates_valide_envoi_formation.date_entree_valide_envoi_formation
-         ORDER BY hs.date_changement ASC
+         SELECT entree.date_changement AS date_entree, sortie.date_changement AS date_sortie
+         FROM historique_statuts entree
+         JOIN statuts statut_entree ON statut_entree.id = entree.statut_id
+         JOIN LATERAL (
+           SELECT hs.date_changement, s.code
+           FROM historique_statuts hs
+           JOIN statuts s ON s.id = hs.statut_id
+           WHERE hs.dossier_id = entree.dossier_id
+             AND hs.date_changement > entree.date_changement
+           ORDER BY hs.date_changement ASC
+           LIMIT 1
+         ) AS sortie ON true
+         WHERE entree.dossier_id = dossiers.id
+           AND statut_entree.code = 'valide_envoi_formation'
+           AND sortie.code IN ('valide_pret_embauche', 'formation_non_validee')
+         ORDER BY entree.date_changement DESC
          LIMIT 1
-       ) AS sortie_formation ON true`,
+       ) AS cycle_formation_clos ON true`,
     )
     // Colonne "Dates clés" pour une sélection "Répartition par poste" (audit 2026-09-02, décision
     // utilisateur) — un poste est un ATTRIBUT du dossier, pas un événement daté du parcours (voir
@@ -648,19 +655,11 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'dates_formation_non_validee.date_entree_formation_non_validee',
       'dates_embauche.date_entree_embauche',
       // Carte "Délai moyen Test → Formation" (audit tableau de bord 2026-08-31, point #5, corrigé le
-      // 2026-09-01) — voir joindreDateEntreeStatut(requete, bd, 'valide_envoi_formation') et le
-      // LEFT JOIN LATERAL sortie_formation plus haut.
-      'dates_valide_envoi_formation.date_entree_valide_envoi_formation',
-      // CASE plutôt qu'une colonne directe (voir commentaire du LEFT JOIN LATERAL sortie_formation
-      // plus haut) : NULL si la ligne immédiatement suivante n'est pas une sortie valide (boucle
-      // interrompue) ou s'il n'y a aucune ligne suivante (boucle encore ouverte) — les deux cas
-      // bloquent déjà l'affichage du delta côté front (TableauDossiersSelectionnes.jsx), sans
-      // distinction nécessaire entre eux à ce niveau.
-      bd.raw(`
-        CASE WHEN sortie_formation.code IN ('valide_pret_embauche', 'formation_non_validee')
-          THEN sortie_formation.date_changement
-        END as date_sortie_formation
-      `),
+      // 2026-09-02, dossier #69) — voir le LEFT JOIN LATERAL cycle_formation_clos plus haut : entrée
+      // et sortie du dernier cycle CLOS (pas nécessairement la dernière occurrence de
+      // valide_envoi_formation si le dossier est reparti depuis dans une boucle encore ouverte).
+      'cycle_formation_clos.date_entree as date_entree_valide_envoi_formation',
+      'cycle_formation_clos.date_sortie as date_sortie_formation',
       'dates_verdict.date_verdict',
       'evaluation_verdict.resultat_global as verdict_resultat_global',
       // Orientation EFFECTIVE, pas evaluation_verdict.orientation seule — règle générale (audit

@@ -64,24 +64,28 @@ test('listerDossiersParIds joint la date d’entrée dans le statut COURANT du d
 });
 
 // Colonne "Dates clés" pour "Délai moyen Test → Formation" (correctif 2026-09-02, audit dashboard
-// dossier #88) — même correctif que statistiquesRepository.delaiFormation : le LEFT JOIN LATERAL
-// sortie_formation doit matcher le PRÉDÉCESSEUR IMMÉDIAT (n'importe quel statut), pas la prochaine
-// occurrence du bon type — la validité de la sortie est vérifiée dans le SELECT final (CASE), pas
-// dans le WHERE de la sous-requête (LEFT JOIN LATERAL doit continuer à matcher même quand la ligne
-// suivante n'est pas une sortie valide).
-test('listerDossiersParIds joint sortie_formation sur le PRÉDÉCESSEUR IMMÉDIAT et filtre la sortie valide via un CASE dans le SELECT (pas dans le WHERE de la sous-requête)', () => {
+// dossier #69) — l'ancienne version ancrait l'entrée sur MAX(historique_statuts.date_changement)
+// parmi TOUTES les occurrences de valide_envoi_formation, y compris une éventuelle boucle rouverte
+// et encore ouverte (aucune sortie) : cas du dossier #69, reparti en formation 379 ms après la
+// sortie de son premier cycle, dont "Dates clés" affichait alors NULL/NULL alors que le badge
+// "Délai Test → Formation" restait affiché (statistiquesRepository.delaiFormation retrouve
+// correctement le premier cycle, clos, en parcourant chaque entrée indépendamment). Corrigé en
+// reprenant le même patron LATERAL imbriqué que delaiFormation (sortie = ligne immédiatement
+// suivante, retenue seulement si valide_pret_embauche/formation_non_validee), puis en choisissant,
+// PARMI les entrées ainsi CLOSES, la plus RÉCENTE (ORDER BY entree.date_changement DESC LIMIT 1) —
+// entrée et sortie sont résolues ensemble dans le même LATERAL cycle_formation_clos.
+test('listerDossiersParIds ancre "Dates clés" formation sur le DERNIER cycle CLOS (LATERAL imbriqué, trié par entrée DESC), pas sur la dernière occurrence de valide_envoi_formation même si elle est encore ouverte', () => {
   const sql = dossierRepository.listerDossiersParIds(bd, 1, [74, 89]).toString();
   assert.doesNotMatch(
     sql,
-    /AND s\.code IN \('valide_pret_embauche', 'formation_non_validee'\)/,
-    'le LEFT JOIN LATERAL sortie_formation ne doit plus filtrer sur le type de statut dans la sous-requête',
+    /"statuts_valide_envoi_formation"/,
+    'l’ancienne jointure MAX par statut (joindreDateEntreeStatut) pour valide_envoi_formation ne doit plus exister',
   );
-  assert.match(sql, /SELECT hs\.date_changement, s\.code\s*\n?\s*FROM historique_statuts hs/);
-  assert.match(sql, /hs\.date_changement > dates_valide_envoi_formation\.date_entree_valide_envoi_formation/);
-  assert.match(
-    sql,
-    /CASE WHEN sortie_formation\.code IN \('valide_pret_embauche', 'formation_non_validee'\)\s*\n?\s*THEN sortie_formation\.date_changement\s*\n?\s*END as date_sortie_formation/,
-  );
+  assert.match(sql, /statut_entree\.code = 'valide_envoi_formation'/);
+  assert.match(sql, /sortie\.code IN \('valide_pret_embauche', 'formation_non_validee'\)/);
+  assert.match(sql, /ORDER BY entree\.date_changement DESC\s*\n?\s*LIMIT 1\s*\n?\s*\) AS cycle_formation_clos ON true/);
+  assert.match(sql, /"cycle_formation_clos"\."date_entree" as "date_entree_valide_envoi_formation"/);
+  assert.match(sql, /"cycle_formation_clos"\."date_sortie" as "date_sortie_formation"/);
 });
 
 test('listerDossiersParIds retourne un tableau vide sans construire de requête pour une liste de dossiers vide (comportement inchangé)', async () => {
