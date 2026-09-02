@@ -34,14 +34,22 @@
   margin-bottom: var(--espace-moyen);
 }
 
-/* Titre "Expérience" à l'intérieur du cadre (audit 2026-09-02) — texte nu, sans poids ajouté :
-   même traitement que les libellés "Poste"/"Formateur" devant un filtre ailleurs dans l'app
-   (Indicateurs.jsx/Planification.jsx), pas un style de titre inventé pour l'occasion. flex-shrink:
-   0 (comme les badges eux-mêmes, .filtres-statut__statuts button) pour ne jamais se faire
-   comprimer par le flex-wrap du cadre. */
+/* Titre "Expérience" à l'intérieur du cadre (audit 2026-09-02, 3e passe : de retour EN LIGNE avec
+   les badges — un essai intermédiaire l'avait mis sur sa propre ligne via flex-basis: 100%, demande
+   explicite de revenir à une seule ligne sur desktop). Ce qui distingue ce titre d'un badge n'est
+   PLUS la ligne qu'il occupe mais ses propriétés propres, posées explicitement plutôt que comptées
+   sur l'absence de règle contraire : gras (jamais le poids normal d'un badge), sans fond ni
+   bordure, curseur par défaut (jamais pointer). flex-shrink: 0 (comme les badges eux-mêmes,
+   .filtres-statut__statuts button) : ne se fait jamais comprimer par le texte des badges voisins ;
+   le flex-wrap déjà posé sur .filtres-statut__statuts (FiltresStatut.css) reste seul responsable
+   du retour à la ligne sur écran étroit, sans règle dédiée ici. */
 .tableau-bord-accueil__filtres-experience-titre {
   flex-shrink: 0;
+  font-weight: 700;
   color: var(--couleur-texte);
+  background: none;
+  border: none;
+  cursor: default;
 }
 
 /* Forme pilule + curseur — normalement hérités de `.filtres-statut button` (FiltresStatut.css),
