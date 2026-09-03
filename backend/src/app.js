@@ -37,6 +37,18 @@ const REPERTOIRE_PUBLIC = path.join(__dirname, '../public');
 async function creerApp() {
   const app = express();
 
+  // Azure Container Apps termine le HTTPS à son load balancer et transmet en HTTP en interne au
+  // conteneur (avec un header X-Forwarded-Proto/X-Forwarded-For) — sans "trust proxy", Express
+  // voit une connexion brute non chiffrée. Deux conséquences concrètes observées en prod sans ce
+  // réglage : express-rate-limit refuse de faire confiance à X-Forwarded-For pour identifier les
+  // clients (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR), et surtout express-session ne pose pas
+  // correctement le cookie de session quand cookie.secure=true (voir session.js) puisqu'il évalue
+  // la connexion comme non sécurisée — symptôme observé : connexion réussie côté serveur, mais la
+  // page suivante ne retrouve aucune session (redirection immédiate vers /connexion). "1" fait
+  // confiance au premier proxy en amont (celui de Container Apps), pas à un X-Forwarded-For
+  // falsifiable par le client final.
+  app.set('trust proxy', 1);
+
   app.use(helmet());
   // credentials: true impose une origine explicite (jamais "*") — voir FRONTEND_URL dans
   // config/env.js, cohérent avec la résolution d'entité par sous-domaine (entiteContext).
