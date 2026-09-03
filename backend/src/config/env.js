@@ -6,6 +6,16 @@ module.exports = {
   // Code entité utilisé quand le sous-domaine ne permet pas de résoudre l'entité
   // (développement local sur localhost) — voir entiteContext.middleware.js.
   ENTITE_PAR_DEFAUT: process.env.ENTITE_PAR_DEFAUT,
+  // Liste de hostnames complets (domaine personnalisé, ex. "inscriptions.accecit.com") à
+  // traiter comme "utiliser ENTITE_PAR_DEFAUT" au même titre que localhost/www/hostname
+  // mono-label — voir entiteContext.middleware.js. Nécessaire car cette instance ne sert
+  // actuellement qu'une seule entité (ACCECIT) sur un domaine personnalisé dont le premier
+  // label ("inscriptions") n'est ni un code d'entité réel ni un des cas de repli existants
+  // (une éventuelle 2e entité sera un clone séparé du déploiement, pas du multi-tenant ici).
+  HOTES_ENTITE_PAR_DEFAUT: (process.env.HOTES_ENTITE_PAR_DEFAUT ?? '')
+    .split(',')
+    .map((hote) => hote.trim())
+    .filter(Boolean),
   // Origine autorisée pour CORS (voir app.js) — le front est servi sur un sous-domaine par
   // entité en production (accecit.xxx.fr, adaptel.xxx.fr...), à faire évoluer vers une
   // résolution multi-origine par entité le jour où plusieurs entités sont déployées ensemble.
