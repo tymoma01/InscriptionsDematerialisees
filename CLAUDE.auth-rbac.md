@@ -282,7 +282,7 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 
 ### Décisions prises pendant l'implémentation (à valider avec le manager / développeur senior)
 
-- 🟡 **`SESSION_SECRET` reste en variable d'environnement**, pas dans Azure Key Vault (contrairement à la connection string Neon et à la clé NIR) — `express-session` en a besoin de façon synchrone au démarrage ; sa compromission n'expose que l'intégrité des cookies, pas de donnée métier directement. Point à revalider explicitement (déviation du principe "jamais de secret en `.env`" appliqué ailleurs dans le projet).
+- 🟢 **`SESSION_SECRET` migré vers Azure Key Vault** (secret `session-secret`, vault `SecretsForInscriptions`), décision prise avec Thomas — résout la déviation notée ci-dessous lors de l'implémentation initiale. `creerMiddlewareSession()` (`backend/src/core/auth/session.js`) récupère désormais `session-secret` via `obtenirSecret()` en parallèle de la connection string Neon (`Promise.all`) ; le check `if (!SESSION_SECRET) throw` a été retiré, l'échec remonte naturellement (Key Vault injoignable, secret absent...) comme pour la connection string. `SESSION_SECRET` n'existe plus dans `config/env.js` ni `.env.example`.
 - 🟡 **Cookie `secure` conditionné à `NODE_ENV=production`** plutôt que toujours `true` — CLAUDE.md recommande HTTPS même en local (reverse proxy, certificat auto-signé), mais ce reverse proxy n'est pas encore en place ; `secure:true` bloquerait le cookie en HTTP local. À revoir une fois le reverse proxy local disponible.
 - 🟡 **`journal_audit.cible_id` (NOT NULL)** utilisé avec un sentinel `0` pour les actions sans ligne "cible" naturelle (ex : connexion échouée sur un email inconnu). Alternative possible : rendre la colonne nullable en base — pas fait ici pour ne pas toucher au schéma existant sans validation.
 - 🟢 **Régénération de session à la connexion** (`req.session.regenerate`) pour prévenir la fixation de session — bonne pratique standard, ajoutée même si non explicitement demandée dans CLAUDE.md.
@@ -300,7 +300,7 @@ npm run dev
 # puis : POST /api/auth/connexion { "email": "recruteur@accecit.test", "motDePasse": "mot-de-passe-de-test" }
 ```
 
-Nécessite un accès Azure Key Vault valide (`az login` en local) pour la connection string Neon et le secret `SESSION_SECRET` renseigné dans `backend/.env` (voir `.env.example`) — non exécuté dans cette session faute d'accès aux secrets ; validé uniquement par les tests unitaires ci-dessous et une relecture manuelle.
+Nécessite un accès Azure Key Vault valide (`az login` en local) pour la connection string Neon et le secret `session-secret` (tous deux dans `SecretsForInscriptions`, voir `.env.example`) — non exécuté dans cette session faute d'accès aux secrets ; validé uniquement par les tests unitaires ci-dessous et une relecture manuelle.
 
 ### Vérifications effectuées
 
@@ -311,6 +311,5 @@ Nécessite un accès Azure Key Vault valide (`az login` en local) pour la connec
 ### Points restants à trancher avec le développeur senior (repris/complétés de `docs/schema-bdd-proposition.md`)
 
 - Politique de verrouillage de compte après N tentatives échouées, en complément du rate limiting IP
-- `SESSION_SECRET` : rester en `.env` ou migrer vers Key Vault pour cohérence totale avec le reste des secrets sensibles
 - `journal_audit.cible_id` NOT NULL avec sentinel `0` vs colonne nullable
 - Priorité du prochain chantier : moteur de workflow (`workflowEngine.js`) pour que `transition_roles` soit réellement appliqué, et back-office Admin pour la gestion des utilisateurs (actuellement seulement via script CLI)

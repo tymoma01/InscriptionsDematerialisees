@@ -10,12 +10,6 @@ module.exports = {
   // entité en production (accecit.xxx.fr, adaptel.xxx.fr...), à faire évoluer vers une
   // résolution multi-origine par entité le jour où plusieurs entités sont déployées ensemble.
   FRONTEND_URL: process.env.FRONTEND_URL ?? 'http://localhost:5173',
-  // Secret de signature des cookies de session (express-session, voir core/auth/session.js).
-  // Reste en variable d'environnement plutôt qu'Azure Key Vault, contrairement à la connection
-  // string Neon et à la clé NIR : express-session en a besoin de façon synchrone au démarrage, et
-  // sa compromission n'expose que l'intégrité/l'authenticité des cookies (pas de donnée métier
-  // directement) — à revalider avec le développeur senior (voir CLAUDE.auth-rbac.md).
-  SESSION_SECRET: process.env.SESSION_SECRET,
   // Compte AllMySMS déjà existant (voir CLAUDE.md, intégrations externes) — reste en variable
   // d'environnement classique comme dans .env.example, pas Azure Key Vault : ce n'est pas une
   // donnée candidat sensible (NIR, connection string DB), contrairement aux secrets qui y sont

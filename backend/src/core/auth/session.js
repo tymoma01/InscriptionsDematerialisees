@@ -2,7 +2,10 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const { Pool } = require('pg');
 const { obtenirConnectionString } = require('../../db/config');
-const { SESSION_SECRET, NODE_ENV } = require('../../config/env');
+const { obtenirSecret } = require('../securite/keyVaultClient');
+const { NODE_ENV } = require('../../config/env');
+
+const NOM_SECRET_SESSION = 'session-secret';
 
 // "Session courte (2h d'inactivité)" — CLAUDE.md, section Authentification et rôles.
 const DUREE_INACTIVITE_MS = 2 * 60 * 60 * 1000;
@@ -13,20 +16,21 @@ const DUREE_INACTIVITE_MS = 2 * 60 * 60 * 1000;
 // modélisée par une migration (voir docs/schema-bdd-proposition.md, fin de section 9).
 let promesseMiddleware;
 
-// Fabrique asynchrone : la connection string vient d'Azure Key Vault (obtenirConnectionString),
-// donc le middleware ne peut être construit qu'après cet appel — c'est pour ça que app.js
-// devient lui-même une fabrique asynchrone (creerApp) plutôt qu'un export synchrone de l'app.
+// Fabrique asynchrone : la connection string et le secret de session viennent tous deux d'Azure
+// Key Vault (obtenirConnectionString / obtenirSecret), donc le middleware ne peut être construit
+// qu'après ces appels — c'est pour ça que app.js devient lui-même une fabrique asynchrone
+// (creerApp) plutôt qu'un export synchrone de l'app. Un échec de récupération (Key Vault
+// injoignable, secret absent...) remonte naturellement, comme pour la connection string Neon.
 function creerMiddlewareSession() {
-  if (!SESSION_SECRET) {
-    throw new Error('SESSION_SECRET manquant (voir backend/.env.example) — impossible de démarrer sans secret de session.');
-  }
-
   if (!promesseMiddleware) {
-    promesseMiddleware = obtenirConnectionString().then((connectionString) => {
+    promesseMiddleware = Promise.all([
+      obtenirConnectionString(),
+      obtenirSecret(NOM_SECRET_SESSION),
+    ]).then(([connectionString, secretSession]) => {
       const pool = new Pool({ connectionString });
       return session({
         store: new pgSession({ pool, createTableIfMissing: true }),
-        secret: SESSION_SECRET,
+        secret: secretSession,
         name: 'sid',
         resave: false,
         saveUninitialized: false,
