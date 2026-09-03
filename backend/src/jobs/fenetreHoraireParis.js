@@ -24,4 +24,21 @@ function estDansLaFenetreHoraireParis(heureCible, minuteCible, toleranceMinutes 
   return minutesEcoulees >= minutesCible && minutesEcoulees < minutesCible + toleranceMinutes;
 }
 
-module.exports = { estDansLaFenetreHoraireParis };
+// Variante "toutes les heures" : vrai si on est dans les `toleranceMinutes` premières minutes de
+// N'IMPORTE QUELLE heure (Europe/Paris) — pour un job dont la cadence métier est "chaque heure",
+// pas un horaire précis dans la journée (voir executerSyncCalendrierManuelToutesEntites.js).
+// Même principe que estDansLaFenetreHoraireParis ci-dessus (le Job Azure tourne en cron UTC sans
+// fuseau horaire et est déclenché plus souvent que nécessaire, ex. */15 * * * *), mais sans
+// heureCible puisque toutes les heures sont valides.
+function estDansLesPremieresMinutesDeLHeureParis(toleranceMinutes = 15) {
+  const maintenant = new Date();
+  const minute = Number(
+    new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', minute: '2-digit' })
+      .formatToParts(maintenant)
+      .find((partie) => partie.type === 'minute').value,
+  );
+
+  return minute < toleranceMinutes;
+}
+
+module.exports = { estDansLaFenetreHoraireParis, estDansLesPremieresMinutesDeLHeureParis };

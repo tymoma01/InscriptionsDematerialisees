@@ -8,14 +8,14 @@ const { executerPourToutesLesEntitesActives } = require('./syncCalendrierManuelJ
 // scripts/executerSyncCalendrierManuelToutesEntites.js. Décision utilisateur, 2026-08-31 (voir
 // rappelJob.js pour le détail du raisonnement).
 //
-// 2 fois par jour, 8h00 et 13h00 : timezone explicite ('Europe/Paris', jamais le fuseau par défaut
-// du serveur/runtime) pour que ces deux horaires restent 8h00/13h00 heure de Paris quel que soit
-// le fuseau système. Le job des rappels de créneau est volontairement placé à 13h30, APRÈS ce
-// second passage : les rappels lisent rendezvous/dossiers déjà à jour avec l'état Outlook réel de
-// la journée, pas une éventuelle replanification manuelle encore non détectée.
+// Toutes les heures (décision utilisateur, 2026-09-03 — remplace les deux passages fixes
+// 8h00/13h00 initiaux), timezone explicite ('Europe/Paris', jamais le fuseau par défaut du
+// serveur/runtime) pour que "toutes les heures" reste vrai heure de Paris quel que soit le fuseau
+// système. Aligné sur executerSyncCalendrierManuelToutesEntites.js (prod) pour un comportement
+// cohérent entre dev local et prod.
 function demarrerCronSyncCalendrierManuel() {
   cron.schedule(
-    '0 8,13 * * *',
+    '0 * * * *',
     () => {
       executerPourToutesLesEntitesActives().catch((erreur) => {
         console.error('Synchronisation calendrier manuelle (cron) : échec inattendu ✘', erreur);
@@ -23,9 +23,7 @@ function demarrerCronSyncCalendrierManuel() {
     },
     { timezone: 'Europe/Paris' },
   );
-  console.log(
-    'Cron "Synchronisation calendrier manuelle" démarré (2 fois par jour, 8h00 et 13h00 heure de Paris) — dev local uniquement.',
-  );
+  console.log('Cron "Synchronisation calendrier manuelle" démarré (toutes les heures) — dev local uniquement.');
 }
 
 module.exports = { demarrerCronSyncCalendrierManuel };

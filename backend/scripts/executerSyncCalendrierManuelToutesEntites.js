@@ -5,21 +5,23 @@
 // hébergement Container Apps qui scale-to-zero/scale-out (voir src/jobs/syncCalendrierManuelJob.js
 // pour le détail du raisonnement). Traite TOUTES les entités actives.
 //
-// Le Job Azure peut être déclenché plus souvent que nécessaire (cron UTC, pas de fuseau horaire) :
-// c'est ce script qui vérifie qu'on est bien dans l'une des fenêtres 8h00-8h14 ou 13h00-13h14
-// heure de Paris avant d'agir (voir src/jobs/fenetreHoraireParis.js), pour rester correct à
-// travers les changements d'heure été/hiver sans avoir à retoucher la configuration Azure deux
-// fois par an.
+// Cadence métier : toutes les heures (décision utilisateur, 2026-09-03 — remplace les deux
+// passages fixes 8h00/13h00 initiaux). Le Job Azure peut être déclenché plus souvent que
+// nécessaire (cron UTC, pas de fuseau horaire, ex. */15 * * * *) : c'est ce script qui vérifie
+// qu'on est bien dans le premier quart d'heure de l'heure courante, Europe/Paris (voir
+// src/jobs/fenetreHoraireParis.js), pour rester correct à travers les changements d'heure
+// été/hiver sans avoir à retoucher la configuration Azure deux fois par an — pas besoin
+// d'ajuster le cron Azure pour ce changement de cadence, seule cette vérification interne change.
 //
 // Usage : node scripts/executerSyncCalendrierManuelToutesEntites.js
 
 const { obtenirKnex } = require('../src/db/knex');
 const { executerPourToutesLesEntitesActives } = require('../src/jobs/syncCalendrierManuelJob');
-const { estDansLaFenetreHoraireParis } = require('../src/jobs/fenetreHoraireParis');
+const { estDansLesPremieresMinutesDeLHeureParis } = require('../src/jobs/fenetreHoraireParis');
 
 async function main() {
-  if (!estDansLaFenetreHoraireParis(8, 0) && !estDansLaFenetreHoraireParis(13, 0)) {
-    console.log('Synchronisation calendrier manuelle : hors fenêtre (8h00/13h00 heure de Paris), aucune action.');
+  if (!estDansLesPremieresMinutesDeLHeureParis()) {
+    console.log('Synchronisation calendrier manuelle : hors fenêtre (premier quart d’heure de l’heure courante), aucune action.');
     return;
   }
 

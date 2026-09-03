@@ -8,15 +8,16 @@ const { executerPourToutesLesEntitesActives } = require('./basculeTestNonRealise
 // scripts/executerBasculeTestNonRealiseToutesEntites.js. Décision utilisateur, 2026-08-31 (voir
 // rappelJob.js pour le détail du raisonnement).
 //
-// '*/15 * * * *' : toutes les 15 minutes, même fréquence pour toutes les entités (pas de
-// configuration par entité pour l'instant, hors périmètre de cette demande).
+// '0 * * * *' : toutes les heures (décision utilisateur, 2026-09-03 — remplace les 15 minutes
+// initiales), même fréquence pour toutes les entités (pas de configuration par entité pour
+// l'instant, hors périmètre de cette demande). Aligné sur le Job Azure en prod.
 function demarrerCronBasculeTestNonRealise() {
-  cron.schedule('*/15 * * * *', () => {
+  cron.schedule('0 * * * *', () => {
     executerPourToutesLesEntitesActives().catch((erreur) => {
       console.error('Bascule automatique "Test non réalisé" (cron) : échec inattendu ✘', erreur);
     });
   });
-  console.log('Cron "Bascule automatique Test non réalisé" démarré (toutes les 15 minutes) — dev local uniquement.');
+  console.log('Cron "Bascule automatique Test non réalisé" démarré (toutes les heures) — dev local uniquement.');
 }
 
 module.exports = { demarrerCronBasculeTestNonRealise };
