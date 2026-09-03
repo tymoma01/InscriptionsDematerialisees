@@ -11,8 +11,8 @@
 #   AZ_CONTAINERAPP_NAME   nom de la Container App
 #   AZ_RESOURCE_GROUP      resource group Azure correspondant
 #
-# Exemple :
-#   AZ_CONTAINERAPP_NAME=inscriptions-backend AZ_RESOURCE_GROUP=rg-accecit ./redeploy.sh --deploy
+# Exemple (remplacer <...> par les vraies valeurs — volontairement pas de vrais noms ici, repo public) :
+#   AZ_CONTAINERAPP_NAME=<nom-container-app> AZ_RESOURCE_GROUP=<resource-group> ./redeploy.sh --deploy
 
 set -euo pipefail
 
