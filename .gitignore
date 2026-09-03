@@ -5,3 +5,7 @@ node_modules/
 *.log
 .claude/
 dist/
+
+# Contient l'ID de souscription Azure, le resource group et les noms de ressources réels — gardé
+# en local uniquement (repo public), voir redeploy.sh pour l'équivalent générique/paramétré.
+scripts-azure/
