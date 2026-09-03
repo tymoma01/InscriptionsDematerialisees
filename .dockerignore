@@ -1,0 +1,32 @@
+# Contexte de build = racine du repo (voir backend/Dockerfile, en-tête) : ce fichier doit vivre
+# ici, pas dans backend/, pour être pris en compte par docker build -f backend/Dockerfile .
+
+# Dépendances (réinstallées dans l'image via npm ci — voir Dockerfile)
+backend/node_modules
+frontend/node_modules
+
+# Build front : reconstruit à chaque image (stage frontend-build, npm run build) — inutile de
+# copier un dist/ existant depuis la machine qui lance le build.
+frontend/dist
+
+# Secrets locaux — ne doivent jamais entrer dans l'image (auth prod = Managed Identity, voir CLAUDE.md)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Versioning / éditeur / OS
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Logs et artefacts locaux
+*.log
+coverage
+
+# Documentation (inutile à l'exécution)
+docs
+CLAUDE*.md
+*.md

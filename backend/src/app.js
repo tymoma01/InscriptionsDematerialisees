@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -20,6 +21,14 @@ const formateursRoutes = require('./api/routes/formateurs.routes');
 const lieuxRoutes = require('./api/routes/lieux.routes');
 const statistiquesRoutes = require('./api/routes/statistiques.routes');
 const { FRONTEND_URL } = require('./config/env');
+
+// Build statique du front (React/Vite), copié dans public/ à la racine du conteneur par le
+// Dockerfile (stage frontend-build) — servi par ce même serveur Express plutôt qu'un hébergement
+// séparé, pour éviter un coût Azure supplémentaire et pour que la résolution d'entité par
+// sous-domaine (entiteContext, basée sur req.hostname) reste sans complication de
+// proxy/CORS/cookies cross-origin. __dirname = backend/src à l'exécution ; public/ est un
+// dossier frère de src/ (voir Dockerfile : WORKDIR /app, COPY src ./src, COPY --from=frontend-build /frontend/dist ./public).
+const REPERTOIRE_PUBLIC = path.join(__dirname, '../public');
 
 // Fabrique asynchrone (plutôt qu'un export synchrone de `app`) : le middleware de session a
 // besoin de la connection string Neon, récupérée depuis Azure Key Vault (voir
@@ -45,11 +54,19 @@ async function creerApp() {
     next();
   });
 
-  app.use(entiteContext);
+  // Fichiers statiques du build front (JS/CSS/images) — monté avant entiteContext/session,
+  // scopés eux-mêmes à /api juste après : une requête d'asset statique n'a pas besoin de
+  // résolution d'entité (requête SQL) ni de session, et ne doit jamais 404 à cause de ça.
+  app.use(express.static(REPERTOIRE_PUBLIC));
+
+  // entiteContext et le middleware de session sont scopés à /api uniquement (pas globaux) :
+  // sinon chaque requête de fichier statique déclencherait inutilement une résolution d'entité
+  // (requête SQL) et pourrait échouer à tort (ex. sous-domaine sans entité active).
+  app.use('/api', entiteContext);
   // Doit être monté après entiteContext (req.entite) et avant toute route protégée : les
   // middlewares d'authentification (auth.middleware.js) comparent req.session.utilisateur à
   // req.entite pour l'isolation multi-entité.
-  app.use(await creerMiddlewareSession());
+  app.use('/api', await creerMiddlewareSession());
 
   app.use('/api/auth', authRoutes);
   app.use('/api/candidats', candidatsRoutes);
@@ -99,6 +116,23 @@ async function creerApp() {
   // Tableau de bord KPI (CLAUDE.md, section Tableau de bord : "indicateurs de pilotage et
   // filtres") — Recruteur/Admin uniquement, voir statistiques.routes.js.
   app.use('/api/statistiques', statistiquesRoutes);
+
+  // Une requête /api/* qui n'a matché aucune route ci-dessus est une vraie 404 d'API — à
+  // renvoyer en JSON, jamais laisser tomber jusqu'à la route de repli SPA ci-dessous (qui,
+  // elle, matche n'importe quel chemin y compris /api/*, voir son commentaire).
+  app.use('/api', (req, res) => {
+    res.status(404).json({ erreur: 'Route API introuvable.' });
+  });
+
+  // Route de repli SPA (React Router) : sert index.html pour toute route front, y compris un
+  // rechargement direct sur une route profonde (ex. /candidat/tableau-de-bord) qui n'existe pas
+  // comme fichier statique — nécessaire pour que le routing côté client fonctionne. Montée en
+  // tout dernier (après le handler 404 /api/* ci-dessus) pour ne jamais intercepter une route API.
+  // Syntaxe Express 5 (path-to-regexp v8) : un wildcard nommé est obligatoire ('*' seul lève une
+  // erreur), et '/{*splat}' (groupe optionnel) est nécessaire pour matcher aussi la racine '/'.
+  app.get('/{*splat}', (req, res) => {
+    res.sendFile(path.join(REPERTOIRE_PUBLIC, 'index.html'));
+  });
 
   // Gestionnaire d'erreurs générique : ne jamais renvoyer la stack ni le détail interne au client.
   // eslint-disable-next-line no-unused-vars
