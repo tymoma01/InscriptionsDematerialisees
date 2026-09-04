@@ -43,7 +43,20 @@ const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
 const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 const OUI_NON = ['oui', 'non'];
 const CHOIX_DIFFUSION = ['autorise', 'refuse'];
-const MENTION_CHARTE_ATTENDUE = 'lu et approuvé'.normalize('NFC');
+
+// Insensible aux accents en plus de la casse (décision utilisateur, 2026-09-04) : un candidat qui
+// recopie "lu et approuve" au clavier tactile, sans accent, doit être accepté au même titre que
+// "Lu et Approuvé" — `.normalize('NFD')` décompose chaque lettre accentuée en lettre de base +
+// diacritique combinant, que `\p{Diacritic}` retire ensuite (voir normaliserMentionCharte
+// ci-dessous, réutilisée par comparerMentionCharte plus bas). Même correctif que
+// BlocCharte.schema.js côté front.
+function normaliserMentionCharte(valeur) {
+  return valeur
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+const MENTION_CHARTE_ATTENDUE = normaliserMentionCharte('lu et approuvé');
 
 // Même contrat que les schémas front (BlocInfosPerso.schema.js / BlocCoordonnees.schema.js /
 // BlocDisponibilites.schema.js), revalidé côté serveur — la validation front ne suffit jamais
@@ -65,7 +78,17 @@ const donneesInscriptionSchema = z
     nationalite: z.string().trim().min(1).regex(NOM_REGEX),
     prenom: z.string().trim().min(1),
     dateNaissance: z.string().min(1),
-    nir: z.string().trim().regex(NIR_REGEX),
+    // Facultatif (décision utilisateur, 2026-09-04) : vide/absent accepté, mais format NIR
+    // (15 chiffres) respecté si renseigné. Un dossier sans NIR ne peut simplement pas être
+    // chiffré ni vérifié en doublon (voir inscrireCandidat plus bas) — décision métier assumée.
+    nir: z
+      .string()
+      .trim()
+      .nullish()
+      .transform((valeur) => valeur ?? '')
+      .refine((valeur) => valeur === '' || NIR_REGEX.test(valeur), {
+        message: 'Le n° de sécurité sociale doit contenir 15 chiffres',
+      }),
     situationFamiliale: z.string().min(1),
     adresse: z.string().trim().min(1),
     codePostal: z.string().trim().regex(CODE_POSTAL_REGEX),
@@ -204,11 +227,10 @@ const donneesInscriptionSchema = z
     message: 'La signature électronique est obligatoire',
     path: ['signatureImage'],
   })
-  // La mention recopiée doit correspondre exactement à « Lu et Approuvé » (insensible à la
-  // casse et aux espaces superflus). `.normalize('NFC')` évite qu'un accent saisi sous sa
-  // forme décomposée (clavier tactile/IME) ne soit à tort traité comme une faute de frappe —
-  // même correctif que BlocCharte.schema.js côté front.
-  .refine((donnees) => donnees.charteMention.normalize('NFC').toLowerCase() === MENTION_CHARTE_ATTENDUE, {
+  // La mention recopiée doit correspondre à « Lu et Approuvé » aux espaces superflus, à la casse
+  // et aux accents près (voir normaliserMentionCharte plus haut) — même correctif que
+  // BlocCharte.schema.js côté front.
+  .refine((donnees) => normaliserMentionCharte(donnees.charteMention) === MENTION_CHARTE_ATTENDUE, {
     message: 'Merci de recopier exactement la mention « Lu et Approuvé »',
     path: ['charteMention'],
   });
@@ -218,23 +240,35 @@ const donneesInscriptionSchema = z
 // sans dossier en cas d'échec à mi-parcours).
 async function inscrireCandidat(entite, donneesBrutes) {
   const donnees = donneesInscriptionSchema.parse(donneesBrutes);
-  const nirSansEspaces = donnees.nir.replace(/\s/g, '');
-  const { nirChiffre, iv } = await chiffrer(nirSansEspaces);
-  // Hash déterministe (HMAC-SHA256) distinct du chiffrement AES-256-GCM ci-dessus : seul lui
-  // permet une recherche d'unicité par égalité (voir core/securite/nirCipher.js) — jamais
-  // stocké ni comparé en clair.
-  const nirHash = await hasherNirPourUnicite(nirSansEspaces);
-
+  // NIR facultatif (décision utilisateur, 2026-09-04) : rien à chiffrer ni à hasher quand absent
+  // — nirChiffre/iv/nirHash restent tous les trois `null` (colonnes nullable depuis la migration
+  // 058), et la vérification de doublon ci-dessous est simplement sautée pour ce dossier, faute
+  // de valeur à comparer (décision métier assumée : deux dossiers sans NIR ne sont jamais détectés
+  // comme doublons l'un de l'autre).
+  const nirSansEspaces = donnees.nir === '' ? null : donnees.nir.replace(/\s/g, '');
+  let nirChiffre = null;
+  let iv = null;
+  let nirHash = null;
+  if (nirSansEspaces) {
+    ({ nirChiffre, iv } = await chiffrer(nirSansEspaces));
+    // Hash déterministe (HMAC-SHA256) distinct du chiffrement AES-256-GCM ci-dessus : seul lui
+    // permet une recherche d'unicité par égalité (voir core/securite/nirCipher.js) — jamais
+    // stocké ni comparé en clair.
+    nirHash = await hasherNirPourUnicite(nirSansEspaces);
+  }
   const bd = await obtenirKnex();
   return bd.transaction(async (trx) => {
     // Vérification préalable (message clair, cas normal) — la contrainte UNIQUE en base reste
     // le filet de sécurité contre une course entre deux inscriptions concurrentes (voir plus bas).
-    const candidatNirExistant = await dossierRepository.trouverCandidatParNirHash(trx, entite.id, nirHash);
-    if (candidatNirExistant) {
-      throw new ErreurInscriptionConflit(
-        'Ce numéro de sécurité sociale est déjà utilisé par un autre dossier.',
-        'nir',
-      );
+    // Sautée quand nirHash est `null` : pas de NIR renseigné, donc rien à comparer.
+    if (nirHash) {
+      const candidatNirExistant = await dossierRepository.trouverCandidatParNirHash(trx, entite.id, nirHash);
+      if (candidatNirExistant) {
+        throw new ErreurInscriptionConflit(
+          'Ce numéro de sécurité sociale est déjà utilisé par un autre dossier.',
+          'nir',
+        );
+      }
     }
 
     const candidatEmailExistant = await dossierRepository.trouverCandidatParEmail(trx, entite.id, donnees.email);

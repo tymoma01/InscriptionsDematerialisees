@@ -265,9 +265,9 @@ export default function BlocInfosPerso({ valeurs, onChange, onValiditeChange }) 
       </div>
 
       <div className="bloc-infos-perso__champ-pleine-largeur">
-        <label htmlFor="nir">
-          N° de sécurité sociale <span className="champ-obligatoire">*</span>
-        </label>
+        {/* Facultatif (décision utilisateur, 2026-09-04) : pas d'astérisque obligatoire, voir
+            BlocInfosPerso.schema.js. */}
+        <label htmlFor="nir">N° de sécurité sociale</label>
         <input
           id="nir"
           name="nir"
