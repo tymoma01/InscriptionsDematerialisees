@@ -49,7 +49,28 @@ async function creerApp() {
   // falsifiable par le client final.
   app.set('trust proxy', 1);
 
-  app.use(helmet());
+  // CSP par défaut de helmet (img-src/frame-src : "'self'" seulement, ni "data:" pour frame-src
+  // ni "blob:" pour aucun des deux) bloque silencieusement l'aperçu des pièces justificatives
+  // (PanneauApercuPiece.jsx, bouton "Voir") : ce composant récupère le fichier réel via
+  // pieces.routes.js (.../apercu, jamais un lien externe SharePoint) puis l'affiche avec
+  // URL.createObjectURL(blob) dans un <img>/<iframe src="blob:...">. La requête réseau réussit
+  // (200, contenu valide — vérifié : bytes JPEG/PDF corrects renvoyés par le back), mais le
+  // navigateur refuse ensuite de charger cette URL blob: sans qu'aucune erreur ne remonte au
+  // composant (pas d'exception JS, juste un <img>/<iframe> qui ne charge rien) — d'où l'icône
+  // d'image cassée sans message d'erreur constatée en prod (2026-09-04). blob: est local à cette
+  // origine (créé à partir d'une réponse same-origin), pas un risque équivalent à autoriser un
+  // domaine externe.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'img-src': ["'self'", 'data:', 'blob:'],
+          'frame-src': ["'self'", 'blob:'],
+        },
+      },
+    }),
+  );
   // credentials: true impose une origine explicite (jamais "*") — voir FRONTEND_URL dans
   // config/env.js, cohérent avec la résolution d'entité par sous-domaine (entiteContext).
   app.use(cors({ origin: FRONTEND_URL, credentials: true }));
