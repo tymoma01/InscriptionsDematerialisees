@@ -25,13 +25,46 @@
   color: var(--couleur-erreur);
 }
 
+/* Bouton "Plus de filtres"/"Moins de filtres" (demande utilisateur : statut + entité en haut,
+   recherche/dates/expérience repliés en dessous) — bordure pointillée + fond transparent plutôt
+   que le style plein de .filtres-statut__statuts button : ce n'est pas un filtre actif/inactif au
+   même titre que les boutons voisins, juste une bascule d'affichage, elle ne doit pas se confondre
+   visuellement avec eux. Centré sur sa propre ligne (display: flex + margin: 0 auto), entre la
+   barre de statut et le panneau qu'il révèle. */
+.tableau-bord-accueil__bouton-plus-de-filtres {
+  display: flex;
+  margin: var(--espace-petit) auto;
+  padding: 0.4rem 1rem;
+  border: 1px dashed var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background: transparent;
+  color: var(--couleur-back-office);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+}
+
+.tableau-bord-accueil__bouton-plus-de-filtres:hover,
+.tableau-bord-accueil__bouton-plus-de-filtres:focus-visible {
+  background-color: var(--statut-neutre-fond);
+}
+
+/* Panneau replié (recherche nom/prénom/téléphone/email/poste/statut/N° dossier, dates, expérience)
+   — même marge basse que .tableau-bord-accueil__filtres-experience ci-dessous pour garder l'espacement
+   existant avant la liste de dossiers, qu'il soit ouvert ou non ne change rien à ce qui suit. */
+.tableau-bord-accueil__filtres-avances {
+  margin-bottom: var(--espace-petit);
+}
+
 /* Filtre "Expérience" (audit 2026-09-02, refonte visuelle en badges) — réutilise directement
    .filtres-statut__statuts (FiltresStatut.css : boîte ivoire, boutons pilule, wrap) pour que cette
    rangée de badges se lise comme une extension naturelle de la barre de filtres juste en dessous,
    pas comme un composant isolé. margin-bottom aligné sur .filtres-statut (même espacement avant
    la rangée de statuts). */
 .tableau-bord-accueil__filtres-experience {
-  margin-bottom: var(--espace-moyen);
+  margin-bottom: 0;
+  margin-top: var(--espace-moyen);
 }
 
 /* Titre "Expérience" à l'intérieur du cadre (audit 2026-09-02, 3e passe : de retour EN LIGNE avec
