@@ -8,8 +8,13 @@
 // comparer le texte entier (comme avant la migration 047, sur l'ancien `libelle` combiné) aurait
 // pu rater ce cas.
 
+// `texte` peut être null/undefined pour un lieu dont `adresse` n'a jamais été renseignée (ex. seed
+// legacy écrivant encore dans `libelle`, voir seedLieux.js) — traité comme une chaîne vide plutôt
+// que de laisser `null.normalize()` planter tout l'appelant (soumettreLieu n'est pas protégé par un
+// try/catch, voir ModalePlanificationTest.jsx : une exception ici bloquait silencieusement le clic
+// sur "Créer", sans requête réseau ni message d'erreur affiché).
 function normaliser(texte) {
-  return texte
+  return (texte ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
