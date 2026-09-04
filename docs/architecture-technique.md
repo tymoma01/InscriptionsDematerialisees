@@ -186,6 +186,56 @@ justificatives. Détail complet (secrets à créer, procédure de test de restau
 
 ---
 
+## 6. Environnements Neon (prod vs dev) — deux secrets Key Vault distincts
+
+Depuis le commit `dd0dd62` (2026-09-03), `backend/src/db/config.js` sélectionne le secret Key
+Vault Neon à utiliser selon `NODE_ENV` (voir `backend/src/config/env.js`) :
+
+| `NODE_ENV` | Secret Key Vault (`SecretsForInscriptions`) | Utilisé par |
+|---|---|---|
+| `production` | `neon-connection-string` | Le conteneur déployé sur Azure Container Apps (`inscriptions-backend`) — `Dockerfile` fixe `ENV NODE_ENV=production` en dur. |
+| tout le reste (défaut si absent) | `neon-connection-string-dev` | `npm run dev` en local, scripts lancés à la main sans `NODE_ENV=production` explicite. |
+
+**⚠️ Incident du 2026-09-04** : les deux secrets ont été créés à 30 secondes d'intervalle le
+2026-09-03 (voir `az keyvault secret show ... --query attributes.created`), et leurs valeurs ont
+ensuite été confondues à deux reprises pendant le dépannage — une fois en pensant à tort que la
+base contenant le plus de lignes ("68 dossiers") était forcément la prod, l'inverse en réalité
+(cette base contenait les fixtures de développement ; la vraie base de prod venait d'être créée,
+donc légitimement quasi vide). Un candidat a bien fini par s'inscrire dans la bonne base une fois
+le bon secret remis en place, confirmant le flux réparé.
+
+**Le nom du secret ne suffit pas à distinguer les deux bases en cas de doute — le compte de lignes
+non plus** (une base de prod toute neuve peut être plus vide qu'une base de dev pleine de
+fixtures). Avant de toucher à l'un de ces deux secrets, vérifier plutôt :
+
+1. **Quelle révision Container Apps tourne réellement en ce moment** et depuis quand :
+   ```
+   az containerapp revision list --name inscriptions-backend --resource-group Inscriptions \
+     --query "[].{name:name, created:properties.createdTime, active:properties.active}" -o table
+   ```
+2. **Le contenu réel de la base pointée par `neon-connection-string`**, en lecture seule
+   uniquement, jamais en écriture tant que le doute n'est pas levé :
+   ```
+   CONN=$(az keyvault secret show --vault-name SecretsForInscriptions \
+     --name neon-connection-string --query value -o tsv)
+   psql "$CONN" -c "SELECT count(*) FROM dossiers;"
+   ```
+   Et croiser le résultat avec ce que l'équipe métier (Accueil/Coordination) sait du nombre réel de
+   candidats inscrits — pas seulement avec l'intuition "plus de lignes = plus probablement la
+   prod".
+3. **Demander confirmation à la personne qui a créé/modifié le secret en dernier** (`az keyvault
+   secret show ... --query attributes.updated`) avant tout échange de valeurs — c'est une opération
+   à fort impact (bascule immédiate du trafic de prod vers une autre base) qui ne doit jamais être
+   déduite seule de la taille des tables.
+
+Toute écriture (seed, échange de secrets, redémarrage du conteneur pour vider le cache mémoire de
+la connection string dans `backend/src/core/securite/keyVaultClient.js`) reste une action à
+confirmer explicitement avec l'humain avant exécution, quelle que soit la confiance dans le
+diagnostic — cet incident a justement eu lieu après un diagnostic qui semblait solide sur le
+moment.
+
+---
+
 ## Prochaines étapes techniques (suite à la décision § 1.7)
 
 1. **Service de chiffrement NIR** : créer `backend/src/core/securite/nirCipher.js` (AES-256-GCM, fonctions `chiffrer(nirClair)` / `dechiffrer(nirChiffre, iv)`), remplaçant la logique ad hoc actuellement absente — aucun autre module ne doit accéder au NIR sans passer par ce service.
