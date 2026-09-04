@@ -90,8 +90,18 @@
 
   /* Mise en page des blocs à disposition "label + champ" (InfosPerso, Coordonnées) :
      une seule source pour la largeur de la colonne de labels, afin qu'elle reste
-     identique entre tous les blocs qui suivent ce patron. */
-  --largeur-label-champ: 11rem;
+     identique entre tous les blocs qui suivent ce patron.
+     11rem laissait "Numéro et nom de rue *" (BlocCoordonnees.jsx) déborder de quelques pixels :
+     le texte seul tenait tout juste dans la colonne, mais l'ajout de l'astérisque (espace +
+     caractère) dépassait de peu, et le seul retour à la ligne disponible tombait juste avant
+     l'astérisque — qui se retrouvait seul sur sa propre ligne, contrairement aux autres libellés
+     longs du formulaire (ex. "Nom du contact d'urgence *"), où le retour à la ligne se fait plus
+     tôt et laisse le dernier mot et l'astérisque ensemble. 12rem donne la marge nécessaire pour
+     que ce libellé tienne sur une seule ligne, sans changer le point de retour à la ligne des
+     autres libellés (déjà bien plus larges que 11rem, donc déjà repliés sur 2 lignes de toute
+     façon) — même colonne pour tous les blocs, agrandie uniformément plutôt qu'une exception
+     ad hoc sur ce seul champ, qui aurait désaligné son champ de saisie par rapport aux autres. */
+  --largeur-label-champ: 12rem;
   --largeur-champ-saisie: 16rem;
 
   /* Largeur maximale du formulaire, pour éviter que le contenu ne s'étire sur toute
