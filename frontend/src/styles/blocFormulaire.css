@@ -115,3 +115,26 @@ body.corps-back-office {
 .champ-obligatoire {
   color: var(--couleur-erreur);
 }
+
+/* Cibles tactiles agrandies pour les cases à cocher/boutons radio natifs (audit tablette
+   2026-09-04) : 13-16px de large/haut selon le navigateur, partout dans l'app (formulaire
+   candidat, sélection de ligne des tableaux back-office, options Oui/Non...) — nettement sous la
+   cible tactile usuelle (~24px, WCAG 2.5.8 AA). Règle posée ici (styles/blocFormulaire.css, chargé
+   une seule fois dans main.jsx, donc déjà global) plutôt que dupliquée dans chaque bloc/page :
+   sélecteur de type pur (`input[type=...]`), pas de classe à poser partout où ces champs
+   apparaissent.
+   width/height plutôt que padding : vérifié en pratique (Chromium) qu'un padding posé sur un
+   input[type=checkbox]/[type=radio] natif est purement et simplement IGNORÉ — ces contrôles sont
+   des "éléments remplacés" dont le moteur de rendu ne recalcule la boîte cliquable qu'à partir de
+   width/height (ou d'un transform: scale, moins prévisible pour l'alignement avec le texte du
+   label). 1.25rem (20px) reste un agrandissement modeste, pas une refonte en case à cocher
+   personnalisée — hors périmètre de ce correctif. Uniquement ≤1024px (tablette et mobile,
+   pilotage tactile) : le desktop, piloté à la souris, n'a pas ce problème et ne doit pas changer
+   d'aspect (demande explicite). */
+@media (max-width: 1024px) {
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}

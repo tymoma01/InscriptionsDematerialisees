@@ -1,0 +1,41 @@
+/* Voir IndicateurDefilementHorizontal.jsx pour le choix de conteneur/siblings plutôt qu'un enfant
+   interne. position: relative uniquement : ce wrapper ne doit rien changer d'autre à la mise en
+   page du conteneur défilant qu'il enveloppe (bordure/rayon/overflow-x restent portés par la
+   classe transmise via `className`, inchangée). */
+.indicateur-defilement-horizontal {
+  position: relative;
+}
+
+/* border-radius assorti à --rayon-bordure (même valeur que la bordure du conteneur défilant,
+   DossierList.css/Planification.css/Utilisateurs.css) : découpe le dégradé pour qu'il ne dépasse
+   jamais des coins arrondis du tableau qu'il recouvre. pointer-events: none — purement décoratif,
+   ne doit jamais intercepter un clic/survol destiné au contenu défilant en dessous. */
+.indicateur-defilement-horizontal__ombre {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2.5rem;
+  max-width: 15%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.indicateur-defilement-horizontal__ombre--visible {
+  opacity: 1;
+}
+
+/* var(--couleur-fond) plein qui s'estompe vers transparent : les 3 tableaux concernés
+   (dossier-list/planification__table/table-utilisateurs) partagent tous background-color:
+   var(--couleur-fond) — un seul dégradé convient donc aux trois sans variante par appelant. */
+.indicateur-defilement-horizontal__ombre--gauche {
+  left: 0;
+  background: linear-gradient(to right, var(--couleur-fond), transparent);
+  border-radius: var(--rayon-bordure) 0 0 var(--rayon-bordure);
+}
+
+.indicateur-defilement-horizontal__ombre--droite {
+  right: 0;
+  background: linear-gradient(to left, var(--couleur-fond), transparent);
+  border-radius: 0 var(--rayon-bordure) var(--rayon-bordure) 0;
+}

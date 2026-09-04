@@ -426,6 +426,19 @@
   cursor: pointer;
 }
 
+/* Cible tactile agrandie (audit tablette 2026-09-04 : ~26px de haut mesuré, sous la cible usuelle)
+   — uniquement ≤1024px, desktop inchangé (voir le commentaire ci-dessus sur le calage volontaire à
+   deux boutons par ligne sur la largeur de colonne fixe). flex-wrap: wrap déjà posé sur
+   .table-utilisateurs__actions : si Modifier + Désactiver ne tiennent plus côte à côte à ce padding
+   sur la colonne resserrée par le point de rupture tablette (voir plus haut), ils passent
+   simplement sur deux lignes plutôt que de déborder. */
+@media (max-width: 1024px) {
+  .table-utilisateurs__actions button {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.82rem;
+  }
+}
+
 .table-utilisateurs__actions button:hover:not(:disabled) {
   background-color: var(--couleur-fond-secondaire);
 }
@@ -532,4 +545,60 @@
 .table-utilisateurs__actions button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Point de rupture tablette explicite (audit 2026-09-04 : sur 8 fichiers du projet avec des
+   @media, seuls 2 couvraient réellement 768-1024px — ce tableau, le plus large des 3 identifiés
+   comme débordant, n'en avait aucun). Les largeurs explicites ci-dessus (voir leur commentaire,
+   "somme volontairement inférieure à --largeur-max-formulaire... pour une largeur d'écran
+   standard") ont été calibrées pour un budget desktop d'environ 1268px — jamais disponible sur
+   cette plage. Resserrées ici à ~54.5rem (872px), un budget réaliste pour 1024px de large une
+   fois la marge de page déduite : Email/Nom/Rôle restent les plus généreuses (déjà en
+   white-space: normal, donc déjà prévues pour passer sur 2 lignes sans rien casser), Téléphone/
+   Statut/Dernière connexion/Actions — les moins critiques à l'œil — sont resserrées davantage.
+   N'élimine pas tout défilement à 768px (budget encore plus serré), mais
+   IndicateurDefilementHorizontal (Utilisateurs.jsx) signale déjà qu'il en reste, et la réduction
+   ci-dessous limite ce qu'il y a à défiler. Padding horizontal également resserré (0.75rem 0.6rem,
+   pas var(--espace-moyen)=1rem) pour la même raison que DossierList.css/Planification.css. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .table-utilisateurs {
+    --table-utilisateurs-largeur-colonne-numero: 2.5rem;
+  }
+
+  .table-utilisateurs th,
+  .table-utilisateurs td {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .table-utilisateurs__entete-tri {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .table-utilisateurs__colonne-nom {
+    width: 7.5rem;
+  }
+
+  .table-utilisateurs__colonne-email {
+    width: 12rem;
+  }
+
+  .table-utilisateurs__colonne-telephone {
+    width: 5.5rem;
+  }
+
+  .table-utilisateurs__colonne-role_libelle {
+    width: 7rem;
+  }
+
+  .table-utilisateurs__colonne-actif {
+    width: 5rem;
+  }
+
+  .table-utilisateurs__colonne-derniere_connexion {
+    width: 6.5rem;
+  }
+
+  .table-utilisateurs__colonne-actions {
+    width: 8.5rem;
+  }
 }

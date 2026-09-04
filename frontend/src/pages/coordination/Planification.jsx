@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
@@ -719,7 +720,9 @@ export default function Planification() {
         )}
 
         {!chargement && !erreur && rendezvousTries.length > 0 && (
-          <div className="planification__scroll">
+          // IndicateurDefilementHorizontal (audit tablette 2026-09-04) : dégradés de bord qui
+          // signalent qu'il reste du contenu à défiler, voir son commentaire d'en-tête.
+          <IndicateurDefilementHorizontal className="planification__scroll">
             {/* --planification-largeur-colonne-case ramenée à 0 quand la colonne de sélection ne
                 se rend pas (Formateur/Inspecteur, voir estFormateurOuInspecteur) : cette variable
                 pilote aussi le décalage (`left`) en cascade de "N°"/"Date et heure"/"Candidat"
@@ -851,7 +854,7 @@ export default function Planification() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </IndicateurDefilementHorizontal>
         )}
 
         {panneauHistoriqueOuvert && (

@@ -2,12 +2,24 @@
    .page-back-office, voir PageBackOffice.css) — position/taille constantes quelle que soit la
    largeur d'écran, contrairement au filigrane décoratif (FiligraneFormulaire.css) qui ne
    s'affiche qu'à partir de 1440px : ce bouton reste une action utilisable sur tablette, pas un
-   simple ornement de grand écran. */
+   simple ornement de grand écran.
+
+   z-index: 20, strictement supérieur à .barre-navigation (z-index: 5, BarreNavigation.css) —
+   audit tablette 2026-09-04 : sous ~1332px de large, la marge qui sépare ce bouton (collé au
+   bord gauche du VIEWPORT, indépendant de la largeur du contenu) du contenu recentré de
+   .page-back-office__contenu (où vit la nav, voir PageBackOffice.jsx) disparaît, et les deux
+   boîtes se chevauchent géométriquement. À z-index égal, l'ordre du DOM tranche (nav montée
+   après le bouton) : la nav gagnait, rendant le bouton non seulement masqué mais injoignable au
+   clic (confirmé via document.elementFromPoint sur le centre du bouton, qui retournait
+   `.barre-navigation__lien`). Pas de risque de passer au-dessus de .page-back-office__entete
+   (z-index: 10, EnTeteAccecit.css) : le bouton reste toujours positionné SOUS l'en-tête
+   (top: hauteur-entete + 1rem), les deux ne se chevauchent jamais géométriquement quelle que
+   soit la largeur d'écran, donc leur ordre d'empilement relatif est sans effet visible. */
 .bouton-nouvelle-inscription {
   position: fixed;
   top: calc(var(--hauteur-entete) + 1rem);
   left: 1rem;
-  z-index: 5;
+  z-index: 20;
 
   display: flex;
   align-items: center;

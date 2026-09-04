@@ -178,6 +178,19 @@
   flex: 0 0 auto;
 }
 
+/* Voir/Reprendre/Supprimer (audit tablette 2026-09-04) : jamais de padding propre jusqu'ici —
+   rendu au padding par défaut du navigateur (~21px de haut mesuré), sous la cible tactile usuelle.
+   `button` générique plutôt que les trois classes individuelles : "Reprendre" n'a elle-même aucune
+   classe dédiée (bouton nu), donc un sélecteur par bouton la laisserait de côté. Uniquement
+   ≤1024px (desktop inchangé, comme demandé) — ne touche QUE le padding, jamais bordure/couleur
+   (déjà posées par .capture-tablette__bouton-voir/-supprimer, ou laissées au rendu natif du
+   navigateur pour "Reprendre", inchangé ici). */
+@media (max-width: 1024px) {
+  .capture-tablette__actions-piece button {
+    padding: 0.55rem 0.9rem;
+  }
+}
+
 .capture-tablette__bouton-supprimer {
   color: var(--couleur-erreur);
   border-color: var(--couleur-erreur);

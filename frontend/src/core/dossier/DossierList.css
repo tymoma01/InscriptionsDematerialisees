@@ -258,3 +258,24 @@
   padding: var(--espace-grand);
   text-align: center;
 }
+
+/* Point de rupture tablette explicite (audit 2026-09-04 : sur 8 fichiers du projet avec des
+   @media, seuls 2 couvraient réellement 768-1024px — ce tableau, l'un des 3 identifiés comme
+   débordant sur cette plage, n'en avait aucun). Padding horizontal resserré uniquement dans cette
+   plage : IndicateurDefilementHorizontal (voir DossierList.jsx) signale déjà qu'il reste du
+   contenu à défiler, mais réduire aussi un peu ce qu'il y a à défiler reste préférable — sans
+   toucher au confort de lecture desktop (>1024px, où la largeur ne pose pas de problème) ni au
+   mobile (<768px, hors périmètre de cet audit). Cible les deux endroits qui portent RÉELLEMENT le
+   padding horizontal d'une colonne triable (le <th> lui-même a padding: 0, voir plus haut — c'est
+   .dossier-list__entete-tri, le bouton qu'il contient, qui porte le padding réel) : changer
+   seulement .dossier-list td laisserait la largeur de colonne dictée par le plus large des deux
+   (l'en-tête), sans aucun effet visible. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .dossier-list td {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .dossier-list__entete-tri {
+    padding: 0.75rem 0.6rem;
+  }
+}

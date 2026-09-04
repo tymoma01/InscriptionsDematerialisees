@@ -285,6 +285,26 @@
   border-right: 1px solid var(--couleur-bordure-legere);
 }
 
+/* Padding horizontal resserré (0.55rem, pas var(--espace-moyen)=1rem — audit tablette 2026-09-04) :
+   ce tableau reste le seul du back-office à déborder encore à 1024px — un pixel de padding gratté
+   sur chaque colonne s'additionne vite. Vertical inchangé (0.75rem) : ne pas comprimer la hauteur
+   de ligne/la zone de clic des cases à cocher et du bouton "Voir le dossier" (voir Constats
+   transversaux du rapport d'audit sur les cibles tactiles).
+
+   EXCLUT explicitement les 4 colonnes figées (case/numéro/date/candidat, :not() ci-dessous) :
+   leur décalage `left` (.planification__colonne-date/-figee plus bas) est calculé à partir des
+   seules variables --planification-largeur-colonne-* (la largeur de CONTENU déclarée), alors que
+   le calcul de mise en page réel d'un tableau en table-layout: auto tient aussi compte du padding
+   pour répartir la largeur des colonnes. Réduire le padding de CES colonnes précises désynchronise
+   donc `left` de leur position réellement rendue — constaté à l'écran : le début du contenu de la
+   colonne suivante ("Poste") se retrouvait peint SOUS "Candidat" (opaque, au-dessus dans l'ordre
+   d'empilement) au lieu d'apparaître juste derrière elle. Resserrer uniquement les colonnes NON
+   figées reste sûr : rien n'y dépend d'un `left` calculé ailleurs. */
+.planification__table th:not(.planification__colonne-case):not(.planification__colonne-numero):not(.planification__colonne-date):not(.planification__colonne-figee),
+.planification__table td:not(.planification__colonne-case):not(.planification__colonne-numero):not(.planification__colonne-date):not(.planification__colonne-figee) {
+  padding: 0.75rem 0.4rem;
+}
+
 .planification__table th:last-child,
 .planification__table td:last-child {
   border-right: none;
@@ -319,12 +339,14 @@
 
 /* "Case à cocher"/"N°" n'ont pas de bouton .planification__entete-tri interne (pas de tri sur ces
    deux colonnes) : contrairement aux en-têtes triables ci-dessous, dont le bouton porte lui-même
-   le padding (0.75rem var(--espace-moyen), voir .planification__entete-tri), ces deux <th>
-   hériteraient du padding: 0 de la règle générale ci-dessus sans le restaurer explicitement ici —
-   d'où la case à cocher de l'en-tête (icône collée au bord de la cellule) décalée par rapport à
-   celles du corps du tableau (.planification__table td, padding 0.75rem var(--espace-moyen)
-   normal). Même padding que td restauré ici pour un alignement horizontal ET vertical identique
-   entre l'en-tête "tout sélectionner" et chaque case à cocher de ligne. */
+   le padding (voir .planification__entete-tri), ces deux <th> hériteraient du padding: 0 de la
+   règle générale ci-dessus sans le restaurer explicitement ici — d'où la case à cocher de l'en-tête
+   (icône collée au bord de la cellule) décalée par rapport à celles du corps du tableau
+   (.planification__table td). Même padding que td restauré ici pour un alignement horizontal ET
+   vertical identique entre l'en-tête "tout sélectionner" et chaque case à cocher de ligne — TOUJOURS
+   var(--espace-moyen) ici (pas la version resserrée à 0.55rem, voir le commentaire de
+   .planification__table th:not(...) plus haut) : ces deux colonnes sont figées, leur `left` ne
+   doit jamais se désynchroniser de leur padding réel. */
 .planification__table th.planification__colonne-case,
 .planification__table th.planification__colonne-numero {
   padding: 0.75rem var(--espace-moyen);
@@ -356,6 +378,17 @@
 .planification__indicateur-tri {
   font-size: 0.7rem;
   min-width: 0.8em;
+}
+
+/* Padding resserré (0.55rem, audit tablette 2026-09-04) pour le bouton de tri des colonnes NON
+   figées uniquement (Poste/Expérience/Formateur/Statut — "Candidat" est triable mais figée, donc
+   volontairement exclue ici, voir .planification__colonne-figee) : ce bouton porte le padding réel
+   du <th> qui le contient (padding: 0 sur le <th> lui-même, voir plus haut) — resserrer le <th>
+   seul via le sélecteur :not(...) plus haut n'aurait aucun effet sur ces colonnes précises sans
+   cette règle-ci en plus. Même raison d'exclure les colonnes figées que partout ailleurs dans ce
+   fichier : leur `left` calculé ne doit jamais se désynchroniser d'un padding réel différent. */
+.planification__table th:not(.planification__colonne-date):not(.planification__colonne-figee) .planification__entete-tri {
+  padding: 0.75rem 0.4rem;
 }
 
 .planification__table tbody tr:last-child td {
@@ -434,7 +467,19 @@
   background-color: var(--couleur-fond-survol-tableau-opaque);
 }
 
-/* Une puce par poste, empilées verticalement — même patron que .dossier-list__postes/
+/* max-width sur cette colonne (tenté audit tablette 2026-09-04, retiré) : en table-layout: auto,
+   contraindre la largeur PRÉFÉRÉE d'une colonne ordinaire redistribue le calcul de largeur de
+   TOUTES les colonnes — y compris les 4 colonnes figées (case/numéro/date/candidat) dont le
+   décalage `left` (voir .planification__colonne-figee plus bas) reste, lui, calculé à partir des
+   VARIABLES CSS déclarées (--planification-largeur-colonne-*), pas de la largeur réellement
+   rendue. Constaté à l'écran : les deux se désynchronisaient, et le début du contenu de "Poste"
+   se retrouvait peint SOUS la colonne "Candidat" figée (opaque, au-dessus dans l'ordre
+   d'empilement) au lieu d'apparaître juste derrière elle — un vrai bug de contenu masqué, pire
+   que le débordement qu'il cherchait à réduire. La réduction de padding ci-dessus
+   (.planification__table th/td) reste le seul levier utilisé ici : elle s'applique uniformément
+   sans toucher aux `width` déclarées des colonnes figées, donc sans risque de désynchronisation.
+
+   Une puce par poste, empilées verticalement — même patron que .dossier-list__postes/
    .dossier-list__badge-poste (DossierList.css). */
 .planification__postes {
   display: flex;

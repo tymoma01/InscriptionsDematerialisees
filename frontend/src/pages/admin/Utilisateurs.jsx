@@ -6,6 +6,7 @@ import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import {
   listerUtilisateurs,
   listerRolesAssignables,
@@ -248,7 +249,9 @@ export default function Utilisateurs() {
         )}
 
         {!chargement && !erreur && utilisateursTries.length > 0 && (
-          <div className="table-utilisateurs__scroll">
+          // IndicateurDefilementHorizontal (audit tablette 2026-09-04) : dégradés de bord qui
+          // signalent qu'il reste du contenu à défiler, voir son commentaire d'en-tête.
+          <IndicateurDefilementHorizontal className="table-utilisateurs__scroll">
             <table className="table-utilisateurs">
               <thead>
                 <tr>
@@ -340,7 +343,7 @@ export default function Utilisateurs() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </IndicateurDefilementHorizontal>
         )}
       </div>
     </PageBackOffice>

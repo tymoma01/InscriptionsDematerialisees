@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
+import IndicateurDefilementHorizontal from '../backOffice/IndicateurDefilementHorizontal';
 import './DossierList.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -132,8 +133,10 @@ export default function DossierList({
     // Conteneur dédié au défilement horizontal : un <table> ne rétrécit jamais sous la largeur
     // naturelle de son contenu (ici, quatre colonnes dont deux boutons d'action) — sans ce
     // conteneur, dépasser cette largeur pousserait toute la page en scroll horizontal sur un
-    // écran étroit (tablette en portrait), pas seulement le tableau.
-    <div className="dossier-list__scroll">
+    // écran étroit (tablette en portrait), pas seulement le tableau. IndicateurDefilementHorizontal
+    // (audit tablette 2026-09-04) ajoute les dégradés de bord qui signalent qu'il reste du contenu
+    // à défiler — voir son commentaire d'en-tête.
+    <IndicateurDefilementHorizontal className="dossier-list__scroll">
       {/* --dossier-list-largeur-colonne-case ramenée à 0 quand la sélection ne se rend pas
           (selectionActive false) : cette variable pilote aussi le décalage (`left`) en cascade de
           "N°"/"Candidat" (voir DossierList.css) — sans ce recalage, ces deux colonnes figées
@@ -269,6 +272,6 @@ export default function DossierList({
           ))}
         </tbody>
       </table>
-    </div>
+    </IndicateurDefilementHorizontal>
   );
 }

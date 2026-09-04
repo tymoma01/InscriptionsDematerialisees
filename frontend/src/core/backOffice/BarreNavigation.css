@@ -44,6 +44,22 @@
   white-space: nowrap;
 }
 
+/* Point de rupture tablette explicite (audit 2026-09-04 : sur 8 fichiers du projet avec des
+   @media, seuls 2 couvraient réellement 768-1024px, cette barre partagée par les 9 écrans
+   back-office n'en avait aucun). Ici pour le rôle Admin (5 liens, voir ELEMENTS_NAVIGATION) : à
+   cette largeur, un padding/texte pleine taille fait passer la barre sur 2 lignes plus souvent
+   qu'à largeur desktop, agrandissant d'autant la zone que .bouton-nouvelle-inscription doit
+   partager avec elle (voir son commentaire sur le chevauchement — désormais réglé par le
+   z-index, mais une barre plus compacte réduit aussi la fréquence du passage à 2 lignes en
+   amont). Resserré uniquement dans cette plage : en dessous, le passage à plusieurs lignes est de
+   toute façon attendu sur mobile ; au-dessus, la largeur disponible ne le justifie pas. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .barre-navigation__lien {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.85rem;
+  }
+}
+
 .barre-navigation__lien:hover {
   background-color: var(--couleur-fond-secondaire);
 }

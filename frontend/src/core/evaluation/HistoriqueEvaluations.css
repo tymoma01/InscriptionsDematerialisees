@@ -160,3 +160,11 @@
 .historique-evaluations__action-detail:focus-visible {
   filter: brightness(0.92);
 }
+
+/* Cible tactile agrandie (audit tablette 2026-09-04 : ~31px de haut mesuré, sous la cible usuelle)
+   — uniquement ≤1024px, desktop inchangé. */
+@media (max-width: 1024px) {
+  .historique-evaluations__action-detail {
+    padding: 0.65rem 0.95rem;
+  }
+}
