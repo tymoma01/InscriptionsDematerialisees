@@ -11,6 +11,7 @@ const {
   ErreurPlanificationOutlook,
 } = rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
+const { ErreurTransitionInvalide } = require('../../core/workflow/workflowEngine');
 const invitationTestService = require('../../core/rendezvous/invitationTestService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -246,6 +247,13 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
     // rendezvousService.creerRendezvous), l'agent peut retenter sans risque de doublon.
     if (erreur instanceof ErreurPlanificationOutlook) {
       return res.status(502).json({ erreur: erreur.message });
+    }
+    // workflowEngine.appliquerTransition (voir planificationRendezvousService.js, appelé dans la
+    // même transaction que la création du rendez-vous ci-dessus) peut rejeter la transition elle-
+    // même (action non autorisée depuis le statut courant, rôle non autorisé, motif manquant...) —
+    // ex. "Valider et planifier un test" cliqué sur un dossier dont le statut a changé entre-temps.
+    if (erreur instanceof ErreurTransitionInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
     }
     next(erreur);
   }

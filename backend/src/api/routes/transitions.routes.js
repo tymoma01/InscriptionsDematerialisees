@@ -206,6 +206,9 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
     if (erreur instanceof ErreurRendezvousDossierClos) {
       return res.status(409).json({ erreur: erreur.message });
     }
+    if (erreur instanceof workflowEngine.ErreurTransitionInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -251,6 +254,9 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, r
     res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof workflowEngine.ErreurTransitionInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -290,6 +296,9 @@ router.post('/marquer-embauche', requireRole(...ROLES_MARQUER_EMBAUCHE), async (
     res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof workflowEngine.ErreurTransitionInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

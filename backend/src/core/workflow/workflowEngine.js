@@ -19,6 +19,23 @@ const { ROLES } = require('../auth/rbac');
 // front et back sur ce projet, voir CLAUDE.md conventions).
 const STATUT_RENDEZVOUS_REMPLACE = 'remplace';
 
+// Erreur métier distincte d'une Error générique (500 opaque) — même principe que
+// ErreurPieceJustificativeInvalide (pieceJustificativeService.js) et ErreurStatistiquesInvalide
+// (statistiquesService.js) : les appelants HTTP (transitions.routes.js, mais aussi
+// rendezvous.routes.js via planificationRendezvousService.js qui appelle appliquerTransition dans
+// la même transaction qu'une création de rendez-vous) la traduisent en 400 avec un message
+// directement affichable à l'agent. Avant ce correctif, tout rejet de ce moteur (action non
+// autorisée depuis le statut courant, rôle non autorisé, motif manquant/invalide...) tombait dans
+// le gestionnaire d'erreurs générique de app.js ("Une erreur est survenue. Merci de réessayer."),
+// y compris pour un rejet parfaitement normal et attendu (ex. "Valider et planifier un test" cliqué
+// sur un dossier dont le statut a changé entre-temps).
+class ErreurTransitionInvalide extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurTransitionInvalide';
+  }
+}
+
 // Moteur générique de la machine à états des dossiers (voir CLAUDE.md, contrainte de modularité
 // n°1, et docs/architecture-technique.md §1.3) : ne connaît aucun statut ni transition nommés en
 // dur. Toute la logique métier vit en configuration — `statuts`, `transitions_statut`, `motifs`
@@ -43,7 +60,7 @@ const STATUT_RENDEZVOUS_REMPLACE = 'remplace';
 async function trouverDossierOuEchouer(bd, entite, dossierId) {
   const dossier = await dossierRepository.trouverDossierParId(bd, entite.id, dossierId);
   if (!dossier) {
-    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+    throw new ErreurTransitionInvalide(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
   }
   return dossier;
 }
@@ -65,7 +82,7 @@ async function appliquerTransition(
   bdExistante = null,
 ) {
   if (!commentaire || !commentaire.trim()) {
-    throw new Error('Un commentaire est obligatoire pour tout changement de statut.');
+    throw new ErreurTransitionInvalide('Un commentaire est obligatoire pour tout changement de statut.');
   }
 
   const bd = bdExistante ?? (await db.obtenirKnex());
@@ -73,23 +90,23 @@ async function appliquerTransition(
 
   const transition = await workflowRepository.trouverTransition(bd, entite.id, dossier.statut_id, codeAction);
   if (!transition) {
-    throw new Error(`Action "${codeAction}" non autorisée depuis le statut courant du dossier "${dossierId}".`);
+    throw new ErreurTransitionInvalide(`Action "${codeAction}" non autorisée depuis le statut courant du dossier "${dossierId}".`);
   }
 
   const autorisee = await workflowRepository.transitionAutoriseePourRole(bd, transition.id, roleCode);
   if (!autorisee) {
-    throw new Error(`Rôle "${roleCode}" non autorisé pour l'action "${codeAction}".`);
+    throw new ErreurTransitionInvalide(`Rôle "${roleCode}" non autorisé pour l'action "${codeAction}".`);
   }
 
   let motifId = null;
   if (transition.motif_requis) {
     if (!motifCode) {
-      throw new Error(`Un motif est obligatoire pour l'action "${codeAction}".`);
+      throw new ErreurTransitionInvalide(`Un motif est obligatoire pour l'action "${codeAction}".`);
     }
     // categorie === codeAction : voir en-tête de fichier.
     const motif = await motifRepository.trouverMotifParCode(bd, entite.id, codeAction, motifCode);
     if (!motif) {
-      throw new Error(`Motif "${motifCode}" non configuré pour l'action "${codeAction}" de l'entité « ${entite.code} ».`);
+      throw new ErreurTransitionInvalide(`Motif "${motifCode}" non configuré pour l'action "${codeAction}" de l'entité « ${entite.code} ».`);
     }
     motifId = motif.id;
   }
@@ -161,24 +178,24 @@ async function listerMotifsPourAction(entite, codeAction) {
 // normal.
 async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilisateurId, roleCode }) {
   if (roleCode !== ROLES.ADMIN) {
-    throw new Error('Seul le rôle Admin peut forcer le statut d’un dossier.');
+    throw new ErreurTransitionInvalide('Seul le rôle Admin peut forcer le statut d’un dossier.');
   }
   if (!commentaire || !commentaire.trim()) {
-    throw new Error('Un commentaire est obligatoire pour forcer un changement de statut.');
+    throw new ErreurTransitionInvalide('Un commentaire est obligatoire pour forcer un changement de statut.');
   }
 
   const bd = await db.obtenirKnex();
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier) {
-    throw new Error(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+    throw new ErreurTransitionInvalide(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
   }
 
   const statutCible = await dossierRepository.trouverStatutParCode(bd, entite.id, statutCode);
   if (!statutCible) {
-    throw new Error(`Statut "${statutCode}" introuvable pour l'entité « ${entite.code} ».`);
+    throw new ErreurTransitionInvalide(`Statut "${statutCode}" introuvable pour l'entité « ${entite.code} ».`);
   }
   if (statutCible.id === dossier.statut_id) {
-    throw new Error(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
+    throw new ErreurTransitionInvalide(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
   }
 
   await bd.transaction(async (trx) => {
@@ -206,6 +223,7 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
 }
 
 module.exports = {
+  ErreurTransitionInvalide,
   appliquerTransition,
   listerTransitionsDisponibles,
   listerMotifsPourAction,
