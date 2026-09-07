@@ -33,13 +33,23 @@ module.exports = {
   // d'environnement classique, même logique que les identifiants AllMySMS ci-dessus (pas une
   // donnée candidat sensible).
   SAUVEGARDE_EMAIL_ALERTE: process.env.SAUVEGARDE_EMAIL_ALERTE,
-  // Démarrage des crons in-process (node-cron, voir jobs/rappelCron.js et consorts) — utile
-  // uniquement en dev local, pour ne pas avoir à lancer les scripts à la main. Désactivé par
-  // défaut en production (NODE_ENV=production) : le déclenchement en prod passe par des Azure
-  // Container Apps Jobs externes (voir scripts/executer*ToutesEntites.js), pas par le process web
-  // lui-même — décision utilisateur, 2026-08-31 (l'hébergement cible, Container Apps plan
-  // Consumption, scale-to-zero/scale-out, ce qui rend un cron in-process avec verrou en mémoire
-  // non fiable). Peut être forcé explicitement dans un sens ou l'autre via la variable d'env.
+  // Démarrage des crons in-process (node-cron, voir jobs/rappelCron.js et consorts). Décision
+  // utilisateur, 2026-09-07 : REVIENT sur le choix du 2026-08-31 (Azure Container Apps Jobs
+  // externes) — motif coût, l'agent voulant que ces jobs ne consomment que pendant que l'app
+  // elle-même tourne, pas indépendamment sur des ressources Azure séparées. Le souci de fiabilité
+  // qui avait motivé le passage aux ACA Jobs (Container Apps plan Consumption, scale-to-zero/
+  // scale-out) reste réel en théorie, mais `inscriptions-backend` a par ailleurs déjà une règle de
+  // scale KEDA cron ("horaires-bureau", scale.rules côté Azure, hors dépôt) qui force 1 replica de
+  // 8h à 20h heure de Paris tous les jours — fenêtre qui couvre largement les 3 horaires métier
+  // (rappels 9h/13h30/17h, bascule/sync toutes les heures) : le cron in-process peut donc compter
+  // sur une instance déjà debout à ces horaires, sans avoir à passer l'app en permanence allumée
+  // (minReplicas: 1 24/7), ce qui aurait coûté largement plus cher que les 3 petits Jobs Azure
+  // retirés. En dehors de cette fenêtre (nuit, avant 8h/après 20h), l'app peut retomber à 0
+  // replica : un rappel/une bascule dont l'horaire tomberait hors fenêtre ne se déclencherait pas
+  // avant le prochain réveil de l'app — accepté, aucun des 3 horaires métier actuels ne tombe hors
+  // de cette plage. Forcé explicitement à `true` sur le Container App (variable d'env, pas le
+  // défaut ci-dessous) plutôt que de compter sur NODE_ENV : rend l'intention explicite, visible
+  // dans la config Azure sans avoir à relire ce fichier.
   ACTIVER_CRONS_INTERNES:
     process.env.ACTIVER_CRONS_INTERNES != null
       ? process.env.ACTIVER_CRONS_INTERNES === 'true'

@@ -4,19 +4,18 @@ const journalAudit = require('../core/audit/journalAudit');
 const { executerBasculeTestNonRealise } = require('../core/rendezvous/basculeTestNonRealiseService');
 
 // Logique métier du job "bascule automatique Test non réalisé" (CLAUDE.md, étape 8 du parcours),
-// séparée de son déclenchement — voir basculeTestNonRealiseCron.js pour le wrapper node-cron
-// utilisé en dev local, et ../../scripts/executerBasculeTestNonRealiseToutesEntites.js pour le
-// point d'entrée prod invoqué par un Azure Container Apps Job. Décision utilisateur, 2026-08-31 :
-// node-cron in-process abandonné en prod (voir rappelJob.js pour le détail du raisonnement — même
-// souci de fiabilité sur un hébergement Container Apps qui scale-to-zero/scale-out).
+// séparée de son déclenchement — voir basculeTestNonRealiseCron.js pour le wrapper node-cron,
+// chargé en dev ET en prod (voir server.js). Décision utilisateur, 2026-09-07 : revient sur le
+// choix du 2026-08-31 (Azure Container Apps Jobs externes) — motif coût, voir rappelJob.js pour le
+// détail du raisonnement (fenêtre de disponibilité 8h-20h Paris déjà garantie par une règle de
+// scale Azure, suffisante pour ce job horaire).
 //
 // Idempotent (voir basculeTestNonRealiseService.js), donc rejouable sans risque de double
 // transition. Générique (voir Modularité CLAUDE.md) : une entité sans statut "test_planifie" dans
 // sa configuration (ex. Adaptel) obtient simplement 0 rendez-vous éligible, sans cas particulier.
 //
-// Verrou en mémoire — protège uniquement contre un chevauchement à l'intérieur d'un même process
-// (utile pour le wrapper node-cron en dev) ; sans effet entre deux exécutions distinctes d'un
-// Container Apps Job, qui démarrent chacune dans un container neuf.
+// Verrou en mémoire — redevient pleinement utile avec le cron in-process (voir rappelJob.js) :
+// protège contre un chevauchement si une exécution précédente traînait encore en cours.
 let executionEnCours = false;
 
 async function executerPourToutesLesEntitesActives() {

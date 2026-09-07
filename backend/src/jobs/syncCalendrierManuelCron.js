@@ -1,18 +1,16 @@
 const cron = require('node-cron');
 const { executerPourToutesLesEntitesActives } = require('./syncCalendrierManuelJob');
 
-// Wrapper node-cron pour le confort en dev local uniquement (voir server.js et
-// config/env.js#ACTIVER_CRONS_INTERNES) — la logique métier vit dans syncCalendrierManuelJob.js.
-// En prod, ce fichier n'est jamais chargé : le déclenchement se fait via un Azure Container Apps
-// Job (trigger Schedule) qui invoque directement
-// scripts/executerSyncCalendrierManuelToutesEntites.js. Décision utilisateur, 2026-08-31 (voir
-// rappelJob.js pour le détail du raisonnement).
+// Wrapper node-cron, chargé en dev ET en prod (voir server.js et
+// config/env.js#ACTIVER_CRONS_INTERNES — revirement du 2026-09-07 sur la décision du 2026-08-31,
+// motif coût) — la logique métier vit dans syncCalendrierManuelJob.js.
 //
 // Toutes les heures (décision utilisateur, 2026-09-03 — remplace les deux passages fixes
 // 8h00/13h00 initiaux), timezone explicite ('Europe/Paris', jamais le fuseau par défaut du
 // serveur/runtime) pour que "toutes les heures" reste vrai heure de Paris quel que soit le fuseau
-// système. Aligné sur executerSyncCalendrierManuelToutesEntites.js (prod) pour un comportement
-// cohérent entre dev local et prod.
+// système — option native node-cron, plus besoin du contournement fenetreHoraireParis.js utilisé
+// un temps par les Azure Container Apps Jobs (trigger Schedule figé en UTC), fichier et scripts
+// associés retirés (voir leur historique git).
 function demarrerCronSyncCalendrierManuel() {
   cron.schedule(
     '0 * * * *',
