@@ -1,7 +1,9 @@
 require('dotenv').config();
 
 module.exports = {
-  PORT: process.env.PORT ?? 3000,
+  // 3001 par défaut en local (3000 déjà pris par nginx sur cette machine) — voir Dockerfile
+  // pour la valeur de prod (ENV PORT, surchargée indépendamment de ce défaut).
+  PORT: process.env.PORT ?? 3001,
   NODE_ENV: process.env.NODE_ENV ?? 'development',
   // Code entité utilisé quand le sous-domaine ne permet pas de résoudre l'entité
   // (développement local sur localhost) — voir entiteContext.middleware.js.
