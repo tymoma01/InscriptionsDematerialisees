@@ -18,7 +18,7 @@ function demarrerCronBasculeTestNonRealise() {
       console.error('Bascule automatique "Test non réalisé" (cron) : échec inattendu ✘', erreur);
     });
   });
-  console.log('Cron "Bascule automatique Test non réalisé" démarré (toutes les heures) — dev local uniquement.');
+  console.log('Cron "Bascule automatique Test non réalisé" démarré (toutes les heures).');
 }
 
 module.exports = { demarrerCronBasculeTestNonRealise };

@@ -25,7 +25,7 @@ function demarrerCronRappel() {
       { timezone: 'Europe/Paris' },
     );
   });
-  console.log('Cron "Rappel automatique de créneau" démarré (3 fois par jour : 9h00/13h30/17h00 heure de Paris) — dev local uniquement.');
+  console.log('Cron "Rappel automatique de créneau" démarré (3 fois par jour : 9h00/13h30/17h00 heure de Paris).');
 }
 
 module.exports = { demarrerCronRappel };

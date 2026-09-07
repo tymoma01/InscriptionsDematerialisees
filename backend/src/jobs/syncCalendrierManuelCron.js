@@ -21,7 +21,7 @@ function demarrerCronSyncCalendrierManuel() {
     },
     { timezone: 'Europe/Paris' },
   );
-  console.log('Cron "Synchronisation calendrier manuelle" démarré (toutes les heures) — dev local uniquement.');
+  console.log('Cron "Synchronisation calendrier manuelle" démarré (toutes les heures).');
 }
 
 module.exports = { demarrerCronSyncCalendrierManuel };
