@@ -34,10 +34,9 @@ async function demarrer() {
     console.log(`Serveur démarré sur le port ${PORT}`);
   });
 
-  // Crons in-process réservés au dev local (voir config/env.js#ACTIVER_CRONS_INTERNES) — en prod,
-  // le déclenchement passe par des Azure Container Apps Jobs externes (voir
-  // scripts/executer*ToutesEntites.js), pas par ce process web qui, sur Container Apps plan
-  // Consumption, peut scaler à 0 ou à plusieurs replicas (décision utilisateur, 2026-08-31).
+  // Crons in-process, activés en dev ET en prod (voir config/env.js#ACTIVER_CRONS_INTERNES pour le
+  // détail du revirement du 2026-09-07 sur la décision du 2026-08-31 — motif coût, l'app tournant
+  // déjà 8h-20h Paris via une règle de scale Azure qui couvre les 3 horaires métier ci-dessous).
   if (ACTIVER_CRONS_INTERNES) {
     // voir jobs/basculeTestNonRealiseCron.js pour la fréquence et le verrou anti-chevauchement.
     demarrerCronBasculeTestNonRealise();
@@ -45,13 +44,10 @@ async function demarrer() {
     // voir jobs/syncCalendrierManuelCron.js pour la fréquence et le verrou anti-chevauchement.
     demarrerCronSyncCalendrierManuel();
 
-    // voir jobs/rappelCron.js pour la fréquence (13h30, après le passage de 13h00 ci-dessus) et
-    // le verrou anti-chevauchement.
+    // voir jobs/rappelCron.js pour la fréquence (9h/13h30/17h) et le verrou anti-chevauchement.
     demarrerCronRappel();
   } else {
-    console.log(
-      'Crons in-process désactivés (ACTIVER_CRONS_INTERNES=false) — déclenchement prod via Azure Container Apps Jobs.',
-    );
+    console.log('Crons in-process désactivés (ACTIVER_CRONS_INTERNES=false).');
   }
 
   // Arrêt propre : on attend la fin des requêtes en cours, mais serveur.close() seul ne coupe

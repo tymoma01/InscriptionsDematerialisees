@@ -5,14 +5,12 @@ const { executerSyncCalendrierManuel } = require('../core/rendezvous/syncCalendr
 
 // Logique métier du job "synchronisation calendrier manuelle" (détecte les modifications faites
 // directement dans Outlook — voir syncCalendrierManuelService.js), séparée de son déclenchement —
-// voir syncCalendrierManuelCron.js pour le wrapper node-cron utilisé en dev local, et
-// ../../scripts/executerSyncCalendrierManuelToutesEntites.js pour le point d'entrée prod invoqué
-// par un Azure Container Apps Job. Décision utilisateur, 2026-08-31 : node-cron in-process
-// abandonné en prod (voir rappelJob.js pour le détail du raisonnement).
+// voir syncCalendrierManuelCron.js pour le wrapper node-cron, chargé en dev ET en prod (voir
+// server.js). Décision utilisateur, 2026-09-07 : revient sur le choix du 2026-08-31 (Azure
+// Container Apps Jobs externes) — motif coût, voir rappelJob.js pour le détail du raisonnement.
 //
-// Verrou en mémoire — protège uniquement contre un chevauchement à l'intérieur d'un même process
-// (utile pour le wrapper node-cron en dev) ; sans effet entre deux exécutions distinctes d'un
-// Container Apps Job, qui démarrent chacune dans un container neuf.
+// Verrou en mémoire — redevient pleinement utile avec le cron in-process (voir rappelJob.js) :
+// protège contre un chevauchement si une exécution précédente traînait encore en cours.
 let executionEnCours = false;
 
 async function executerPourToutesLesEntitesActives() {

@@ -3,21 +3,23 @@ const { executerRappels } = require('../core/rendezvous/rappelService');
 
 // Logique métier du job "rappel automatique de créneau" (CLAUDE.md, besoin Accueil/Coordination :
 // "confirmation de présence à un créneau avant le jour J (rappel automatique), pour réduire les
-// désistements"), séparée de son déclenchement — voir rappelCron.js pour le wrapper node-cron
-// utilisé en dev local, et ../../scripts/executerRappelsToutesEntites.js pour le point d'entrée
-// prod invoqué par un Azure Container Apps Job. Décision utilisateur, 2026-08-31 : node-cron
-// in-process abandonné en prod — l'hébergement cible (Container Apps, plan Consumption) scale-to-
-// zero et scale-out, ce qui rend un cron in-process avec verrou en mémoire non fiable (job qui ne
-// se déclenche jamais si 0 replica, ou déclenchements en double si plusieurs replicas). Ce module
-// ne dépend donc plus de node-cron, pour rester appelable depuis n'importe quel déclencheur externe.
+// désistements"), séparée de son déclenchement — voir rappelCron.js pour le wrapper node-cron,
+// chargé en dev ET en prod (voir server.js). Décision utilisateur, 2026-09-07 : revient sur le
+// choix du 2026-08-31 (Azure Container Apps Jobs externes, un par job) — motif coût, ces 3
+// ressources Azure séparées consommaient (même marginalement) indépendamment de l'activité réelle
+// de l'app ; `inscriptions-backend` ayant par ailleurs déjà une fenêtre de disponibilité garantie
+// 8h-20h Paris (règle de scale Azure "horaires-bureau") qui couvre les 3 horaires de rappel
+// (9h/13h30/17h), le cron in-process retrouve une fiabilité suffisante sans avoir à payer une
+// disponibilité 24/7 de l'app. Ce module reste néanmoins indépendant de node-cron (aucun import
+// ici) : rien n'empêche de le redéclencher un jour depuis un autre mécanisme si besoin.
 //
 // Idempotent (voir rappelService.executerRappels, rendezvousRepository.listerRendezvousARappeler
 // exclut déjà les rendez-vous ayant reçu un rappel) : rejouable sans risque de double envoi.
 //
-// Verrou en mémoire — protège uniquement contre un chevauchement à l'intérieur d'un même process
-// (utile pour le wrapper node-cron en dev) ; sans effet entre deux exécutions distinctes d'un
-// Container Apps Job, qui démarrent chacune dans un container neuf — pas un problème ici puisque
-// chaque exécution du Job tourne jusqu'à son terme avant que la suivante ne soit déclenchée.
+// Verrou en mémoire — redevient pleinement utile avec le cron in-process (un seul process
+// long-vivant, contrairement à un Container Apps Job qui démarrait un container neuf à chaque
+// exécution) : protège contre un chevauchement si une exécution précédente traînait encore en
+// cours au déclenchement suivant.
 let executionEnCours = false;
 
 async function executerPourToutesLesEntitesActives() {
