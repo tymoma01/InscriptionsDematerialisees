@@ -105,6 +105,9 @@ router.post('/', async (req, res, next) => {
     res.status(201).json(serialiserUtilisateur(utilisateur));
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof utilisateurService.ErreurUtilisateurInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -139,6 +142,9 @@ router.patch('/:id', async (req, res, next) => {
     res.json(serialiserUtilisateur(utilisateur));
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof utilisateurService.ErreurUtilisateurInvalide) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

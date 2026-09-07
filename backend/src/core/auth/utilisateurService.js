@@ -10,9 +10,23 @@ const { ROLES } = require('./rbac');
 // en place ailleurs dans le projet — seule la désactivation (colonne `actif`, déjà utilisée par
 // trouverParEmail pour bloquer la connexion) est proposée.
 
+// Erreur métier distincte d'une Error générique (500 opaque) : utilisateurs.routes.js la traduit
+// en 400 avec un message directement affichable à l'admin — même principe que
+// ErreurPieceJustificativeInvalide (pieceJustificativeService.js) et ErreurStatistiquesInvalide
+// (statistiquesService.js). Avant ce correctif, tous les rejets métier de ce module (rôle système/
+// non assignable, email déjà utilisé, auto-désactivation...) tombaient dans le gestionnaire
+// d'erreurs générique de app.js ("Une erreur est survenue. Merci de réessayer."), y compris pour
+// un rejet parfaitement normal et attendu (ex. email déjà utilisé à la création d'un compte).
+class ErreurUtilisateurInvalide extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurUtilisateurInvalide';
+  }
+}
+
 function rejeterRoleSysteme(roleCode) {
   if (roleCode === ROLES.SYSTEME) {
-    throw new Error('Le rôle "systeme" ne peut pas être attribué depuis cet écran.');
+    throw new ErreurUtilisateurInvalide('Le rôle "systeme" ne peut pas être attribué depuis cet écran.');
   }
 }
 
@@ -23,7 +37,7 @@ function rejeterRoleSysteme(roleCode) {
 // trouverRoleParCode, dans les deux seuls chemins d'écriture (création/modification).
 function rejeterRoleNonAssignable(role) {
   if (!role.assignable) {
-    throw new Error(`Le rôle "${role.code}" n'est plus attribuable.`);
+    throw new ErreurUtilisateurInvalide(`Le rôle "${role.code}" n'est plus attribuable.`);
   }
 }
 
@@ -57,7 +71,7 @@ async function creerUtilisateur(entite, { nom, prenom, email, telephone, motDePa
 
   const role = await utilisateurRepository.trouverRoleParCode(bd, roleCode);
   if (!role) {
-    throw new Error(`Rôle "${roleCode}" introuvable.`);
+    throw new ErreurUtilisateurInvalide(`Rôle "${roleCode}" introuvable.`);
   }
   rejeterRoleNonAssignable(role);
 
@@ -65,7 +79,7 @@ async function creerUtilisateur(entite, { nom, prenom, email, telephone, motDePa
   // garde-fou réel en cas de double soumission concurrente (voir migration 003).
   const existant = await utilisateurRepository.trouverUtilisateurParEmailGlobal(bd, email);
   if (existant) {
-    throw new Error(`Un compte existe déjà avec l'email "${email}".`);
+    throw new ErreurUtilisateurInvalide(`Un compte existe déjà avec l'email "${email}".`);
   }
 
   const motDePasseHash = await hacherMotDePasse(motDePasse);
@@ -95,19 +109,19 @@ async function mettreAJourUtilisateur(
     rejeterRoleSysteme(roleCode);
   }
   if (actif === false && utilisateurId === utilisateurConnecteId) {
-    throw new Error('Vous ne pouvez pas désactiver votre propre compte.');
+    throw new ErreurUtilisateurInvalide('Vous ne pouvez pas désactiver votre propre compte.');
   }
 
   const bd = await db.obtenirKnex();
 
   const cible = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, utilisateurId);
   if (!cible) {
-    throw new Error(`Utilisateur "${utilisateurId}" introuvable pour l'entité « ${entite.code} ».`);
+    throw new ErreurUtilisateurInvalide(`Utilisateur "${utilisateurId}" introuvable pour l'entité « ${entite.code} ».`);
   }
   // Défense en profondeur : même si son id était deviné/forgé, un compte système ne se modifie
   // jamais depuis cet écran (il n'apparaît déjà pas dans listerUtilisateurs).
   if (cible.role_code === ROLES.SYSTEME) {
-    throw new Error('Ce compte ne peut pas être géré depuis cet écran.');
+    throw new ErreurUtilisateurInvalide('Ce compte ne peut pas être géré depuis cet écran.');
   }
 
   const champs = {};
@@ -120,7 +134,7 @@ async function mettreAJourUtilisateur(
   if (roleCode !== undefined) {
     const role = await utilisateurRepository.trouverRoleParCode(bd, roleCode);
     if (!role) {
-      throw new Error(`Rôle "${roleCode}" introuvable.`);
+      throw new ErreurUtilisateurInvalide(`Rôle "${roleCode}" introuvable.`);
     }
     // Un compte qui porte DÉJÀ ce rôle (ex. un des 8 comptes Recruteur existants) reste modifiable
     // sur ses autres champs (actif, nom...) sans jamais repasser par ce rôle non assignable dans
@@ -155,6 +169,7 @@ async function mettreAJourMonProfil(utilisateurId, { telephone, recevoirEmailPla
 }
 
 module.exports = {
+  ErreurUtilisateurInvalide,
   listerUtilisateurs,
   listerRolesAssignables,
   listerFormateursEtInspecteurs,
