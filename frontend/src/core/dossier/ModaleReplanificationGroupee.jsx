@@ -3,6 +3,7 @@ import { listerFormateurs } from '../../services/formateurService';
 import { listerLieux } from '../../services/lieuService';
 import { listerRendezvous, creerRendezvousAvecTransitions } from '../../services/rendezvousService';
 import { dateDuJourParis } from './dateDuJourParis';
+import { resoudreSecteurDossier, roleImposeParSecteur, trouverLieuParDefaut, trouverFormateurParDefaut } from './planificationParDefaut';
 import './ModaleReplanificationGroupee.css';
 
 const HEURES_DISPONIBLES = Array.from({ length: 24 }, (_, heure) => String(heure).padStart(2, '0'));
@@ -45,25 +46,34 @@ function minuteDisponiblePlusProche(minute) {
 
 // Construit la ligne de formulaire initiale d'un dossier — préremplie depuis son dernier
 // rendez-vous connu (voir listerRendezvous, déjà trié actif-puis-plus-récent côté back, voir
-// rendezvousRepository.listerRendezvousParDossier) quand il existe, sinon laissée vide (l'agent
-// saisit manuellement, comme une planification initiale). Contrairement au formulaire individuel
-// (ModalePlanificationTest.jsx), qui ne préremplit QUE la note depuis le rendez-vous actif : ici
-// poste/formateur/date-heure sont aussi préremplis (demande explicite), utile en masse pour ne
+// rendezvousRepository.listerRendezvousParDossier) quand il existe, sinon retombe sur les défauts
+// par secteur (formateur/lieu, voir planificationParDefaut.js — même mécanisme que
+// ModalePlanificationTest.jsx, manquant ici jusqu'à l'audit du 2026-09-07 pour le lieu). Poste/
+// formateur/date-heure/lieu sont préremplis (demande explicite, contrairement au formulaire
+// individuel qui ne préremplit QUE la note depuis le rendez-vous actif) — utile en masse pour ne
 // pas ressaisir depuis zéro chaque candidat déjà passé par un premier rendez-vous.
-function construireLigneInitiale(dossier, rendezvousDuDossier, formateursDisponibles) {
+function construireLigneInitiale(dossier, rendezvousDuDossier, formateursDisponibles, lieuxDisponibles) {
   const postesDisponibles = [...(dossier.postesBureau ?? []), ...(dossier.postesHotel ?? [])];
   // Premier rendez-vous de type 'test' de la liste = le plus pertinent (actif en premier, sinon le
   // plus récemment planifié — voir le tri du back, identique à GestionRendezvous.jsx
   // dernierSeulement).
   const dernier = rendezvousDuDossier.find((rdv) => rdv.type_rdv === 'test') ?? null;
 
-  const groupePardefaut = postesBureauSeuls(dossier) ? 'inspecteur' : 'formateur';
+  const secteurDossier = resoudreSecteurDossier(dossier.postesBureau, dossier.postesHotel);
+  // 'formateur' par défaut si le secteur est indéterminé (comportement inchangé d'avant l'extraction
+  // vers planificationParDefaut.js, voir roleImposeParSecteur : null seulement pour bureau/hotel).
+  const groupePardefaut = roleImposeParSecteur(secteurDossier) ?? 'formateur';
   let formateurId = '';
   if (dernier?.formateur_id && formateursDisponibles.some((f) => f.id === dernier.formateur_id)) {
     formateurId = String(dernier.formateur_id);
   } else {
-    const duGroupe = formateursDisponibles.filter((f) => f.role_code === groupePardefaut);
-    if (duGroupe.length > 0) formateurId = String(duGroupe[0].id);
+    const formateurParDefaut = trouverFormateurParDefaut(formateursDisponibles, groupePardefaut);
+    if (formateurParDefaut) {
+      formateurId = String(formateurParDefaut.id);
+    } else {
+      const duGroupe = formateursDisponibles.filter((f) => f.role_code === groupePardefaut);
+      if (duGroupe.length > 0) formateurId = String(duGroupe[0].id);
+    }
   }
 
   let dateTest = '';
@@ -79,11 +89,17 @@ function construireLigneInitiale(dossier, rendezvousDuDossier, formateursDisponi
   const postesRendezvous = Array.isArray(dernier?.postes_selectionnes) ? dernier.postes_selectionnes : [];
   const postesCoches = new Set(postesRendezvous.length > 0 ? postesRendezvous : postesDisponibles);
 
+  let lieuId = dernier?.lieu_id ? String(dernier.lieu_id) : '';
+  if (!lieuId) {
+    const lieuParDefaut = trouverLieuParDefaut(lieuxDisponibles, secteurDossier);
+    if (lieuParDefaut) lieuId = String(lieuParDefaut.id);
+  }
+
   return {
     dossierId: dossier.id,
     postesDisponibles,
     formateurId,
-    lieuId: dernier?.lieu_id ? String(dernier.lieu_id) : '',
+    lieuId,
     dateTest,
     heureTest,
     minuteTest,
@@ -94,10 +110,6 @@ function construireLigneInitiale(dossier, rendezvousDuDossier, formateursDisponi
     statutEnvoi: null,
     erreurEnvoi: null,
   };
-}
-
-function postesBureauSeuls(dossier) {
-  return (dossier.postesBureau ?? []).length > 0 && (dossier.postesHotel ?? []).length === 0;
 }
 
 // Modale de replanification groupée (barre d'actions groupées, "Dossiers candidats", audit
@@ -139,7 +151,9 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
         setFormateurs(formateursValeur);
         setLieux(lieuxValeur);
         setLignes(
-          dossiers.map((dossier, index) => construireLigneInitiale(dossier, rendezvousParDossier[index], formateursValeur)),
+          dossiers.map((dossier, index) =>
+            construireLigneInitiale(dossier, rendezvousParDossier[index], formateursValeur, lieuxValeur),
+          ),
         );
       })
       .catch((erreur) => {

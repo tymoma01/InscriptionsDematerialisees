@@ -96,13 +96,30 @@ function listerRolesAssignables(bd) {
 // front pour distinguer formateurs/inspecteurs dans la liste combinée (voir
 // ModalePlanificationTest.jsx, filtre par groupe) — sans lui, /api/formateurs renvoyait une liste
 // fusionnée sans aucun moyen de savoir qui appartient à quel rôle.
+// `utilisateurs.par_defaut` inclus (migration 059, audit planification des tests 2026-09-07) —
+// sert à présélectionner le champ Formateur/Inspecteur de ModalePlanificationTest.jsx/
+// ModaleReplanificationGroupee.jsx selon le secteur du dossier, même principe que
+// `lieux.par_defaut` (migration 054) pour le champ Lieu.
 function listerUtilisateursParRoles(bd, entiteId, rolesCodes) {
   return bd('utilisateurs')
     .join('roles', 'roles.id', 'utilisateurs.role_id')
     .where({ 'utilisateurs.entite_id': entiteId, 'utilisateurs.actif': true })
     .whereIn('roles.code', rolesCodes)
-    .select('utilisateurs.id', 'utilisateurs.nom', 'utilisateurs.prenom', 'roles.code as role_code')
+    .select('utilisateurs.id', 'utilisateurs.nom', 'utilisateurs.prenom', 'roles.code as role_code', 'utilisateurs.par_defaut')
     .orderBy('utilisateurs.nom', 'asc');
+}
+
+// Bascule transactionnelle de l'utilisateur par défaut d'un rôle (migration 059) — même patron que
+// lieuRepository.definirLieuParDefaut : désactive d'abord tout autre utilisateur par_defaut=true du
+// même (entite_id, role_id), puis active celui-ci, dans la transaction `trx` fournie par
+// l'appelant. Index unique partiel idx_utilisateurs_un_defaut_par_role (migration 059) reste le
+// garde-fou final si deux requêtes concurrentes tentaient la même bascule en même temps.
+async function definirUtilisateurParDefaut(trx, entiteId, utilisateurId, roleId) {
+  await trx('utilisateurs')
+    .where({ entite_id: entiteId, role_id: roleId, par_defaut: true })
+    .andWhereNot({ id: utilisateurId })
+    .update({ par_defaut: false });
+  return trx('utilisateurs').where({ id: utilisateurId, entite_id: entiteId }).update({ par_defaut: true }).returning('*');
 }
 
 async function creerUtilisateur(bd, { entiteId, roleId, nom, prenom, email, telephone = null, motDePasseHash }) {
@@ -126,6 +143,7 @@ module.exports = {
   trouverRoleParCode,
   listerRolesAssignables,
   listerUtilisateursParRoles,
+  definirUtilisateurParDefaut,
   creerUtilisateur,
   mettreAJourUtilisateur,
 };

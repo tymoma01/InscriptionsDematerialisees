@@ -5,6 +5,7 @@ import { creerRendezvousAvecTransitions, listerRendezvousTest, listerRendezvous 
 import CalendrierHebdomadaireDisponibilite from './CalendrierHebdomadaireDisponibilite';
 import { dateDuJourParis } from './dateDuJourParis';
 import { trouverLieuSimilaire } from './detectionLieuSimilaire';
+import { resoudreSecteurDossier, roleImposeParSecteur, trouverLieuParDefaut, trouverFormateurParDefaut } from './planificationParDefaut';
 import './ModalePlanificationTest.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -251,11 +252,13 @@ export default function ModalePlanificationTest({
   // aussi le garde-fou correspondant côté back, rendezvousService.creerRendezvous). `null` si le
   // dossier n'a déclaré aucun poste (cas déjà rencontré, dossiers sans poste) : les deux onglets
   // restent alors visibles, comportement inchangé plutôt que de bloquer la planification.
-  const secteurDossier = postesBureau.length > 0 ? 'bureau' : postesHotel.length > 0 ? 'hotel' : null;
+  // Extrait dans planificationParDefaut.js (audit 2026-09-07) pour être partagé avec
+  // ModaleReplanificationGroupee.jsx — voir son en-tête.
+  const secteurDossier = resoudreSecteurDossier(postesBureau, postesHotel);
   // Seul groupe pertinent quand le secteur est déterminé — jamais recalculé indépendamment de
   // secteurDossier ci-dessus, pour ne jamais risquer de diverger entre la présélection et le
   // filtrage des onglets affichés plus bas (GROUPES_ROLE.filter).
-  const groupeImposeParSecteur = secteurDossier === 'bureau' ? 'inspecteur' : secteurDossier === 'hotel' ? 'formateur' : null;
+  const groupeImposeParSecteur = roleImposeParSecteur(secteurDossier);
 
   // Groupe affiché avant le choix de la personne précise (voir GROUPES_ROLE ci-dessus) —
   // présélectionné selon le secteur du dossier ci-dessus (Inspecteurs pour un dossier bureau,
@@ -319,8 +322,7 @@ export default function ModalePlanificationTest({
   // ici, ce champ reste par ailleurs librement modifiable par l'agent ensuite (setLieuId via le
   // <select>, voir plus bas), cet effet ne fait que proposer un point de départ.
   useEffect(() => {
-    if (!secteurDossier) return;
-    const lieuParDefaut = lieux.find((lieu) => lieu.secteur === secteurDossier && lieu.par_defaut);
+    const lieuParDefaut = trouverLieuParDefaut(lieux, secteurDossier);
     if (lieuParDefaut) setLieuId(String(lieuParDefaut.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, secteurDossier, lieux]);
@@ -491,15 +493,23 @@ export default function ModalePlanificationTest({
   // liste combinée brute.
   const formateursDuGroupe = formateurs.filter((formateur) => formateur.role_code === groupeRole);
 
-  // Présélectionne la première personne du groupe actif, dès que la liste combinée est chargée ET
-  // à chaque changement de groupe (clic sur l'onglet, ou représélection automatique à l'ouverture
-  // sur un autre dossier, voir l'effet dossierId/postesBureau ci-dessus) — même principe que la
-  // sélection initiale d'origine (premier de la liste), appliqué désormais au sous-groupe plutôt
-  // qu'à la liste entière. '' si le groupe est vide (ex. aucun inspecteur configuré pour cette
-  // entité) : le <select> reste alors vide et le bouton de soumission désactivé (voir plus bas,
-  // même garde qu'avant).
+  // Présélectionne le formateur/inspecteur par défaut du groupe actif (utilisateurs.par_defaut,
+  // migration 059, audit 2026-09-07 — même principe que trouverLieuParDefaut pour le Lieu, voir
+  // planificationParDefaut.js), sinon retombe sur la première personne du groupe comme avant. Se
+  // redéclenche dès que la liste combinée est chargée ET à chaque changement de groupe (clic sur
+  // l'onglet, ou représélection automatique à l'ouverture sur un autre dossier, voir l'effet
+  // dossierId/postesBureau ci-dessus). '' si le groupe est vide (ex. aucun inspecteur configuré
+  // pour cette entité) : le <select> reste alors vide et le bouton de soumission désactivé (voir
+  // plus bas, même garde qu'avant).
   useEffect(() => {
-    setFormateurId(formateursDuGroupe.length > 0 ? String(formateursDuGroupe[0].id) : '');
+    const formateurParDefaut = trouverFormateurParDefaut(formateurs, groupeRole);
+    setFormateurId(
+      formateurParDefaut
+        ? String(formateurParDefaut.id)
+        : formateursDuGroupe.length > 0
+          ? String(formateursDuGroupe[0].id)
+          : '',
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupeRole, formateurs]);
 
