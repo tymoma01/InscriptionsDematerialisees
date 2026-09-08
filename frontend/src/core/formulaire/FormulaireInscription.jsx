@@ -30,6 +30,16 @@ export default function FormulaireInscription({ configBlocs, onInscriptionReussi
 
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
+  // Détail par champ (`details.fieldErrors` du 400 backend, zod .flatten() — voir
+  // candidats.routes.js) — même correctif que InformationsInscription.jsx (audit 2026-08-18,
+  // dossiers aux créneaux legacy) : le seul message générique erreurEnvoi ci-dessus ("Données
+  // invalides.") ne dit jamais QUEL champ est rejeté, alors que ce moteur affiche toujours
+  // l'étape courante, pas forcément celle qui porte le champ en cause (ex. un champ d'une étape
+  // déjà validée et quittée). Pas de mapping libellé->champ ici (contrairement à
+  // InformationsInscription.jsx) : ce composant reste générique, il ne connaît aucun champ d'aucun
+  // bloc par son nom (voir Modularité, CLAUDE.md) — le nom brut du champ suffit à orienter l'agent
+  // support/l'accueil vers l'étape à corriger.
+  const [erreursChamps, setErreursChamps] = useState({});
 
   // Ramène en haut de page à chaque changement d'étape : sans ça, la position de
   // défilement de l'étape précédente est conservée et l'utilisateur peut arriver
@@ -48,6 +58,7 @@ export default function FormulaireInscription({ configBlocs, onInscriptionReussi
     if (!formulaireValide || envoiEnCours) return;
 
     setErreurEnvoi(null);
+    setErreursChamps({});
     setEnvoiEnCours(true);
     try {
       const candidat = Object.assign({}, ...blocsActifs.map((bloc) => valeursParBloc[bloc.code]));
@@ -56,12 +67,15 @@ export default function FormulaireInscription({ configBlocs, onInscriptionReussi
     } catch (erreur) {
       // Le back renvoie déjà un message précis et distinct selon le cas (conflit NIR/email 409,
       // validation 400...) dans erreur.response.data.erreur — l'afficher tel quel plutôt que le
-      // message générique ci-dessous, quel que soit le statut (pas seulement 409).
+      // message générique ci-dessous, quel que soit le statut (pas seulement 409). Sur un 400 de
+      // validation, il renvoie aussi details.fieldErrors (voir erreursChamps ci-dessus) — jusqu'ici
+      // ignoré, laissant seulement "Données invalides." sans dire quel champ est en cause.
       setErreurEnvoi(
         erreur.response
           ? (erreur.response.data?.erreur ?? "Le serveur n'a pas pu enregistrer l'inscription. Merci de réessayer.")
           : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
       );
+      setErreursChamps(erreur.response?.data?.details?.fieldErrors ?? {});
     } finally {
       setEnvoiEnCours(false);
     }
@@ -93,7 +107,23 @@ export default function FormulaireInscription({ configBlocs, onInscriptionReussi
         ))}
       </div>
 
-      {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
+      {erreurEnvoi && (
+        <div role="alert" className="formulaire-inscription__erreur">
+          <p>{erreurEnvoi}</p>
+          {/* Détail par champ (voir erreursChamps ci-dessus) : le champ en cause peut appartenir à
+              une étape déjà quittée, donc invisible sur l'étape courante — cette liste reste le
+              seul endroit qui le nomme explicitement. */}
+          {Object.keys(erreursChamps).length > 0 && (
+            <ul>
+              {Object.entries(erreursChamps).map(([champ, messages]) => (
+                <li key={champ}>
+                  <strong>{champ}</strong> : {messages.join(' ')}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="formulaire-inscription__navigation">
         <button type="button" onClick={precedent} disabled={estPremiereEtape || envoiEnCours}>

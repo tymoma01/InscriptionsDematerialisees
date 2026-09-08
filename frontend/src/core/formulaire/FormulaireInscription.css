@@ -76,3 +76,20 @@
   color: var(--gris-500);
   cursor: not-allowed;
 }
+
+/* Bandeau d'erreur d'envoi (voir erreurEnvoi/erreursChamps, .jsx) — même patron que
+   .informations-inscription__erreur-globale (InformationsInscription.css) : message générique du
+   backend, puis le détail par champ en liste quand le backend le fournit (details.fieldErrors). */
+.formulaire-inscription__erreur {
+  color: var(--couleur-erreur);
+  margin-top: var(--espace-moyen);
+}
+
+.formulaire-inscription__erreur p {
+  margin: 0 0 0.3rem;
+}
+
+.formulaire-inscription__erreur ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
