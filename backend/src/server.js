@@ -1,5 +1,7 @@
 const http = require('http');
+const path = require('path');
 const { creerApp } = require('./app');
+const { obtenirKnex } = require('./db/knex');
 const { PORT, ACTIVER_CRONS_INTERNES } = require('./config/env');
 const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
 const { demarrerCronSyncCalendrierManuel } = require('./jobs/syncCalendrierManuelCron');
@@ -27,6 +29,28 @@ process.on('unhandledRejection', (raison) => {
 // monter le middleware de session, voir core/auth/session.js) — le serveur n'écoute qu'une fois
 // l'app entièrement construite.
 async function demarrer() {
+  // Migrations Neon jouées AVANT de monter l'app (voir knexfile.js pour la config équivalente en
+  // CLI) — incident du 2026-09-08 : une image déployée en prod dépendait d'une colonne
+  // (utilisateurs.par_defaut, migration 059) jamais appliquée sur la base, faute de lien entre
+  // déploiement de l'image et exécution des migrations (aucun pipeline CI/CD dans ce dépôt, tout
+  // manuel). Le conteneur ne peut désormais plus servir de trafic avec un schéma en retard sur le
+  // code : si migrate.latest() échoue, demarrer() rejette et le process quitte (voir le .catch en
+  // bas de fichier) plutôt que de démarrer silencieusement contre un schéma obsolète.
+  // Verrou (table knex_migrations_lock, géré par knex) : si un déploiement chevauche brièvement
+  // l'ancienne révision encore active (les deux tentent la migration en même temps), le perdant
+  // échoue sur le verrou déjà tenu — accepté, Container Apps relance le replica, qui retrouve alors
+  // le schéma déjà à jour et redémarre normalement.
+  const bd = await obtenirKnex();
+  const [, migrationsExecutees] = await bd.migrate.latest({
+    directory: path.join(__dirname, 'db/migrations'),
+    tableName: 'knex_migrations',
+  });
+  if (migrationsExecutees.length > 0) {
+    console.log(`Migrations DB appliquées au démarrage : ${migrationsExecutees.map((m) => path.basename(m)).join(', ')}`);
+  } else {
+    console.log('Migrations DB : schéma déjà à jour.');
+  }
+
   const app = await creerApp();
   const serveur = http.createServer(app);
 
