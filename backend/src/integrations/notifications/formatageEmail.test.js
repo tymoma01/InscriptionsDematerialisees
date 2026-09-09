@@ -23,7 +23,7 @@ test('formaterLignesLieuHtml met adresse/metroAcces/instructions (champs structu
     html,
     'Lieu : Hôtel du Cadran - 14 Rue de Valadon, 75007 Paris<br>\n' +
       'Métro Ecole Militaire - Ligne 8<br>\n' +
-      'Munissez-vous de votre pièce d&#39;identité originale.',
+      '<span style="color: #c0392b;">Munissez-vous de votre pièce d&#39;identité originale.</span>',
   );
 });
 
@@ -66,5 +66,11 @@ test('formaterLignesLieuHtml omet instructions quand inclureInstructions vaut fa
 test('formaterLignesLieuHtml inclut instructions par défaut (inclureInstructions non précisé)', () => {
   const html = formaterLignesLieuHtml({ adresse: 'Bureau ACCECIT', instructions: 'Sonnez à « ACCECIT ».' });
 
-  assert.equal(html, 'Lieu : Bureau ACCECIT<br>\nSonnez à « ACCECIT ».');
+  assert.equal(html, 'Lieu : Bureau ACCECIT<br>\n<span style="color: #c0392b;">Sonnez à « ACCECIT ».</span>');
+});
+
+test('formaterLignesLieuHtml met instructions en rouge (retour utilisateur 2026-09-09 : la consigne se perdait dans le reste de l’email)', () => {
+  const html = formaterLignesLieuHtml({ adresse: 'Bureau ACCECIT', instructions: 'Sonnez et dites TEST.' });
+
+  assert.ok(html.includes('<span style="color: #c0392b;">Sonnez et dites TEST.</span>'));
 });

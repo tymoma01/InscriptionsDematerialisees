@@ -31,10 +31,18 @@ function echapperHtml(valeur) {
 // dans les deux fichiers ci-dessus, qui passe `{ inclureInstructions: false }`). `metroAcces` reste
 // inclus dans les deux cas : utile aussi bien au candidat qu'au formateur/inspecteur pour se rendre
 // sur place.
+//
+// `instructions` en rouge (demande utilisateur, retour terrain 2026-09-09 : cette consigne se
+// perdait au milieu du reste de l'email) — même rouge que --couleur-erreur (styles/variables.css),
+// codé en dur ici comme le bleu ACCECIT ci-dessous (invitationTestService.js) : un client mail
+// n'a pas accès aux variables CSS de l'app. adresse/metroAcces restent en texte normal, seule la
+// consigne elle-même (le contenu qui suit `instructions`) est colorée.
 function formaterLignesLieuHtml({ adresse, metroAcces, instructions }, { inclureInstructions = true } = {}) {
   const lignes = [`Lieu : ${echapperHtml(adresse)}`];
   if (metroAcces) lignes.push(echapperHtml(metroAcces));
-  if (inclureInstructions && instructions) lignes.push(echapperHtml(instructions));
+  if (inclureInstructions && instructions) {
+    lignes.push(`<span style="color: #c0392b;">${echapperHtml(instructions)}</span>`);
+  }
   return lignes.join('<br>\n');
 }
 
