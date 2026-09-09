@@ -1,1 +1,10 @@
-{}
+{
+  "blocs": [
+    { "code": "infos_perso", "actif": true, "etape": 1, "ordre": 1, "largeur": "moitie" },
+    { "code": "coordonnees", "actif": true, "etape": 1, "ordre": 2, "largeur": "moitie" },
+    { "code": "disponibilites", "actif": true, "etape": 1, "ordre": 3 },
+    { "code": "consentement_rgpd", "actif": true, "etape": 2, "ordre": 1 },
+    { "code": "mutuelle", "actif": true, "etape": 3, "ordre": 1 },
+    { "code": "charte", "actif": true, "etape": 3, "ordre": 2 }
+  ]
+}

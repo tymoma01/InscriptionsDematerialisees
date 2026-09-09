@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import FormulaireInscription from '../../core/formulaire/FormulaireInscription';
-import { formulaireConfigAccecitTest } from '../../core/formulaire/donneesTest/formulaireConfig.accecit';
+import { obtenirConfigurationFormulaire } from '../../services/candidatService';
 import ConfirmationInscription from './ConfirmationInscription';
 import logoAccecit from '../../assets/logo-accecit-blanc.png';
 import iconeAccecitHotellerie from '../../assets/icone-accecit-hotellerie.png';
@@ -24,14 +24,33 @@ function LogoSousMarque({ icone, nom }) {
   );
 }
 
-// Page accueil tablette : instancie le moteur de formulaire avec la config de l'entité.
-// La config vient de données de test locales tant que le backend n'est pas branché ;
-// elle sera remplacée par le résultat de l'appel à l'API (résolution via entiteContext).
+// Page accueil tablette : instancie le moteur de formulaire avec la config de l'entité, résolue
+// côté serveur (GET /api/candidats/formulaire-config, via entiteContext) — plus de config figée
+// pour ACCECIT ici, voir Modularité, CLAUDE.md.
 export default function InscriptionTablette() {
   // Une fois renseigné (voir onInscriptionReussie ci-dessous), l'écran de confirmation remplace
   // le formulaire — la mention "* Champs obligatoires" n'a plus lieu d'être une fois
   // l'inscription terminée, elle ne doit donc apparaître que dans la branche formulaire.
   const [dossierIdConfirmation, setDossierIdConfirmation] = useState(null);
+
+  // null tant que la config n'a pas encore été récupérée — sert de garde d'affichage ci-dessous,
+  // même patron que blocsQuestionnaire dans GrilleEvaluation.jsx.
+  const [configBlocs, setConfigBlocs] = useState(null);
+  const [erreurConfig, setErreurConfig] = useState(null);
+
+  useEffect(() => {
+    let annule = false;
+    obtenirConfigurationFormulaire()
+      .then((blocs) => {
+        if (!annule) setConfigBlocs(blocs);
+      })
+      .catch(() => {
+        if (!annule) setErreurConfig("Impossible de charger le formulaire d'inscription. Rechargez la page.");
+      });
+    return () => {
+      annule = true;
+    };
+  }, []);
 
   // DEV UNIQUEMENT — À RETIRER une fois inutile : ?apercu_confirmation=<dossierId> affiche
   // directement l'écran de confirmation avec ce dossierId, sans passer par une inscription
@@ -66,10 +85,14 @@ export default function InscriptionTablette() {
           <>
             <h1>Inscription candidat</h1>
             <p className="page-inscription-tablette__mention-obligatoire">* Champs obligatoires</p>
-            <FormulaireInscription
-              configBlocs={formulaireConfigAccecitTest}
-              onInscriptionReussie={({ dossierId }) => setDossierIdConfirmation(dossierId)}
-            />
+            {erreurConfig && <p role="alert">{erreurConfig}</p>}
+            {!erreurConfig && !configBlocs && <p>Chargement du formulaire…</p>}
+            {configBlocs && (
+              <FormulaireInscription
+                configBlocs={configBlocs}
+                onInscriptionReussie={({ dossierId }) => setDossierIdConfirmation(dossierId)}
+              />
+            )}
           </>
         )}
       </div>

@@ -1,11 +1,26 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const { inscrireCandidat, verifierDisponibilite, ErreurInscriptionConflit } = require('../../core/dossier/dossierService');
+const formulaireService = require('../../core/formulaire/formulaireService');
 const { limiteurVerificationDisponibilite } = require('../middlewares/rateLimiter');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 
 const router = Router();
+
+// GET /api/candidats/formulaire-config — blocs actifs/ordre du formulaire d'inscription pour
+// l'entité résolue par sous-domaine (req.entite, voir entiteContext). Aucune authentification
+// requise, même frontière que POST /api/candidats ci-dessous : c'est cet appel qui permet à
+// InscriptionTablette.jsx de ne plus dépendre d'une config figée pour ACCECIT (voir Modularité,
+// CLAUDE.md) — une autre entité obtient ici sa propre liste sans changement de code.
+router.get('/formulaire-config', async (req, res, next) => {
+  try {
+    const blocs = await formulaireService.obtenirConfigurationFormulaire(req.entite);
+    res.json(blocs);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
 
 // POST /api/candidats — inscription d'un candidat à l'accueil (tablette). Aucune
 // authentification requise : c'est le candidat lui-même qui saisit ses données, avant la
