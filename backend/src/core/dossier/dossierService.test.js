@@ -256,6 +256,39 @@ test('inscrireCandidat accepte un dossier sans NIR (facultatif), et enregistre n
   assert.equal(donneesInserees.email, 'candidat@exemple.fr');
 });
 
+// Régression audit 2026-09-09 : NOM_REGEX (nom/ville/contactUrgenceNom) rejetait à tort les deux
+// seules nationalités de nationalites.js à comporter des parenthèses — désambiguïsation légitime
+// entre les deux "Congolaise" (Congo-Brazzaville vs RDC, même gentilé, pays distincts), pas une
+// valeur mal formée. NATIONALITE_REGEX (dédié à ce seul champ) doit désormais les accepter.
+test('inscrireCandidat accepte une nationalité avec parenthèses ("Congolaise (RDC)", "Congolaise (Congo-Brazzaville)")', async (t) => {
+  mockerRestantInscription(t);
+  t.mock.method(dossierRepository, 'trouverCandidatParNirHash', async () => undefined);
+  t.mock.method(dossierRepository, 'trouverCandidatParEmail', async () => undefined);
+  const insererMock = t.mock.method(dossierRepository, 'insererCandidat', async () => 99);
+
+  for (const nationalite of ['Congolaise (RDC)', 'Congolaise (Congo-Brazzaville)']) {
+    await dossierService.inscrireCandidat(ENTITE, payloadInscriptionValide({ nir: '', nationalite }));
+  }
+
+  assert.equal(insererMock.mock.calls.length, 2);
+  assert.equal(insererMock.mock.calls[0].arguments[1].nationalite, 'Congolaise (RDC)');
+  assert.equal(insererMock.mock.calls[1].arguments[1].nationalite, 'Congolaise (Congo-Brazzaville)');
+});
+
+// NATIONALITE_REGEX reste borné : parenthèses tolérées, mais toujours aucun chiffre ni caractère
+// de contrôle — élargissement volontairement étroit, pas un simple retrait de toute restriction.
+test('inscrireCandidat rejette toujours une nationalité contenant un chiffre', async (t) => {
+  mockerRestantInscription(t);
+  t.mock.method(dossierRepository, 'insererCandidat', async () => {
+    throw new Error('ne doit pas être appelée : nationalité invalide, la validation doit échouer avant');
+  });
+
+  await assert.rejects(
+    () => dossierService.inscrireCandidat(ENTITE, payloadInscriptionValide({ nir: '', nationalite: 'Congolaise2' })),
+    (erreur) => erreur.name === 'ZodError',
+  );
+});
+
 test('inscrireCandidat rejette une inscription sans email (obligatoire, non concerné par la facultativité du NIR)', async (t) => {
   mockerRestantInscription(t);
   t.mock.method(dossierRepository, 'insererCandidat', async () => {

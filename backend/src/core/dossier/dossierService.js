@@ -28,6 +28,14 @@ class ErreurInscriptionConflit extends Error {
 const TELEPHONE_REGEX = /^0[1-9](\s?\d{2}){4}$/;
 const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
+// Nationalité uniquement (audit 2026-09-09) : NOM_REGEX ci-dessus rejetait "Congolaise
+// (Congo-Brazzaville)"/"Congolaise (RDC)" (nationalites.js, frontend) — les seules deux
+// nationalités de la liste de référence à désambiguïser deux pays distincts partageant le même
+// gentilé, parenthèses légitimes, pas une valeur mal formée. Regex DÉDIÉ plutôt qu'un
+// élargissement de NOM_REGEX lui-même : ville/contactUrgenceNom/nomNaissance restent des champs
+// texte libre où des parenthèses n'ont pas de sens, seule nationalite (liste fermée,
+// nationalites.js) en a besoin.
+const NATIONALITE_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' ()-]+$/;
 const CODE_POSTAL_REGEX = /^\d{5}$/;
 // Deux vocabulaires de créneaux distincts selon le type de poste — même contrat que
 // BlocDisponibilites.schema.js (CRENEAUX_HOTEL/CRENEAUX_BUREAU) côté front, revalidé ici.
@@ -75,7 +83,7 @@ const donneesInscriptionSchema = z
         message: 'Le nom de naissance ne doit contenir que des lettres',
       }),
     lieuNaissance: z.string().trim().min(1),
-    nationalite: z.string().trim().min(1).regex(NOM_REGEX),
+    nationalite: z.string().trim().min(1).regex(NATIONALITE_REGEX),
     prenom: z.string().trim().min(1),
     dateNaissance: z.string().min(1),
     // Facultatif (décision utilisateur, 2026-09-04) : vide/absent accepté, mais format NIR
@@ -644,7 +652,7 @@ const modificationInscriptionSchema = z
         message: 'Le nom de naissance ne doit contenir que des lettres',
       }),
     lieuNaissance: z.string().trim().min(1),
-    nationalite: z.string().trim().min(1).regex(NOM_REGEX),
+    nationalite: z.string().trim().min(1).regex(NATIONALITE_REGEX),
     prenom: z.string().trim().min(1),
     dateNaissance: z.string().min(1),
     situationFamiliale: z.string().min(1),
