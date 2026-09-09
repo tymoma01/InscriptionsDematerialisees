@@ -425,12 +425,16 @@ function mettreAJourDateHeureRendezvous(bd, rendezvousId, dateHeure) {
 // pouvoir neutraliser TOUS les rendez-vous actifs d'un dossier passant à un statut clos, quel que
 // soit leur type — les appelants existants (rendezvousService.creerRendezvous) continuent de
 // fournir `typeRdv` explicitement, comportement inchangé pour eux.
+// `.returning('id')` (audit 2026-09-09, workflowEngine.forcerStatut) : le nombre de lignes
+// affectées ne suffisait plus au nouvel appelant, qui doit journaliser CHAQUE rendez-vous
+// neutralisé individuellement (voir transitions.routes.js, POST /forcer-statut) — appliquerTransition
+// continue d'ignorer la valeur de retour, comportement inchangé pour lui.
 function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, statutRemplace }) {
   const requete = bd('rendezvous')
     .where({ dossier_id: dossierId })
     .whereIn('statut', ['prevu', 'confirme']);
   if (typeRdv) requete.andWhere({ type_rdv: typeRdv });
-  return requete.update({ statut: statutRemplace });
+  return requete.update({ statut: statutRemplace }).returning('id');
 }
 
 // Nombre de candidats déjà assignés à ce formateur au même horaire exact (voir

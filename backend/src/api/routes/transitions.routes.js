@@ -251,6 +251,25 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, r
       adresseIp: req.ip,
     });
 
+    // Un rendez-vous par entrée (audit 2026-09-09, dossier #127) — workflowEngine.forcerStatut
+    // neutralise désormais TOUJOURS tout rendez-vous encore actif du dossier (voir son commentaire),
+    // jamais journalisé jusqu'ici : même patron que 'rendezvous_statut_<statut>' ci-dessus (POST /,
+    // rendezvousId fourni), une action distincte par rendez-vous plutôt qu'une seule entrée agrégée,
+    // pour rester cohérent avec le reste du journal d'audit (une ligne = un changement d'état d'UNE
+    // ressource). Vide (aucune écriture) si le dossier n'avait aucun rendez-vous actif — comportement
+    // silencieux déjà en place côté neutraliserRendezvousActifsDossier.
+    for (const rendezvousId of resultat.rendezvousNeutralises) {
+      await journalAudit.enregistrerAction(bd, {
+        utilisateurId: req.utilisateur.id,
+        entiteId: req.entite.id,
+        action: 'rendezvous_neutralise_force',
+        tableCible: 'rendezvous',
+        cibleId: rendezvousId,
+        donnees: { dossierId, statutAvant: resultat.statutAvantCode, statutApres: resultat.statutApresCode },
+        adresseIp: req.ip,
+      });
+    }
+
     res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);

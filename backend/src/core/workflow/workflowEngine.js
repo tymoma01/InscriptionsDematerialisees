@@ -171,11 +171,26 @@ async function listerMotifsPourAction(entite, codeAction) {
 // action n'a par nature AUCUNE ligne `transition_roles` pour la protéger (elle ne passe justement
 // pas par cette table), donc pas de politique "fail closed" équivalente sans ce filet.
 //
-// Effets de bord alignés sur appliquerTransition (demande explicite) : neutralise tout
-// rendez-vous encore actif si le statut D'ARRIVÉE le demande (statuts.neutralise_rendezvous_actifs,
-// même mécanisme, voir son commentaire plus haut) — un saut direct vers un statut terminal
-// (ex. formation_non_validee) ne doit pas plus laisser de rendez-vous orphelin qu'un parcours
-// normal.
+// Neutralise TOUJOURS tout rendez-vous encore actif du dossier (audit 2026-09-09, dossier #127 —
+// décision utilisateur), contrairement à appliquerTransition ci-dessus qui, lui, ne le fait que si
+// le statut D'ARRIVÉE le demande (statuts.neutralise_rendezvous_actifs). Ce flag reste correct pour
+// une transition NORMALE (transitions_statut) : pour test_non_realise par exemple, le rendez-vous
+// précis est déjà fermé en amont par l'appelant avec le vrai motif (voir
+// clotureRendezvousAvecTransitionService.js, seul mécanisme qui connaît CE rendez-vous précis et
+// POURQUOI), donc neutralise_rendezvous_actifs=false y est intentionnel, pas un oubli. forcerStatut
+// n'a en revanche aucun équivalent : un saut arbitraire vers N'IMPORTE quel statut de l'entité, hors
+// de toute transition déclarée, ne garantit jamais qu'un rendez-vous resté actif reste cohérent avec
+// la nouvelle destination — laisser ce cas dépendre du même flag que le parcours normal a produit un
+// dossier bloqué en "Test non réalisé" avec un rendez-vous toujours "prevu" pour une date future
+// (dossier #127, audit du 2026-09-09 : test_non_realise porte neutralise_rendezvous_actifs=false
+// pour ACCECIT, correct pour le bouton "Test non réalisé"/la bascule automatique, pas pour ce
+// chemin-ci). `statutRemplace` (jamais 'absent') : forcerStatut ne connaît par nature aucun motif de
+// désistement réel (contrairement au bouton "Test non réalisé" ci-dessus) — 'remplace' est déjà le
+// sentinel générique du moteur pour "neutralisé sans être un désistement précis" (même valeur que
+// appliquerTransition ci-dessus). Retourne les id des rendez-vous neutralisés (jamais utilisé par
+// appliquerTransition, qui ignore la valeur de retour de neutraliserRendezvousActifsDossier) pour que
+// l'appelant (transitions.routes.js, POST /forcer-statut) les journalise individuellement — cette
+// fonction reste un moteur générique, sans dépendance à journalAudit (voir l'en-tête de ce fichier).
 async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilisateurId, roleCode }) {
   if (roleCode !== ROLES.ADMIN) {
     throw new ErreurTransitionInvalide('Seul le rôle Admin peut forcer le statut d’un dossier.');
@@ -198,7 +213,7 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
     throw new ErreurTransitionInvalide(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
   }
 
-  await bd.transaction(async (trx) => {
+  const rendezvousNeutralises = await bd.transaction(async (trx) => {
     await dossierRepository.enregistrerChangementStatut(trx, {
       dossierId,
       statutId: statutCible.id,
@@ -206,12 +221,11 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
       commentaire,
     });
 
-    if (statutCible.neutralise_rendezvous_actifs) {
-      await rendezvousRepository.neutraliserRendezvousActifsDossier(trx, {
-        dossierId,
-        statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
-      });
-    }
+    const lignes = await rendezvousRepository.neutraliserRendezvousActifsDossier(trx, {
+      dossierId,
+      statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
+    });
+    return lignes.map((ligne) => ligne.id);
   });
 
   return {
@@ -219,6 +233,7 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
     statutAvantLibelle: dossier.statut_libelle,
     statutApresCode: statutCible.code,
     statutApresLibelle: statutCible.libelle,
+    rendezvousNeutralises,
   };
 }
 
