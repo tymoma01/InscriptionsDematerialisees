@@ -241,6 +241,10 @@ function estRendezvousAVenir(rdv) {
 const COLONNES = [
   { cle: 'date_heure', libelle: 'Date et heure', extraire: (rdv) => new Date(rdv.date_heure).getTime() },
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (rdv) => (rdv.candidat_nom ?? '').toLowerCase() },
+  // Colonne "Code postal" (audit 2026-09-09) — même patron que "Poste"/"Expérience" juste
+  // au-dessous (extrait du bloc 'coordonnees', voir rendezvousService.listerRendezvousTest),
+  // positionnée juste après "Candidat", même cohérence que DossierList.jsx (Dossiers candidats).
+  { cle: 'candidat_code_postal', libelle: 'Code postal', extraire: (rdv) => rdv.candidat_code_postal ?? '' },
   {
     cle: 'postes',
     libelle: 'Poste',
@@ -815,6 +819,7 @@ export default function Planification() {
                     <td className="planification__colonne-figee">
                       {rdv.candidat_prenom} {rdv.candidat_nom}
                     </td>
+                    <td>{rdv.candidat_code_postal || '-'}</td>
                     <td>
                       <div className="planification__postes">
                         {[...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])].map((code) => (

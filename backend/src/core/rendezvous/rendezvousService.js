@@ -317,13 +317,16 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
     dateDebut,
     dateFin,
   });
-  return rendezvous.map(({ donnees_disponibilites, ...reste }) => ({
+  return rendezvous.map(({ donnees_disponibilites, donnees_coordonnees, ...reste }) => ({
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
     // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
     // ci-dessus.
     experience: donnees_disponibilites?.experience ?? null,
+    // Colonne "Code postal" (audit 2026-09-09), extrait du bloc 'coordonnees' — même patron que
+    // dossierService.listerDossiers (candidat_telephone/candidat_email).
+    candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
   }));
 }
 
