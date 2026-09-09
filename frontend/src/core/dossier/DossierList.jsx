@@ -20,6 +20,14 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 // stable ne doit pas dépendre d'un prop optionnel qui pourrait être absent.
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
+  // Colonne "Code postal" (audit 2026-09-09) — même patron que "Téléphone"/"Email" juste
+  // au-dessous (extrait du bloc 'coordonnees', voir dossierService.listerDossiers), positionnée
+  // juste après "Candidat" (avant "Téléphone", décision utilisateur).
+  {
+    cle: 'candidat_code_postal',
+    libelle: 'Code postal',
+    extraire: (dossier) => dossier.candidat_code_postal ?? '',
+  },
   {
     cle: 'candidat_telephone',
     libelle: 'Téléphone',
@@ -210,6 +218,7 @@ export default function DossierList({
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
+              <td>{dossier.candidat_code_postal || '-'}</td>
               <td>{dossier.candidat_telephone}</td>
               <td>{dossier.candidat_email}</td>
               <td>

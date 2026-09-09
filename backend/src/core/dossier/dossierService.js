@@ -471,6 +471,8 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
 // candidat_telephone/candidat_email extraits du bloc 'coordonnees' au même titre, pour les
 // colonnes "Téléphone"/"Email" du tableau de bord (voir DossierList.jsx) — null si le bloc n'a
 // pas encore été rempli (dossier tout juste créé).
+// candidat_code_postal (audit 2026-09-09) : même bloc 'coordonnees' déjà joint, même patron que
+// candidat_telephone/candidat_email juste au-dessus — colonne "Code postal" de DossierList.jsx.
 async function listerDossiers(entite, { statutCode } = {}) {
   const bd = await obtenirKnex();
   const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode });
@@ -483,6 +485,7 @@ async function listerDossiers(entite, { statutCode } = {}) {
     experience: donnees_disponibilites?.experience ?? null,
     candidat_telephone: donnees_coordonnees?.telephone ?? null,
     candidat_email: donnees_coordonnees?.email ?? null,
+    candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
   }));
 }
 

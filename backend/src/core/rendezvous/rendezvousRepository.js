@@ -167,6 +167,11 @@ function listerRendezvousParDossier(bd, dossierId) {
 // pour exposer le(s) poste(s) recherché(s) sur la colonne "Poste" de Planification.jsx — même
 // patron que dossierRepository.listerDossiers / evaluationRepository.listerRendezvousAEvaluer.
 // Keyed sur dossiers.id (pas rendezvous.id) : le bloc est propre au dossier, pas au rendez-vous.
+//
+// Même patron pour le bloc 'coordonnees' (audit 2026-09-09, colonne "Code postal") — absent
+// jusqu'ici de cette requête (voir l'ancien commentaire de rechercheCorrespond, Planification.jsx :
+// "cette page n'a de toute façon pas de téléphone à chercher"), ajouté ici comme
+// dossierRepository.listerDossiers le fait déjà pour "Dossiers candidats".
 function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
   const requete = bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
@@ -177,6 +182,13 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
         'bloc_disponibilites.bloc_code',
         '=',
         bd.raw('?', ['disponibilites']),
+      );
+    })
+    .leftJoin('dossier_donnees_formulaire as bloc_coordonnees', function () {
+      this.on('bloc_coordonnees.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_coordonnees.bloc_code',
+        '=',
+        bd.raw('?', ['coordonnees']),
       );
     })
     .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
@@ -190,6 +202,7 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
       'utilisateurs.prenom as formateur_prenom',
       'utilisateurs.nom as formateur_nom',
       'bloc_disponibilites.donnees as donnees_disponibilites',
+      'bloc_coordonnees.donnees as donnees_coordonnees',
     )
     .orderBy('rendezvous.date_heure', 'asc');
 
