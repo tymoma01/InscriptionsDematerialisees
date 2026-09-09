@@ -26,15 +26,31 @@ function listerRendezvousARappeler(bd, entiteId, { fenetreHeures }) {
     );
 }
 
-// Rendez-vous de test dont la date est passée, toujours 'prevu' (ni confirmé, ni marqué absent/
-// annulé par un agent — GestionRendezvous.jsx, ni replanifié — 'remplace'), sur un dossier
+// Rendez-vous de test dont la FIN du créneau (date_heure + dureeCreneauMinutes — rendezvous ne
+// porte qu'un instant de départ, voir generateurIcs.js DUREE_TEST_MINUTES, seule source de vérité
+// pour cette durée) remonte à plus de delaiGraceHeures, toujours 'prevu' (ni confirmé, ni marqué
+// absent/annulé par un agent — GestionRendezvous.jsx, ni replanifié — 'remplace'), sur un dossier
 // toujours 'test_planifie' — candidats à la bascule automatique "Test non réalisé" (voir
 // basculeTestNonRealiseService.js, tâche planifiée CLAUDE.md). Le filtre sur statuts.code évite
 // d'inclure un dossier déjà sorti du parcours test (évalué, replanifié entre-temps...) ; la
 // re-vérification finale du statut du RENDEZ-VOUS lui-même (au moment précis de la bascule, pas
 // ici) reste portée par trouverRendezvousPourBasculeVerrouillee ci-dessous, contre une action
 // manuelle concurrente survenue entre cette lecture et l'écriture.
-function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId) {
+//
+// Délai de grâce de dureeCreneauMinutes/delaiGraceHeures (audit 2026-09-09, demande utilisateur) :
+// avant ce correctif, la bascule intervenait dès le prochain passage du cron une fois
+// `date_heure` seule dépassée — trop tôt (un créneau 09h00-09h30 basculait potentiellement dès
+// 09h01). dureeCreneauMinutes/delaiGraceHeures ne sont volontairement PAS des constantes figées
+// ici (aucune règle métier dans cette couche, voir l'en-tête du fichier) : fournis par l'appelant
+// (basculeTestNonRealiseService.js), seule source de vérité pour ces deux valeurs.
+//
+// whereNull sur date_presence_confirmee (migration 060, bouton "Présent(e)" — voir
+// evaluationEngine.marquerPresenceConfirmee) : un formateur/inspecteur ayant constaté la présence
+// du candidat exclut définitivement ce rendez-vous de la bascule automatique, même une fois le
+// délai de grâce dépassé — distinct de rendezvous.statut ('confirme' = présence confirmée à
+// l'avance par le candidat, ne suffit PAS à exclure : voir le commentaire de STATUTS_AUTORISES,
+// rendezvousService.js).
+function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId, { dureeCreneauMinutes, delaiGraceHeures }) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -44,8 +60,26 @@ function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId) {
       'rendezvous.statut': 'prevu',
       'statuts.code': 'test_planifie',
     })
-    .andWhere('rendezvous.date_heure', '<', bd.fn.now())
+    .whereNull('rendezvous.date_presence_confirmee')
+    .andWhereRaw('rendezvous.date_heure + make_interval(mins => ?) < now() - make_interval(hours => ?)', [
+      dureeCreneauMinutes,
+      delaiGraceHeures,
+    ])
     .select('rendezvous.id', 'rendezvous.dossier_id', 'rendezvous.date_heure');
+}
+
+// Marque la présence constatée du candidat, LE JOUR MÊME, par le formateur/inspecteur (bouton
+// "Présent(e)", voir evaluationEngine.marquerPresenceConfirmee pour la vérification d'accès) —
+// exclut ce rendez-vous de listerRendezvousTestNonRealisesAutomatiquement ci-dessus (whereNull sur
+// cette même colonne), quel que soit le délai de grâce écoulé depuis. COALESCE plutôt qu'un simple
+// now() : idempotent, un second clic (ou un rechargement) ne réécrase jamais le premier constat par
+// un horodatage plus tardif.
+function marquerPresenceConfirmee(bd, rendezvousId) {
+  return bd('rendezvous')
+    .where({ id: rendezvousId })
+    .update({ date_presence_confirmee: bd.raw('COALESCE(date_presence_confirmee, now())') })
+    .returning('*')
+    .then(([rendezvous]) => rendezvous);
 }
 
 // Relecture verrouillée (FOR UPDATE) d'un rendez-vous précis, juste avant la bascule automatique
@@ -505,6 +539,7 @@ module.exports = {
   listerRendezvousARappeler,
   listerRendezvousTestNonRealisesAutomatiquement,
   trouverRendezvousPourBasculeVerrouillee,
+  marquerPresenceConfirmee,
   trouverRendezvousParId,
   listerRendezvousParDossier,
   listerRendezvousTest,

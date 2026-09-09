@@ -19,6 +19,16 @@ export async function listerRendezvousAEvaluer() {
   return data;
 }
 
+// Bouton "Présent(e)" (ListeEvaluationsAFaire.jsx, audit 2026-09-09) — marque la présence
+// constatée du candidat, LE JOUR MÊME, avant même l'évaluation elle-même. N'a aucun effet visible
+// sur le badge de statut du rendez-vous (voir backend evaluationEngine.marquerPresenceConfirmee) :
+// exclut seulement ce rendez-vous de la bascule automatique "Test non réalisé", même passé le
+// délai de grâce de 24h.
+export async function marquerPresenceConfirmee(rendezvousId) {
+  const { data } = await api.post(`/evaluations/${rendezvousId}/presence`);
+  return data;
+}
+
 // blocs : [{ posteCode, reponses }] — un bloc par poste évalué (questionnaires empilés, voir
 // GrilleEvaluation.jsx), un seul verdict global (resultatGlobal/orientation/commentaire) pour
 // l'ensemble.

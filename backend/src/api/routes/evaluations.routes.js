@@ -108,6 +108,39 @@ router.get('/a-faire', async (req, res, next) => {
   }
 });
 
+// POST /api/evaluations/:rendezvousId/presence — marque la présence constatée du candidat, LE
+// JOUR MÊME (bouton "Présent(e)", ListeEvaluationsAFaire.jsx, audit 2026-09-09) — voir
+// evaluationEngine.marquerPresenceConfirmee : n'écrit que rendezvous.date_presence_confirmee,
+// jamais rendezvous.statut ni dossiers.statut_id, le badge affiché ne change pas suite à cet
+// appel. Seul effet réel : exclut ce rendez-vous de la bascule automatique "Test non réalisé"
+// même une fois le délai de grâce de 24h dépassé.
+router.post('/:rendezvousId/presence', async (req, res, next) => {
+  try {
+    const { rendezvousId } = z.object({ rendezvousId: idPositifSchema }).parse(req.params);
+    const rendezvous = await evaluationEngine.marquerPresenceConfirmee(req.entite, {
+      rendezvousId,
+      formateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+    });
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'rendezvous_presence_confirmee',
+      tableCible: 'rendezvous',
+      cibleId: rendezvousId,
+      donnees: { rendezvousId },
+      adresseIp: req.ip,
+    });
+
+    res.json(rendezvous);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
 // GET /api/evaluations/historique — évaluations déjà soumises par le formateur connecté
 // (jamais tous formateurs confondus, voir evaluationEngine.listerHistorique). formateurId vient
 // toujours de la session, même principe que /a-faire ci-dessus.

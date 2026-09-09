@@ -136,6 +136,28 @@ function resoudreEtValiderReponses(questions, reponsesRecues) {
   return resolues;
 }
 
+// Marque la présence constatée du candidat, LE JOUR MÊME, par le formateur/inspecteur (bouton
+// "Présent(e)", ListeEvaluationsAFaire.jsx, audit 2026-09-09) — n'écrit QUE
+// rendezvous.date_presence_confirmee (migration 060), jamais rendezvous.statut ni
+// dossiers.statut_id : le badge "Prévu" affiché sur cette page ne doit pas changer suite à ce clic
+// (décision utilisateur), contrairement à 'confirme' (présence confirmée À L'AVANCE par le
+// candidat, sémantique distincte — voir rendezvousService.js, commentaire de STATUTS_AUTORISES).
+// Seul effet réel : exclure ce rendez-vous de la bascule automatique "Test non réalisé" (voir
+// rendezvousRepository.listerRendezvousTestNonRealisesAutomatiquement), même une fois le délai de
+// grâce de 24h dépassé. Même garde IDOR/ownership que listerQuestionnaire ci-dessous : un
+// formateur/inspecteur ne peut agir que sur SES propres rendez-vous (Admin excepté).
+async function marquerPresenceConfirmee(entite, { rendezvousId, formateurId, roleCode }) {
+  const bd = await db.obtenirKnex();
+  const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
+  if (!rendezvous) {
+    throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
+    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
+  }
+  return rendezvousRepository.marquerPresenceConfirmee(bd, rendezvousId);
+}
+
 // Questionnaire résolu pour le poste choisi (ou générique) — appelé par le front avant
 // d'afficher la grille (voir GrilleEvaluation.jsx). Ne revalide rien d'autre que l'accès au
 // rendez-vous : la validation complète des réponses n'a lieu qu'à la soumission
@@ -460,6 +482,7 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
 }
 
 module.exports = {
+  marquerPresenceConfirmee,
   listerQuestionnaire,
   listerRendezvousAEvaluer,
   enregistrerEvaluation,

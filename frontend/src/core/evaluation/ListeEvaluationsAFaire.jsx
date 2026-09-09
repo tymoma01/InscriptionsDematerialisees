@@ -3,7 +3,7 @@ import StatutBadge from '../workflow/StatutBadge';
 import { normaliserTexte } from '../filtres/normaliserTexte';
 import { useParametreURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
-import { listerRendezvousAEvaluer } from '../../services/evaluationService';
+import { listerRendezvousAEvaluer, marquerPresenceConfirmee } from '../../services/evaluationService';
 import { appliquerTransition } from '../../services/transitionService';
 import ModaleConfirmationTestNonRealise from './ModaleConfirmationTestNonRealise';
 import './ListeEvaluationsAFaire.css';
@@ -124,6 +124,30 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
     ligneCibleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [rendezvousIdCible, rendezvousFiltres]);
 
+  // Bouton "Présent(e)" (audit 2026-09-09) — marque la présence constatée du candidat, LE JOUR
+  // MÊME, avant même l'évaluation elle-même (voir backend evaluationEngine.
+  // marquerPresenceConfirmee). N'a AUCUN effet visible ici : ni retrait de la liste, ni
+  // changement de badge (rdv.statut n'est pas modifié, voir StatutBadge plus bas) — seul effet
+  // réel, exclure ce rendez-vous de la bascule automatique "Test non réalisé"
+  // (basculeTestNonRealiseService.js) même passé le délai de grâce de 24h. Idempotent côté serveur
+  // (COALESCE, voir rendezvousRepository.marquerPresenceConfirmee) : un second clic ne fait rien
+  // de plus, pas besoin de désactiver définitivement ce bouton après succès.
+  const marquerPresent = async (rdv) => {
+    setEnCoursId(rdv.id);
+    setErreurAction(null);
+    try {
+      await marquerPresenceConfirmee(rdv.id);
+    } catch (erreur) {
+      setErreurAction(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? 'Impossible de marquer ce candidat présent. Merci de réessayer.')
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
+    } finally {
+      setEnCoursId(null);
+    }
+  };
+
   // Aucune grille associée (contrairement à "Évaluer" — voir GrilleEvaluation.jsx) : une seule
   // transition (voir workflowEngine.appliquerTransition), commentaire auto-généré comme le fait
   // déjà CaptureTablette.jsx pour "Planifier un test", pas de formulaire à ouvrir pour si peu.
@@ -220,6 +244,17 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               </span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
+              {/* "Présent(e)" (audit 2026-09-09) — premier bouton de la ligne (ordre demandé :
+                  Présent(e), Évaluer, Test non réalisé) : constate la présence du candidat sans
+                  toucher au badge ci-dessus ni retirer la ligne de la liste, voir marquerPresent. */}
+              <button
+                type="button"
+                className="liste-evaluations__bouton-secondaire"
+                disabled={enCoursId === rdv.id}
+                onClick={() => marquerPresent(rdv)}
+              >
+                Présent(e)
+              </button>
               {/* Plus de bouton "Confirmer que le test a eu lieu" indépendant (audit 2026-08-28,
                   corrige le workflow v5 du 2026-08-21 : ce bouton faisait passer le dossier à
                   test_realise sans jamais exiger de grille soumise — constaté sur le dossier #88,

@@ -379,3 +379,70 @@ test('enregistrerEvaluation rejette une évaluation dont aucun bloc ne résout �
 // les tests "enregistrerEvaluation applique/n'applique pas confirmer_test_realise" ci-dessus, qui
 // couvrent désormais la SEULE façon d'appliquer cette transition (dans le même geste que
 // l'évaluation elle-même, jamais indépendamment).
+
+// marquerPresenceConfirmee (audit 2026-09-09, bouton "Présent(e)") — même garde IDOR/ownership que
+// listerQuestionnaire (non testée séparément, patron identique), mais n'écrit QUE
+// rendezvous.date_presence_confirmee (voir rendezvousRepository.marquerPresenceConfirmee, jamais
+// mocké au-delà de son appel ici : la logique COALESCE elle-même relève du test SQL dédié,
+// rendezvousRepository.test.js).
+test('marquerPresenceConfirmee délègue au repository pour le formateur assigné à ce rendez-vous', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  const marquerMock = t.mock.method(rendezvousRepository, 'marquerPresenceConfirmee', async () => ({ ...RENDEZVOUS_TEST, date_presence_confirmee: '2026-09-09T09:00:00.000Z' }));
+
+  const resultat = await evaluationEngine.marquerPresenceConfirmee(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: RENDEZVOUS_TEST.formateur_id,
+    roleCode: 'formateur',
+  });
+
+  assert.equal(marquerMock.mock.calls.length, 1);
+  assert.equal(marquerMock.mock.calls[0].arguments[1], 10);
+  assert.equal(resultat.date_presence_confirmee, '2026-09-09T09:00:00.000Z');
+});
+
+test('marquerPresenceConfirmee rejette un formateur non assigné à ce rendez-vous (IDOR)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  const marquerMock = t.mock.method(rendezvousRepository, 'marquerPresenceConfirmee', async () => ({}));
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.marquerPresenceConfirmee(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 999,
+        roleCode: 'formateur',
+      }),
+    /n'est pas assigné à ce formateur/,
+  );
+  assert.equal(marquerMock.mock.calls.length, 0);
+});
+
+test('marquerPresenceConfirmee autorise un Admin même non assigné à ce rendez-vous', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  const marquerMock = t.mock.method(rendezvousRepository, 'marquerPresenceConfirmee', async () => ({}));
+
+  await evaluationEngine.marquerPresenceConfirmee(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 999,
+    roleCode: 'admin',
+  });
+
+  assert.equal(marquerMock.mock.calls.length, 1);
+});
+
+test('marquerPresenceConfirmee rejette un rendez-vous introuvable pour cette entité', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => undefined);
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.marquerPresenceConfirmee(ENTITE_ACCECIT, {
+        rendezvousId: 999,
+        formateurId: 5,
+        roleCode: 'formateur',
+      }),
+    /introuvable/,
+  );
+});

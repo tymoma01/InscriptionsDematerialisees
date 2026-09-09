@@ -5,8 +5,16 @@ const rendezvousService = require('./rendezvousService');
 const workflowEngine = require('../workflow/workflowEngine');
 const journalAudit = require('../audit/journalAudit');
 const { ROLES } = require('../auth/rbac');
+const { DUREE_TEST_MINUTES } = require('../../integrations/notifications/generateurIcs');
 
 const CODE_ACTION_TEST_NON_REALISE = 'test_non_realise';
+
+// Délai de grâce avant bascule automatique (audit 2026-09-09, demande utilisateur) : la fin du
+// créneau (date_heure + DUREE_TEST_MINUTES, voir rendezvousRepository.
+// listerRendezvousTestNonRealisesAutomatiquement) doit remonter à plus de 24h, pas seulement être
+// passée — laisse le temps à un agent/formateur de régulariser (Confirmer la présence, Présent(e),
+// reprogrammation...) avant toute bascule automatique en test_non_realise.
+const DELAI_GRACE_BASCULE_HEURES = 24;
 
 // Motif de désistement dédié (categorie 'desistement', voir scripts/seedMotifsDesistement.js) —
 // obligatoire ici comme pour tout passage de rendez-vous à 'absent' (rendezvousService.
@@ -56,7 +64,10 @@ async function executerBasculeTestNonRealise(entite) {
     throw new Error(`Utilisateur système non configuré pour l'entité « ${entite.code} » (voir scripts/seedUtilisateurSysteme.js).`);
   }
 
-  const rendezvousEligibles = await rendezvousRepository.listerRendezvousTestNonRealisesAutomatiquement(bd, entite.id);
+  const rendezvousEligibles = await rendezvousRepository.listerRendezvousTestNonRealisesAutomatiquement(bd, entite.id, {
+    dureeCreneauMinutes: DUREE_TEST_MINUTES,
+    delaiGraceHeures: DELAI_GRACE_BASCULE_HEURES,
+  });
 
   let bascules = 0;
   let ignores = 0;
