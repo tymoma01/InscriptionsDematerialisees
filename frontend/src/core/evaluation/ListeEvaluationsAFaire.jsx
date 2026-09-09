@@ -249,7 +249,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
                   toucher au badge ci-dessus ni retirer la ligne de la liste, voir marquerPresent. */}
               <button
                 type="button"
-                className="liste-evaluations__bouton-secondaire"
+                className="liste-evaluations__bouton-present"
                 disabled={enCoursId === rdv.id}
                 onClick={() => marquerPresent(rdv)}
               >
@@ -280,7 +280,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               {rdv.dossier_statut_code !== 'test_realise' && (
                 <button
                   type="button"
-                  className="liste-evaluations__bouton-secondaire"
+                  className="liste-evaluations__bouton-test-non-realise"
                   disabled={enCoursId === rdv.id}
                   onClick={() => setRdvAConfirmer(rdv)}
                 >

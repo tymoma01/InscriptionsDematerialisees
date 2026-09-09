@@ -66,12 +66,28 @@
   cursor: pointer;
 }
 
-/* "Test non réalisé" : action secondaire (moins fréquente que "Évaluer"), même contour neutre
-   que les boutons secondaires ailleurs dans le projet (ex. GestionTransitions.css, "Annuler"). */
-.liste-evaluations__item button.liste-evaluations__bouton-secondaire {
-  background-color: var(--couleur-fond);
-  border-color: var(--couleur-bordure);
-  color: var(--couleur-texte);
+/* "Présent(e)"/"Test non réalisé" (audit 2026-09-09) : couleurs sobres dédiées (voir
+   variables.css, --bouton-succes-* et --bouton-echec-*) plutôt que le contour neutre générique
+   utilisé avant elles (fond blanc/bordure grise, ex. GestionTransitions.css "Annuler") — ces deux
+   boutons portent un sens (confirmation positive / désistement) que le neutre ne rendait pas.
+   Taille/padding/arrondi hérités tels quels de la règle générique ci-dessus (.liste-evaluations__item
+   button), seule la palette change ici. */
+.liste-evaluations__item button.liste-evaluations__bouton-present {
+  background-color: var(--bouton-succes-fond);
+  border-color: var(--bouton-succes-bordure);
+  color: var(--bouton-succes-texte);
+}
+.liste-evaluations__item button.liste-evaluations__bouton-present:hover {
+  background-color: var(--bouton-succes-fond-hover);
+}
+
+.liste-evaluations__item button.liste-evaluations__bouton-test-non-realise {
+  background-color: var(--bouton-echec-fond);
+  border-color: var(--bouton-echec-bordure);
+  color: var(--bouton-echec-texte);
+}
+.liste-evaluations__item button.liste-evaluations__bouton-test-non-realise:hover {
+  background-color: var(--bouton-echec-fond-hover);
 }
 
 .liste-evaluations__vide {

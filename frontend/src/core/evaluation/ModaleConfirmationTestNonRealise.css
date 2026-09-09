@@ -59,9 +59,10 @@
   cursor: pointer;
 }
 
-/* "Annuler" : même contour neutre que .liste-evaluations__bouton-secondaire
-   (ListeEvaluationsAFaire.css, "Test non réalisé" lui-même) et les autres boutons secondaires du
-   projet (GestionTransitions.css). */
+/* "Annuler" : même contour neutre que les boutons secondaires génériques du projet
+   (GestionTransitions.css) — distinct de .liste-evaluations__bouton-test-non-realise
+   (ListeEvaluationsAFaire.css), qui porte désormais sa propre couleur dédiée (audit 2026-09-09),
+   pas ce contour neutre : ce bouton "Annuler" reste un simple contour, une action neutre. */
 .modale-confirmation-non-realise__annuler {
   border: 1px solid var(--couleur-bordure);
   background-color: var(--couleur-fond);

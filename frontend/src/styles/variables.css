@@ -227,4 +227,22 @@
   --experience-5ans-fond: #e3edc7;
   --experience-5ans-texte: #4c6b1a;
   --experience-5ans-bordure: #c2d896;
+
+  /* Boutons d'action secondaires "Présent(e)"/"Test non réalisé" (audit 2026-09-09,
+     ListeEvaluationsAFaire.jsx) — famille DISTINCTE de la palette de statuts ci-dessus (même
+     principe que la palette "Expérience" : usage différent, bouton interactif plutôt que badge
+     de lecture seule, donc pas de réutilisation telle quelle de --statut-succes-* et --statut-echec-*
+     même si les teintes sont voisines). Contraste texte/fond vérifié >= WCAG AA (4,5:1) :
+     --bouton-succes ≈ 4,6:1, --bouton-echec ≈ 5,4:1. *-fond-hover : point milieu entre *-fond et
+     *-bordure (assombrissement léger et cohérent avec la bordure existante, pas une teinte
+     arbitraire ajoutée en plus). */
+  --bouton-succes-fond: #e8f3ec;
+  --bouton-succes-fond-hover: #d1e9d9;
+  --bouton-succes-texte: #2f7a4d;
+  --bouton-succes-bordure: #b9dfc5;
+
+  --bouton-echec-fond: #f7e9e7;
+  --bouton-echec-fond-hover: #f0d7d3;
+  --bouton-echec-texte: #a13f35;
+  --bouton-echec-bordure: #e8c4be;
 }

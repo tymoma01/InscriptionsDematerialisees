@@ -196,10 +196,13 @@
   cursor: pointer;
 }
 
-/* "Formation non validée" : contour neutre, même formule que
-   .liste-evaluations__bouton-secondaire — pas une couleur d'alerte (rouge/orange), c'est une
-   action normale du workflow, pas un état d'erreur (le badge du statut résultant, lui, porte déjà
-   la couleur négative, voir StatutBadge/formation_non_validee). */
+/* "Formation non validée" : contour neutre générique (même formule que GestionTransitions.css) —
+   pas une couleur d'alerte (rouge/orange), c'est une action normale du workflow, pas un état
+   d'erreur (le badge du statut résultant, lui, porte déjà la couleur négative, voir
+   StatutBadge/formation_non_validee). Distinct de .liste-evaluations__bouton-test-non-realise
+   (ListeEvaluationsAFaire.css) : ce dernier porte désormais sa propre couleur dédiée (audit
+   2026-09-09), périmètre volontairement limité à cet écran-là — pas de raison équivalente ici de
+   changer ce bouton-ci, qui reste une action normale du workflow, pas un désistement. */
 .page-suivi-formation__actions button.page-suivi-formation__bouton-secondaire {
   background-color: var(--couleur-fond);
   border-color: var(--couleur-bordure);
