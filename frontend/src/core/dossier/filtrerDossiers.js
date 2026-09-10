@@ -72,15 +72,14 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
 
   return dossiers.filter((dossier) => {
     if (rechercheEstNumeroDossier) {
-      // Cas 1 (saisie numérique courte) : n° de dossier OU code postal (audit 2026-09-09), tous
-      // deux en égalité stricte — un code postal français fait toujours 5 chiffres, donc jamais
-      // ambigu avec un téléphone (10 chiffres, cas 2 ci-dessous) ; reste distinct du n° de dossier
-      // en pratique (même à cette échelle de volumétrie, un n° de dossier à 5 chiffres serait de
-      // toute façon un candidat très légitime pour ce même filtre). Pas la peine de forcer une
-      // longueur précise ici : une égalité stricte sur un champ qui n'existe pas pour ce dossier
-      // (candidat_code_postal null) ne matche simplement jamais, comme avant ce changement.
+      // Cas 1 (saisie numérique courte) : n° de dossier (égalité stricte) OU code postal (audit
+      // 2026-09-10, corrige l'égalité stricte du 2026-09-09 : "93" ne remontait rien tant que le
+      // candidat n'avait pas tapé les 5 chiffres exacts) — "commence par", pour un usage naturel
+      // pendant la saisie. Un code postal français fait toujours 5 chiffres, donc jamais ambigu
+      // avec un téléphone (10 chiffres, cas 2 ci-dessous). candidat_code_postal null est normalisé
+      // en chaîne vide pour ne pas planter sur startsWith.
       const correspondNumero = String(dossier.id) === rechercheTelephone;
-      const correspondCodePostal = dossier.candidat_code_postal === rechercheTelephone;
+      const correspondCodePostal = (dossier.candidat_code_postal ?? '').startsWith(rechercheTelephone);
       if (!correspondNumero && !correspondCodePostal) return false;
     } else if (rechercheEstNumerique) {
       // Cas 2 (saisie numérique longue) : uniquement le téléphone, comportement "contient" déjà en
