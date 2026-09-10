@@ -57,3 +57,16 @@ export async function obtenirDetailEvaluation(evaluationId) {
   const { data } = await api.get(`/evaluations/historique/${evaluationId}`);
   return data;
 }
+
+// Détail en lecture seule de la DERNIÈRE évaluation soumise pour un dossier (pas par
+// evaluationId, voir obtenirDetailEvaluation ci-dessus) — Accueil/Coordination et Admin, depuis la
+// fiche dossier "Étudier le dossier" (Validation.jsx, demande utilisateur 2026-09-10) : ces deux
+// rôles n'ont pas accès à /evaluations/* (voir backend evaluations.routes.js, ROLES_EVALUATION),
+// cette route dédiée sous /dossiers/:id vit donc côté back dans dossiers.routes.js, pas
+// evaluations.routes.js. Renvoie `null` (jamais une erreur HTTP) si aucun test n'a encore été
+// évalué pour ce dossier — état normal, pas une exception (voir backend
+// evaluationEngine.obtenirDetailEvaluationDossier).
+export async function obtenirEvaluationDossier(dossierId) {
+  const { data } = await api.get(`/dossiers/${dossierId}/evaluation`);
+  return data;
+}

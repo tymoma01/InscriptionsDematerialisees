@@ -446,3 +446,99 @@ test('marquerPresenceConfirmee rejette un rendez-vous introuvable pour cette ent
     /introuvable/,
   );
 });
+
+// obtenirDetailEvaluationDossier (demande utilisateur 2026-09-10 : rendre les critères de
+// validation de test visibles depuis la fiche dossier, Validation.jsx — Accueil/Coordination et
+// Admin, jamais restreint à "sa propre" évaluation contrairement à obtenirDetailEvaluation
+// (réservée au formateur/inspecteur auteur, voir tests ci-dessus).
+test("obtenirDetailEvaluationDossier renvoie null (pas une erreur) si aucun test n'a encore été évalué pour ce dossier", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(evaluationRepository, 'trouverEvaluationParDossier', async () => undefined);
+
+  const resultat = await evaluationEngine.obtenirDetailEvaluationDossier(ENTITE_ACCECIT, 62);
+
+  assert.equal(resultat, null);
+});
+
+test('obtenirDetailEvaluationDossier reconstruit les questions (avec items pour une grille_qcu, sans item pour un texte_libre) depuis les réponses plates', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(evaluationRepository, 'trouverEvaluationParDossier', async () => ({
+    id: 900,
+    resultat_global: 'valide',
+    orientation: 'envoi_formation',
+    postes_codes: ['nettoyage'],
+    commentaire: 'Bon candidat.',
+    date_evaluation: new Date('2026-09-01T10:00:00Z'),
+    candidat_prenom: 'Sophie',
+    candidat_nom: 'Martin',
+  }));
+  t.mock.method(evaluationRepository, 'listerReponsesEvaluation', async () => [
+    {
+      question_code: 'savoir_etre',
+      question_libelle: 'Savoir-être',
+      type_question: 'grille_qcu',
+      item_code: 'ponctualite',
+      item_libelle: 'Ponctualité',
+      valeur: 'excellent',
+    },
+    {
+      question_code: 'commentaire_libre',
+      question_libelle: 'Observations',
+      type_question: 'texte_libre',
+      item_code: null,
+      item_libelle: null,
+      valeur: 'Très motivé.',
+    },
+  ]);
+
+  const resultat = await evaluationEngine.obtenirDetailEvaluationDossier(ENTITE_ACCECIT, 62);
+
+  assert.deepEqual(resultat, {
+    evaluation: {
+      id: 900,
+      resultatGlobal: 'valide',
+      orientation: 'envoi_formation',
+      postesCodes: ['nettoyage'],
+      commentaire: 'Bon candidat.',
+      dateEvaluation: new Date('2026-09-01T10:00:00Z'),
+      candidatPrenom: 'Sophie',
+      candidatNom: 'Martin',
+    },
+    questions: [
+      {
+        code: 'savoir_etre',
+        libelle: 'Savoir-être',
+        type_question: 'grille_qcu',
+        items: [{ code: 'ponctualite', libelle: 'Ponctualité', valeur: 'excellent' }],
+        valeur: null,
+      },
+      {
+        code: 'commentaire_libre',
+        libelle: 'Observations',
+        type_question: 'texte_libre',
+        items: [],
+        valeur: 'Très motivé.',
+      },
+    ],
+  });
+});
+
+test('obtenirDetailEvaluationDossier ne vérifie aucune appartenance à un formateur (Accueil/Coordination consulte le dossier de n\'importe quel formateur)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const trouverMock = t.mock.method(evaluationRepository, 'trouverEvaluationParDossier', async () => ({
+    id: 901,
+    resultat_global: 'invalide',
+    orientation: null,
+    postes_codes: [],
+    commentaire: 'Non concluant.',
+    date_evaluation: new Date('2026-09-02T10:00:00Z'),
+    candidat_prenom: 'Marc',
+    candidat_nom: 'Dupont',
+  }));
+  t.mock.method(evaluationRepository, 'listerReponsesEvaluation', async () => []);
+
+  const resultat = await evaluationEngine.obtenirDetailEvaluationDossier(ENTITE_ACCECIT, 62);
+
+  assert.equal(resultat.evaluation.id, 901);
+  assert.deepEqual(trouverMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 62]);
+});

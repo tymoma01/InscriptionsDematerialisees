@@ -201,11 +201,13 @@ button.page-validation__action:hover {
   border-color: var(--couleur-back-office);
 }
 
-/* Sections "Rendez-vous"/"Relances" (actions déplacées depuis TableauDeBordAccueil.jsx, audit
-   2026-08-19) — même carte que .page-validation__pieces/.gestion-transitions ci-dessus, pour
+/* Sections "Rendez-vous"/"Relances"/"Critères de validation du test" (cette dernière ajoutée le
+   2026-09-10, demande utilisateur — visible seulement une fois un test effectué, voir
+   Validation.jsx) — même carte que .page-validation__pieces/.gestion-transitions ci-dessus, pour
    rester visuellement cohérent avec le reste de la fiche dossier. */
 .page-validation__rendezvous,
-.page-validation__relances {
+.page-validation__relances,
+.page-validation__evaluation {
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto var(--espace-grand);
   padding: var(--espace-moyen);
@@ -216,7 +218,8 @@ button.page-validation__action:hover {
 }
 
 .page-validation__rendezvous h2,
-.page-validation__relances h2 {
+.page-validation__relances h2,
+.page-validation__evaluation h2 {
   color: var(--couleur-back-office);
   margin: 0 0 var(--espace-moyen);
 }

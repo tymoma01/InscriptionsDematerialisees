@@ -12,6 +12,8 @@ import ModaleMarquerEmbauche from '../../core/dossier/ModaleMarquerEmbauche';
 import { useSession } from '../../core/auth/useSession';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier, listerStatuts } from '../../services/dossierService';
+import { obtenirEvaluationDossier } from '../../services/evaluationService';
+import ContenuDetailEvaluation from '../../core/evaluation/ContenuDetailEvaluation';
 import { forcerStatut, marquerEmbauche } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import api from '../../services/api';
@@ -150,6 +152,15 @@ export default function Validation() {
   // (catch silencieux, comme là-bas).
   const [dossier, setDossier] = useState(null);
 
+  // Critères de validation du test (demande utilisateur 2026-09-10) — `null` tant qu'aucun test
+  // n'a encore été évalué pour ce dossier (voir backend evaluationEngine.obtenirDetailEvaluationDossier,
+  // qui renvoie `null` plutôt qu'une erreur dans ce cas normal/fréquent) : la section entière reste
+  // simplement absente du rendu ci-dessous, jamais un message "aucun test" ni une erreur affichée.
+  // erreurEvaluation distincte de `null` volontaire : un VRAI échec réseau/serveur (403, 500...)
+  // reste signalé, contrairement à l'absence normale d'évaluation.
+  const [evaluationDossier, setEvaluationDossier] = useState(null);
+  const [erreurEvaluation, setErreurEvaluation] = useState(null);
+
   // Changement de statut manuel/forcé (audit RBAC 2026-08-31) — statuts de l'entité et état de la
   // modale, seulement utiles pour Admin (voir estAdmin plus bas) : jamais chargés pour les autres
   // rôles, GET /dossiers/statuts leur étant de toute façon fermé côté serveur
@@ -173,6 +184,21 @@ export default function Validation() {
         if (!annule) setDossier(valeur);
       })
       .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [dossierId]);
+
+  useEffect(() => {
+    let annule = false;
+    setErreurEvaluation(null);
+    obtenirEvaluationDossier(dossierId)
+      .then((valeur) => {
+        if (!annule) setEvaluationDossier(valeur);
+      })
+      .catch((erreur) => {
+        if (!annule) setErreurEvaluation(erreur.response?.data?.erreur ?? 'Impossible de récupérer les critères de validation du test.');
+      });
     return () => {
       annule = true;
     };
@@ -264,6 +290,11 @@ export default function Validation() {
       .catch(() => {});
     listerPiecesJustificatives(dossierId)
       .then(setPieces)
+      .catch(() => {});
+    // Surface la section "Critères de validation du test" sans que l'agent ait besoin de
+    // recharger la page si le test vient d'être évalué pendant que cette fiche reste ouverte.
+    obtenirEvaluationDossier(dossierId)
+      .then(setEvaluationDossier)
       .catch(() => {});
   });
 
@@ -445,6 +476,27 @@ export default function Validation() {
             </p>
           )}
         </section>
+
+        {/* Section "Critères de validation du test" (demande utilisateur 2026-09-10) — visible
+            SEULEMENT une fois un test réellement effectué pour ce dossier (evaluationDossier
+            non `null`, voir l'effet de chargement plus haut) : pas de placeholder "aucun test"
+            pour les dossiers qui n'en sont pas encore là, c'est l'état normal de la grande
+            majorité des dossiers. Contenu affiché identique à l'écran "Détail d'une évaluation"
+            du formateur (ContenuDetailEvaluation.jsx, extrait le 2026-09-10) — mêmes libellés,
+            mêmes couleurs de verdict, pour qu'un agent qui aurait déjà vu l'un reconnaisse
+            l'autre. Erreur réseau/serveur affichée séparément de l'absence normale d'évaluation
+            (voir erreurEvaluation ci-dessus) — pas d'ErrorBoundary ici : contrairement aux autres
+            sections, celle-ci n'a tout simplement rien à afficher si le fetch échoue autrement
+            que par une vraie erreur (403/500), l'absence de section reste le comportement correct
+            dans ce cas comme dans le cas normal. */}
+        {erreurEvaluation && <p role="alert">{erreurEvaluation}</p>}
+        {evaluationDossier && (
+          <ErrorBoundary key={`evaluation-${dossierId}`} titre="Critères de validation du test">
+            <section className="page-validation__evaluation">
+              <ContenuDetailEvaluation detail={evaluationDossier} />
+            </section>
+          </ErrorBoundary>
+        )}
 
         {/* Section "Relances" (déplacée depuis TableauDeBordAccueil.jsx, audit 2026-08-19) — reste
             un lien vers Relances.jsx (historique + formulaire d'ajout, GestionRendezvous), pas une

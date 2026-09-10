@@ -434,17 +434,11 @@ async function listerHistorique(entite, formateurId) {
 // modifiable depuis cet écran. Vérifie que l'évaluation appartient bien à CE formateur (ou à un
 // admin) avant de renvoyer quoi que ce soit, même garde IDOR que listerQuestionnaire/
 // enregistrerEvaluation ci-dessus.
-async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, roleCode }) {
-  const bd = await db.obtenirKnex();
-  const evaluation = await evaluationRepository.trouverEvaluationParId(bd, entite.id, evaluationId);
-  if (!evaluation) {
-    throw new Error(`Évaluation "${evaluationId}" introuvable pour l'entité « ${entite.code} ».`);
-  }
-  if (evaluation.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
-    throw new Error("Cette évaluation n'appartient pas à ce formateur.");
-  }
-
-  const lignes = await evaluationRepository.listerReponsesEvaluation(bd, evaluationId);
+// Assemble la réponse { evaluation, questions } commune à obtenirDetailEvaluation (formateur/
+// inspecteur, sa propre évaluation) et obtenirDetailEvaluationDossier (accueil/coordination/admin,
+// n'importe quel dossier de l'entité) ci-dessous — extrait pour ne pas dupliquer la reconstruction
+// question/items depuis les lignes plates de evaluation_reponses (demande utilisateur 2026-09-10).
+function construireDetailEvaluation(evaluation, lignes) {
   const questionsParCode = new Map();
   for (const ligne of lignes) {
     if (!questionsParCode.has(ligne.question_code)) {
@@ -469,8 +463,8 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
       id: evaluation.id,
       resultatGlobal: evaluation.resultat_global,
       orientation: evaluation.orientation,
-      // Agrégé côté requête (evaluationRepository.trouverEvaluationParId, evaluations_postes,
-      // migration 040) — tableau vide si évaluation générique (aucun poste dédié).
+      // Agrégé côté requête (evaluationRepository.trouverEvaluationParId/ParDossier,
+      // evaluations_postes, migration 040) — tableau vide si évaluation générique (aucun poste dédié).
       postesCodes: evaluation.postes_codes ?? [],
       commentaire: evaluation.commentaire,
       dateEvaluation: evaluation.date_evaluation,
@@ -481,6 +475,38 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
   };
 }
 
+async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, roleCode }) {
+  const bd = await db.obtenirKnex();
+  const evaluation = await evaluationRepository.trouverEvaluationParId(bd, entite.id, evaluationId);
+  if (!evaluation) {
+    throw new Error(`Évaluation "${evaluationId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+  if (evaluation.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
+    throw new Error("Cette évaluation n'appartient pas à ce formateur.");
+  }
+
+  const lignes = await evaluationRepository.listerReponsesEvaluation(bd, evaluationId);
+  return construireDetailEvaluation(evaluation, lignes);
+}
+
+// Consultation par dossier (pas par evaluationId) pour Accueil/Coordination et Admin, depuis la
+// fiche dossier (Validation.jsx, demande utilisateur 2026-09-10 : "rendre visible les critères de
+// validation de test ... seulement quand un test a été effectué") — aucune vérification
+// d'appartenance à un formateur ici, contrairement à obtenirDetailEvaluation ci-dessus : ces deux
+// rôles consultent n'importe quel dossier de leur entité, pas seulement leurs propres évaluations
+// soumises (voir ROLES_CONSULTATION_DOSSIERS, dossiers.routes.js). `null` (pas une erreur) si
+// aucun test n'a encore été évalué pour ce dossier — c'est un état normal et fréquent (la plupart
+// des dossiers n'ont pas encore de test réalisé), pas une exception à traiter comme un échec côté
+// front (voir dossiers.routes.js, GET /:dossierId/evaluation).
+async function obtenirDetailEvaluationDossier(entite, dossierId) {
+  const bd = await db.obtenirKnex();
+  const evaluation = await evaluationRepository.trouverEvaluationParDossier(bd, entite.id, dossierId);
+  if (!evaluation) return null;
+
+  const lignes = await evaluationRepository.listerReponsesEvaluation(bd, evaluation.id);
+  return construireDetailEvaluation(evaluation, lignes);
+}
+
 module.exports = {
   marquerPresenceConfirmee,
   listerQuestionnaire,
@@ -488,4 +514,5 @@ module.exports = {
   enregistrerEvaluation,
   listerHistorique,
   obtenirDetailEvaluation,
+  obtenirDetailEvaluationDossier,
 };

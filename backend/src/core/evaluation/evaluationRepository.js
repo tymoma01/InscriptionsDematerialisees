@@ -166,6 +166,24 @@ function trouverEvaluationParId(bd, entiteId, evaluationId) {
     .first();
 }
 
+// Évaluation la plus RÉCENTE d'un dossier (jamais par rendezvous_id ici, contrairement à
+// trouverEvaluationParRendezvous ci-dessus) — un dossier peut avoir eu plusieurs rendez-vous de
+// test au fil du temps (replanification après invalidation/absence, voir STATUTS_REPLANIFIABLES,
+// Validation.jsx) et donc potentiellement plusieurs évaluations ; seule la dernière soumise a un
+// sens pour la consultation back-office (demande utilisateur 2026-09-10 : rendre les critères de
+// test visibles depuis la fiche dossier, une fois le test effectué). Même colonnes que
+// trouverEvaluationParId (postes_codes agrégé inclus) pour rester compatible avec
+// evaluationEngine.construireDetailEvaluation, qui construit le même objet de sortie pour les deux.
+function trouverEvaluationParDossier(bd, entiteId, dossierId) {
+  return bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .where({ 'evaluations.dossier_id': dossierId, 'dossiers.entite_id': entiteId })
+    .select('evaluations.*', 'candidats.prenom as candidat_prenom', 'candidats.nom as candidat_nom', bd.raw(SOUS_REQUETE_POSTES_CODES))
+    .orderBy('evaluations.date_evaluation', 'desc')
+    .first();
+}
+
 // Détail des réponses d'une évaluation déjà soumise, dans l'ordre du questionnaire — lecture
 // seule (voir DetailEvaluation.jsx), jamais utilisé pour reconstruire une grille modifiable.
 // leftJoin sur question_items_evaluation : nullable pour une question 'texte_libre' (une seule
@@ -252,6 +270,7 @@ module.exports = {
   listerQuestionsAvecItems,
   listerRendezvousAEvaluer,
   trouverEvaluationParRendezvous,
+  trouverEvaluationParDossier,
   trouverPostesDossier,
   enregistrerEvaluation,
   enregistrerPostesEvaluation,

@@ -8,6 +8,7 @@ const relanceService = require('../../core/dossier/relanceService');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
 const workflowEngine = require('../../core/workflow/workflowEngine');
 const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
+const evaluationEngine = require('../../core/evaluation/evaluationEngine');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -421,6 +422,27 @@ router.get('/:dossierId/inscription', requireRole(...ROLES_LECTURE_INSCRIPTION),
       return res.status(404).json({ erreur: `Dossier "${req.params.dossierId}" introuvable.` });
     }
     res.json(inscription);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// GET /api/dossiers/:dossierId/evaluation — critères/réponses de la dernière évaluation de test
+// soumise pour ce dossier (demande utilisateur 2026-09-10 : rendre les critères de validation de
+// test visibles depuis la fiche dossier "Étudier le dossier", Validation.jsx — seulement une fois
+// un test effectué). Réservée à ROLES_CONSULTATION_DOSSIERS (Accueil/Coordination, Admin) : les
+// routes /api/evaluations/* elles-mêmes leur sont fermées (voir evaluations.routes.js,
+// ROLES_EVALUATION, qui n'inclut ni ACCUEIL_COORDINATION), ce module leur reste donc autrement
+// inaccessible — cette route dédiée, scopée par dossierId plutôt que par evaluationId, comble ce
+// trou sans élargir l'accès de Formateur/Inspecteur aux évaluations d'un autre.
+// `null` (200, pas 404) si aucun test n'a encore été évalué pour ce dossier — c'est l'état normal
+// tant qu'aucun test n'a eu lieu, pas une erreur (voir evaluationEngine.obtenirDetailEvaluationDossier) :
+// au front de ne simplement rien afficher dans ce cas plutôt que de traiter ça comme un échec de
+// chargement.
+router.get('/:dossierId/evaluation', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+  try {
+    const detail = await evaluationEngine.obtenirDetailEvaluationDossier(req.entite, req.params.dossierId);
+    res.json(detail);
   } catch (erreur) {
     next(erreur);
   }
