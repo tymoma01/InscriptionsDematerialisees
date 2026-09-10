@@ -36,6 +36,30 @@
   color: var(--couleur-texte);
 }
 
+/* Commentaire obligatoire (audit 2026-09-10, "NSPP") — même style que .modale-resultat-formation
+   form/label/textarea (ModaleResultatFormation.css), qui suivait déjà ce composant-ci en modèle. */
+.modale-confirmation-non-realise form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+  margin-top: 1rem;
+}
+
+.modale-confirmation-non-realise__commentaire {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.modale-confirmation-non-realise__commentaire textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+  resize: vertical;
+}
+
 /* Bleu ACCECIT (--couleur-primaire) — même accent que la ligne de contact d'urgence de l'email de
    convocation (invitationTestService.js, construireMessageEmail) et
    .informations-inscription__valeur--accent (InformationsInscription.css). */
@@ -82,6 +106,13 @@
   color: #ffffff;
 }
 
-.modale-confirmation-non-realise__ok:hover {
+.modale-confirmation-non-realise__ok:hover:not(:disabled) {
   background-color: var(--couleur-back-office-hover);
+}
+
+/* Désactivé tant que le commentaire est vide (audit 2026-09-10, "NSPP") — même patron que
+   .modale-resultat-formation__actions button:disabled (ModaleResultatFormation.css). */
+.modale-confirmation-non-realise__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

@@ -157,25 +157,29 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   };
 
   // Aucune grille associée (contrairement à "Évaluer" — voir GrilleEvaluation.jsx) : une seule
-  // transition (voir workflowEngine.appliquerTransition), commentaire auto-généré comme le fait
-  // déjà CaptureTablette.jsx pour "Planifier un test", pas de formulaire à ouvrir pour si peu.
-  // Retrait local de la liste au succès : GET /evaluations/a-faire filtre déjà par dossier au
-  // statut test_planifie (voir evaluationRepository.listerRendezvousAEvaluer), donc ce rendez-vous
-  // ne réapparaîtrait de toute façon plus après un rechargement complet.
+  // transition (voir workflowEngine.appliquerTransition). Retrait local de la liste au succès :
+  // GET /evaluations/a-faire filtre déjà par dossier au statut test_planifie (voir
+  // evaluationRepository.listerRendezvousAEvaluer), donc ce rendez-vous ne réapparaîtrait de toute
+  // façon plus après un rechargement complet.
   // Confirmation avant action réelle (audit 2026-08-28) — modale custom
   // (ModaleConfirmationTestNonRealise, voir plus bas) plutôt que window.confirm() (choix initial) :
   // nécessaire pour mettre en couleur "#{dossierId} {candidat}" dans le message, ce qu'un confirm()
   // natif ne permet pas. Numéro de dossier + nom du candidat (audit 2026-08-28, ex. "#88 Ibrahima
   // CHERIF") : rdv.dossier_id/candidat_prenom/candidat_nom déjà disponibles sur cette même ligne
   // (voir leur affichage juste en dessous, .liste-evaluations__candidat).
-  const marquerNonRealise = async (rdv) => {
+  // commentaire (audit 2026-09-10, renommage du bouton en "NSPP") : saisi par l'agent dans la
+  // modale (ModaleConfirmationTestNonRealise, champ obligatoire), remplace le texte auto-généré
+  // (`Test non réalisé le {date}.`) envoyé jusqu'ici — même stockage que ce texte auto-généré
+  // (historique_statuts.commentaire, via workflowEngine.appliquerTransition), aucun changement
+  // backend.
+  const marquerNonRealise = async (rdv, commentaire) => {
     setRdvAConfirmer(null);
     setEnCoursId(rdv.id);
     setErreurAction(null);
     try {
       await appliquerTransition(rdv.dossier_id, {
         codeAction: 'test_non_realise',
-        commentaire: `Test non réalisé le ${FORMAT_DATE.format(new Date(rdv.date_heure))}.`,
+        commentaire,
         // Ferme aussi le rendez-vous lui-même (audit 2026-08-20, dossier #84) : sans ça, ce bouton
         // ne faisait avancer que le statut du dossier, laissant le rendez-vous affiché "Prévu"
         // avec Confirmer la présence/Marquer absent/Marquer annulé toujours actifs sur la fiche
@@ -289,11 +293,14 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               <button type="button" disabled={enCoursId === rdv.id} onClick={() => onSelectionner(rdv)}>
                 Évaluer
               </button>
-              {/* "Test non réalisé" (désistement) n'a plus de sens une fois test_realise (le test a
-                  déjà eu lieu) — condition conservée pour un dossier resté dans cet état avant ce
-                  correctif (voir commentaire ci-dessus), plus jamais atteignable pour un nouveau
-                  dossier depuis ce même correctif (test_realise n'est plus qu'un état transitoire,
-                  jamais persisté seul, voir enregistrerEvaluation). */}
+              {/* "NSPP" (libellé, audit 2026-09-10 — le statut/l'action métier restent
+                  "test_non_realise" partout ailleurs : Suivi des tests, fiche dossier, filtres,
+                  badge de statut "Manqué" inchangé lui aussi) : n'a plus de sens une fois
+                  test_realise (le test a déjà eu lieu) — condition conservée pour un dossier resté
+                  dans cet état avant le correctif du 2026-08-28 (voir commentaire ci-dessus), plus
+                  jamais atteignable pour un nouveau dossier depuis ce même correctif (test_realise
+                  n'est plus qu'un état transitoire, jamais persisté seul, voir
+                  enregistrerEvaluation). */}
               {rdv.dossier_statut_code !== 'test_realise' && (
                 <button
                   type="button"
@@ -301,7 +308,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
                   disabled={enCoursId === rdv.id}
                   onClick={() => setRdvAConfirmer(rdv)}
                 >
-                  {enCoursId === rdv.id ? 'Enregistrement...' : 'Test non réalisé'}
+                  {enCoursId === rdv.id ? 'Enregistrement...' : 'NSPP'}
                 </button>
               )}
             </li>
@@ -313,7 +320,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
       {rdvAConfirmer && (
         <ModaleConfirmationTestNonRealise
           rdv={rdvAConfirmer}
-          onConfirmer={() => marquerNonRealise(rdvAConfirmer)}
+          onConfirmer={(commentaire) => marquerNonRealise(rdvAConfirmer, commentaire)}
           onAnnuler={() => setRdvAConfirmer(null)}
         />
       )}
