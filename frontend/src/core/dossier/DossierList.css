@@ -125,6 +125,13 @@
      du contenu qui défile en dessous, même principe qu'un tableau à colonne figée classique. */
   border-right: 1px solid var(--couleur-bordure-legere);
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+  /* Resserrée (demande utilisateur 2026-09-10) pour libérer de la largeur pour Email/Poste
+     ci-dessous — un "Prénom Nom" un peu long repasse simplement à la ligne (déjà deux mots
+     séparés par un espace dans la plupart des cas, word-break en filet de sécurité pour un nom de
+     famille composé très long) plutôt que d'élargir cette colonne figée. */
+  max-width: 7rem;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* Colonne "N°", juste devant "Candidat" — sans elle, "Candidat" resterait figée à un `left` fixe
@@ -217,12 +224,15 @@
    (il ne casse qu'aux limites de mots existantes) — anywhere autorise la coupure n'importe où si
    besoin, seul moyen de faire tenir une adresse très longue dans cette largeur. */
 .dossier-list__colonne-email {
-  max-width: 11rem;
+  /* 13rem (resserré à 11rem à l'origine) — augmenté pour profiter de la largeur libérée par
+     "Candidat" ci-dessus (demande utilisateur 2026-09-10). */
+  max-width: 13rem;
   overflow-wrap: anywhere;
 }
 
 .dossier-list__colonne-poste {
-  max-width: 9rem;
+  /* 10.5rem (resserré à 9rem à l'origine) — même raison que Email ci-dessus. */
+  max-width: 10.5rem;
 }
 
 .dossier-list__actions {
