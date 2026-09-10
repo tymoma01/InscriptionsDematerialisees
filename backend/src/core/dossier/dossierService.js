@@ -130,14 +130,11 @@ const donneesInscriptionSchema = z
     charteMention: z.string().trim(),
     charteSignatureImage: z.string().min(1, 'La signature électronique est obligatoire'),
   })
-  // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
+  // Date de début obligatoire uniquement si le candidat n'est pas disponible immédiatement
+  // (date de fin facultative)
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
     message: "La date de début est obligatoire si la disponibilité n'est pas immédiate",
     path: ['dateDebut'],
-  })
-  .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateFin !== '', {
-    message: "La date de fin est obligatoire si la disponibilité n'est pas immédiate",
-    path: ['dateFin'],
   })
   // Précision obligatoire uniquement si "Autre" est coché parmi les langues parlées
   .refine((donnees) => !donnees.languesParlees.includes('autre') || donnees.autreLanguePrecision !== '', {
@@ -684,13 +681,11 @@ const modificationInscriptionSchema = z
     cas4MutuelleCollective: z.enum(OUI_NON),
     certificationAucuneDispense: z.boolean().default(false),
   })
+  // Date de début obligatoire uniquement si le candidat n'est pas disponible immédiatement
+  // (date de fin facultative)
   .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateDebut !== '', {
     message: "La date de début est obligatoire si la disponibilité n'est pas immédiate",
     path: ['dateDebut'],
-  })
-  .refine((donnees) => donnees.disponibiliteImmediate || donnees.dateFin !== '', {
-    message: "La date de fin est obligatoire si la disponibilité n'est pas immédiate",
-    path: ['dateFin'],
   })
   .refine((donnees) => !donnees.languesParlees.includes('autre') || donnees.autreLanguePrecision !== '', {
     message: 'Veuillez préciser la langue',

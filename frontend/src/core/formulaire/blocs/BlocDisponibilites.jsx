@@ -257,9 +257,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
           </div>
 
           <div>
-            <label htmlFor="dateFin">
-              Date de fin de disponibilité <span className="champ-obligatoire">*</span>
-            </label>
+            <label htmlFor="dateFin">Date de fin de disponibilité</label>
             <input id="dateFin" type="date" {...register('dateFin')} />
             {errors.dateFin && <p role="alert">{errors.dateFin.message}</p>}
           </div>

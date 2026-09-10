@@ -39,14 +39,11 @@ export const blocDisponibilitesSchema = z
     commentConnu: z.enum(COMMENT_CONNU, { required_error: 'Merci de préciser comment vous nous avez connu' }),
     commentConnuPrecision: z.string().trim().optional().default(''),
   })
-  // Date de début/fin obligatoires uniquement si le candidat n'est pas disponible immédiatement
+  // Date de début obligatoire uniquement si le candidat n'est pas disponible immédiatement
+  // (date de fin facultative)
   .refine((valeurs) => valeurs.disponibiliteImmediate || valeurs.dateDebut !== '', {
     message: "La date de début est obligatoire si la disponibilité n'est pas immédiate",
     path: ['dateDebut'],
-  })
-  .refine((valeurs) => valeurs.disponibiliteImmediate || valeurs.dateFin !== '', {
-    message: "La date de fin est obligatoire si la disponibilité n'est pas immédiate",
-    path: ['dateFin'],
   })
   // Précision obligatoire uniquement si "Autre" est coché parmi les langues parlées
   .refine((valeurs) => !valeurs.languesParlees.includes('autre') || valeurs.autreLanguePrecision !== '', {
