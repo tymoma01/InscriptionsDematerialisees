@@ -91,6 +91,19 @@ function mettreAJourStatutVerification(trx, pieceId, { statutVerification, dateV
     .then(([piece]) => piece);
 }
 
+// Renommage du nom affiché d'une pièce (demande utilisateur 2026-09-10, section "Autres" à
+// documents multiples — voir pieceJustificativeService.renommerPieceJustificative pour la
+// préservation de l'extension d'origine). Ne touche jamais reference_stockage : le fichier reste
+// au même emplacement chez le prestataire de stockage, seul le nom affiché/utilisé pour déduire
+// le Content-Type de l'aperçu change (voir pieces.routes.js, deviserContentType).
+function renommerPieceJustificativeParId(trx, pieceId, nomFichier) {
+  return trx('pieces_justificatives')
+    .where({ id: pieceId })
+    .update({ nom_fichier: nomFichier })
+    .returning('*')
+    .then(([piece]) => piece);
+}
+
 // Nombre de pièces déjà présentes pour ce dossier, tous types confondus, y compris les
 // 'orpheline' (audit 2026-08-21, workflow v5) — sert à pieceJustificativeService pour détecter
 // "est-ce la toute première pièce jamais capturée pour ce dossier ?" juste après un insert
@@ -136,6 +149,7 @@ module.exports = {
   listerPiecesParDossier,
   listerPiecesAvecReferenceParDossier,
   mettreAJourStatutVerification,
+  renommerPieceJustificativeParId,
   compterPiecesParDossier,
   toutesPiecesObligatoiresPresentes,
 };

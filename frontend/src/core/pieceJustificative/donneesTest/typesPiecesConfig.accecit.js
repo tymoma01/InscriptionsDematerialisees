@@ -12,6 +12,11 @@
 // CaptureTablette.jsx (piecesObligatoiresCompletes) — aucune validation backend ne s'appuie sur
 // ce flag (voir pieces.routes.js/pieceJustificativeService.js : `types_pieces` n'y sert qu'à
 // résoudre code/libelle, jamais à bloquer une transition).
+// multiple : true uniquement sur "autres" (migration 062, demande utilisateur 2026-09-10) — seul
+// type qui accepte autant de documents que voulu pour un même dossier, avec renommage possible de
+// chacun, au lieu du slot unique "Reprendre/Supprimer" des autres types (voir CaptureTablette.jsx,
+// bloc dédié aux types `multiple`). Toujours en dernier de la liste (convention, pas une
+// contrainte technique) : une entrée fourre-tout se lit naturellement après les pièces nommées.
 // captureUniquement : true uniquement sur photo_identite — masque le bouton "Choisir un fichier"
 // (PanneauCapture, CaptureTablette.jsx), pour empêcher l'upload d'une photo déjà existante. Revalidé
 // côté serveur (types_pieces.capture_uniquement, migration 048 — voir son commentaire pour les
@@ -33,4 +38,5 @@ export const typesPiecesConfigAccecitTest = [
   { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: false },
   { code: 'justificatif_experience', libelle: "Justificatif d'expériences", obligatoire: false },
   { code: 'attestation_mutuelle', libelle: 'Attestation Mutuelle', obligatoire: false },
+  { code: 'autres', libelle: 'Autres documents', obligatoire: false, multiple: true },
 ];

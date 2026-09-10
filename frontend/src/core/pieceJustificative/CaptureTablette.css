@@ -359,6 +359,47 @@
   font-size: 0.85rem;
 }
 
+/* Liste des documents d'un type `multiple` (ex. "Autres", CaptureTablette.jsx LigneAutrePiece) —
+   en retrait sous la ligne principale du type, même esprit que .capture-tablette__item-verso
+   (sous-bloc rattaché), mais sans bordure pointillée : ce n'est pas un complément optionnel
+   unique, mais une vraie liste qui peut compter plusieurs éléments. */
+.capture-tablette__liste-autres {
+  list-style: none;
+  margin: var(--espace-petit) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+  padding-left: calc(1.5rem + var(--espace-petit));
+}
+
+.capture-tablette__item-autre {
+  padding: var(--espace-petit);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.capture-tablette__item-autre-ligne {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.capture-tablette__nom-fichier-autre {
+  flex: 1 1 auto;
+  color: var(--couleur-texte);
+  word-break: break-word;
+}
+
+.capture-tablette__champ-renommage {
+  flex: 1 1 auto;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font-size: 0.95rem;
+}
+
 /* Écran de confirmation une fois le test planifié — même esprit que
    pages/accueil/ConfirmationInscription.css (message clair + action de sortie unique). */
 .capture-tablette__confirmation {

@@ -3,6 +3,7 @@ import {
   listerPiecesJustificatives,
   uploaderPieceJustificative,
   supprimerPieceJustificative,
+  renommerPieceJustificative,
 } from '../../services/pieceJustificativeService';
 import { useSession } from '../auth/useSession';
 import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
@@ -48,6 +49,25 @@ function fichierAccepte(fichier) {
   return PREFIXES_MIME_ACCEPTES.some((prefixe) => fichier.type.startsWith(prefixe)) && fichier.size <= TAILLE_MAX_OCTETS;
 }
 
+// Un type `multiple` (ex. "autres", typesPiecesConfig.accecit.js, migration 062 côté back) peut
+// avoir PLUSIEURS pièces pour un même dossier — contrairement à piecesCapturees (une seule ligne,
+// la plus récente, par code) qui suffit aux types classiques. Regroupées à part plutôt que dans la
+// même Map : garder piecesCapturees à sa forme d'origine (un seul objet par code) évite de casser
+// tout le reste du composant (nombreCapturees, calculerPiecesObligatoiresCompletes...) qui suppose
+// déjà cette forme. Ordre conservé tel que reçu (date_upload desc, voir
+// pieceJustificativeRepository.listerPiecesParDossier) : le document le plus récent en tête.
+function construirePiecesMultiples(pieces, typesPieces) {
+  const codesMultiples = new Set(typesPieces.filter((type) => type.multiple).map((type) => type.code));
+  const parType = new Map();
+  pieces.forEach((piece) => {
+    if (!codesMultiples.has(piece.type_piece_code)) return;
+    const liste = parType.get(piece.type_piece_code) ?? [];
+    liste.push(piece);
+    parType.set(piece.type_piece_code, liste);
+  });
+  return parType;
+}
+
 // Écran de prise de pièces justificatives par l'accueil (CLAUDE.md, étape 3 du parcours
 // fonctionnel) : pour un dossier candidat donné, une pièce à la fois, capturée à la caméra de la
 // tablette ou choisie depuis un fichier existant, avec aperçu avant envoi.
@@ -79,6 +99,10 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   // codes déjà vus, on ne garde que la ligne la plus récente par type même quand plusieurs lignes
   // partagent le même type_piece_code (voir diagnostic pièces dupliquées).
   const [piecesCapturees, setPiecesCapturees] = useState(() => new Map());
+  // Types `multiple` uniquement (voir construirePiecesMultiples ci-dessus) — Map<code, Array<piece>>,
+  // à part de piecesCapturees plutôt que d'y forcer un tableau (garde le reste du composant, qui
+  // suppose un seul objet par code, inchangé pour les types classiques).
+  const [piecesMultiplesParType, setPiecesMultiplesParType] = useState(() => new Map());
   const [chargementListe, setChargementListe] = useState(true);
   const [erreurListe, setErreurListe] = useState(null);
   const [typeSelectionne, setTypeSelectionne] = useState(null);
@@ -89,6 +113,14 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   const [planificationOuverte, setPlanificationOuverte] = useState(false);
   const [planificationReussie, setPlanificationReussie] = useState(null); // { dateHeure, formateurNom }
 
+  // Partagée entre le chargement initial ci-dessous et rafraichirPiecesMultiples plus bas (appelée
+  // après l'ajout/la suppression d'un document "Autres") : les deux ont besoin de reconstruire les
+  // deux Maps à partir de la même réponse serveur, jamais l'une sans l'autre.
+  const appliquerPiecesRecues = (pieces) => {
+    setPiecesCapturees(construirePiecesCapturees(pieces));
+    setPiecesMultiplesParType(construirePiecesMultiples(pieces, typesPieces));
+  };
+
   useEffect(() => {
     let annule = false;
     setChargementListe(true);
@@ -96,7 +128,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     listerPiecesJustificatives(dossierId)
       .then((pieces) => {
         if (annule) return;
-        setPiecesCapturees(construirePiecesCapturees(pieces));
+        appliquerPiecesRecues(pieces);
       })
       .catch((erreur) => {
         if (!annule) {
@@ -109,7 +141,23 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     return () => {
       annule = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- appliquerPiecesRecues capture
+    // typesPieces (prop stable pour la durée de vie de l'écran, voir VerificationPieces.jsx), pas
+    // besoin de la lister ici : seul dossierId doit redéclencher ce chargement.
   }, [dossierId]);
+
+  // Rechargement complet plutôt qu'une mise à jour optimiste (contrairement à gererEnvoiReussi
+  // pour les types classiques, qui n'a besoin que de {id, type_piece_code}) : afficher chaque
+  // document "Autres" avec son VRAI nom de fichier exige de relire la réponse serveur — le panneau
+  // de capture (PanneauCapture ci-dessous) ne remonte que l'id de la pièce créée, pas son nom.
+  const rafraichirPiecesMultiples = () => {
+    setErreurListe(null);
+    return listerPiecesJustificatives(dossierId)
+      .then(appliquerPiecesRecues)
+      .catch((erreur) => {
+        setErreurListe(erreur.response?.data?.erreur ?? 'Impossible de récupérer les pièces déjà envoyées pour ce dossier.');
+      });
+  };
 
   // Complément optionnel "verso" (ex. carte_identite -> carte_identite_verso, voir
   // typesPiecesConfig.accecit.js, propriété codeVerso) : un vrai type de pièce côté base/stockage
@@ -136,9 +184,15 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     [typesEtVersos, typeApercu],
   );
 
-  const gererEnvoiReussi = (typePieceCode, pieceId) => {
-    setPiecesCapturees((precedent) => new Map(precedent).set(typePieceCode, { id: pieceId, type_piece_code: typePieceCode }));
+  const gererEnvoiReussi = (typePieceCode, pieceId, estMultiple) => {
     setTypeSelectionne(null);
+    if (estMultiple) {
+      // Jamais d'ajout optimiste ici : voir rafraichirPiecesMultiples ci-dessus pour la raison
+      // (le nom réel du fichier n'est connu que du serveur à ce stade).
+      rafraichirPiecesMultiples();
+      return;
+    }
+    setPiecesCapturees((precedent) => new Map(precedent).set(typePieceCode, { id: pieceId, type_piece_code: typePieceCode }));
   };
 
   // statutCode absent tant que la page appelante n'a pas fini de charger le dossier (voir
@@ -181,7 +235,53 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     }
   };
 
-  const nombreCapturees = typesPieces.filter((type) => piecesCapturees.has(type.code)).length;
+  // Suppression d'UN document précis parmi ceux d'un type `multiple` (voir gererSuppression
+  // ci-dessus, qui supprime "la" pièce d'un type classique — ici il peut y en avoir plusieurs,
+  // identifiées par pieceId, pas par type_piece_code seul). suppressionEnCours partagée avec
+  // gererSuppression (clé `piece-${id}` plutôt que le code du type, jamais ambiguë avec un code de
+  // type classique).
+  const gererSuppressionAutrePiece = async (piece) => {
+    const confirme = window.confirm('Êtes-vous sûr de vouloir supprimer ce document ? Cette action est irréversible.');
+    if (!confirme) return;
+
+    setErreurSuppression(null);
+    setSuppressionEnCours(`piece-${piece.id}`);
+    try {
+      await supprimerPieceJustificative(dossierId, piece.id);
+      setPiecesMultiplesParType((precedent) => {
+        const suivant = new Map(precedent);
+        suivant.set(
+          piece.type_piece_code,
+          (suivant.get(piece.type_piece_code) ?? []).filter((p) => p.id !== piece.id),
+        );
+        return suivant;
+      });
+    } catch (erreur) {
+      setErreurSuppression(erreur.response?.data?.erreur ?? 'Impossible de supprimer ce document. Merci de réessayer.');
+    } finally {
+      setSuppressionEnCours(null);
+    }
+  };
+
+  // Renommage (voir LigneAutrePiece plus bas, seul consommateur) : mise à jour optimiste locale de
+  // l'entrée renommée dans piecesMultiplesParType plutôt qu'un rafraichirPiecesMultiples complet —
+  // le serveur renvoie directement la pièce à jour (voir pieceJustificativeService.renommerPieceJustificative,
+  // front), pas besoin de la relire.
+  const gererRenommagePiece = async (piece, nouveauNom) => {
+    const pieceRenommee = await renommerPieceJustificative(dossierId, piece.id, nouveauNom);
+    setPiecesMultiplesParType((precedent) => {
+      const suivant = new Map(precedent);
+      suivant.set(
+        piece.type_piece_code,
+        (suivant.get(piece.type_piece_code) ?? []).map((p) => (p.id === piece.id ? { ...p, nom_fichier: pieceRenommee.nom_fichier } : p)),
+      );
+      return suivant;
+    });
+  };
+
+  const nombreCapturees = typesPieces.filter(
+    (type) => (type.multiple ? (piecesMultiplesParType.get(type.code)?.length ?? 0) > 0 : piecesCapturees.has(type.code)),
+  ).length;
 
   // Seules les pièces obligatoires conditionnent le bouton de planification (voir
   // premierePlanificationTest.js — extrait de cet écran, audit 2026-08-25, pour que Tests.jsx
@@ -216,6 +316,73 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
 
       <ul className="capture-tablette__liste">
         {typesPieces.map((type) => {
+          // Type `multiple` (ex. "autres") : rendu entièrement séparé du reste de cette boucle,
+          // jamais le slot unique dejaCapturee/Reprendre/Supprimer d'un type classique — un
+          // nombre libre de documents, chacun listé et renommable (voir LigneAutrePiece plus bas).
+          if (type.multiple) {
+            const piecesDuType = piecesMultiplesParType.get(type.code) ?? [];
+            return (
+              <li key={type.code} className="capture-tablette__item">
+                <div className="capture-tablette__item-principale">
+                  <span
+                    className={
+                      piecesDuType.length > 0
+                        ? 'capture-tablette__statut capture-tablette__statut--ok'
+                        : 'capture-tablette__statut'
+                    }
+                    aria-hidden="true"
+                  >
+                    {piecesDuType.length > 0 ? '✓' : ''}
+                  </span>
+                  <span className="capture-tablette__libelle">
+                    {type.libelle}
+                    {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
+                  </span>
+                  {/* Toujours affiché tant que le dossier reste modifiable, jamais masqué une
+                      fois un premier document ajouté — contrairement au bouton "Capturer" d'un
+                      type classique, qui disparaît dès dejaCapturee (ici, il n'y a jamais de
+                      slot unique à remplacer). */}
+                  <button
+                    type="button"
+                    className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
+                    onClick={() => {
+                      setTypeSelectionne(type.code);
+                      setTypeApercu(null);
+                    }}
+                    disabled={!dossierPiecesModifiables}
+                  >
+                    Ajouter un document
+                  </button>
+                </div>
+
+                {piecesDuType.length > 0 && (
+                  <ul className="capture-tablette__liste-autres">
+                    {piecesDuType.map((piece) => (
+                      <LigneAutrePiece
+                        key={piece.id}
+                        dossierId={dossierId}
+                        piece={piece}
+                        modifiable={dossierPiecesModifiables}
+                        suppressionEnCours={suppressionEnCours === `piece-${piece.id}`}
+                        onSupprimer={() => gererSuppressionAutrePiece(piece)}
+                        onRenommer={(nouveauNom) => gererRenommagePiece(piece, nouveauNom)}
+                      />
+                    ))}
+                  </ul>
+                )}
+
+                {typeSelectionne === type.code && (
+                  <PanneauCapture
+                    dossierId={dossierId}
+                    type={type}
+                    onAnnuler={() => setTypeSelectionne(null)}
+                    onEnvoiReussi={(pieceId) => gererEnvoiReussi(type.code, pieceId, true)}
+                  />
+                )}
+              </li>
+            );
+          }
+
           const dejaCapturee = piecesCapturees.has(type.code);
           const versoDejaCapture = type.codeVerso ? piecesCapturees.has(type.codeVerso) : false;
           return (
@@ -691,5 +858,107 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Une ligne d'un document du type "autres" (type `multiple`, voir CaptureTablette ci-dessus) :
+// nom affiché (renommable), Voir (aperçu inline, réutilise PanneauApercuPiece comme le reste de
+// l'écran) et Supprimer. État d'édition/aperçu gardé localement à ce composant plutôt que dans
+// CaptureTablette (typeApercu/typeSelectionne, partagés par TOUTE la liste des types classiques) :
+// contrairement à un type classique, plusieurs documents du MÊME type peuvent être ouverts en
+// aperçu ou en renommage en parallèle, chacun avec son propre état — un seul état partagé au
+// niveau de CaptureTablette obligerait à fermer l'un pour en ouvrir un autre.
+function LigneAutrePiece({ dossierId, piece, modifiable, suppressionEnCours, onSupprimer, onRenommer }) {
+  const [apercuOuvert, setApercuOuvert] = useState(false);
+  const [renommageOuvert, setRenommageOuvert] = useState(false);
+  const [valeurRenommage, setValeurRenommage] = useState(piece.nom_fichier);
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const [erreurRenommage, setErreurRenommage] = useState(null);
+
+  const ouvrirRenommage = () => {
+    setValeurRenommage(piece.nom_fichier);
+    setErreurRenommage(null);
+    setRenommageOuvert(true);
+  };
+
+  const validerRenommage = async () => {
+    const nomNettoye = valeurRenommage.trim();
+    if (!nomNettoye) {
+      setErreurRenommage('Le nom ne peut pas être vide.');
+      return;
+    }
+    setEnregistrementEnCours(true);
+    setErreurRenommage(null);
+    try {
+      await onRenommer(nomNettoye);
+      setRenommageOuvert(false);
+    } catch (erreur) {
+      setErreurRenommage(erreur.response?.data?.erreur ?? 'Impossible de renommer ce document. Merci de réessayer.');
+    } finally {
+      setEnregistrementEnCours(false);
+    }
+  };
+
+  return (
+    <li className="capture-tablette__item-autre">
+      <div className="capture-tablette__item-autre-ligne">
+        {renommageOuvert ? (
+          <>
+            <input
+              type="text"
+              className="capture-tablette__champ-renommage"
+              value={valeurRenommage}
+              onChange={(evenement) => setValeurRenommage(evenement.target.value)}
+              disabled={enregistrementEnCours}
+              aria-label="Nouveau nom du document"
+            />
+            <div className="capture-tablette__actions-piece">
+              <button type="button" onClick={validerRenommage} disabled={enregistrementEnCours}>
+                {enregistrementEnCours ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+              <button
+                type="button"
+                className="capture-tablette__bouton-action capture-tablette__bouton-action--secondaire capture-tablette__bouton-action--compacte"
+                onClick={() => setRenommageOuvert(false)}
+                disabled={enregistrementEnCours}
+              >
+                Annuler
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="capture-tablette__nom-fichier-autre">{piece.nom_fichier}</span>
+            <div className="capture-tablette__actions-piece">
+              <button
+                type="button"
+                className="capture-tablette__bouton-voir"
+                onClick={() => setApercuOuvert((precedent) => !precedent)}
+                disabled={!modifiable}
+              >
+                Voir
+              </button>
+              <button type="button" onClick={ouvrirRenommage} disabled={!modifiable}>
+                Renommer
+              </button>
+              <button
+                type="button"
+                className="capture-tablette__bouton-supprimer"
+                onClick={onSupprimer}
+                disabled={!modifiable || suppressionEnCours}
+              >
+                {suppressionEnCours ? 'Suppression…' : 'Supprimer'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {erreurRenommage && <p role="alert">{erreurRenommage}</p>}
+
+      {apercuOuvert && (
+        <PanneauApercuPiece dossierId={dossierId} libelle={piece.nom_fichier} piece={piece} onFermer={() => setApercuOuvert(false)} />
+      )}
+    </li>
   );
 }

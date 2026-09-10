@@ -26,6 +26,15 @@ export async function uploaderPieceJustificative(dossierId, { typePieceCode, fic
   return data;
 }
 
+// Renommage du nom affiché d'un document (section "Autres" à documents multiples,
+// CaptureTablette.jsx) — même route PATCH que le statut de vérification (recruteur/back-office,
+// pas encore appelée depuis ce front), corps distinct : { nomFichier } plutôt que
+// { statutVerification } (voir backend/src/api/routes/pieces.routes.js, patchBodySchema).
+export async function renommerPieceJustificative(dossierId, pieceId, nomFichier) {
+  const { data } = await api.patch(`/dossiers/${dossierId}/pieces/${pieceId}`, { nomFichier });
+  return data;
+}
+
 // Le back refuse déjà la suppression si le dossier n'est plus en_attente_pieces (voir
 // pieceJustificativeService.js, STATUTS_SUPPRESSION_AUTORISES) — CaptureTablette.jsx applique la
 // même règle en amont pour ne même pas afficher le bouton, mais ce service ne la duplique pas.

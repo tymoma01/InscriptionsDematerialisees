@@ -36,6 +36,11 @@ const TYPES_PIECES_ACCECIT = [
   { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: false },
   { code: 'justificatif_experience', libelle: "Justificatif d'expérience", obligatoire: false },
   { code: 'attestation_mutuelle', libelle: 'Attestation mutuelle', obligatoire: false },
+  // multiple : true (migration 062, demande utilisateur 2026-09-10) — seul type qui accepte
+  // plusieurs documents pour un même dossier, sans slot unique remplacé via "Reprendre" (voir
+  // pieceJustificativeService.uploaderPieceJustificative). Pas de codeVerso/capture_uniquement :
+  // aucun des deux n'a de sens pour une liste à taille libre.
+  { code: 'autres', libelle: 'Autres documents', obligatoire: false, multiple: true },
 ];
 
 async function seedTypesPieces(codeEntite) {

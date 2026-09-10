@@ -338,6 +338,70 @@ test('uploaderPieceJustificative uploade vers le connecteur puis enregistre la r
   });
 });
 
+// Type `multiple` (migration 062, section "Autres" à documents multiples, demande utilisateur
+// 2026-09-10) : contrairement à un type classique (test "rejette le remplacement..." plus haut),
+// un dossier hors STATUTS_UPLOAD_AUTORISES ne doit JAMAIS bloquer un nouvel upload sur ce type,
+// même si une pièce de ce type existe déjà — chaque upload y est un ajout, jamais un remplacement.
+test("uploaderPieceJustificative autorise toujours un nouvel ajout sur un type `multiple`, même hors en_attente_pieces et même si une pièce de ce type existe déjà", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    statut_code: 'invalide',
+    statut_libelle: 'Invalidé',
+    date_creation: DATE_CREATION_DOSSIER_TEST,
+    candidat_nom: 'Martin',
+    candidat_prenom: 'Sophie',
+  }));
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 8, code: 'autres', multiple: true }));
+  const trouverParDossierEtTypeMock = t.mock.method(
+    pieceJustificativeRepository,
+    'trouverPieceParDossierEtType',
+    async () => ({ id: 55, statut_verification: 'valide' }),
+  );
+  t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-autres');
+  t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 300);
+
+  const resultat = await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 42,
+    typePieceCode: 'autres',
+    nomFichier: 'document.pdf',
+    contenu: Buffer.from('x'),
+    uploadedBy: 1,
+  });
+
+  assert.deepEqual(resultat, { pieceId: 300, referenceStockage: 'ref-stockage-autres' });
+  // La garde dejaPresente ne doit même pas être consultée pour un type `multiple` (voir
+  // pieceJustificativeService.js) : sans objet, elle ne fait que ralentir un chemin qui accepte de
+  // toute façon toujours l'ajout.
+  assert.equal(trouverParDossierEtTypeMock.mock.calls.length, 0);
+});
+
+// Sans l'horodatage ajouté au nom transmis au connecteur pour un type `multiple`, deux documents
+// "Autres" partageant le même nom d'origine (ex. deux photos caméra, toutes deux "autres.jpg")
+// écraseraient silencieusement le même chemin OneDrive (PUT .../content remplace l'existant, voir
+// graphUploadFichier.js) malgré deux lignes distinctes en base — voir le commentaire dans
+// pieceJustificativeService.js.
+test('uploaderPieceJustificative suffixe le nom transmis au connecteur par un horodatage pour un type `multiple` (jamais pour un type classique)', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverTypePieceParCode', async () => ({ id: 8, code: 'autres', multiple: true }));
+  const uploadMock = t.mock.method(azureOneDriveConnector, 'upload', async () => 'ref-stockage-autres');
+  const enregistrerMock = t.mock.method(pieceJustificativeRepository, 'enregistrerPieceJustificative', async () => 301);
+
+  await service.uploaderPieceJustificative(ENTITE_ACCECIT, {
+    dossierId: 42,
+    typePieceCode: 'autres',
+    nomFichier: 'document.pdf',
+    contenu: Buffer.from('x'),
+    uploadedBy: 1,
+  });
+
+  const nomTransmisAuConnecteur = uploadMock.mock.calls[0].arguments[1].nom;
+  assert.match(nomTransmisAuConnecteur, /^autres_\d+_document\.pdf$/);
+  // nomFichier stocké en base reste le nom d'origine, sans horodatage — seul le chemin de
+  // stockage change (même principe que le préfixe typePieceCode, voir test existant plus haut).
+  assert.equal(enregistrerMock.mock.calls[0].arguments[1].nomFichier, 'document.pdf');
+});
+
 test('telechargerPieceJustificative rejette si la pièce est introuvable en base', async (t) => {
   mockerKnex(t);
   t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => undefined);
@@ -561,4 +625,79 @@ test('mettreAJourStatutVerificationPieceJustificative met à jour le statut et p
   assert.equal(pieceIdAppel, 99);
   assert.equal(donneesAppel.statutVerification, 'valide');
   assert.ok(donneesAppel.dateVerification instanceof Date);
+});
+
+// renommerPieceJustificative (demande utilisateur 2026-09-10, section "Autres" à documents
+// multiples) — renomme le nom AFFICHÉ d'une pièce sans jamais toucher à sa référence de stockage.
+test('renommerPieceJustificative rejette un nom vide (ou uniquement des espaces)', async (t) => {
+  mockerKnex(t);
+  await assert.rejects(
+    () => service.renommerPieceJustificative(ENTITE_ACCECIT, 99, '   '),
+    /Le nom du document ne peut pas être vide/,
+  );
+});
+
+test('renommerPieceJustificative rejette si la pièce est introuvable en base', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => undefined);
+
+  await assert.rejects(
+    () => service.renommerPieceJustificative(ENTITE_ACCECIT, 999, 'Nouveau nom'),
+    /Pièce justificative "999" introuvable/,
+  );
+});
+
+// pieces.routes.js déduit le Content-Type de l'aperçu depuis l'extension de nom_fichier
+// (deviserContentType) : un renommage qui la perdrait casserait silencieusement l'aperçu inline
+// sans jamais toucher le fichier réel — voir le commentaire de renommerPieceJustificative.
+test("renommerPieceJustificative préserve l'extension d'origine même si l'agent ne la retape pas", async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({
+    id: 99,
+    nom_fichier: 'document.pdf',
+  }));
+  const renommerMock = t.mock.method(
+    pieceJustificativeRepository,
+    'renommerPieceJustificativeParId',
+    async (trx, pieceId, nomFichier) => ({ id: pieceId, nom_fichier: nomFichier }),
+  );
+
+  const resultat = await service.renommerPieceJustificative(ENTITE_ACCECIT, 99, 'Attestation Pôle Emploi');
+
+  assert.deepEqual(resultat, { id: 99, nom_fichier: 'Attestation Pôle Emploi.pdf' });
+  assert.equal(renommerMock.mock.calls[0].arguments[2], 'Attestation Pôle Emploi.pdf');
+});
+
+test("renommerPieceJustificative n'ajoute pas l'extension en double si l'agent la retape lui-même (insensible à la casse)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({
+    id: 99,
+    nom_fichier: 'document.PDF',
+  }));
+  const renommerMock = t.mock.method(
+    pieceJustificativeRepository,
+    'renommerPieceJustificativeParId',
+    async (trx, pieceId, nomFichier) => ({ id: pieceId, nom_fichier: nomFichier }),
+  );
+
+  await service.renommerPieceJustificative(ENTITE_ACCECIT, 99, 'attestation.pdf');
+
+  assert.equal(renommerMock.mock.calls[0].arguments[2], 'attestation.pdf');
+});
+
+test('renommerPieceJustificative garde le nom tel quel si le fichier d\'origine n\'a pas d\'extension', async (t) => {
+  mockerKnex(t);
+  t.mock.method(pieceJustificativeRepository, 'trouverPieceJustificativeParId', async () => ({
+    id: 99,
+    nom_fichier: 'document-sans-extension',
+  }));
+  const renommerMock = t.mock.method(
+    pieceJustificativeRepository,
+    'renommerPieceJustificativeParId',
+    async (trx, pieceId, nomFichier) => ({ id: pieceId, nom_fichier: nomFichier }),
+  );
+
+  await service.renommerPieceJustificative(ENTITE_ACCECIT, 99, 'Nouveau nom');
+
+  assert.equal(renommerMock.mock.calls[0].arguments[2], 'Nouveau nom');
 });

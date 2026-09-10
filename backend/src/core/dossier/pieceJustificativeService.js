@@ -122,12 +122,17 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
           `(la charte doit être signée avant toute pièce justificative).`,
       );
     }
-    const dejaPresente = await pieceJustificativeRepository.trouverPieceParDossierEtType(bd, dossierId, typePiece.id);
-    if (dejaPresente && dejaPresente.statut_verification !== 'orpheline') {
-      throw new ErreurPieceJustificativeInvalide(
-        `Impossible de remplacer une pièce justificative déjà capturée pour le dossier "${dossierId}" : le dossier n'est ` +
-          `plus au statut "en attente de pièces".`,
-      );
+    // Un type `multiple` (ex. "Autres", migration 062) n'a jamais de remplacement à bloquer ici :
+    // chaque upload y est TOUJOURS un ajout, jamais une reprise d'un slot unique existant — cette
+    // garde n'a de sens que pour les types classiques (une seule pièce active à la fois).
+    if (!typePiece.multiple) {
+      const dejaPresente = await pieceJustificativeRepository.trouverPieceParDossierEtType(bd, dossierId, typePiece.id);
+      if (dejaPresente && dejaPresente.statut_verification !== 'orpheline') {
+        throw new ErreurPieceJustificativeInvalide(
+          `Impossible de remplacer une pièce justificative déjà capturée pour le dossier "${dossierId}" : le dossier n'est ` +
+            `plus au statut "en attente de pièces".`,
+        );
+      }
     }
   }
 
@@ -156,7 +161,17 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   // laissant une pièce avec une référence qui pointe en réalité sur le fichier de l'autre (bug
   // constaté en pratique, dossier 83, 2026-07-31 — voir aussi le correctif de tolérance sur les
   // suppressions 404 dans azureOneDriveConnector.js, qui absorbe les cas déjà en base).
-  const referenceStockage = await connecteur.upload(dossierInfo, { nom: `${typePieceCode}_${nomFichier}`, contenu });
+  //
+  // Un type `multiple` (ex. "Autres", migration 062) a en plus besoin d'un horodatage dans le nom
+  // transmis au connecteur : contrairement aux types classiques (un seul upload actif par type),
+  // PLUSIEURS pièces du MÊME type peuvent coexister ici avec potentiellement le même nom d'origine
+  // (ex. deux photos prises à la caméra, toutes deux "autres.jpg") — sans ce suffixe, la seconde
+  // écraserait silencieusement la première au même chemin OneDrive (PUT .../content remplace
+  // l'existant, voir graphUploadFichier.js), malgré deux lignes distinctes en base. Absent pour un
+  // type classique : le préfixe par typePieceCode suffit déjà à éviter toute collision là où un
+  // seul upload actif existe à la fois.
+  const nomStockage = typePiece.multiple ? `${typePieceCode}_${Date.now()}_${nomFichier}` : `${typePieceCode}_${nomFichier}`;
+  const referenceStockage = await connecteur.upload(dossierInfo, { nom: nomStockage, contenu });
 
   const pieceId = await pieceJustificativeRepository.enregistrerPieceJustificative(bd, {
     dossierId,
@@ -397,6 +412,45 @@ async function mettreAJourStatutVerificationPieceJustificative(entite, pieceId, 
   });
 }
 
+// Extension (avec le point, ex. ".pdf") du nom de fichier d'origine, chaîne vide si absente —
+// utilisée par renommerPieceJustificative ci-dessous pour ne jamais perdre l'extension réelle du
+// fichier stocké, quoi que l'agent tape comme nouveau nom.
+function extraireExtension(nomFichier) {
+  const index = nomFichier.lastIndexOf('.');
+  return index === -1 ? '' : nomFichier.slice(index);
+}
+
+// Renomme le nom AFFICHÉ d'une pièce déjà capturée (demande utilisateur 2026-09-10, section
+// "Autres" à documents multiples — un agent doit pouvoir donner un nom clair à chaque document
+// plutôt que garder le nom d'origine du fichier choisi/capturé). Ne touche jamais au fichier réel
+// ni à sa référence de stockage, seulement à la métadonnée `nom_fichier` en base.
+//
+// Générique (pas limité aux types `multiple`) : rien n'empêche de renommer une pièce classique,
+// mais seule la section "Autres" expose ce bouton côté front pour l'instant (CaptureTablette.jsx)
+// — les autres types gardent un nom déjà clair (celui du type de pièce).
+//
+// Extension d'origine TOUJOURS préservée, quoi que l'agent saisisse : pieces.routes.js déduit le
+// Content-Type de l'aperçu (`deviserContentType`) depuis l'extension de `nom_fichier` — un
+// renommage qui la perdrait casserait silencieusement l'aperçu inline (retour à un octet-stream
+// générique) sans jamais toucher le fichier réel, jamais concerné par ce risque.
+async function renommerPieceJustificative(entite, pieceId, nouveauNom) {
+  const nomNettoye = typeof nouveauNom === 'string' ? nouveauNom.trim() : '';
+  if (!nomNettoye) {
+    throw new ErreurPieceJustificativeInvalide('Le nom du document ne peut pas être vide.');
+  }
+
+  const bd = await db.obtenirKnex();
+  const piece = await pieceJustificativeRepository.trouverPieceJustificativeParId(bd, entite.id, pieceId);
+  if (!piece) {
+    throw new ErreurPieceJustificativeInvalide(`Pièce justificative "${pieceId}" introuvable.`);
+  }
+
+  const extension = extraireExtension(piece.nom_fichier);
+  const nomFinal = extension && !nomNettoye.toLowerCase().endsWith(extension.toLowerCase()) ? `${nomNettoye}${extension}` : nomNettoye;
+
+  return pieceJustificativeRepository.renommerPieceJustificativeParId(bd, pieceId, nomFinal);
+}
+
 module.exports = {
   uploaderPieceJustificative,
   telechargerPieceJustificative,
@@ -405,5 +459,6 @@ module.exports = {
   listerPiecesJustificatives,
   obtenirUrlTemporairePieceJustificative,
   mettreAJourStatutVerificationPieceJustificative,
+  renommerPieceJustificative,
   ErreurPieceJustificativeInvalide,
 };

@@ -65,6 +65,16 @@ const statutVerificationBodySchema = z.object({
   statutVerification: z.enum(['valide', 'rejete']),
 });
 
+// Renommage du nom affiché d'un document (demande utilisateur 2026-09-10, section "Autres" à
+// documents multiples) — même route PATCH que statutVerificationBodySchema ci-dessus (mise à jour
+// partielle d'une pièce), corps mutuellement exclusif : jamais les deux champs à la fois, voir
+// patchBodySchema plus bas qui distingue les deux formes.
+const renommageBodySchema = z.object({
+  nomFichier: z.string().trim().min(1).max(255),
+});
+
+const patchBodySchema = z.union([statutVerificationBodySchema, renommageBodySchema]);
+
 function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
@@ -287,25 +297,35 @@ router.get('/:pieceId/apercu', requireRole(...ROLES_CONSULTATION_PIECES), async 
   }
 });
 
-// PATCH /api/dossiers/:dossierId/pieces/:pieceId — met à jour le statut de vérification
-// (valide/rejeté) ; la date de vérification est posée par le serveur, jamais par le client
-// (même principe que les autres horodatages de preuve du projet, voir dossierService.js).
+// PATCH /api/dossiers/:dossierId/pieces/:pieceId — met à jour SOIT le statut de vérification
+// (valide/rejeté ; la date de vérification est posée par le serveur, jamais par le client, même
+// principe que les autres horodatages de preuve du projet, voir dossierService.js), SOIT le nom
+// affiché du document (renommage, demande utilisateur 2026-09-10) — jamais les deux à la fois, le
+// corps de la requête distingue les deux formes (patchBodySchema, union exclusive ci-dessus).
 router.patch('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res, next) => {
   try {
     const pieceId = idPositifSchema.parse(req.params.pieceId);
-    const { statutVerification } = statutVerificationBodySchema.parse(req.body);
+    const corps = patchBodySchema.parse(req.body);
 
-    const piece = await pieceJustificativeService.mettreAJourStatutVerificationPieceJustificative(
-      req.entite,
-      pieceId,
-      statutVerification,
-    );
+    let piece;
+    let action;
+    if ('statutVerification' in corps) {
+      piece = await pieceJustificativeService.mettreAJourStatutVerificationPieceJustificative(
+        req.entite,
+        pieceId,
+        corps.statutVerification,
+      );
+      action = `piece_justificative_${corps.statutVerification}`;
+    } else {
+      piece = await pieceJustificativeService.renommerPieceJustificative(req.entite, pieceId, corps.nomFichier);
+      action = 'piece_justificative_renommage';
+    }
 
     const bd = await obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
       utilisateurId: req.utilisateur.id,
       entiteId: req.entite.id,
-      action: `piece_justificative_${statutVerification}`,
+      action,
       tableCible: 'pieces_justificatives',
       cibleId: pieceId,
       adresseIp: req.ip,
