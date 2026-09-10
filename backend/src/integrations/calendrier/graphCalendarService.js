@@ -36,6 +36,23 @@ function resoudreCalendrierParRole(roleCode) {
   return email;
 }
 
+// Exception compte par compte au routage par rôle ci-dessus (migration 063, demande utilisateur
+// 2026-09-10) : un formateur/inspecteur dont `calendrier_personnel` est activé voit ses rendez-vous
+// créés directement sur SA PROPRE boîte Microsoft 365 (`utilisateur.email`) plutôt que le
+// calendrier départemental partagé — reste le comportement par défaut (`calendrier_personnel`
+// false) pour tous les autres, cohérent avec la décision du 2026-08-26 ci-dessus. À utiliser à la
+// place de resoudreCalendrierParRole partout où un utilisateur complet (pas seulement son
+// role_code) est disponible — voir rendezvousService.js, seul appelant actuel des deux.
+function resoudreCalendrierPourUtilisateur(utilisateur) {
+  if (utilisateur.calendrier_personnel) {
+    if (!utilisateur.email) {
+      throw new Error(`Calendrier personnel demandé pour l'utilisateur #${utilisateur.id}, mais aucun email renseigné.`);
+    }
+    return utilisateur.email;
+  }
+  return resoudreCalendrierParRole(utilisateur.role_code);
+}
+
 // Graph attend un datetime SANS suffixe de fuseau dans le corps de dateTimeTimeZone (le fuseau est
 // porté séparément par le champ `timeZone`, toujours 'UTC' ici) — contrairement à un ISO complet
 // avec offset utilisé partout ailleurs dans ce projet (ex. rendezvous.date_heure). `dateIso` reçu
@@ -181,6 +198,7 @@ async function supprimerEvenement(emailCalendrier, outlookEventId) {
 module.exports = {
   CALENDRIER_PAR_ROLE,
   resoudreCalendrierParRole,
+  resoudreCalendrierPourUtilisateur,
   obtenirDisponibilites,
   creerEvenement,
   obtenirEvenement,

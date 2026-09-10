@@ -77,6 +77,40 @@ test('resoudreCalendrierParRole rejette un rôle sans calendrier configuré', as
   assert.throws(() => service.resoudreCalendrierParRole('accueil_coordination'), /Aucun calendrier Outlook configuré/);
 });
 
+// resoudreCalendrierPourUtilisateur (migration 063, demande utilisateur 2026-09-10) : exception
+// compte par compte au routage par rôle ci-dessus.
+test("resoudreCalendrierPourUtilisateur retombe sur le calendrier départemental du rôle quand calendrier_personnel est faux/absent", async (t) => {
+  const service = chargerServiceAvecClient(t, creerClientMock({}));
+
+  assert.equal(
+    service.resoudreCalendrierPourUtilisateur({ id: 5, role_code: 'formateur', email: 'tiana@accecit.com', calendrier_personnel: false }),
+    'formation@accecit.com',
+  );
+  // calendrier_personnel absent (undefined) traité comme faux — jamais une exception implicite.
+  assert.equal(
+    service.resoudreCalendrierPourUtilisateur({ id: 6, role_code: 'inspecteur', email: 'x@accecit.com' }),
+    'test-tertiaire@accecit.com',
+  );
+});
+
+test('resoudreCalendrierPourUtilisateur route vers la boîte personnelle quand calendrier_personnel est vrai, quel que soit le rôle', async (t) => {
+  const service = chargerServiceAvecClient(t, creerClientMock({}));
+
+  assert.equal(
+    service.resoudreCalendrierPourUtilisateur({ id: 31, role_code: 'formateur', email: 'adeville@accecit.com', calendrier_personnel: true }),
+    'adeville@accecit.com',
+  );
+});
+
+test("resoudreCalendrierPourUtilisateur rejette un calendrier_personnel demandé sans email renseigné", async (t) => {
+  const service = chargerServiceAvecClient(t, creerClientMock({}));
+
+  assert.throws(
+    () => service.resoudreCalendrierPourUtilisateur({ id: 31, role_code: 'formateur', email: null, calendrier_personnel: true }),
+    /Calendrier personnel demandé.*aucun email renseigné/,
+  );
+});
+
 test('obtenirDisponibilites interroge calendarView avec startDateTime/endDateTime et le header Prefer UTC', async (t) => {
   let requeteRecue;
   const client = creerClientMock({

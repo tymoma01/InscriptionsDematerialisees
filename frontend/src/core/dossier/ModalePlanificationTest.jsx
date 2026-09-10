@@ -5,7 +5,13 @@ import { creerRendezvousAvecTransitions, listerRendezvousTest, listerRendezvous 
 import CalendrierHebdomadaireDisponibilite from './CalendrierHebdomadaireDisponibilite';
 import { dateDuJourParis } from './dateDuJourParis';
 import { trouverLieuSimilaire } from './detectionLieuSimilaire';
-import { resoudreSecteurDossier, roleImposeParSecteur, trouverLieuParDefaut, trouverFormateurParDefaut } from './planificationParDefaut';
+import {
+  resoudreSecteurDossier,
+  roleImposeParSecteur,
+  trouverLieuParDefaut,
+  trouverLieuParDefautFormateur,
+  trouverFormateurParDefaut,
+} from './planificationParDefaut';
 import './ModalePlanificationTest.css';
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
@@ -321,11 +327,18 @@ export default function ModalePlanificationTest({
   // secteur (aucun encore configuré, ou aucun actif), `lieuId` reste tel quel — jamais forcé à ''
   // ici, ce champ reste par ailleurs librement modifiable par l'agent ensuite (setLieuId via le
   // <select>, voir plus bas), cet effet ne fait que proposer un point de départ.
+  // Lieu par défaut du FORMATEUR précis sélectionné (utilisateurs.lieu_par_defaut_id, migration
+  // 063, demande utilisateur 2026-09-10) prioritaire sur le lieu par défaut du secteur ci-dessus —
+  // voir planificationParDefaut.js, trouverLieuParDefautFormateur. `formateurId` ajouté aux
+  // dépendances (absent avant cette évolution) : ce même effet se redéclenche donc aussi quand
+  // l'agent change de formateur/inspecteur (sélection automatique du groupe par défaut, ou choix
+  // manuel dans le <select>, voir plus bas) — pas seulement à l'ouverture sur un autre dossier,
+  // cohérent avec la demande "associer le lieu par défaut au formateur".
   useEffect(() => {
-    const lieuParDefaut = trouverLieuParDefaut(lieux, secteurDossier);
+    const lieuParDefaut = trouverLieuParDefautFormateur(formateurs, formateurId, lieux) ?? trouverLieuParDefaut(lieux, secteurDossier);
     if (lieuParDefaut) setLieuId(String(lieuParDefaut.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dossierId, secteurDossier, lieux]);
+  }, [dossierId, secteurDossier, lieux, formateurId, formateurs]);
 
   // Vide d'abord la note (même raison que les deux effets ci-dessus : une note tapée pour un
   // premier candidat ne doit jamais rester affichée, ni a fortiori être pré-remplie, pour un

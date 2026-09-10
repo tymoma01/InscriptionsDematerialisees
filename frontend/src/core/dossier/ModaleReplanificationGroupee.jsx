@@ -3,7 +3,13 @@ import { listerFormateurs } from '../../services/formateurService';
 import { listerLieux } from '../../services/lieuService';
 import { listerRendezvous, creerRendezvousAvecTransitions } from '../../services/rendezvousService';
 import { dateDuJourParis } from './dateDuJourParis';
-import { resoudreSecteurDossier, roleImposeParSecteur, trouverLieuParDefaut, trouverFormateurParDefaut } from './planificationParDefaut';
+import {
+  resoudreSecteurDossier,
+  roleImposeParSecteur,
+  trouverLieuParDefaut,
+  trouverLieuParDefautFormateur,
+  trouverFormateurParDefaut,
+} from './planificationParDefaut';
 import './ModaleReplanificationGroupee.css';
 
 const HEURES_DISPONIBLES = Array.from({ length: 24 }, (_, heure) => String(heure).padStart(2, '0'));
@@ -91,7 +97,13 @@ function construireLigneInitiale(dossier, rendezvousDuDossier, formateursDisponi
 
   let lieuId = dernier?.lieu_id ? String(dernier.lieu_id) : '';
   if (!lieuId) {
-    const lieuParDefaut = trouverLieuParDefaut(lieuxDisponibles, secteurDossier);
+    // Lieu par défaut du formateur précis (migration 063, demande utilisateur 2026-09-10)
+    // prioritaire sur le lieu par défaut du secteur — voir planificationParDefaut.js. Jamais
+    // consulté si un lieu réel existait déjà sur le dernier rendez-vous du dossier (branche
+    // ci-dessus) : cette présélection n'a de sens que pour un dossier sans historique de lieu.
+    const lieuParDefaut =
+      trouverLieuParDefautFormateur(formateursDisponibles, formateurId, lieuxDisponibles) ??
+      trouverLieuParDefaut(lieuxDisponibles, secteurDossier);
     if (lieuParDefaut) lieuId = String(lieuParDefaut.id);
   }
 
@@ -317,7 +329,20 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
                         </span>
                         <select
                           value={ligne.formateurId}
-                          onChange={(evenement) => modifierLigne(ligne.dossierId, { formateurId: evenement.target.value })}
+                          onChange={(evenement) => {
+                            const nouveauFormateurId = evenement.target.value;
+                            // Lieu par défaut du formateur nouvellement choisi (migration 063,
+                            // demande utilisateur 2026-09-10) — seulement s'il en a un propre
+                            // configuré, jamais un reset vers le lieu du secteur ici : cette ligne
+                            // peut déjà porter un lieu réel repris de son dernier rendez-vous
+                            // (construireLigneInitiale), qu'un simple changement de formateur ne
+                            // doit pas écraser sans raison précise de le faire.
+                            const lieuFormateur = trouverLieuParDefautFormateur(formateurs, nouveauFormateurId, lieux);
+                            modifierLigne(ligne.dossierId, {
+                              formateurId: nouveauFormateurId,
+                              ...(lieuFormateur ? { lieuId: String(lieuFormateur.id) } : {}),
+                            });
+                          }}
                           disabled={envoiEnCours}
                           required
                         >

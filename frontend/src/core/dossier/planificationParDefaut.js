@@ -40,3 +40,18 @@ export function trouverFormateurParDefaut(formateurs, roleCode) {
   if (!roleCode) return undefined;
   return formateurs.find((formateur) => formateur.role_code === roleCode && formateur.par_defaut);
 }
+
+// Lieu par défaut d'UN formateur/inspecteur PRÉCIS (utilisateurs.lieu_par_defaut_id, migration 063,
+// demande utilisateur 2026-09-10) — prioritaire côté appelant sur trouverLieuParDefaut ci-dessus
+// (lieu par défaut du SECTEUR, un seul pour tout le secteur) : deux formateurs du même secteur
+// peuvent ainsi chacun avoir leur propre lieu par défaut (ex. Tiana -> Hôtel du Cadran, Anni ->
+// Hôtel B55, tous deux hôtel). `undefined` si `formateurId` ne résout à aucun formateur connu, si
+// ce formateur n'a aucun lieu par défaut propre configuré, ou si ce lieu n'est plus dans `lieux`
+// (supprimé/désactivé depuis) — l'appelant retombe alors sur trouverLieuParDefaut(lieux, secteur),
+// jamais un lieu qui n'existe plus.
+export function trouverLieuParDefautFormateur(formateurs, formateurId, lieux) {
+  if (!formateurId) return undefined;
+  const formateur = formateurs.find((candidat) => String(candidat.id) === String(formateurId));
+  if (!formateur?.lieu_par_defaut_id) return undefined;
+  return lieux.find((lieu) => lieu.id === formateur.lieu_par_defaut_id);
+}

@@ -438,7 +438,11 @@ async function obtenirDisponibilitesFormateur(entite, { formateurId, debut, fin 
       `Utilisateur "${formateurId}" introuvable ou n'a pas le rôle formateur/inspecteur pour l'entité « ${entite.code} ».`,
     );
   }
-  const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(utilisateur.role_code);
+  // resoudreCalendrierPourUtilisateur (pas resoudreCalendrierParRole seul, migration 063) : si ce
+  // formateur/inspecteur a sa propre boîte comme calendrier de test (calendrier_personnel), ses
+  // événements y vivent, pas sur le calendrier départemental — les y chercher ici manquerait
+  // justement les créneaux à éviter.
+  const emailCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(utilisateur);
   try {
     return await graphCalendarService.obtenirDisponibilites(emailCalendrier, debut, fin);
   } catch (erreur) {
@@ -575,7 +579,8 @@ async function creerRendezvous(
   let outlookEventIdCree = null;
   let ancienRendezVousActif = null;
   if (formateurIdValide) {
-    const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(formateur.role_code);
+    // Voir obtenirDisponibilitesFormateur ci-dessus pour le détail (migration 063).
+    const emailCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(formateur);
 
     // Ancien rendez-vous 'test' actif de ce dossier, s'il en existe un — cherché AVANT toute
     // écriture, pour libérer son événement Outlook une fois le nouveau confirmé (voir plus bas,
@@ -636,7 +641,7 @@ async function creerRendezvous(
           ancienRendezVousActif.formateur_id,
         );
         if (ancienFormateur) {
-          const ancienCalendrier = graphCalendarService.resoudreCalendrierParRole(ancienFormateur.role_code);
+          const ancienCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(ancienFormateur);
           await graphCalendarService.supprimerEvenement(ancienCalendrier, ancienRendezVousActif.outlook_event_id);
         }
       } catch (erreur) {

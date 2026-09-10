@@ -365,6 +365,42 @@ test("creerRendezvous crée l'événement Outlook AVANT d'écrire en Neon et tra
   assert.equal(resultat.outlookEventId, 'outlook-evenement-999');
 });
 
+// calendrier_personnel (migration 063, demande utilisateur 2026-09-10) : ce formateur précis a sa
+// propre boîte comme calendrier de test — l'événement doit être créé directement sur SON adresse,
+// pas sur le calendrier départemental formation@accecit.com (comportement par défaut du test
+// ci-dessus pour un formateur sans cette exception).
+test("creerRendezvous crée l'événement Outlook sur la boîte personnelle du formateur quand calendrier_personnel est vrai (pas le calendrier départemental)", async (t) => {
+  forcerNodeEnv(t, 'production');
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 42,
+    candidat_prenom: 'Jean',
+    candidat_nom: 'Dupont',
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 31,
+    role_code: 'formateur',
+    email: 'adeville@accecit.com',
+    prenom: 'Anni',
+    nom: 'Neacsu',
+    calendrier_personnel: true,
+  }));
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => undefined);
+  mockerNeutralisationSansEffet(t);
+  const creerEvenementMock = t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-evenement-anni' }));
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async (trx, donnees) => ({ id: 302, ...donnees }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, {
+    dossierId: 42,
+    typeRdv: 'test',
+    dateHeure: DATE_HEURE_FUTURE,
+    formateurId: 31,
+  });
+
+  assert.equal(creerEvenementMock.mock.calls[0].arguments[0], 'adeville@accecit.com');
+});
+
 // Décision utilisateur, 2026-08-26 : le subject doit désormais identifier le formateur/inspecteur
 // ET le(s) poste(s) testé(s), pas seulement le candidat — repérage en un coup d'œil sur un
 // calendrier départemental partagé par plusieurs formateurs/inspecteurs. Ce format reste réservé à

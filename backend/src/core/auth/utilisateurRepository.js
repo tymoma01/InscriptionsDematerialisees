@@ -100,12 +100,24 @@ function listerRolesAssignables(bd) {
 // sert à présélectionner le champ Formateur/Inspecteur de ModalePlanificationTest.jsx/
 // ModaleReplanificationGroupee.jsx selon le secteur du dossier, même principe que
 // `lieux.par_defaut` (migration 054) pour le champ Lieu.
+// `utilisateurs.lieu_par_defaut_id` inclus (migration 063, demande utilisateur 2026-09-10) — lieu
+// à présélectionner quand CE formateur/inspecteur précis est choisi, prioritaire côté front sur le
+// lieu par défaut du secteur (voir planificationParDefaut.js, trouverLieuParDefautPourFormateur) :
+// deux formateurs du même secteur (ex. hôtel) peuvent ainsi avoir chacun leur propre lieu par
+// défaut, ce que `lieux.par_defaut` seul (un par secteur, pas par formateur) ne permet pas.
 function listerUtilisateursParRoles(bd, entiteId, rolesCodes) {
   return bd('utilisateurs')
     .join('roles', 'roles.id', 'utilisateurs.role_id')
     .where({ 'utilisateurs.entite_id': entiteId, 'utilisateurs.actif': true })
     .whereIn('roles.code', rolesCodes)
-    .select('utilisateurs.id', 'utilisateurs.nom', 'utilisateurs.prenom', 'roles.code as role_code', 'utilisateurs.par_defaut')
+    .select(
+      'utilisateurs.id',
+      'utilisateurs.nom',
+      'utilisateurs.prenom',
+      'roles.code as role_code',
+      'utilisateurs.par_defaut',
+      'utilisateurs.lieu_par_defaut_id',
+    )
     .orderBy('utilisateurs.nom', 'asc');
 }
 
@@ -120,6 +132,25 @@ async function definirUtilisateurParDefaut(trx, entiteId, utilisateurId, roleId)
     .andWhereNot({ id: utilisateurId })
     .update({ par_defaut: false });
   return trx('utilisateurs').where({ id: utilisateurId, entite_id: entiteId }).update({ par_defaut: true }).returning('*');
+}
+
+// Lieu par défaut d'UN formateur/inspecteur précis (migration 063, demande utilisateur
+// 2026-09-10) — simple UPDATE, contrairement à definirUtilisateurParDefaut ci-dessus : aucune
+// bascule nécessaire, rien n'empêche plusieurs utilisateurs de partager le même lieu par défaut
+// (voir le commentaire de la migration). `lieuId` peut être `null` pour retirer l'association
+// (retour au lieu par défaut du secteur, voir planificationParDefaut.js côté front).
+function definirLieuParDefautUtilisateur(trx, entiteId, utilisateurId, lieuId) {
+  return trx('utilisateurs').where({ id: utilisateurId, entite_id: entiteId }).update({ lieu_par_defaut_id: lieuId }).returning('*');
+}
+
+// Bascule le routage Outlook de CE formateur/inspecteur précis vers sa propre boîte plutôt que le
+// calendrier départemental partagé (migration 063, voir graphCalendarService.resoudreCalendrierPourUtilisateur)
+// — même simplicité que definirLieuParDefautUtilisateur ci-dessus, aucune contrainte d'unicité.
+function definirCalendrierPersonnel(trx, entiteId, utilisateurId, calendrierPersonnel) {
+  return trx('utilisateurs')
+    .where({ id: utilisateurId, entite_id: entiteId })
+    .update({ calendrier_personnel: calendrierPersonnel })
+    .returning('*');
 }
 
 async function creerUtilisateur(bd, { entiteId, roleId, nom, prenom, email, telephone = null, motDePasseHash }) {
@@ -144,6 +175,8 @@ module.exports = {
   listerRolesAssignables,
   listerUtilisateursParRoles,
   definirUtilisateurParDefaut,
+  definirLieuParDefautUtilisateur,
+  definirCalendrierPersonnel,
   creerUtilisateur,
   mettreAJourUtilisateur,
 };
