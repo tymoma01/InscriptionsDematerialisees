@@ -15,11 +15,17 @@ const PERMISSION_GRAPH_CALENDRIER = 'Calendars.ReadWrite';
 
 // Calendriers départementaux partagés ACCECIT (décision actée, audit 2026-08-26) : les tests
 // Inspecteur (postes bureau) et Formateur (postes hôtel) sont routés vers deux calendriers
-// distincts, jamais la boîte personnelle de chaque formateur/inspecteur. En dur ici, comme
-// BOITE_EXPEDITRICE dans graphMailProvider.js : si une future entité utilise elle aussi Microsoft
-// Graph pour ses calendriers de test avec un autre routage, en faire une valeur de configuration
-// par entité plutôt que d'ajouter un branchement ici (voir Modularité, CLAUDE.md — ce module
-// reste, comme rendezvousService.js qui l'appelle, volontairement "ACCECIT-flavored").
+// distincts par défaut, jamais la boîte personnelle de chaque formateur/inspecteur — sauf exception
+// explicite (voir resoudreCalendrierPourUtilisateur/calendrier_personnel, migration 063, plus bas).
+// CORRECTIF (2026-09-10) : formation@accecit.com, présenté ici comme une boîte "départementale
+// partagée" neutre, s'est avéré être EN RÉALITÉ la boîte Microsoft 365 personnelle de Tiana (voir
+// scripts/definirLieuxCalendrierFormateursAccecit.js) — gardé tel quel comme repli par rôle pour
+// tout AUTRE formateur qui n'aurait pas sa propre exception, mais ne plus supposer qu'il s'agit
+// d'une ressource neutre partageable sans conséquence. En dur ici, comme BOITE_EXPEDITRICE dans
+// graphMailProvider.js : si une future entité utilise elle aussi Microsoft Graph pour ses
+// calendriers de test avec un autre routage, en faire une valeur de configuration par entité
+// plutôt que d'ajouter un branchement ici (voir Modularité, CLAUDE.md — ce module reste, comme
+// rendezvousService.js qui l'appelle, volontairement "ACCECIT-flavored").
 const CALENDRIER_PAR_ROLE = {
   formateur: 'formation@accecit.com',
   // test-tertiaire@accecit.com remplace tertiaire2@accecit.com (audit 2026-08-28) — permissions

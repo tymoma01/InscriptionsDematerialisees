@@ -1,10 +1,20 @@
 // Correctif ponctuel — associe un lieu par défaut PROPRE à deux formateurs ACCECIT du secteur
 // hôtel (décision utilisateur, 2026-09-10 : "Tiana -> hotel du cadran, Anni -> hotel B55"), et
-// bascule le calendrier Outlook d'Anni vers sa propre boîte plutôt que le calendrier départemental
-// partagé (utilisateurs.calendrier_personnel, migration 063 — voir graphCalendarService.
-// resoudreCalendrierPourUtilisateur). Passe par les fonctions du repository
-// (definirLieuParDefautUtilisateur/definirCalendrierPersonnel) plutôt qu'un UPDATE direct, même
-// principe que definirFormateurParDefautAccecit.js/definirLieuxParDefautAccecit.js.
+// bascule le calendrier Outlook de chacune vers sa propre boîte (utilisateurs.calendrier_personnel,
+// migration 063 — voir graphCalendarService.resoudreCalendrierPourUtilisateur). Passe par les
+// fonctions du repository (definirLieuParDefautUtilisateur/definirCalendrierPersonnel) plutôt
+// qu'un UPDATE direct, même principe que definirFormateurParDefautAccecit.js/
+// definirLieuxParDefautAccecit.js.
+//
+// calendrier_personnel = true pour LES DEUX, pas seulement Anni (correctif du 2026-09-10, décision
+// utilisateur) : formation@accecit.com — présenté à l'origine comme le calendrier "départemental
+// partagé" de tout formateur (voir graphCalendarService.js, CALENDRIER_PAR_ROLE, audit 2026-08-26)
+// — est EN RÉALITÉ la boîte Microsoft 365 personnelle de Tiana, pas une ressource neutre. Aucun
+// changement de comportement aujourd'hui (son email de compte EST déjà "formation@accecit.com" :
+// resoudreCalendrierPourUtilisateur résout donc à la même adresse, personnel ou par rôle), mais
+// corrige la sémantique pour l'avenir — si un jour quelqu'un d'autre devient formateur hôtel sans
+// hériter de calendrier_personnel=true, il ne se retrouvera plus par erreur à écrire dans la boîte
+// de Tiana au seul motif qu'il partage son rôle.
 //
 // "Inspecteurs -> bureau Accecit" (troisième association demandée) délibérément SANS action ici :
 // contrairement à Tiana/Anni (deux formateurs du MÊME secteur hôtel, qui ont donc besoin chacun
@@ -38,7 +48,7 @@ const ASSOCIATIONS = [
     nomAttendu: 'RANORO',
     prenomAttendu: 'Tiana',
     extraitAdresseLieu: 'Cadran',
-    calendrierPersonnel: false,
+    calendrierPersonnel: true,
   },
   {
     emailFormateur: 'adeville@accecit.com',
