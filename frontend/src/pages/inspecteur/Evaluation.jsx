@@ -17,11 +17,24 @@ import './Evaluation.css';
 // restent entièrement réutilisés tels quels — GrilleEvaluation connaît déjà l'affichage propre à
 // l'Inspecteur via son prop roleCode (échelle bureau, pas d'Orientation, checklist).
 //
-// Scope "bureau uniquement" : procédural, pas technique (voir rbac.js) — ListeEvaluationsAFaire
-// ne renvoie que les rendez-vous assignés à CET utilisateur connecté (formateur_id, back
-// evaluationRepository.listerRendezvousAEvaluer), qu'il soit Formateur ou Inspecteur ; la garantie
-// tient à ce qu'Accueil/Coordination n'assigne un Inspecteur qu'à des tests bureau (voir
+// Scope "bureau uniquement" : procédural, pas technique (voir rbac.js) — la garantie tient à ce
+// qu'Accueil/Coordination n'assigne un Inspecteur qu'à des tests bureau (voir
 // ModalePlanificationTest.jsx, onglet "Inspecteurs").
+//
+// Liste NON filtrée par identité pour ce rôle (audit 2026-09-10, demande utilisateur, corrige le
+// comportement précédent où chaque Inspecteur ne voyait que ses propres évaluations) : le back
+// (evaluationEngine.listerRendezvousAEvaluer) ignore formateurId quand roleCode === 'inspecteur',
+// même repli que pour Admin — chaque Inspecteur voit donc TOUTES les évaluations à venir du secteur
+// bureau, tous Inspecteurs confondus. `afficherAssigne` fait apparaître la colonne "Assigné à" en
+// conséquence (voir ListeEvaluationsAFaire.jsx) ; pages/formateur/Evaluation.jsx, lui, ne passe pas
+// ce prop et garde le filtrage par identité (comportement Formateur inchangé).
+//
+// Actions (Présent(e)/Évaluer/Test non réalisé) volontairement OUVERTES à tout Inspecteur, y
+// compris sur un rendez-vous assigné à un autre (audit 2026-09-10, demande utilisateur : calendrier
+// partagé test-tertiaire@accecit.com) — evaluationEngine.verifierAssignationRendezvous et
+// clotureRendezvousAvecTransitionService exemptent explicitement roleCode === 'inspecteur' de la
+// garde d'assignation qu'ils appliquent encore strictement au Formateur (secteur Hôtel, comportement
+// inchangé).
 export default function EvaluationInspecteur() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [rendezvousSelectionne, setRendezvousSelectionne] = useState(null);
@@ -79,6 +92,7 @@ export default function EvaluationInspecteur() {
             onSelectionner={setRendezvousSelectionne}
             rafraichir={compteurRafraichissement}
             rendezvousIdCible={rendezvousIdCible}
+            afficherAssigne
           />
         )}
 

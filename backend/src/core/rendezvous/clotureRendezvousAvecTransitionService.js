@@ -1,6 +1,8 @@
 const db = require('../../db/knex');
 const rendezvousService = require('./rendezvousService');
+const rendezvousRepository = require('./rendezvousRepository');
 const workflowEngine = require('../workflow/workflowEngine');
+const { ROLES } = require('../auth/rbac');
 
 // Symétrique de planificationRendezvousService.planifierRendezvousAvecTransitions (même fichier
 // voisin) : compose en une seule transaction DB (1) le passage d'UN rendez-vous à un statut donné
@@ -28,6 +30,22 @@ async function cloturerRendezvousAvecTransition(
   { dossierId, rendezvousId, statutRendezvous, motifCodeRendezvous, transitions, utilisateurId, roleCode },
 ) {
   const bd = await db.obtenirKnex();
+
+  // Ownership stricte réservée au FORMATEUR (secteur Hôtel), même règle et même exemption qu'
+  // evaluationEngine.verifierAssignationRendezvous pour Présent(e)/Évaluer (audit 2026-09-10, demande
+  // utilisateur) — un Formateur ne peut fermer (bouton "Test non réalisé", ListeEvaluationsAFaire.jsx)
+  // que SES propres rendez-vous. INSPECTEUR volontairement exempté : calendrier partagé
+  // test-tertiaire@accecit.com, n'importe quel Inspecteur doit pouvoir traiter le rendez-vous d'un
+  // autre. Accueil/Coordination/Admin non concernés par ce garde-fou : seul
+  // ListeEvaluationsAFaire.jsx passe un rendezvousId à POST /dossiers/:id/transitions (Accueil/
+  // Coordination gère les rendez-vous via PATCH /rendezvous/:id, rendezvousService.
+  // changerStatutRendezvous appelé directement, voir rendezvous.routes.js — jamais ce chemin-ci).
+  if (rendezvousId && roleCode === ROLES.FORMATEUR) {
+    const rendezvousActuel = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
+    if (rendezvousActuel && rendezvousActuel.formateur_id !== utilisateurId) {
+      throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
+    }
+  }
 
   return bd.transaction(async (trx) => {
     const rendezvous = await rendezvousService.changerStatutRendezvous(

@@ -89,12 +89,13 @@ router.get('/questionnaire', async (req, res, next) => {
   }
 });
 
-// GET /api/evaluations/a-faire — rendez-vous de test assignés au formateur connecté, pas encore
-// évalués. formateurId vient toujours de la session (req.utilisateur.id), jamais d'un paramètre
-// de requête — un formateur/inspecteur ne voit que ses propres évaluations à faire. Admin (audit
-// RBAC 2026-08-31, corrige le comportement précédent où cet écran restait vide pour ce rôle) : voit
-// TOUTES les évaluations à faire, tous formateurs/inspecteurs confondus — voir
-// evaluationEngine.listerRendezvousAEvaluer, qui ignore formateurId quand roleCode === 'admin'.
+// GET /api/evaluations/a-faire — rendez-vous de test à évaluer. formateurId vient toujours de la
+// session (req.utilisateur.id), jamais d'un paramètre de requête. Formateur : ne voit que ses
+// propres évaluations à faire. Admin (audit RBAC 2026-08-31, corrige le comportement précédent où
+// cet écran restait vide pour ce rôle) et Inspecteur (audit 2026-09-10) : voient TOUTES les
+// évaluations à faire, tous formateurs/inspecteurs confondus — voir
+// evaluationEngine.listerRendezvousAEvaluer, qui ignore formateurId quand roleCode === 'admin' ou
+// 'inspecteur'.
 router.get('/a-faire', async (req, res, next) => {
   try {
     const rendezvous = await evaluationEngine.listerRendezvousAEvaluer(

@@ -41,16 +41,24 @@ function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte }
   return correspondNom || correspondStatut;
 }
 
-// Liste des rendez-vous de test assignés au formateur connecté et pas encore évalués (voir
-// backend GET /api/evaluations/a-faire — déjà filtrée par formateur et par "pas déjà évalué",
-// rien à filtrer ici). `rafraichir` : changer sa valeur force un rechargement (utilisé par
-// Evaluation.jsx après une évaluation soumise). `onSelectionner` laisse à l'appelant la décision
-// d'ouvrir la grille — ce composant ne connaît pas GrilleEvaluation.jsx. `rendezvousIdCible` : lu
-// par Evaluation.jsx/pages/inspecteur/Evaluation.jsx (paramètre d'URL ?rendezvousId=..., voir le
-// lien "Voir l'évaluation de ce candidat" de l'email formateur/inspecteur, formatageEmail.
-// construireLienEvaluation) — surligne et scrolle jusqu'à la ligne correspondante ci-dessous. Reste
-// géré ici (pas dans Evaluation.jsx) car c'est ce composant qui possède le DOM des lignes.
-export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, rendezvousIdCible }) {
+// Liste des rendez-vous de test à évaluer (voir backend GET /api/evaluations/a-faire — déjà
+// filtrée côté serveur par "pas déjà évalué", rien à refiltrer ici sur ce point). `rafraichir` :
+// changer sa valeur force un rechargement (utilisé par Evaluation.jsx après une évaluation
+// soumise). `onSelectionner` laisse à l'appelant la décision d'ouvrir la grille — ce composant ne
+// connaît pas GrilleEvaluation.jsx. `rendezvousIdCible` : lu par Evaluation.jsx/pages/inspecteur/
+// Evaluation.jsx (paramètre d'URL ?rendezvousId=..., voir le lien "Voir l'évaluation de ce
+// candidat" de l'email formateur/inspecteur, formatageEmail.construireLienEvaluation) — surligne
+// et scrolle jusqu'à la ligne correspondante ci-dessous. Reste géré ici (pas dans Evaluation.jsx)
+// car c'est ce composant qui possède le DOM des lignes.
+//
+// `afficherAssigne` (audit 2026-09-10, demande utilisateur) : n'affiche la colonne "Assigné à"
+// (formateur_prenom/formateur_nom, voir evaluationRepository.listerRendezvousAEvaluer) que si
+// explicitement demandé — seul pages/inspecteur/Evaluation.jsx la passe à true, depuis que la liste
+// y montre les évaluations de TOUS les Inspecteurs (evaluationEngine.listerRendezvousAEvaluer
+// ignore formateurId pour ce rôle). pages/formateur/Evaluation.jsx ne la passe pas : la liste y
+// reste filtrée à l'utilisateur connecté, la colonne n'aurait donc rien d'utile à montrer (toujours
+// son propre nom) — comportement Formateur inchangé.
+export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, rendezvousIdCible, afficherAssigne = false }) {
   const [rendezvous, setRendezvous] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -243,6 +251,15 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
                 {rdv.candidat_prenom} {rdv.candidat_nom}
               </span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
+              {/* "Assigné à" (audit 2026-09-10) : formateur_prenom/formateur_nom, voir
+                  evaluationRepository.listerRendezvousAEvaluer — n'a de sens que si la liste peut
+                  contenir des rendez-vous d'un autre utilisateur que celui connecté (voir
+                  `afficherAssigne` en en-tête de fichier). */}
+              {afficherAssigne && (
+                <span className="liste-evaluations__assigne">
+                  {rdv.formateur_prenom} {rdv.formateur_nom}
+                </span>
+              )}
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
               {/* "Présent(e)" (audit 2026-09-09) — premier bouton de la ligne (ordre demandé :
                   Présent(e), Évaluer, Test non réalisé) : constate la présence du candidat sans

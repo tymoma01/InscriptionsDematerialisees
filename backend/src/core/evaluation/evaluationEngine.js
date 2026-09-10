@@ -136,6 +136,20 @@ function resoudreEtValiderReponses(questions, reponsesRecues) {
   return resolues;
 }
 
+// Garde IDOR/ownership commune à marquerPresenceConfirmee/listerQuestionnaire/enregistrerEvaluation
+// ci-dessous (écran "Évaluations à venir") : un Formateur (secteur Hôtel) ne peut agir que sur SES
+// propres rendez-vous. Admin (accès total) ET Inspecteur (secteur Bureau, audit 2026-09-10, demande
+// utilisateur) en sont exemptés — les Inspecteurs travaillent sur un calendrier partagé unique
+// (test-tertiaire@accecit.com), n'importe lequel doit pouvoir traiter le rendez-vous d'un autre,
+// cohérent avec la liste elle-même non filtrée par identité pour ce rôle (voir
+// listerRendezvousAEvaluer ci-dessous). N'affecte PAS obtenirDetailEvaluation (Historique des
+// évaluations, écran distinct, volontairement non touché ici) ni listerHistorique.
+function verifierAssignationRendezvous(rendezvous, formateurId, roleCode) {
+  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN && roleCode !== ROLES.INSPECTEUR) {
+    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
+  }
+}
+
 // Marque la présence constatée du candidat, LE JOUR MÊME, par le formateur/inspecteur (bouton
 // "Présent(e)", ListeEvaluationsAFaire.jsx, audit 2026-09-09) — n'écrit QUE
 // rendezvous.date_presence_confirmee (migration 060), jamais rendezvous.statut ni
@@ -144,17 +158,15 @@ function resoudreEtValiderReponses(questions, reponsesRecues) {
 // candidat, sémantique distincte — voir rendezvousService.js, commentaire de STATUTS_AUTORISES).
 // Seul effet réel : exclure ce rendez-vous de la bascule automatique "Test non réalisé" (voir
 // rendezvousRepository.listerRendezvousTestNonRealisesAutomatiquement), même une fois le délai de
-// grâce de 24h dépassé. Même garde IDOR/ownership que listerQuestionnaire ci-dessous : un
-// formateur/inspecteur ne peut agir que sur SES propres rendez-vous (Admin excepté).
+// grâce de 24h dépassé. Même garde IDOR/ownership que listerQuestionnaire ci-dessous (voir
+// verifierAssignationRendezvous).
 async function marquerPresenceConfirmee(entite, { rendezvousId, formateurId, roleCode }) {
   const bd = await db.obtenirKnex();
   const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
   if (!rendezvous) {
     throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
   }
-  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
-    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
-  }
+  verifierAssignationRendezvous(rendezvous, formateurId, roleCode);
   return rendezvousRepository.marquerPresenceConfirmee(bd, rendezvousId);
 }
 
@@ -168,9 +180,7 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
   if (!rendezvous) {
     throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
   }
-  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
-    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
-  }
+  verifierAssignationRendezvous(rendezvous, formateurId, roleCode);
 
   const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode, rendezvous.postes_selectionnes);
   const questionnaire = await evaluationRepository.trouverQuestionnairePourPoste(bd, entite.id, posteCodeResolu);
@@ -180,24 +190,36 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
   return evaluationRepository.listerQuestionsAvecItems(bd, questionnaire.id);
 }
 
-// Rendez-vous de test assignés au formateur connecté et pas encore évalués — voir
-// evaluationRepository.listerRendezvousAEvaluer pour le détail du filtre. Expose les postes
-// déclarés sur le dossier (donnees_disponibilites, JSONB brut) pour que le front sache s'il doit
-// proposer un choix de questionnaire (plusieurs postes hôtel cochés sur un même dossier — le
-// formulaire d'inscription le permet, voir BlocDisponibilites.jsx) ou le résoudre seul (un
-// unique poste).
+// Rendez-vous de test à évaluer (pas encore évalués) — voir evaluationRepository.
+// listerRendezvousAEvaluer pour le détail du filtre. Expose les postes déclarés sur le dossier
+// (donnees_disponibilites, JSONB brut) pour que le front sache s'il doit proposer un choix de
+// questionnaire (plusieurs postes hôtel cochés sur un même dossier — le formulaire d'inscription
+// le permet, voir BlocDisponibilites.jsx) ou le résoudre seul (un unique poste).
 //
 // Admin (audit RBAC 2026-08-31, corrige le comportement précédent où cet écran restait vide pour
 // ce rôle) : voit TOUS les rendez-vous à évaluer, tous formateurs/inspecteurs confondus, en passant
 // formateurId=null au repository (aucun filtre par formateur) — cohérent avec enregistrerEvaluation
 // ci-dessous, qui autorise déjà un Admin à soumettre une évaluation sur un rendez-vous qui ne lui
-// est pas assigné. Formateur/Inspecteur gardent la restriction stricte à leurs propres rendez-vous.
+// est pas assigné.
+//
+// Inspecteur (audit 2026-09-10, demande utilisateur) : même repli formateurId=null qu'Admin — un
+// seul groupe d'Inspecteurs par entité dans ce moteur (contrairement aux Formateurs, potentiellement
+// plusieurs), l'écran "Évaluations à venir" doit donc leur montrer TOUTES les évaluations à venir du
+// secteur bureau, tous Inspecteurs confondus, pas seulement les leurs — la colonne formateur_nom/
+// formateur_prenom (voir evaluationRepository ci-dessus) reste affichée pour savoir qui est assigné
+// à quoi. Formateur seul garde la restriction stricte à ses propres rendez-vous : décision limitée
+// à l'écran Inspecteur, ne change rien pour pages/formateur/Evaluation.jsx (même composant
+// ListeEvaluationsAFaire.jsx, mais roleCode différent en entrée ici).
+//
+// Ownership toujours revérifiée à l'action (marquerPresenceConfirmee/listerQuestionnaire/
+// enregistrerEvaluation ci-dessous comparent rendezvous.formateur_id à formateurId) : cet
+// élargissement ne touche QUE la liste, jamais qui peut agir sur quel rendez-vous.
 async function listerRendezvousAEvaluer(entite, formateurId, roleCode) {
   const bd = await db.obtenirKnex();
   const rendezvous = await evaluationRepository.listerRendezvousAEvaluer(
     bd,
     entite.id,
-    roleCode === ROLES.ADMIN ? null : formateurId,
+    roleCode === ROLES.ADMIN || roleCode === ROLES.INSPECTEUR ? null : formateurId,
   );
   return rendezvous.map(({ donnees_disponibilites, ...reste }) => ({
     ...reste,
@@ -248,12 +270,12 @@ async function enregistrerEvaluation(
   if (rendezvous.type_rdv !== 'test') {
     throw new Error(`Le rendez-vous "${rendezvousId}" n'est pas un rendez-vous de test.`);
   }
-  // Seul le formateur assigné à CE rendez-vous (ou un admin) peut l'évaluer — rendezvous.formateur_id
-  // porte cette assignation depuis la planification (CLAUDE.md, étape "Envoi en test" : "notification
-  // envoyée au formateur concerné"), ce n'est pas à n'importe quel formateur de la remplacer.
-  if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
-    throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
-  }
+  // Seul le formateur assigné à CE rendez-vous (ou un admin/inspecteur, voir
+  // verifierAssignationRendezvous) peut l'évaluer — rendezvous.formateur_id porte cette assignation
+  // depuis la planification (CLAUDE.md, étape "Envoi en test" : "notification envoyée au formateur
+  // concerné"), ce n'est pas à n'importe quel FORMATEUR de la remplacer (secteur Hôtel : reste
+  // strict). Secteur Bureau (Inspecteur) : calendrier partagé, exemption volontaire.
+  verifierAssignationRendezvous(rendezvous, formateurId, roleCode);
 
   const dejaEvaluee = await evaluationRepository.trouverEvaluationParRendezvous(bd, rendezvousId);
   if (dejaEvaluee) {
