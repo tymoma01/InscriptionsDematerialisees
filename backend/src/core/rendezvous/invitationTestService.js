@@ -80,6 +80,22 @@ function construireMessageSms({ candidatPrenom, dateHeure, lieuAdresse, lieuMetr
   return `Bonjour ${candidatPrenom}, votre test ACCECIT est prévu le ${date}, au ${lieu}. À bientôt !`;
 }
 
+// Rappel tenue vestimentaire (demande utilisateur, 2026-09-10) — même rouge que les instructions
+// de lieu ci-dessous (#c0392b, formatageEmail.formaterLignesLieuHtml) pour la même raison : une
+// consigne qui conditionne l'admission au test ne doit pas se perdre au milieu du reste de l'email.
+// Statique (texte fixe, jamais issu de la base) : pas besoin d'échapperHtml ici, contrairement aux
+// valeurs saisies par un agent utilisées ailleurs dans ce fichier. Uniquement dans l'email
+// CANDIDAT (construireMessageEmail ci-dessous) : sans objet pour le formateur/inspecteur qui évalue
+// le candidat, pas qui s'y présente (même distinction que `instructions` de lieu, voir
+// formatageEmail.js). Mentionne la pièce d'identité : `lieu.instructions` (donnée de configuration
+// par lieu, pas ce template) peut déjà la mentionner selon le lieu, mais rien ne le garantit pour
+// tous les lieux existants ou futurs — ce template ne la mentionne, lui, nulle part ailleurs.
+const RAPPEL_TENUE_HTML =
+  '<p style="color: #c0392b;">Merci de vous présenter avec une tenue classique et propre : pantalon noir ou ' +
+  'bleu marine. Pas de legging, pas de jean, pas de baskets. Chemise blanche, noire ou bleu marine, et ' +
+  "chaussures noires FERMÉES, sinon vous ne serez pas admis(e). Venez avec votre pièce d'identité ORIGINALE." +
+  '<br>\nMerci pour votre compréhension.</p>';
+
 // Corps HTML (voir graphMailProvider.js, options.html) — un \n littéral serait ignoré par un
 // client mail en HTML, d'où <p>/<br> explicites plutôt que la ponctuation par \n utilisée pour le
 // SMS ci-dessus. formaterLignesLieuHtml affiche adresse/metroAcces/instructions (champs structurés,
@@ -105,6 +121,7 @@ function construireMessageEmail({
       // la lecture naturelle d'une convocation.
       formaterLignePostesHtml(postesSelectionnes) +
       `<p>${formaterLignesLieuHtml({ adresse: lieuAdresse, metroAcces: lieuMetroAcces, instructions: lieuInstructions })}</p>` +
+      RAPPEL_TENUE_HTML +
       // Coordonnées ACCECIT déjà affichées dans le footer de l'app (PiedDePageFormulaire.jsx /
       // PiedDePageAccecit.jsx) — simple information de contact, pas une alerte : bleu ACCECIT
       // (--couleur-primaire, styles/variables.css) plutôt qu'une couleur d'alerte type rouge/orange.

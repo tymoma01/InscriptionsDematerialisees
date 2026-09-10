@@ -379,6 +379,36 @@ test("envoyerInvitationTest inclut les instructions dans l'email candidat mais P
   assert.ok(!corpsFormateur.includes('identité'));
 });
 
+test("envoyerInvitationTest inclut le rappel tenue vestimentaire en rouge dans l'email candidat (création ET replanification, même fonction construireMessageEmail) mais PAS dans l'email formateur (demande utilisateur 2026-09-10)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
+    email: 'sophie.martin@exemple.test',
+    telephone: null,
+  }));
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async () => ({
+    id: 7,
+    nom: 'Dupont',
+    prenom: 'Marc',
+    email: 'marc.dupont@exemple.test',
+  }));
+  const { mailMock } = mockerProviders(t);
+
+  // RENDEZVOUS_AVEC_FORMATEUR : création initiale (pas d'ancienRendezVous) — construireMessageEmail
+  // candidat ne distingue de toute façon jamais création/replanification (voir invitationTestService.js),
+  // donc ce même contenu candidat s'applique aussi à une replanification.
+  await invitationTestService.envoyerInvitationTest(ENTITE_SMS_ACTIF, RENDEZVOUS_AVEC_FORMATEUR);
+
+  assert.equal(mailMock.mock.calls.length, 2);
+
+  const corpsCandidat = mailMock.mock.calls[0].arguments[2];
+  assert.ok(corpsCandidat.includes('<p style="color: #c0392b;">Merci de vous présenter avec une tenue classique'));
+  assert.ok(corpsCandidat.includes("Venez avec votre pièce d'identité ORIGINALE."));
+  assert.ok(corpsCandidat.includes('Merci pour votre compréhension.'));
+
+  const corpsFormateur = mailMock.mock.calls[1].arguments[2];
+  assert.ok(!corpsFormateur.includes('tenue'));
+});
+
 test("envoyerInvitationTest inclut les postes retenus pour CE rendez-vous (rendezvous.postes_selectionnes) dans l'email candidat ET l'email formateur, pas les postes déclarés à l'inscription du dossier", async (t) => {
   mockerKnex(t);
   t.mock.method(dossierRepository, 'trouverCoordonneesCandidat', async () => ({
