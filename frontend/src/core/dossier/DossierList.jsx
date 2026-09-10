@@ -181,9 +181,12 @@ export default function DossierList({
               // largeur (voir DossierList.css, .dossier-list__colonne-email/-poste) — même demande
               // que la colonne figée "Candidat" ci-dessous, généralisée via une petite table plutôt
               // qu'un enchaînement de ternaires.
-              const classeColonne = { candidat_nom: 'dossier-list__colonne-figee', candidat_email: 'dossier-list__colonne-email', postes: 'dossier-list__colonne-poste' }[
-                colonne.cle
-              ];
+              const classeColonne = {
+                candidat_nom: 'dossier-list__colonne-figee',
+                candidat_email: 'dossier-list__colonne-email',
+                postes: 'dossier-list__colonne-poste',
+                statut_libelle: 'dossier-list__colonne-statut',
+              }[colonne.cle];
               return (
                 <th
                   key={colonne.cle}
@@ -253,7 +256,7 @@ export default function DossierList({
                   '-'
                 )}
               </td>
-              <td>
+              <td className="dossier-list__colonne-statut">
                 <StatutBadge
                   libelle={dossier.statut_libelle}
                   variante={varianteStatut ? varianteStatut(dossier.statut_code) : 'neutre'}
