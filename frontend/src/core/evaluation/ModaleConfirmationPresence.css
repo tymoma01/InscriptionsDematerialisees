@@ -1,0 +1,84 @@
+/* Même patron que ModaleConfirmationTestNonRealise.css (fond sous l'en-tête ACCECIT/
+   BarreNavigation plutôt qu'inset: 0, carte centrée via margin: auto plutôt qu'align-items — voir
+   son commentaire pour le détail des deux raisons) : ce composant est lui aussi monté à
+   l'intérieur d'un <PageBackOffice> (pages/formateur|inspecteur/Evaluation.jsx, via
+   ListeEvaluationsAFaire.jsx). */
+.modale-confirmation-presence__fond {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+/* Même largeur que ModaleConfirmationTestNonRealise (26rem) : un seul message + deux boutons,
+   aucun champ à saisir. */
+.modale-confirmation-presence {
+  margin: auto;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 26rem;
+  padding: 1.75rem;
+}
+
+.modale-confirmation-presence p {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--couleur-texte);
+}
+
+/* Même bleu ACCECIT (--couleur-primaire) que .modale-confirmation-non-realise__accent — accent
+   déjà établi ailleurs dans l'app, pas une nouvelle couleur introduite ici. */
+.modale-confirmation-presence__accent {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+.modale-confirmation-presence__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+  margin-top: 1.5rem;
+}
+
+.modale-confirmation-presence__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+/* "Annuler" : même contour neutre que .modale-confirmation-non-realise__annuler. */
+.modale-confirmation-presence__annuler {
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.modale-confirmation-presence__annuler:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* "Confirmer" : même plein/affirmé que .modale-confirmation-non-realise__ok — pas le vert
+   .liste-evaluations__bouton-present (couleur du bouton déclencheur, pas de la confirmation
+   elle-même) : convention déjà établie que le bouton "OK"/"Confirmer" d'une modale reste bleu
+   ACCECIT, indépendamment de la couleur du bouton qui l'a ouverte (voir NSPP, rouge/terracotta,
+   dont la modale utilise elle aussi ce même bleu). */
+.modale-confirmation-presence__ok {
+  border: 1px solid var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.modale-confirmation-presence__ok:hover {
+  background-color: var(--couleur-back-office-hover);
+}

@@ -6,6 +6,7 @@ import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerRendezvousAEvaluer, marquerPresenceConfirmee } from '../../services/evaluationService';
 import { appliquerTransition } from '../../services/transitionService';
 import ModaleConfirmationTestNonRealise from './ModaleConfirmationTestNonRealise';
+import ModaleConfirmationPresence from './ModaleConfirmationPresence';
 import './ListeEvaluationsAFaire.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -68,6 +69,11 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   // window.confirm() — voir marquerNonRealise plus bas) — null tant qu'aucune confirmation n'est
   // en cours.
   const [rdvAConfirmer, setRdvAConfirmer] = useState(null);
+  // Rendez-vous en attente de confirmation "Présent(e)" (audit 2026-09-10, demande utilisateur :
+  // éviter un déclenchement immédiat au clic) — même mécanisme que rdvAConfirmer ci-dessus, état
+  // séparé car deux confirmations indépendantes peuvent en théorie être ouvertes l'une après
+  // l'autre sur des lignes différentes (voir marquerPresent plus bas).
+  const [rdvPresenceAConfirmer, setRdvPresenceAConfirmer] = useState(null);
 
   // Ligne ciblée par rendezvousIdCible — même mécanisme que FormulaireUtilisateur
   // (pages/admin/Utilisateurs.jsx:349-352) : un ref posé sur le nœud DOM lui-même, scrollIntoView
@@ -140,7 +146,13 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   // (basculeTestNonRealiseService.js) même passé le délai de grâce de 24h. Idempotent côté serveur
   // (COALESCE, voir rendezvousRepository.marquerPresenceConfirmee) : un second clic ne fait rien
   // de plus, pas besoin de désactiver définitivement ce bouton après succès.
+  // Confirmation avant appel (audit 2026-09-10, demande utilisateur) — modale simple
+  // (ModaleConfirmationPresence, voir plus bas), pas de commentaire à saisir contrairement à NSPP
+  // ci-dessous : marquerPresenceConfirmee n'en prend aucun. Le clic sur le bouton lui-même n'ouvre
+  // que la confirmation (voir setRdvPresenceAConfirmer plus bas) ; cette fonction, elle, reste
+  // l'appel réel, inchangé sur le fond, déclenché uniquement depuis la modale.
   const marquerPresent = async (rdv) => {
+    setRdvPresenceAConfirmer(null);
     setEnCoursId(rdv.id);
     setErreurAction(null);
     try {
@@ -266,13 +278,15 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               )}
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
               {/* "Présent(e)" (audit 2026-09-09) — premier bouton de la ligne (ordre demandé :
-                  Présent(e), Évaluer, Test non réalisé) : constate la présence du candidat sans
-                  toucher au badge ci-dessus ni retirer la ligne de la liste, voir marquerPresent. */}
+                  Présent(e), Évaluer, NSPP) : constate la présence du candidat sans toucher au
+                  badge ci-dessus ni retirer la ligne de la liste, voir marquerPresent. Le clic
+                  ouvre d'abord une confirmation (audit 2026-09-10, voir ModaleConfirmationPresence
+                  plus bas) — n'appelle plus marquerPresent directement. */}
               <button
                 type="button"
                 className="liste-evaluations__bouton-present"
                 disabled={enCoursId === rdv.id}
-                onClick={() => marquerPresent(rdv)}
+                onClick={() => setRdvPresenceAConfirmer(rdv)}
               >
                 Présent(e)
               </button>
@@ -322,6 +336,14 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
           rdv={rdvAConfirmer}
           onConfirmer={(commentaire) => marquerNonRealise(rdvAConfirmer, commentaire)}
           onAnnuler={() => setRdvAConfirmer(null)}
+        />
+      )}
+
+      {rdvPresenceAConfirmer && (
+        <ModaleConfirmationPresence
+          rdv={rdvPresenceAConfirmer}
+          onConfirmer={() => marquerPresent(rdvPresenceAConfirmer)}
+          onAnnuler={() => setRdvPresenceAConfirmer(null)}
         />
       )}
     </>
