@@ -63,7 +63,15 @@ async function listerQuestionsAvecItems(bd, questionnaireId) {
 // LEFT JOIN plutôt qu'un JOIN strict : un dossier sans bloc disponibilites enregistré (ne devrait
 // pas arriver en usage normal, mais pas de raison de faire disparaître le rendez-vous pour autant)
 // retombe simplement sur `donnees` null, traité comme "aucun poste connu" côté evaluationEngine.
-function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
+//
+// typePoste (audit 2026-09-10, corrige l'écran Inspecteur qui montrait aussi le secteur Hôtel
+// depuis que formateurId=null ne filtre plus rien pour ce rôle, voir evaluationEngine.
+// listerRendezvousAEvaluer) : filtre optionnel sur bloc_disponibilites.donnees->>'typePoste', même
+// whereRaw que statistiquesRepository.filtrerPosteDossier (l'opérateur ->> doit être du SQL, pas un
+// nom de colonne littéral — voir son commentaire, bug 2026-08-10). null = aucun filtre (Formateur/
+// Admin, comportement inchangé) — seul l'appelant (evaluationEngine) décide qui reçoit quoi, aucune
+// règle métier ici (voir commentaire d'en-tête de ce fichier).
+function listerRendezvousAEvaluer(bd, entiteId, formateurId, typePoste = null) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -88,6 +96,7 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
     })
     .modify((requete) => {
       if (formateurId !== null) requete.where('rendezvous.formateur_id', formateurId);
+      if (typePoste !== null) requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
     })
     .whereIn('statuts.code', ['test_planifie', 'test_realise'])
     .whereIn('rendezvous.statut', ['prevu', 'confirme'])
@@ -219,12 +228,16 @@ function listerReponsesEvaluation(bd, evaluationId) {
 // dossier_donnees_formulaire, migration 013) — sert à valider côté serveur qu'un posteCode reçu
 // du front correspond bien à un poste réellement déclaré pour ce dossier, jamais de confiance
 // dans ce qu'un client déclare (voir evaluationEngine.enregistrerEvaluation/listerQuestionnaire).
+// typePoste (audit 2026-09-10, garde secteur verifierAssignationRendezvous) : ajouté au même
+// endroit plutôt qu'une requête dédiée, cette ligne est déjà chargée pour posteBureau/posteHotel
+// — même vocabulaire 'bureau'/'hotel' que listerRendezvousAEvaluer/statistiquesRepository.
 async function trouverPostesDossier(bd, dossierId) {
   const ligne = await bd('dossier_donnees_formulaire')
     .where({ dossier_id: dossierId, bloc_code: 'disponibilites' })
     .first();
   const donnees = ligne?.donnees ?? {};
   return {
+    typePoste: donnees.typePoste ?? null,
     posteBureau: donnees.posteBureau ?? [],
     posteHotel: donnees.posteHotel ?? [],
   };

@@ -144,9 +144,25 @@ function resoudreEtValiderReponses(questions, reponsesRecues) {
 // cohérent avec la liste elle-même non filtrée par identité pour ce rôle (voir
 // listerRendezvousAEvaluer ci-dessous). N'affecte PAS obtenirDetailEvaluation (Historique des
 // évaluations, écran distinct, volontairement non touché ici) ni listerHistorique.
-function verifierAssignationRendezvous(rendezvous, formateurId, roleCode) {
+//
+// Garde secteur (audit 2026-09-10, demande utilisateur) : l'exemption d'assignation ci-dessus
+// dispense l'Inspecteur de la vérif formateur_id, mais pas de secteur — sans ce second contrôle, un
+// Inspecteur qui connaît (ou devine) l'ID d'un rendez-vous Hôtel assigné à un Formateur pourrait
+// agir dessus malgré le filtre déjà posé côté liste (listerRendezvousAEvaluer, typePoste='bureau') :
+// ce filtre ne protège que l'écran, jamais un appel direct à l'action avec un rendezvousId arbitraire
+// (même raisonnement IDOR que le reste de cette garde). Passe désormais par
+// evaluationRepository.trouverPostesDossier (déjà utilisé pour résoudre le poste évalué) plutôt
+// qu'une requête dédiée — d'où le passage à async/bd en paramètre. Formateur/Admin : aucun changement,
+// cette vérification ne s'exécute que dans la branche Inspecteur.
+async function verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCode) {
   if (rendezvous.formateur_id !== formateurId && roleCode !== ROLES.ADMIN && roleCode !== ROLES.INSPECTEUR) {
     throw new Error("Ce rendez-vous n'est pas assigné à ce formateur.");
+  }
+  if (roleCode === ROLES.INSPECTEUR) {
+    const { typePoste } = await evaluationRepository.trouverPostesDossier(bd, rendezvous.dossier_id);
+    if (typePoste === 'hotel') {
+      throw new Error('Ce rendez-vous concerne le secteur Hôtel, réservé aux Formateurs.');
+    }
   }
 }
 
@@ -166,7 +182,7 @@ async function marquerPresenceConfirmee(entite, { rendezvousId, formateurId, rol
   if (!rendezvous) {
     throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
   }
-  verifierAssignationRendezvous(rendezvous, formateurId, roleCode);
+  await verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCode);
   return rendezvousRepository.marquerPresenceConfirmee(bd, rendezvousId);
 }
 
@@ -180,7 +196,7 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
   if (!rendezvous) {
     throw new Error(`Rendez-vous "${rendezvousId}" introuvable pour l'entité « ${entite.code} ».`);
   }
-  verifierAssignationRendezvous(rendezvous, formateurId, roleCode);
+  await verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCode);
 
   const posteCodeResolu = await resoudrePosteCode(bd, rendezvous.dossier_id, posteCode, rendezvous.postes_selectionnes);
   const questionnaire = await evaluationRepository.trouverQuestionnairePourPoste(bd, entite.id, posteCodeResolu);
@@ -211,15 +227,26 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
 // à l'écran Inspecteur, ne change rien pour pages/formateur/Evaluation.jsx (même composant
 // ListeEvaluationsAFaire.jsx, mais roleCode différent en entrée ici).
 //
+// typePoste='bureau' pour l'Inspecteur (audit 2026-09-10, corrige la régression du repli
+// formateurId=null ci-dessus : sans lui, l'Inspecteur voyait aussi les rendez-vous du secteur Hôtel
+// assignés à un Formateur, faute de tout filtre de remplacement) — même vocabulaire typePoste
+// 'bureau'/'hotel' que le filtre "Entité" Hôtellerie/Tertiaire du tableau de bord Indicateurs (voir
+// statistiquesRepository.filtrerPosteDossier), pas un nouveau champ. Admin garde typePoste=null
+// (aucun filtre, accès total, inchangé) — seul l'Inspecteur est scopé au secteur bureau.
+//
 // Ownership toujours revérifiée à l'action (marquerPresenceConfirmee/listerQuestionnaire/
-// enregistrerEvaluation ci-dessous comparent rendezvous.formateur_id à formateurId) : cet
-// élargissement ne touche QUE la liste, jamais qui peut agir sur quel rendez-vous.
+// enregistrerEvaluation ci-dessous comparent rendezvous.formateur_id à formateurId, sans notion de
+// secteur) : cet élargissement ET ce filtre secteur ne touchent QUE la liste — un Inspecteur peut
+// toujours agir sur n'importe quel rendez-vous bureau assigné à un autre Inspecteur, comportement
+// inchangé.
 async function listerRendezvousAEvaluer(entite, formateurId, roleCode) {
   const bd = await db.obtenirKnex();
+  const estInspecteur = roleCode === ROLES.INSPECTEUR;
   const rendezvous = await evaluationRepository.listerRendezvousAEvaluer(
     bd,
     entite.id,
-    roleCode === ROLES.ADMIN || roleCode === ROLES.INSPECTEUR ? null : formateurId,
+    roleCode === ROLES.ADMIN || estInspecteur ? null : formateurId,
+    estInspecteur ? 'bureau' : null,
   );
   return rendezvous.map(({ donnees_disponibilites, ...reste }) => ({
     ...reste,
@@ -275,7 +302,7 @@ async function enregistrerEvaluation(
   // depuis la planification (CLAUDE.md, étape "Envoi en test" : "notification envoyée au formateur
   // concerné"), ce n'est pas à n'importe quel FORMATEUR de la remplacer (secteur Hôtel : reste
   // strict). Secteur Bureau (Inspecteur) : calendrier partagé, exemption volontaire.
-  verifierAssignationRendezvous(rendezvous, formateurId, roleCode);
+  await verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCode);
 
   const dejaEvaluee = await evaluationRepository.trouverEvaluationParRendezvous(bd, rendezvousId);
   if (dejaEvaluee) {

@@ -51,6 +51,11 @@ function mockerKnex(t) {
 function mockerDependances(t, overrides = {}) {
   t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', overrides.trouverDossierAvecStatutParId ?? (async () => ({ statut_code: 'test_realise' })));
+  // typePoste 'bureau' par défaut (audit 2026-09-10, garde secteur verifierAssignationRendezvous) :
+  // la plupart des tests ci-dessous exercent un roleCode 'inspecteur' sans tester la garde secteur
+  // elle-même (voir tests dédiés plus bas) — leur donner un dossier bureau évite de les faire
+  // échouer sur ce nouveau contrôle, indépendant de ce qu'ils vérifient réellement.
+  t.mock.method(evaluationRepository, 'trouverPostesDossier', overrides.trouverPostesDossier ?? (async () => ({ typePoste: 'bureau', posteBureau: [], posteHotel: [] })));
   t.mock.method(evaluationRepository, 'trouverEvaluationParRendezvous', async () => undefined);
   t.mock.method(evaluationRepository, 'trouverQuestionnairePourPoste', async () => QUESTIONNAIRE);
   t.mock.method(evaluationRepository, 'listerQuestionsAvecItems', async () => QUESTIONS);
@@ -444,6 +449,63 @@ test('marquerPresenceConfirmee rejette un rendez-vous introuvable pour cette ent
         roleCode: 'formateur',
       }),
     /introuvable/,
+  );
+});
+
+// Garde secteur pour l'Inspecteur (audit 2026-09-10, corrige l'IDOR laissé ouvert par l'exemption
+// d'assignation formateur_id ci-dessus : un Inspecteur qui connaît l'ID d'un rendez-vous Hôtel
+// pouvait jusqu'ici agir dessus, malgré le filtre déjà posé côté liste, voir
+// verifierAssignationRendezvous). formateurId volontairement différent de RENDEZVOUS_TEST.formateur_id
+// dans les deux tests ci-dessous : prouve que le rejet/l'acceptation viennent bien du secteur, pas
+// d'une coïncidence avec la garde d'assignation (déjà exemptée pour ce rôle).
+test('marquerPresenceConfirmee rejette un Inspecteur sur un rendez-vous secteur Hôtel, même non assigné à un formateur précis', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  t.mock.method(evaluationRepository, 'trouverPostesDossier', async () => ({ typePoste: 'hotel', posteBureau: [], posteHotel: ['gouvernant'] }));
+  const marquerMock = t.mock.method(rendezvousRepository, 'marquerPresenceConfirmee', async () => ({}));
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.marquerPresenceConfirmee(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 999,
+        roleCode: 'inspecteur',
+      }),
+    /secteur Hôtel/,
+  );
+  assert.equal(marquerMock.mock.calls.length, 0);
+});
+
+test('marquerPresenceConfirmee autorise un Inspecteur sur un rendez-vous secteur Bureau, même non assigné à un formateur précis', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => RENDEZVOUS_TEST);
+  t.mock.method(evaluationRepository, 'trouverPostesDossier', async () => ({ typePoste: 'bureau', posteBureau: ['nettoyage'], posteHotel: [] }));
+  const marquerMock = t.mock.method(rendezvousRepository, 'marquerPresenceConfirmee', async () => ({}));
+
+  await evaluationEngine.marquerPresenceConfirmee(ENTITE_ACCECIT, {
+    rendezvousId: 10,
+    formateurId: 999,
+    roleCode: 'inspecteur',
+  });
+
+  assert.equal(marquerMock.mock.calls.length, 1);
+});
+
+test('enregistrerEvaluation rejette un Inspecteur sur un rendez-vous secteur Hôtel (IDOR via un rendezvousId connu)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t, { trouverPostesDossier: async () => ({ typePoste: 'hotel', posteBureau: [], posteHotel: ['gouvernant'] }) });
+
+  await assert.rejects(
+    () =>
+      evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, {
+        rendezvousId: 10,
+        formateurId: 999,
+        roleCode: 'inspecteur',
+        resultatGlobal: 'invalide',
+        commentaire: 'Insuffisant.',
+        blocs: [BLOC_REPONSES],
+      }),
+    /secteur Hôtel/,
   );
 });
 
