@@ -3,13 +3,12 @@ import StatutBadge from '../workflow/StatutBadge';
 import IndicateurDefilementHorizontal from '../backOffice/IndicateurDefilementHorizontal';
 import './DossierList.css';
 
-const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
+// Colonnes retirées du VISUEL (ni <th> ni <td>, demande utilisateur 2026-09-10 : "toute les
+// informations ... sans scroller sur les côtés") mais gardées dans COLONNES ci-dessous : le tri
+// par défaut ('date_maj' décroissant, voir `tri` plus bas) doit continuer à fonctionner même sans
+// en-tête cliquable pour cette colonne — enlever l'entrée de COLONNES casserait
+// `COLONNES.find((colonne) => colonne.cle === tri.colonne)` dans dossiersTries.
+const COLONNES_MASQUEES = new Set(['date_maj']);
 
 // Une entrée par colonne triable, dans l'ordre d'affichage des <th> — `cle` sert à la fois
 // d'identifiant de tri et de clé de comparaison. "Candidat" trie sur candidats.nom (nom de
@@ -176,8 +175,15 @@ export default function DossierList({
             <th scope="col" className="dossier-list__colonne-numero">
               N°
             </th>
-            {COLONNES.map((colonne) => {
+            {COLONNES.filter((colonne) => !COLONNES_MASQUEES.has(colonne.cle)).map((colonne) => {
               const actif = tri.colonne === colonne.cle;
+              // Email/Poste resserrées avec retour à la ligne plutôt que de pousser le tableau en
+              // largeur (voir DossierList.css, .dossier-list__colonne-email/-poste) — même demande
+              // que la colonne figée "Candidat" ci-dessous, généralisée via une petite table plutôt
+              // qu'un enchaînement de ternaires.
+              const classeColonne = { candidat_nom: 'dossier-list__colonne-figee', candidat_email: 'dossier-list__colonne-email', postes: 'dossier-list__colonne-poste' }[
+                colonne.cle
+              ];
               return (
                 <th
                   key={colonne.cle}
@@ -186,7 +192,7 @@ export default function DossierList({
                   // .dossier-list__colonne-figee, DossierList.css) — repère constant pour savoir à
                   // quel dossier se rapportent les colonnes suivantes une fois défilées hors champ,
                   // même patron que .table-utilisateurs__colonne-figee (Utilisateurs.jsx).
-                  className={colonne.cle === 'candidat_nom' ? 'dossier-list__colonne-figee' : undefined}
+                  className={classeColonne}
                   aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
                 >
                   <button type="button" className="dossier-list__entete-tri" onClick={() => trierPar(colonne.cle)}>
@@ -198,7 +204,11 @@ export default function DossierList({
                 </th>
               );
             })}
-            {actions.length > 0 && <th scope="col">Actions</th>}
+            {actions.length > 0 && (
+              <th scope="col" className="dossier-list__colonne-actions">
+                Actions
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -220,8 +230,8 @@ export default function DossierList({
               </td>
               <td>{dossier.candidat_code_postal || '-'}</td>
               <td>{dossier.candidat_telephone}</td>
-              <td>{dossier.candidat_email}</td>
-              <td>
+              <td className="dossier-list__colonne-email">{dossier.candidat_email}</td>
+              <td className="dossier-list__colonne-poste">
                 {/* Une puce par poste, empilées verticalement plutôt qu'une seule chaîne
                     "poste1, poste2" : reste lisible même quand un candidat coche plusieurs postes
                     bureau ET hôtel (voir BlocDisponibilites.jsx, cases indépendantes). */}
@@ -249,9 +259,11 @@ export default function DossierList({
                   variante={varianteStatut ? varianteStatut(dossier.statut_code) : 'neutre'}
                 />
               </td>
-              <td>{FORMAT_DATE.format(new Date(dossier.date_maj))}</td>
+              {/* Colonne "Dernière mise à jour" retirée du visuel (demande utilisateur
+                  2026-09-10) — dossier.date_maj reste utilisé pour le tri par défaut (voir COLONNES_MASQUEES
+                  plus haut), simplement plus affiché en cellule. */}
               {actions.length > 0 && (
-                <td>
+                <td className="dossier-list__colonne-actions">
                   {/* display: flex sur un <div> interne plutôt que directement sur le <td> :
                       posé sur la cellule elle-même, ça lui ferait perdre son display: table-cell
                       (donc son étirement/centrage vertical automatique sur la hauteur de la

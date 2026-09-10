@@ -200,14 +200,45 @@
   background-color: var(--gris-100);
   color: var(--couleur-texte-secondaire);
   font-size: 0.8rem;
-  white-space: nowrap;
+  /* normal + word-break (pas nowrap, demande utilisateur 2026-09-10) : un libellé de poste un peu
+     long ("Femme/Valet de chambre") doit se replier sur plusieurs lignes DANS sa puce plutôt que
+     forcer toute la colonne (donc tout le tableau) à s'élargir — voir .dossier-list__colonne-poste
+     ci-dessous, qui plafonne la largeur de la colonne elle-même. */
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Email/Poste resserrées avec repli à la ligne plutôt que de pousser le tableau en scroll
+   horizontal (demande utilisateur 2026-09-10, "sans scroller sur les côtés") — max-width plafonne
+   la largeur que ces deux colonnes peuvent réclamer même en table-layout: auto (comportement
+   standard des navigateurs : un <td> avec max-width limite bien la largeur de SA colonne, les
+   autres colonnes gardant leur largeur naturelle). overflow-wrap: anywhere sur l'email : une
+   adresse email est un seul "mot" sans espace, `word-break: break-word` seul ne le couperait pas
+   (il ne casse qu'aux limites de mots existantes) — anywhere autorise la coupure n'importe où si
+   besoin, seul moyen de faire tenir une adresse très longue dans cette largeur. */
+.dossier-list__colonne-email {
+  max-width: 11rem;
+  overflow-wrap: anywhere;
+}
+
+.dossier-list__colonne-poste {
+  max-width: 9rem;
 }
 
 .dossier-list__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--espace-petit);
+}
+
+/* Plafonne la colonne "Actions" (demande utilisateur 2026-09-10, "sans scroller sur les côtés") —
+   sans elle, une ligne à 3-4 boutons (Pièces/Relances/Replanifier/"Étudier le dossier") pousserait
+   cette colonne, et donc tout le tableau, bien au-delà de la largeur de l'écran avant même que
+   flex-wrap ci-dessus n'ait l'occasion de replier les boutons sur une seconde ligne. */
+.dossier-list__colonne-actions {
+  max-width: 12rem;
 }
 
 /* Pousse UNE action à l'extrémité droite de la cellule (margin-left: auto sur un enfant flex),
