@@ -68,6 +68,13 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    // Jointure vers l'utilisateur assigné (formateur/inspecteur), même patron que
+    // rendezvousRepository.listerRendezvousTest — nécessaire pour exposer formateur_nom/
+    // formateur_prenom (audit 2026-09-10, colonne "Assigné à" de ListeEvaluationsAFaire.jsx, ajoutée
+    // pour que l'Inspecteur sache qui est prévu sur chaque créneau une fois la liste dé-filtrée par
+    // identité — voir evaluationEngine.listerRendezvousAEvaluer). leftJoin (pas join strict) : ne
+    // doit jamais faire disparaître un rendez-vous de la liste si formateur_id était un jour null.
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
     .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
       this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
         'bloc_disponibilites.bloc_code',
@@ -108,6 +115,8 @@ function listerRendezvousAEvaluer(bd, entiteId, formateurId) {
       'rendezvous.postes_selectionnes',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
+      'utilisateurs.prenom as formateur_prenom',
+      'utilisateurs.nom as formateur_nom',
       'bloc_disponibilites.donnees as donnees_disponibilites',
     )
     .orderBy('rendezvous.date_heure', 'asc');
