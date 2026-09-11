@@ -257,6 +257,15 @@
   filter: brightness(0.95);
 }
 
+/* "Vérification…" (Replanifier des tests, voir ouvrirReplanificationGroupee) — même style que
+   TableauDeBordAccueil.css (.tableau-bord-accueil__bouton-action-groupee:disabled, "Export des
+   pièces") : premier bouton de cette page à passer par un état disabled, jamais eu besoin de cette
+   règle jusqu'ici ("Voir l'historique..."/"Effacer la sélection" ne se désactivent jamais). */
+.planification__bouton-action-groupee:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 /* "Effacer la sélection" (audit 2026-08-25) — même distinction visuelle et même raisonnement que
    .tableau-bord-accueil__bouton-action-groupee--effacer (TableauDeBordAccueil.css, Dossiers
    candidats) : traitement "fantôme" plutôt qu'une pastille blanche pleine identique à "Voir

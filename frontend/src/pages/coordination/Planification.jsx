@@ -10,8 +10,11 @@ import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametre
 import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
+import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
+import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
+import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
 import './Planification.css';
@@ -19,6 +22,26 @@ import './Planification.css';
 // Même seuil que TableauDeBordAccueil.jsx (Dossiers candidats, seuil abaissé à 1 le 2026-08-25) :
 // la barre apparaît dès qu'un seul candidat est sélectionné.
 const SEUIL_SELECTION_ACTIONS_GROUPEES = 1;
+
+// Mêmes statuts que STATUTS_REPLANIFIABLES_ACCECIT (TableauDeBordAccueil.jsx, pages/recruteur/
+// Validation.jsx, pages/coordination/Tests.jsx) — dupliqué ici plutôt que partagé (voir CLAUDE.md,
+// conventions du projet) : sert à exclure de la replanification groupée les dossiers qui n'ont
+// encore jamais eu de test planifié (nouveau/en_attente_pieces/test_non_planifie) ET ceux dont le
+// test a eu lieu mais n'a pas encore de verdict (test_realise, pas de transition
+// replanifier_test depuis ce statut dans workflow.config.json — il faut d'abord un verdict avant
+// de pouvoir reprogrammer). Un dossier sélectionné sur CET écran peut très bien avoir déjà quitté
+// ces statuts depuis (ex. verdict rendu entretemps, ou ligne affichée hors "À venir uniquement") —
+// d'où la vérification fraîche via obtenirDossier au clic sur "Replanifier des tests", voir
+// ouvrirReplanificationGroupee plus bas : contrairement à TableauDeBordAccueil.jsx (dossiers déjà
+// en mémoire avec leur statut_code), les rendez-vous chargés ici (listerRendezvousTest) ne portent
+// pas le statut du DOSSIER, seulement celui du rendez-vous lui-même (prevu/confirme/absent/...).
+const STATUTS_REPLANIFIABLES_ACCECIT = [
+  'test_planifie',
+  'test_non_realise',
+  'invalide',
+  'valide_envoi_formation',
+  'valide_pret_embauche',
+];
 
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   day: '2-digit',
@@ -373,6 +396,22 @@ export default function Planification() {
   // Remonter le composant réutilise ces deux effets existants tels quels, sans y toucher.
   const [compteurHistorique, setCompteurHistorique] = useState(0);
 
+  // Actions groupées "Relances"/"Replanifier des tests" (demande utilisateur, même composant/
+  // logique que TableauDeBordAccueil.jsx — voir ModaleRelanceGroupee.jsx/
+  // ModaleReplanificationGroupee.jsx, réutilisés tels quels) — 'relance' | 'replanification' | null.
+  // Pas "Export des pièces" ici : hors sujet sur un écran de rendez-vous de test (demande
+  // utilisateur), voir le rendu de la barre plus bas.
+  const [modaleGroupeeOuverte, setModaleGroupeeOuverte] = useState(null);
+  // Vérification asynchrone avant d'ouvrir la modale de replanification (voir
+  // ouvrirReplanificationGroupee plus bas) — même patron que lancerExportPieces
+  // (TableauDeBordAccueil.jsx) : contrairement à cette page-là, les rendez-vous déjà en mémoire ici
+  // ne portent pas le statut du DOSSIER (voir STATUTS_REPLANIFIABLES_ACCECIT ci-dessus), il faut
+  // donc l'aller chercher avant de savoir quels dossiers sélectionnés sont réellement éligibles.
+  const [verificationReplanificationEnCours, setVerificationReplanificationEnCours] = useState(false);
+  const [erreurVerificationReplanification, setErreurVerificationReplanification] = useState(null);
+  const [dossiersEligiblesReplanification, setDossiersEligiblesReplanification] = useState([]);
+  const [dossiersExclusReplanification, setDossiersExclusReplanification] = useState([]);
+
   useEffect(() => {
     // Sélecteur "Formateur" masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur
     // ci-dessus) : inutile d'appeler une route que ces deux rôles n'ont de toute façon pas le
@@ -614,6 +653,72 @@ export default function Planification() {
     });
   };
 
+  // Objets { id, candidat_nom, candidat_prenom } des dossiers sélectionnés — lus depuis `rendezvous`
+  // (liste COMPLÈTE déjà en mémoire, pas rendezvousTries/rendezvousParCandidat qui dépendent des
+  // filtres actifs), même principe que dossiersSelectionnesObjets sur TableauDeBordAccueil.jsx :
+  // une sélection reste exploitable par les modales même si l'agent modifie ensuite un filtre
+  // pendant qu'une sélection est déjà faite. N'importe quelle ligne de rendez-vous d'un dossier
+  // sélectionné suffit (candidat_nom/candidat_prenom identiques sur toutes les lignes du même
+  // dossier) — un seul passage, sans avoir besoin de rendezvousParCandidat (qui choisit une ligne
+  // "représentative" par date, une distinction sans objet pour ce seul besoin de nom/prénom).
+  const dossiersSelectionnesObjets = useMemo(() => {
+    const parDossier = new Map();
+    for (const rdv of rendezvous) {
+      if (!dossiersSelectionnes.has(rdv.dossier_id) || parDossier.has(rdv.dossier_id)) continue;
+      parDossier.set(rdv.dossier_id, {
+        id: rdv.dossier_id,
+        candidat_nom: rdv.candidat_nom,
+        candidat_prenom: rdv.candidat_prenom,
+      });
+    }
+    return [...parDossier.values()];
+  }, [rendezvous, dossiersSelectionnes]);
+
+  // Vide la sélection et ferme la modale — même patron que TableauDeBordAccueil.jsx : l'agent
+  // revient sur une liste "propre", cohérente avec le comportement d'une action individuelle
+  // réussie (retour à l'écran précédent).
+  const terminerActionGroupee = () => {
+    setModaleGroupeeOuverte(null);
+    setDossiersSelectionnes(new Set());
+  };
+
+  // Vérification asynchrone (voir son état de déclaration plus haut) : contrairement à
+  // TableauDeBordAccueil.jsx (dossiers déjà en mémoire avec leur statut_code, split synchrone via
+  // useMemo), les rendez-vous chargés ici ne portent que le statut du RENDEZ-VOUS, jamais celui du
+  // DOSSIER — obtenirDossier (même route que Relances.jsx/Formation.jsx/Tests.jsx) va donc chercher
+  // le statut RÉEL, à jour, de chaque dossier sélectionné avant de décider qui est éligible. Un
+  // échec de récupération sur UN dossier (supprimé entretemps, etc.) l'exclut simplement de la
+  // replanification plutôt que de bloquer toute la vérification — même philosophie de résilience
+  // que lancerExportPieces (TableauDeBordAccueil.jsx), qui traite une pièce introuvable comme "0
+  // pièce" plutôt que comme un échec global.
+  const ouvrirReplanificationGroupee = async () => {
+    if (verificationReplanificationEnCours || dossiersSelectionnes.size === 0) return;
+    setVerificationReplanificationEnCours(true);
+    setErreurVerificationReplanification(null);
+    try {
+      const dossiersComplets = await Promise.all(
+        [...dossiersSelectionnes].map((dossierId) => obtenirDossier(dossierId).catch(() => null)),
+      );
+      const eligibles = [];
+      const exclus = [];
+      dossiersComplets.forEach((dossier) => {
+        if (!dossier) return;
+        (STATUTS_REPLANIFIABLES_ACCECIT.includes(dossier.statut_code) ? eligibles : exclus).push(dossier);
+      });
+      setDossiersEligiblesReplanification(eligibles);
+      setDossiersExclusReplanification(exclus);
+      setModaleGroupeeOuverte('replanification');
+    } catch (erreur) {
+      setErreurVerificationReplanification(
+        erreur.response
+          ? (erreur.response.data?.erreur ?? "Impossible de vérifier l'éligibilité des dossiers sélectionnés.")
+          : 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.',
+      );
+    } finally {
+      setVerificationReplanificationEnCours(false);
+    }
+  };
+
   const ouvrirHistorique = () => {
     if (dossiersSelectionnes.size === 0) return;
     setDossierIdsHistorique([...dossiersSelectionnes]);
@@ -752,19 +857,40 @@ export default function Planification() {
             boutons pleins à droite. N'apparaît qu'à partir de SEUIL_SELECTION_ACTIONS_GROUPEES (1,
             même seuil que Dossiers candidats depuis le 2026-08-25) sélections, plutôt que toujours
             rendue avec un bouton désactivé (comportement précédent). Masquée pour
-            Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection multi-candidats/
-            "Voir l'historique..." reste une action de coordination (regroupement de plusieurs
-            dossiers), distincte de la simple consultation en lecture seule d'UN dossier via "Voir
-            le dossier" (colonne Actions ci-dessous, désormais accessible à ces deux rôles — voir
-            son commentaire). Un seul bouton aujourd'hui ("Voir l'historique...", logique métier
-            inchangée) — la structure (compteur + boutons) reste celle de Dossiers candidats pour
-            accueillir de futures actions groupées sans reprise visuelle. */}
+            Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection multi-candidats
+            reste une action de coordination (regroupement de plusieurs dossiers), distincte de la
+            simple consultation en lecture seule d'UN dossier via "Voir le dossier" (colonne
+            Actions ci-dessous, désormais accessible à ces deux rôles — voir son commentaire).
+            "Relances"/"Replanifier des tests" (demande utilisateur) réutilisent les MÊMES modales
+            que Dossiers candidats (ModaleRelanceGroupee.jsx/ModaleReplanificationGroupee.jsx),
+            pas de réimplémentation — voir dossiersSelectionnesObjets/ouvrirReplanificationGroupee
+            plus haut. Pas "Export des pièces" ici (demande utilisateur) : hors sujet sur un écran
+            de rendez-vous de test, pas de dossiers avec pièces à exporter. */}
         {!estFormateurOuInspecteur && dossiersSelectionnes.size >= SEUIL_SELECTION_ACTIONS_GROUPEES && (
           <div className="planification__actions-groupees" role="toolbar" aria-label="Actions groupées">
             <span className="planification__actions-groupees-compteur">
               {dossiersSelectionnes.size} candidat{dossiersSelectionnes.size > 1 ? 's' : ''} sélectionné
               {dossiersSelectionnes.size > 1 ? 's' : ''}
             </span>
+            <button
+              type="button"
+              className="planification__bouton-action-groupee"
+              onClick={() => setModaleGroupeeOuverte('relance')}
+            >
+              Relances
+            </button>
+            {/* Vérification asynchrone (ouvrirReplanificationGroupee) avant d'ouvrir la modale —
+                voir son commentaire d'en-tête : contrairement à Dossiers candidats, l'éligibilité
+                (STATUTS_REPLANIFIABLES_ACCECIT) n'est connue qu'après avoir interrogé le statut
+                réel de chaque dossier sélectionné, absent des rendez-vous déjà en mémoire ici. */}
+            <button
+              type="button"
+              className="planification__bouton-action-groupee"
+              onClick={ouvrirReplanificationGroupee}
+              disabled={verificationReplanificationEnCours}
+            >
+              {verificationReplanificationEnCours ? 'Vérification…' : 'Replanifier des tests'}
+            </button>
             <button type="button" className="planification__bouton-action-groupee" onClick={ouvrirHistorique}>
               Voir l&rsquo;historique des rendez-vous sélectionnés
             </button>
@@ -784,6 +910,8 @@ export default function Planification() {
             </button>
           </div>
         )}
+
+        {erreurVerificationReplanification && <p role="alert">{erreurVerificationReplanification}</p>}
 
         {chargement && <p>Chargement des rendez-vous…</p>}
         {erreur && <p role="alert">{erreur}</p>}
@@ -932,6 +1060,30 @@ export default function Planification() {
               </tbody>
             </table>
           </IndicateurDefilementHorizontal>
+        )}
+
+        {/* key={[...dossiersSelectionnes].join(',')} : force un remontage complet de la modale si
+            la sélection change pendant qu'elle est fermée puis rouverte — même patron que
+            TableauDeBordAccueil.jsx (Dossiers candidats), chaque ouverture doit repartir d'un
+            chargement propre (formateurs/lieux/derniers rendez-vous), jamais d'un état résiduel
+            d'une ouverture précédente sur une autre sélection. */}
+        {modaleGroupeeOuverte === 'relance' && (
+          <ModaleRelanceGroupee
+            key={[...dossiersSelectionnes].join(',')}
+            dossiers={dossiersSelectionnesObjets}
+            onFermer={() => setModaleGroupeeOuverte(null)}
+            onTermine={terminerActionGroupee}
+          />
+        )}
+        {modaleGroupeeOuverte === 'replanification' && (
+          <ModaleReplanificationGroupee
+            key={[...dossiersSelectionnes].join(',')}
+            dossiers={dossiersEligiblesReplanification}
+            dossiersExclus={dossiersExclusReplanification}
+            libellePoste={libellePoste}
+            onFermer={() => setModaleGroupeeOuverte(null)}
+            onTermine={terminerActionGroupee}
+          />
         )}
 
         {panneauHistoriqueOuvert && (
