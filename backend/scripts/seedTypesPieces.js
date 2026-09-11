@@ -6,14 +6,17 @@
 
 const { obtenirKnex } = require('../src/db/knex');
 
-// obligatoire : true sur photo_identite/carte_identite/carte_vitale (décision produit,
-// 2026-08-10 puis 2026-08-17 pour l'ajout de photo_identite) — même changement que
-// frontend/src/core/pieceJustificative/donneesTest/typesPiecesConfig.accecit.js, répercuté ici
-// pour rester cohérent même si `types_pieces.obligatoire` n'est aujourd'hui lu par aucune
-// validation backend (voir le commentaire de ce fichier front). Ce script est idempotent sur
+// obligatoire : true sur photo_identite/carte_identite/carte_vitale/rib/justificatif_domicile
+// (décision produit, 2026-08-10 puis 2026-08-17, puis 2026-09-11 qui revient sur ce dernier
+// changement — rib et justificatif_domicile redeviennent obligatoires) — même valeurs que
+// frontend/src/core/pieceJustificative/donneesTest/typesPiecesConfig.accecit.js, répercutées ici
+// pour rester cohérent : cette colonne EST bien lue par une validation backend (audit 2026-09-11,
+// corrige ce commentaire — voir pieceJustificativeRepository.toutesPiecesObligatoiresPresentes,
+// qui déclenche la transition automatique 'pieces_completes'). Ce script est idempotent sur
 // l'existence d'une ligne (voir seedTypesPieces ci-dessous), donc sans effet sur une ligne déjà
 // insérée en base avec l'ancienne valeur : à corriger manuellement (UPDATE) sur un environnement
-// déjà seedé, pas quelque chose que ré-exécuter ce script fera pour vous.
+// déjà seedé, pas quelque chose que ré-exécuter ce script fera pour vous — voir cette même mise à
+// jour du 2026-09-11, appliquée manuellement sur l'environnement de dev pour cette raison.
 //
 // capture_uniquement : true seulement sur photo_identite (migration 048) — seul "Prendre une
 // photo" doit être proposé pour cette pièce (voir CaptureTablette.jsx et la garde associée dans
@@ -32,8 +35,8 @@ const TYPES_PIECES_ACCECIT = [
   { code: 'carte_identite', libelle: "Carte d'identité ou Carte de Séjour", obligatoire: true },
   { code: 'carte_identite_verso', libelle: 'Carte d’identité ou Carte de Séjour - Verso (optionnel)', obligatoire: false },
   { code: 'carte_vitale', libelle: 'Carte vitale', obligatoire: true },
-  { code: 'rib', libelle: 'RIB', obligatoire: false },
-  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: false },
+  { code: 'rib', libelle: 'RIB', obligatoire: true },
+  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: true },
   { code: 'justificatif_experience', libelle: "Justificatif d'expérience", obligatoire: false },
   { code: 'attestation_mutuelle', libelle: 'Attestation mutuelle', obligatoire: false },
   // multiple : true (migration 062, demande utilisateur 2026-09-10) — seul type qui accepte

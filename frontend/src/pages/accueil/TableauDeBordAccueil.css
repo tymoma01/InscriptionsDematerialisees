@@ -25,19 +25,17 @@
   color: var(--couleur-erreur);
 }
 
-/* Bouton "Plus de filtres"/"Moins de filtres" et panneau qu'il révèle (demande utilisateur :
-   statut + entité en haut, recherche/dates/expérience repliés en dessous) — composant partagé
-   (core/dossier/PanneauFiltresRepliable.jsx/.css, extrait d'ici le 2026-09-11, réutilisé par Suivi
-   des tests/Suivi des formations) : plus aucune règle propre à ce bouton/panneau ici, seul le
-   contenu qu'il révèle (Expérience ci-dessous) reste propre à cette page. */
-
 /* Filtre "Expérience" (audit 2026-09-02, refonte visuelle en badges) — réutilise directement
    .filtres-statut__statuts (FiltresStatut.css : boîte ivoire, boutons pilule, wrap) pour que cette
    rangée de badges se lise comme une extension naturelle de la barre de filtres juste en dessous,
-   pas comme un composant isolé. margin-bottom aligné sur .filtres-statut (même espacement avant
-   la rangée de statuts). */
+   pas comme un composant isolé.
+   margin-bottom (audit 2026-09-11, retrait du bouton "Plus de filtres"/panneau repliable —
+   composant PanneauFiltresRepliable.jsx supprimé) : ce bloc Expérience est désormais le dernier
+   avant la liste de dossiers, plus question de compter sur le margin-bottom du panneau disparu —
+   même valeur (var(--espace-petit)) que .filtres-recherche-dossiers (FiltresRechercheDossiers.css)
+   juste au-dessus, pour un espacement cohérent des deux côtés de ce bloc. */
 .tableau-bord-accueil__filtres-experience {
-  margin-bottom: 0;
+  margin-bottom: var(--espace-petit);
   margin-top: var(--espace-moyen);
 }
 

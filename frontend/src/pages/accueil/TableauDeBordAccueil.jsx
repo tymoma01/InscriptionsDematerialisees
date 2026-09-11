@@ -4,7 +4,6 @@ import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
-import PanneauFiltresRepliable from '../../core/dossier/PanneauFiltresRepliable';
 import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -263,19 +262,6 @@ export default function TableauDeBordAccueil() {
   // '' = toutes les tranches d'expérience confondues, jamais une valeur de code réelle.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
-  // Repli du bloc "recherche/dates/expérience" derrière un bouton "Plus de filtres" (demande
-  // utilisateur : statut + entité Hôtellerie/Tertiaire visibles en haut, le reste replié) — state
-  // LOCAL, pas persisté dans l'URL comme les filtres eux-mêmes ci-dessus : ouvrir/fermer ce panneau
-  // n'est pas un filtre en soi, rien à retrouver après un rafraîchissement de page. Ouvert par
-  // défaut si l'un de ces filtres est déjà actif au chargement (ex. lien partagé avec ?q=... ou
-  // retour arrière depuis une fiche dossier, voir useParametreURL.js) : sinon l'agent verrait un
-  // filtre actif sans le panneau qui le porte, aucun moyen de comprendre pourquoi la liste est déjà
-  // restreinte. Calculé une seule fois (useState avec initialiseur), jamais resynchronisé après
-  // coup — une fois ouvert/fermé manuellement, le choix de l'agent prime sur l'état initial des
-  // filtres.
-  const [plusDeFiltresOuvert, setPlusDeFiltresOuvert] = useState(
-    () => Boolean(recherche || codePostalFiltre || dateDebutFiltre || dateFinFiltre || experienceFiltre),
-  );
 
   useEffect(() => {
     listerStatuts()
@@ -596,8 +582,8 @@ export default function TableauDeBordAccueil() {
 
         {/* Statut + entité Hôtellerie/Tertiaire en haut (demande utilisateur) — ce sont les deux
             filtres consultés en premier à l'accueil (état du dossier, secteur du candidat), le
-            reste (recherche nom/prénom, dates, expérience) est replié derrière "Plus de filtres"
-            juste en dessous, moins consulté au quotidien. */}
+            reste (recherche nom/prénom, dates, expérience) suit juste en dessous, toujours
+            visible (plus de bouton "Plus de filtres" pour le masquer, retiré le 2026-09-11). */}
         <FiltresStatut
           statuts={statutsFiltres}
           statutFiltre={statutFiltre}
@@ -614,64 +600,59 @@ export default function TableauDeBordAccueil() {
           }
         />
 
-        {/* Bascule du panneau replié ci-dessous (recherche/dates/expérience) — composant partagé
-            (core/dossier/PanneauFiltresRepliable.jsx, extrait d'ici le 2026-09-11, réutilisé par
-            Suivi des tests/Suivi des formations) : les filtres qu'il contient pilotent des
-            <input>/<select> contrôlés, un <details> natif n'aurait rien apporté de plus ici. */}
-        <PanneauFiltresRepliable
-          ouvert={plusDeFiltresOuvert}
-          onBasculer={() => setPlusDeFiltresOuvert((precedent) => !precedent)}
+        {/* Recherche/dates/expérience — plus de bouton "Plus de filtres" pour les masquer (retiré
+            le 2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx supprimé,
+            ce bloc reste désormais visible en permanence sur les 3 écrans qui le portaient,
+            Dossiers candidats/Suivi des tests/Suivi des formations). */}
+        <FiltresRechercheDossiers
+          recherche={recherche}
+          onChangerRecherche={setRecherche}
+          codePostalFiltre={codePostalFiltre}
+          onChangerCodePostalFiltre={setCodePostalFiltre}
+          dateDebutFiltre={dateDebutFiltre}
+          onChangerDateDebutFiltre={setDateDebutFiltre}
+          dateFinFiltre={dateFinFiltre}
+          onChangerDateFinFiltre={setDateFinFiltre}
+        />
+        {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
+            disposition/composant visuel que la boîte de badges de statut (.filtres-statut__statuts,
+            réutilisée telle quelle plutôt que dupliquée) : boîte ivoire, boutons pilule, compteur
+            entre parenthèses. Comportement de sélection DÉLIBÉRÉMENT différent de FiltresStatut.jsx
+            (pas de bouton "Tous" séparé) : cliquer le badge déjà actif le désactive (retour à
+            experienceFiltre === ''), alors qu'un bouton de statut ne se désactive que via "Tous" —
+            demande explicite, cohérente avec l'absence d'équivalent "Tous" pour ce filtre à 4
+            valeurs seulement. data-experience (comme data-statut) : accroche de couleur par
+            valeur, voir TableauDeBordAccueil.css. */}
+        <div
+          className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
+          role="group"
+          aria-label="Filtrer par expérience"
         >
-          <FiltresRechercheDossiers
-            recherche={recherche}
-            onChangerRecherche={setRecherche}
-            codePostalFiltre={codePostalFiltre}
-            onChangerCodePostalFiltre={setCodePostalFiltre}
-            dateDebutFiltre={dateDebutFiltre}
-            onChangerDateDebutFiltre={setDateDebutFiltre}
-            dateFinFiltre={dateFinFiltre}
-            onChangerDateFinFiltre={setDateFinFiltre}
-          />
-          {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
-              disposition/composant visuel que la boîte de badges de statut (.filtres-statut__statuts,
-              réutilisée telle quelle plutôt que dupliquée) : boîte ivoire, boutons pilule, compteur
-              entre parenthèses. Comportement de sélection DÉLIBÉRÉMENT différent de FiltresStatut.jsx
-              (pas de bouton "Tous" séparé) : cliquer le badge déjà actif le désactive (retour à
-              experienceFiltre === ''), alors qu'un bouton de statut ne se désactive que via "Tous" —
-              demande explicite, cohérente avec l'absence d'équivalent "Tous" pour ce filtre à 4
-              valeurs seulement. data-experience (comme data-statut) : accroche de couleur par
-              valeur, voir TableauDeBordAccueil.css. */}
-          <div
-            className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
-            role="group"
-            aria-label="Filtrer par expérience"
-          >
-            {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
-                <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
-                badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
-                filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
-                inventé ici. */}
-            <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
-            {/* Badges regroupés dans leur propre bloc flex (audit 2026-09-02) — le titre reste
-                calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
-                bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
-                TableauDeBordAccueil.css. */}
-            <div className="tableau-bord-accueil__filtres-experience-badges">
-              {CODES_EXPERIENCE_ACCECIT.map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  data-experience={code}
-                  className={experienceFiltre === code ? 'actif' : ''}
-                  onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
-                >
-                  {libelleExperience(code)}
-                  <strong> ({compteursParExperience[code] ?? 0})</strong>
-                </button>
-              ))}
-            </div>
+          {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
+              <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
+              badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
+              filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
+              inventé ici. */}
+          <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
+          {/* Badges regroupés dans leur propre bloc flex (audit 2026-09-02) — le titre reste
+              calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
+              bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
+              TableauDeBordAccueil.css. */}
+          <div className="tableau-bord-accueil__filtres-experience-badges">
+            {CODES_EXPERIENCE_ACCECIT.map((code) => (
+              <button
+                key={code}
+                type="button"
+                data-experience={code}
+                className={experienceFiltre === code ? 'actif' : ''}
+                onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
+              >
+                {libelleExperience(code)}
+                <strong> ({compteursParExperience[code] ?? 0})</strong>
+              </button>
+            ))}
           </div>
-        </PanneauFiltresRepliable>
+        </div>
 
         {/* Barre d'actions groupées (audit 2026-08-24, seuil abaissé à 1 le 2026-08-25) — sticky
             en haut de la zone de contenu (voir TableauDeBordAccueil.css) : reste visible pendant

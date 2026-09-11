@@ -5,13 +5,18 @@
 // blocs du formulaire : CaptureTablette.jsx ne connaît que la forme
 // { code, libelle, obligatoire, captureUniquement, codeVerso }, jamais ces valeurs ACCECIT en dur
 // (voir Modularité, CLAUDE.md).
-// obligatoire : true sur photo_identite/carte_identite/carte_vitale (décision produit,
-// 2026-08-10 puis 2026-08-17) — rib et justificatif_domicile étaient obligatoires jusque-là,
-// désormais optionnelles au même titre que justificatif_experience/attestation_mutuelle qui
-// l'étaient déjà. Ne conditionne que le bouton "Valider et planifier un test" de
-// CaptureTablette.jsx (piecesObligatoiresCompletes) — aucune validation backend ne s'appuie sur
-// ce flag (voir pieces.routes.js/pieceJustificativeService.js : `types_pieces` n'y sert qu'à
-// résoudre code/libelle, jamais à bloquer une transition).
+// obligatoire : true sur photo_identite/carte_identite/carte_vitale/rib/justificatif_domicile
+// (décision produit, 2026-08-10 puis 2026-08-17, puis 2026-09-11 qui revient sur ce dernier
+// changement — rib et justificatif_domicile redeviennent obligatoires, comme avant le 2026-08-17)
+// — seuls justificatif_experience/attestation_mutuelle/autres restent optionnels. Conditionne le
+// bouton "Valider et planifier un test" de CaptureTablette.jsx (piecesObligatoiresCompletes), MAIS
+// AUSSI une vraie transition backend automatique (audit 2026-09-11, corrige le commentaire
+// précédent qui affirmait le contraire) : voir pieceJustificativeRepository.
+// toutesPiecesObligatoiresPresentes, qui lit CETTE MÊME colonne obligatoire en base
+// (types_pieces.obligatoire, tenue à jour séparément — voir backend/scripts/seedTypesPieces.js,
+// script non ré-exécutable pour changer une valeur déjà seedée, un UPDATE manuel est nécessaire)
+// pour déclencher la transition 'pieces_completes' (en_attente_pieces -> test_non_planifie) dès
+// que toutes les pièces obligatoires de l'entité sont chargées.
 // multiple : true uniquement sur "autres" (migration 062, demande utilisateur 2026-09-10) — seul
 // type qui accepte autant de documents que voulu pour un même dossier, avec renommage possible de
 // chacun, au lieu du slot unique "Reprendre/Supprimer" des autres types (voir CaptureTablette.jsx,
@@ -34,8 +39,8 @@ export const typesPiecesConfigAccecitTest = [
   { code: 'photo_identite', libelle: "Photo d'identité", obligatoire: true, captureUniquement: true },
   { code: 'carte_identite', libelle: "Carte d'identité ou Carte de Séjour", obligatoire: true, codeVerso: 'carte_identite_verso' },
   { code: 'carte_vitale', libelle: 'Carte Vitale ou Attestation de Sécurité Sociale', obligatoire: true },
-  { code: 'rib', libelle: "Relevé d'identité bancaire (RIB)", obligatoire: false },
-  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: false },
+  { code: 'rib', libelle: "Relevé d'identité bancaire (RIB)", obligatoire: true },
+  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: true },
   { code: 'justificatif_experience', libelle: "Justificatif d'expériences", obligatoire: false },
   { code: 'attestation_mutuelle', libelle: 'Attestation Mutuelle', obligatoire: false },
   { code: 'autres', libelle: 'Autres documents', obligatoire: false, multiple: true },

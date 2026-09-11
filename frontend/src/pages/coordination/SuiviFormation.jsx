@@ -7,7 +7,6 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
-import PanneauFiltresRepliable from '../../core/dossier/PanneauFiltresRepliable';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import { listerSuiviFormation } from '../../services/dossierService';
@@ -183,18 +182,6 @@ export default function SuiviFormation() {
   // utilisés par rechercheCorrespond ci-dessus, même si cette page n'affiche pas de colonne
   // "Poste").
   const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
-
-  // Repli du bloc "recherche/dates/expérience" derrière un bouton "Plus de filtres" (demande
-  // utilisateur d'harmonisation avec Dossiers candidats/Suivi des tests, audit 2026-09-11) —
-  // composant partagé PanneauFiltresRepliable.jsx (core/dossier/), même patron que
-  // TableauDeBordAccueil.jsx/Planification.jsx : Statut/Entité restent visibles hors panneau
-  // (voir FiltresStatut ci-dessous), seuls recherche/dates/expérience se replient — cette page
-  // n'a pas de filtre serveur équivalent à "À venir uniquement" (Suivi des tests) à garder hors
-  // panneau. State LOCAL, pas persisté dans l'URL — ouvrir/fermer ce panneau n'est pas un filtre
-  // en soi. Ouvert par défaut si un des filtres qu'il contient est déjà actif au chargement.
-  const [plusDeFiltresOuvert, setPlusDeFiltresOuvert] = useState(
-    () => Boolean(recherche || codePostalFiltre || dateDebutFiltre || dateFinFiltre || experienceFiltre),
-  );
 
   const accesComplet = ['formateur', 'inspecteur', 'admin'].includes(utilisateur?.roleCode);
 
@@ -385,49 +372,43 @@ export default function SuiviFormation() {
               }
             />
 
-            {/* Bascule du panneau replié ci-dessous (recherche/dates/expérience) — composant
-                partagé (core/dossier/PanneauFiltresRepliable.jsx, même modèle que Dossiers
-                candidats/Suivi des tests, demande utilisateur d'harmonisation, audit 2026-09-11).
-                Statut/Entité ci-dessus restent visibles hors panneau. */}
-            <PanneauFiltresRepliable
-              ouvert={plusDeFiltresOuvert}
-              onBasculer={() => setPlusDeFiltresOuvert((precedent) => !precedent)}
-            >
-              {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que
-                  Planification.jsx (Suivi des tests), filtrage entièrement client. */}
-              <div className="page-suivi-formation__filtres-avances">
-                <label className="page-suivi-formation__filtre-experience">
-                  <span>Expérience</span>
-                  <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
-                    <option value="">Toutes</option>
-                    {CODES_EXPERIENCE_ACCECIT.map((code) => (
-                      <option key={code} value={code}>
-                        {libelleExperience(code)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+            {/* Recherche/dates/expérience — plus de bouton "Plus de filtres" pour les masquer
+                (retiré le 2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx
+                supprimé, ce bloc reste désormais visible en permanence). */}
+            {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que
+                Planification.jsx (Suivi des tests), filtrage entièrement client. */}
+            <div className="page-suivi-formation__filtres-avances">
+              <label className="page-suivi-formation__filtre-experience">
+                <span>Expérience</span>
+                <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
+                  <option value="">Toutes</option>
+                  {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                    <option key={code} value={code}>
+                      {libelleExperience(code)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-              {/* Composant partagé (core/dossier/FiltresRechercheDossiers.jsx, même modèle que
-                  Dossiers candidats/Suivi des tests, Code postal activé le 2026-09-11 — demande
-                  utilisateur, voir listerSuiviFormation/dossierRepository.js pour l'ajout du
-                  champ). placeholder/ariaLabel propres à cet écran, inchangés depuis avant cette
-                  harmonisation. Du/Au filtrent ici sur la date d'envoi en formation
-                  (date_entree_statut), pas la date de dernière mise à jour du dossier. */}
-              <FiltresRechercheDossiers
-                recherche={recherche}
-                onChangerRecherche={setRecherche}
-                placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
-                ariaLabel="Rechercher un dossier par nom, prénom, n° de dossier, poste, formateur ou statut"
-                codePostalFiltre={codePostalFiltre}
-                onChangerCodePostalFiltre={setCodePostalFiltre}
-                dateDebutFiltre={dateDebutFiltre}
-                onChangerDateDebutFiltre={setDateDebutFiltre}
-                dateFinFiltre={dateFinFiltre}
-                onChangerDateFinFiltre={setDateFinFiltre}
-              />
-            </PanneauFiltresRepliable>
+            {/* Composant partagé (core/dossier/FiltresRechercheDossiers.jsx, même modèle que
+                Dossiers candidats/Suivi des tests, Code postal activé le 2026-09-11 — demande
+                utilisateur, voir listerSuiviFormation/dossierRepository.js pour l'ajout du
+                champ). placeholder/ariaLabel propres à cet écran, inchangés depuis avant cette
+                harmonisation. Du/Au filtrent ici sur la date d'envoi en formation
+                (date_entree_statut), pas la date de dernière mise à jour du dossier. */}
+            <FiltresRechercheDossiers
+              recherche={recherche}
+              onChangerRecherche={setRecherche}
+              placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
+              ariaLabel="Rechercher un dossier par nom, prénom, n° de dossier, poste, formateur ou statut"
+              codePostalFiltre={codePostalFiltre}
+              onChangerCodePostalFiltre={setCodePostalFiltre}
+              dateDebutFiltre={dateDebutFiltre}
+              onChangerDateDebutFiltre={setDateDebutFiltre}
+              dateFinFiltre={dateFinFiltre}
+              onChangerDateFinFiltre={setDateFinFiltre}
+            />
           </>
         )}
 

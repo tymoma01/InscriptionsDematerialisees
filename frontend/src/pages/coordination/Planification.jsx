@@ -10,7 +10,6 @@ import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametre
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
-import PanneauFiltresRepliable from '../../core/dossier/PanneauFiltresRepliable';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
 import { listerRendezvousTest } from '../../services/rendezvousService';
@@ -378,19 +377,6 @@ export default function Planification() {
   // GET /api/dossiers/rendezvous, voir listerRendezvousTest), même mécanisme que
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
   const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
-
-  // Repli du bloc "Formateur/Expérience/recherche/dates" derrière un bouton "Plus de filtres"
-  // (demande utilisateur d'harmonisation avec Dossiers candidats, audit 2026-09-11) — composant
-  // partagé PanneauFiltresRepliable.jsx (core/dossier/), même patron que TableauDeBordAccueil.jsx :
-  // "À venir uniquement" reste hors de ce panneau (filtre serveur, consulté en premier au
-  // quotidien), comme Statut/Entité restent visibles hors panneau sur Dossiers candidats. State
-  // LOCAL, pas persisté dans l'URL comme les filtres eux-mêmes ci-dessus — ouvrir/fermer ce
-  // panneau n'est pas un filtre en soi. Ouvert par défaut si l'un des filtres qu'il contient est
-  // déjà actif au chargement (lien partagé, retour arrière) : sinon l'agent verrait un filtre actif
-  // sans le panneau qui le porte, aucun moyen de comprendre pourquoi la liste est déjà restreinte.
-  const [plusDeFiltresOuvert, setPlusDeFiltresOuvert] = useState(
-    () => Boolean(recherche || codePostalFiltre || dateDebutFiltre || dateFinFiltre || experienceFiltre || formateurFiltre),
-  );
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -799,67 +785,63 @@ export default function Planification() {
           </label>
         </div>
 
-        {/* Bascule du panneau replié ci-dessous (Formateur/Expérience/recherche/dates) — composant
-            partagé (core/dossier/PanneauFiltresRepliable.jsx, même modèle que Dossiers candidats,
-            demande utilisateur d'harmonisation, audit 2026-09-11). "À venir uniquement" ci-dessus
-            reste hors de ce panneau : filtre serveur consulté en premier au quotidien, comme
-            Statut/Entité restent visibles hors panneau sur Dossiers candidats. */}
-        <PanneauFiltresRepliable
-          ouvert={plusDeFiltresOuvert}
-          onBasculer={() => setPlusDeFiltresOuvert((precedent) => !precedent)}
-        >
-          <div className="planification__filtres-avances">
-            {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : ces deux rôles ne
-                voient déjà que leurs propres rendez-vous (restriction serveur, dossiers.routes.js),
-                un sélecteur "Tous les formateurs" n'aurait donc plus aucun effet utile pour eux. */}
-            {!estFormateurOuInspecteur && (
-              <label className="planification__filtre-formateur">
-                <span>Formateur</span>
-                <select value={formateurFiltre} onChange={(evenement) => setFormateurFiltre(evenement.target.value)}>
-                  <option value="">Tous</option>
-                  {formateurs.map((formateur) => (
-                    <option key={formateur.id} value={formateur.id}>
-                      {formateur.prenom} {formateur.nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur"
-                ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatut). */}
+        {/* Formateur/Expérience/recherche/dates — plus de bouton "Plus de filtres" pour les
+            masquer (retiré le 2026-09-11, décision utilisateur : composant
+            PanneauFiltresRepliable.jsx supprimé, ce bloc reste désormais visible en permanence).
+            "À venir uniquement" ci-dessus reste un filtre distinct (serveur, consulté en premier
+            au quotidien), comme Statut/Entité restent visuellement distincts sur Dossiers
+            candidats. */}
+        <div className="planification__filtres-avances">
+          {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : ces deux rôles ne
+              voient déjà que leurs propres rendez-vous (restriction serveur, dossiers.routes.js),
+              un sélecteur "Tous les formateurs" n'aurait donc plus aucun effet utile pour eux. */}
+          {!estFormateurOuInspecteur && (
             <label className="planification__filtre-formateur">
-              <span>Expérience</span>
-              <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
-                <option value="">Toutes</option>
-                {CODES_EXPERIENCE_ACCECIT.map((code) => (
-                  <option key={code} value={code}>
-                    {libelleExperience(code)}
+              <span>Formateur</span>
+              <select value={formateurFiltre} onChange={(evenement) => setFormateurFiltre(evenement.target.value)}>
+                <option value="">Tous</option>
+                {formateurs.map((formateur) => (
+                  <option key={formateur.id} value={formateur.id}>
+                    {formateur.prenom} {formateur.nom}
                   </option>
                 ))}
               </select>
             </label>
-          </div>
+          )}
 
-          {/* Composant partagé (core/dossier/FiltresRechercheDossiers.jsx, même modèle que
-              Dossiers candidats, Code postal activé le 2026-09-11 — demande utilisateur). placeholder/
-              ariaLabel propres à cet écran (pas de téléphone/email à chercher ici, voir
-              rechercheCorrespond ci-dessus) — inchangés depuis avant cette harmonisation. Du/Au
-              filtrent ici sur rdv.date_heure plutôt que la date de dernière mise à jour du
-              dossier (voir rendezvousFiltres ci-dessus). */}
-          <FiltresRechercheDossiers
-            recherche={recherche}
-            onChangerRecherche={setRecherche}
-            placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
-            ariaLabel="Rechercher un rendez-vous par nom, prénom, n° de dossier, poste, formateur ou statut"
-            codePostalFiltre={codePostalFiltre}
-            onChangerCodePostalFiltre={setCodePostalFiltre}
-            dateDebutFiltre={dateDebutFiltre}
-            onChangerDateDebutFiltre={setDateDebutFiltre}
-            dateFinFiltre={dateFinFiltre}
-            onChangerDateFinFiltre={setDateFinFiltre}
-          />
-        </PanneauFiltresRepliable>
+          {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur"
+              ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatut). */}
+          <label className="planification__filtre-formateur">
+            <span>Expérience</span>
+            <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
+              <option value="">Toutes</option>
+              {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                <option key={code} value={code}>
+                  {libelleExperience(code)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {/* Composant partagé (core/dossier/FiltresRechercheDossiers.jsx, même modèle que
+            Dossiers candidats, Code postal activé le 2026-09-11 — demande utilisateur). placeholder/
+            ariaLabel propres à cet écran (pas de téléphone/email à chercher ici, voir
+            rechercheCorrespond ci-dessus) — inchangés depuis avant cette harmonisation. Du/Au
+            filtrent ici sur rdv.date_heure plutôt que la date de dernière mise à jour du
+            dossier (voir rendezvousFiltres ci-dessus). */}
+        <FiltresRechercheDossiers
+          recherche={recherche}
+          onChangerRecherche={setRecherche}
+          placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
+          ariaLabel="Rechercher un rendez-vous par nom, prénom, n° de dossier, poste, formateur ou statut"
+          codePostalFiltre={codePostalFiltre}
+          onChangerCodePostalFiltre={setCodePostalFiltre}
+          dateDebutFiltre={dateDebutFiltre}
+          onChangerDateDebutFiltre={setDateDebutFiltre}
+          dateFinFiltre={dateFinFiltre}
+          onChangerDateFinFiltre={setDateFinFiltre}
+        />
 
         {/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même composant/
             pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un bouton par
