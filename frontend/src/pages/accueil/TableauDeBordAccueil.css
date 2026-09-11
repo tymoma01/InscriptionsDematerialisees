@@ -165,9 +165,9 @@
      disposition en RANGÉE, où ce même gap sépare des éléments côte à côte plutôt que deux lignes
      empilées) : une fois passé en colonne ci-dessus, ce même petit espacement rapprochait trop les
      deux lignes l'une de l'autre. var(--espace-grand) plutôt que --espace-moyen : la différence
-     avec le gap interne "Hôtellerie"/"Tertiaire" (--espace-petit, .tableau-bord-accueil__filtre-
-     entite ci-dessous) doit rester nette, pour que ces deux boutons continuent de se lire comme un
-     groupe, distinct de "Tous" au-dessus. */
+     avec le gap interne "Hôtellerie"/"Tertiaire" (--espace-petit, .filtre-entite, voir
+     core/dossier/FiltreEntite.css) doit rester nette, pour que ces deux boutons continuent de se
+     lire comme un groupe, distinct de "Tous" au-dessus. */
   gap: var(--espace-grand);
 }
 
@@ -175,59 +175,12 @@
   width: 100%;
 }
 
-/* Filtre "Entité" (Hôtellerie/Tertiaire), inséré via la prop `filtresSupplementaires` de
-   FiltresStatut.jsx — sous "Tous" dans le bloc de gauche (voir .filtres-statut__gauche
-   ci-dessus), même patron que .backoffice-recruteur__filtre-entite (Backoffice.css). Boutons non
-   stylés ici en dehors de width/flex/couleur (voir data-entite ci-dessous) : ils héritent
-   sinon de `.filtres-statut button`/`.actif` (FiltresStatut.css), étant rendus à l'intérieur du
-   même <nav>.
-   align-items: center indispensable (bug corrigé le 2026-08-17) : sans lui, ce conteneur flex
-   étire ses boutons enfants sur toute sa propre hauteur (stretch, valeur par défaut d'un flex
-   container pour ses propres enfants). */
-.tableau-bord-accueil__filtre-entite {
-  display: flex;
-  align-items: center;
-  gap: var(--espace-petit);
-  width: 100%;
-}
-
-/* flex: 1 (plutôt que le width: 100% de .filtres-statut__tous button ci-dessus) : les deux
-   boutons se partagent la largeur du bloc de gauche à parts égales, quelle que soit la différence
-   de longueur entre "Hôtellerie"/"Tertiaire". */
-.tableau-bord-accueil__filtre-entite button {
-  flex: 1;
-}
-
-/* Couleurs Hôtellerie/Tertiaire (point 2, audit 2026-08-25) — chacune reprend la teinte déjà
-   associée à ce secteur ailleurs dans l'app, plutôt qu'une couleur inventée pour l'occasion :
-   - Hôtellerie -> bleu (--couleur-primaire/-clair, variables.css) : couleur de marque officielle
-     (échantillonnée sur le logo principal accecit.com, voir son commentaire) — confirmée par un
-     échantillonnage direct des pixels de icone-accecit-hotellerie.png (assets/), dont la teinte
-     dominante (~#2e3794) est quasi identique à --couleur-primaire (#2d3c92).
-   - Tertiaire -> doré (--statut-dore-*, variables.css), DÉJÀ documenté comme "dérivé du doré du
-     tourbillon des logos Hôtellerie/Tertiaire" dans ce même fichier — confirmé de la même façon,
-     teinte dominante de icone-accecit-tertiaire.png (~#b8955c) cohérente avec cette origine.
-   Même trio fond/texte/bordure que les variantes de StatutBadge.css (pale fond, texte saturé,
-   bordure intermédiaire), pour rester dans le langage visuel déjà établi par les filtres de
-   statut juste à côté — sans réutiliser --statut-bleu-* (déjà porté par "Test planifié" dans LA
-   MÊME barre de filtres, voir plus bas) qui aurait recréé une ambiguïté entre filtre de statut et
-   filtre d'entité.
-   :not(.actif) : même raison que les règles data-statut plus bas (le fond doré uni de
-   .filtres-statut button.actif doit rester prioritaire une fois le bouton sélectionné). Bordure en
-   rgba() plutôt que var() (limitation déjà documentée sur --ombre-bloc, variables.css : rgba()
-   n'accepte pas de var() dans ses canaux de couleur) — équivalent rgb de --couleur-primaire
-   (45, 60, 146). */
-.tableau-bord-accueil__filtre-entite button[data-entite='hotel']:not(.actif) {
-  background-color: var(--couleur-primaire-clair);
-  border-color: rgba(45, 60, 146, 0.35);
-  color: var(--couleur-primaire);
-}
-
-.tableau-bord-accueil__filtre-entite button[data-entite='bureau']:not(.actif) {
-  background-color: var(--statut-dore-fond);
-  border-color: var(--statut-dore-bordure);
-  color: var(--statut-dore-texte);
-}
+/* Filtre "Entité" (Hôtellerie/Tertiaire) — composant partagé (core/dossier/FiltreEntite.jsx/.css,
+   extrait d'ici le 2026-09-11, réutilisé tel quel par Suivi des tests/Suivi des formations),
+   inséré via la prop `filtresSupplementaires` de FiltresStatut.jsx, sous "Tous" dans le bloc de
+   gauche (voir .filtres-statut__gauche ci-dessus). Plus aucune règle propre à ce filtre ici (ni
+   layout ni couleurs) : uniquement la disposition en colonne du bloc de gauche qui l'accueille,
+   propre à cette page. */
 
 /* Grille à 3 colonnes (repeat(3, minmax(0, 1fr))) retirée (audit 2026-08-31, décision utilisateur)
    — pensée à l'origine (2026-08-23) pour 9 filtres tombant pile sur 3 lignes pleinement remplies,

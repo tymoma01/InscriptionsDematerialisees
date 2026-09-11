@@ -21,6 +21,43 @@
   color: var(--couleur-erreur);
 }
 
+/* Bloc de gauche : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire (FiltreEntite.jsx, demande
+   utilisateur) côte à côte juste en dessous — même colonne de largeur fixe que
+   TableauDeBordAccueil.css (Dossiers candidats)/Planification.css (Suivi des tests), distincte de
+   la boîte de statuts à droite (.filtres-statut__statuts ci-dessous). Surcharge
+   .filtres-statut__gauche (générique, en rangée par défaut, voir FiltresStatut.css) : scopée à ce
+   conteneur, pas dans le fichier générique — Utilisateurs.jsx réutilise le même composant sans ce
+   besoin de colonne figée. */
+.page-suivi-formation .filtres-statut__gauche {
+  flex-direction: column;
+  align-items: stretch;
+  width: 260px;
+  /* Espacement vertical "Tous" / Hôtellerie-Tertiaire — même valeur/raison que
+     TableauDeBordAccueil.css/Planification.css : le gap: var(--espace-petit) hérité de
+     .filtres-statut__gauche (FiltresStatut.css, pensé pour une disposition en RANGÉE)
+     rapprocherait trop les deux lignes une fois passées en colonne ci-dessus. */
+  gap: var(--espace-grand);
+}
+
+.page-suivi-formation .filtres-statut__tous button {
+  width: 100%;
+}
+
+/* Un seul palier, même raison/valeur que TableauDeBordAccueil.css/Planification.css : en dessous,
+   le bloc de gauche (260px fixe) et les boutons de statut (libellés parfois longs comme
+   "Formation non validée") ne tiennent plus confortablement côte à côte sans se comprimer — on
+   empile les deux zones plutôt que de continuer à les serrer horizontalement. */
+@media (max-width: 640px) {
+  .page-suivi-formation .filtres-statut {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-suivi-formation .filtres-statut__gauche {
+    width: 100%;
+  }
+}
+
 /* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même traitement que
    Dossiers candidats (TableauDeBordAccueil.css) : centrés au lieu du flex-start par défaut de
    FiltresStatut.css (flex-wrap déjà son comportement de base ici, contrairement à la grille à 3

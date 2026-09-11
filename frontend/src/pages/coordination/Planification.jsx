@@ -6,9 +6,10 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
-import { useParametreURL } from '../../core/filtres/useParametreURL';
+import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
+import FiltreEntite from '../../core/dossier/FiltreEntite';
 import { listerRendezvousTest } from '../../services/rendezvousService';
 import { listerFormateurs } from '../../services/formateurService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -239,7 +240,6 @@ function estRendezvousAVenir(rdv) {
 // "Statut" trie sur le libellé affiché (LIBELLES_STATUT), plus lisible pour l'utilisateur qu'un
 // tri sur le code brut ('absent' avant 'confirme' avant 'prevu'...).
 const COLONNES = [
-  { cle: 'date_heure', libelle: 'Date et heure', extraire: (rdv) => new Date(rdv.date_heure).getTime() },
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (rdv) => (rdv.candidat_nom ?? '').toLowerCase() },
   // Colonne "Code postal" (audit 2026-09-09) — même patron que "Poste"/"Expérience" juste
   // au-dessous (extrait du bloc 'coordonnees', voir rendezvousService.listerRendezvousTest),
@@ -257,6 +257,12 @@ const COLONNES = [
     libelle: 'Statut',
     extraire: (rdv) => libelleAfficheRendezvous(rdv).toLowerCase(),
   },
+  // Déplacée après "Statut" (demande utilisateur) — plus la 1re colonne du tableau ni figée au
+  // défilement (voir classeFigee plus bas) : seul le libellé change ("du test" ajouté, plus
+  // ambigu une fois qu'elle n'est plus la première colonne visible). Le tri par défaut (voir `tri`
+  // useState ci-dessous, toujours 'date_heure'/'asc') reste inchangé : `trierPar`/`rendezvousTries`
+  // retrouvent cette colonne par sa `cle`, indépendamment de sa position dans ce tableau.
+  { cle: 'date_heure', libelle: 'Date et heure du test', extraire: (rdv) => new Date(rdv.date_heure).getTime() },
 ];
 
 // Vue d'ensemble des rendez-vous de test côté Coordination (CLAUDE.md, besoin Accueil/
@@ -328,6 +334,15 @@ export default function Planification() {
   // Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur" ci-dessus,
   // filtrage entièrement client (comme statutFiltre). '' = toutes les tranches confondues.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
+
+  // Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même composant/mécanisme que
+  // TableauDeBordAccueil.jsx (Dossiers candidats, voir FiltreEntite.jsx) : deux boutons
+  // indépendamment activables, jamais d'option "Toutes" dédiée (ferait doublon avec "Tous", déjà
+  // porté par FiltresStatut ci-dessous), Set vide = aucune restriction. Filtrage entièrement
+  // client (rdv.postesHotel/postesBureau déjà présents sur chaque rendez-vous renvoyé par
+  // GET /api/dossiers/rendezvous, voir listerRendezvousTest), même mécanisme que
+  // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
+  const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -469,19 +484,63 @@ export default function Planification() {
     });
   }, [rendezvousFiltres]);
 
-  // Compteurs des boutons de filtre statut — calculés sur rendezvousParCandidat (une ligne par
-  // candidat, APRÈS recherche/plage de date/aVenirSeulement/formateurFiltre, mais AVANT le filtre
-  // statut lui-même), même principe que SuiviFormation.jsx/TableauDeBordAccueil.jsx : un agent qui
-  // cherche "Ibrahima" voit re-décompter les boutons sur les seuls candidats Ibrahima, pas sur la
-  // liste entière — et un statut qu'aucune combinaison de filtres actuelle ne peut produire
-  // (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement "(0)", jamais masqué.
-  // Expérience appliquée AVANT le statut (comme entitesFiltre sur TableauDeBordAccueil.jsx) : les
-  // compteurs de chaque bouton de statut reflètent la tranche d'expérience actuellement
-  // sélectionnée, pas la liste entière.
+  // Compteurs des boutons "Hôtellerie"/"Tertiaire" (demande utilisateur, même principe que
+  // compteurHotel/compteurBureau sur TableauDeBordAccueil.jsx) : calculés sur rendezvousParCandidat
+  // (recherche/plage de date/aVenirSeulement/formateurFiltre déjà appliqués, voir son commentaire
+  // ci-dessus), AVANT le filtre entité lui-même — chaque bouton doit répondre à "combien de
+  // candidats si je clique CE bouton", indépendamment de l'état actuel de entitesFiltre — mais
+  // statut/expérience réappliqués manuellement ici (comme sur TableauDeBordAccueil.jsx) pour que
+  // ces deux compteurs reflètent malgré tout les AUTRES filtres déjà actifs, conformément à la
+  // liste actuellement affichée sur cet écran.
+  const compteurHotel = useMemo(
+    () =>
+      rendezvousParCandidat.filter(
+        (rdv) =>
+          (!statutFiltre || codeStatutAffiche(rdv) === statutFiltre) &&
+          (!experienceFiltre || rdv.experience === experienceFiltre) &&
+          (rdv.postesHotel ?? []).length > 0,
+      ).length,
+    [rendezvousParCandidat, statutFiltre, experienceFiltre],
+  );
+  const compteurBureau = useMemo(
+    () =>
+      rendezvousParCandidat.filter(
+        (rdv) =>
+          (!statutFiltre || codeStatutAffiche(rdv) === statutFiltre) &&
+          (!experienceFiltre || rdv.experience === experienceFiltre) &&
+          (rdv.postesBureau ?? []).length > 0,
+      ).length,
+    [rendezvousParCandidat, statutFiltre, experienceFiltre],
+  );
+
+  // Filtre entité appliqué juste après le regroupement par candidat (même position que
+  // dossiersFiltresBase sur TableauDeBordAccueil.jsx) : tout ce qui suit (compteurs de statut/
+  // expérience, liste triée) reflète donc déjà l'entité sélectionnée, seuls les DEUX compteurs
+  // ci-dessus l'ignorent délibérément (voir leur commentaire). Set vide = aucune restriction,
+  // mêmes deux valeurs 'hotel'/'bureau' que TableauDeBordAccueil.jsx — un candidat avec les deux
+  // familles de postes renseignées n'est pas exclu au double titre (voir filtrerDossiers.js,
+  // même principe).
+  const rendezvousParCandidatEntite = useMemo(() => {
+    if (entitesFiltre.size === 0) return rendezvousParCandidat;
+    return rendezvousParCandidat.filter(
+      (rdv) =>
+        (entitesFiltre.has('hotel') && (rdv.postesHotel ?? []).length > 0) ||
+        (entitesFiltre.has('bureau') && (rdv.postesBureau ?? []).length > 0),
+    );
+  }, [rendezvousParCandidat, entitesFiltre]);
+
+  // Compteurs des boutons de filtre statut — calculés sur rendezvousParCandidatEntite (une ligne
+  // par candidat, APRÈS recherche/plage de date/aVenirSeulement/formateurFiltre/entité, mais AVANT
+  // le filtre statut lui-même), même principe que SuiviFormation.jsx/TableauDeBordAccueil.jsx : un
+  // agent qui cherche "Ibrahima" voit re-décompter les boutons sur les seuls candidats Ibrahima,
+  // pas sur la liste entière — et un statut qu'aucune combinaison de filtres actuelle ne peut
+  // produire (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement "(0)", jamais
+  // masqué. Expérience appliquée AVANT le statut : les compteurs de chaque bouton de statut
+  // reflètent la tranche d'expérience actuellement sélectionnée, pas la liste entière.
   const rendezvousParCandidatAvantStatut = useMemo(() => {
-    if (!experienceFiltre) return rendezvousParCandidat;
-    return rendezvousParCandidat.filter((rdv) => rdv.experience === experienceFiltre);
-  }, [rendezvousParCandidat, experienceFiltre]);
+    if (!experienceFiltre) return rendezvousParCandidatEntite;
+    return rendezvousParCandidatEntite.filter((rdv) => rdv.experience === experienceFiltre);
+  }, [rendezvousParCandidatEntite, experienceFiltre]);
 
   const compteursParStatut = useMemo(() => {
     const compteurs = {};
@@ -668,7 +727,9 @@ export default function Planification() {
             uniquement"/Formateur/Rechercher/Du-Au ci-dessus (voir statutFiltre, filtrage client sur
             la liste déjà groupée par candidat) — une combinaison sans résultat (ex. "À venir
             uniquement" + "Réalisé") affiche simplement "(0)" plutôt que d'être bloquée, voir le
-            commentaire de compteursParStatut. */}
+            commentaire de compteursParStatut. Filtre "Entité" Hôtellerie/Tertiaire (demande
+            utilisateur) inséré via filtresSupplementaires, sous "Tous" — même composant partagé
+            que Dossiers candidats (voir FiltreEntite.jsx). */}
         <FiltresStatut
           statuts={STATUTS_FILTRABLES_RENDEZVOUS}
           statutFiltre={statutFiltre}
@@ -676,6 +737,14 @@ export default function Planification() {
           ariaLabel="Filtrer par statut de rendez-vous"
           compteurTous={rendezvousParCandidatAvantStatut.length}
           compteurs={compteursParStatut}
+          filtresSupplementaires={
+            <FiltreEntite
+              entitesFiltre={entitesFiltre}
+              onBasculerEntite={basculerEntiteFiltre}
+              compteurHotel={compteurHotel}
+              compteurBureau={compteurBureau}
+            />
+          }
         />
 
         {/* Barre d'actions groupées — même style visuel que TableauDeBordAccueil.jsx (Dossiers
@@ -729,9 +798,11 @@ export default function Planification() {
           <IndicateurDefilementHorizontal className="planification__scroll">
             {/* --planification-largeur-colonne-case ramenée à 0 quand la colonne de sélection ne
                 se rend pas (Formateur/Inspecteur, voir estFormateurOuInspecteur) : cette variable
-                pilote aussi le décalage (`left`) en cascade de "N°"/"Date et heure"/"Candidat"
-                (voir Planification.css) — sans ce recalage, ces trois colonnes figées garderaient
-                un vide à gauche correspondant à la largeur de la case à cocher absente. */}
+                pilote aussi le décalage (`left`) en cascade de "N°"/"Candidat" (voir
+                Planification.css) — sans ce recalage, ces deux colonnes figées garderaient un vide
+                à gauche correspondant à la largeur de la case à cocher absente. "Date et heure du
+                test" ne fait plus partie de ce bloc figé (déplacée après "Statut", demande
+                utilisateur), donc plus concernée par ce décalage. */}
             <table
               className="planification__table"
               style={estFormateurOuInspecteur ? { '--planification-largeur-colonne-case': '0rem' } : undefined}
@@ -739,9 +810,9 @@ export default function Planification() {
               <thead>
                 <tr>
                   {/* Sélection de candidats (voir dossiersSelectionnes) — première colonne, figée
-                      au défilement horizontal comme "N°"/"Date et heure"/"Candidat" juste après
-                      elle (voir Planification.css, --planification-largeur-colonne-case décale
-                      maintenant les trois autres). Case "tout sélectionner" : coche/décoche les
+                      au défilement horizontal comme "N°"/"Candidat" juste après elle (voir
+                      Planification.css, --planification-largeur-colonne-case décale maintenant les
+                      deux autres). Case "tout sélectionner" : coche/décoche les
                       seuls candidats actuellement visibles (voir togglerSelectionnerTout). Masquée
                       pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : la sélection
                       multi-candidats n'a d'utilité que pour "Voir l'historique...", lui-même
@@ -759,22 +830,23 @@ export default function Planification() {
                   {/* N° de dossier = rdv.dossier_id, identifiant métier déjà utilisé partout
                       ailleurs dans l'app (en-tête "Dossier #id", colonne "N° dossier" du tableau
                       KPI) — plus un simple rang d'affichage recalculé à chaque tri (comportement
-                      précédent). Figée en tête du bloc figé "Date et heure"/"Candidat" ci-dessous
-                      (voir Planification.css, --planification-largeur-colonne-numero). */}
+                      précédent). Figée en tête du bloc figé "Candidat" ci-dessous (voir
+                      Planification.css, --planification-largeur-colonne-numero). */}
                   <th scope="col" className="planification__colonne-numero">
                     N°
                   </th>
                   {COLONNES.map((colonne) => {
                     const actif = tri.colonne === colonne.cle;
-                    // "Candidat" (2e colonne) figée au défilement horizontal, comme le repère de
-                    // ligne des tableaux Comptes utilisateurs/Dossiers candidats — mais "Candidat"
-                    // n'est pas en 1re position ici, donc "Date et heure" doit être figée aussi
-                    // (même left: 0 que d'habitude) pour que "Candidat" reste juste derrière elle
-                    // sans laisser un vide à gauche une fois "Date et heure" scrollée hors champ
-                    // (voir Planification.css, --planification-largeur-colonne-date).
+                    // "Candidat" (1re colonne de COLONNES, juste après "N°") reste seule figée au
+                    // défilement horizontal, comme le repère de ligne des tableaux Comptes
+                    // utilisateurs/Dossiers candidats. "Date et heure du test", déplacée en fin de
+                    // tableau (demande utilisateur), n'a plus besoin d'être figée : seul
+                    // white-space: nowrap subsiste pour elle (voir Planification.css,
+                    // .planification__colonne-date-test) pour ne jamais couper "28/07/2026 15:00"
+                    // entre la date et l'heure.
                     let classeFigee;
-                    if (colonne.cle === 'date_heure') classeFigee = 'planification__colonne-date';
-                    else if (colonne.cle === 'candidat_nom') classeFigee = 'planification__colonne-figee';
+                    if (colonne.cle === 'candidat_nom') classeFigee = 'planification__colonne-figee';
+                    else if (colonne.cle === 'date_heure') classeFigee = 'planification__colonne-date-test';
                     return (
                       <th
                         key={colonne.cle}
@@ -815,7 +887,6 @@ export default function Planification() {
                       </td>
                     )}
                     <td className="planification__colonne-numero">{rdv.dossier_id}</td>
-                    <td className="planification__colonne-date">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     <td className="planification__colonne-figee">
                       {rdv.candidat_prenom} {rdv.candidat_nom}
                     </td>
@@ -837,6 +908,7 @@ export default function Planification() {
                         variante={varianteAfficheeRendezvous(rdv)}
                       />
                     </td>
+                    <td className="planification__colonne-date-test">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     {/* "Voir le dossier" — même bouton (style/couleur/cadre) que sur la vue
                         Accueil/Admin ci-dessus, désormais aussi rendu pour Formateur/Inspecteur
                         (voir le commentaire de l'en-tête "Actions"). Ouvre la même fiche dossier

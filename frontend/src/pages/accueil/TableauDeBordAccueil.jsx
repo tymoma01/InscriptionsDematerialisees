@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
+import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
@@ -603,30 +604,12 @@ export default function TableauDeBordAccueil() {
           compteurTous={dossiersFiltresSansStatut.length}
           compteurs={compteursParStatut}
           filtresSupplementaires={
-            <div className="tableau-bord-accueil__filtre-entite" role="group" aria-label="Filtrer par entité">
-              {/* data-entite (même patron que data-statut, FiltresStatut.jsx) : accroche de style
-                  pour TableauDeBordAccueil.css (point 2, audit 2026-08-25 — couleurs Hôtellerie/
-                  Tertiaire distinctes), sans que ce bouton n'ait à porter la couleur lui-même en
-                  ligne. */}
-              <button
-                type="button"
-                data-entite="hotel"
-                className={entitesFiltre.has('hotel') ? 'actif' : ''}
-                aria-pressed={entitesFiltre.has('hotel')}
-                onClick={() => basculerEntiteFiltre('hotel')}
-              >
-                Hôtellerie <strong>({compteurHotel})</strong>
-              </button>
-              <button
-                type="button"
-                data-entite="bureau"
-                className={entitesFiltre.has('bureau') ? 'actif' : ''}
-                aria-pressed={entitesFiltre.has('bureau')}
-                onClick={() => basculerEntiteFiltre('bureau')}
-              >
-                Tertiaire <strong>({compteurBureau})</strong>
-              </button>
-            </div>
+            <FiltreEntite
+              entitesFiltre={entitesFiltre}
+              onBasculerEntite={basculerEntiteFiltre}
+              compteurHotel={compteurHotel}
+              compteurBureau={compteurBureau}
+            />
           }
         />
 

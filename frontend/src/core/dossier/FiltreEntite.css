@@ -1,0 +1,53 @@
+/* Extrait de TableauDeBordAccueil.css (Dossiers candidats) sans changement de règle — voir
+   FiltreEntite.jsx pour le pourquoi de l'extraction. Chaque page appelante l'insère via la prop
+   `filtresSupplementaires` de FiltresStatut.jsx et reste libre de disposer le bloc
+   .filtres-statut__gauche autour de lui (ex. colonne empilée sous "Tous", voir
+   TableauDeBordAccueil.css/Planification.css/SuiviFormation.css) — aucune règle de layout de ligne
+   ici, seulement l'apparence propre à ce filtre.
+   align-items: center indispensable (bug corrigé le 2026-08-17 sur Dossiers candidats) : sans lui,
+   ce conteneur flex étire ses boutons enfants sur toute sa propre hauteur (stretch, valeur par
+   défaut d'un flex container pour ses propres enfants). */
+.filtre-entite {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  width: 100%;
+}
+
+/* flex: 1 : les deux boutons se partagent la largeur du bloc à parts égales, quelle que soit la
+   différence de longueur entre "Hôtellerie"/"Tertiaire". */
+.filtre-entite button {
+  flex: 1;
+}
+
+/* Couleurs Hôtellerie/Tertiaire (point 2, audit 2026-08-25, Dossiers candidats) — chacune reprend
+   la teinte déjà associée à ce secteur ailleurs dans l'app, plutôt qu'une couleur inventée pour
+   l'occasion :
+   - Hôtellerie -> bleu (--couleur-primaire/-clair, variables.css) : couleur de marque officielle
+     (échantillonnée sur le logo principal accecit.com) — confirmée par un échantillonnage direct
+     des pixels de icone-accecit-hotellerie.png (assets/), dont la teinte dominante (~#2e3794) est
+     quasi identique à --couleur-primaire (#2d3c92).
+   - Tertiaire -> doré (--statut-dore-*, variables.css), déjà documenté comme "dérivé du doré du
+     tourbillon des logos Hôtellerie/Tertiaire" — confirmé de la même façon, teinte dominante de
+     icone-accecit-tertiaire.png (~#b8955c) cohérente avec cette origine.
+   Même trio fond/texte/bordure que les variantes de StatutBadge.css (pale fond, texte saturé,
+   bordure intermédiaire), pour rester dans le langage visuel déjà établi par les filtres de statut
+   juste à côté — sans réutiliser --statut-bleu-* (déjà porté par "Test planifié" sur Suivi des
+   tests/Dossiers candidats, MÊME barre de filtres) qui aurait recréé une ambiguïté entre filtre de
+   statut et filtre d'entité.
+   :not(.actif) : même raison que les règles data-statut de chaque page (le fond doré uni de
+   .filtres-statut button.actif doit rester prioritaire une fois le bouton sélectionné). Bordure en
+   rgba() plutôt que var() (limitation déjà documentée sur --ombre-bloc, variables.css : rgba()
+   n'accepte pas de var() dans ses canaux de couleur) — équivalent rgb de --couleur-primaire
+   (45, 60, 146). */
+.filtre-entite button[data-entite='hotel']:not(.actif) {
+  background-color: var(--couleur-primaire-clair);
+  border-color: rgba(45, 60, 146, 0.35);
+  color: var(--couleur-primaire);
+}
+
+.filtre-entite button[data-entite='bureau']:not(.actif) {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--statut-dore-bordure);
+  color: var(--statut-dore-texte);
+}

@@ -1,3 +1,13 @@
+/* Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même largeur fixe que le bloc
+   "Tous"/Hôtellerie/Tertiaire de TableauDeBordAccueil.css/Planification.css/SuiviFormation.css,
+   pour rester visuellement cohérent avec les 3 autres écrans qui portent ce même filtre, même si
+   ce tableau n'a pas de "Tous" ni de boîte de statuts à côté de lui pour justifier une colonne de
+   gauche dédiée. */
+.tableau-dossiers-selectionnes__filtre-entite {
+  max-width: 260px;
+  margin-bottom: var(--espace-moyen);
+}
+
 /* Même langage visuel que DossierList.css (bordures, en-tête, survol) mais sans colonne figée :
    vue plus étroite (6 colonnes contre 5, mais pas d'actions par ligne), le besoin de repère
    constant au défilement horizontal est moindre ici. */

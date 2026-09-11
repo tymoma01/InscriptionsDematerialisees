@@ -5,9 +5,10 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
+import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
-import { useParametreURL } from '../../core/filtres/useParametreURL';
+import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import { listerSuiviFormation } from '../../services/dossierService';
 import { appliquerTransition } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -167,6 +168,14 @@ export default function SuiviFormation() {
   // Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que Planification.jsx (Suivi
   // des tests), filtrage entièrement client. '' = toutes les tranches confondues.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
+  // Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même composant/mécanisme que
+  // TableauDeBordAccueil.jsx (Dossiers candidats)/Planification.jsx (Suivi des tests), voir
+  // FiltreEntite.jsx : deux boutons indépendamment activables, Set vide = aucune restriction.
+  // Filtrage entièrement client (dossier.postesHotel/postesBureau déjà présents sur chaque
+  // dossier renvoyé par GET /api/dossiers/suivi-formation, voir listerSuiviFormation — déjà
+  // utilisés par rechercheCorrespond ci-dessus, même si cette page n'affiche pas de colonne
+  // "Poste").
+  const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
 
   const accesComplet = ['formateur', 'inspecteur', 'admin'].includes(utilisateur?.roleCode);
 
@@ -223,13 +232,54 @@ export default function SuiviFormation() {
     });
   }, [dossiers, recherche, dateDebutFiltre, dateFinFiltre]);
 
+  // Compteurs des boutons "Hôtellerie"/"Tertiaire" (demande utilisateur, même principe que
+  // compteurHotel/compteurBureau sur TableauDeBordAccueil.jsx/Planification.jsx) : calculés sur
+  // dossiersRechercheDate (recherche/plage de date déjà appliquées), AVANT le filtre entité
+  // lui-même — chaque bouton doit répondre à "combien de dossiers si je clique CE bouton",
+  // indépendamment de l'état actuel de entitesFiltre — mais statut/expérience réappliqués
+  // manuellement ici pour que ces deux compteurs reflètent malgré tout les AUTRES filtres déjà
+  // actifs, conformément à la liste actuellement affichée sur cet écran.
+  const compteurHotel = useMemo(
+    () =>
+      dossiersRechercheDate.filter(
+        (dossier) =>
+          (!statutFiltre || dossier.statut_code === statutFiltre) &&
+          (!experienceFiltre || dossier.experience === experienceFiltre) &&
+          (dossier.postesHotel ?? []).length > 0,
+      ).length,
+    [dossiersRechercheDate, statutFiltre, experienceFiltre],
+  );
+  const compteurBureau = useMemo(
+    () =>
+      dossiersRechercheDate.filter(
+        (dossier) =>
+          (!statutFiltre || dossier.statut_code === statutFiltre) &&
+          (!experienceFiltre || dossier.experience === experienceFiltre) &&
+          (dossier.postesBureau ?? []).length > 0,
+      ).length,
+    [dossiersRechercheDate, statutFiltre, experienceFiltre],
+  );
+
+  // Filtre entité appliqué juste après recherche/plage de date (même position que
+  // dossiersFiltresBase sur TableauDeBordAccueil.jsx) : tout ce qui suit (compteurs d'expérience/
+  // statut, liste finale) reflète donc déjà l'entité sélectionnée, seuls les DEUX compteurs
+  // ci-dessus l'ignorent délibérément (voir leur commentaire). Set vide = aucune restriction.
+  const dossiersRechercheDateEntite = useMemo(() => {
+    if (entitesFiltre.size === 0) return dossiersRechercheDate;
+    return dossiersRechercheDate.filter(
+      (dossier) =>
+        (entitesFiltre.has('hotel') && (dossier.postesHotel ?? []).length > 0) ||
+        (entitesFiltre.has('bureau') && (dossier.postesBureau ?? []).length > 0),
+    );
+  }, [dossiersRechercheDate, entitesFiltre]);
+
   // Expérience appliquée AVANT le statut (même patron que TableauDeBordAccueil.jsx/
   // Planification.jsx) : les compteurs de chaque bouton de statut reflètent la tranche
   // d'expérience actuellement sélectionnée, pas la liste entière.
   const dossiersRechercheDateExperience = useMemo(() => {
-    if (!experienceFiltre) return dossiersRechercheDate;
-    return dossiersRechercheDate.filter((dossier) => dossier.experience === experienceFiltre);
-  }, [dossiersRechercheDate, experienceFiltre]);
+    if (!experienceFiltre) return dossiersRechercheDateEntite;
+    return dossiersRechercheDateEntite.filter((dossier) => dossier.experience === experienceFiltre);
+  }, [dossiersRechercheDateEntite, experienceFiltre]);
 
   const compteursParStatut = useMemo(() => {
     const compteurs = {};
@@ -288,12 +338,23 @@ export default function SuiviFormation() {
 
         {!chargement && !erreur && (
           <>
+            {/* Filtre "Entité" Hôtellerie/Tertiaire (demande utilisateur) inséré via
+                filtresSupplementaires, sous "Tous" — même composant partagé que Dossiers
+                candidats/Suivi des tests (voir FiltreEntite.jsx). */}
             <FiltresStatut
               statuts={STATUTS_FILTRABLES}
               statutFiltre={statutFiltre}
               onChangerStatutFiltre={setStatutFiltre}
               compteurTous={dossiersRechercheDateExperience.length}
               compteurs={compteursParStatut}
+              filtresSupplementaires={
+                <FiltreEntite
+                  entitesFiltre={entitesFiltre}
+                  onBasculerEntite={basculerEntiteFiltre}
+                  compteurHotel={compteurHotel}
+                  compteurBureau={compteurBureau}
+                />
+              }
             />
 
             <div className="page-suivi-formation__filtres">

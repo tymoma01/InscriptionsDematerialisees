@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
+import FiltreEntite from '../../core/dossier/FiltreEntite';
 import './TableauDossiersSelectionnes.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -367,6 +369,15 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
 // redondant avec le statut affiché à côté (voir décision Option A). Pas de risque de doublon
 // visuel : `dossier.indicateurs` vient de `selectionIndicateurs`, un Set côté Indicateurs.jsx,
 // donc déjà sans code dupliqué par construction.
+// Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même composant/modèle
+// bouton+compteur que Dossiers candidats/Suivi des tests/Suivi des formations (voir
+// FiltreEntite.jsx), mais state LOCAL (useState, pas useParametreURL/useEnsembleURL) : même
+// convention que le sélecteur "Entité" (typePoste) d'Indicateurs.jsx sur cette même page
+// (tableau de bord KPI), qui n'est lui non plus jamais persisté dans l'URL. Combiné en ET avec
+// les filtres déjà appliqués en amont par Indicateurs.jsx (période, indicateurs sélectionnés,
+// "Entité"/typePoste) : `dossiers` arrive déjà réduit par ces filtres serveur, ce composant ne
+// fait qu'ajouter une restriction CLIENT supplémentaire sur ce qu'il reçoit, sans rien connaître
+// des filtres d'Indicateurs.jsx lui-même (composant dédié, voir commentaire d'en-tête plus haut).
 export default function TableauDossiersSelectionnes({
   dossiers,
   libellePoste,
@@ -378,191 +389,242 @@ export default function TableauDossiersSelectionnes({
   varianteDateCle,
   ordreCanoniqueIndicateurs,
 }) {
+  const [entitesFiltre, setEntitesFiltre] = useState(new Set());
+  const basculerEntiteFiltre = (valeur) => {
+    setEntitesFiltre((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(valeur)) suivant.delete(valeur);
+      else suivant.add(valeur);
+      return suivant;
+    });
+  };
+
+  // Compteurs des boutons — calculés sur `dossiers` TEL QUE REÇU (déjà réduit par les filtres
+  // d'Indicateurs.jsx), AVANT le filtre entité lui-même : chaque bouton répond à "combien de
+  // dossiers si je clique CE bouton", même principe que compteurHotel/compteurBureau sur
+  // TableauDeBordAccueil.jsx/Planification.jsx/SuiviFormation.jsx. postesHotel/postesBureau lus
+  // directement (sans `?? []`) : déjà le cas partout ailleurs dans ce fichier (voir le rendu de la
+  // colonne "Poste" plus bas), ce composant suppose ces deux tableaux toujours présents sur chaque
+  // dossier reçu.
+  const compteurHotel = dossiers.filter((dossier) => dossier.postesHotel.length > 0).length;
+  const compteurBureau = dossiers.filter((dossier) => dossier.postesBureau.length > 0).length;
+
+  // Un candidat avec les deux familles de postes renseignées n'est pas exclu au double titre
+  // (même principe que filtrerDossiers.js/Planification.jsx/SuiviFormation.jsx) : Set vide =
+  // aucune restriction.
+  const dossiersFiltres =
+    entitesFiltre.size === 0
+      ? dossiers
+      : dossiers.filter(
+          (dossier) =>
+            (entitesFiltre.has('hotel') && dossier.postesHotel.length > 0) ||
+            (entitesFiltre.has('bureau') && dossier.postesBureau.length > 0),
+        );
+
   if (dossiers.length === 0) {
     return <p className="tableau-dossiers-selectionnes__vide">Aucun dossier pour cette sélection.</p>;
   }
 
   return (
-    <div className="tableau-dossiers-selectionnes__scroll">
-      <table className="tableau-dossiers-selectionnes">
-        <thead>
-          <tr>
-            {/* Rang d'affichage (1, 2, 3...), pas dossier.id (déjà affiché juste après, voir
-                "N° dossier") — même distinction et même patron que DossierList.jsx
-                (.dossier-list__colonne-numero), sans la variante figée au défilement horizontal :
-                ce tableau n'a pas de colonne figée (voir TableauDossiersSelectionnes.css). */}
-            <th scope="col" className="tableau-dossiers-selectionnes__colonne-numero">
-              N°
-            </th>
-            <th scope="col" className="tableau-dossiers-selectionnes__colonne-dossier">
-              N° dossier
-            </th>
-            <th scope="col">Candidat</th>
-            <th scope="col">Poste</th>
-            <th scope="col">Statut</th>
-            <th scope="col">Indicateurs</th>
-            <th scope="col">Dates clés</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dossiers.map((dossier, index) => {
-            // Calculée UNE fois par dossier, lue par les deux colonnes ci-dessous (Indicateurs
-            // hors postes / Dates clés) au même index — voir construireColonnesAlignees plus haut.
-            const { indicateurRows, dateRows } = construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueIndicateurs);
-            return (
-              <tr key={dossier.id}>
-                <td className="tableau-dossiers-selectionnes__colonne-numero">{index + 1}</td>
-                <td className="tableau-dossiers-selectionnes__colonne-dossier">
-                  <Link to={`/recruteur/dossiers/${dossier.id}/validation`}>#{dossier.id}</Link>
-                </td>
-                <td>
-                  {dossier.candidat_prenom} {dossier.candidat_nom}
-                </td>
-                <td>
-                  <div className="tableau-dossiers-selectionnes__postes">
-                    {[...dossier.postesBureau, ...dossier.postesHotel].map((code) => (
-                      <span key={code} className="tableau-dossiers-selectionnes__badge-poste">
-                        {libellePoste(code)}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td>
-                  <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
-                </td>
-                <td>
-                  {/* Deux groupes visuellement distincts plutôt qu'une liste unique : un poste
-                      ('poste:<code>'/'poste_non_specifie', issu du graphique de répartition) n'est
-                      pas un indicateur de pilotage au même titre que "Inscrits"/"Test réussi"/... —
-                      même style de puce grise que la colonne "Poste" (badge-poste, pas StatutBadge)
-                      pour que le rapprochement visuel entre les deux colonnes soit immédiat.
-                      `indicateurRows` (pas dossier.indicateurs directement) : mêmes badges dans le
-                      même ordre, ENTRECOUPÉS de lignes vides là où construireColonnesAlignees a dû
-                      compenser pour que "Délai Inscription → Envoi en test"/"Délai Test → Formation" tombent à
-                      la même hauteur que leur valeur dans "Dates clés" (voir la colonne suivante) —
-                      aucun autre badge n'est concerné (item 4, décision utilisateur 2026-08-11). */}
-                  <div className="tableau-dossiers-selectionnes__indicateurs">
-                    {indicateurRows.map((ligne) =>
-                      ligne.type === 'blank' ? (
-                        <span
-                          key={ligne.code}
-                          className="tableau-dossiers-selectionnes__indicateur-ligne tableau-dossiers-selectionnes__indicateur-ligne--vide"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <span key={ligne.code} className="tableau-dossiers-selectionnes__indicateur-ligne">
-                          <StatutBadge libelle={libelleIndicateur(ligne.code)} variante={varianteIndicateur(ligne.code)} />
-                        </span>
-                      ),
-                    )}
-                  </div>
-                  {dossier.indicateurs.some(({ code }) => estIndicateurPoste(code)) && (
-                    <div className="tableau-dossiers-selectionnes__postes tableau-dossiers-selectionnes__postes--indicateurs">
-                      {dossier.indicateurs
-                        .filter(({ code }) => estIndicateurPoste(code))
-                        .map(({ code }) => (
+    <div>
+      {/* Largeur contrainte (voir TableauDossiersSelectionnes.css) : FiltreEntite.jsx pose
+          width: 100% sur lui-même (pensé pour la colonne de gauche de FiltresStatut.jsx sur les 3
+          autres écrans) — ici, sans "Tous" ni boîte de statuts à côté, rien ne le contraint sans
+          ce conteneur dédié ; les deux boutons s'étireraient sinon sur toute la largeur du
+          tableau. */}
+      <div className="tableau-dossiers-selectionnes__filtre-entite">
+        <FiltreEntite
+          entitesFiltre={entitesFiltre}
+          onBasculerEntite={basculerEntiteFiltre}
+          compteurHotel={compteurHotel}
+          compteurBureau={compteurBureau}
+        />
+      </div>
+      {dossiersFiltres.length === 0 ? (
+        <p className="tableau-dossiers-selectionnes__vide">Aucun dossier ne correspond à ce filtre.</p>
+      ) : (
+        <div className="tableau-dossiers-selectionnes__scroll">
+          <table className="tableau-dossiers-selectionnes">
+            <thead>
+              <tr>
+                {/* Rang d'affichage (1, 2, 3...), pas dossier.id (déjà affiché juste après, voir
+                    "N° dossier") — même distinction et même patron que DossierList.jsx
+                    (.dossier-list__colonne-numero), sans la variante figée au défilement horizontal :
+                    ce tableau n'a pas de colonne figée (voir TableauDossiersSelectionnes.css). */}
+                <th scope="col" className="tableau-dossiers-selectionnes__colonne-numero">
+                  N°
+                </th>
+                <th scope="col" className="tableau-dossiers-selectionnes__colonne-dossier">
+                  N° dossier
+                </th>
+                <th scope="col">Candidat</th>
+                <th scope="col">Poste</th>
+                <th scope="col">Statut</th>
+                <th scope="col">Indicateurs</th>
+                <th scope="col">Dates clés</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dossiersFiltres.map((dossier, index) => {
+                // Calculée UNE fois par dossier, lue par les deux colonnes ci-dessous (Indicateurs
+                // hors postes / Dates clés) au même index — voir construireColonnesAlignees plus haut.
+                const { indicateurRows, dateRows } = construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueIndicateurs);
+                return (
+                  <tr key={dossier.id}>
+                    <td className="tableau-dossiers-selectionnes__colonne-numero">{index + 1}</td>
+                    <td className="tableau-dossiers-selectionnes__colonne-dossier">
+                      <Link to={`/recruteur/dossiers/${dossier.id}/validation`}>#{dossier.id}</Link>
+                    </td>
+                    <td>
+                      {dossier.candidat_prenom} {dossier.candidat_nom}
+                    </td>
+                    <td>
+                      <div className="tableau-dossiers-selectionnes__postes">
+                        {[...dossier.postesBureau, ...dossier.postesHotel].map((code) => (
                           <span key={code} className="tableau-dossiers-selectionnes__badge-poste">
-                            {libelleIndicateur(code)}
+                            {libellePoste(code)}
                           </span>
                         ))}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  {/* Dates simples (inscription/test planifié/orientation — plus de "verdict_*",
-                      redondant avec la colonne "Statut", retiré le 2026-08-11) : depuis le
-                      2026-08-12, affichées SEULEMENT si leur tuile est sélectionnée, exactement
-                      comme les badges de la colonne "Indicateurs" — revient sur le "toujours tout
-                      l'historique" du 2026-08-11 (voir construireColonnesAlignees,
-                      estDateBadgeSelectionne, ci-dessus). AVEC leur libellé texte (revenu le
-                      2026-08-11, inchangé par ce nouveau changement). Valeurs de délai (audit
-                      2026-09-01 : "(X j) DD/MM/AAAA → DD/MM/AAAA", plus seulement "X J" — format
-                      revu le 2026-09-02, jours entre parenthèses en tête — les deux dates du
-                      segment sont désormais affichées EN PLUS du delta, sans libellé texte propre
-                      — déjà porté par le badge "Indicateurs" à la même hauteur) : déjà
-                      conditionnées à la sélection de leur propre tuile depuis un précédent
-                      changement, non affectées ici — toujours à la même position verticale que
-                      leur badge, voir `dateRows`/construireColonnesAlignees plus haut, qui insère
-                      aussi les lignes vides nécessaires à cet alignement. */}
-                  <ul className="tableau-dossiers-selectionnes__dates">
-                    {dateRows.map((ligne) =>
-                      ligne.type === 'blank' ? (
-                        <li
-                          key={ligne.code}
-                          className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--vide"
-                          aria-hidden="true"
-                        />
-                      ) : ligne.type === 'delai-valeur' ? (
-                        <li
-                          key={ligne.code}
-                          className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--delai"
-                          aria-label={libelleIndicateur(ligne.code)}
+                      </div>
+                    </td>
+                    <td>
+                      <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
+                    </td>
+                    <td>
+                      {/* Deux groupes visuellement distincts plutôt qu'une liste unique : un poste
+                          ('poste:<code>'/'poste_non_specifie', issu du graphique de répartition) n'est
+                          pas un indicateur de pilotage au même titre que "Inscrits"/"Test réussi"/... —
+                          même style de puce grise que la colonne "Poste" (badge-poste, pas StatutBadge)
+                          pour que le rapprochement visuel entre les deux colonnes soit immédiat.
+                          `indicateurRows` (pas dossier.indicateurs directement) : mêmes badges dans le
+                          même ordre, ENTRECOUPÉS de lignes vides là où construireColonnesAlignees a dû
+                          compenser pour que "Délai Inscription → Envoi en test"/"Délai Test → Formation" tombent à
+                          la même hauteur que leur valeur dans "Dates clés" (voir la colonne suivante) —
+                          aucun autre badge n'est concerné (item 4, décision utilisateur 2026-08-11). */}
+                      <div className="tableau-dossiers-selectionnes__indicateurs">
+                        {indicateurRows.map((ligne) =>
+                          ligne.type === 'blank' ? (
+                            <span
+                              key={ligne.code}
+                              className="tableau-dossiers-selectionnes__indicateur-ligne tableau-dossiers-selectionnes__indicateur-ligne--vide"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <span key={ligne.code} className="tableau-dossiers-selectionnes__indicateur-ligne">
+                              <StatutBadge libelle={libelleIndicateur(ligne.code)} variante={varianteIndicateur(ligne.code)} />
+                            </span>
+                          ),
+                        )}
+                      </div>
+                      {dossier.indicateurs.some(({ code }) => estIndicateurPoste(code)) && (
+                        <div className="tableau-dossiers-selectionnes__postes tableau-dossiers-selectionnes__postes--indicateurs">
+                          {dossier.indicateurs
+                            .filter(({ code }) => estIndicateurPoste(code))
+                            .map(({ code }) => (
+                              <span key={code} className="tableau-dossiers-selectionnes__badge-poste">
+                                {libelleIndicateur(code)}
+                              </span>
+                            ))}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {/* Dates simples (inscription/test planifié/orientation — plus de "verdict_*",
+                          redondant avec la colonne "Statut", retiré le 2026-08-11) : depuis le
+                          2026-08-12, affichées SEULEMENT si leur tuile est sélectionnée, exactement
+                          comme les badges de la colonne "Indicateurs" — revient sur le "toujours tout
+                          l'historique" du 2026-08-11 (voir construireColonnesAlignees,
+                          estDateBadgeSelectionne, ci-dessus). AVEC leur libellé texte (revenu le
+                          2026-08-11, inchangé par ce nouveau changement). Valeurs de délai (audit
+                          2026-09-01 : "(X j) DD/MM/AAAA → DD/MM/AAAA", plus seulement "X J" — format
+                          revu le 2026-09-02, jours entre parenthèses en tête — les deux dates du
+                          segment sont désormais affichées EN PLUS du delta, sans libellé texte propre
+                          — déjà porté par le badge "Indicateurs" à la même hauteur) : déjà
+                          conditionnées à la sélection de leur propre tuile depuis un précédent
+                          changement, non affectées ici — toujours à la même position verticale que
+                          leur badge, voir `dateRows`/construireColonnesAlignees plus haut, qui insère
+                          aussi les lignes vides nécessaires à cet alignement. */}
+                      <ul className="tableau-dossiers-selectionnes__dates">
+                        {dateRows.map((ligne) =>
+                          ligne.type === 'blank' ? (
+                            <li
+                              key={ligne.code}
+                              className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--vide"
+                              aria-hidden="true"
+                            />
+                          ) : ligne.type === 'delai-valeur' ? (
+                            <li
+                              key={ligne.code}
+                              className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--delai"
+                              aria-label={libelleIndicateur(ligne.code)}
+                            >
+                              <span className="tableau-dossiers-selectionnes__date-valeur">
+                                <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.jours} j)</span>{' '}
+                                {FORMAT_DATE.format(new Date(ligne.dateDebut))} → {FORMAT_DATE.format(new Date(ligne.dateFin))}
+                              </span>
+                            </li>
+                          ) : ligne.type === 'volumetrie-valeur' ? (
+                            // Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit
+                            // dashboard 2026-09-02, 2e passe) — consigne utilisateur : lister TOUTES
+                            // les occurrences du dossier sur la période ("(2) 27/08/2026, 28/08/2026"),
+                            // pas une seule date qui laisserait croire à un seul passage alors que la
+                            // carte compte des occurrences, pas des dossiers distincts.
+                            <li
+                              key={ligne.code}
+                              className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--volumetrie"
+                              aria-label={libelleIndicateur(ligne.code)}
+                            >
+                              <span className="tableau-dossiers-selectionnes__date-valeur">
+                                <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.dates.length})</span>{' '}
+                                {ligne.dates.map((date) => FORMAT_DATE.format(new Date(date))).join(', ')}
+                              </span>
+                            </li>
+                          ) : (
+                            <li
+                              key={ligne.code}
+                              className={`tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--${varianteDateCle(ligne.code)}`}
+                            >
+                              <span className="tableau-dossiers-selectionnes__date-libelle">{libelleDateCle(ligne.code)}</span>
+                              <span className="tableau-dossiers-selectionnes__date-valeur">
+                                {FORMAT_DATE.format(new Date(ligne.date))}
+                              </span>
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                      {/* Pendant du bloc "puces poste" de la colonne "Indicateurs" ci-dessus (même
+                          condition `estIndicateurPoste`, même séparateur pointillé) — audit 2026-09-02,
+                          décision utilisateur : un poste n'a pas d'ancre dans construireColonnesAlignees
+                          (attribut du dossier, pas un événement daté, voir son commentaire d'en-tête),
+                          donc aucune ligne de `dateRows` ne lui correspond. Repli sur la date d'ENTRÉE
+                          dans le statut COURANT (dossier.dateEntreeStatutCourant, dossierRepository.js —
+                          même calcul que les cartes "Effectifs par statut", généralisé à un statut
+                          arbitraire) : juste une date ponctuelle, sans les parenthèses "(X j)" des
+                          lignes de délai ci-dessus (pas de segment à mesurer ici). Libellé + `title`
+                          explicites (pas seulement un badge "Indicateurs" comme pour verdict/orientation)
+                          : contrairement à ceux-là, rien côté "Indicateurs" ne porte déjà cette
+                          information. Style délibérément discret (voir CSS, même famille visuelle que
+                          --delai) pour ne pas laisser croire à une étape du parcours au même titre que
+                          les lignes colorées au-dessus. */}
+                      {dossier.indicateurs.some(({ code }) => estIndicateurPoste(code)) && dossier.dateEntreeStatutCourant && (
+                        <div
+                          className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--poste-courant"
+                          title="Date d'entrée dans le statut actuel du dossier"
                         >
+                          <span className="tableau-dossiers-selectionnes__date-libelle">Statut actuel depuis</span>
                           <span className="tableau-dossiers-selectionnes__date-valeur">
-                            <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.jours} j)</span>{' '}
-                            {FORMAT_DATE.format(new Date(ligne.dateDebut))} → {FORMAT_DATE.format(new Date(ligne.dateFin))}
+                            {FORMAT_DATE.format(new Date(dossier.dateEntreeStatutCourant))}
                           </span>
-                        </li>
-                      ) : ligne.type === 'volumetrie-valeur' ? (
-                        // Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit
-                        // dashboard 2026-09-02, 2e passe) — consigne utilisateur : lister TOUTES
-                        // les occurrences du dossier sur la période ("(2) 27/08/2026, 28/08/2026"),
-                        // pas une seule date qui laisserait croire à un seul passage alors que la
-                        // carte compte des occurrences, pas des dossiers distincts.
-                        <li
-                          key={ligne.code}
-                          className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--volumetrie"
-                          aria-label={libelleIndicateur(ligne.code)}
-                        >
-                          <span className="tableau-dossiers-selectionnes__date-valeur">
-                            <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.dates.length})</span>{' '}
-                            {ligne.dates.map((date) => FORMAT_DATE.format(new Date(date))).join(', ')}
-                          </span>
-                        </li>
-                      ) : (
-                        <li
-                          key={ligne.code}
-                          className={`tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--${varianteDateCle(ligne.code)}`}
-                        >
-                          <span className="tableau-dossiers-selectionnes__date-libelle">{libelleDateCle(ligne.code)}</span>
-                          <span className="tableau-dossiers-selectionnes__date-valeur">
-                            {FORMAT_DATE.format(new Date(ligne.date))}
-                          </span>
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                  {/* Pendant du bloc "puces poste" de la colonne "Indicateurs" ci-dessus (même
-                      condition `estIndicateurPoste`, même séparateur pointillé) — audit 2026-09-02,
-                      décision utilisateur : un poste n'a pas d'ancre dans construireColonnesAlignees
-                      (attribut du dossier, pas un événement daté, voir son commentaire d'en-tête),
-                      donc aucune ligne de `dateRows` ne lui correspond. Repli sur la date d'ENTRÉE
-                      dans le statut COURANT (dossier.dateEntreeStatutCourant, dossierRepository.js —
-                      même calcul que les cartes "Effectifs par statut", généralisé à un statut
-                      arbitraire) : juste une date ponctuelle, sans les parenthèses "(X j)" des
-                      lignes de délai ci-dessus (pas de segment à mesurer ici). Libellé + `title`
-                      explicites (pas seulement un badge "Indicateurs" comme pour verdict/orientation)
-                      : contrairement à ceux-là, rien côté "Indicateurs" ne porte déjà cette
-                      information. Style délibérément discret (voir CSS, même famille visuelle que
-                      --delai) pour ne pas laisser croire à une étape du parcours au même titre que
-                      les lignes colorées au-dessus. */}
-                  {dossier.indicateurs.some(({ code }) => estIndicateurPoste(code)) && dossier.dateEntreeStatutCourant && (
-                    <div
-                      className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--poste-courant"
-                      title="Date d'entrée dans le statut actuel du dossier"
-                    >
-                      <span className="tableau-dossiers-selectionnes__date-libelle">Statut actuel depuis</span>
-                      <span className="tableau-dossiers-selectionnes__date-valeur">
-                        {FORMAT_DATE.format(new Date(dossier.dateEntreeStatutCourant))}
-                      </span>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
