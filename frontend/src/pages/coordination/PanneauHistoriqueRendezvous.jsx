@@ -14,10 +14,15 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // Catégories produites par le back (voir backend/src/core/rendezvous/rendezvousService.js,
 // CATEGORIES_STATUT_HISTORIQUE) — libellé + variante StatutBadge décidés ici, ce composant
 // générique (StatutBadge) ne connaît aucun code métier (voir Modularité, CLAUDE.md).
+// 'manque' (catégorie posée quand rendezvous.statut === 'absent', voir
+// rendezvousService.categoriserStatutRendezvous) affiché "NSPP" (ex-"Manqué", audit 2026-09-11,
+// décision utilisateur — même renommage que Planification.jsx/GestionRendezvous.jsx/
+// ListeEvaluationsAFaire.jsx) : ce statut n'a désormais plus qu'une seule origine possible — NSPP
+// ou la bascule automatique, "Marquer absent" ayant été retiré côté Accueil/Coordination/Admin.
 const LIBELLES_STATUT_HISTORIQUE = {
   a_venir: 'À venir',
   honore: 'Honoré',
-  manque: 'Manqué',
+  manque: 'NSPP',
   annule: 'Annulé',
   replanifie: 'Replanifié',
   a_traiter: 'À traiter',

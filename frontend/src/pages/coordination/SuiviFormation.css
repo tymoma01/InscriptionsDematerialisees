@@ -109,30 +109,18 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* Recherche + plage de date, sous FiltresStatut.jsx — même patron que
-   .liste-evaluations__filtres (ListeEvaluationsAFaire.css)/.planification__filtres. */
-.page-suivi-formation__filtres {
+/* Recherche + plage de date + Expérience, dans le panneau replié "Plus de filtres" (voir
+   PanneauFiltresRepliable.jsx, demande utilisateur d'harmonisation avec Dossiers candidats/Suivi
+   des tests, audit 2026-09-11) — recherche/dates portées par le composant partagé
+   FiltresRechercheDossiers.jsx (core/dossier/, sa propre mise en page pleine largeur, voir
+   FiltresRechercheDossiers.css), seule la ligne "Expérience" ci-dessous reste propre à cette
+   page. */
+.page-suivi-formation__filtres-avances {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--espace-grand);
-  margin: var(--espace-moyen) 0;
-}
-
-.page-suivi-formation__filtre-recherche {
-  display: flex;
-  align-items: center;
-  gap: var(--espace-petit);
-  flex: 1 1 18rem;
-}
-
-.page-suivi-formation__filtre-recherche input {
-  flex: 1;
-  min-width: 18rem;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--couleur-bordure);
-  border-radius: var(--rayon-bordure);
-  font: inherit;
+  margin-bottom: var(--espace-petit);
 }
 
 /* Filtre "Expérience" (audit 2026-09-02) — même patron que .planification__filtre-formateur

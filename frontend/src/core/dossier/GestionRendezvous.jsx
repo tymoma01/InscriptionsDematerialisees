@@ -53,10 +53,16 @@ function varianteStatutRendezvous(statut) {
 // réalisé" vs "Manqué"), incohérence repérée en comparant avec 'honore' (déjà identique des deux
 // côtés, "Réalisé"/"Réalisé"). Un seul dictionnaire désormais, lu aux deux endroits (voir plus
 // bas) : titre et badge ne peuvent plus diverger, quel que soit le statut.
+// 'absent' renommé "NSPP" (ex-"Manqué", audit 2026-09-11, décision utilisateur) — seule la valeur
+// AFFICHÉE change, `rendezvous.statut` reste 'absent' en base, même couleur de badge
+// (varianteStatutRendezvous ci-dessous, inchangée), même comportement de filtrage : ce statut
+// n'a désormais plus qu'une seule origine possible (NSPP côté Formateur/Inspecteur, ou la
+// bascule automatique — voir basculeTestNonRealiseService.js), "Marquer absent" ayant été retiré
+// de cette page pour Accueil/Coordination/Admin (voir plus bas).
 const LIBELLES_STATUT = {
   prevu: 'Prévu',
   confirme: 'Confirmé',
-  absent: 'Manqué',
+  absent: 'NSPP',
   annule: 'Annulé',
   remplace: 'Remplacé',
   honore: 'Réalisé',
@@ -73,7 +79,7 @@ function rendezvousPrevuExpire(rdv) {
 
 // Libellé/variante EFFECTIFS affichés (titre ET badge) — jamais LIBELLES_STATUT/
 // varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
-// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "Manqué"
+// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "NSPP"
 // (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif) — ici,
 // personne n'a constaté/enregistré quoi que ce soit, seule la date a débordé.
 function libelleAffiche(rdv) {
@@ -99,9 +105,9 @@ function titreRendezvous(rdv) {
   return `Test avec ${rdv.formateur_role_libelle} ${rdv.formateur_prenom} ${rdv.formateur_nom}`;
 }
 
-// "Test non réalisé" est désormais porté par le titre/badge "Manqué" ci-dessus (LIBELLES_STATUT)
-// pour un rendez-vous 'absent' — le motif affiché à côté ne doit plus le répéter (audit
-// 2026-08-20, dossier #86) :
+// "Test non réalisé" est désormais porté par le titre/badge "NSPP" ci-dessus (LIBELLES_STATUT,
+// ex-"Manqué") pour un rendez-vous 'absent' — le motif affiché à côté ne doit plus le répéter
+// (audit 2026-08-20, dossier #86) :
 // préfixe retiré s'il est présent (motif dédié "test_non_realise", scripts/
 // seedMotifsDesistement.js), laissé tel quel sinon (les autres motifs de désistement — "Ne répond
 // plus", "Finalement indisponible"... — n'ont jamais porté ce préfixe).
@@ -113,8 +119,8 @@ function libelleMotifAffiche(motifLibelle) {
   return motifLibelle;
 }
 
-// Statuts de DOSSIER (pas de rendez-vous) au-delà desquels Confirmer la présence/Marquer absent/
-// Marquer annulé n'ont plus de sens — copie exacte de STATUTS_DOSSIER_RENDEZVOUS_CLOS
+// Statuts de DOSSIER (pas de rendez-vous) au-delà desquels Confirmer la présence/Marquer annulé
+// n'ont plus de sens — copie exacte de STATUTS_DOSSIER_RENDEZVOUS_CLOS
 // (backend/src/core/rendezvous/rendezvousService.js, qui revérifie la même règle côté serveur,
 // voir son commentaire) : les deux listes doivent rester synchronisées à la main, aucun partage de
 // code entre front et back sur ce projet (audit 2026-08-20, dossier #84).
@@ -401,9 +407,13 @@ export default function GestionRendezvous({
                           Confirmer la présence
                         </button>
                       )}
-                      <button type="button" onClick={() => ouvrirDesistement(rdv.id, 'absent')} disabled={envoiEnCours}>
-                        Marquer absent
-                      </button>
+                      {/* "Marquer absent" retiré (audit 2026-09-11, décision utilisateur) : ce
+                          statut de rendez-vous (badge "NSPP", ex-"Manqué") ne doit plus être
+                          atteignable manuellement par Accueil/Coordination/Admin — seuls NSPP
+                          (Formateur/Inspecteur, ListeEvaluationsAFaire.jsx) et la bascule
+                          automatique (basculeTestNonRealiseService.js) peuvent encore produire ce
+                          statut. Refusé aussi côté serveur si contourné (voir
+                          rendezvous.routes.js/statutBodySchema, transitions.routes.js). */}
                       <button type="button" onClick={() => ouvrirDesistement(rdv.id, 'annule')} disabled={envoiEnCours}>
                         Marquer annulé
                       </button>

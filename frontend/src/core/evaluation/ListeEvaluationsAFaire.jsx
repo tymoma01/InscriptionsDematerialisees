@@ -22,9 +22,11 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 // En pratique toujours 'prevu'/'confirme' ici (voir backend evaluationRepository.
 // listerRendezvousAEvaluer, whereIn) : mapping complet gardé malgré tout, pour rester cohérent
 // avec les autres pages si ce filtre serveur venait à changer.
-// 'absent' affiché "Manqué" (pas "Absent") — audit 2026-08-20, cohérent avec Planification.jsx/
-// GestionRendezvous.jsx (même correctif, affichage seul).
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Manqué', annule: 'Annulé' };
+// 'absent' affiché "NSPP" (ex-"Manqué", audit 2026-09-11, décision utilisateur — même mapping
+// renommé partout où il apparaît, voir Planification.jsx/GestionRendezvous.jsx/
+// PanneauHistoriqueRendezvous.jsx) — pas "Absent". Affichage seul, `rendezvous.statut` reste
+// 'absent' en base.
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'NSPP', annule: 'Annulé' };
 function varianteStatutRendezvous(statut) {
   return statut === 'confirme' ? 'succes' : 'attente';
 }
@@ -309,7 +311,8 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               </button>
               {/* "NSPP" (libellé, audit 2026-09-10 — le statut/l'action métier restent
                   "test_non_realise" partout ailleurs : Suivi des tests, fiche dossier, filtres,
-                  badge de statut "Manqué" inchangé lui aussi) : n'a plus de sens une fois
+                  badge de statut "NSPP" (ex-"Manqué", audit 2026-09-11) désormais identique en
+                  toutes lettres à ce bouton) : n'a plus de sens une fois
                   test_realise (le test a déjà eu lieu) — condition conservée pour un dossier resté
                   dans cet état avant le correctif du 2026-08-28 (voir commentaire ci-dessus), plus
                   jamais atteignable pour un nouveau dossier depuis ce même correctif (test_realise

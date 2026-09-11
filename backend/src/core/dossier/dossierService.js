@@ -499,11 +499,14 @@ async function listerDossiers(entite, { statutCode } = {}) {
 async function listerSuiviFormation(entite) {
   const bd = await obtenirKnex();
   const dossiers = await dossierRepository.listerSuiviFormation(bd, entite.id);
-  return dossiers.map(({ donnees_disponibilites, ...reste }) => ({
+  return dossiers.map(({ donnees_disponibilites, donnees_coordonnees, ...reste }) => ({
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
     experience: donnees_disponibilites?.experience ?? null,
+    // Colonne/filtre "Code postal" (audit 2026-09-11, harmonisation avec Dossiers candidats/Suivi
+    // des tests) — même patron que listerDossiers ci-dessus.
+    candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
   }));
 }
 

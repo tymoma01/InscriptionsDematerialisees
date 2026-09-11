@@ -34,18 +34,28 @@ const ROLES_GESTION_RENDEZVOUS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais aux routes
 // POST/PATCH, qui restent réservées à ROLES_GESTION_RENDEZVOUS : ces deux rôles consultent la
 // fiche dossier en lecture seule, sans les actions de reprogrammation/désistement (Confirmer la
-// présence/Marquer absent/Marquer annulé restent masquées côté front pour eux, voir
-// GestionRendezvous.jsx, et de toute façon refusées ici côté serveur si contournées).
+// présence/Marquer annulé restent masquées côté front pour eux, voir GestionRendezvous.jsx, et de
+// toute façon refusées ici côté serveur si contournées). "Marquer absent" n'existe plus du tout
+// sur cette route, pour aucun rôle (audit 2026-09-11) — voir statutBodySchema plus bas.
 const ROLES_LECTURE_RENDEZVOUS = [...ROLES_GESTION_RENDEZVOUS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 
 router.use(requireAuth);
 
 const idPositifSchema = z.coerce.number().int().positive();
 
+// 'absent' retiré (audit 2026-09-11, décision utilisateur) : ce statut ne doit plus être
+// atteignable manuellement par Accueil/Coordination/Admin via cette route — seuls NSPP
+// (ListeEvaluationsAFaire.jsx, POST /transitions avec codeAction 'test_non_realise') et la
+// bascule automatique (basculeTestNonRealiseService.js, utilisateur système) peuvent encore
+// produire ce statut, tous deux via rendezvousService.changerStatutRendezvous appelé
+// DIRECTEMENT (jamais par cette route) — STATUTS_AUTORISES (rendezvousService.js) continue lui
+// d'inclure 'absent', inchangé pour ces deux appelants légitimes ; seule la surface HTTP
+// manuelle (ce schéma) se réduit. Le bouton "Marquer absent" correspondant a été retiré de
+// GestionRendezvous.jsx.
 const statutBodySchema = z.object({
-  statut: z.enum(['prevu', 'confirme', 'absent', 'annule']),
-  // Obligatoire uniquement pour 'absent'/'annule' — vérifié par rendezvousService, pas ici
-  // (c'est lui qui connaît la règle "systématique", pas la couche de validation de forme).
+  statut: z.enum(['prevu', 'confirme', 'annule']),
+  // Obligatoire uniquement pour 'annule' — vérifié par rendezvousService, pas ici (c'est lui qui
+  // connaît la règle "systématique", pas la couche de validation de forme).
   motifCode: z.string().trim().min(1).optional(),
 });
 
@@ -260,7 +270,9 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
 });
 
 // PATCH /api/dossiers/:dossierId/rendezvous/:rendezvousId — change le statut d'un rendez-vous ;
-// passer à 'absent' ou 'annule' sans motif valide est rejeté (voir rendezvousService.js).
+// passer à 'annule' sans motif valide est rejeté (voir rendezvousService.js). 'absent' n'est plus
+// un statut atteignable via cette route (voir statutBodySchema ci-dessus) — une tentative directe
+// (contournement de l'UI) échoue en 400, ZodError sur `statut`.
 router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);

@@ -1,0 +1,27 @@
+/* Extrait de TableauDeBordAccueil.css (Dossiers candidats) sans changement de règle — voir
+   PanneauFiltresRepliable.jsx pour le pourquoi de l'extraction. Bouton centré (margin auto),
+   bordure en tirets pour se distinguer des boutons pleins de filtres à côté (statut, entité...). */
+.panneau-filtres-repliable__bouton {
+  display: flex;
+  margin: var(--espace-petit) auto;
+  padding: 0.4rem 1rem;
+  border: 1px dashed var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background: transparent;
+  color: var(--couleur-back-office);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+}
+
+.panneau-filtres-repliable__bouton:hover,
+.panneau-filtres-repliable__bouton:focus-visible {
+  background-color: var(--statut-neutre-fond);
+}
+
+/* Panneau replié — simple espacement avant ce qui suit (tableau/liste), que le contenu (recherche,
+   dates, filtres propres à chaque page) porte lui-même sa propre mise en page interne. */
+.panneau-filtres-repliable__panneau {
+  margin-bottom: var(--espace-petit);
+}

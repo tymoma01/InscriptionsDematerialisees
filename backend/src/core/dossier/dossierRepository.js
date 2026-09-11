@@ -301,6 +301,11 @@ const STATUTS_SUIVI_FORMATION = ['valide_envoi_formation', 'valide_pret_embauche
 // recherche "poste" (point 3) — même source et même LEFT JOIN que listerDossiers ci-dessus, pas
 // rendezvous.postes_selectionnes (retenus pour un rendez-vous précis, absent de cette liste
 // dossier-level).
+//
+// donnees_coordonnees (bloc 'coordonnees', codePostal) ajouté pour le filtre "Code postal" (audit
+// 2026-09-11, harmonisation avec Dossiers candidats/Suivi des tests) — même LEFT JOIN que
+// listerDossiers/rendezvousRepository.listerRendezvousTest, absent jusqu'ici de cette liste faute
+// de besoin : cette page n'affiche/ne filtre encore rien issu de ce bloc.
 function listerSuiviFormation(bd, entiteId) {
   return bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -323,6 +328,13 @@ function listerSuiviFormation(bd, entiteId) {
         'bloc_disponibilites.bloc_code',
         '=',
         bd.raw('?', ['disponibilites']),
+      );
+    })
+    .leftJoin('dossier_donnees_formulaire as bloc_coordonnees', function () {
+      this.on('bloc_coordonnees.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_coordonnees.bloc_code',
+        '=',
+        bd.raw('?', ['coordonnees']),
       );
     })
     .joinRaw(
@@ -353,6 +365,7 @@ function listerSuiviFormation(bd, entiteId) {
       'formateur_test.nom as formateur_nom',
       'formateur_test.prenom as formateur_prenom',
       'bloc_disponibilites.donnees as donnees_disponibilites',
+      'bloc_coordonnees.donnees as donnees_coordonnees',
     )
     .orderBy('dates_entree_formation.date_entree_statut', 'desc');
 }

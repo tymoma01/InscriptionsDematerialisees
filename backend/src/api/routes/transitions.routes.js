@@ -30,6 +30,19 @@ const { ROLES } = require('../../core/auth/rbac');
 const CODE_ACTION_FORMATION_VALIDEE = 'marquer_formation_validee';
 const STATUT_ORIGINE_FORMATION_VALIDEE = 'valide_envoi_formation';
 
+// Garde-fou (audit 2026-09-11, décision utilisateur) : statutRendezvous/rendezvousId
+// (transitionBodySchema ci-dessous) restent volontairement génériques côté
+// cloturerRendezvousAvecTransitionService.js (aucun codeAction/statut en dur, voir Modularité,
+// CLAUDE.md) — sans ce garde-fou ICI, cette route générique permettrait de faire passer un
+// rendez-vous à 'absent' en l'accolant à N'IMPORTE QUEL codeAction que l'agent a par ailleurs le
+// droit de déclencher (transition_roles), pas seulement 'test_non_realise' (NSPP,
+// ListeEvaluationsAFaire.jsx, seul appelant légitime aujourd'hui) — un contournement direct du
+// retrait de "Marquer absent" (PATCH /rendezvous/:id, voir rendezvous.routes.js) tout aussi
+// silencieux que celui qu'on vient de fermer. 'absent' reste un statut de rendez-vous valide
+// (STATUTS_AUTORISES, rendezvousService.js) : ce n'est pas la valeur elle-même qui est
+// interdite, seulement son association à un codeAction autre que celui de NSPP sur cette route.
+const CODE_ACTION_TEST_NON_REALISE = 'test_non_realise';
+
 // Monté sur '/api/dossiers/:dossierId/transitions' (voir app.js) — `mergeParams: true`
 // indispensable pour que req.params.dossierId reste visible ici, même patron que
 // pieces.routes.js / relances.routes.js / rendezvous.routes.js.
@@ -130,6 +143,14 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { codeAction, motifCode, commentaire, rendezvousId, statutRendezvous, motifCodeRendezvous } =
       transitionBodySchema.parse(req.body);
+
+    // Voir CODE_ACTION_TEST_NON_REALISE ci-dessus : seul ce codeAction précis peut faire passer un
+    // rendez-vous à 'absent' via cette route générique.
+    if (statutRendezvous === 'absent' && codeAction !== CODE_ACTION_TEST_NON_REALISE) {
+      return res.status(403).json({
+        erreur: "Ce statut de rendez-vous ne peut être appliqué que via l'action « Test non réalisé » (NSPP).",
+      });
+    }
 
     // Statut AVANT la transition — lu seulement pour ce codeAction précis (pas de requête
     // supplémentaire pour toutes les autres transitions) : sert de garde-fou pour l'email

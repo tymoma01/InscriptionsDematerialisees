@@ -7,9 +7,10 @@ import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefi
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
-import FiltrePlageDate from '../../core/filtres/FiltrePlageDate';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
+import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
+import PanneauFiltresRepliable from '../../core/dossier/PanneauFiltresRepliable';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
 import { listerRendezvousTest } from '../../services/rendezvousService';
@@ -64,15 +65,19 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // neutre mais bien lisible, distinct des badges colorés actifs (Prévu/Annulé...) — même variante
 // reprise sur GestionRendezvous.jsx pour rester cohérent entre les deux endroits où ce badge
 // apparaît.
-// 'absent' affiché "Manqué" (pas "Absent") — audit 2026-08-20, cohérent avec GestionRendezvous.jsx
-// (fiche dossier, même correctif) : purement l'affichage, aucun changement de la valeur en base ni
-// de la couleur du badge (variante 'echec' inchangée, voir varianteStatutRendezvous ci-dessous).
+// 'absent' affiché "NSPP" (ex-"Manqué", audit 2026-09-11, décision utilisateur — même renommage
+// que GestionRendezvous.jsx/ListeEvaluationsAFaire.jsx/PanneauHistoriqueRendezvous.jsx) : ce
+// statut n'a désormais plus qu'une seule origine possible — NSPP (clic Formateur/Inspecteur) ou
+// la bascule automatique (basculeTestNonRealiseService.js), "Marquer absent" ayant été retiré côté
+// Accueil/Coordination/Admin (GestionRendezvous.jsx). Purement l'affichage, aucun changement de la
+// valeur en base ni de la couleur du badge (variante 'echec' inchangée, voir
+// varianteStatutRendezvous ci-dessous).
 // 'honore' (posé par evaluationEngine.enregistrerEvaluation pour un test conduit et validé, voir
 // GestionRendezvous.jsx) manquait ici (audit 2026-08-21, régression) : jamais présent dans cette
 // table depuis sa création, il retombait sur le code brut "honore" (ni majuscule ni traduction) et
 // sur la variante par défaut 'attente' — rétabli avec le même libellé/couleur que
 // GestionRendezvous.jsx ("Réalisé"/'vert-clair'), seul autre endroit où ce badge apparaît.
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'Manqué', annule: 'Annulé', remplace: 'Remplacé', honore: 'Réalisé' };
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'NSPP', annule: 'Annulé', remplace: 'Remplacé', honore: 'Réalisé' };
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
@@ -111,7 +116,7 @@ function estRendezvousTestPlanifie(rdv) {
 
 // Libellé/variante EFFECTIFS (badge, recherche, tri) — jamais LIBELLES_STATUT/
 // varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
-// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "Manqué"
+// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "NSPP"
 // (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif).
 function libelleAfficheRendezvous(rdv) {
   if (rendezvousPrevuExpire(rdv)) return 'Non réalisé';
@@ -148,7 +153,7 @@ function codeStatutAffiche(rdv) {
 // pour ce même rendez-vous (désormais "Test planifié", voir estRendezvousTestPlanifie/
 // LIBELLE_TEST_PLANIFIE plus haut — audit suivant, même jour) — demande utilisateur, 2026-08-31 :
 // "Confirmé" seul pouvait laisser croire à un aboutissement du test au même titre que
-// Réalisé/Manqué/Annulé, alors que ce statut ne décrit qu'une confirmation de présence sur un test
+// Réalisé/NSPP/Annulé, alors que ce statut ne décrit qu'une confirmation de présence sur un test
 // ENCORE À VENIR (dossier toujours "Test planifié" à ce stade, voir CLAUDE.md workflow ACCECIT).
 // Les DEUX filtres "Prévu"/"Présence confirmée" restent distincts et fonctionnels malgré tout :
 // seul le badge de la colonne Statut regroupe visuellement les deux, jamais codeStatutAffiche
@@ -157,7 +162,7 @@ const STATUTS_FILTRABLES_RENDEZVOUS = [
   { code: 'prevu', libelle: 'Prévu' },
   { code: 'confirme', libelle: 'Présence confirmée' },
   { code: 'honore', libelle: 'Réalisé' },
-  { code: 'absent', libelle: 'Manqué' },
+  { code: 'absent', libelle: 'NSPP' },
   { code: 'non_realise', libelle: 'Non réalisé' },
   { code: 'annule', libelle: 'Annulé' },
   { code: 'remplace', libelle: 'Remplacé' },
@@ -328,9 +333,16 @@ export default function Planification() {
   // Recherche élargie (nom/prénom, n° dossier, poste, formateur, statut) — voir rechercheCorrespond
   // ci-dessus.
   const [recherche, setRecherche] = useParametreURL('q', '');
+  // Filtre "Code postal" (demande utilisateur d'harmonisation avec Dossiers candidats, audit
+  // 2026-09-11) — même paramètre d'URL/comportement "commence par" que TableauDeBordAccueil.jsx,
+  // porté par FiltresRechercheDossiers.jsx (core/dossier/, même composant partagé). Filtrage
+  // entièrement client (rdv.candidat_code_postal déjà présent sur chaque rendez-vous renvoyé par
+  // GET /api/dossiers/rendezvous, voir listerRendezvousTest/rendezvousService), même mécanisme que
+  // recherche/dateDebutFiltre/dateFinFiltre ci-dessous.
+  const [codePostalFiltre, setCodePostalFiltre] = useParametreURL('codePostal', '');
   // Plage de date sur rdv.date_heure (colonne "Date et heure"), mêmes noms de paramètre URL que
-  // TableauDeBordAccueil.jsx (date_debut/date_fin) — même composant FiltrePlageDate
-  // (core/filtres/), réutilisé tel quel plutôt que recréé (voir son commentaire d'en-tête) ;
+  // TableauDeBordAccueil.jsx (date_debut/date_fin) — portée par FiltresRechercheDossiers.jsx
+  // (core/dossier/, même composant partagé que Dossiers candidats, voir son rendu plus bas) ;
   // seule la donnée filtrée diffère (date du rendez-vous ici, date de dernière mise à jour du
   // dossier là-bas). Filtrage entièrement client, comme `recherche` ci-dessus (voir
   // rendezvousFiltres plus bas) — se combine donc en ET avec aVenirSeulement/formateurFiltre
@@ -366,6 +378,19 @@ export default function Planification() {
   // GET /api/dossiers/rendezvous, voir listerRendezvousTest), même mécanisme que
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
   const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
+
+  // Repli du bloc "Formateur/Expérience/recherche/dates" derrière un bouton "Plus de filtres"
+  // (demande utilisateur d'harmonisation avec Dossiers candidats, audit 2026-09-11) — composant
+  // partagé PanneauFiltresRepliable.jsx (core/dossier/), même patron que TableauDeBordAccueil.jsx :
+  // "À venir uniquement" reste hors de ce panneau (filtre serveur, consulté en premier au
+  // quotidien), comme Statut/Entité restent visibles hors panneau sur Dossiers candidats. State
+  // LOCAL, pas persisté dans l'URL comme les filtres eux-mêmes ci-dessus — ouvrir/fermer ce
+  // panneau n'est pas un filtre en soi. Ouvert par défaut si l'un des filtres qu'il contient est
+  // déjà actif au chargement (lien partagé, retour arrière) : sinon l'agent verrait un filtre actif
+  // sans le panneau qui le porte, aucun moyen de comprendre pourquoi la liste est déjà restreinte.
+  const [plusDeFiltresOuvert, setPlusDeFiltresOuvert] = useState(
+    () => Boolean(recherche || codePostalFiltre || dateDebutFiltre || dateFinFiltre || experienceFiltre || formateurFiltre),
+  );
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -480,11 +505,17 @@ export default function Planification() {
     const rechercheEstNumeroDossier = rechercheEstNumerique && rechercheChiffresSeuls.length < 10;
     const debut = dateDebutFiltre ? new Date(`${dateDebutFiltre}T00:00:00`) : null;
     const fin = dateFinFiltre ? new Date(`${dateFinFiltre}T23:59:59.999`) : null;
+    // "Commence par", null-safe — même comportement que filtrerDossiers.js/TableauDeBordAccueil.jsx
+    // (Dossiers candidats), champ séparé de la recherche générale `recherche` ci-dessus.
+    const codePostalFiltreNormalise = (codePostalFiltre ?? '').trim();
     return rendezvous.filter((rdv) => {
       if (debut || fin) {
         const dateRdv = new Date(rdv.date_heure);
         if (debut && dateRdv < debut) return false;
         if (fin && dateRdv > fin) return false;
+      }
+      if (codePostalFiltreNormalise && !(rdv.candidat_code_postal ?? '').startsWith(codePostalFiltreNormalise)) {
+        return false;
       }
       if (motsRechercheNom.length === 0) return true;
       return rechercheCorrespond(rdv, {
@@ -495,7 +526,7 @@ export default function Planification() {
         rechercheEstNumeroDossier,
       });
     });
-  }, [rendezvous, recherche, dateDebutFiltre, dateFinFiltre]);
+  }, [rendezvous, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre]);
 
   // Une ligne par candidat (dossier_id), pas par rendez-vous (décision utilisateur) : un candidat
   // avec plusieurs tentatives de test (replanifications, absences...) n'apparaissait jusqu'ici
@@ -766,65 +797,69 @@ export default function Planification() {
             />
             À venir uniquement
           </label>
+        </div>
 
-          {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : ces deux rôles ne
-              voient déjà que leurs propres rendez-vous (restriction serveur, dossiers.routes.js),
-              un sélecteur "Tous les formateurs" n'aurait donc plus aucun effet utile pour eux. */}
-          {!estFormateurOuInspecteur && (
+        {/* Bascule du panneau replié ci-dessous (Formateur/Expérience/recherche/dates) — composant
+            partagé (core/dossier/PanneauFiltresRepliable.jsx, même modèle que Dossiers candidats,
+            demande utilisateur d'harmonisation, audit 2026-09-11). "À venir uniquement" ci-dessus
+            reste hors de ce panneau : filtre serveur consulté en premier au quotidien, comme
+            Statut/Entité restent visibles hors panneau sur Dossiers candidats. */}
+        <PanneauFiltresRepliable
+          ouvert={plusDeFiltresOuvert}
+          onBasculer={() => setPlusDeFiltresOuvert((precedent) => !precedent)}
+        >
+          <div className="planification__filtres-avances">
+            {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : ces deux rôles ne
+                voient déjà que leurs propres rendez-vous (restriction serveur, dossiers.routes.js),
+                un sélecteur "Tous les formateurs" n'aurait donc plus aucun effet utile pour eux. */}
+            {!estFormateurOuInspecteur && (
+              <label className="planification__filtre-formateur">
+                <span>Formateur</span>
+                <select value={formateurFiltre} onChange={(evenement) => setFormateurFiltre(evenement.target.value)}>
+                  <option value="">Tous</option>
+                  {formateurs.map((formateur) => (
+                    <option key={formateur.id} value={formateur.id}>
+                      {formateur.prenom} {formateur.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur"
+                ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatut). */}
             <label className="planification__filtre-formateur">
-              <span>Formateur</span>
-              <select value={formateurFiltre} onChange={(evenement) => setFormateurFiltre(evenement.target.value)}>
-                <option value="">Tous</option>
-                {formateurs.map((formateur) => (
-                  <option key={formateur.id} value={formateur.id}>
-                    {formateur.prenom} {formateur.nom}
+              <span>Expérience</span>
+              <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
+                <option value="">Toutes</option>
+                {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                  <option key={code} value={code}>
+                    {libelleExperience(code)}
                   </option>
                 ))}
               </select>
             </label>
-          )}
+          </div>
 
-          {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur"
-              ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatut). */}
-          <label className="planification__filtre-formateur">
-            <span>Expérience</span>
-            <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
-              <option value="">Toutes</option>
-              {CODES_EXPERIENCE_ACCECIT.map((code) => (
-                <option key={code} value={code}>
-                  {libelleExperience(code)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Filtrage client (voir rechercheCorrespond/rendezvousFiltres ci-dessus) : se combine
-              avec aVenirSeulement/formateurFiltre sans logique dédiée, ceux-ci étant déjà
-              appliqués côté back avant que cette recherche ne s'exécute sur le résultat. Couvre
-              toutes les colonnes VISIBLES du tableau (N°, Candidat, Poste, Formateur, Statut —
-              jamais Date et heure, couverte par le filtre Du/Au dédié ci-dessous) — retrouve un
-              formateur par son nom sans passer par le sélecteur "Formateur" ci-dessus, qui exige
-              de le connaître à l'avance dans la liste déroulante. */}
-          <label className="planification__filtre-recherche">
-            <span>Rechercher</span>
-            <input
-              type="search"
-              value={recherche}
-              onChange={(evenement) => setRecherche(evenement.target.value)}
-              placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
-            />
-          </label>
-
-          {/* Même composant que Dossiers candidats (voir FiltrePlageDate.jsx) — filtre ici sur
-              rdv.date_heure plutôt que la date de dernière mise à jour du dossier (voir
-              rendezvousFiltres ci-dessus). */}
-          <FiltrePlageDate
+          {/* Composant partagé (core/dossier/FiltresRechercheDossiers.jsx, même modèle que
+              Dossiers candidats, Code postal activé le 2026-09-11 — demande utilisateur). placeholder/
+              ariaLabel propres à cet écran (pas de téléphone/email à chercher ici, voir
+              rechercheCorrespond ci-dessus) — inchangés depuis avant cette harmonisation. Du/Au
+              filtrent ici sur rdv.date_heure plutôt que la date de dernière mise à jour du
+              dossier (voir rendezvousFiltres ci-dessus). */}
+          <FiltresRechercheDossiers
+            recherche={recherche}
+            onChangerRecherche={setRecherche}
+            placeholder="Nom, prénom, N° dossier, poste, formateur ou statut"
+            ariaLabel="Rechercher un rendez-vous par nom, prénom, n° de dossier, poste, formateur ou statut"
+            codePostalFiltre={codePostalFiltre}
+            onChangerCodePostalFiltre={setCodePostalFiltre}
             dateDebutFiltre={dateDebutFiltre}
             onChangerDateDebutFiltre={setDateDebutFiltre}
             dateFinFiltre={dateFinFiltre}
             onChangerDateFinFiltre={setDateFinFiltre}
           />
-        </div>
+        </PanneauFiltresRepliable>
 
         {/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même composant/
             pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un bouton par
