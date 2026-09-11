@@ -41,7 +41,14 @@ function normaliserTelephone(valeur) {
 // dans ce cas car calculé ici comme une liste de dossiers DISTINCTS (union), jamais comme la somme
 // Hôtellerie + Tertiaire : Tous < Hôtellerie + Tertiaire est donc un résultat attendu si un tel
 // dossier existe un jour, pas un bug (voir commentaire de compteurHotel/compteurBureau).
-export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }) {
+export function filtrerDossiers(
+  dossiers,
+  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre },
+) {
+  // Code postal : champ de filtre séparé (comme Du/Au), plus intégré à `recherche` (voir
+  // FiltresRechercheDossiers.jsx) — même comportement "commence par", null-safe, que l'ancien
+  // matching partagé avec le n° de dossier ci-dessous.
+  const codePostalFiltreNormalise = (codePostalFiltre ?? '').trim();
   const rechercheNormalisee = recherche.trim().toLowerCase();
   const rechercheNormaliseeTexte = normaliserTexte(rechercheNormalisee);
   const rechercheTelephone = normaliserTelephone(rechercheNormalisee);
@@ -72,15 +79,10 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
 
   return dossiers.filter((dossier) => {
     if (rechercheEstNumeroDossier) {
-      // Cas 1 (saisie numérique courte) : n° de dossier (égalité stricte) OU code postal (audit
-      // 2026-09-10, corrige l'égalité stricte du 2026-09-09 : "93" ne remontait rien tant que le
-      // candidat n'avait pas tapé les 5 chiffres exacts) — "commence par", pour un usage naturel
-      // pendant la saisie. Un code postal français fait toujours 5 chiffres, donc jamais ambigu
-      // avec un téléphone (10 chiffres, cas 2 ci-dessous). candidat_code_postal null est normalisé
-      // en chaîne vide pour ne pas planter sur startsWith.
-      const correspondNumero = String(dossier.id) === rechercheTelephone;
-      const correspondCodePostal = (dossier.candidat_code_postal ?? '').startsWith(rechercheTelephone);
-      if (!correspondNumero && !correspondCodePostal) return false;
+      // Cas 1 (saisie numérique courte) : n° de dossier, égalité stricte — le code postal a
+      // désormais son propre champ de filtre séparé (codePostalFiltreNormalise ci-dessous), il ne
+      // fait plus partie de la recherche générale `q` (audit code postal, retiré de `q`).
+      if (String(dossier.id) !== rechercheTelephone) return false;
     } else if (rechercheEstNumerique) {
       // Cas 2 (saisie numérique longue) : uniquement le téléphone, comportement "contient" déjà en
       // place — un numéro complet à 14 chiffres avec indicatif retrouve toujours un dossier dont
@@ -111,6 +113,11 @@ export function filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinF
         postes.includes(rechercheNormaliseeTexte) ||
         statut.includes(rechercheNormaliseeTexte);
       if (!correspond) return false;
+    }
+    if (codePostalFiltreNormalise) {
+      // "Commence par", null-safe — même comportement que l'ancien matching intégré à `q` (audit
+      // 2026-09-10), désormais indépendant de la recherche générale et combiné en ET avec elle.
+      if (!(dossier.candidat_code_postal ?? '').startsWith(codePostalFiltreNormalise)) return false;
     }
     if (debut || fin) {
       const dateMaj = new Date(dossier.date_maj);

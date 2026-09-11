@@ -240,6 +240,9 @@ export default function TableauDeBordAccueil() {
   // entièrement client (voir filtrerDossiers.js), la liste `dossiers` étant déjà intégralement en
   // mémoire.
   const [recherche, setRecherche] = useParametreURL('q', '');
+  // Code postal : champ de filtre séparé (audit code postal), plus couvert par `recherche`
+  // ci-dessus — même mécanisme useParametreURL que les autres filtres de cette page.
+  const [codePostalFiltre, setCodePostalFiltre] = useParametreURL('codePostal', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
 
@@ -269,7 +272,7 @@ export default function TableauDeBordAccueil() {
   // coup — une fois ouvert/fermé manuellement, le choix de l'agent prime sur l'état initial des
   // filtres.
   const [plusDeFiltresOuvert, setPlusDeFiltresOuvert] = useState(
-    () => Boolean(recherche || dateDebutFiltre || dateFinFiltre || experienceFiltre),
+    () => Boolean(recherche || codePostalFiltre || dateDebutFiltre || dateFinFiltre || experienceFiltre),
   );
 
   useEffect(() => {
@@ -320,8 +323,16 @@ export default function TableauDeBordAccueil() {
   // entité (Set) pour répondre à la question "combien de dossiers dans CETTE entité si je clique
   // ce bouton", indépendamment de l'autre bouton entité déjà actif ou non.
   const dossiersRechercheDate = useMemo(
-    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre: new Set() }),
-    [dossiers, recherche, dateDebutFiltre, dateFinFiltre],
+    () =>
+      filtrerDossiers(dossiers, {
+        recherche,
+        codePostalFiltre,
+        dateDebutFiltre,
+        dateFinFiltre,
+        libellePoste,
+        entitesFiltre: new Set(),
+      }),
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre],
   );
 
   // Recherche/dates/entité (ni statut ni expérience) : base commune aux DEUX familles de
@@ -330,8 +341,16 @@ export default function TableauDeBordAccueil() {
   // filtre déjà actif) — même principe que dossiersRechercheDate ci-dessus pour Hôtellerie/
   // Tertiaire, généralisé aux deux filtres à badges de cette page.
   const dossiersFiltresBase = useMemo(
-    () => filtrerDossiers(dossiers, { recherche, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre }),
-    [dossiers, recherche, dateDebutFiltre, dateFinFiltre, entitesFiltre],
+    () =>
+      filtrerDossiers(dossiers, {
+        recherche,
+        codePostalFiltre,
+        dateDebutFiltre,
+        dateFinFiltre,
+        libellePoste,
+        entitesFiltre,
+      }),
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
   // Recherche/dates/entité/expérience (pas encore le statut) : c'est cette liste, group par
@@ -631,6 +650,8 @@ export default function TableauDeBordAccueil() {
             <FiltresRechercheDossiers
               recherche={recherche}
               onChangerRecherche={setRecherche}
+              codePostalFiltre={codePostalFiltre}
+              onChangerCodePostalFiltre={setCodePostalFiltre}
               dateDebutFiltre={dateDebutFiltre}
               onChangerDateDebutFiltre={setDateDebutFiltre}
               dateFinFiltre={dateFinFiltre}
