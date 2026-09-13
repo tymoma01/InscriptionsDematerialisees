@@ -21,10 +21,11 @@
   gap: var(--espace-moyen);
 }
 
-/* Ne porte plus que "À venir uniquement" (Formateur/Expérience/recherche/dates déplacés dans le
-   panneau replié ci-dessous, voir .planification__filtres-avances et PanneauFiltresRepliable.jsx —
-   demande utilisateur d'harmonisation avec Dossiers candidats, audit 2026-09-11) : filtre serveur
-   consulté en premier au quotidien, reste visible hors panneau. */
+/* "À venir uniquement" + Formateur + Expérience, tous sur une même ligne (réorganisation
+   2026-09-14, demande utilisateur — les trois vivaient jusqu'ici sur deux lignes séparées,
+   .planification__filtres pour la case seule et .planification__filtres-avances pour les deux
+   <select>, cette dernière retirée en fusionnant son contenu ici). Filtre serveur "À venir
+   uniquement" consulté en premier au quotidien, Formateur/Expérience juste à sa suite. */
 .planification__filtres {
   display: flex;
   flex-wrap: wrap;
@@ -37,18 +38,6 @@
   display: flex;
   align-items: center;
   gap: var(--espace-petit);
-}
-
-/* Ligne "Formateur"/"Expérience" à l'intérieur du panneau replié (voir PanneauFiltresRepliable.jsx)
-   — même gap que l'ancien .planification__filtres, juste déplacée : ces deux <select> restent côte
-   à côte, au-dessus du composant partagé FiltresRechercheDossiers (recherche + Du/Au) qui, lui,
-   porte sa propre mise en page pleine largeur (voir FiltresRechercheDossiers.css). */
-.planification__filtres-avances {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--espace-grand);
-  margin-bottom: var(--espace-petit);
 }
 
 .planification__filtre-formateur {
@@ -68,41 +57,84 @@
   color: var(--couleur-erreur);
 }
 
-/* Bloc de gauche : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire (FiltreEntite.jsx, demande
-   utilisateur) côte à côte juste en dessous — même colonne de largeur fixe que
-   TableauDeBordAccueil.css (Dossiers candidats), distincte de la boîte de statuts à droite
-   (.filtres-statut__statuts ci-dessous). Surcharge .filtres-statut__gauche (générique, en rangée
-   par défaut, voir FiltresStatut.css) : scopée à ce conteneur, pas dans le fichier générique,
-   même raison que les couleurs de statut plus bas — Utilisateurs.jsx réutilise le même composant
-   sans ce besoin de colonne figée. */
-.planification .filtres-statut__gauche {
-  flex-direction: column;
-  align-items: stretch;
-  width: 260px;
-  /* Espacement vertical "Tous" / Hôtellerie-Tertiaire — même valeur/raison que
-     TableauDeBordAccueil.css : le gap: var(--espace-petit) hérité de .filtres-statut__gauche
-     (FiltresStatut.css, pensé pour une disposition en RANGÉE) rapprocherait trop les deux lignes
-     une fois passées en colonne ci-dessus. */
+/* Repère visuel entre les deux barres de filtres par statut (audit 2026-09-13, demande
+   utilisateur : "Rendez-vous" sur sa propre ligne, "Statut" partageant la sienne avec
+   Hôtellerie/Tertiaire — réorganisation 2026-09-14) — align-items: flex-start (pas center) :
+   FiltresStatut peut s'étaler sur plusieurs lignes (voir .filtres-statut__statuts, flex-wrap),
+   le label doit rester calé en haut plutôt que se centrer sur toute la hauteur prise.
+   justify-content: center essayé puis ANNULÉ (audit 2026-09-14, deux demandes utilisateur
+   successives) : revient à l'alignement à gauche d'origine. flex: 1; min-width: 0 : sans effet
+   quand ce bloc est un simple enfant de bloc (barre "Rendez-vous", pleine largeur par défaut),
+   mais nécessaire quand il partage .planification__ligne-entite-statut avec Hôtellerie/Tertiaire
+   (barre "Statut") — lui laisse réclamer tout l'espace restant sur la ligne plutôt que de se
+   limiter à la largeur de son contenu, min-width: 0 l'autorisant malgré tout à rétrécir sous
+   cette largeur si nécessaire (comportement par défaut d'un enfant flex sans lui serait
+   min-width: auto, qui l'empêcherait de rétrécir sous la largeur de son contenu non wrappé). */
+.planification__groupe-filtre-statut {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+  flex: 1;
+  min-width: 0;
+}
+
+/* padding-top : aligne approximativement le texte du label avec celui des boutons "Tous"/du
+   premier statut juste à côté (padding vertical de .filtres-statut button, FiltresStatut.css),
+   plutôt qu'un simple alignement au sommet du bloc qui le décalerait visuellement vers le haut. */
+.planification__label-filtre-statut {
+  flex-shrink: 0;
+  padding-top: 0.5rem;
+  font-weight: 600;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Ligne "Hôtellerie/Tertiaire + Statut" (réorganisation 2026-09-14, demande utilisateur) —
+   FiltreEntite à gauche dans son propre conteneur de largeur bornée (voir
+   .planification__filtre-entite-standalone ci-dessous), la barre "Statut" (label + FiltresStatut)
+   juste à sa droite, se partageant l'espace restant (voir flex: 1 sur
+   .planification__groupe-filtre-statut ci-dessus). flex-wrap : à défaut de place (tablette
+   étroite), la barre "Statut" repasse sous Hôtellerie/Tertiaire plutôt que de se comprimer.
+   justify-content: center essayé puis ANNULÉ (audit 2026-09-14, deux demandes utilisateur
+   successives) : revient à l'alignement à gauche d'origine, valeur par défaut (flex-start) donc
+   rien à déclarer explicitement ici. */
+.planification__ligne-entite-statut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--espace-grand);
+  margin-bottom: var(--espace-petit);
 }
 
-.planification .filtres-statut__tous button {
-  width: 100%;
+/* FiltreEntite.jsx pose `width: 100%` sur lui-même (voir le commentaire de son usage plus haut) —
+   sans ce conteneur, il s'étirerait sur toute la largeur de .planification__ligne-entite-statut,
+   ne laissant plus de place à la barre "Statut" juste à côté. flex: 0 0 260px (pas juste
+   max-width) : garde cette largeur même si la ligne a de la place à revendre, pour un bouton
+   Hôtellerie/Tertiaire de taille stable plutôt que variable selon ce qu'il reste après "Statut". */
+.planification__filtre-entite-standalone {
+  flex: 0 0 260px;
 }
 
-/* Un seul palier, même raison/valeur que TableauDeBordAccueil.css : en dessous, le bloc de gauche
-   (260px fixe) et les boutons de statut de rendez-vous (7 boutons, libellés parfois longs comme
-   "Présence confirmée") ne tiennent plus confortablement côte à côte sans se comprimer — on empile
-   les deux zones plutôt que de continuer à les serrer horizontalement. */
-@media (max-width: 640px) {
-  .planification .filtres-statut {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .planification .filtres-statut__gauche {
-    width: 100%;
-  }
+/* Correctif décalage vertical Hôtellerie/Tertiaire vs "Tous"/badges de la barre "Statut" (audit
+   2026-09-14, signalé par l'utilisateur) — cause réelle : FiltreEntite.jsx ne définit aucun
+   padding/bordure/rayon sur ses propres boutons (voir son commentaire d'en-tête, "aucune règle de
+   layout de ligne ici, seulement l'apparence propre à ce filtre" — sous-entendu : le PADDING/FORME
+   du bouton restait à la charge du conteneur générique FiltresStatut, via son sélecteur de
+   descendance `.filtres-statut button` déjà documenté dans FiltresStatut.jsx : "Les boutons qu'il
+   contient héritent malgré tout du style .filtres-statut button/.actif ci-dessous"). Tant que
+   FiltreEntite était rendu via `filtresSupplementaires` DANS le <nav> "Statut" (avant la
+   réorganisation 2026-09-14 ci-dessus), ses boutons héritaient donc gratuitement de ce padding —
+   devenu orphelin depuis qu'il est rendu en sibling AUTONOME hors de ce <nav>, retombant sur le
+   bouton par défaut du navigateur (plus petit, coins carrés) à côté d'un "Tous" en pilule pleine
+   taille. Reproduit ici la même règle de base que .filtres-statut button (FiltresStatut.css) —
+   seuls padding/bordure/rayon/curseur : les couleurs restent celles, déjà correctes, de
+   FiltreEntite.css ([data-entite='hotel'/'bureau'], plus spécifiques donc jamais écrasées par ce
+   qui suit). */
+.planification__filtre-entite-standalone .filtre-entite button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 /* Boutons de filtre par statut (audit 2026-08-31, révisé le même jour — décision utilisateur) :

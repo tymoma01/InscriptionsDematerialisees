@@ -32,9 +32,12 @@ const SEUIL_SELECTION_ACTIONS_GROUPEES = 1;
 // de pouvoir reprogrammer). Un dossier sélectionné sur CET écran peut très bien avoir déjà quitté
 // ces statuts depuis (ex. verdict rendu entretemps, ou ligne affichée hors "À venir uniquement") —
 // d'où la vérification fraîche via obtenirDossier au clic sur "Replanifier des tests", voir
-// ouvrirReplanificationGroupee plus bas : contrairement à TableauDeBordAccueil.jsx (dossiers déjà
-// en mémoire avec leur statut_code), les rendez-vous chargés ici (listerRendezvousTest) ne portent
-// pas le statut du DOSSIER, seulement celui du rendez-vous lui-même (prevu/confirme/absent/...).
+// ouvrirReplanificationGroupee plus bas : dossier_statut_code (colonne "Statut", audit 2026-09-13)
+// est désormais bien présent sur les rendez-vous chargés ici (listerRendezvousTest), mais reste un
+// instantané pris au CHARGEMENT de la page — contrairement à TableauDeBordAccueil.jsx (re-fetch
+// complet des dossiers à chaque filtre), rien ne le rafraîchit entre-temps hors polling
+// (useRafraichissementAuto), d'où cette vérification dédiée au clic plutôt qu'une simple lecture
+// de rdv.dossier_statut_code déjà en mémoire.
 const STATUTS_REPLANIFIABLES_ACCECIT = [
   'test_planifie',
   'test_non_realise',
@@ -167,6 +170,112 @@ const STATUTS_FILTRABLES_RENDEZVOUS = [
   { code: 'remplace', libelle: 'Remplacé' },
 ];
 
+// Regroupement des statuts DOSSIER en 4 étapes de haut niveau pour la colonne "Statut" (audit
+// 2026-09-13, demande utilisateur — remplace l'affichage direct du statut brut mis en place au
+// tour précédent, un badge par statut réel était jugé trop détaillé pour ce tableau). Centralisé
+// ici en un seul mapping code → libellé de groupe plutôt que des conditions dispersées dans le
+// rendu : un statut ajouté/renommé dans workflow.config.json (ACCECIT) n'a qu'un seul endroit à
+// ajuster.
+//
+// Couverture vérifiée en base le 2026-09-13 (requête sur `statuts`/`dossiers`, entité accecit,
+// script d'audit ponctuel non conservé) avant d'écrire ce mapping, pas devinée :
+// - Les 11 codes actifs de workflow.config.json (ACCECIT) sont tous couverts : nouveau (libellé
+//   "Inscrit"), en_attente_pieces, test_non_planifie, en_attente_verification, en_attente_verdict,
+//   verdict_positif, verdict_negatif, en_attente_validation_recruteur, test_planifie, test_realise,
+//   test_non_realise, invalide, valide_envoi_formation, valide_pret_embauche, formation_non_validee,
+//   embauche.
+// - 5 codes hérités d'une version antérieure du workflow (0 dossier aujourd'hui, gardés en base
+//   uniquement pour les FK historique_statuts d'anciens dossiers déjà migrés — voir
+//   backend/scripts/migrerWorkflowAccecitV2.js) rattachés à un groupe malgré tout, décision
+//   utilisateur du 2026-09-13 : `en_attente_verification` (ancien palier avant planification d'un
+//   test) → "Test non planifié" ; `en_attente_verdict`/`verdict_positif`/`verdict_negatif`/
+//   `en_attente_validation_recruteur` (anciens noms des étapes post-test, avant la scission en
+//   test_realise/valide_envoi_formation/valide_pret_embauche/invalide/formation_non_validee) →
+//   "Test réalisé".
+// - `valide`/`rejete` (2 autres codes hérités, eux aussi à 0 dossier) volontairement ABSENTS de ce
+//   mapping, décision utilisateur du 2026-09-13 : statuts terminaux d'un ancien parcours SANS
+//   notion de test, aucun des 4 groupes ne leur correspond réellement — tombent sur le fallback
+//   neutre de libelleGroupeStatutDossier/varianteGroupeStatutDossier ci-dessous (libellé BRUT du
+//   dossier affiché tel quel, jamais rattaché arbitrairement à un groupe qui ne le décrirait pas),
+//   même que pour un code totalement inconnu (autre entité, nouveau statut jamais vu ici).
+// Codes STABLES des 4 groupes (audit 2026-09-13, ajout de la barre de filtres "Statut") — jamais
+// le libellé français directement comme code : distinct du libellé (locale-dépendant, avec espaces/
+// accents, pas fait pour être une clé de comparaison/URL), même principe que codeStatutAffiche vs
+// libelleAfficheRendezvous plus haut pour le statut de RENDEZ-VOUS.
+const GROUPE_TEST_NON_PLANIFIE = 'test_non_planifie';
+const GROUPE_TEST_PLANIFIE = 'test_planifie';
+const GROUPE_TEST_REALISE = 'test_realise';
+const GROUPE_TEST_NON_REALISE = 'test_non_realise';
+
+const GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT = {
+  nouveau: GROUPE_TEST_NON_PLANIFIE,
+  en_attente_pieces: GROUPE_TEST_NON_PLANIFIE,
+  test_non_planifie: GROUPE_TEST_NON_PLANIFIE,
+  en_attente_verification: GROUPE_TEST_NON_PLANIFIE,
+
+  test_planifie: GROUPE_TEST_PLANIFIE,
+
+  test_realise: GROUPE_TEST_REALISE,
+  en_attente_verdict: GROUPE_TEST_REALISE,
+  verdict_positif: GROUPE_TEST_REALISE,
+  verdict_negatif: GROUPE_TEST_REALISE,
+  en_attente_validation_recruteur: GROUPE_TEST_REALISE,
+  valide_envoi_formation: GROUPE_TEST_REALISE,
+  valide_pret_embauche: GROUPE_TEST_REALISE,
+  invalide: GROUPE_TEST_REALISE,
+  formation_non_validee: GROUPE_TEST_REALISE,
+  embauche: GROUPE_TEST_REALISE,
+
+  test_non_realise: GROUPE_TEST_NON_REALISE,
+};
+
+// Libellé/couleur par groupe STABLE (pas par code de statut dossier brut) — une seule couleur pour
+// les statuts dossier désormais fusionnés sous un même libellé (ex. "Inscrit"/"En attente de
+// pièces"/"Test non planifié" partagent tous "Test non planifié"), reprend la teinte déjà utilisée
+// pour le statut éponyme sur les autres écrans (Tests.jsx/TableauDeBordAccueil.jsx,
+// VARIANTE_PAR_CODE_ACCECIT).
+const LIBELLE_PAR_GROUPE_STATUT_DOSSIER = {
+  [GROUPE_TEST_NON_PLANIFIE]: 'Test non planifié',
+  [GROUPE_TEST_PLANIFIE]: 'Test planifié',
+  [GROUPE_TEST_REALISE]: 'Test réalisé',
+  [GROUPE_TEST_NON_REALISE]: 'Test non réalisé',
+};
+const VARIANTE_PAR_GROUPE_STATUT_DOSSIER = {
+  [GROUPE_TEST_NON_PLANIFIE]: 'rose',
+  [GROUPE_TEST_PLANIFIE]: 'bleu',
+  [GROUPE_TEST_REALISE]: 'violet',
+  [GROUPE_TEST_NON_REALISE]: 'alerte',
+};
+
+// Code de groupe STABLE (pour le filtre, jamais affiché tel quel) — undefined pour tout code
+// absent de GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT (`valide`/`rejete` aujourd'hui, voir le
+// commentaire d'en-tête ci-dessus) : ces dossiers n'appartiennent à AUCUN des 4 groupes filtrables,
+// ils restent visibles sous "Tous" mais ne matchent aucun bouton de la nouvelle barre.
+function codeGroupeStatutDossier(rdv) {
+  return GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT[rdv.dossier_statut_code];
+}
+// Libellé/variante affichés dans la colonne "Statut" — fallback neutre sur le libellé BRUT du
+// dossier (rdv.dossier_statut_libelle, jamais deviné) pour tout code sans groupe (voir ci-dessus).
+function libelleGroupeStatutDossier(rdv) {
+  const groupe = codeGroupeStatutDossier(rdv);
+  return groupe ? LIBELLE_PAR_GROUPE_STATUT_DOSSIER[groupe] : rdv.dossier_statut_libelle;
+}
+function varianteGroupeStatutDossier(rdv) {
+  const groupe = codeGroupeStatutDossier(rdv);
+  return groupe ? VARIANTE_PAR_GROUPE_STATUT_DOSSIER[groupe] : 'neutre';
+}
+
+// Boutons de filtre par statut DOSSIER (audit 2026-09-13, demande utilisateur) — même pattern que
+// STATUTS_FILTRABLES_RENDEZVOUS ci-dessus, mais sur les 4 groupes de haut niveau plutôt que sur
+// rendezvous.statut. `valide`/`rejete` (fallback neutre, sans groupe) n'ont volontairement AUCUN
+// bouton dédié ici : ils ne sont filtrables que via "Tous", comme n'importe quel code hors mapping.
+const STATUTS_FILTRABLES_DOSSIER = [
+  { code: GROUPE_TEST_NON_PLANIFIE, libelle: 'Test non planifié' },
+  { code: GROUPE_TEST_PLANIFIE, libelle: 'Test planifié' },
+  { code: GROUPE_TEST_REALISE, libelle: 'Test réalisé' },
+  { code: GROUPE_TEST_NON_REALISE, libelle: 'Test non réalisé' },
+];
+
 // Libellés des postes (colonne "Poste") — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx,
 // dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
 const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
@@ -264,8 +373,21 @@ function estRendezvousAVenir(rdv) {
 
 // Une entrée par colonne triable, même patron que DossierList.jsx (core/dossier/DossierList.jsx)
 // — "Candidat" trie sur candidats.nom (nom de famille), pas la chaîne "prénom nom" affichée.
-// "Statut" trie sur le libellé affiché (LIBELLES_STATUT), plus lisible pour l'utilisateur qu'un
-// tri sur le code brut ('absent' avant 'confirme' avant 'prevu'...).
+// "Statut"/"Rendez-vous" trient sur le libellé affiché, plus lisible pour l'utilisateur qu'un tri
+// sur le code brut ('absent' avant 'confirme' avant 'prevu'...).
+//
+// "Statut" (dossier) et "Rendez-vous" séparées en deux colonnes distinctes (audit 2026-09-13,
+// demande utilisateur — avant cette date, une seule colonne "Statut" affichait le statut du
+// RENDEZ-VOUS, jamais celui du dossier, absent de listerRendezvousTest jusqu'ici, voir le
+// commentaire de STATUTS_REPLANIFIABLES_ACCECIT plus haut ainsi que dossier_statut_code/
+// dossier_statut_libelle désormais exposés par rendezvousRepository.listerRendezvousTest côté
+// back) : "Statut" (dossier) positionnée AVANT "Rendez-vous", repère principal cohérent avec
+// "Dossiers candidats" (TableauDeBordAccueil.jsx) ; "Rendez-vous" reprend EXACTEMENT
+// l'affichage de l'ex-colonne "Statut" (libelleAfficheRendezvous/varianteAfficheeRendezvous
+// inchangées, fusion visuelle Prévu+Confirmé sous "Test planifié" toujours en vigueur ici) — seul
+// le libellé de colonne change, aucune régression sur ce qui existait. Les boutons de filtre par
+// statut (STATUTS_FILTRABLES_RENDEZVOUS) continuent de porter sur rendezvous.statut
+// (codeStatutAffiche), donc sur cette colonne "Rendez-vous", jamais sur "Statut" (dossier).
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (rdv) => (rdv.candidat_nom ?? '').toLowerCase() },
   // Colonne "Code postal" (audit 2026-09-09) — même patron que "Poste"/"Expérience" juste
@@ -279,9 +401,21 @@ const COLONNES = [
   },
   { cle: 'experience', libelle: 'Expérience', extraire: (rdv) => rdv.experience ?? '' },
   { cle: 'formateur_nom', libelle: 'Formateur', extraire: (rdv) => (rdv.formateur_nom ?? '').toLowerCase() },
+  // "Statut" (statut du DOSSIER, regroupé en 4 valeurs — voir le commentaire d'en-tête de
+  // GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT) : trie sur le libellé de GROUPE affiché
+  // (libelleGroupeStatutDossier), pas sur le statut brut — deux dossiers du même groupe
+  // ("Inscrit"/"En attente de pièces", tous deux "Test non planifié") doivent trier ensemble,
+  // pas se disperser selon leur libellé réel respectif.
   {
-    cle: 'statut',
+    cle: 'statut_dossier',
     libelle: 'Statut',
+    extraire: (rdv) => libelleGroupeStatutDossier(rdv).toLowerCase(),
+  },
+  // "Rendez-vous" (statut du RENDEZ-VOUS, ex-colonne "Statut" — voir le commentaire d'en-tête de
+  // ce tableau) : extraire()/libelleAfficheRendezvous inchangés, seuls `cle`/`libelle` changent.
+  {
+    cle: 'statut_rendezvous',
+    libelle: 'Rendez-vous',
     extraire: (rdv) => libelleAfficheRendezvous(rdv).toLowerCase(),
   },
   // Déplacée après "Statut" (demande utilisateur) — plus la 1re colonne du tableau ni figée au
@@ -350,23 +484,38 @@ export default function Planification() {
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
 
-  // Filtre par statut affiché (voir codeStatutAffiche/STATUTS_FILTRABLES_RENDEZVOUS ci-dessus) —
-  // même sentinelle 'tous' que SuiviFormation.jsx (statutFiltre === null se traduirait en
-  // absence de paramètre dans l'URL via useParametreURL, indiscernable de la valeur par défaut ;
-  // ici sans incidence puisque le défaut EST déjà "Tous"/null, gardé malgré tout pour rester
-  // cohérent avec le seul autre appelant de FiltresStatut qui persiste son filtre dans l'URL).
+  // Filtre par statut de RENDEZ-VOUS affiché, colonne "Rendez-vous" (voir codeStatutAffiche/
+  // STATUTS_FILTRABLES_RENDEZVOUS ci-dessus) — même sentinelle 'tous' que SuiviFormation.jsx
+  // (statutRdvFiltre === null se traduirait en absence de paramètre dans l'URL via
+  // useParametreURL, indiscernable de la valeur par défaut ; ici sans incidence puisque le défaut
+  // EST déjà "Tous"/null, gardé malgré tout pour rester cohérent avec le seul autre appelant de
+  // FiltresStatut qui persiste son filtre dans l'URL).
   // Filtrage entièrement client (voir rendezvousParCandidatFiltres plus bas), sur la liste déjà
   // groupée par candidat — pas les filtres serveur (aVenirSeulement/formateurFiltre) : une
   // combinaison qui n'a pas de sens (ex. "À venir uniquement" + "Réalisé") ne renvoie simplement
   // aucun résultat plutôt que d'être bloquée en amont, exactement comme n'importe quelle autre
-  // combinaison de filtres vide ailleurs dans l'app (voir compteursParStatut ci-dessous, qui
+  // combinaison de filtres vide ailleurs dans l'app (voir compteursParStatutRdv ci-dessous, qui
   // affiche fidèlement "(0)" dans ce cas plutôt que de masquer le bouton).
-  const [statutFiltreBrut, setStatutFiltreBrut] = useParametreURL('statut', 'tous');
-  const statutFiltre = statutFiltreBrut === 'tous' ? null : statutFiltreBrut;
-  const setStatutFiltre = (valeur) => setStatutFiltreBrut(valeur === null ? 'tous' : valeur);
+  // Paramètre URL 'statut_rdv' (renommé depuis 'statut', audit 2026-09-13) — pour ne jamais se
+  // confondre avec le nouveau 'statut_dossier' ci-dessous (deux filtres distincts, colonnes
+  // distinctes "Rendez-vous"/"Statut" : partager la même clé d'URL aurait mélangé silencieusement
+  // les deux si l'un écrasait l'autre, ou pire, appliqué la valeur du mauvais filtre à l'autre
+  // colonne au chargement d'un lien partagé/mis en favori).
+  const [statutRdvFiltreBrut, setStatutRdvFiltreBrut] = useParametreURL('statut_rdv', 'tous');
+  const statutRdvFiltre = statutRdvFiltreBrut === 'tous' ? null : statutRdvFiltreBrut;
+  const setStatutRdvFiltre = (valeur) => setStatutRdvFiltreBrut(valeur === null ? 'tous' : valeur);
+
+  // Filtre par statut de DOSSIER regroupé (colonne "Statut", audit 2026-09-13, demande
+  // utilisateur) — même mécanisme/sentinelle 'tous' que statutRdvFiltre ci-dessus, sur les 4
+  // groupes de STATUTS_FILTRABLES_DOSSIER plutôt que sur rendezvous.statut. Paramètre URL
+  // 'statut_dossier', distinct de 'statut_rdv' (voir son commentaire juste au-dessus).
+  const [statutDossierFiltreBrut, setStatutDossierFiltreBrut] = useParametreURL('statut_dossier', 'tous');
+  const statutDossierFiltre = statutDossierFiltreBrut === 'tous' ? null : statutDossierFiltreBrut;
+  const setStatutDossierFiltre = (valeur) => setStatutDossierFiltreBrut(valeur === null ? 'tous' : valeur);
 
   // Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur" ci-dessus,
-  // filtrage entièrement client (comme statutFiltre). '' = toutes les tranches confondues.
+  // filtrage entièrement client (comme statutRdvFiltre/statutDossierFiltre). '' = toutes les
+  // tranches confondues.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
   // Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même composant/mécanisme que
@@ -415,9 +564,11 @@ export default function Planification() {
   const [modaleGroupeeOuverte, setModaleGroupeeOuverte] = useState(null);
   // Vérification asynchrone avant d'ouvrir la modale de replanification (voir
   // ouvrirReplanificationGroupee plus bas) — même patron que lancerExportPieces
-  // (TableauDeBordAccueil.jsx) : contrairement à cette page-là, les rendez-vous déjà en mémoire ici
-  // ne portent pas le statut du DOSSIER (voir STATUTS_REPLANIFIABLES_ACCECIT ci-dessus), il faut
-  // donc l'aller chercher avant de savoir quels dossiers sélectionnés sont réellement éligibles.
+  // (TableauDeBordAccueil.jsx) : dossier_statut_code est désormais présent sur les rendez-vous déjà
+  // en mémoire ici (colonne "Statut", audit 2026-09-13), mais reste un instantané pris au
+  // chargement de la page (voir le commentaire de STATUTS_REPLANIFIABLES_ACCECIT ci-dessus) — il
+  // faut donc quand même l'aller rechercher au clic pour savoir quels dossiers sélectionnés sont
+  // RÉELLEMENT éligibles à cet instant précis.
   const [verificationReplanificationEnCours, setVerificationReplanificationEnCours] = useState(false);
   const [erreurVerificationReplanification, setErreurVerificationReplanification] = useState(null);
   const [dossiersEligiblesReplanification, setDossiersEligiblesReplanification] = useState([]);
@@ -545,28 +696,32 @@ export default function Planification() {
   // (recherche/plage de date/aVenirSeulement/formateurFiltre déjà appliqués, voir son commentaire
   // ci-dessus), AVANT le filtre entité lui-même — chaque bouton doit répondre à "combien de
   // candidats si je clique CE bouton", indépendamment de l'état actuel de entitesFiltre — mais
-  // statut/expérience réappliqués manuellement ici (comme sur TableauDeBordAccueil.jsx) pour que
-  // ces deux compteurs reflètent malgré tout les AUTRES filtres déjà actifs, conformément à la
-  // liste actuellement affichée sur cet écran.
+  // statut(rendez-vous)/statut(dossier)/expérience réappliqués manuellement ici (comme sur
+  // TableauDeBordAccueil.jsx) pour que ces deux compteurs reflètent malgré tout les AUTRES filtres
+  // déjà actifs, conformément à la liste actuellement affichée sur cet écran. statutDossierFiltre
+  // ajouté ici (audit 2026-09-13, nouvelle barre de filtres "Statut") au même titre que
+  // statutRdvFiltre, déjà présent avant cet ajout.
   const compteurHotel = useMemo(
     () =>
       rendezvousParCandidat.filter(
         (rdv) =>
-          (!statutFiltre || codeStatutAffiche(rdv) === statutFiltre) &&
+          (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
+          (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre) &&
           (!experienceFiltre || rdv.experience === experienceFiltre) &&
           (rdv.postesHotel ?? []).length > 0,
       ).length,
-    [rendezvousParCandidat, statutFiltre, experienceFiltre],
+    [rendezvousParCandidat, statutRdvFiltre, statutDossierFiltre, experienceFiltre],
   );
   const compteurBureau = useMemo(
     () =>
       rendezvousParCandidat.filter(
         (rdv) =>
-          (!statutFiltre || codeStatutAffiche(rdv) === statutFiltre) &&
+          (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
+          (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre) &&
           (!experienceFiltre || rdv.experience === experienceFiltre) &&
           (rdv.postesBureau ?? []).length > 0,
       ).length,
-    [rendezvousParCandidat, statutFiltre, experienceFiltre],
+    [rendezvousParCandidat, statutRdvFiltre, statutDossierFiltre, experienceFiltre],
   );
 
   // Filtre entité appliqué juste après le regroupement par candidat (même position que
@@ -585,32 +740,69 @@ export default function Planification() {
     );
   }, [rendezvousParCandidat, entitesFiltre]);
 
-  // Compteurs des boutons de filtre statut — calculés sur rendezvousParCandidatEntite (une ligne
-  // par candidat, APRÈS recherche/plage de date/aVenirSeulement/formateurFiltre/entité, mais AVANT
-  // le filtre statut lui-même), même principe que SuiviFormation.jsx/TableauDeBordAccueil.jsx : un
-  // agent qui cherche "Ibrahima" voit re-décompter les boutons sur les seuls candidats Ibrahima,
-  // pas sur la liste entière — et un statut qu'aucune combinaison de filtres actuelle ne peut
-  // produire (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement "(0)", jamais
-  // masqué. Expérience appliquée AVANT le statut : les compteurs de chaque bouton de statut
-  // reflètent la tranche d'expérience actuellement sélectionnée, pas la liste entière.
-  const rendezvousParCandidatAvantStatut = useMemo(() => {
+  // Base commune aux DEUX barres de statut (Rendez-vous ET Statut dossier, audit 2026-09-13) —
+  // une ligne par candidat, APRÈS recherche/plage de date/aVenirSeulement/formateurFiltre/entité/
+  // expérience, mais AVANT les deux filtres de statut eux-mêmes (renommée au pluriel : sert
+  // désormais de socle à deux filtres siblings, pas un seul). Même principe que
+  // SuiviFormation.jsx/TableauDeBordAccueil.jsx : un agent qui cherche "Ibrahima" voit
+  // re-décompter les boutons sur les seuls candidats Ibrahima, pas sur la liste entière.
+  const rendezvousParCandidatAvantStatuts = useMemo(() => {
     if (!experienceFiltre) return rendezvousParCandidatEntite;
     return rendezvousParCandidatEntite.filter((rdv) => rdv.experience === experienceFiltre);
   }, [rendezvousParCandidatEntite, experienceFiltre]);
 
-  const compteursParStatut = useMemo(() => {
+  // Compteurs des boutons de la barre "Rendez-vous" — calculés sur rendezvousParCandidatAvantStatuts
+  // filtrée en plus par statutDossierFiltre (le filtre SIBLING "Statut" dossier, voir plus bas) :
+  // chaque bouton "Rendez-vous" doit répondre à "combien de candidats si je clique CE bouton",
+  // compte tenu de tous les AUTRES filtres actifs, y compris désormais Statut dossier — jamais de
+  // lui-même (statutRdvFiltre n'intervient pas ici). Un statut qu'aucune combinaison de filtres
+  // actuelle ne peut produire (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement
+  // "(0)", jamais masqué.
+  const rendezvousParCandidatAvantStatutRdv = useMemo(() => {
+    if (!statutDossierFiltre) return rendezvousParCandidatAvantStatuts;
+    return rendezvousParCandidatAvantStatuts.filter((rdv) => codeGroupeStatutDossier(rdv) === statutDossierFiltre);
+  }, [rendezvousParCandidatAvantStatuts, statutDossierFiltre]);
+
+  const compteursParStatutRdv = useMemo(() => {
     const compteurs = {};
-    for (const rdv of rendezvousParCandidatAvantStatut) {
+    for (const rdv of rendezvousParCandidatAvantStatutRdv) {
       const code = codeStatutAffiche(rdv);
       compteurs[code] = (compteurs[code] ?? 0) + 1;
     }
     return compteurs;
-  }, [rendezvousParCandidatAvantStatut]);
+  }, [rendezvousParCandidatAvantStatutRdv]);
 
+  // Compteurs des boutons de la barre "Statut" (dossier, audit 2026-09-13) — symétrique de
+  // compteursParStatutRdv ci-dessus : calculés sur rendezvousParCandidatAvantStatuts filtrée en
+  // plus par statutRdvFiltre (le filtre SIBLING "Rendez-vous"), jamais par statutDossierFiltre
+  // lui-même. Un dossier sans groupe (codeGroupeStatutDossier undefined — `valide`/`rejete`, voir
+  // leur commentaire plus haut) n'incrémente aucun de ces 4 compteurs, mais reste compté dans
+  // "Tous" (compteurTousDossier ci-dessous).
+  const rendezvousParCandidatAvantStatutDossier = useMemo(() => {
+    if (!statutRdvFiltre) return rendezvousParCandidatAvantStatuts;
+    return rendezvousParCandidatAvantStatuts.filter((rdv) => codeStatutAffiche(rdv) === statutRdvFiltre);
+  }, [rendezvousParCandidatAvantStatuts, statutRdvFiltre]);
+
+  const compteursParStatutDossier = useMemo(() => {
+    const compteurs = {};
+    for (const rdv of rendezvousParCandidatAvantStatutDossier) {
+      const code = codeGroupeStatutDossier(rdv);
+      if (!code) continue;
+      compteurs[code] = (compteurs[code] ?? 0) + 1;
+    }
+    return compteurs;
+  }, [rendezvousParCandidatAvantStatutDossier]);
+
+  // Liste finale : les DEUX filtres de statut se combinent en ET, en plus de tous les filtres déjà
+  // appliqués en amont (recherche/dates/à venir/formateur/entité/expérience) — chacun restreint
+  // simplement un peu plus rendezvousParCandidatAvantStatuts, sans logique de composition dédiée.
   const rendezvousParCandidatFiltres = useMemo(() => {
-    if (!statutFiltre) return rendezvousParCandidatAvantStatut;
-    return rendezvousParCandidatAvantStatut.filter((rdv) => codeStatutAffiche(rdv) === statutFiltre);
-  }, [rendezvousParCandidatAvantStatut, statutFiltre]);
+    return rendezvousParCandidatAvantStatuts.filter(
+      (rdv) =>
+        (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
+        (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre),
+    );
+  }, [rendezvousParCandidatAvantStatuts, statutRdvFiltre, statutDossierFiltre]);
 
   const rendezvousTries = useMemo(() => {
     const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
@@ -701,13 +893,14 @@ export default function Planification() {
 
   // Vérification asynchrone (voir son état de déclaration plus haut) : contrairement à
   // TableauDeBordAccueil.jsx (dossiers déjà en mémoire avec leur statut_code, split synchrone via
-  // useMemo), les rendez-vous chargés ici ne portent que le statut du RENDEZ-VOUS, jamais celui du
-  // DOSSIER — obtenirDossier (même route que Relances.jsx/Formation.jsx/Tests.jsx) va donc chercher
-  // le statut RÉEL, à jour, de chaque dossier sélectionné avant de décider qui est éligible. Un
-  // échec de récupération sur UN dossier (supprimé entretemps, etc.) l'exclut simplement de la
-  // replanification plutôt que de bloquer toute la vérification — même philosophie de résilience
-  // que lancerExportPieces (TableauDeBordAccueil.jsx), qui traite une pièce introuvable comme "0
-  // pièce" plutôt que comme un échec global.
+  // useMemo), rdv.dossier_statut_code ici n'est qu'un instantané pris au chargement de la page (voir
+  // le commentaire de STATUTS_REPLANIFIABLES_ACCECIT plus haut) — obtenirDossier (même route que
+  // Relances.jsx/Formation.jsx/Tests.jsx) va donc quand même chercher le statut RÉEL, à jour, de
+  // chaque dossier sélectionné avant de décider qui est éligible. Un échec de récupération sur UN
+  // dossier (supprimé entretemps, etc.) l'exclut simplement de la replanification plutôt que de
+  // bloquer toute la vérification — même philosophie de résilience que lancerExportPieces
+  // (TableauDeBordAccueil.jsx), qui traite une pièce introuvable comme "0 pièce" plutôt que comme un
+  // échec global.
   const ouvrirReplanificationGroupee = async () => {
     if (verificationReplanificationEnCours || dossiersSelectionnes.size === 0) return;
     setVerificationReplanificationEnCours(true);
@@ -774,6 +967,12 @@ export default function Planification() {
           <EnTeteBackOffice />
         </header>
 
+        {/* "À venir uniquement"/Formateur/Expérience regroupés sur une même ligne (réorganisation
+            2026-09-14, demande utilisateur) — plus de bouton "Plus de filtres" pour les masquer
+            (retiré le 2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx
+            supprimé, ce bloc reste désormais visible en permanence). Purement une question de
+            disposition : aucun des trois filtres ne change de comportement (aVenirSeulement reste
+            filtré côté serveur, formateurFiltre/experienceFiltre inchangés). */}
         <div className="planification__filtres">
           <label className="planification__filtre-case">
             <input
@@ -783,15 +982,7 @@ export default function Planification() {
             />
             À venir uniquement
           </label>
-        </div>
 
-        {/* Formateur/Expérience/recherche/dates — plus de bouton "Plus de filtres" pour les
-            masquer (retiré le 2026-09-11, décision utilisateur : composant
-            PanneauFiltresRepliable.jsx supprimé, ce bloc reste désormais visible en permanence).
-            "À venir uniquement" ci-dessus reste un filtre distinct (serveur, consulté en premier
-            au quotidien), comme Statut/Entité restent visuellement distincts sur Dossiers
-            candidats. */}
-        <div className="planification__filtres-avances">
           {/* Masqué pour Formateur/Inspecteur (voir estFormateurOuInspecteur) : ces deux rôles ne
               voient déjà que leurs propres rendez-vous (restriction serveur, dossiers.routes.js),
               un sélecteur "Tous les formateurs" n'aurait donc plus aucun effet utile pour eux. */}
@@ -810,7 +1001,7 @@ export default function Planification() {
           )}
 
           {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que "Formateur"
-              ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatut). */}
+              ci-dessus, filtrage entièrement client (voir rendezvousParCandidatAvantStatuts). */}
           <label className="planification__filtre-formateur">
             <span>Expérience</span>
             <select value={experienceFiltre} onChange={(evenement) => setExperienceFiltre(evenement.target.value)}>
@@ -843,31 +1034,73 @@ export default function Planification() {
           onChangerDateFinFiltre={setDateFinFiltre}
         />
 
-        {/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même composant/
-            pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un bouton par
-            statut affiché avec compteur dynamique entre parenthèses. Combinable avec "À venir
-            uniquement"/Formateur/Rechercher/Du-Au ci-dessus (voir statutFiltre, filtrage client sur
-            la liste déjà groupée par candidat) — une combinaison sans résultat (ex. "À venir
-            uniquement" + "Réalisé") affiche simplement "(0)" plutôt que d'être bloquée, voir le
-            commentaire de compteursParStatut. Filtre "Entité" Hôtellerie/Tertiaire (demande
-            utilisateur) inséré via filtresSupplementaires, sous "Tous" — même composant partagé
-            que Dossiers candidats (voir FiltreEntite.jsx). */}
-        <FiltresStatut
-          statuts={STATUTS_FILTRABLES_RENDEZVOUS}
-          statutFiltre={statutFiltre}
-          onChangerStatutFiltre={setStatutFiltre}
-          ariaLabel="Filtrer par statut de rendez-vous"
-          compteurTous={rendezvousParCandidatAvantStatut.length}
-          compteurs={compteursParStatut}
-          filtresSupplementaires={
+        {/* Hôtellerie/Tertiaire + "Statut" (dossier) sur une même ligne (réorganisation 2026-09-14,
+            demande utilisateur — l'entité Hôtellerie/Tertiaire n'est plus imbriquée dans la barre
+            "Rendez-vous" via filtresSupplementaires comme avant cette date, mais rendue en sibling
+            AUTONOME juste devant la barre "Statut"). FiltreEntite.jsx pose `width: 100%` sur
+            lui-même (pensé pour la colonne .filtres-statut__gauche de FiltresStatut, qui le
+            contraignait jusqu'ici) : hors de ce contexte, il lui faut son propre conteneur de
+            largeur bornée pour ne pas s'étirer sur toute la ligne — même correctif déjà appliqué
+            pour son unique autre usage standalone, TableauDossiersSelectionnes.jsx (voir
+            .tableau-dossiers-selectionnes__filtre-entite, même valeur de max-width reprise ici). */}
+        <div className="planification__ligne-entite-statut">
+          <div className="planification__filtre-entite-standalone">
             <FiltreEntite
               entitesFiltre={entitesFiltre}
               onBasculerEntite={basculerEntiteFiltre}
               compteurHotel={compteurHotel}
               compteurBureau={compteurBureau}
             />
-          }
-        />
+          </div>
+
+          {/* Barre "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — même
+              composant FiltresStatut, mêmes 4 groupes que la colonne "Statut" du tableau
+              (STATUTS_FILTRABLES_DOSSIER/codeGroupeStatutDossier) : "Tous" + un bouton par groupe,
+              compteur dynamique. Se combine en ET avec TOUS les autres filtres de la page (voir
+              rendezvousParCandidatFiltres) — y compris le filtre "Rendez-vous" plus bas, chacun
+              ignorant délibérément sa PROPRE valeur dans le calcul de ses compteurs mais tenant
+              compte de celle de l'autre (voir compteursParStatutDossier/
+              rendezvousParCandidatAvantStatutDossier plus haut), pour que les deux barres restent
+              cohérentes entre elles quelle que soit la combinaison active. Un label "Statut" à
+              gauche (planification__label-filtre-statut) sert de seul repère visuel avec la barre
+              "Rendez-vous" plus bas — FiltresStatut est un composant générique déjà bien
+              identifiable par ses propres libellés de boutons, le label n'est là que pour lever
+              l'ambiguïté entre les deux familles avant que l'agent n'ait lu un seul bouton. */}
+          <div className="planification__groupe-filtre-statut">
+            <span className="planification__label-filtre-statut">Statut</span>
+            <FiltresStatut
+              statuts={STATUTS_FILTRABLES_DOSSIER}
+              statutFiltre={statutDossierFiltre}
+              onChangerStatutFiltre={setStatutDossierFiltre}
+              ariaLabel="Filtrer par statut de dossier"
+              compteurTous={rendezvousParCandidatAvantStatutDossier.length}
+              compteurs={compteursParStatutDossier}
+            />
+          </div>
+        </div>
+
+        {/* Barre "Rendez-vous" (statut du RENDEZ-VOUS, audit 2026-08-31), sur sa propre ligne
+            dédiée sous Hôtellerie/Tertiaire + Statut (réorganisation 2026-09-14, demande
+            utilisateur) — même composant/pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) :
+            "Tous" + un bouton par statut affiché avec compteur dynamique entre parenthèses.
+            Combinable avec "À venir uniquement"/Formateur/Rechercher/Du-Au/Statut (dossier)
+            ci-dessus (voir statutRdvFiltre, filtrage client sur la liste déjà groupée par
+            candidat) — une combinaison sans résultat (ex. "À venir uniquement" + "Réalisé")
+            affiche simplement "(0)" plutôt que d'être bloquée, voir le commentaire de
+            compteursParStatutRdv. Deux paramètres d'URL distincts (statut_rdv/statut_dossier, voir
+            leur déclaration plus haut) : jamais de collision possible entre les deux filtres dans
+            un lien partagé/mis en favori. */}
+        <div className="planification__groupe-filtre-statut">
+          <span className="planification__label-filtre-statut">Rendez-vous</span>
+          <FiltresStatut
+            statuts={STATUTS_FILTRABLES_RENDEZVOUS}
+            statutFiltre={statutRdvFiltre}
+            onChangerStatutFiltre={setStatutRdvFiltre}
+            ariaLabel="Filtrer par statut de rendez-vous"
+            compteurTous={rendezvousParCandidatAvantStatutRdv.length}
+            compteurs={compteursParStatutRdv}
+          />
+        </div>
 
         {/* Barre d'actions groupées — même style visuel que TableauDeBordAccueil.jsx (Dossiers
             candidats, audit 2026-08-24) : sticky, fond dégradé back-office, compteur à gauche,
@@ -1047,6 +1280,16 @@ export default function Planification() {
                     </td>
                     <td>{libelleExperience(rdv.experience)}</td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
+                    {/* "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — voir
+                        le commentaire d'en-tête de GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT. */}
+                    <td className="planification__colonne-statut">
+                      <StatutBadge
+                        libelle={libelleGroupeStatutDossier(rdv)}
+                        variante={varianteGroupeStatutDossier(rdv)}
+                      />
+                    </td>
+                    {/* "Rendez-vous" (ex-colonne "Statut", statut du RENDEZ-VOUS) — inchangée, voir
+                        le commentaire d'en-tête de COLONNES. */}
                     <td className="planification__colonne-statut">
                       <StatutBadge
                         libelle={libelleAfficheRendezvous(rdv)}
