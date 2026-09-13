@@ -52,10 +52,10 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short',
 // instant précis (voir clotureRendezvousAvecTransitionService.js pour le même ordre côté bouton
 // manuel).
 //
-// Idempotent par construction : ne sélectionne que des rendez-vous encore 'prevu' sur un dossier
-// encore 'test_planifie' (voir rendezvousRepository.listerRendezvousTestNonRealisesAutomatiquement)
-// — un rendez-vous déjà basculé (dossier passé à test_non_realise) ne réapparaît plus au run
-// suivant, rejouable sans risque de double transition.
+// Idempotent par construction : ne sélectionne que des rendez-vous encore 'prevu'/'confirme' sur
+// un dossier encore 'test_planifie' (voir rendezvousRepository.
+// listerRendezvousTestNonRealisesAutomatiquement) — un rendez-vous déjà basculé (dossier passé à
+// test_non_realise) ne réapparaît plus au run suivant, rejouable sans risque de double transition.
 async function executerBasculeTestNonRealise(entite) {
   const bd = await db.obtenirKnex();
 
@@ -79,11 +79,17 @@ async function executerBasculeTestNonRealise(entite) {
       // doit jamais annuler les bascules déjà réussies sur les autres.
       const bascule = await bd.transaction(async (trx) => {
         // Relecture verrouillée juste avant d'écrire : revérifie l'état RÉEL du rendez-vous au
-        // moment précis de la transition, contre une action manuelle concurrente (Confirmer la
-        // présence/Marquer absent/Marquer annulé) survenue entre la sélection ci-dessus et cette
+        // moment précis de la transition, contre une action manuelle concurrente (Marquer
+        // absent/Marquer annulé/Présent(e)) survenue entre la sélection ci-dessus et cette
         // écriture (point 2 de la demande — ne jamais écraser un rendez-vous déjà traité).
+        // ['prevu', 'confirme'] (audit 2026-09-13, dossier #114, même correctif que la sélection
+        // ci-dessus, rendezvousRepository.listerRendezvousTestNonRealisesAutomatiquement) — un
+        // simple `!== 'prevu'` rejetterait ici tout rendez-vous 'confirme' pourtant sélectionné
+        // comme éligible juste au-dessus, rendant ce correctif sans effet. Même patron déjà en
+        // place sur syncCalendrierManuelService.js (autre appelant de
+        // trouverRendezvousPourBasculeVerrouillee) pour ce même garde-fou.
         const rendezvousActuel = await rendezvousRepository.trouverRendezvousPourBasculeVerrouillee(trx, rendezvous.id);
-        if (!rendezvousActuel || rendezvousActuel.statut !== 'prevu') {
+        if (!rendezvousActuel || !['prevu', 'confirme'].includes(rendezvousActuel.statut)) {
           return false;
         }
 

@@ -28,9 +28,9 @@ function listerRendezvousARappeler(bd, entiteId, { fenetreHeures }) {
 
 // Rendez-vous de test dont la FIN du créneau (date_heure + dureeCreneauMinutes — rendezvous ne
 // porte qu'un instant de départ, voir generateurIcs.js DUREE_TEST_MINUTES, seule source de vérité
-// pour cette durée) remonte à plus de delaiGraceHeures, toujours 'prevu' (ni confirmé, ni marqué
-// absent/annulé par un agent — GestionRendezvous.jsx, ni replanifié — 'remplace'), sur un dossier
-// toujours 'test_planifie' — candidats à la bascule automatique "Test non réalisé" (voir
+// pour cette durée) remonte à plus de delaiGraceHeures, toujours 'prevu' OU 'confirme' (jamais
+// marqué absent/annulé par un agent — GestionRendezvous.jsx, ni replanifié — 'remplace'), sur un
+// dossier toujours 'test_planifie' — candidats à la bascule automatique "Test non réalisé" (voir
 // basculeTestNonRealiseService.js, tâche planifiée CLAUDE.md). Le filtre sur statuts.code évite
 // d'inclure un dossier déjà sorti du parcours test (évalué, replanifié entre-temps...) ; la
 // re-vérification finale du statut du RENDEZ-VOUS lui-même (au moment précis de la bascule, pas
@@ -44,12 +44,23 @@ function listerRendezvousARappeler(bd, entiteId, { fenetreHeures }) {
 // ici (aucune règle métier dans cette couche, voir l'en-tête du fichier) : fournis par l'appelant
 // (basculeTestNonRealiseService.js), seule source de vérité pour ces deux valeurs.
 //
+// whereIn('statut', ['prevu', 'confirme']) — CORRECTIF (audit 2026-09-13, dossier #114) :
+// l'ancienne clause `'rendezvous.statut': 'prevu'` excluait TOUT rendez-vous 'confirme', quelle
+// que soit la valeur de date_presence_confirmee, contredisant le paragraphe ci-dessous (déjà en
+// place avant ce correctif) qui affirmait que 'confirme' seul ne devait PAS suffire à exclure —
+// en pratique, un candidat qui confirme sa présence à l'avance (rendezvous.statut='confirme') puis
+// ne se présente jamais, et qu'aucun formateur/inspecteur ne constate absent via un bouton dédié,
+// restait bloqué indéfiniment en "Test planifié", jamais basculé. 'remplace'/'absent'/'annule'
+// restent exclus (whereIn explicite plutôt qu'un whereNot, pour lister positivement les deux seuls
+// statuts encore "vivants" avant tout verdict).
+//
 // whereNull sur date_presence_confirmee (migration 060, bouton "Présent(e)" — voir
 // evaluationEngine.marquerPresenceConfirmee) : un formateur/inspecteur ayant constaté la présence
 // du candidat exclut définitivement ce rendez-vous de la bascule automatique, même une fois le
-// délai de grâce dépassé — distinct de rendezvous.statut ('confirme' = présence confirmée à
-// l'avance par le candidat, ne suffit PAS à exclure : voir le commentaire de STATUTS_AUTORISES,
-// rendezvousService.js).
+// délai de grâce dépassé — c'est bien CETTE colonne, pas rendezvous.statut, qui porte le sens
+// "présence réellement constatée par un humain" (voir STATUTS_AUTORISES, rendezvousService.js) :
+// 'confirme' seul (présence annoncée à l'avance PAR LE CANDIDAT, jamais vérifiée sur place) ne
+// suffit pas à exclure, d'où le whereIn ci-dessus plutôt qu'un filtre sur le seul statut.
 function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId, { dureeCreneauMinutes, delaiGraceHeures }) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
@@ -57,9 +68,9 @@ function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId, { dureeCre
     .where({
       'dossiers.entite_id': entiteId,
       'rendezvous.type_rdv': 'test',
-      'rendezvous.statut': 'prevu',
       'statuts.code': 'test_planifie',
     })
+    .whereIn('rendezvous.statut', ['prevu', 'confirme'])
     .whereNull('rendezvous.date_presence_confirmee')
     .andWhereRaw('rendezvous.date_heure + make_interval(mins => ?) < now() - make_interval(hours => ?)', [
       dureeCreneauMinutes,
@@ -206,10 +217,20 @@ function listerRendezvousParDossier(bd, dossierId) {
 // jusqu'ici de cette requête (voir l'ancien commentaire de rechercheCorrespond, Planification.jsx :
 // "cette page n'a de toute façon pas de téléphone à chercher"), ajouté ici comme
 // dossierRepository.listerDossiers le fait déjà pour "Dossiers candidats".
+//
+// Jointure vers `statuts` (audit 2026-09-13, séparation colonnes "Statut"/"Rendez-vous" sur
+// Planification.jsx) — statut_code/statut_libelle du DOSSIER, absents jusqu'ici de cette requête
+// (voir le commentaire de STATUTS_REPLANIFIABLES_ACCECIT, Planification.jsx : "les rendez-vous
+// chargés ici ne portent pas le statut du DOSSIER, seulement celui du rendez-vous lui-même") —
+// même patron `join('statuts', 'statuts.id', 'dossiers.statut_id')` + `statuts.code as
+// statut_code`/`statuts.libelle as statut_libelle` que dossierRepository.listerDossiers. join
+// (pas leftJoin) : un dossier a toujours un statut_id non nul (colonne NOT NULL, migration 004),
+// même choix que dossierRepository.listerDossiers.
 function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
   const requete = bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
     .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
       this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
@@ -233,6 +254,8 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
       'rendezvous.statut',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
+      'statuts.code as dossier_statut_code',
+      'statuts.libelle as dossier_statut_libelle',
       'utilisateurs.prenom as formateur_prenom',
       'utilisateurs.nom as formateur_nom',
       'bloc_disponibilites.donnees as donnees_disponibilites',

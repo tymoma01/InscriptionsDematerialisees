@@ -86,19 +86,46 @@ test('executerBasculeTestNonRealise bascule un rendez-vous encore prevu à la re
   assert.deepEqual(resultat, { bascules: 1, ignores: 0, echecs: 0, total: 1 });
 });
 
-test('executerBasculeTestNonRealise ignore un rendez-vous déjà traité manuellement entre-temps (statut != prevu à la relecture verrouillée)', async (t) => {
+test("executerBasculeTestNonRealise ignore un rendez-vous déjà traité manuellement entre-temps (statut hors ['prevu', 'confirme'] à la relecture verrouillée)", async (t) => {
   mockerBase(t);
   const rdv = { id: 11, dossier_id: 43, date_heure: '2026-08-01T09:00:00.000Z' };
   t.mock.method(rendezvousRepository, 'listerRendezvousTestNonRealisesAutomatiquement', async () => [rdv]);
-  // Un agent a confirmé la présence juste avant l'exécution de la tâche : la relecture verrouillée
-  // voit désormais 'confirme', plus 'prevu'.
-  t.mock.method(rendezvousRepository, 'trouverRendezvousPourBasculeVerrouillee', async () => ({ ...rdv, statut: 'confirme' }));
+  // Un agent a annulé le rendez-vous juste avant l'exécution de la tâche : la relecture verrouillée
+  // voit désormais 'annule', plus 'prevu' — un statut réellement clos, contrairement à 'confirme'
+  // (voir le test ci-dessous, audit 2026-09-13, dossier #114 : 'confirme' seul n'exclut plus).
+  t.mock.method(rendezvousRepository, 'trouverRendezvousPourBasculeVerrouillee', async () => ({ ...rdv, statut: 'annule' }));
   const appliquerTransition = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({}));
 
   const resultat = await executerBasculeTestNonRealise(ENTITE_FACTICE);
 
   assert.equal(appliquerTransition.mock.callCount(), 0);
   assert.deepEqual(resultat, { bascules: 0, ignores: 1, echecs: 0, total: 1 });
+});
+
+// Audit 2026-09-13 (dossier #114, rendez-vous confirmé par le candidat à l'avance mais jamais
+// constaté présent par un formateur/inspecteur, ni évalué, ni marqué absent/annulé manuellement) :
+// avant ce correctif, rendezvous.statut = 'confirme' excluait À TORT ce rendez-vous de la bascule
+// automatique, quelle que soit date_presence_confirmee — voir rendezvousRepository.
+// listerRendezvousTestNonRealisesAutomatiquement (sélection) et le garde-fou ci-dessus (relecture
+// verrouillée), tous deux corrigés pour n'exclure que sur date_presence_confirmee renseigné.
+test("executerBasculeTestNonRealise bascule aussi un rendez-vous 'confirme' sans présence constatée par un humain (date_presence_confirmee NULL, dossier #114)", async (t) => {
+  mockerBase(t);
+  const rdv = { id: 14, dossier_id: 46, date_heure: '2026-09-05T10:11:09.000Z' };
+  t.mock.method(rendezvousRepository, 'listerRendezvousTestNonRealisesAutomatiquement', async () => [rdv]);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousPourBasculeVerrouillee', async () => ({
+    ...rdv,
+    statut: 'confirme',
+    date_presence_confirmee: null,
+  }));
+  const changerStatutRendezvous = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+  const appliquerTransition = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 4 }));
+
+  const resultat = await executerBasculeTestNonRealise(ENTITE_FACTICE);
+
+  assert.equal(changerStatutRendezvous.mock.callCount(), 1);
+  assert.equal(changerStatutRendezvous.mock.calls[0].arguments[1].rendezvousId, 14);
+  assert.equal(appliquerTransition.mock.callCount(), 1);
+  assert.deepEqual(resultat, { bascules: 1, ignores: 0, echecs: 0, total: 1 });
 });
 
 test('executerBasculeTestNonRealise continue sur les rendez-vous suivants après un échec isolé', async (t) => {

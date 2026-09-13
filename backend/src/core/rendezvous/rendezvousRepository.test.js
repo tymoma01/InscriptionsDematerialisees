@@ -36,6 +36,21 @@ test("listerRendezvousTestNonRealisesAutomatiquement exclut tout rendez-vous don
   assert.match(sql, /"rendezvous"\."date_presence_confirmee" is null/i);
 });
 
+// Audit 2026-09-13 (dossier #114) : rendezvous.statut = 'confirme' (présence annoncée à l'avance
+// PAR LE CANDIDAT) ne doit plus, à lui seul, exclure un rendez-vous de la bascule automatique —
+// seul date_presence_confirmee (présence réellement CONSTATÉE par un formateur/inspecteur, testé
+// ci-dessus) le doit. Avant ce correctif, la clause `where({ 'rendezvous.statut': 'prevu', ... })`
+// excluait TOUT rendez-vous 'confirme', quelle que soit date_presence_confirmee.
+test("listerRendezvousTestNonRealisesAutomatiquement inclut 'prevu' ET 'confirme' (plus seulement 'prevu')", () => {
+  const sql = rendezvousRepository
+    .listerRendezvousTestNonRealisesAutomatiquement(bd, 1, { dureeCreneauMinutes: 30, delaiGraceHeures: 24 })
+    .toString();
+
+  assert.match(sql, /"rendezvous"\."statut" in \('prevu', 'confirme'\)/i);
+  // Régression : ne doit plus jamais restreindre à 'prevu' seul (comportement d'avant ce correctif).
+  assert.doesNotMatch(sql, /"rendezvous"\."statut" = 'prevu'/i);
+});
+
 // marquerPresenceConfirmee n'est pas testable en génération de SQL comme ci-dessus : sa dernière
 // étape (.then(([rendezvous]) => rendezvous), même patron que mettreAJourStatutRendezvous) en fait
 // une vraie Promise dès son retour, pas un query builder dont .toString() reflète le SQL — cette
