@@ -254,11 +254,12 @@
   font-style: italic;
 }
 
-/* Cartes "Effectifs par statut" (audit tableau de bord 2026-08-31, décision utilisateur) — plus
-   compactes que les 5 tuiles KPI ci-dessus (padding réduit, valeur en plus petit) : ces cartes
-   n'ont qu'un libellé + un nombre (jamais de .indicateurs__tuile-precision), pas besoin de la même
-   respiration verticale ; absorbe la 2e rangée de tuiles sans trop peser sur la hauteur totale de
-   la page. */
+/* Cartes compactes (audit tableau de bord 2026-08-31, décision utilisateur ; ex-cartes "Effectifs
+   par statut", section supprimée le 2026-09-14, voir Indicateurs.jsx — classe encore utilisée par
+   "Volumétrie sur la période", dont "Test réalisé" fait désormais partie) — plus compactes que les
+   5 tuiles KPI ci-dessus (padding réduit, valeur en plus petit) : ces cartes n'ont qu'un libellé +
+   un nombre (jamais de .indicateurs__tuile-precision), pas besoin de la même respiration verticale ;
+   absorbe cette rangée de tuiles sans trop peser sur la hauteur totale de la page. */
 .indicateurs__tuile--compacte {
   padding: 0.4rem var(--espace-moyen);
 }
@@ -266,11 +267,12 @@
   font-size: 1.15rem;
 }
 
-/* "Effectifs par statut"/"Volumétrie sur la période" (audit tableau de bord 2026-08-31 et
-   2026-09-02, décisions utilisateur) — pas de gap propre ici : chaque section est un enfant flex
-   de .indicateurs__contenu-principal, déjà espacé des tuiles KPI au-dessus et des graphiques en
-   dessous par le `gap` de ce parent (même principe que .indicateurs__tuiles/.indicateurs__graphiques,
-   qui n'ont eux non plus aucune marge propre). */
+/* "Volumétrie sur la période" (audit tableau de bord 2026-08-31 et 2026-09-02, décisions
+   utilisateur — ex-section "Effectifs par statut" supprimée le 2026-09-14, voir Indicateurs.jsx)
+   — pas de gap propre ici : cette section est un enfant flex de .indicateurs__contenu-principal,
+   déjà espacée des tuiles KPI au-dessus et des graphiques en dessous par le `gap` de ce parent
+   (même principe que .indicateurs__tuiles/.indicateurs__graphiques, qui n'ont eux non plus aucune
+   marge propre). */
 .indicateurs__sous-titre {
   margin: 0 0 var(--espace-petit) 0;
   font-size: 0.95rem;
@@ -280,8 +282,9 @@
 
 /* Gap resserré (var(--espace-petit), pas --espace-moyen comme .indicateurs__tuiles de base) : ces
    cartes compactes n'ont pas besoin du même espacement que les 5 tuiles KPI plus grandes
-   au-dessus — contribue à absorber ces rangées supplémentaires sans repousser le reste de la page. */
-.indicateurs__tuiles--effectifs,
+   au-dessus — contribue à absorber cette rangée supplémentaire sans repousser le reste de la page.
+   Section "Effectifs par statut" supprimée (audit 2026-09-14, demande utilisateur) :
+   .indicateurs__tuiles--effectifs retirée du sélecteur, plus aucun élément ne porte cette classe. */
 .indicateurs__tuiles--volumetrie {
   gap: var(--espace-petit);
 }
