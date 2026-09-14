@@ -266,11 +266,20 @@ function varianteGroupeStatutDossier(rdv) {
 }
 
 // Boutons de filtre par statut DOSSIER (audit 2026-09-13, demande utilisateur) — même pattern que
-// STATUTS_FILTRABLES_RENDEZVOUS ci-dessus, mais sur les 4 groupes de haut niveau plutôt que sur
+// STATUTS_FILTRABLES_RENDEZVOUS ci-dessus, mais sur les groupes de haut niveau plutôt que sur
 // rendezvous.statut. `valide`/`rejete` (fallback neutre, sans groupe) n'ont volontairement AUCUN
 // bouton dédié ici : ils ne sont filtrables que via "Tous", comme n'importe quel code hors mapping.
+// GROUPE_TEST_NON_PLANIFIE volontairement ABSENT de ce tableau (audit 2026-09-14, demande
+// utilisateur) — mapping/libellé/variante (GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT/
+// LIBELLE_PAR_GROUPE_STATUT_DOSSIER/VARIANTE_PAR_GROUPE_STATUT_DOSSIER ci-dessus) INCHANGÉS, ce
+// groupe reste affiché normalement dans la colonne "Statut" du tableau : seul son bouton de
+// filtre disparaît de cette barre. Cet écran ne liste que des RENDEZ-VOUS, un dossier
+// "Test non planifié" n'en a par définition aucun — le bouton afficherait donc toujours "(0)",
+// quel que soit l'état réel de la base, laissant croire à tort à une absence de données plutôt
+// qu'à une limite structurelle de cette page (candidat déjà couvert par "Dossiers candidats",
+// TableauDeBordAccueil.jsx). "Tous" reste basé sur rendezvousParCandidatAvantStatutDossier.length,
+// indépendant de ce tableau — son compteur total n'est donc pas affecté par ce retrait.
 const STATUTS_FILTRABLES_DOSSIER = [
-  { code: GROUPE_TEST_NON_PLANIFIE, libelle: 'Test non planifié' },
   { code: GROUPE_TEST_PLANIFIE, libelle: 'Test planifié' },
   { code: GROUPE_TEST_REALISE, libelle: 'Test réalisé' },
   { code: GROUPE_TEST_NON_REALISE, libelle: 'Test non réalisé' },

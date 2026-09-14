@@ -79,6 +79,18 @@
   min-width: 0;
 }
 
+/* Écart resserré entre "Hôtellerie/Tertiaire + Statut" et "Rendez-vous" (audit 2026-09-14,
+   demande utilisateur) — cause du surplus : ce même bloc .planification__groupe-filtre-statut sert
+   ICI de flex item DANS .planification__ligne-entite-statut (barre "Statut"), son margin-bottom
+   s'ajoutant donc à celui, déjà suffisant, de .planification__ligne-entite-statut lui-même
+   (les deux ne se cumulent PAS pour son unique autre usage, standalone, barre "Rendez-vous"
+   ci-dessous — un simple bloc de page n'a rien pour doubler avec). Neutralisé uniquement dans ce
+   contexte imbriqué pour retrouver un écart identique aux autres lignes de filtres au-dessus
+   (barre "À venir uniquement"/Formateur/Expérience, barre de recherche). */
+.planification__ligne-entite-statut .planification__groupe-filtre-statut {
+  margin-bottom: 0;
+}
+
 /* padding-top : aligne approximativement le texte du label avec celui des boutons "Tous"/du
    premier statut juste à côté (padding vertical de .filtres-statut button, FiltresStatut.css),
    plutôt qu'un simple alignement au sommet du bloc qui le décalerait visuellement vers le haut. */
