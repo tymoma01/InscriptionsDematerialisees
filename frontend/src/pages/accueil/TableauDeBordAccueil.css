@@ -174,6 +174,45 @@
   padding: var(--espace-moyen);
 }
 
+/* Répartition forcée 6+6 (audit 2026-09-14, demande utilisateur explicite : "À planifier" ajouté
+   juste avant, 12 badges au total désormais, le flex-wrap naturel les répartissait 8+4 — coupe
+   demandée après le 6e badge pour un rendu plus symétrique).
+   Deux essais intermédiaires écartés après vérification visuelle réelle (capture d'écran à chaque
+   fois, pas seulement lu le CSS) avant cette version :
+   1) margin-left: 100% sur le 7e bouton (bascule de ligne façon flex) : décalait ce bouton tout à
+      DROITE de sa nouvelle ligne au lieu de la reprendre à gauche (la marge persiste après le
+      retour à la ligne) — 7e badge isolé, visuellement cassé.
+   2) ::before + flex-basis: 100% + order (variante plus fine du même principe, sans décalage cette
+      fois) : la bascule de ligne elle-même fonctionnait, MAIS les 6 badges de la 2e ligne (libellés
+      globalement plus longs — "Validé - envoyé en formation", "Validé - prêt à l'embauche"...) ne
+      tenaient plus tous sur une largeur de conteneur identique à la 1ère ligne : un flex-wrap
+      NATUREL supplémentaire coupait cette 2e ligne à son tour (6+5+1 au lieu de 6+6) — le flex-wrap
+      ordinaire ne garantit un nombre fixe de badges par ligne qu'à condition qu'ils y tiennent tous,
+      ce que le texte variable de ces libellés ne permet pas de garantir.
+   Grille CSS à 6 colonnes retenue à la place : SEULE approche qui garantit RÉELLEMENT 6 par ligne
+   quelle que soit la largeur du texte, puisque les colonnes se partagent la largeur du conteneur
+   plutôt que de dépendre de si le contenu "tient" ou non. minmax(0, 1fr) (colonnes égales, pas
+   auto) : auto échoue au même problème que l'essai 2 ci-dessus dès que le contenu d'une colonne
+   dépasse l'espace disponible (pas de retour à la ligne, juste un débordement horizontal du
+   conteneur) — 1fr force au contraire chaque colonne à occuper une part égale et à s'y tenir,
+   quitte à faire passer un libellé long sur 2 lignes internes (déjà géré, white-space: normal
+   ci-dessous) plutôt que déborder. DIFFÉRENT malgré tout de la grille à 3 colonnes retirée plus
+   haut (voir son commentaire, même risque 1fr en apparence) : celle-ci cassait sur une DERNIÈRE
+   LIGNE INCOMPLÈTE (10 boutons sur 3 colonnes égales = 1 orphelin plaqué à gauche) — cette
+   grille-ci couvre exactement 12 = 2×6 aujourd'hui, aucune ligne incomplète à ce jour. Risque
+   IDENTIQUE si le total cesse un jour d'être un multiple de 6 (liste config-driven, Modularité
+   CLAUDE.md) : à revoir alors, cette grille n'a pas plus de garantie que celle qu'elle remplace
+   dans ce cas précis — seulement dans le cas ACTUEL, vérifié à l'écran, où elle n'y est pas exposée.
+   :not(.tableau-bord-accueil__filtres-experience) indispensable : la boîte de badges "Expérience"
+   juste en dessous réutilise LITTÉRALEMENT la même classe .filtres-statut__statuts (voir son
+   propre commentaire plus haut) — sans cette exclusion, cette grille s'appliquerait aussi à elle
+   (seulement 4 badges, structure différente — titre + bloc badges, pas des boutons en enfants
+   directs — aucun besoin ni sens à une grille à 6 colonnes ici). */
+.tableau-bord-accueil .filtres-statut__statuts:not(.tableau-bord-accueil__filtres-experience) {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
 /* white-space: normal (pas nowrap, hérité de .filtres-statut__statuts button générique) : un
    libellé long ("Validé - prêt à l'embauche") passe sur deux lignes plutôt que d'imposer sa
    largeur à tous les boutons de la ligne — chaque bouton garde sa largeur de contenu propre en
