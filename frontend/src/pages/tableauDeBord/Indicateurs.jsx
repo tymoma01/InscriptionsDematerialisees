@@ -158,23 +158,24 @@ const PREFIXE_POSTE = 'poste:';
 // Préfixe historique des cartes "Effectifs par statut" (audit tableau de bord 2026-08-31) — section
 // SUPPRIMÉE le 2026-09-14 (demande utilisateur, confirmé par audit : 3 des 4 cartes — "Validé -
 // prêt à l'embauche"/"Formation non validée"/"Embauché" — étaient de purs doublons des badges déjà
-// présents sur "Dossiers candidats", statut courant sans logique historique propre). Reste
-// GÉNÉRIQUE côté back (statistiquesService.PREFIXE_STATUT, resoudreListeIndicateur) et encore
-// utilisé pour UN SEUL cas : "Test réalisé" (calcul historique, compterParHistoriqueStatut — le
-// seul des 4 à ne PAS être un doublon, un dossier n'y reste que le temps de recevoir son verdict,
-// contrairement aux 3 statuts terminaux retirés), déplacée dans la ligne "Volumétrie sur la
-// période" ci-dessous plutôt que retirée (voir son propre bouton, rendu à part de
-// CARTES_VOLUMETRIE_ACCECIT). Code 'statut:test_realise' inchangé (basculerIndicateur/
-// selectionIndicateurs n'ont besoin d'aucune adaptation, un code de chaîne quelconque leur suffit
-// déjà — voir plus bas, libelleIndicateur/varianteIndicateur/varianteDateCle qui gèrent encore ce
-// préfixe génériquement).
+// présents sur "Dossiers candidats", statut courant sans logique historique propre). "Test réalisé"
+// (seule des 4 à un calcul réellement distinct, historique/compterParHistoriqueStatut) avait
+// d'abord été relocalisée dans la ligne "Volumétrie sur la période", puis RETIRÉE à son tour le
+// même jour (demande utilisateur explicite, retrait purement visuel) — plus aucune carte de cet
+// ex-écran nulle part sur cette page. PREFIXE_STATUT reste néanmoins déclaré : encore référencé
+// génériquement par libelleIndicateur/varianteIndicateur/varianteDateCle plus bas (résolution
+// GÉNÉRIQUE d'un préfixe 'statut:<code>' quelconque, symétrique de PREFIXE_POSTE ci-dessus — voir
+// aussi statistiquesService.PREFIXE_STATUT/resoudreListeIndicateur côté back, également générique,
+// jamais restreinte à une liste de cartes), même si plus aucun bouton de cet écran ne produit
+// aujourd'hui de code sous ce préfixe.
 const PREFIXE_STATUT = 'statut:';
 
 // Préfixe des 4 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
 // cliquables/filtrantes le même jour, 2e passe — jusque-là de simples compteurs sans sélection ;
-// "Formations non validées" ajoutée le 2026-09-14) —
+// "Formations non validées" ajoutée le 2026-09-14 ; "Test réalisé" a un temps cohabité ici avant
+// d'en être retirée le même jour, voir le commentaire de PREFIXE_STATUT ci-dessus) —
 // GÉNÉRIQUE côté back (statistiquesService.PREFIXE_VOLUMETRIE, resoudreListeIndicateur), même
-// mécanisme de sélection/filtrage que "Test réalisé" (basculerIndicateur/selectionIndicateurs,
+// mécanisme de sélection/filtrage que le reste de l'écran (basculerIndicateur/selectionIndicateurs,
 // aucune adaptation nécessaire) — mais DISTINCT de PREFIXE_STATUT ci-dessus :
 // ces cartes comptent des OCCURRENCES d'événement, jamais dédupliquées par dossier (charge de
 // travail réelle — sessions de test tenues, formations conduites : un dossier retesté/reformé
@@ -190,12 +191,6 @@ const PREFIXE_STATUT = 'statut:';
 // ci-dessous) correspond aux clés de `indicateurs.volumetrieParStatut` (statistiquesService.js) —
 // le code CLIQUABLE est `${PREFIXE_VOLUMETRIE}${code}` (voir son rendu plus bas), pas `code` seul.
 // `variante` reprend la palette déjà en place sur cet écran (voir Indicateurs.css).
-// "Test réalisé" (effectif DÉDUPLIQUÉ, code 'statut:test_realise', ex-carte "Effectifs par statut"
-// — voir PREFIXE_STATUT plus haut) N'EST PAS un 5e élément de CARTES_VOLUMETRIE_ACCECIT : calcul,
-// préfixe et source de données (`effectifsParStatut`, pas `volumetrieParStatut`) tous différents des
-// 4 cartes ci-dessous — rendue à part, en bouton dédié juste avant le `.map()` sur ce tableau (voir
-// son rendu plus bas), même style visuel (--volumetrie/--compacte) pour occuper la même ligne sans
-// rupture visuelle, MALGRÉ cette différence de nature (demande utilisateur explicite, 2026-09-14).
 const PREFIXE_VOLUMETRIE = 'volumetrie:';
 // "Formations non validées" ajoutée le 2026-09-14 (demande utilisateur), juste après "Formations
 // validées" (positionnement = ordre de ce tableau, voir son rendu plus bas) — même variante
@@ -994,67 +989,46 @@ export default function Indicateurs() {
                 "Validé - prêt à l'embauche"/"Formation non validée"/"Embauché" étaient de purs
                 doublons des badges déjà présents sur "Dossiers candidats" (même calcul exact,
                 statut courant, compterParStatut côté back — voir
-                CODES_STATUTS_EFFECTIF_COURANT_ACCECIT, statistiquesService.js) ; "Test réalisé" (seule
-                carte à un calcul réellement distinct, historique/dédupliqué,
-                compterParHistoriqueStatut) a été RELOCALISÉE plutôt que supprimée — voir son bouton
-                dédié juste ci-dessous, en tête de la ligne "Volumétrie sur la période". Plus aucune
-                trace visuelle de cette section (titre/conteneur compris) : `indicateurs.effectifsParStatut`
-                reste calculé côté back (statistiquesService.js, hors périmètre de cette demande —
-                "uniquement repositionnement et suppression [des cartes]", aucun changement de
-                calcul) mais n'est plus lu que pour la seule clé `test_realise`, ci-dessous. */}
+                CODES_STATUTS_EFFECTIF_COURANT_ACCECIT, statistiquesService.js). "Test réalisé" avait
+                d'abord été RELOCALISÉE ici (voir historique git) puis RETIRÉE à son tour le même
+                jour (demande utilisateur explicite, retrait purement visuel) — plus aucune carte de
+                cet ex-écran, sous quelque forme que ce soit. `indicateurs.effectifsParStatut` reste
+                calculé côté back (statistiquesService.js, hors périmètre de cette demande — aucun
+                changement de calcul) mais n'est plus lu nulle part sur cet écran. */}
 
             {/* "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
                 jour ; rendue cliquable/filtrante le même jour, 2e passe — jusque-là de simples
-                compteurs ; "Formations non validées" ajoutée le 2026-09-14 ; "Test réalisé"
-                RELOCALISÉE ici le 2026-09-14 depuis l'ex-section "Effectifs par statut", supprimée
-                — voir le commentaire ci-dessus) — 4 cartes de CARTES_VOLUMETRIE_ACCECIT comptent
-                "combien de FOIS cet événement s'est produit" (charge de travail réelle, JAMAIS
-                dédupliquée par dossier : un dossier retesté/reformé compte plusieurs fois, voir
-                statistiquesRepository.listerOccurrencesHistorique/listerOccurrencesFormationValidee)
-                — style visuellement distinct des tuiles KPI au-dessus (bordure en tirets, voir
-                .indicateurs__tuiles--volumetrie/.indicateurs__tuile--volumetrie, Indicateurs.css) :
-                le sous-texte explicatif qui accompagnait initialement ce style a été retiré
-                (décision utilisateur, 2e passe), la bordure en tirets reste seule porteuse de la
-                distinction "occurrences brutes". Générées par CARTES_VOLUMETRIE_ACCECIT (liste
-                éditoriale, voir son commentaire plus haut), pas les 4 boutons recopiés en dur.
-                `<button>`, MÊME mécanisme de sélection/filtrage que "Test réalisé" juste avant
-                (basculerIndicateur, code '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté
-                back, voir PREFIXE_VOLUMETRIE) — un dossier avec plusieurs occurrences n'apparaît
-                qu'UNE FOIS dans le tableau consolidé (dédup côté back), mais sa colonne "Dates clés"
-                liste TOUTES ses occurrences (voir TableauDossiersSelectionnes.jsx,
+                compteurs ; "Formations non validées" ajoutée le 2026-09-14) — 4 cartes de
+                CARTES_VOLUMETRIE_ACCECIT comptent "combien de FOIS cet événement s'est produit"
+                (charge de travail réelle, JAMAIS dédupliquée par dossier : un dossier retesté/reformé
+                compte plusieurs fois, voir statistiquesRepository.listerOccurrencesHistorique/
+                listerOccurrencesFormationValidee) — style visuellement distinct des tuiles KPI
+                au-dessus (bordure en tirets, voir .indicateurs__tuiles--volumetrie/
+                .indicateurs__tuile--volumetrie, Indicateurs.css) : le sous-texte explicatif qui
+                accompagnait initialement ce style a été retiré (décision utilisateur, 2e passe), la
+                bordure en tirets reste seule porteuse de la distinction "occurrences brutes".
+                Générées par CARTES_VOLUMETRIE_ACCECIT (liste éditoriale, voir son commentaire plus
+                haut), pas les 4 boutons recopiés en dur. `<button>`, MÊME mécanisme de sélection/
+                filtrage que le reste de l'écran (basculerIndicateur, code
+                '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté back, voir
+                PREFIXE_VOLUMETRIE) — un dossier avec plusieurs occurrences n'apparaît qu'UNE FOIS
+                dans le tableau consolidé (dédup côté back), mais sa colonne "Dates clés" liste
+                TOUTES ses occurrences (voir TableauDossiersSelectionnes.jsx,
                 dossier.occurrencesVolumetrie) : il est normal et attendu que le nombre affiché ici
                 (occurrences) soit supérieur ou égal au nombre de lignes du tableau (dossiers
                 distincts), pas une incohérence à corriger. `--compacte` (Indicateurs.css) : ces
                 cartes n'ont qu'un libellé + un nombre (pas de précision secondaire comme les deux
                 tuiles de délai plus haut), plus resserrées pour absorber cette rangée sans repousser
-                le reste de la page. */}
+                le reste de la page.
+                "Test réalisé" (effectif dédupliqué, ex-"Effectifs par statut") a un temps cohabité
+                ici (voir historique git) avant d'être retirée le même jour (demande utilisateur
+                explicite, retrait purement visuel — code/calcul jamais touchés entre-temps) : cette
+                ligne ne porte donc plus QUE les 4 cartes ci-dessous, générées par
+                CARTES_VOLUMETRIE_ACCECIT, sans bouton supplémentaire recopié en dur. */}
             <ErrorBoundary titre="Indicateurs (volumétrie sur la période)">
             <div className="indicateurs__section-volumetrie">
               <h2 className="indicateurs__sous-titre">Volumétrie sur la période</h2>
               <div className="indicateurs__tuiles indicateurs__tuiles--volumetrie">
-                {/* "Test réalisé" (RELOCALISÉE depuis "Effectifs par statut", supprimée — voir le
-                    commentaire d'en-tête de cette section) — bouton dédié, PAS un 5e élément de
-                    CARTES_VOLUMETRIE_ACCECIT.map() ci-dessous : code ('statut:test_realise', pas
-                    'volumetrie:test_realise'), source de données (`effectifsParStatut.test_realise`,
-                    pas `volumetrieParStatut`) et calcul (dédupliqué, compterParHistoriqueStatut)
-                    tous distincts des 4 cartes suivantes — calcul et code INCHANGÉS par rapport à
-                    l'ex-carte "Effectifs par statut" (demande utilisateur explicite), seul son
-                    EMPLACEMENT visuel change. Classes --volumetrie/--compacte reprises à l'identique
-                    (même style, même taille que ses 4 voisines de cette même ligne, demande
-                    explicite) malgré cette différence de nature : la bordure en tirets perd donc ici
-                    son sens de "occurrence brute" au profit d'un simple marqueur "cette ligne =
-                    volumétrie/charge de travail", le libellé du bouton ("Test réalisé", distinct de
-                    "Sessions de test réalisées" juste à côté) restant seul porteur de la nuance
-                    dédupliqué/non dédupliqué entre les deux. */}
-                <button
-                  type="button"
-                  className={`indicateurs__tuile indicateurs__tuile--volumetrie indicateurs__tuile--compacte indicateurs__tuile--${varianteStatut('test_realise')}${selectionIndicateurs.has(`${PREFIXE_STATUT}test_realise`) ? ' indicateurs__tuile--active' : ''}`}
-                  aria-pressed={selectionIndicateurs.has(`${PREFIXE_STATUT}test_realise`)}
-                  onClick={() => basculerIndicateur(`${PREFIXE_STATUT}test_realise`)}
-                >
-                  <span className="indicateurs__tuile-valeur">{indicateurs.effectifsParStatut.test_realise}</span>
-                  <span className="indicateurs__tuile-libelle">{libelleStatutEffectif('test_realise')}</span>
-                </button>
                 {CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle, variante }) => {
                   const codeIndicateur = `${PREFIXE_VOLUMETRIE}${code}`;
                   return (
