@@ -3,6 +3,40 @@ import StatutBadge from '../workflow/StatutBadge';
 import IndicateurDefilementHorizontal from '../backOffice/IndicateurDefilementHorizontal';
 import './DossierList.css';
 
+// Bascule dynamique de l'infobulle "Statut" au-dessus/en dessous du badge (audit 2026-09-14,
+// demande utilisateur : la bulle, positionnée au-dessus par défaut — voir
+// .dossier-list__statut-infobulle, DossierList.css —, se faisait couper par le bord de la fenêtre
+// sur la toute première ligne du tableau). Mesure au survol (onMouseEnter), pas au montage : la
+// position d'une ligne dans le viewport dépend du défilement de la page, inconnu tant qu'on ne
+// survole pas — measure-on-hover reste la seule option fiable sans écouter un scroll global pour
+// chaque ligne du tableau. `getBoundingClientRect()` sur la bulle ELLE-MÊME (pas une estimation
+// de sa hauteur) : elle reste dans le flux du DOM même invisible (opacity: 0 dans son état par
+// défaut, jamais display: none — voir DossierList.css), sa boîte est donc déjà mesurable avant le
+// premier survol réel. Toggle direct d'une classe sur le DOM (classList.toggle sur
+// evenement.currentTarget) plutôt qu'un état React : cette bascule est purement visuelle, par
+// ligne, potentiellement des dizaines de lignes dans le tableau — un état React par ligne (ou un
+// seul état partagé recalculé à chaque survol) déclencherait un re-render à chaque passage de
+// souris pour un résultat que le DOM peut porter lui-même, jamais lu ni utilisé ailleurs dans
+// l'app. Compare aussi l'espace disponible EN DESSOUS (pas seulement "au-dessus insuffisant ->
+// bascule", point 2 de la demande, "cas symétrique") : sur une fenêtre exceptionnellement basse où
+// NI l'un ni l'autre ne suffit pleinement, préfère malgré tout le côté qui offre le PLUS d'espace
+// plutôt qu'un choix arbitraire.
+function positionnerInfobulleStatut(evenement) {
+  const conteneur = evenement.currentTarget;
+  const bulle = conteneur.querySelector('.dossier-list__statut-infobulle');
+  if (!bulle) return;
+  // 6px : même décalage que le `calc(100% + 6px)` de .dossier-list__statut-infobulle
+  // (DossierList.css) — la bulle a besoin de sa propre hauteur PLUS cette marge pour tenir sans
+  // être rognée.
+  const MARGE_BULLE = 6;
+  const rectConteneur = conteneur.getBoundingClientRect();
+  const hauteurBulle = bulle.getBoundingClientRect().height;
+  const espaceAuDessus = rectConteneur.top;
+  const espaceEnDessous = window.innerHeight - rectConteneur.bottom;
+  const basculerEnDessous = espaceAuDessus < hauteurBulle + MARGE_BULLE && espaceEnDessous > espaceAuDessus;
+  conteneur.classList.toggle('dossier-list__statut-conteneur--infobulle-en-dessous', basculerEnDessous);
+}
+
 // Colonnes retirées du VISUEL (ni <th> ni <td>, demande utilisateur 2026-09-10 : "toute les
 // informations ... sans scroller sur les côtés") mais gardées dans COLONNES ci-dessous : le tri
 // par défaut ('date_maj' décroissant, voir `tri` plus bas) doit continuer à fonctionner même sans
@@ -280,8 +314,16 @@ export default function DossierList({
                     relative` DÉDIÉ (pas le badge lui-même, générique/partagé — voir StatutBadge.jsx)
                     : ne change rien au badge, seulement à sa cellule. `infoBulle` calculé une seule
                     fois par ligne, juste avant ce `return` (voir plus haut) — jamais si
-                    `infoBulleStatut` n'est pas fourni (undefined?.() = undefined, falsy). */}
-                <span className="dossier-list__statut-conteneur">
+                    `infoBulleStatut` n'est pas fourni (undefined?.() = undefined, falsy).
+                    onMouseEnter={infoBulle && positionnerInfobulleStatut} (voir son commentaire
+                    d'en-tête) : bascule la bulle en dessous du badge si l'espace au-dessus est
+                    insuffisant (audit 2026-09-14, demande utilisateur — 1re ligne du tableau,
+                    jusqu'ici coupée par le bord de la fenêtre) — `undefined` sans infobulle sur
+                    cette ligne, jamais de handler posé pour rien. */}
+                <span
+                  className="dossier-list__statut-conteneur"
+                  onMouseEnter={infoBulle ? positionnerInfobulleStatut : undefined}
+                >
                   <StatutBadge
                     libelle={dossier.statut_libelle}
                     variante={varianteStatut ? varianteStatut(dossier.statut_code) : 'neutre'}

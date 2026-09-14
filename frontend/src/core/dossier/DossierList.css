@@ -275,9 +275,14 @@
    formateur/inspecteur inhabituellement long à passer sur 2 lignes plutôt que déborder à
    l'horizontale — répond au point 3 de la demande ("sans déborder hors de l'écran"), même limite
    connue et acceptée qu'ailleurs dans le projet pour une infobulle CSS pure sans lib de
-   positionnement dynamique (voir le commentaire de .calendrier-hebdo__creneau__infobulle) : une
-   ligne tout en haut du tableau, dans une fenêtre très basse, peut malgré tout se faire rogner par
-   le viewport — aucun mécanisme ne la fait basculer sous le badge dans ce cas précis. */
+   positionnement dynamique (voir le commentaire de .calendrier-hebdo__creneau__infobulle).
+   MàJ 2026-09-14 : une ligne tout en haut du tableau pouvait se faire rogner par le viewport ;
+   positionnerInfobulleStatut (DossierList.jsx, appelé au onMouseEnter) mesure désormais l'espace
+   disponible au-dessus/en-dessous du badge et bascule l'affichage en dessous via la classe
+   modificatrice .dossier-list__statut-conteneur--infobulle-en-dessous quand l'espace au-dessus est
+   insuffisant — seul recours à du JS pour cette infobulle par ailleurs pure CSS, nécessaire car le
+   flip dynamique ne peut pas se faire en CSS pur sans anchor positioning (non utilisé ailleurs dans
+   ce projet, support navigateur incertain). */
 .dossier-list__statut-infobulle {
   position: absolute;
   z-index: 10;
@@ -314,6 +319,13 @@
 .dossier-list__statut-conteneur:hover .dossier-list__statut-infobulle,
 .dossier-list__statut-conteneur:focus-visible .dossier-list__statut-infobulle {
   opacity: 1;
+}
+
+/* Bascule sous le badge (au lieu d'au-dessus) quand positionnerInfobulleStatut a mesuré un espace
+   au-dessus insuffisant — bottom: auto annule le bottom: calc(100% + 6px) par défaut ci-dessus. */
+.dossier-list__statut-conteneur--infobulle-en-dessous .dossier-list__statut-infobulle {
+  bottom: auto;
+  top: calc(100% + 6px);
 }
 
 .dossier-list__actions {
