@@ -79,7 +79,15 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // table depuis sa création, il retombait sur le code brut "honore" (ni majuscule ni traduction) et
 // sur la variante par défaut 'attente' — rétabli avec le même libellé/couleur que
 // GestionRendezvous.jsx ("Réalisé"/'vert-clair'), seul autre endroit où ce badge apparaît.
-const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Confirmé', absent: 'NSPP', annule: 'Annulé', remplace: 'Remplacé', honore: 'Réalisé' };
+// 'confirme' -> 'Présence confirmée' (pas le simple "Confirmé", audit 2026-09-14, retrait de la
+// fusion visuelle "Test planifié" ci-dessous — voir son commentaire) : reprend tel quel le libellé
+// déjà utilisé par le bouton de filtre correspondant (STATUTS_FILTRABLES_RENDEZVOUS plus bas),
+// pour que le badge de la colonne "Rendez-vous" et son filtre parlent désormais le même
+// vocabulaire — cohérence qui n'avait pas lieu d'être tant que le badge affichait "Test planifié"
+// à la place. GestionRendezvous.jsx garde, lui, "Confirmé" dans son propre LIBELLES_STATUT
+// (fichier distinct, jamais partagé — voir commentaire d'en-tête) : changement local à cet écran
+// uniquement, décision utilisateur explicite pour la colonne "Rendez-vous" de "Suivi des tests".
+const LIBELLES_STATUT = { prevu: 'Prévu', confirme: 'Présence confirmée', absent: 'NSPP', annule: 'Annulé', remplace: 'Remplacé', honore: 'Réalisé' };
 const STATUTS_DESISTEMENT = ['absent', 'annule'];
 function varianteStatutRendezvous(statut) {
   if (statut === 'confirme') return 'succes';
@@ -100,21 +108,24 @@ function rendezvousPrevuExpire(rdv) {
   return rdv.statut === 'prevu' && new Date(rdv.date_heure).getTime() < Date.now();
 }
 
-// 'prevu'/'confirme' regroupés sous un seul badge "Test planifié" dans la colonne Statut (audit
-// 2026-08-31, décision utilisateur) — même libellé/couleur que le statut de DOSSIER
-// 'test_planifie' ailleurs dans l'app (Tests.jsx/TableauDeBordAccueil.jsx,
-// VARIANTE_PAR_CODE_ACCECIT.test_planifie: 'bleu') : pour l'agent qui consulte ce tableau, la
-// différence "prevu" vs "confirme" (présence confirmée ou non par le candidat) est secondaire par
-// rapport au fait que le dossier candidat reste, dans les deux cas, au même statut "Test planifié"
-// — cohérence entre les deux écrans plutôt qu'un badge de rendez-vous qui n'a pas d'équivalent
-// direct côté dossier. N'affecte QUE l'affichage : codeStatutAffiche/STATUTS_FILTRABLES_RENDEZVOUS
-// ci-dessous continuent de distinguer 'prevu' et 'confirme' comme deux filtres séparés (voir leur
-// commentaire) — seule la colonne Statut du tableau les fusionne visuellement.
-const LIBELLE_TEST_PLANIFIE = 'Test planifié';
-const VARIANTE_TEST_PLANIFIE = 'bleu';
-function estRendezvousTestPlanifie(rdv) {
-  return (rdv.statut === 'prevu' || rdv.statut === 'confirme') && !rendezvousPrevuExpire(rdv);
-}
+// Fusion visuelle "Test planifié" (prevu/confirme regroupés sous un même badge, audit 2026-08-31)
+// RETIRÉE (audit 2026-09-14, décision utilisateur) : la colonne "Statut" (dossier, ajoutée depuis,
+// audit 2026-09-13, voir GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT plus bas) joue désormais le rôle
+// qu'avait cette fusion à l'origine — elle affiche "Test planifié" tant que le dossier n'a pas
+// avancé, quel que soit prevu/confirme, donc le risque qu'un agent croie à tort "Confirmé" =
+// aboutissement du test est déjà couvert par cette colonne, sans qu'il faille en plus estomper la
+// distinction dans la colonne "Rendez-vous". Cette colonne affiche donc à nouveau fidèlement le
+// statut RÉEL de chaque rendez-vous (voir libelleAfficheRendezvous/varianteAfficheeRendezvous
+// ci-dessous, désormais un simple passe-plat vers LIBELLES_STATUT/varianteStatutRendezvous, même
+// principe que GestionRendezvous.jsx) : "Prévu" (variante 'attente') pour 'prevu', "Présence
+// confirmée" (variante 'succes') pour 'confirme' — cohérent avec les couleurs déjà attribuées à
+// ces deux codes par la barre de filtres juste en dessous (voir Planification.css,
+// button[data-statut='prevu'/'confirme']). codeStatutAffiche/STATUTS_FILTRABLES_RENDEZVOUS
+// (filtrage) n'ont jamais dépendu de cette fusion (voir leur propre commentaire) : rien à changer
+// de ce côté. Changement ISOLÉ à ce fichier : estRendezvousTestPlanifie/LIBELLE_TEST_PLANIFIE
+// n'étaient utilisés nulle part ailleurs (GestionRendezvous.jsx/PanneauHistoriqueRendezvous.jsx
+// portent chacun leur propre logique d'affichage, jamais partagée avec celle-ci — voir le
+// commentaire d'en-tête de LIBELLES_STATUT plus haut), vérifié avant de les supprimer ci-dessous.
 
 // Libellé/variante EFFECTIFS (badge, recherche, tri) — jamais LIBELLES_STATUT/
 // varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
@@ -122,12 +133,10 @@ function estRendezvousTestPlanifie(rdv) {
 // (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif).
 function libelleAfficheRendezvous(rdv) {
   if (rendezvousPrevuExpire(rdv)) return 'Non réalisé';
-  if (estRendezvousTestPlanifie(rdv)) return LIBELLE_TEST_PLANIFIE;
   return LIBELLES_STATUT[rdv.statut] ?? rdv.statut;
 }
 function varianteAfficheeRendezvous(rdv) {
   if (rendezvousPrevuExpire(rdv)) return 'echec';
-  if (estRendezvousTestPlanifie(rdv)) return VARIANTE_TEST_PLANIFIE;
   return varianteStatutRendezvous(rdv.statut);
 }
 
@@ -151,15 +160,14 @@ function codeStatutAffiche(rdv) {
 // commune au moteur générique (voir rendezvous.routes.js, statutBodySchema), pas un vocabulaire
 // propre à ACCECIT comme les statuts de dossier (table `statuts`, elle bien configurable par
 // entité) — même raisonnement que LIBELLES_STATUT ci-dessus, déjà en dur ici avant ce filtre.
-// Libellé du bouton "confirme" volontairement DIFFÉRENT du badge affiché dans la colonne Statut
-// pour ce même rendez-vous (désormais "Test planifié", voir estRendezvousTestPlanifie/
-// LIBELLE_TEST_PLANIFIE plus haut — audit suivant, même jour) — demande utilisateur, 2026-08-31 :
-// "Confirmé" seul pouvait laisser croire à un aboutissement du test au même titre que
-// Réalisé/NSPP/Annulé, alors que ce statut ne décrit qu'une confirmation de présence sur un test
-// ENCORE À VENIR (dossier toujours "Test planifié" à ce stade, voir CLAUDE.md workflow ACCECIT).
-// Les DEUX filtres "Prévu"/"Présence confirmée" restent distincts et fonctionnels malgré tout :
-// seul le badge de la colonne Statut regroupe visuellement les deux, jamais codeStatutAffiche
-// ci-dessus (toujours 'prevu' ou 'confirme' séparément) ni ce tableau de filtres.
+// Libellé du bouton "confirme" ("Présence confirmée", pas le "Confirmé" que porterait
+// rendezvous.statut littéralement) — désormais IDENTIQUE au badge affiché dans la colonne
+// "Rendez-vous" pour ce même rendez-vous (voir LIBELLES_STATUT.confirme plus haut, audit
+// 2026-09-14 : la fusion "Test planifié" qui les distinguait encore n'existe plus). Conservé tel
+// quel malgré tout : le motif d'origine (2026-08-31 — "Confirmé" seul pouvait laisser croire à un
+// aboutissement du test au même titre que Réalisé/NSPP/Annulé, alors que ce statut ne décrit
+// qu'une confirmation de présence sur un test ENCORE À VENIR) reste valable pour le LIBELLÉ
+// lui-même, indépendamment de la fusion visuelle qui l'accompagnait.
 const STATUTS_FILTRABLES_RENDEZVOUS = [
   { code: 'prevu', libelle: 'Prévu' },
   { code: 'confirme', libelle: 'Présence confirmée' },
@@ -391,12 +399,13 @@ function estRendezvousAVenir(rdv) {
 // commentaire de STATUTS_REPLANIFIABLES_ACCECIT plus haut ainsi que dossier_statut_code/
 // dossier_statut_libelle désormais exposés par rendezvousRepository.listerRendezvousTest côté
 // back) : "Statut" (dossier) positionnée AVANT "Rendez-vous", repère principal cohérent avec
-// "Dossiers candidats" (TableauDeBordAccueil.jsx) ; "Rendez-vous" reprend EXACTEMENT
-// l'affichage de l'ex-colonne "Statut" (libelleAfficheRendezvous/varianteAfficheeRendezvous
-// inchangées, fusion visuelle Prévu+Confirmé sous "Test planifié" toujours en vigueur ici) — seul
-// le libellé de colonne change, aucune régression sur ce qui existait. Les boutons de filtre par
-// statut (STATUTS_FILTRABLES_RENDEZVOUS) continuent de porter sur rendezvous.statut
-// (codeStatutAffiche), donc sur cette colonne "Rendez-vous", jamais sur "Statut" (dossier).
+// "Dossiers candidats" (TableauDeBordAccueil.jsx) ; "Rendez-vous" reprend l'affichage de
+// l'ex-colonne "Statut" (libelleAfficheRendezvous/varianteAfficheeRendezvous) — seul son ancienne
+// fusion visuelle Prévu+Confirmé sous "Test planifié" a depuis été retirée (audit 2026-09-14, voir
+// leur commentaire d'en-tête), précisément PARCE que cette nouvelle colonne "Statut" reprend
+// désormais le rôle qu'avait cette fusion. Les boutons de filtre par statut
+// (STATUTS_FILTRABLES_RENDEZVOUS) continuent de porter sur rendezvous.statut (codeStatutAffiche),
+// donc sur cette colonne "Rendez-vous", jamais sur "Statut" (dossier).
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (rdv) => (rdv.candidat_nom ?? '').toLowerCase() },
   // Colonne "Code postal" (audit 2026-09-09) — même patron que "Poste"/"Expérience" juste
