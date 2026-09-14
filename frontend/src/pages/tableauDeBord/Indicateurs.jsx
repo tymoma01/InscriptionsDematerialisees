@@ -183,7 +183,7 @@ const CODES_STATUTS_EFFECTIF_ACCECIT = ['test_realise', 'valide_pret_embauche', 
 // (même mécanisme de dédup côté back, voir listerDossiersParIndicateurs), seule la colonne "Dates
 // clés" diffère : plusieurs dates listées pour 'volumetrie:<code>' (voir
 // TableauDossiersSelectionnes.jsx, occurrencesVolumetrie), une seule pour 'statut:<code>'. "Test
-// validé"/"Test invalidé" (redondant avec le camembert "Tests réussis vs ratés") et "Embauché"
+// validé"/"Test invalidé" (redondant avec le camembert "Tests validés vs invalidés") et "Embauché"
 // (jugé non pertinent en volume) ne sont volontairement PAS repris ici — décision utilisateur,
 // liste réduite depuis les 8 cartes initialement envisagées. `code` (dans CARTES_VOLUMETRIE_ACCECIT
 // ci-dessous) correspond aux clés de `indicateurs.volumetrieParStatut` (statistiquesService.js) —
@@ -241,7 +241,7 @@ const LIBELLES_COURTS_INDICATEUR_STATUT_ACCECIT = {
 };
 
 // Paires d'indicateurs mutuellement exclusifs (décision utilisateur, 2026-08-12) — les deux parts
-// d'un même camembert cliquable ("Tests réussis vs ratés"/"Formation vs prêt à l'embauche")
+// d'un même camembert cliquable ("Tests validés vs invalidés"/"Formation vs prêt à l'embauche")
 // représentent des résultats contraires pour un même événement (un dossier n'a qu'un seul verdict/
 // une seule orientation par test) : sélectionner l'une désélectionne automatiquement l'autre, voir
 // basculerIndicateur plus bas. Scope volontairement limité à ces deux paires — n'affecte ni les
@@ -790,9 +790,10 @@ export default function Indicateurs() {
   // date" de la colonne "Indicateurs"/"Dates clés", TableauDossiersSelectionnes.jsx) — deux
   // libellés distincts pour le même événement n'avaient pas de raison d'être. Seul `nom` change
   // (légende + nom affiché dans le Tooltip, voir nameKey="nom" sur le <Pie> plus bas) : `code`
-  // (sélection/clic, basculerIndicateur), `fill` (couleur) et `total` (calcul) restent inchangés —
-  // titre du graphique ("Tests réussis vs ratés") volontairement non touché, hors périmètre de
-  // cette demande.
+  // (sélection/clic, basculerIndicateur), `fill` (couleur) et `total` (calcul) restent inchangés.
+  // Titre du graphique aligné dans un second temps (2026-09-14, demande utilisateur explicite) :
+  // "Tests réussis vs ratés" → "Tests validés vs invalidés" (voir <h2>/ErrorBoundary titre plus
+  // bas), même portée limitée au libellé, aucun changement de calcul/couleur/clic.
   const donneesVerdicts = indicateurs
     ? [
         { nom: 'Validé', total: indicateurs.verdicts.valide, code: 'verdict_valide', fill: COULEURS_VERDICT.verdict_valide },
@@ -1070,9 +1071,9 @@ export default function Indicateurs() {
             </ErrorBoundary>
 
             <div className="indicateurs__graphiques">
-              <ErrorBoundary titre="Tests réussis vs ratés">
+              <ErrorBoundary titre="Tests validés vs invalidés">
               <section className="indicateurs__graphique indicateurs__graphique--camembert indicateurs__graphique--verdicts">
-                <h2>Tests réussis vs ratés</h2>
+                <h2>Tests validés vs invalidés</h2>
                 {donneesVerdicts.every((entree) => entree.total === 0) ? (
                   <p className="indicateurs__vide">Aucun verdict sur la période.</p>
                 ) : (
@@ -1155,7 +1156,7 @@ export default function Indicateurs() {
                   <div ref={suiviCurseurOrientations.conteneurRef}>
                     <ResponsiveContainer width="100%" height={185}>
                       <PieChart>
-                        {/* Même camembert que "Tests réussis vs ratés" ci-dessus — taille et style
+                        {/* Même camembert que "Tests validés vs invalidés" ci-dessus — taille et style
                             volontairement identiques (cx, outerRadius, label, légende) : cohérence
                             visuelle entre les deux graphiques du même écran, voir CLAUDE.md. */}
                         <Pie

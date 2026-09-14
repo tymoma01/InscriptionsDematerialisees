@@ -359,7 +359,7 @@
 /* Une couleur distincte par camembert (pas juste --couleur-back-office, la même que tous les
    autres titres de la page) — même palette --statut-* / --couleur-back-office-dore déjà utilisée
    par les tuiles KPI juste au-dessus (.indicateurs__tuile--dore/--violet), jamais une couleur inventée
-   pour l'occasion. Doré pour "Tests réussis vs ratés" (écho direct de l'identité ACCECIT — le
+   pour l'occasion. Doré pour "Tests validés vs invalidés" (écho direct de l'identité ACCECIT — le
    même token que le dégradé de l'en-tête back-office, voir PageBackOffice.css) ; violet pour
    "Formation vs prêt à l'embauche" (déjà la couleur de la tuile "Délai moyen test → verdict"
    ci-dessus) : les deux se distinguent nettement l'un de l'autre sans réutiliser les couleurs des
