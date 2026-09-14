@@ -16,14 +16,37 @@ import './Connexion.css';
 
 // Redirection après connexion, propre à chaque rôle — le formateur atterrit sur ses évaluations à
 // faire (hôtel), l'inspecteur sur les siennes (bureau, section distincte du formateur — voir
-// GrilleEvaluation.jsx, roleCode), l'admin sur la gestion des comptes, le reste (accueil/
-// coordination ET recruteur, depuis la fusion de "Back-office recruteur" dans "Dossiers
-// candidats", voir App.jsx) sur le tableau de bord Accueil, via la destination par défaut
-// ci-dessous.
+// GrilleEvaluation.jsx, roleCode), le reste (accueil/coordination ET recruteur, depuis la fusion
+// de "Back-office recruteur" dans "Dossiers candidats", voir App.jsx — ET DÉSORMAIS admin, voir
+// ci-dessous) sur le tableau de bord Accueil, via la destination par défaut ci-dessous.
+//
+// admin -> DESTINATION_PAR_DEFAUT, pas '/admin/utilisateurs' (retiré, audit 2026-09-14, demande
+// utilisateur) : l'atterrissage automatique après connexion doit être le même tableau de bord que
+// celui d'Accueil/Coordination, "Comptes utilisateurs" restant sans changement accessible depuis
+// la navigation (BarreNavigation.jsx) — seul l'ATTERRISSAGE PAR DÉFAUT change, jamais
+// l'accessibilité de la page elle-même.
+//
+// Chemin le plus courant — SESSION EXPIRÉE pendant la navigation, cas visé par la demande
+// utilisateur (RouteProtegee.jsx redirige alors un visiteur SANS session vers
+// /connexion?redirection=<page visée>, quelle qu'elle soit, y compris une page admin) : passe par
+// le formulaire ci-dessous (onConnexionReussie), dont `cibleRedirection ||` reste TOUJOURS
+// prioritaire sur ce tableau — inchangé par ce correctif, vérifié en conditions réelles (connexion
+// avec ?redirection=/admin/utilisateurs : atterrit bien sur /admin/utilisateurs, jamais sur le
+// nouveau défaut).
+//
+// Valeur dupliquée ici (pas simplement retirée) pour un second cas plus rare, `roleCorrespondACible`
+// plus bas (session DÉJÀ active, visite directe de /connexion?redirection=..., ex. lien email/
+// onglet resté ouvert) : ce test vérifie que la cible commence par LA destination de ce rôle — reste
+// donc vrai pour toute cible sous /accueil/tableau-de-bord (désormais le "chez soi" de l'admin
+// aussi), mais PAS pour une cible encore sous /admin/... (vérifié en conditions réelles : ne
+// contourne plus le formulaire dans ce cas précis, contrairement à avant ce correctif) — consé-
+// quence logique et attendue du changement de destination lui-même, pas une régression : le
+// formulaire reste malgré tout un aller-retour normal (pas un blocage), qui retombe de toute façon
+// sur cibleRedirection via le chemin ci-dessus dès qu'on le soumet.
 const DESTINATION_PAR_ROLE = {
   formateur: '/formateur/evaluations',
   inspecteur: '/inspecteur/evaluations',
-  admin: '/admin/utilisateurs',
+  admin: '/accueil/tableau-de-bord',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
 
