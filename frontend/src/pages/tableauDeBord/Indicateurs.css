@@ -374,7 +374,7 @@
   color: var(--statut-violet-texte);
 }
 
-/* Hiérarchie visuelle à l'intérieur du tooltip des deux camemberts (libellé "Réussis" en poids
+/* Hiérarchie visuelle à l'intérieur du tooltip des deux camemberts (libellé "Validé" en poids
    normal, valeur "4 (80%)" en semi-gras) — impossible à obtenir via le seul itemStyle de <Tooltip>
    (STYLE_TOOLTIP_ITEM_CAMEMBERT, Indicateurs.jsx) : recharts l'applique globalement sur le <li>
    entier (DefaultTooltipContent.js), jamais séparément sur ses deux <span> enfants. Ceux-ci portent

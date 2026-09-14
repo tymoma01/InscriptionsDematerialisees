@@ -784,10 +784,19 @@ export default function Indicateurs() {
   // haut) — toujours présent, y compris pour "Non spécifié" (posteCode null, code
   // 'poste_non_specifie' plutôt que le préfixe 'poste:<code>', voir plus bas : "aucun poste
   // renseigné" n'est pas un poste parmi POSTES_BUREAU/POSTES_HOTEL).
+  // nom: 'Validé'/'Invalidé' (renommé le 2026-09-14, demande utilisateur — remplace 'Réussis'/
+  // 'Ratés') : reprend EXACTEMENT le libellé déjà utilisé pour ce même verdict ailleurs sur cet
+  // écran (LIBELLES_DATES_CLES.verdict_valide/verdict_invalide, badge "Validé : date"/"Invalidé :
+  // date" de la colonne "Indicateurs"/"Dates clés", TableauDossiersSelectionnes.jsx) — deux
+  // libellés distincts pour le même événement n'avaient pas de raison d'être. Seul `nom` change
+  // (légende + nom affiché dans le Tooltip, voir nameKey="nom" sur le <Pie> plus bas) : `code`
+  // (sélection/clic, basculerIndicateur), `fill` (couleur) et `total` (calcul) restent inchangés —
+  // titre du graphique ("Tests réussis vs ratés") volontairement non touché, hors périmètre de
+  // cette demande.
   const donneesVerdicts = indicateurs
     ? [
-        { nom: 'Réussis', total: indicateurs.verdicts.valide, code: 'verdict_valide', fill: COULEURS_VERDICT.verdict_valide },
-        { nom: 'Ratés', total: indicateurs.verdicts.invalide, code: 'verdict_invalide', fill: COULEURS_VERDICT.verdict_invalide },
+        { nom: 'Validé', total: indicateurs.verdicts.valide, code: 'verdict_valide', fill: COULEURS_VERDICT.verdict_valide },
+        { nom: 'Invalidé', total: indicateurs.verdicts.invalide, code: 'verdict_invalide', fill: COULEURS_VERDICT.verdict_invalide },
       ]
     : [];
   const formatteurTooltipVerdicts = creerFormatteurTooltipCamembert(donneesVerdicts);
