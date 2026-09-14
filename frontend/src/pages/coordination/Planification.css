@@ -503,6 +503,21 @@
      même principe qu'un tableau à colonnes figées classique. */
   border-right: 1px solid var(--couleur-bordure-legere);
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+  /* max-width + retour à la ligne (audit débordement horizontal zoom élevé, 2026-09-14, demande
+     utilisateur) — SANS RISQUE pour son `left` calculé ci-dessus, contrairement au padding de
+     cette même colonne (voir le commentaire de .planification__table th:not(...) plus haut,
+     l'AUTRE piège déjà rencontré sur ce tableau) : ce `left` ne dépend QUE des largeurs de
+     case/numéro (--planification-largeur-colonne-case/-numero, inchangées ici), jamais de la
+     largeur propre de "Candidat" elle-même — contrairement à case/numéro (voir plus haut), cette
+     colonne n'a d'ailleurs jamais eu de `width` propre non plus, seulement ce `left`. Même
+     principe que .dossier-list__colonne-poste (DossierList.css, "Dossiers candidats", qui gère
+     déjà ce cas correctement) : un <td> avec max-width plafonne bien la largeur de SA colonne en
+     table-layout: auto, sans affecter les autres. white-space: normal (comportement par défaut
+     d'un <td>, jamais surchargé ici avant ce correctif) : un "Prénom Nom" un peu long se replie
+     désormais sur plusieurs lignes plutôt que de pousser toute la largeur du tableau. */
+  max-width: 9rem;
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* "Date et heure du test" — plus figée depuis son déplacement après "Statut" (demande
@@ -529,20 +544,32 @@
   background-color: var(--couleur-fond-survol-tableau-opaque);
 }
 
-/* max-width sur cette colonne (tenté audit tablette 2026-09-04, retiré) : en table-layout: auto,
-   contraindre la largeur PRÉFÉRÉE d'une colonne ordinaire redistribue le calcul de largeur de
-   TOUTES les colonnes — y compris les 4 colonnes figées (case/numéro/date/candidat) dont le
-   décalage `left` (voir .planification__colonne-figee plus bas) reste, lui, calculé à partir des
-   VARIABLES CSS déclarées (--planification-largeur-colonne-*), pas de la largeur réellement
-   rendue. Constaté à l'écran : les deux se désynchronisaient, et le début du contenu de "Poste"
-   se retrouvait peint SOUS la colonne "Candidat" figée (opaque, au-dessus dans l'ordre
-   d'empilement) au lieu d'apparaître juste derrière elle — un vrai bug de contenu masqué, pire
-   que le débordement qu'il cherchait à réduire. La réduction de padding ci-dessus
-   (.planification__table th/td) reste le seul levier utilisé ici : elle s'applique uniformément
-   sans toucher aux `width` déclarées des colonnes figées, donc sans risque de désynchronisation.
+/* max-width sur cette colonne — RETENTÉ (audit débordement horizontal zoom élevé, 2026-09-14,
+   demande utilisateur), après un premier essai infructueux le 2026-08-31 : la tentative
+   précédente ne contraignait QUE "Poste", laissant "Candidat" (.planification__colonne-figee)
+   sans largeur propre — en table-layout: auto, réduire la largeur PRÉFÉRÉE de "Poste" pouvait
+   alors redistribuer la largeur libérée vers "Candidat" (seule colonne encore "flexible"), qui
+   s'élargissait au-delà de ce que son `left` sticky (calculé UNIQUEMENT à partir de
+   --planification-largeur-colonne-case/-numero, jamais de sa propre largeur) laissait supposer —
+   constaté à l'écran : le début du contenu de "Poste" se retrouvait peint SOUS la colonne
+   "Candidat" figée (opaque, au-dessus dans l'ordre d'empilement) au lieu d'apparaître juste
+   derrière elle. Cette fois, "Candidat" reçoit AUSSI son propre max-width (voir
+   .planification__colonne-figee plus haut) : elle ne peut donc plus absorber la largeur libérée
+   ici de façon incontrôlée, ce qui referme le mécanisme à l'origine du bug précédent — vérifié
+   visuellement après implémentation (pas seulement raisonné), y compris en faisant défiler
+   horizontalement s'il en reste, pour écarter spécifiquement ce même symptôme. `date`, seule
+   4e colonne encore figée lors de la tentative de 2026-08-31, ne l'est déjà plus depuis (voir
+   .planification__colonne-date-test plus bas) — un facteur de moins qu'à l'époque.
 
    Une puce par poste, empilées verticalement — même patron que .dossier-list__postes/
-   .dossier-list__badge-poste (DossierList.css). */
+   .dossier-list__badge-poste (DossierList.css). max-width plafonne la largeur que la colonne peut
+   réclamer même en table-layout: auto, exactement le même principe déjà en place et validé sur
+   .dossier-list__colonne-poste (DossierList.css, "Dossiers candidats") — réutilisé ici tel quel
+   plutôt qu'une nouvelle règle inventée. */
+.planification__colonne-poste {
+  max-width: 9rem;
+}
+
 .planification__postes {
   display: flex;
   flex-direction: column;
@@ -556,7 +583,13 @@
   background-color: var(--gris-100);
   color: var(--couleur-texte-secondaire);
   font-size: 0.8rem;
-  white-space: nowrap;
+  /* normal + word-break (pas nowrap, audit débordement horizontal 2026-09-14, demande
+     utilisateur) — même correctif déjà appliqué à .dossier-list__badge-poste (DossierList.css,
+     "Dossiers candidats") pour la même raison : un libellé de poste un peu long ("Femme/Valet de
+     chambre") doit se replier sur plusieurs lignes DANS sa puce plutôt que forcer la colonne
+     "Poste" (.planification__colonne-poste, plus haut) à dépasser son max-width. */
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* Cellule Statut (audit 2026-08-20) : centre le badge dans la cellule, contrairement au reste du

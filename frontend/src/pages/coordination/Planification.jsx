@@ -1287,7 +1287,7 @@ export default function Planification() {
                       {rdv.candidat_prenom} {rdv.candidat_nom}
                     </td>
                     <td>{rdv.candidat_code_postal || '-'}</td>
-                    <td>
+                    <td className="planification__colonne-poste">
                       <div className="planification__postes">
                         {[...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])].map((code) => (
                           <span key={code} className="planification__badge-poste">
