@@ -223,6 +223,19 @@ function mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche }) {
 // champs ne vivent pas sur `candidats` (voir Modularité, CLAUDE.md — candidats.email n'est qu'une
 // dénormalisation technique pour la contrainte UNIQUE, voir migration 032 ; il n'existe d'ailleurs
 // pas de colonne candidats.telephone), la source d'affichage reste le JSONB du bloc.
+// LEFT JOIN LATERAL vers le rendez-vous de TEST ACTIF du dossier (audit 2026-09-14, demande
+// utilisateur : infobulle "Test planifié" sur "Dossiers candidats", date/heure + formateur) — même
+// définition et même choix du PLUS RÉCENT par date_heure que
+// rendezvousRepository.trouverRendezvousTestActifDossier (dupliqué plutôt que partagé, voir
+// CLAUDE.md conventions du projet) : un dossier peut porter plusieurs lignes 'prevu' à la fois
+// (aucune transition ne referme automatiquement l'ancien rendez-vous lors d'une replanification —
+// voir le commentaire de cette fonction), la plus récente est celle qui représente le créneau
+// réellement attendu. LATERAL (pas un simple LEFT JOIN) : garantit AU PLUS UNE ligne par dossier
+// même si cet invariant applicatif venait à être violé un jour (défense en profondeur, même
+// technique déjà utilisée par statistiquesRepository.compterOccurrencesFormationValidee) — un
+// simple LEFT JOIN dupliquerait la ligne dossier pour chaque rendez-vous actif si jamais il y en
+// avait plusieurs. Formateur du même LATERAL (pas une jointure directe à `dossiers`) : ce n'est PAS
+// le formateur du dossier au sens large, seulement celui assigné à CE rendez-vous précis.
 function listerDossiers(bd, entiteId, { statutCode } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -241,6 +254,18 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
         bd.raw('?', ['coordonnees']),
       );
     })
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT r.date_heure, r.formateur_id
+         FROM rendezvous r
+         WHERE r.dossier_id = dossiers.id
+           AND r.type_rdv = 'test'
+           AND r.statut IN ('prevu', 'confirme')
+         ORDER BY r.date_heure DESC
+         LIMIT 1
+       ) AS rendezvous_actif ON true`,
+    )
+    .leftJoin('utilisateurs as formateur_actif', 'formateur_actif.id', 'rendezvous_actif.formateur_id')
     .where('dossiers.entite_id', entiteId)
     .select(
       'dossiers.id',
@@ -253,6 +278,9 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
       'statuts.est_final as statut_est_final',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'bloc_coordonnees.donnees as donnees_coordonnees',
+      'rendezvous_actif.date_heure as rendezvous_test_date_heure',
+      'formateur_actif.prenom as rendezvous_test_formateur_prenom',
+      'formateur_actif.nom as rendezvous_test_formateur_nom',
     )
     .orderBy('dossiers.date_maj', 'desc');
 

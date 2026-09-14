@@ -481,17 +481,38 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
 async function listerDossiers(entite, { statutCode } = {}) {
   const bd = await obtenirKnex();
   const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode });
-  return dossiers.map(({ donnees_disponibilites, donnees_coordonnees, ...reste }) => ({
-    ...reste,
-    postesBureau: donnees_disponibilites?.posteBureau ?? [],
-    postesHotel: donnees_disponibilites?.posteHotel ?? [],
-    // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
-    // ci-dessus : extrait du même bloc JSONB déjà joint, aucune requête supplémentaire.
-    experience: donnees_disponibilites?.experience ?? null,
-    candidat_telephone: donnees_coordonnees?.telephone ?? null,
-    candidat_email: donnees_coordonnees?.email ?? null,
-    candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
-  }));
+  return dossiers.map(
+    ({
+      donnees_disponibilites,
+      donnees_coordonnees,
+      rendezvous_test_date_heure,
+      rendezvous_test_formateur_prenom,
+      rendezvous_test_formateur_nom,
+      ...reste
+    }) => ({
+      ...reste,
+      postesBureau: donnees_disponibilites?.posteBureau ?? [],
+      postesHotel: donnees_disponibilites?.posteHotel ?? [],
+      // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
+      // ci-dessus : extrait du même bloc JSONB déjà joint, aucune requête supplémentaire.
+      experience: donnees_disponibilites?.experience ?? null,
+      candidat_telephone: donnees_coordonnees?.telephone ?? null,
+      candidat_email: donnees_coordonnees?.email ?? null,
+      candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
+      // Infobulle "Test planifié" (audit 2026-09-14, colonne "Statut", TableauDeBordAccueil.jsx) —
+      // regroupé en un seul objet plutôt que 3 champs plats séparés : null d'un bloc si le dossier
+      // n'a pas de rendez-vous de test actif (voir dossierRepository.listerDossiers, LEFT JOIN
+      // LATERAL), le front n'a qu'une seule vérification à faire plutôt que de recomposer l'objet
+      // lui-même à partir de champs potentiellement partiellement nuls.
+      rendezvousTestActif: rendezvous_test_date_heure
+        ? {
+            dateHeure: rendezvous_test_date_heure,
+            formateurPrenom: rendezvous_test_formateur_prenom,
+            formateurNom: rendezvous_test_formateur_nom,
+          }
+        : null,
+    }),
+  );
 }
 
 // "Suivi des formations" (audit 2026-08-28) — postesBureau/postesHotel extraits ici, même patron

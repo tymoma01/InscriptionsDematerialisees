@@ -93,6 +93,25 @@ test('listerDossiersParIds retourne un tableau vide sans construire de requête 
   assert.deepEqual(resultat, []);
 });
 
+// Infobulle "Test planifié" (audit 2026-09-14, colonne "Statut", TableauDeBordAccueil.jsx) — LEFT
+// JOIN LATERAL (pas un simple LEFT JOIN) : garantit au plus une ligne par dossier même si un
+// dossier porte plusieurs rendez-vous 'prevu'/'confirme' à la fois (aucune transition ne referme
+// automatiquement l'ancien lors d'une replanification — même choix que
+// rendezvousRepository.trouverRendezvousTestActifDossier, dupliqué ici). type_rdv='test' explicite :
+// n'importe quel autre type de rendez-vous (ex. invitation signature de contrat) ne doit jamais
+// alimenter cette infobulle.
+test("listerDossiers joint le rendez-vous de test ACTIF le plus récent du dossier (LEFT JOIN LATERAL, ORDER BY date_heure DESC LIMIT 1)", () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, {}).toString();
+  assert.match(sql, /LEFT JOIN LATERAL/);
+  assert.match(sql, /r\.dossier_id = dossiers\.id/);
+  assert.match(sql, /r\.type_rdv = 'test'/);
+  assert.match(sql, /r\.statut IN \('prevu', 'confirme'\)/);
+  assert.match(sql, /ORDER BY r\.date_heure DESC\s*\n?\s*LIMIT 1\s*\n?\s*\) AS rendezvous_actif ON true/);
+  assert.match(sql, /"rendezvous_actif"\."date_heure" as "rendezvous_test_date_heure"/);
+  assert.match(sql, /"formateur_actif"\."prenom" as "rendezvous_test_formateur_prenom"/);
+  assert.match(sql, /"formateur_actif"\."nom" as "rendezvous_test_formateur_nom"/);
+});
+
 // Suivi de formation (audit 2026-08-28, point 1 : dossiers déjà traités restent visibles) — la
 // sous-requête historique_statuts reste fixée sur 'valide_envoi_formation' (définit le PÉRIMÈTRE
 // de la page), tandis que le filtre sur le statut COURANT porte sur les 3 issues possibles, pas

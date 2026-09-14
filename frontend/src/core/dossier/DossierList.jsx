@@ -77,6 +77,15 @@ const COLONNES = [
 // ci-dessus, appliqué à cette même colonne — sans lui, retombe sur la variante 'neutre' de
 // StatutBadge plutôt que d'échouer.
 //
+// `infoBulleStatut(dossier)` (audit 2026-09-14) : fonction optionnelle renvoyant le contenu d'une
+// infobulle à afficher au survol/focus du badge "Statut" (tableau de lignes de texte), ou une
+// valeur falsy pour n'en afficher AUCUNE — ce composant générique ne sait PAS ce qui justifie une
+// infobulle (aujourd'hui : rendez-vous de test planifié, propre à ACCECIT, voir
+// TableauDeBordAccueil.jsx), il se contente de la rendre si l'appelant lui en fournit une, même
+// principe d'externalisation que `varianteStatut`/`actions` ci-dessus. Sans `infoBulleStatut`
+// fourni (undefined), la colonne "Statut" se rend à l'identique d'avant, aucune régression pour un
+// futur appelant qui n'en aurait pas besoin.
+//
 // Tri entièrement client, sur la liste déjà reçue (déjà filtrée par statut/recherche/date par
 // l'appelant, voir TableauDeBordAccueil.jsx/Backoffice.jsx) : ni l'une ni l'autre des deux pages
 // qui utilisent ce composant ne pagine côté serveur, un paramètre de tri sur GET /api/dossiers
@@ -98,6 +107,7 @@ export default function DossierList({
   libellePoste,
   libelleExperience,
   varianteExperience,
+  infoBulleStatut,
   actions = [],
   dossiersSelectionnes,
   onTogglerSelectionDossier,
@@ -215,7 +225,11 @@ export default function DossierList({
           </tr>
         </thead>
         <tbody>
-          {dossiersTries.map((dossier) => (
+          {dossiersTries.map((dossier) => {
+            // Calculé une seule fois par ligne (pas une fois pour le test de présence, une autre
+            // pour le contenu) — voir le rendu de la colonne "Statut" plus bas.
+            const infoBulle = infoBulleStatut?.(dossier);
+            return (
             <tr key={dossier.id}>
               {selectionActive && (
                 <td className="dossier-list__colonne-case">
@@ -257,10 +271,31 @@ export default function DossierList({
                 )}
               </td>
               <td className="dossier-list__colonne-statut">
-                <StatutBadge
-                  libelle={dossier.statut_libelle}
-                  variante={varianteStatut ? varianteStatut(dossier.statut_code) : 'neutre'}
-                />
+                {/* Infobulle maison au survol/focus (voir infoBulleStatut, commentaire d'en-tête) —
+                    même patron CSS pur (opacity 0->1, aucun état React) que
+                    .calendrier-hebdo__creneau__infobulle (CalendrierHebdomadaireDisponibilite.css)/
+                    .bouton-nouvelle-inscription__infobulle (BoutonNouvelleInscription.css), seuls
+                    autres endroits du projet avec une infobulle maison — jamais de librairie de
+                    tooltip, absente de ce projet (voir DossierList.css). Wrapper `position:
+                    relative` DÉDIÉ (pas le badge lui-même, générique/partagé — voir StatutBadge.jsx)
+                    : ne change rien au badge, seulement à sa cellule. `infoBulle` calculé une seule
+                    fois par ligne, juste avant ce `return` (voir plus haut) — jamais si
+                    `infoBulleStatut` n'est pas fourni (undefined?.() = undefined, falsy). */}
+                <span className="dossier-list__statut-conteneur">
+                  <StatutBadge
+                    libelle={dossier.statut_libelle}
+                    variante={varianteStatut ? varianteStatut(dossier.statut_code) : 'neutre'}
+                  />
+                  {infoBulle && (
+                    <span className="dossier-list__statut-infobulle" aria-hidden="true">
+                      {infoBulle.map((ligne, index) => (
+                        <span key={index} className="dossier-list__statut-infobulle-ligne">
+                          {ligne}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </span>
               </td>
               {/* Colonne "Dernière mise à jour" retirée du visuel (demande utilisateur
                   2026-09-10) — dossier.date_maj reste utilisé pour le tri par défaut (voir COLONNES_MASQUEES
@@ -293,7 +328,8 @@ export default function DossierList({
                 </td>
               )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </IndicateurDefilementHorizontal>

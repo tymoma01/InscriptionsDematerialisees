@@ -251,6 +251,68 @@
   word-break: break-word;
 }
 
+/* Infobulle maison "Test planifié" (audit 2026-09-14, colonne "Statut", demande utilisateur —
+   date/heure + formateur du rendez-vous de test) — voir infoBulleStatut, DossierList.jsx pour la
+   provenance des données (ACCECIT-specific, ce composant générique ne fait que la rendre).
+   Wrapper DÉDIÉ (pas .statut-badge lui-même, StatutBadge.jsx générique/partagé par de nombreux
+   autres écrans) : `position: relative` posé ici n'affecte donc jamais le badge ailleurs dans
+   l'app. `display: inline-flex` (pas block) : reste de la largeur naturelle du badge qu'il
+   contient, pour ne pas élargir la cellule ni décaler son alignement à gauche existant. */
+.dossier-list__statut-conteneur {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Même mécanique CSS pure (opacity 0->1 au survol/focus, aucun état React) que
+   .calendrier-hebdo__creneau__infobulle (CalendrierHebdomadaireDisponibilite.css)/
+   .bouton-nouvelle-inscription__infobulle (BoutonNouvelleInscription.css), seuls autres endroits
+   du projet avec une infobulle maison — jamais de librairie de tooltip, absente de ce projet.
+   Centrée AU-DESSUS du badge (bottom: 100%, left: 50% + transform, pas SOUS comme la variante
+   calendrier) : une ligne de tableau a du contenu en dessous d'elle (la ligne suivante) alors que
+   le calendrier hebdomadaire n'a que des créneaux vides sous un créneau occupé — au-dessus reste
+   la position la moins susceptible de recouvrir une information utile. min-width assure une bulle
+   lisible même pour l'heure seule (ligne la plus courte), max-width borne un nom de
+   formateur/inspecteur inhabituellement long à passer sur 2 lignes plutôt que déborder à
+   l'horizontale — répond au point 3 de la demande ("sans déborder hors de l'écran"), même limite
+   connue et acceptée qu'ailleurs dans le projet pour une infobulle CSS pure sans lib de
+   positionnement dynamique (voir le commentaire de .calendrier-hebdo__creneau__infobulle) : une
+   ligne tout en haut du tableau, dans une fenêtre très basse, peut malgré tout se faire rogner par
+   le viewport — aucun mécanisme ne la fait basculer sous le badge dans ce cas précis. */
+.dossier-list__statut-infobulle {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+
+  min-width: 9rem;
+  max-width: 14rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--rayon-bordure);
+  background: var(--gris-800);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.dossier-list__statut-conteneur:hover .dossier-list__statut-infobulle,
+.dossier-list__statut-conteneur:focus-visible .dossier-list__statut-infobulle {
+  opacity: 1;
+}
+
 .dossier-list__actions {
   display: flex;
   flex-wrap: wrap;

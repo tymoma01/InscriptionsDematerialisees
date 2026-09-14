@@ -330,3 +330,52 @@ test('inscrireCandidat rejette une mention de charte qui ne correspond à aucune
     (erreur) => erreur.name === 'ZodError',
   );
 });
+
+// Infobulle "Test planifié" (audit 2026-09-14, colonne "Statut", TableauDeBordAccueil.jsx) —
+// dossierRepository.listerDossiers renvoie les 3 champs plats du LEFT JOIN LATERAL
+// (rendezvous_test_date_heure/rendezvous_test_formateur_prenom/rendezvous_test_formateur_nom),
+// regroupés ici en un seul objet `rendezvousTestActif` (ou null) pour que le front n'ait qu'une
+// seule vérification à faire.
+test('listerDossiers regroupe les 3 champs rendez-vous_test_* en un objet rendezvousTestActif', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'listerDossiers', async () => [
+    {
+      id: 12,
+      candidat_nom: 'Girard',
+      donnees_disponibilites: null,
+      donnees_coordonnees: null,
+      rendezvous_test_date_heure: new Date('2026-09-20T14:00:00.000Z'),
+      rendezvous_test_formateur_prenom: 'Jeanne',
+      rendezvous_test_formateur_nom: 'Dupont',
+    },
+  ]);
+
+  const [dossier] = await dossierService.listerDossiers(ENTITE, {});
+
+  assert.deepEqual(dossier.rendezvousTestActif, {
+    dateHeure: new Date('2026-09-20T14:00:00.000Z'),
+    formateurPrenom: 'Jeanne',
+    formateurNom: 'Dupont',
+  });
+  // Les 3 champs plats d'origine ne doivent pas fuiter tels quels dans l'objet renvoyé au front.
+  assert.equal('rendezvous_test_date_heure' in dossier, false);
+});
+
+test('listerDossiers renvoie rendezvousTestActif à null pour un dossier sans rendez-vous de test actif', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'listerDossiers', async () => [
+    {
+      id: 13,
+      candidat_nom: 'Curie',
+      donnees_disponibilites: null,
+      donnees_coordonnees: null,
+      rendezvous_test_date_heure: null,
+      rendezvous_test_formateur_prenom: null,
+      rendezvous_test_formateur_nom: null,
+    },
+  ]);
+
+  const [dossier] = await dossierService.listerDossiers(ENTITE, {});
+
+  assert.equal(dossier.rendezvousTestActif, null);
+});

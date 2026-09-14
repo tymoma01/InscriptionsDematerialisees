@@ -85,6 +85,37 @@ function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
+// Infobulle "Test planifié" (audit 2026-09-14, demande utilisateur, colonne "Statut") — même
+// format date/heure que Planification.jsx (Suivi des tests, FORMAT_DATE_HEURE), dupliqué plutôt
+// que partagé (voir CLAUDE.md conventions du projet) : cohérence visuelle avec l'écran qui affiche
+// déjà ce même rendez-vous en toutes lettres.
+const FORMAT_DATE_HEURE_INFOBULLE = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+// Passée à DossierList (prop `infoBulleStatut`, voir son commentaire d'en-tête) — ACCECIT-specific
+// (le composant générique ne sait pas ce qui justifie une infobulle), scopée au SEUL statut
+// 'test_planifie' : les autres statuts n'ont pas d'information de rendez-vous à montrer ici (le
+// dossier n'a alors soit aucun rendez-vous de test actif, soit un rendez-vous déjà consommé —
+// honoré/absent/annulé/remplacé —, hors périmètre de cette demande). `dossier.rendezvousTestActif`
+// (voir dossierService.listerDossiers) : déjà chargé avec la liste des dossiers, aucune requête
+// supplémentaire nécessaire — LEFT JOIN LATERAL côté back sur le rendez-vous de test 'prevu'/
+// 'confirme' le plus récent du dossier. Retourne un TABLEAU de lignes (une par information, voir
+// DossierList.jsx) ou undefined (aucune infobulle) plutôt qu'une chaîne unique, même contrat que
+// le composant générique attend.
+function infoBulleStatut(dossier) {
+  if (dossier.statut_code !== 'test_planifie' || !dossier.rendezvousTestActif) return undefined;
+  const { dateHeure, formateurPrenom, formateurNom } = dossier.rendezvousTestActif;
+  const formateur = formateurPrenom || formateurNom ? `${formateurPrenom ?? ''} ${formateurNom ?? ''}`.trim() : null;
+  const lignes = [FORMAT_DATE_HEURE_INFOBULLE.format(new Date(dateHeure))];
+  lignes.push(formateur ? `Formateur : ${formateur}` : 'Formateur : non assigné');
+  return lignes;
+}
+
 // Libellés des postes (colonne "Poste" de DossierList.jsx) — mêmes codes/libellés que
 // BlocDisponibilites.jsx (POSTES_BUREAU/POSTES_HOTEL), dupliqué plutôt que partagé (même
 // convention que VARIANTE_PAR_CODE_ACCECIT ci-dessus, voir CLAUDE.md conventions du projet) : un
@@ -796,6 +827,7 @@ export default function TableauDeBordAccueil() {
             libellePoste={libellePoste}
             libelleExperience={libelleExperience}
             varianteExperience={varianteExperience}
+            infoBulleStatut={infoBulleStatut}
             dossiersSelectionnes={dossiersSelectionnes}
             onTogglerSelectionDossier={togglerSelectionDossier}
             toutSelectionne={tousVisiblesSelectionnes}
