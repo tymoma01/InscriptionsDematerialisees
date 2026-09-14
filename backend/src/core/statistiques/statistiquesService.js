@@ -87,18 +87,26 @@ const CODES_STATUTS_EFFECTIF_COURANT_ACCECIT = ['valide_pret_embauche', 'formati
 const CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT = 'test_realise';
 
 // Section "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour :
-// SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule) — 3 cartes seulement (décision
-// utilisateur, liste réduite depuis les 8 initialement envisagées) comptant des OCCURRENCES
-// d'événement, jamais dédupliquées par dossier : "combien de fois" plutôt que "combien de dossiers
-// distincts" (charge de travail réelle — sessions de test tenues, formations conduites).
-// "Sessions de test réalisées"/"Entrées en formation" reposent sur historique_statuts
-// (compterOccurrencesHistorique, GÉNÉRIQUE) ; "Formations validées" sur historique_statuts avec
-// distinction par occurrence suivante (compterOccurrencesFormationValidee, seul cas où
-// valide_pret_embauche a deux origines possibles). "Test validé"/"Test invalidé" (redondant avec le
-// camembert "Tests réussis vs ratés") et les versions volume de "Embauché"/"Validé - prêt à
-// l'embauche"/"Formation non validée" (jugées non pertinentes hors de leur effectif) ne sont pas
-// reprises ici. Liste éditoriale, propre à ACCECIT (voir Modularité, CLAUDE.md).
-const CODES_VOLUMETRIE_HISTORIQUE_ACCECIT = ['test_realise', 'valide_envoi_formation'];
+// SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule) — 4 cartes (décision utilisateur,
+// liste réduite depuis les 8 initialement envisagées, complétée le 2026-09-14 par "Formations non
+// validées") comptant des OCCURRENCES d'événement, jamais dédupliquées par dossier : "combien de
+// fois" plutôt que "combien de dossiers distincts" (charge de travail réelle — sessions de test
+// tenues, formations conduites).
+// "Sessions de test réalisées"/"Entrées en formation"/"Formations non validées" reposent sur
+// historique_statuts (compterOccurrencesHistorique, GÉNÉRIQUE) ; "Formations validées" seule sur
+// historique_statuts avec distinction par occurrence suivante (compterOccurrencesFormationValidee,
+// seul cas où valide_pret_embauche a deux origines possibles — voir son commentaire). Vérifié dans
+// workflow.config.json (audit 2026-09-14) avant d'ajouter 'formation_non_validee' ici plutôt que
+// via une fonction dédiée façon compterOccurrencesFormationValidee : une SEULE transition y mène
+// (codeAction 'invalider_formation', origine unique valide_envoi_formation) — aucune ambiguïté
+// d'origine à lever, exactement le même cas que test_realise/valide_envoi_formation déjà traités
+// par la fonction générique, contrairement à valide_pret_embauche (deux origines possibles,
+// valider_pret_embauche ET marquer_formation_validee).
+// "Test validé"/"Test invalidé" (redondant avec le camembert "Tests réussis vs ratés") et les
+// versions volume de "Embauché"/"Validé - prêt à l'embauche" (jugées non pertinentes hors de leur
+// effectif) ne sont pas reprises ici. Liste éditoriale, propre à ACCECIT (voir Modularité,
+// CLAUDE.md).
+const CODES_VOLUMETRIE_HISTORIQUE_ACCECIT = ['test_realise', 'valide_envoi_formation', 'formation_non_validee'];
 
 async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, poste }) {
   validerCoherencePosteTypePoste({ typePoste, poste });
@@ -154,7 +162,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     effectifsParStatut[statutCode] = versNombre(effectifsParStatutCourantBruts[index].total);
   });
 
-  // "Volumétrie sur la période" (audit dashboard 2026-09-02) — 3 cartes, décomptes d'OCCURRENCES,
+  // "Volumétrie sur la période" (audit dashboard 2026-09-02) — 4 cartes, décomptes d'OCCURRENCES,
   // jamais de dossiers distincts (voir CODES_VOLUMETRIE_HISTORIQUE_ACCECIT plus haut).
   const volumetrieParStatut = {};
   CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.forEach((statutCode, index) => {
@@ -269,8 +277,9 @@ const PREFIXE_POSTE = 'poste:';
 // affichés en carte).
 const PREFIXE_STATUT = 'statut:';
 
-// Préfixe des 3 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
-// cliquables/filtrantes le même jour) — DISTINCT de PREFIXE_STATUT ci-dessus : un code
+// Préfixe des 4 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
+// cliquables/filtrantes le même jour ; 4e carte "Formations non validées" ajoutée le 2026-09-14) —
+// DISTINCT de PREFIXE_STATUT ci-dessus : un code
 // 'volumetrie:<code>' route vers les fonctions "lister" en OCCURRENCES (listerOccurrencesHistorique/
 // listerOccurrencesFormationValidee, plusieurs lignes possibles par dossier), jamais vers
 // listerParStatut/listerParHistoriqueStatut (dossiers DISTINCTS, un seul date_cle par dossier) —
@@ -279,7 +288,7 @@ const PREFIXE_STATUT = 'statut:';
 // que ce préfixe séparé évite. `resoudreListeIndicateur` valide le code contre
 // CODES_VOLUMETRIE_HISTORIQUE_ACCECIT/'formation_validee' (liste fermée, comme PREFIXE_POSTE) —
 // contrairement à PREFIXE_STATUT, pas de repli générique pour un code de statut arbitraire : ce
-// préfixe ne représente que les 3 cartes réellement affichées, aucun usage prévu au-delà.
+// préfixe ne représente que les 4 cartes réellement affichées, aucun usage prévu au-delà.
 const PREFIXE_VOLUMETRIE = 'volumetrie:';
 
 // Une seule fonction de résolution code -> requête "liste de dossiers", pour que
@@ -337,9 +346,13 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
         }
         return statistiquesRepository.listerParStatut(bd, entiteId, statutCode, filtres);
       }
-      // 'volumetrie:<code>' (voir PREFIXE_VOLUMETRIE plus haut) — liste fermée aux 3 cartes
+      // 'volumetrie:<code>' (voir PREFIXE_VOLUMETRIE plus haut) — liste fermée aux 4 cartes
       // réellement affichées (contrairement à 'statut:<code>' ci-dessus, générique) : un code
       // inconnu lève une erreur plutôt qu'une liste vide silencieuse, même choix que 'poste:<code>'.
+      // 'formation_non_validee' (ajouté le 2026-09-14) rejoint CODES_VOLUMETRIE_HISTORIQUE_ACCECIT
+      // ci-dessus plutôt que le cas 'formation_validee' juste en dessous (compterOccurrencesFormationValidee
+      // dédiée) : aucune ambiguïté d'origine à lever pour ce statut, voir le commentaire de
+      // CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.
       if (code.startsWith(PREFIXE_VOLUMETRIE)) {
         const statutCode = code.slice(PREFIXE_VOLUMETRIE.length);
         if (statutCode === 'formation_validee') {

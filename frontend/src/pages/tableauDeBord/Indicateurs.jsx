@@ -169,8 +169,9 @@ const PREFIXE_POSTE = 'poste:';
 const PREFIXE_STATUT = 'statut:';
 const CODES_STATUTS_EFFECTIF_ACCECIT = ['test_realise', 'valide_pret_embauche', 'formation_non_validee', 'embauche'];
 
-// Préfixe des 3 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
-// cliquables/filtrantes le même jour, 2e passe — jusque-là de simples compteurs sans sélection) —
+// Préfixe des 4 cartes "Volumétrie sur la période" (audit dashboard 2026-09-02, rendues
+// cliquables/filtrantes le même jour, 2e passe — jusque-là de simples compteurs sans sélection ;
+// "Formations non validées" ajoutée le 2026-09-14) —
 // GÉNÉRIQUE côté back (statistiquesService.PREFIXE_VOLUMETRIE, resoudreListeIndicateur), même
 // mécanisme de sélection/filtrage que "Effectifs par statut" (basculerIndicateur/
 // selectionIndicateurs, aucune adaptation nécessaire) — mais DISTINCT de PREFIXE_STATUT ci-dessus :
@@ -189,10 +190,16 @@ const CODES_STATUTS_EFFECTIF_ACCECIT = ['test_realise', 'valide_pret_embauche', 
 // le code CLIQUABLE est `${PREFIXE_VOLUMETRIE}${code}` (voir son rendu plus bas), pas `code` seul.
 // `variante` reprend la palette déjà en place sur cet écran (voir Indicateurs.css).
 const PREFIXE_VOLUMETRIE = 'volumetrie:';
+// "Formations non validées" ajoutée le 2026-09-14 (demande utilisateur), juste après "Formations
+// validées" (positionnement = ordre de ce tableau, voir son rendu plus bas) — même variante
+// 'echec-fort' que le badge de statut "Formation non validée" partout ailleurs dans l'app
+// (VARIANTE_PAR_CODE_STATUT_ACCECIT tout en haut de ce fichier), pour rester immédiatement
+// identifiable comme la même famille d'événement.
 const CARTES_VOLUMETRIE_ACCECIT = [
   { code: 'test_realise', libelle: 'Sessions de test réalisées', variante: 'violet' },
   { code: 'valide_envoi_formation', libelle: 'Envoyés en formation', variante: 'bleu' },
   { code: 'formation_validee', libelle: 'Formations validées', variante: 'vert-clair' },
+  { code: 'formation_non_validee', libelle: 'Formations non validées', variante: 'echec-fort' },
 ];
 const LIBELLES_VOLUMETRIE_ACCECIT = Object.fromEntries(
   CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle }) => [code, libelle]),
@@ -1008,8 +1015,9 @@ export default function Indicateurs() {
 
             {/* "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
                 jour : SÉPARÉE de "Effectifs par statut" ci-dessus, pas une bascule ; rendue
-                cliquable/filtrante le même jour, 2e passe — jusque-là de simples compteurs) — 3
-                cartes, comptent "combien de FOIS cet événement s'est produit" (charge de travail
+                cliquable/filtrante le même jour, 2e passe — jusque-là de simples compteurs ;
+                "Formations non validées" ajoutée le 2026-09-14) — 4 cartes, comptent "combien de
+                FOIS cet événement s'est produit" (charge de travail
                 réelle, JAMAIS dédupliquée par dossier : un dossier retesté/reformé compte plusieurs
                 fois, voir statistiquesRepository.listerOccurrencesHistorique/
                 listerOccurrencesFormationValidee) — mélanger avec "Effectifs par statut" aurait
@@ -1019,7 +1027,7 @@ export default function Indicateurs() {
                 accompagnait initialement ce style a été retiré (décision utilisateur, 2e passe),
                 la bordure en tirets reste seule porteuse de la distinction. Générées par
                 CARTES_VOLUMETRIE_ACCECIT (liste éditoriale, voir son commentaire plus haut), pas
-                les 3 boutons recopiés en dur. `<button>`, MÊME mécanisme de sélection/filtrage que
+                les 4 boutons recopiés en dur. `<button>`, MÊME mécanisme de sélection/filtrage que
                 "Effectifs par statut" ci-dessus (basculerIndicateur, code
                 '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté back, voir
                 PREFIXE_VOLUMETRIE) — un dossier avec plusieurs occurrences n'apparaît qu'UNE FOIS

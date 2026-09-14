@@ -304,19 +304,22 @@ function listerParHistoriqueStatut(bd, entiteId, statutCode, { debut, finExclusi
 // reformation) compte donc plusieurs fois ici, contrairement à compterParStatut/
 // compterParHistoriqueStatut ci-dessus (dossiers DISTINCTS, section "Effectifs par statut") — aucune
 // de ces fonctions n'appelle countDistinct/GROUP BY : la non-déduplication est le point, pas un
-// oubli. Seulement 3 cartes retenues (décision utilisateur) : "Sessions de test réalisées",
-// "Entrées en formation", "Formations validées" — "Test validé"/"Test invalidé" (redondant avec le
-// camembert "Tests réussis vs ratés") et "Embauché"/"Validé - prêt à l'embauche"/"Formation non
-// validée" en version volume (jugés non pertinents en dehors de leur effectif) ne sont pas repris
-// ici.
+// oubli. 4 cartes retenues (décision utilisateur, "Formations non validées" ajoutée le 2026-09-14
+// — voir CODES_VOLUMETRIE_HISTORIQUE_ACCECIT, statistiquesService.js) : "Sessions de test
+// réalisées", "Entrées en formation", "Formations validées", "Formations non validées" — "Test
+// validé"/"Test invalidé" (redondant avec le camembert "Tests réussis vs ratés") et "Embauché"/
+// "Validé - prêt à l'embauche" en version volume (jugés non pertinents en dehors de leur effectif)
+// ne sont pas repris ici.
 
-// Cartes "Sessions de test réalisées" et "Entrées en formation" — GÉNÉRIQUE (statutCode arbitraire),
-// un simple COUNT(*) sur historique_statuts suffit pour ces deux codes (test_realise,
-// valide_envoi_formation) : chacun n'a qu'UNE SEULE transition source dans workflow.config.json,
-// donc pas besoin de connaître le codeAction (toujours absent d'historique_statuts) pour identifier
-// l'événement — le statut de destination suffit à lui seul. Contrairement à valide_pret_embauche
-// (deux origines possibles, voir compterOccurrencesFormationValidee ci-dessous), aucune ambiguïté
-// ici.
+// Cartes "Sessions de test réalisées", "Entrées en formation" et "Formations non validées"
+// (dernière ajoutée le 2026-09-14) — GÉNÉRIQUE (statutCode arbitraire), un simple COUNT(*) sur
+// historique_statuts suffit pour ces trois codes (test_realise, valide_envoi_formation,
+// formation_non_validee) : chacun n'a qu'UNE SEULE transition source dans workflow.config.json
+// (respectivement confirmer_test_realise/valider_envoi_formation/invalider_formation — vérifié
+// avant d'ajouter formation_non_validee ici), donc pas besoin de connaître le codeAction (toujours
+// absent d'historique_statuts) pour identifier l'événement — le statut de destination suffit à lui
+// seul. Contrairement à valide_pret_embauche (deux origines possibles, voir
+// compterOccurrencesFormationValidee ci-dessous), aucune ambiguïté pour ces trois-là.
 function compterOccurrencesHistorique(bd, entiteId, statutCode, { debut, finExclusive, typePoste, poste } = {}) {
   const requete = bd('historique_statuts')
     .join('dossiers', 'dossiers.id', 'historique_statuts.dossier_id')

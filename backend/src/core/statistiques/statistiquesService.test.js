@@ -138,18 +138,22 @@ test('obtenirIndicateursKpi assemble effectifsParStatut : test_realise (historiq
 });
 
 // Section "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même jour :
-// SÉPARÉE de "Effectifs par statut" ci-dessus) — 3 cartes assemblées sous `volumetrieParStatut` :
-// compterOccurrencesHistorique appelée une fois par code de CODES_VOLUMETRIE_HISTORIQUE_ACCECIT (2
-// appels, distingués par leur 3e argument statutCode), compterOccurrencesFormationValidee une fois
-// (clé `formation_validee`). Aucune déduplication attendue nulle part ici — voir les tests SQL
-// dédiés dans statistiquesRepository.test.js pour la garantie "pas de countDistinct/GROUP BY".
-// "Test validé"/"Test invalidé"/"Embauché" n'ont volontairement PAS de déclinaison volumétrique
-// (décision utilisateur : redondant avec l'effectif ou avec le camembert "Tests réussis vs ratés").
-test('obtenirIndicateursKpi assemble volumetrieParStatut : 2 codes historique + formation_validee, sans test_valide/test_invalide', async (t) => {
+// SÉPARÉE de "Effectifs par statut" ci-dessus ; "Formations non validées" ajoutée le 2026-09-14) —
+// 4 cartes assemblées sous `volumetrieParStatut` : compterOccurrencesHistorique appelée une fois
+// par code de CODES_VOLUMETRIE_HISTORIQUE_ACCECIT (3 appels, distingués par leur 3e argument
+// statutCode — test_realise/valide_envoi_formation/formation_non_validee, aucune ambiguïté d'origine
+// pour ces trois-là, voir statistiquesRepository.compterOccurrencesHistorique), compterOccurrencesFormationValidee
+// une fois (clé `formation_validee`, seul cas où valide_pret_embauche a deux origines possibles).
+// Aucune déduplication attendue nulle part ici — voir les tests SQL dédiés dans
+// statistiquesRepository.test.js pour la garantie "pas de countDistinct/GROUP BY". "Test validé"/
+// "Test invalidé"/"Embauché" n'ont volontairement PAS de déclinaison volumétrique (décision
+// utilisateur : redondant avec l'effectif ou avec le camembert "Tests réussis vs ratés").
+test('obtenirIndicateursKpi assemble volumetrieParStatut : 3 codes historique + formation_validee, sans test_valide/test_invalide', async (t) => {
   mockerKnex(t);
   const VALEURS_HISTORIQUE = {
     test_realise: '8',
     valide_envoi_formation: '11',
+    formation_non_validee: '3',
   };
   mockerRepository(t, {
     compterOccurrencesHistorique: async (bd, entiteId, statutCode) => ({ total: VALEURS_HISTORIQUE[statutCode] ?? '0' }),
@@ -164,6 +168,7 @@ test('obtenirIndicateursKpi assemble volumetrieParStatut : 2 codes historique + 
   assert.deepEqual(resultat.volumetrieParStatut, {
     test_realise: 8,
     valide_envoi_formation: 11,
+    formation_non_validee: 3,
     formation_validee: 5,
   });
 });
@@ -616,6 +621,28 @@ test('listerDossiersParIndicateurs route "volumetrie:test_realise" vers listerOc
   });
 
   assert.equal(appel.mock.calls[0].arguments[2], 'test_realise');
+});
+
+// 'formation_non_validee' ajoutée le 2026-09-14 à CODES_VOLUMETRIE_HISTORIQUE_ACCECIT (une seule
+// transition source dans workflow.config.json, aucune ambiguïté d'origine — contrairement à
+// 'formation_validee' juste en dessous) : même routage générique que 'test_realise' ci-dessus, pas
+// vers listerOccurrencesFormationValidee.
+test('listerDossiersParIndicateurs route "volumetrie:formation_non_validee" vers listerOccurrencesHistorique', async (t) => {
+  mockerKnex(t);
+  const appel = t.mock.method(statistiquesRepository, 'listerOccurrencesHistorique', async () => [
+    { dossier_id: 107, date_cle: new Date('2026-08-21') },
+  ]);
+  t.mock.method(dossierRepository, 'listerDossiersParIds', async () => [
+    { id: 107, date_creation: '2026-08-21', date_maj: '2026-08-21', candidat_nom: 'Bernard', donnees_disponibilites: null },
+  ]);
+
+  await statistiquesService.listerDossiersParIndicateurs(ENTITE_ACCECIT, {
+    dateDebut: '2026-08-01',
+    dateFin: '2026-08-31',
+    indicateurs: ['volumetrie:formation_non_validee'],
+  });
+
+  assert.equal(appel.mock.calls[0].arguments[2], 'formation_non_validee');
 });
 
 // 'volumetrie:formation_validee' est un cas à part (CODES_VOLUMETRIE_HISTORIQUE_ACCECIT ne le
