@@ -4,6 +4,33 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import './TableauDossiersSelectionnes.css';
 
+// Colonnes triables (audit 2026-09-14, demande utilisateur) — même patron que DossierList.jsx/
+// Planification.jsx (`cle`/`libelle`/`extraire`, bouton d'en-tête + flèche ▲/▼, voir `trierPar`
+// plus bas) : pas de composant/utilitaire commun, dupliqué comme les autres exemples de ce même
+// patron dans l'app (voir CLAUDE.md, conventions du projet).
+// "Indicateurs" et "Dates clés" volontairement ABSENTES de cette liste : deux colonnes COMPOSITES
+// (plusieurs badges/lignes de date par dossier, dont l'ordre relatif porte lui-même du sens — voir
+// construireColonnesAlignees plus bas), sans valeur unique qui donnerait un tri à la fois simple et
+// utile. "Poste" reste malgré tout triable : même composite en apparence (plusieurs postes
+// possibles par dossier), mais DossierList.jsx a déjà tranché ce cas précis — tri sur la liste
+// brute jointe (postesBureau + postesHotel), reprise ici à l'identique pour rester cohérente avec
+// cet autre écran.
+// "Candidat" trie sur candidat_nom (nom de famille) seul, pas la chaîne "prénom nom" affichée —
+// même choix, même raison (seul champ stable pour classer un annuaire) que DossierList.jsx/
+// Planification.jsx. "N° dossier" trie sur dossier.id (numérique), jamais la colonne "N°" elle-même
+// (simple rang d'affichage recalculé à CHAQUE tri, non triable par nature — voir son commentaire de
+// rendu plus bas, même principe que DossierList.jsx/Planification.jsx).
+const COLONNES_TRIABLES = [
+  { cle: 'id', libelle: 'N° dossier', extraire: (dossier) => dossier.id },
+  { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
+  {
+    cle: 'postes',
+    libelle: 'Poste',
+    extraire: (dossier) => [...dossier.postesBureau, ...dossier.postesHotel].join(', '),
+  },
+  { cle: 'statut_libelle', libelle: 'Statut', extraire: (dossier) => (dossier.statut_libelle ?? '').toLowerCase() },
+];
+
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const UN_JOUR_MS = 24 * 60 * 60 * 1000;
@@ -399,6 +426,23 @@ export default function TableauDossiersSelectionnes({
     });
   };
 
+  // Tri des colonnes (audit 2026-09-14, demande utilisateur) — voir COLONNES_TRIABLES ci-dessus.
+  // colonne: null par défaut (pas de tri actif, ordre de réception tel quel) plutôt qu'une colonne
+  // par défaut arbitraire : contrairement à "Dernière mise à jour" (DossierList.jsx) ou "Date et
+  // heure du test" (Planification.jsx), aucune colonne de ce tableau n'a de repère chronologique
+  // "le plus utile en premier" évident qui justifierait un tri par défaut — état INDÉPENDANT
+  // d'entitesFiltre ci-dessus (deux useState distincts) : basculer Hôtellerie/Tertiaire ne
+  // réinitialise jamais un tri déjà choisi, et inversement.
+  const [tri, setTri] = useState({ colonne: null, ordre: 'asc' });
+  const trierPar = (colonne) => {
+    setTri((precedent) => {
+      if (precedent.colonne === colonne) {
+        return { colonne, ordre: precedent.ordre === 'asc' ? 'desc' : 'asc' };
+      }
+      return { colonne, ordre: 'asc' };
+    });
+  };
+
   // Compteurs des boutons — calculés sur `dossiers` TEL QUE REÇU (déjà réduit par les filtres
   // d'Indicateurs.jsx), AVANT le filtre entité lui-même : chaque bouton répond à "combien de
   // dossiers si je clique CE bouton", même principe que compteurHotel/compteurBureau sur
@@ -421,6 +465,24 @@ export default function TableauDossiersSelectionnes({
             (entitesFiltre.has('bureau') && dossier.postesBureau.length > 0),
         );
 
+  // Tri appliqué APRÈS le filtre entité ci-dessus (sur ce qui est réellement affiché, pas sur
+  // `dossiers` tel que reçu) — sans copie inutile quand aucun tri n'est actif (tri.colonne null,
+  // voir son commentaire de déclaration), même check que DossierList.jsx/Planification.jsx
+  // n'ont pas besoin de faire (elles ont toujours une colonne de tri active par défaut).
+  const dossiersTries = (() => {
+    if (!tri.colonne) return dossiersFiltres;
+    const colonneTri = COLONNES_TRIABLES.find((colonne) => colonne.cle === tri.colonne);
+    const copie = [...dossiersFiltres];
+    copie.sort((a, b) => {
+      const valeurA = colonneTri.extraire(a);
+      const valeurB = colonneTri.extraire(b);
+      if (valeurA < valeurB) return tri.ordre === 'asc' ? -1 : 1;
+      if (valeurA > valeurB) return tri.ordre === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return copie;
+  })();
+
   if (dossiers.length === 0) {
     return <p className="tableau-dossiers-selectionnes__vide">Aucun dossier pour cette sélection.</p>;
   }
@@ -440,7 +502,7 @@ export default function TableauDossiersSelectionnes({
           compteurBureau={compteurBureau}
         />
       </div>
-      {dossiersFiltres.length === 0 ? (
+      {dossiersTries.length === 0 ? (
         <p className="tableau-dossiers-selectionnes__vide">Aucun dossier ne correspond à ce filtre.</p>
       ) : (
         <div className="tableau-dossiers-selectionnes__scroll">
@@ -454,18 +516,40 @@ export default function TableauDossiersSelectionnes({
                 <th scope="col" className="tableau-dossiers-selectionnes__colonne-numero">
                   N°
                 </th>
-                <th scope="col" className="tableau-dossiers-selectionnes__colonne-dossier">
-                  N° dossier
-                </th>
-                <th scope="col">Candidat</th>
-                <th scope="col">Poste</th>
-                <th scope="col">Statut</th>
+                {/* En-têtes triables (voir COLONNES_TRIABLES/trierPar) : bouton + flèche ▲/▼, même
+                    patron que DossierList.jsx/Planification.jsx. className conditionnelle
+                    (colonne-dossier) : seule "N° dossier" porte encore une largeur dédiée, les
+                    3 autres restent à leur largeur naturelle (inchangé par ce correctif). */}
+                {COLONNES_TRIABLES.map((colonne) => {
+                  const actif = tri.colonne === colonne.cle;
+                  return (
+                    <th
+                      key={colonne.cle}
+                      scope="col"
+                      className={colonne.cle === 'id' ? 'tableau-dossiers-selectionnes__colonne-dossier' : undefined}
+                      aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}
+                    >
+                      <button
+                        type="button"
+                        className="tableau-dossiers-selectionnes__entete-tri"
+                        onClick={() => trierPar(colonne.cle)}
+                      >
+                        {colonne.libelle}
+                        <span className="tableau-dossiers-selectionnes__indicateur-tri" aria-hidden="true">
+                          {actif ? (tri.ordre === 'asc' ? '▲' : '▼') : ''}
+                        </span>
+                      </button>
+                    </th>
+                  );
+                })}
+                {/* "Indicateurs"/"Dates clés" volontairement NON triables (voir le commentaire de
+                    COLONNES_TRIABLES) : <th> simple, sans bouton. */}
                 <th scope="col">Indicateurs</th>
                 <th scope="col">Dates clés</th>
               </tr>
             </thead>
             <tbody>
-              {dossiersFiltres.map((dossier, index) => {
+              {dossiersTries.map((dossier, index) => {
                 // Calculée UNE fois par dossier, lue par les deux colonnes ci-dessous (Indicateurs
                 // hors postes / Dates clés) au même index — voir construireColonnesAlignees plus haut.
                 const { indicateurRows, dateRows } = construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueIndicateurs);

@@ -52,6 +52,46 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  /* padding: 0 (audit 2026-09-14, tri des colonnes) — reprend EXACTEMENT le patron de
+     DossierList.css/Planification.css : le padding réel vit sur le bouton interne des en-têtes
+     triables (.tableau-dossiers-selectionnes__entete-tri ci-dessous), pas ici, sinon la zone
+     cliquable ne couvrirait pas toute la cellule. Les 3 en-têtes SANS bouton ("N°"/"Indicateurs"/
+     "Dates clés", non triables — voir leur commentaire dans TableauDossiersSelectionnes.jsx) se
+     retrouvent donc, eux, sans padding propre — même compromis déjà accepté sur "N°"/"Actions" de
+     DossierList.css, jamais corrigé séparément là-bas non plus. */
+  padding: 0;
+}
+
+/* Bouton plutôt que le <th> lui-même comme cible du clic : accessible au clavier (focus/Entrée)
+   sans rien ajouter. Réinitialisé pour se fondre visuellement dans l'en-tête existant — même
+   règle, même valeurs que .dossier-list__entete-tri (DossierList.css)/
+   .planification__entete-tri (Planification.css). */
+.tableau-dossiers-selectionnes__entete-tri {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  width: 100%;
+  padding: 0.75rem var(--espace-moyen);
+  border: none;
+  background: none;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tableau-dossiers-selectionnes__entete-tri:hover,
+.tableau-dossiers-selectionnes__entete-tri:focus-visible {
+  color: var(--couleur-texte);
+}
+
+.tableau-dossiers-selectionnes__indicateur-tri {
+  font-size: 0.7rem;
+  /* Largeur réservée même sans indicateur affiché : évite que le libellé de la colonne se
+     décale d'une colonne à l'autre selon que son tri est actif ou non. */
+  min-width: 0.8em;
 }
 
 .tableau-dossiers-selectionnes tbody tr:last-child td {
