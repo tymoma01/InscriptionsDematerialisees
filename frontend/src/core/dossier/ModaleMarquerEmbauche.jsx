@@ -7,16 +7,11 @@ import './ModaleMarquerEmbauche.css';
 // formulaire n'est pas valide. Générique (core/dossier/), pas propre à ACCECIT : ne connaît aucun
 // code de statut en dur, seulement le dossier concerné (Modularité, CLAUDE.md).
 //
-// max={aujourd'hui} sur le champ date : une date d'embauche future n'a pas de sens pour une action
-// qui, par construction, acte un événement déjà survenu (le candidat est venu signer son contrat).
-function dateDuJourISO() {
-  const maintenant = new Date();
-  const annee = maintenant.getFullYear();
-  const mois = String(maintenant.getMonth() + 1).padStart(2, '0');
-  const jour = String(maintenant.getDate()).padStart(2, '0');
-  return `${annee}-${mois}-${jour}`;
-}
-
+// Plus de max={aujourd'hui} sur le champ date (retiré, audit 2026-09-14, demande utilisateur) :
+// cette action peut être saisie avant la date d'embauche réelle (candidat qui signe son contrat
+// avec une prise de poste prévue dans 2 semaines, par ex.) — une date future est un cas d'usage
+// légitime, pas une erreur de saisie. Aucun `min` posé ici ni côté back (embaucheService.js/
+// transitions.routes.js, vérifié) : rien à préserver de ce côté.
 export default function ModaleMarquerEmbauche({ dossier, onConfirmer, onAnnuler, enCours, erreur }) {
   const [dateEmbauche, setDateEmbauche] = useState('');
   const [commentaire, setCommentaire] = useState('');
@@ -43,7 +38,6 @@ export default function ModaleMarquerEmbauche({ dossier, onConfirmer, onAnnuler,
             <input
               type="date"
               value={dateEmbauche}
-              max={dateDuJourISO()}
               onChange={(evenement) => setDateEmbauche(evenement.target.value)}
               autoFocus
               required
