@@ -387,9 +387,29 @@ export default function TableauDeBordAccueil() {
 
   // Liste finale affichée : les deux filtres à badges (statut + expérience) combinés en ET, en
   // plus de recherche/dates/entité déjà dans dossiersFiltresBase.
+  //
+  // Masquage par défaut des dossiers "Embauché" (audit 2026-09-14, demande utilisateur) — statut
+  // TERMINAL (workflow.config.json, estFinal: true), plus rien à traiter pour l'accueil une fois
+  // ce point atteint : n'a plus sa place dans la liste de travail quotidienne, "Tous" y compris,
+  // sauf quand l'agent le demande EXPLICITEMENT en cliquant le badge "Embauché" lui-même
+  // (statutFiltre === 'embauche' ci-dessous). Ajoutée ICI, tout en bas de la chaîne de dérivation
+  // (après recherche/dates/entité/statut/expérience, déjà appliqués en amont dans
+  // dossiersFiltresSansExperience/experienceFiltre) — pas plus haut (dossiersFiltresBase/
+  // dossiersFiltresSansStatut) : ces deux-là alimentent aussi les COMPTEURS (Tous, badges de statut,
+  // Hôtellerie/Tertiaire, Expérience), qui doivent tous rester des décomptes réels de la base,
+  // inchangés — seul l'AFFICHAGE des lignes du tableau (et donc dossierIdsVisibles/la sélection
+  // multiple qui en dépend juste en dessous) est concerné, jamais un chiffre affiché sur un badge.
+  // Se combine donc automatiquement, en ET, avec absolument tous les autres filtres déjà actifs
+  // (recherche/code postal/dates/entité/expérience/statut) : simple condition supplémentaire sur la
+  // toute dernière liste dérivée, sans dépendre de leur état.
   const dossiersFiltres = useMemo(
-    () => dossiersFiltresSansExperience.filter((dossier) => !experienceFiltre || dossier.experience === experienceFiltre),
-    [dossiersFiltresSansExperience, experienceFiltre],
+    () =>
+      dossiersFiltresSansExperience.filter(
+        (dossier) =>
+          (!experienceFiltre || dossier.experience === experienceFiltre) &&
+          (statutFiltre === 'embauche' || dossier.statut_code !== 'embauche'),
+      ),
+    [dossiersFiltresSansExperience, experienceFiltre, statutFiltre],
   );
 
   // Sélection multiple + actions groupées (audit 2026-08-24) — même patron que Planification.jsx
