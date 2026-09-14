@@ -111,7 +111,11 @@ function infoBulleStatut(dossier) {
   if (dossier.statut_code !== 'test_planifie' || !dossier.rendezvousTestActif) return undefined;
   const { dateHeure, formateurPrenom, formateurNom } = dossier.rendezvousTestActif;
   const formateur = formateurPrenom || formateurNom ? `${formateurPrenom ?? ''} ${formateurNom ?? ''}`.trim() : null;
-  const lignes = [FORMAT_DATE_HEURE_INFOBULLE.format(new Date(dateHeure))];
+  // "Pour : " (audit 2026-09-14, demande utilisateur) — précède la date/heure pour lever
+  // l'ambiguïté avec une autre date qu'un agent pourrait s'attendre à voir ici (ex. date de
+  // dernière mise à jour) : "Pour : 12/09/2026 08:00" se lit sans équivoque comme "ce test est
+  // prévu pour cette date-là".
+  const lignes = [`Pour : ${FORMAT_DATE_HEURE_INFOBULLE.format(new Date(dateHeure))}`];
   lignes.push(formateur ? `Formateur : ${formateur}` : 'Formateur : non assigné');
   return lignes;
 }

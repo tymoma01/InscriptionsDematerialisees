@@ -291,7 +291,10 @@
   border-radius: var(--rayon-bordure);
   background: var(--gris-800);
   color: #ffffff;
-  font-size: 0.72rem;
+  /* 0.82rem (relevé depuis 0.72rem, audit 2026-09-14, demande utilisateur — jugé trop petit,
+     difficile à lire) : seule cette valeur touchée, min-width/max-width/position/reste du style
+     inchangés. */
+  font-size: 0.82rem;
   font-weight: 400;
   line-height: 1.35;
   white-space: normal;
