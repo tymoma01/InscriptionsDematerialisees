@@ -509,13 +509,33 @@
      l'AUTRE piège déjà rencontré sur ce tableau) : ce `left` ne dépend QUE des largeurs de
      case/numéro (--planification-largeur-colonne-case/-numero, inchangées ici), jamais de la
      largeur propre de "Candidat" elle-même — contrairement à case/numéro (voir plus haut), cette
-     colonne n'a d'ailleurs jamais eu de `width` propre non plus, seulement ce `left`. Même
-     principe que .dossier-list__colonne-poste (DossierList.css, "Dossiers candidats", qui gère
-     déjà ce cas correctement) : un <td> avec max-width plafonne bien la largeur de SA colonne en
-     table-layout: auto, sans affecter les autres. white-space: normal (comportement par défaut
-     d'un <td>, jamais surchargé ici avant ce correctif) : un "Prénom Nom" un peu long se replie
-     désormais sur plusieurs lignes plutôt que de pousser toute la largeur du tableau. */
+     colonne n'a d'ailleurs jamais eu de `width` propre non plus, seulement ce `left`.
+
+     TROIS essais intermédiaires écartés après vérification visuelle/mesurée réelle (pas seulement
+     raisonnés) avant cette version — la base de test contient un dossier dont le prénom/nom est un
+     seul "mot" très long sans espace (ex. "AAAAAAAAAA"), qui a fait échouer les deux premiers :
+     1) word-break: break-word + max-width, SANS min-width : table-layout: auto calcule alors la
+        largeur MINIMALE possible de la colonne en autorisant une coupure n'importe où (y compris
+        DANS un mot court) — sous pression (peu d'espace disponible, ex. 1024px + zoom 110%), la
+        colonne se compressait jusqu'à 1 caractère de large : "Candidat" s'affichait une LETTRE PAR
+        LIGNE dans l'en-tête, un vrai bug visuel pire que le débordement à corriger.
+     2) white-space: normal SEUL, ou overflow-wrap: break-word (au lieu de word-break) : les deux
+        corrigent le point 1, mais aucun des deux ne réduit la largeur MINIMALE que table-layout:
+        auto calcule pour "AAAAAAAAAA" (overflow-wrap: break-word ne coupe qu'au RENDU, jamais au
+        calcul de largeur minimale — contrairement à word-break: break-word — voir aussi le
+        commentaire de .dossier-list__colonne-email, DossierList.css, sur cette distinction) : la
+        colonne s'élargissait alors bien AU-DELÀ de son max-width (constaté ~195px au lieu des 9rem
+        visés, max-width n'étant qu'une préférence pour ce calcul, jamais un plafond dur dès que le
+        contenu l'exige) pour ne pas tronquer ce mot — débordement de retour, sur TOUTES les
+        largeurs testées cette fois.
+     word-break: break-word + min-width (RETENU) : reprend l'approche 1 (nécessaire pour que
+     table-layout: auto accepte de vraiment réduire cette colonne en dessous de la largeur d'un mot
+     comme "AAAAAAAAAA", donc de respecter max-width), mais lui ajoute un PLANCHER — la colonne ne
+     descend alors plus jamais sous min-width, quelle que soit la pression, ce qui referme
+     spécifiquement le scénario 1 (largement au-dessus de la largeur d'un seul caractère, "Candidat"
+     y tient sans se replier lettre par lettre). */
   max-width: 9rem;
+  min-width: 5rem;
   white-space: normal;
   word-break: break-word;
 }
