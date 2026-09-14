@@ -208,8 +208,26 @@ const CODES_STATUTS_TEST_REALISE_ACCECIT = [
   // dossier embauché est passé par valide_pret_embauche, donc par un test réellement tenu.
   'embauche',
 ];
+
+// Code SYNTHÉTIQUE (audit 2026-09-14, demande utilisateur, besoin Accueil "vue centralisée des
+// dossiers en attente", CLAUDE.md) — n'existe dans AUCUN workflow.config.json (vérifié : aucun
+// statut réel ne porte ce code), contrairement à 'test_realise' juste au-dessus qui, lui, désigne
+// aussi un statut RÉEL de dossier. "À planifier" n'a donc pas sa place dans
+// CODES_STATUTS_FILTRES_ACCUEIL (réservé aux codes présents dans `statuts`, la liste renvoyée par
+// GET /statuts) : c'est un simple raccourci de filtrage regroupant trois statuts déjà filtrables
+// individuellement (voir statutsFiltres plus bas, où l'entrée correspondante est ajoutée à la main
+// plutôt que via ce tableau), jamais écrit sur un dossier ni renvoyé par le back.
+const CODE_A_PLANIFIER = 'a_planifier';
+// Statuts regroupés (demande explicite) : les trois étapes AVANT tout test planifié — un candidat
+// encore à faire avancer par l'accueil, avant que la responsabilité ne bascule côté formateur
+// (test_planifie et suivants). Ordre sans incidence (même principe que CODES_STATUTS_FILTRES_ACCUEIL
+// ci-dessus, seul l'ensemble des codes compte).
+const CODES_STATUTS_A_PLANIFIER_ACCECIT = ['nouveau', 'en_attente_pieces', 'test_non_planifie'];
+
 function codesPourFiltreStatut(code) {
-  return code === 'test_realise' ? CODES_STATUTS_TEST_REALISE_ACCECIT : [code];
+  if (code === 'test_realise') return CODES_STATUTS_TEST_REALISE_ACCECIT;
+  if (code === CODE_A_PLANIFIER) return CODES_STATUTS_A_PLANIFIER_ACCECIT;
+  return [code];
 }
 
 // Tableau de bord Accueil (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
@@ -513,6 +531,10 @@ export default function TableauDeBordAccueil() {
     // pour son propre bouton (ex. compte.invalide reste le nombre réel de dossiers invalidés pour
     // le bouton "Invalidé" ci-dessous) : seule la clé 'test_realise' de cet objet est réécrite ici.
     compte.test_realise = CODES_STATUTS_TEST_REALISE_ACCECIT.reduce((somme, code) => somme + (compte[code] ?? 0), 0);
+    // "À planifier" (audit 2026-09-14, demande utilisateur) : même principe, somme des 3 statuts
+    // déjà comptés individuellement ci-dessus (nouveau/en_attente_pieces/test_non_planifie),
+    // chacun gardant par ailleurs son propre compteur pour son propre bouton.
+    compte[CODE_A_PLANIFIER] = CODES_STATUTS_A_PLANIFIER_ACCECIT.reduce((somme, code) => somme + (compte[code] ?? 0), 0);
     return compte;
   }, [dossiersFiltresSansStatut]);
 
@@ -553,8 +575,17 @@ export default function TableauDeBordAccueil() {
     [dossiersRechercheDate, statutFiltre, experienceFiltre],
   );
 
+  // "À planifier" ajouté en TÊTE de liste (audit 2026-09-14, demande explicite — indicateur
+  // prioritaire pour l'accueil, attire l'attention avant même "Inscrit") : entrée construite à la
+  // main, pas via CODES_STATUTS_FILTRES_ACCUEIL (voir le commentaire de CODE_A_PLANIFIER plus haut
+  // — ce code n'existe dans aucun `statuts` renvoyé par le back, rien à filtrer depuis ce tableau
+  // pour lui). S'ajoute aux 3 statuts qu'il regroupe, ne les remplace pas : Inscrit/En attente de
+  // pièces/Test non planifié restent chacun leur propre bouton juste après, inchangés.
   const statutsFiltres = useMemo(
-    () => statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code)),
+    () => [
+      { code: CODE_A_PLANIFIER, libelle: 'À planifier' },
+      ...statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code)),
+    ],
     [statuts],
   );
 
