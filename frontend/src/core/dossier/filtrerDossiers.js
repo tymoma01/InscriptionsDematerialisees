@@ -28,12 +28,24 @@ function normaliserTelephone(valeur) {
 // CLAUDE.md, section Modularité — sans rapport avec Hôtellerie/Tertiaire, qui distingue deux
 // FAMILLES DE POSTES au sein d'une même entité).
 //
-// Un dossier sans AUCUN poste déclaré (ni Hôtellerie ni Tertiaire) est toujours exclu, que le Set
-// soit vide ou non (audit 2026-08-18 : 6 dossiers "nouveau", inscription abandonnée avant le bloc
-// "Situation professionnelle", gonflaient le compteur "Tous" de FiltresStatut sans jamais
-// apparaître dans Hôtellerie/Tertiaire — Set vide y était jusqu'ici interprété comme "aucune
-// restriction", donc ces dossiers "passaient" alors qu'ils ne correspondent à aucune des deux
-// familles). Le Set ne sert plus qu'à restreindre à UNE famille précise quand il n'est pas vide.
+// Un dossier sans AUCUN poste déclaré (ni Hôtellerie ni Tertiaire) ET encore au statut initial
+// ('nouveau') est exclu, que le Set soit vide ou non (audit 2026-08-18 : 6 dossiers "nouveau",
+// inscription abandonnée avant le bloc "Situation professionnelle", gonflaient le compteur "Tous"
+// de FiltresStatut sans jamais apparaître dans Hôtellerie/Tertiaire — Set vide y était jusqu'ici
+// interprété comme "aucune restriction", donc ces dossiers "passaient" alors qu'ils ne
+// correspondent à aucune des deux familles). Condition RESTREINTE au statut 'nouveau' (audit
+// 2026-09-14, demande utilisateur — écart "Inscriptions" (KPI, 77) vs "Tous" (73), 4 dossiers
+// #107/#146/#147/#148) : la règle d'origine excluait TOUT dossier sans bloc `disponibilites`, quel
+// que soit son statut — trop large, elle masquait aussi des dossiers ayant réellement PROGRESSÉ
+// au-delà de l'inscription (invalide/test_non_realise/test_planifie chez ces 4-là), typiquement
+// créés par un flux hors formulaire normal (seed/script) qui n'a jamais posé ce bloc. Un dossier
+// qui a quitté 'nouveau' n'est, par définition, plus une inscription abandonnée en cours de
+// formulaire — il ne doit plus être filtré pour cette seule raison, même sans poste déclaré. Le Set
+// `entitesFiltre` ne sert plus qu'à restreindre à UNE famille précise quand il n'est pas vide.
+// 'nouveau' en dur (pas une valeur config-driven récupérée de workflow.config.json, voir Modularité
+// CLAUDE.md) : ce module suppose déjà la forme ACCECIT du bloc `disponibilites`
+// (postesHotel/postesBureau) pour tout le reste de cette fonction, ce filtre n'introduit donc pas
+// de nouveau couplage à cette entité — seulement le même, déjà présent.
 // Un dossier avec les deux familles renseignées (candidat intéressé par Hôtellerie ET Tertiaire)
 // n'est PAS exclu au double titre : il compte alors dans les deux boutons Hôtellerie/Tertiaire
 // (TableauDeBordAccueil.jsx, compteurHotel/compteurBureau) — reflète son intérêt réel plutôt que
@@ -126,7 +138,7 @@ export function filtrerDossiers(
     }
     const aPosteHotel = (dossier.postesHotel ?? []).length > 0;
     const aPosteBureau = (dossier.postesBureau ?? []).length > 0;
-    if (!aPosteHotel && !aPosteBureau) return false;
+    if (!aPosteHotel && !aPosteBureau && dossier.statut_code === 'nouveau') return false;
     if (entitesFiltre && entitesFiltre.size > 0) {
       const correspondEntite = (entitesFiltre.has('hotel') && aPosteHotel) || (entitesFiltre.has('bureau') && aPosteBureau);
       if (!correspondEntite) return false;
