@@ -211,6 +211,24 @@
   color: var(--couleur-primaire);
 }
 
+/* Resserre la paire libellé/valeur dans les cartes en lecture seule (Coordonnées, Situation
+   professionnelle, Mutuelle d'entreprise, Consentement RGPD — audit 2026-09-15, demande
+   explicite) : la valeur suivait justify-content: space-between hérité de .ligne ci-dessus, donc
+   collée au bord droit de toute la carte/cellule de grille — un grand vide séparait un libellé
+   court (ex. "Disponibilité") de sa réponse (ex. "Immédiate"). Ici la valeur suit directement le
+   libellé, à distance du `gap` normal de .ligne. Scopé à .carte (lecture seule) uniquement : le
+   mode édition (.groupe/.champ, qui hérite aussi de .ligne) garde volontairement son alignement à
+   droite existant, voir le commentaire de .informations-inscription__champ plus bas — pas de
+   refonte demandée sur ce mode. La carte "Identité" n'utilise pas .ligne (paragraphes dédiés,
+   déjà compacts), donc rien à changer pour elle. */
+.informations-inscription__carte .informations-inscription__ligne {
+  justify-content: flex-start;
+}
+
+.informations-inscription__carte .informations-inscription__valeur {
+  text-align: left;
+}
+
 /* Carte "Situation professionnelle" : grille 2 colonnes pour les paires courtes (disponibilité,
    type de poste, créneaux, langues, comment nous a connu), puis les deux lignes pleine largeur
    (Jours disponibles / Postes recherchés) reprennent l'affichage standard en dessous, hors
