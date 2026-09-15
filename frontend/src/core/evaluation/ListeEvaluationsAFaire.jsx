@@ -297,14 +297,20 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               <span className="liste-evaluations__candidat">
                 {rdv.candidat_prenom} {rdv.candidat_nom}
               </span>
-              <span className="liste-evaluations__poste">{libellePostesRendezvous(rdv)}</span>
+              {/* title (audit 2026-09-15) : tooltip natif au survol si le texte dépasse la largeur
+                  fixe de la colonne (ellipsis, voir ListeEvaluationsAFaire.css) — sans ça, un
+                  poste tronqué ("Nettoyage, Vitrerie, Ch…") resterait illisible en entier. */}
+              <span className="liste-evaluations__poste" title={libellePostesRendezvous(rdv)}>
+                {libellePostesRendezvous(rdv)}
+              </span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
               {/* "Assigné à" (audit 2026-09-10) : formateur_prenom/formateur_nom, voir
                   evaluationRepository.listerRendezvousAEvaluer — n'a de sens que si la liste peut
                   contenir des rendez-vous d'un autre utilisateur que celui connecté (voir
-                  `afficherAssigne` en en-tête de fichier). */}
+                  `afficherAssigne` en en-tête de fichier). title (audit 2026-09-15) : même tooltip
+                  que la colonne Poste ci-dessus, si un nom d'inspecteur dépasse la largeur fixe. */}
               {afficherAssigne && (
-                <span className="liste-evaluations__assigne">
+                <span className="liste-evaluations__assigne" title={`${rdv.formateur_prenom} ${rdv.formateur_nom}`}>
                   {rdv.formateur_prenom} {rdv.formateur_nom}
                 </span>
               )}

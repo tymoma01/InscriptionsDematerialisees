@@ -53,18 +53,40 @@
 }
 
 /* "Poste" (audit 2026-09-15) — même traitement visuel que .liste-evaluations__date ci-dessous
-   (couleur secondaire, même police héritée), placée juste avant dans le flex-wrap de la ligne. */
+   (couleur secondaire, même police héritée), placée juste avant dans le flex-wrap de la ligne.
+   Largeur fixe (audit 2026-09-15, corrige le décalage de Date/Assigné/Inspecteur d'une ligne à
+   l'autre selon le nombre de postes déclarés — ex. "Nettoyage, Vitrerie, Chef d'équipe" vs
+   "Nettoyage") : flex-shrink/grow à 0 pour que ni le nom du candidat (seule colonne encore
+   flexible, voir .liste-evaluations__candidat) ni le contenu de cette colonne ne la fassent
+   varier — les colonnes suivantes s'alignent donc verticalement quel que soit le nombre de
+   postes. Débordement en ellipsis + title (tooltip natif) plutôt que retour à la ligne : garde
+   une hauteur de ligne constante, cohérent avec le reste du tableau. */
 .liste-evaluations__poste {
+  flex: 0 0 12rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--couleur-texte-secondaire);
 }
 
+/* Largeur fixe (audit 2026-09-15) — même raison que .liste-evaluations__poste ci-dessus. Le
+   format FORMAT_DATE (JJ/MM/AAAA HH:MM) ne dépasse jamais cette largeur, mais white-space: nowrap
+   est gardé par cohérence avec les deux autres colonnes à largeur fixe. */
 .liste-evaluations__date {
+  flex: 0 0 9rem;
+  white-space: nowrap;
   color: var(--couleur-texte-secondaire);
 }
 
 /* "Assigné à" (audit 2026-09-10) — même traitement visuel que .liste-evaluations__date, colonne
-   secondaire plutôt que mise en avant comme le nom du candidat. */
+   secondaire plutôt que mise en avant comme le nom du candidat. Largeur fixe + ellipsis (audit
+   2026-09-15) — même raison que .liste-evaluations__poste ci-dessus : un nom d'inspecteur plus
+   long ne doit pas décaler le badge de statut ni les boutons qui suivent. */
 .liste-evaluations__assigne {
+  flex: 0 0 10rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--couleur-texte-secondaire);
 }
 
