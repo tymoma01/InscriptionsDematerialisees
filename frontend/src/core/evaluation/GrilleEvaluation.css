@@ -145,6 +145,31 @@
   gap: var(--espace-petit);
 }
 
+/* Bloc "Connaissance du vocabulaire hôtelier" (question choix_multiple, audit 2026-09-15) — seul
+   usage de .grille-evaluation__choix concerné (voir le commentaire sur le modificateur, .jsx) :
+   les 12 cases (toujours ce nombre exact, voir seedQuestionnairesEvaluation.js) passent d'un
+   flex-wrap simple (8 puis 4, non aligné) à une vraie grille 6 colonnes x 2 lignes, alignée
+   verticalement entre les deux lignes. Ne redéfinit ni la taille des cases/police ni le gap
+   (`.grille-evaluation__choix label`/`gap` de base ci-dessus restent hérités tels quels) — seul le
+   conteneur passe de flex à grid. Réduit progressivement le nombre de colonnes en dessous de la
+   largeur de formulaire habituelle plutôt que de laisser les cases se tasser illisiblement.*/
+.grille-evaluation__choix--vocabulaire {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+}
+
+@media (max-width: 700px) {
+  .grille-evaluation__choix--vocabulaire {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .grille-evaluation__choix--vocabulaire {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .grille-evaluation__choix label {
   display: flex;
   align-items: center;

@@ -681,7 +681,12 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                 )}
 
                 {question.type_question === 'choix_multiple' && (
-                  <div className="grille-evaluation__choix">
+                  // grille-evaluation__choix--vocabulaire (audit 2026-09-15) : modificateur dédié à
+                  // CE bloc uniquement (12 cases "Connaissance du vocabulaire hôtelier") — .choix de
+                  // base reste en flex-wrap tel quel pour les autres usages (Résultat du test,
+                  // Orientation, options grille_qcu, voir GrilleEvaluation.css), volontairement pas
+                  // touchés par cette demande.
+                  <div className="grille-evaluation__choix grille-evaluation__choix--vocabulaire">
                     {question.items.map((item) => (
                       <label key={item.code}>
                         <input
