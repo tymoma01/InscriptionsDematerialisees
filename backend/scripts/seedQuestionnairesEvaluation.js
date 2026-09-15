@@ -166,8 +166,14 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'gestion_salle_pdj', libelle: 'Gestion salle PDJ' },
           { code: 'nettoyage_appareils', libelle: 'Nettoyage appareils (café, crêpière, gaufrier, machine a jus...)' },
           { code: 'gestion_minibar', libelle: 'Gestion minibar (rechargement, inventaire)' },
-          { code: 'ouverture', libelle: 'Ouverture' },
-          { code: 'controle_chambres', libelle: 'Contrôle chambres' },
+          {
+            code: 'ouverture',
+            libelle: "Le respect des règles d'hygiène (Formation HACCP, FIFO, Respect des DLC ...)",
+          },
+          {
+            code: 'controle_chambres',
+            libelle: 'Accueil client (Prise du N° de chambre, suivi du parcours client lors de son PDJ)',
+          },
           { code: 'produits_entretien', libelle: "Connaissances et utilisation des produits d'entretien" },
           { code: 'vocabulaire_hotelier', libelle: 'Connaissance vocabulaire hôtelier' },
           { code: 'connaissance_linge', libelle: 'Connaissance du linge' },
