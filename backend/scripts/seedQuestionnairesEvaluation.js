@@ -129,6 +129,10 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'pb', libelle: 'PB (problème technique)' },
           { code: 'dnd', libelle: 'DND (do not disturb/ne pas déranger)' },
           { code: 'debutant', libelle: 'DEBUTANT(E)' },
+          { code: 'delogement', libelle: 'Délogement' },
+          { code: 'depart_anticipe', libelle: 'Départ anticipé' },
+          { code: 'depart_tardif', libelle: 'Départ tardif' },
+          { code: 'prio', libelle: 'Prio' },
         ],
       },
       {
@@ -247,6 +251,10 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'pb', libelle: 'PB (problème technique)' },
           { code: 'dnd', libelle: 'DND (do not disturb)' },
           { code: 'debutant', libelle: 'DEBUTANT(E)' },
+          { code: 'delogement', libelle: 'Délogement' },
+          { code: 'depart_anticipe', libelle: 'Départ anticipé' },
+          { code: 'depart_tardif', libelle: 'Départ tardif' },
+          { code: 'prio', libelle: 'Prio' },
         ],
       },
       {
