@@ -31,11 +31,40 @@ function varianteStatutRendezvous(statut) {
   return statut === 'confirme' ? 'succes' : 'attente';
 }
 
+// Colonne "Poste" (audit 2026-09-15) — même mapping que Planification.jsx/TableauDeBordAccueil.jsx/
+// Backoffice.jsx (dupliqué plutôt que partagé, voir CLAUDE.md conventions du projet). Postes
+// DÉCLARÉS à l'inscription (rdv.postesHotel/postesBureau, bloc 'disponibilites' — voir
+// evaluationEngine.listerRendezvousAEvaluer), pas postes_selectionnes (retenus pour ce test précis,
+// utilisé ailleurs pour pré-cocher GrilleEvaluation.jsx) : c'est ce même champ que "Suivi des
+// tests" affiche déjà sous ce libellé "Poste" (Planification.jsx), donc le plus proche de "poste
+// souhaité/visé" au sens où l'utilisateur l'entend pour cette liste.
+const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
+  nettoyage: 'Nettoyage',
+  vitrerie: 'Vitrerie',
+  machiniste: 'Machiniste',
+  chef_equipe: "Chef d'équipe",
+  autres: 'Autres',
+  femme_valet_chambre: 'Femme/Valet de chambre',
+  cafetier: 'Cafétier(ère)',
+  equipier: 'Équipier(ère)',
+  gouvernant: 'Gouvernant(e)',
+};
+function libellePoste(code) {
+  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
+}
+// '–' si aucun poste déclaré (dossier bureau/hôtel sans bloc disponibilites renseigné) — jamais une
+// chaîne vide ni une erreur, même convention que libelleExperience (Planification.jsx).
+function libellePostesRendezvous(rdv) {
+  const postes = [...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])];
+  return postes.length > 0 ? postes.map(libellePoste).join(', ') : '–';
+}
+
 // Recherche élargie (nom/prénom du candidat, statut) — toutes les colonnes visibles de cette
 // liste hormis la date (couverte par le filtre Du/Au dédié, jamais la recherche texte — même
 // règle que Dossiers candidats/Suivi des tests/Historique des évaluations, audit 2026-08-20).
-// Pas de poste ni de n° de dossier ici : cette liste n'affiche ni l'un ni l'autre (contrairement
-// au tableau "Suivi des tests"), rien à y chercher qui ne soit déjà visible à l'écran.
+// Poste désormais affiché (colonne "Poste", audit 2026-09-15) mais volontairement pas inclus dans
+// cette recherche texte (comportement non demandé, laissé inchangé) — toujours pas de n° de
+// dossier ici, contrairement au tableau "Suivi des tests".
 function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte }) {
   const nomComplet = normaliserTexte(`${rdv.candidat_prenom} ${rdv.candidat_nom}`.toLowerCase());
   const correspondNom = motsRechercheNom.every((mot) => nomComplet.includes(mot));
@@ -268,6 +297,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
               <span className="liste-evaluations__candidat">
                 {rdv.candidat_prenom} {rdv.candidat_nom}
               </span>
+              <span className="liste-evaluations__poste">{libellePostesRendezvous(rdv)}</span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
               {/* "Assigné à" (audit 2026-09-10) : formateur_prenom/formateur_nom, voir
                   evaluationRepository.listerRendezvousAEvaluer — n'a de sens que si la liste peut

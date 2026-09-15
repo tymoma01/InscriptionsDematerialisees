@@ -52,6 +52,12 @@
   color: var(--couleur-texte);
 }
 
+/* "Poste" (audit 2026-09-15) — même traitement visuel que .liste-evaluations__date ci-dessous
+   (couleur secondaire, même police héritée), placée juste avant dans le flex-wrap de la ligne. */
+.liste-evaluations__poste {
+  color: var(--couleur-texte-secondaire);
+}
+
 .liste-evaluations__date {
   color: var(--couleur-texte-secondaire);
 }
