@@ -167,11 +167,20 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'nettoyage_appareils', libelle: 'Nettoyage appareils (café, crêpière, gaufrier, machine a jus...)' },
           { code: 'gestion_minibar', libelle: 'Gestion minibar (rechargement, inventaire)' },
           {
-            code: 'ouverture',
+            // Renommé depuis 'ouverture' (audit 2026-09-15) : code et libellé désynchronisés après
+            // le changement de contenu de cet item (ex-"Ouverture"). Renommage appliqué en base par
+            // UPDATE ciblé sur l'id (DEV id=35, PROD id=84), jamais par upsert du seed (qui aurait
+            // créé un doublon — le matching se fait sur `code`, voir plus bas dans ce fichier) : ce
+            // `code` doit rester synchronisé avec la valeur déjà en base des deux environnements.
+            code: 'respect_regles_hygiene',
             libelle: "Respect des règles d'hygiène (Formation HACCP, FIFO, Respect des DLC ...)",
           },
           {
-            code: 'controle_chambres',
+            // Renommé depuis 'controle_chambres' (audit 2026-09-15) — même raison et même procédure
+            // que 'respect_regles_hygiene' ci-dessus (DEV id=36, PROD id=85). Distinct de l'item
+            // 'accueil_client' du bloc "Sens du service" plus bas (poste différent de contenu,
+            // question_id différent) : ne pas fusionner.
+            code: 'accueil_client_pdj',
             libelle: 'Accueil client (Prise du N° de chambre, suivi du parcours client lors de son PDJ)',
           },
           { code: 'produits_entretien', libelle: "Connaissances et utilisation des produits d'entretien" },
