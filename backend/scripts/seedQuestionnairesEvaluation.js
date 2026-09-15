@@ -168,7 +168,7 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'gestion_minibar', libelle: 'Gestion minibar (rechargement, inventaire)' },
           {
             code: 'ouverture',
-            libelle: "Le respect des règles d'hygiène (Formation HACCP, FIFO, Respect des DLC ...)",
+            libelle: "Respect des règles d'hygiène (Formation HACCP, FIFO, Respect des DLC ...)",
           },
           {
             code: 'controle_chambres',
