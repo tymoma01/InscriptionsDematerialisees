@@ -303,6 +303,8 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'point_to', libelle: 'Point TO' },
           { code: 'planning_equipe', libelle: 'Planning équipe' },
           { code: 'modification_envoi_sms', libelle: 'Modification/envoi sms/email au service planning' },
+          { code: 'gestion_commandes', libelle: 'Gestion des commandes' },
+          { code: 'gestion_inventaires', libelle: 'Gestion des inventaires' },
         ],
       },
       {
