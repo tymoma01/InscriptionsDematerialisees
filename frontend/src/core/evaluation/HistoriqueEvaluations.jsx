@@ -92,12 +92,24 @@ function varianteResultat(evaluation) {
 
 // Une entrée par colonne triable, même patron que DossierList.jsx/Utilisateurs.jsx/
 // Planification.jsx. "Candidat" trie sur le nom de famille, pas la chaîne "prénom nom" affichée.
-const COLONNES = [
+const COLONNES_BASE = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (e) => (e.candidat_nom ?? '').toLowerCase() },
   { cle: 'postes_codes', libelle: 'Poste(s) évalué(s)', extraire: (e) => libellePostes(e.postes_codes).toLowerCase() },
   { cle: 'date_evaluation', libelle: 'Date du test', extraire: (e) => new Date(e.date_evaluation).getTime() },
   { cle: 'resultat_global', libelle: 'Résultat', extraire: (e) => libelleResultat(e).toLowerCase() },
 ];
+
+// Colonne "Inspecteur" (audit 2026-09-17, demande utilisateur) — formateur_prenom/formateur_nom,
+// voir evaluationRepository.listerEvaluationsParFormateur, même donnée que la colonne "Assigné à"
+// de ListeEvaluationsAFaire.jsx ("Évaluations à venir"). N'a de sens que si la liste peut contenir
+// des évaluations soumises par un autre utilisateur que celui connecté (voir `afficherInspecteur`
+// en en-tête de composant ci-dessous) — insérée entre "Poste(s) évalué(s)" et "Date du test" (voir
+// son point d'insertion dans COLONNES ci-dessous).
+const COLONNE_INSPECTEUR = {
+  cle: 'inspecteur',
+  libelle: 'Inspecteur',
+  extraire: (e) => `${e.formateur_prenom ?? ''} ${e.formateur_nom ?? ''}`.trim().toLowerCase(),
+};
 
 // Historique des évaluations déjà soumises, filtré côté serveur selon le rôle connecté (voir
 // backend evaluationEngine.listerHistorique) : Formateur ne voit que ses propres évaluations,
@@ -107,7 +119,15 @@ const COLONNES = [
 // pas dédupliqué.
 // `onSelectionner` laisse à l'appelant la décision d'ouvrir le détail — ce composant ne connaît pas
 // DetailEvaluation.jsx, même patron que ListeEvaluationsAFaire.jsx.
-export default function HistoriqueEvaluations({ onSelectionner }) {
+//
+// `afficherInspecteur` (audit 2026-09-17, demande utilisateur) : n'affiche la colonne "Inspecteur"
+// que si explicitement demandé — seul pages/inspecteur/HistoriqueEvaluations.jsx la passe à true,
+// depuis que la liste y montre les évaluations de TOUS les Inspecteurs (voir backend
+// evaluationEngine.listerHistorique, qui ignore formateurId pour ce rôle). pages/formateur/
+// HistoriqueEvaluations.jsx ne la passe pas : la liste y reste filtrée à l'utilisateur connecté, la
+// colonne n'aurait donc rien d'utile à montrer (toujours son propre nom) — comportement Formateur
+// inchangé, même raisonnement que `afficherAssigne` (ListeEvaluationsAFaire.jsx).
+export default function HistoriqueEvaluations({ onSelectionner, afficherInspecteur = false }) {
   const [evaluations, setEvaluations] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -121,6 +141,16 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
   const [recherche, setRecherche] = useParametreURL('q', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
+
+  // Colonne "Inspecteur" insérée entre "Poste(s) évalué(s)" et "Date du test" uniquement quand
+  // demandée (voir `afficherInspecteur` en en-tête de fichier) — recalculée seulement si la prop
+  // change (jamais en pratique, une page donnée passe toujours la même valeur).
+  const colonnes = useMemo(() => {
+    if (!afficherInspecteur) return COLONNES_BASE;
+    const copie = [...COLONNES_BASE];
+    copie.splice(2, 0, COLONNE_INSPECTEUR);
+    return copie;
+  }, [afficherInspecteur]);
 
   useEffect(() => {
     let annule = false;
@@ -170,7 +200,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
   }, [evaluations, recherche, dateDebutFiltre, dateFinFiltre]);
 
   const evaluationsTriees = useMemo(() => {
-    const colonneTri = COLONNES.find((colonne) => colonne.cle === tri.colonne);
+    const colonneTri = colonnes.find((colonne) => colonne.cle === tri.colonne);
     const copie = [...evaluationsFiltrees];
     copie.sort((a, b) => {
       const valeurA = colonneTri.extraire(a);
@@ -180,7 +210,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
       return 0;
     });
     return copie;
-  }, [evaluationsFiltrees, tri]);
+  }, [evaluationsFiltrees, tri, colonnes]);
 
   // Reclique sur la colonne déjà active : inverse l'ordre. Nouvelle colonne : "Date du test"
   // repart décroissant (l'évaluation la plus récente en premier reste le repère le plus utile
@@ -241,7 +271,7 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
                 <th scope="col" className="historique-evaluations__colonne-numero">
                   N°
                 </th>
-                {COLONNES.map((colonne) => {
+                {colonnes.map((colonne) => {
                   const actif = tri.colonne === colonne.cle;
                   return (
                     <th key={colonne.cle} scope="col" aria-sort={actif ? (tri.ordre === 'asc' ? 'ascending' : 'descending') : 'none'}>
@@ -265,6 +295,11 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
                     {evaluation.candidat_prenom} {evaluation.candidat_nom}
                   </td>
                   <td>{libellePostes(evaluation.postes_codes)}</td>
+                  {afficherInspecteur && (
+                    <td>
+                      {evaluation.formateur_prenom} {evaluation.formateur_nom}
+                    </td>
+                  )}
                   <td>{FORMAT_DATE.format(new Date(evaluation.date_evaluation))}</td>
                   <td>
                     <StatutBadge libelle={libelleResultat(evaluation)} variante={varianteResultat(evaluation)} />

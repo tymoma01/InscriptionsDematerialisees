@@ -154,10 +154,20 @@ const SOUS_REQUETE_POSTES_CODES = `(
 // (audit 2026-09-17, demande utilisateur — même calendrier/périmètre partagé que "Évaluations à
 // venir") : formateurId=null, typePoste='bureau' à la place, même jointure vers
 // dossier_donnees_formulaire que listerRendezvousAEvaluer pour ce filtre.
+//
+// leftJoin utilisateurs (audit 2026-09-17) : expose formateur_prenom/formateur_nom pour la colonne
+// "Inspecteur" de HistoriqueEvaluations.jsx (affichée seulement côté Inspecteur, voir
+// `afficherInspecteur` dans ce composant — n'a de sens qu'une fois la liste dé-filtrée par identité
+// pour ce rôle, ci-dessus), même patron que listerRendezvousAEvaluer/"Assigné à". Toujours
+// sélectionné, même pour le Formateur (jamais consommé côté front dans ce cas) — plus simple que de
+// conditionner la requête elle-même, aucune règle métier à faire vivre ici (voir commentaire
+// d'en-tête de ce fichier). leftJoin (pas join strict) : ne doit jamais faire disparaître une
+// évaluation de l'historique si formateur_id était un jour null.
 function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = null) {
   return bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'evaluations.formateur_id')
     .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
       this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
         'bloc_disponibilites.bloc_code',
@@ -176,6 +186,8 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = nu
       'evaluations.resultat_global',
       'evaluations.orientation',
       'evaluations.date_evaluation',
+      'utilisateurs.prenom as formateur_prenom',
+      'utilisateurs.nom as formateur_nom',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       bd.raw(SOUS_REQUETE_POSTES_CODES),

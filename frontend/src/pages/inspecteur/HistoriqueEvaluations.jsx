@@ -7,13 +7,14 @@ import DetailEvaluation from '../../core/evaluation/DetailEvaluation';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import './HistoriqueEvaluations.css';
 
-// Écran inspecteur : historique des évaluations déjà soumises par CET inspecteur (jamais tous
-// formateurs/inspecteurs confondus, voir backend evaluationEngine.listerHistorique — scopé par
-// utilisateur connecté, pas par rôle). Dupliqué depuis pages/formateur/HistoriqueEvaluations.jsx,
+// Écran inspecteur : historique des évaluations déjà soumises par TOUS les Inspecteurs, secteur
+// bureau (voir backend evaluationEngine.listerHistorique, audit 2026-09-17 — vue partagée, même
+// périmètre que "Évaluations à venir"). Dupliqué depuis pages/formateur/HistoriqueEvaluations.jsx,
 // même patron "un seul écran à deux états" (liste puis détail) — core/evaluation/
-// HistoriqueEvaluations.jsx et DetailEvaluation.jsx sont entièrement réutilisés tels quels, aucune
-// variante propre à l'inspecteur : le libellé "Validé — prêt à l'embauche" (orientation NULL)
-// s'y affiche déjà correctement pour un verdict bureau.
+// HistoriqueEvaluations.jsx et DetailEvaluation.jsx sont entièrement réutilisés tels quels, seule
+// différence : `afficherInspecteur` (colonne "Inspecteur", n'a de sens que sur cet écran, voir son
+// commentaire d'en-tête) — le libellé "Validé — prêt à l'embauche" (orientation NULL) s'y affiche
+// déjà correctement pour un verdict bureau.
 export default function PageHistoriqueEvaluationsInspecteur() {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [evaluationSelectionnee, setEvaluationSelectionnee] = useState(null);
@@ -48,7 +49,9 @@ export default function PageHistoriqueEvaluationsInspecteur() {
           <EnTeteBackOffice />
         </header>
 
-        {!evaluationSelectionnee && <HistoriqueEvaluations onSelectionner={setEvaluationSelectionnee} />}
+        {!evaluationSelectionnee && (
+          <HistoriqueEvaluations onSelectionner={setEvaluationSelectionnee} afficherInspecteur />
+        )}
 
         {evaluationSelectionnee && (
           <DetailEvaluation evaluationId={evaluationSelectionnee.id} onFermer={() => setEvaluationSelectionnee(null)} />
