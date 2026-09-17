@@ -197,20 +197,58 @@ const PREFIXE_VOLUMETRIE = 'volumetrie:';
 // 'echec-fort' que le badge de statut "Formation non validée" partout ailleurs dans l'app
 // (VARIANTE_PAR_CODE_STATUT_ACCECIT tout en haut de ce fichier), pour rester immédiatement
 // identifiable comme la même famille d'événement.
+// "Prêt à l'embauche" (audit 2026-09-19, demande utilisateur) — SEULE carte de cette liste qui NE
+// compte PAS des occurrences d'événement sur historique_statuts (contrairement aux 4 autres, voir
+// le commentaire de section ci-dessus) : réutilise EXACTEMENT le même critère que le segment "Prêt
+// à l'embauche" du camembert "Formation vs prêt à l'embauche" plus bas sur cet écran
+// (indicateurs.orientations.pret_embauche, backend statistiquesRepository.compterOrientations,
+// ORIENTATION_EFFECTIVE_SQL = COALESCE(evaluations.orientation, CASE WHEN statuts.code =
+// 'valide_pret_embauche' THEN 'pret_embauche' END)) — des dossiers DISTINCTS (dernière évaluation
+// de la période), pas des événements comptés plusieurs fois.
+// Une approche "à la manière des 4 autres cartes" (compter les transitions vers le statut
+// 'valide_pret_embauche' dans historique_statuts) ferait doublon avec "Formations validées"
+// ci-dessous : ce statut a deux origines — verdict direct Inspecteur/bureau, OU validation de
+// formation après "Envoyés en formation" (déjà comptée par "Formations validées", voir
+// statistiquesRepository.compterOccurrencesFormationValidee) — qu'une requête générique sur
+// historique_statuts ne distinguerait pas, additionnant les deux dans un chiffre incohérent avec
+// le camembert.
+// `codeIndicateur`/`valeur` : overrides lus par le rendu plus bas (voir leur usage) — code
+// CLIQUABLE = 'orientation_pret_embauche' (code EXISTANT, déjà utilisé par le segment du
+// camembert), jamais '${PREFIXE_VOLUMETRIE}pret_embauche' : cliquer cette tuile sélectionne donc
+// exactement le même indicateur que cliquer le segment du camembert (même exclusivité mutuelle
+// avec 'orientation_envoi_formation', voir PAIRES_INDICATEURS_EXCLUSIFS plus bas — comportement
+// hérité gratuitement, rien à dupliquer ici). `variante: 'dore'` (pas 'vert-clair', couleur du
+// badge "Indicateurs" pour ce même code ailleurs sur cet écran, voir VARIANTE_PAR_INDICATEUR
+// ci-dessus) : 'vert-clair' est déjà prise par "Formations validées" DANS CETTE MÊME SECTION —
+// 'dore' reste cohérent avec la charte (déjà utilisée pour d'autres indicateurs positifs/
+// catégoriels de cet écran, ex. 'conversion' ci-dessus) sans collision visuelle locale.
 const CARTES_VOLUMETRIE_ACCECIT = [
   { code: 'test_realise', libelle: 'Sessions de test réalisées', variante: 'violet' },
+  {
+    code: 'pret_embauche',
+    libelle: 'Prêt à l’embauche',
+    variante: 'dore',
+    codeIndicateur: 'orientation_pret_embauche',
+    valeur: (indicateursActuels) => indicateursActuels.orientations.pret_embauche,
+  },
   { code: 'valide_envoi_formation', libelle: 'Envoyés en formation', variante: 'bleu' },
   { code: 'formation_validee', libelle: 'Formations validées', variante: 'vert-clair' },
   { code: 'formation_non_validee', libelle: 'Formations non validées', variante: 'echec-fort' },
 ];
+// .filter(!codeIndicateur) : exclut "Prêt à l'embauche" ci-dessus de ces deux résolutions
+// génériques — elles ne servent qu'au code '${PREFIXE_VOLUMETRIE}<code>' (badge "Indicateurs" pour
+// une carte de volumétrie "classique", voir son usage plus bas), jamais atteint pour cette carte
+// puisque son code cliquable est 'orientation_pret_embauche' (déjà résolu par LIBELLES_INDICATEURS/
+// VARIANTE_PAR_INDICATEUR ci-dessus) — sans ce filtre, 'pret_embauche' polluerait ces deux tables
+// sans jamais être consulté, purement pour mémoire.
 const LIBELLES_VOLUMETRIE_ACCECIT = Object.fromEntries(
-  CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle }) => [code, libelle]),
+  CARTES_VOLUMETRIE_ACCECIT.filter((carte) => !carte.codeIndicateur).map(({ code, libelle }) => [code, libelle]),
 );
 function libelleVolumetrie(code) {
   return LIBELLES_VOLUMETRIE_ACCECIT[code] ?? code;
 }
 function varianteVolumetrie(code) {
-  return CARTES_VOLUMETRIE_ACCECIT.find((carte) => carte.code === code)?.variante ?? 'neutre';
+  return CARTES_VOLUMETRIE_ACCECIT.find((carte) => !carte.codeIndicateur && carte.code === code)?.variante ?? 'neutre';
 }
 
 // Libellés des 4 nouvelles cartes — repris tels quels des libellés officiels de statut
@@ -998,39 +1036,51 @@ export default function Indicateurs() {
 
             {/* "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
                 jour ; rendue cliquable/filtrante le même jour, 2e passe — jusque-là de simples
-                compteurs ; "Formations non validées" ajoutée le 2026-09-14) — 4 cartes de
-                CARTES_VOLUMETRIE_ACCECIT comptent "combien de FOIS cet événement s'est produit"
-                (charge de travail réelle, JAMAIS dédupliquée par dossier : un dossier retesté/reformé
-                compte plusieurs fois, voir statistiquesRepository.listerOccurrencesHistorique/
-                listerOccurrencesFormationValidee) — style visuellement distinct des tuiles KPI
-                au-dessus (bordure en tirets, voir .indicateurs__tuiles--volumetrie/
-                .indicateurs__tuile--volumetrie, Indicateurs.css) : le sous-texte explicatif qui
-                accompagnait initialement ce style a été retiré (décision utilisateur, 2e passe), la
-                bordure en tirets reste seule porteuse de la distinction "occurrences brutes".
+                compteurs ; "Formations non validées" ajoutée le 2026-09-14 ; "Prêt à l'embauche"
+                ajoutée le 2026-09-19) — 4 des 5 cartes de CARTES_VOLUMETRIE_ACCECIT comptent
+                "combien de FOIS cet événement s'est produit" (charge de travail réelle, JAMAIS
+                dédupliquée par dossier : un dossier retesté/reformé compte plusieurs fois, voir
+                statistiquesRepository.listerOccurrencesHistorique/listerOccurrencesFormationValidee)
+                — "Prêt à l'embauche" fait exception (dossiers DISTINCTS, même critère que le
+                camembert plus bas, voir son commentaire dans CARTES_VOLUMETRIE_ACCECIT ci-dessus),
+                affichée avec le même format de carte malgré cette nuance de nature (décision
+                utilisateur, cohérence visuelle de la section privilégiée). Style visuellement
+                distinct des tuiles KPI au-dessus (bordure en tirets, voir .indicateurs__tuiles--
+                volumetrie/.indicateurs__tuile--volumetrie, Indicateurs.css) : le sous-texte
+                explicatif qui accompagnait initialement ce style a été retiré (décision utilisateur,
+                2e passe), la bordure en tirets reste seule porteuse de la distinction "occurrences
+                brutes" pour les 4 cartes concernées.
                 Générées par CARTES_VOLUMETRIE_ACCECIT (liste éditoriale, voir son commentaire plus
-                haut), pas les 4 boutons recopiés en dur. `<button>`, MÊME mécanisme de sélection/
-                filtrage que le reste de l'écran (basculerIndicateur, code
-                '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté back, voir
-                PREFIXE_VOLUMETRIE) — un dossier avec plusieurs occurrences n'apparaît qu'UNE FOIS
-                dans le tableau consolidé (dédup côté back), mais sa colonne "Dates clés" liste
-                TOUTES ses occurrences (voir TableauDossiersSelectionnes.jsx,
-                dossier.occurrencesVolumetrie) : il est normal et attendu que le nombre affiché ici
-                (occurrences) soit supérieur ou égal au nombre de lignes du tableau (dossiers
-                distincts), pas une incohérence à corriger. `--compacte` (Indicateurs.css) : ces
-                cartes n'ont qu'un libellé + un nombre (pas de précision secondaire comme les deux
-                tuiles de délai plus haut), plus resserrées pour absorber cette rangée sans repousser
-                le reste de la page.
+                haut), pas les boutons recopiés en dur. `<button>`, MÊME mécanisme de sélection/
+                filtrage que le reste de l'écran (basculerIndicateur) — code cliquable
+                '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté back (voir PREFIXE_VOLUMETRIE)
+                SAUF si `codeIndicateur` est fourni explicitement par la carte (voir "Prêt à
+                l'embauche" ci-dessus, qui réutilise un code déjà existant plutôt que d'en générer un
+                nouveau) — un dossier avec plusieurs occurrences n'apparaît qu'UNE FOIS dans le
+                tableau consolidé (dédup côté back), mais sa colonne "Dates clés" liste TOUTES ses
+                occurrences (voir TableauDossiersSelectionnes.jsx, dossier.occurrencesVolumetrie) :
+                il est normal et attendu que le nombre affiché ici (occurrences) soit supérieur ou
+                égal au nombre de lignes du tableau (dossiers distincts), pas une incohérence à
+                corriger — sans objet pour "Prêt à l'embauche", déjà en dossiers distincts.
+                `valeur` : accesseur explicite si fourni (voir "Prêt à l'embauche" ci-dessus, qui lit
+                indicateurs.orientations.pret_embauche plutôt que indicateurs.volumetrieParStatut,
+                deux agrégats backend distincts), repli sur indicateurs.volumetrieParStatut[code]
+                sinon (les 4 cartes "classiques"). `--compacte` (Indicateurs.css) : ces cartes n'ont
+                qu'un libellé + un nombre (pas de précision secondaire comme les deux tuiles de délai
+                plus haut), plus resserrées pour absorber cette rangée sans repousser le reste de la
+                page.
                 "Test réalisé" (effectif dédupliqué, ex-"Effectifs par statut") a un temps cohabité
                 ici (voir historique git) avant d'être retirée le même jour (demande utilisateur
                 explicite, retrait purement visuel — code/calcul jamais touchés entre-temps) : cette
-                ligne ne porte donc plus QUE les 4 cartes ci-dessous, générées par
+                ligne ne porte donc plus QUE les cartes ci-dessous, générées par
                 CARTES_VOLUMETRIE_ACCECIT, sans bouton supplémentaire recopié en dur. */}
             <ErrorBoundary titre="Indicateurs (volumétrie sur la période)">
             <div className="indicateurs__section-volumetrie">
               <h2 className="indicateurs__sous-titre">Volumétrie sur la période</h2>
               <div className="indicateurs__tuiles indicateurs__tuiles--volumetrie">
-                {CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle, variante }) => {
-                  const codeIndicateur = `${PREFIXE_VOLUMETRIE}${code}`;
+                {CARTES_VOLUMETRIE_ACCECIT.map(({ code, libelle, variante, codeIndicateur: codeIndicateurPersonnalise, valeur }) => {
+                  const codeIndicateur = codeIndicateurPersonnalise ?? `${PREFIXE_VOLUMETRIE}${code}`;
+                  const valeurAffichee = valeur ? valeur(indicateurs) : indicateurs.volumetrieParStatut[code];
                   return (
                     <button
                       type="button"
@@ -1039,7 +1089,7 @@ export default function Indicateurs() {
                       aria-pressed={selectionIndicateurs.has(codeIndicateur)}
                       onClick={() => basculerIndicateur(codeIndicateur)}
                     >
-                      <span className="indicateurs__tuile-valeur">{indicateurs.volumetrieParStatut[code]}</span>
+                      <span className="indicateurs__tuile-valeur">{valeurAffichee}</span>
                       <span className="indicateurs__tuile-libelle">{libelle}</span>
                     </button>
                   );
