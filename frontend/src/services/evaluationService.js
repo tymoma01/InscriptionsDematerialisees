@@ -43,8 +43,9 @@ export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orie
   return data;
 }
 
-// Évaluations déjà soumises par le formateur connecté — jamais tous formateurs confondus (voir
-// backend evaluationEngine.listerHistorique), même principe que listerRendezvousAEvaluer ci-dessus.
+// Filtrée côté serveur selon le rôle connecté (voir backend evaluationEngine.listerHistorique),
+// même principe que listerRendezvousAEvaluer ci-dessus : Formateur ne voit que ses propres
+// évaluations, Inspecteur voit celles de tous les Inspecteurs (secteur bureau, audit 2026-09-17).
 export async function listerHistoriqueEvaluations() {
   const { data } = await api.get('/evaluations/historique');
   return data;

@@ -142,12 +142,14 @@ router.post('/:rendezvousId/presence', async (req, res, next) => {
   }
 });
 
-// GET /api/evaluations/historique — évaluations déjà soumises par le formateur connecté
-// (jamais tous formateurs confondus, voir evaluationEngine.listerHistorique). formateurId vient
-// toujours de la session, même principe que /a-faire ci-dessus.
+// GET /api/evaluations/historique — évaluations déjà soumises. formateurId vient toujours de la
+// session, même principe que /a-faire ci-dessus. Formateur : ne voit que ses propres évaluations.
+// Inspecteur (audit 2026-09-17, même repli que /a-faire) : voit TOUTES les évaluations du secteur
+// bureau, tous Inspecteurs confondus — voir evaluationEngine.listerHistorique, qui ignore
+// formateurId quand roleCode === 'inspecteur'.
 router.get('/historique', async (req, res, next) => {
   try {
-    const historique = await evaluationEngine.listerHistorique(req.entite, req.utilisateur.id);
+    const historique = await evaluationEngine.listerHistorique(req.entite, req.utilisateur.id, req.utilisateur.roleCode);
     res.json(historique);
   } catch (erreur) {
     next(erreur);

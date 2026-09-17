@@ -99,10 +99,12 @@ const COLONNES = [
   { cle: 'resultat_global', libelle: 'Résultat', extraire: (e) => libelleResultat(e).toLowerCase() },
 ];
 
-// Historique des évaluations déjà soumises par le formateur connecté (jamais tous formateurs
-// confondus, voir backend evaluationEngine.listerHistorique) — un même candidat peut apparaître
-// plusieurs fois si repassé un test (postes_codes distincts par ligne d'évaluation, une évaluation
-// pouvant elle-même couvrir plusieurs postes empilés), volontairement pas dédupliqué.
+// Historique des évaluations déjà soumises, filtré côté serveur selon le rôle connecté (voir
+// backend evaluationEngine.listerHistorique) : Formateur ne voit que ses propres évaluations,
+// Inspecteur voit celles de tous les Inspecteurs (secteur bureau, audit 2026-09-17) — un même
+// candidat peut apparaître plusieurs fois si repassé un test (postes_codes distincts par ligne
+// d'évaluation, une évaluation pouvant elle-même couvrir plusieurs postes empilés), volontairement
+// pas dédupliqué.
 // `onSelectionner` laisse à l'appelant la décision d'ouvrir le détail — ce composant ne connaît pas
 // DetailEvaluation.jsx, même patron que ListeEvaluationsAFaire.jsx.
 export default function HistoriqueEvaluations({ onSelectionner }) {
@@ -113,9 +115,9 @@ export default function HistoriqueEvaluations({ onSelectionner }) {
 
   // Filtres persistés dans l'URL (query params), même mécanisme que Dossiers candidats/Suivi des
   // tests — voir useParametreURL.js. S'appliquent en plus de la restriction RBAC déjà posée côté
-  // serveur (listerHistoriqueEvaluations ne renvoie que les évaluations du formateur/inspecteur
-  // connecté, voir son commentaire d'en-tête) : filtrage entièrement client sur une liste déjà
-  // scopée, jamais une restriction en soi.
+  // serveur (listerHistoriqueEvaluations, voir son commentaire d'en-tête pour le périmètre exact
+  // selon le rôle) : filtrage entièrement client sur une liste déjà scopée, jamais une restriction
+  // en soi.
   const [recherche, setRecherche] = useParametreURL('q', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');

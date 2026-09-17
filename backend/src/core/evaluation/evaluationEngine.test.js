@@ -509,6 +509,77 @@ test('enregistrerEvaluation rejette un Inspecteur sur un rendez-vous secteur Hô
   );
 });
 
+// listerHistorique (audit 2026-09-17, demande utilisateur : historique partagé pour l'Inspecteur,
+// même périmètre que listerRendezvousAEvaluer) — vérifie que le rôle pilote bien les paramètres
+// transmis au repository, pas le comportement du repository lui-même (couvert par son propre
+// commentaire d'en-tête, aucune règle métier n'y vit).
+test('listerHistorique (Formateur) passe le formateurId de la session et aucun filtre secteur', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const listerMock = t.mock.method(evaluationRepository, 'listerEvaluationsParFormateur', async () => []);
+
+  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'formateur');
+
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 5, null]);
+});
+
+test("listerHistorique (Inspecteur) ignore l'identité connectée et filtre sur le secteur bureau (vue partagée entre tous les Inspecteurs)", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const listerMock = t.mock.method(evaluationRepository, 'listerEvaluationsParFormateur', async () => []);
+
+  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'inspecteur');
+
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau']);
+});
+
+// obtenirDetailEvaluation (réservée au formateur/inspecteur auteur, sauf exemptions ci-dessous) —
+// même garde IDOR que enregistrerEvaluation/marquerPresenceConfirmee (verifierAssignationRendezvous)
+// pour l'exemption Inspecteur : jamais sans le second contrôle de secteur.
+test("obtenirDetailEvaluation autorise un Formateur consultant sa propre évaluation", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(evaluationRepository, 'trouverEvaluationParId', async () => ({
+    id: 1, dossier_id: 62, formateur_id: 5, resultat_global: 'valide', orientation: 'envoi_formation', postes_codes: [],
+  }));
+  t.mock.method(evaluationRepository, 'listerReponsesEvaluation', async () => []);
+
+  const resultat = await evaluationEngine.obtenirDetailEvaluation(ENTITE_ACCECIT, { evaluationId: 1, formateurId: 5, roleCode: 'formateur' });
+
+  assert.equal(resultat.evaluation.id, 1);
+});
+
+test("obtenirDetailEvaluation rejette un Formateur consultant l'évaluation d'un autre formateur", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(evaluationRepository, 'trouverEvaluationParId', async () => ({ id: 1, dossier_id: 62, formateur_id: 999 }));
+
+  await assert.rejects(
+    () => evaluationEngine.obtenirDetailEvaluation(ENTITE_ACCECIT, { evaluationId: 1, formateurId: 5, roleCode: 'formateur' }),
+    /n'appartient pas à ce formateur/,
+  );
+});
+
+test("obtenirDetailEvaluation autorise un Inspecteur consultant l'évaluation d'un autre Inspecteur sur un dossier secteur bureau", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(evaluationRepository, 'trouverEvaluationParId', async () => ({
+    id: 1, dossier_id: 62, formateur_id: 999, resultat_global: 'valide', orientation: null, postes_codes: [],
+  }));
+  t.mock.method(evaluationRepository, 'trouverPostesDossier', async () => ({ typePoste: 'bureau', posteBureau: [], posteHotel: [] }));
+  t.mock.method(evaluationRepository, 'listerReponsesEvaluation', async () => []);
+
+  const resultat = await evaluationEngine.obtenirDetailEvaluation(ENTITE_ACCECIT, { evaluationId: 1, formateurId: 5, roleCode: 'inspecteur' });
+
+  assert.equal(resultat.evaluation.id, 1);
+});
+
+test("obtenirDetailEvaluation rejette un Inspecteur consultant l'évaluation d'un Formateur sur un dossier secteur Hôtel (IDOR via un evaluationId connu)", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(evaluationRepository, 'trouverEvaluationParId', async () => ({ id: 1, dossier_id: 62, formateur_id: 999 }));
+  t.mock.method(evaluationRepository, 'trouverPostesDossier', async () => ({ typePoste: 'hotel', posteBureau: [], posteHotel: ['gouvernant'] }));
+
+  await assert.rejects(
+    () => evaluationEngine.obtenirDetailEvaluation(ENTITE_ACCECIT, { evaluationId: 1, formateurId: 5, roleCode: 'inspecteur' }),
+    /secteur Hôtel/,
+  );
+});
+
 // obtenirDetailEvaluationDossier (demande utilisateur 2026-09-10 : rendre les critères de
 // validation de test visibles depuis la fiche dossier, Validation.jsx — Accueil/Coordination et
 // Admin, jamais restreint à "sa propre" évaluation contrairement à obtenirDetailEvaluation

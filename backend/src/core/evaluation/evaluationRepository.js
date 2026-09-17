@@ -146,14 +146,30 @@ const SOUS_REQUETE_POSTES_CODES = `(
   where ep.evaluation_id = evaluations.id
 ) as postes_codes`;
 
-// Historique des évaluations déjà soumises par CE formateur (formateur_id, jamais tous
-// formateurs confondus) — voir evaluationEngine.listerHistorique / HistoriqueEvaluations.jsx.
-// entiteId filtré via la jointure dossiers, même patron que listerRendezvousAEvaluer ci-dessus.
-function listerEvaluationsParFormateur(bd, entiteId, formateurId) {
+// Historique des évaluations déjà soumises — entiteId filtré via la jointure dossiers, même
+// patron que listerRendezvousAEvaluer ci-dessus. formateurId/typePoste : même contrat que
+// listerRendezvousAEvaluer (null = aucun filtre), voir evaluationEngine.listerHistorique pour qui
+// reçoit quoi selon le rôle — aucune règle métier ici (voir commentaire d'en-tête de ce fichier).
+// Formateur (secteur Hôtel) : formateur_id toujours renseigné, comportement inchangé. Inspecteur
+// (audit 2026-09-17, demande utilisateur — même calendrier/périmètre partagé que "Évaluations à
+// venir") : formateurId=null, typePoste='bureau' à la place, même jointure vers
+// dossier_donnees_formulaire que listerRendezvousAEvaluer pour ce filtre.
+function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = null) {
   return bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
-    .where({ 'dossiers.entite_id': entiteId, 'evaluations.formateur_id': formateurId })
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        bd.raw('?', ['disponibilites']),
+      );
+    })
+    .where({ 'dossiers.entite_id': entiteId })
+    .modify((requete) => {
+      if (formateurId !== null) requete.where('evaluations.formateur_id', formateurId);
+      if (typePoste !== null) requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
+    })
     .select(
       'evaluations.id',
       'evaluations.dossier_id',

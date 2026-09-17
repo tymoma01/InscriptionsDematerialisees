@@ -470,19 +470,41 @@ async function enregistrerEvaluation(
   });
 }
 
-// Historique des évaluations déjà soumises par CE formateur connecté — jamais tous formateurs
-// confondus (voir evaluationRepository.listerEvaluationsParFormateur). Un candidat peut avoir
-// plusieurs entrées si repassé un test pour un poste différent (poste_code distinct par ligne,
-// voir migration 038) : volontairement pas dédupliqué par candidat.
-async function listerHistorique(entite, formateurId) {
+// Historique des évaluations déjà soumises. Un candidat peut avoir plusieurs entrées si repassé
+// un test pour un poste différent (poste_code distinct par ligne, voir migration 038) :
+// volontairement pas dédupliqué par candidat.
+//
+// Inspecteur (audit 2026-09-17, demande utilisateur, corrige l'écran resté privé par formateur_id
+// alors que "Évaluations à venir" est déjà une vue partagée pour ce rôle depuis l'audit 2026-09-10,
+// voir listerRendezvousAEvaluer ci-dessous) : même repli formateurId=null + typePoste='bureau' que
+// listerRendezvousAEvaluer — un seul groupe d'Inspecteurs par entité, l'historique doit donc
+// montrer les évaluations de TOUS les Inspecteurs, pas seulement les siennes, sur le même périmètre
+// secteur bureau. Formateur (secteur Hôtel) garde la restriction stricte à ses propres évaluations
+// (typePoste=null, comportement inchangé) ; Admin également inchangé (reste filtré à ses propres
+// évaluations comme avant cet audit — hors périmètre de la demande, qui ne porte que sur
+// Inspecteur/Formateur).
+async function listerHistorique(entite, formateurId, roleCode) {
   const bd = await db.obtenirKnex();
-  return evaluationRepository.listerEvaluationsParFormateur(bd, entite.id, formateurId);
+  const estInspecteur = roleCode === ROLES.INSPECTEUR;
+  return evaluationRepository.listerEvaluationsParFormateur(
+    bd,
+    entite.id,
+    estInspecteur ? null : formateurId,
+    estInspecteur ? 'bureau' : null,
+  );
 }
 
 // Détail en lecture seule d'une évaluation déjà soumise (voir DetailEvaluation.jsx) — jamais
 // modifiable depuis cet écran. Vérifie que l'évaluation appartient bien à CE formateur (ou à un
 // admin) avant de renvoyer quoi que ce soit, même garde IDOR que listerQuestionnaire/
 // enregistrerEvaluation ci-dessus.
+//
+// Inspecteur (audit 2026-09-17, suite à l'élargissement de listerHistorique ci-dessous) : exempté
+// de la vérif d'appartenance comme Admin, cohérent avec la liste elle-même non filtrée par identité
+// pour ce rôle. Mais PAS sans garde secteur, même raisonnement IDOR que verifierAssignationRendezvous
+// (Garde secteur, plus haut) : sans elle, un Inspecteur qui devine/connaît un evaluationId Hôtel
+// soumis par un Formateur pourrait consulter son détail malgré le filtre bureau déjà posé côté liste
+// — ce filtre ne protège que l'écran, jamais un appel direct avec un evaluationId arbitraire.
 // Assemble la réponse { evaluation, questions } commune à obtenirDetailEvaluation (formateur/
 // inspecteur, sa propre évaluation) et obtenirDetailEvaluationDossier (accueil/coordination/admin,
 // n'importe quel dossier de l'entité) ci-dessous — extrait pour ne pas dupliquer la reconstruction
@@ -530,8 +552,15 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
   if (!evaluation) {
     throw new Error(`Évaluation "${evaluationId}" introuvable pour l'entité « ${entite.code} ».`);
   }
-  if (evaluation.formateur_id !== formateurId && roleCode !== ROLES.ADMIN) {
+  const estProprietaire = evaluation.formateur_id === formateurId;
+  if (!estProprietaire && roleCode !== ROLES.ADMIN && roleCode !== ROLES.INSPECTEUR) {
     throw new Error("Cette évaluation n'appartient pas à ce formateur.");
+  }
+  if (!estProprietaire && roleCode === ROLES.INSPECTEUR) {
+    const { typePoste } = await evaluationRepository.trouverPostesDossier(bd, evaluation.dossier_id);
+    if (typePoste === 'hotel') {
+      throw new Error('Cette évaluation concerne le secteur Hôtel, réservé aux Formateurs.');
+    }
   }
 
   const lignes = await evaluationRepository.listerReponsesEvaluation(bd, evaluationId);
