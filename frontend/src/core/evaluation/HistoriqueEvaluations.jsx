@@ -197,17 +197,29 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // ci-dessus). Échec silencieux (voir catch vide) : une liste d'options vide ne fait que réduire
   // le select à sa seule option "Tous", ce n'est pas une erreur bloquante pour la page comme
   // l'échec du chargement de l'historique lui-même ci-dessus.
+  //
+  // Réinitialisation d'une valeur périmée (audit 2026-09-18, correctif) : creneauFiltre est
+  // persisté dans l'URL (useParametreURL), donc un lien déjà partagé/en favori avec ?creneau=matin
+  // — valeur du vocabulaire hôtel, plus jamais proposée par le select depuis le correctif du filtre
+  // secteur ci-dessus — resterait sinon actif indéfiniment (0 résultat permanent, aucun moyen de le
+  // comprendre depuis l'écran). setCreneauFiltre est stable (useCallback, voir useParametreURL.js),
+  // sans risque de boucle avec l'effet de chargement ci-dessus (qui, lui, dépend de creneauFiltre).
   useEffect(() => {
     if (!afficherInspecteur) return undefined;
     let annule = false;
     listerCreneauxDisponibles()
       .then((valeur) => {
-        if (!annule) setOptionsCreneaux(valeur);
+        if (annule) return;
+        setOptionsCreneaux(valeur);
+        if (creneauFiltre && !valeur.includes(creneauFiltre)) setCreneauFiltre('');
       })
       .catch(() => {});
     return () => {
       annule = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- creneauFiltre volontairement absent
+    // des dépendances : ne doit tourner qu'au montage (voir commentaire ci-dessus), pas à chaque
+    // changement de filtre — seulement lire sa valeur courante au moment où les options arrivent.
   }, [afficherInspecteur]);
 
   // Filtrage client (recherche + plage de date sur date_evaluation) sur la liste déjà reçue —

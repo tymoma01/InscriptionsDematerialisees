@@ -1,6 +1,16 @@
 // Accès données pour l'évaluation du test — uniquement des requêtes, aucune règle métier ici
 // (orchestrée par evaluationEngine.js), même découpage que dossierRepository.js.
 
+// Vocabulaire des créneaux par typePoste — dupliqué depuis dossierService.js (CRENEAUX_HOTEL/
+// CRENEAUX_BUREAU, non exportées ; même choix de duplication que POSTE_HOTEL_LIBELLES/
+// POSTE_BUREAU_LIBELLES côté front, HistoriqueEvaluations.jsx). Utilisé par
+// construireCreneauxDisponibles ci-dessous. ORDRE CHRONOLOGIQUE volontaire (pas alphabétique —
+// '18h-21h' triait avant '6h-9h' en comparaison de chaînes, bug signalé audit 2026-09-18).
+const CRENEAUX_PAR_TYPE_POSTE = {
+  bureau: ['6h-9h', '9h-18h', '18h-21h'],
+  hotel: ['matin', 'midi', 'soir'],
+};
+
 // Questionnaire pour un poste donné (voir migration 037, scripts/seedQuestionnairesEvaluation.js)
 // — repli sur le questionnaire générique (poste_code NULL) si aucun questionnaire dédié n'existe
 // pour ce poste (poste bureau, ou poste hôtel pas encore configuré, voir Modularité, CLAUDE.md :
@@ -202,15 +212,43 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = nu
     .orderBy('evaluations.date_evaluation', 'desc');
 }
 
+// Réduit les lignes brutes (une par dossier, `creneaux` = donnees -> 'creneaux', déjà un tableau JS
+// grâce au driver pg pour une colonne JSONB) aux valeurs distinctes réellement observées,
+// RESTREINTES au vocabulaire attendu pour ce typePoste (audit 2026-09-18, correctif : le select
+// "Créneaux souhaités" de l'Inspecteur affichait matin/midi, vocabulaire hôtel, alors que ce rôle
+// reste cantonné au secteur bureau) — "distinct trouvé en base" ne suffisait pas seul : rien en
+// base n'empêche un dossier bureau incohérent de contenir un code hôtel dans son `creneaux` (seule
+// la validation Zod à l'écriture l'interdit, voir dossierService.js, pas une contrainte SQL ; ex.
+// une ligne créée avant l'introduction du vocabulaire bureau). Parcourt le VOCABULAIRE (déjà dans
+// l'ordre chronologique ci-dessus), jamais les valeurs observées elles-mêmes : un tri alphabétique
+// de chaînes aurait mis '18h-21h' avant '6h-9h' (second bug signalé dans le même audit), l'ordre du
+// vocabulaire l'évite sans tri séparé à écrire. typePoste=null (Formateur/Admin — aucun appelant
+// actuel, voir evaluationEngine.listerCreneauxDisponibles, mais le filtre reste requis même en
+// interne, voir listerEvaluationsParFormateur ci-dessus) : vocabulaire complet bureau + hôtel,
+// aucune restriction. Extraite de listerCreneauxDisponibles ci-dessous pour rester testable sans
+// base réelle (voir evaluationRepository.test.js) — cette fonction ne fait aucun accès DB.
+function construireCreneauxDisponibles(lignes, typePoste = null) {
+  const creneauxDistincts = new Set();
+  for (const { creneaux } of lignes) {
+    for (const creneau of creneaux ?? []) creneauxDistincts.add(creneau);
+  }
+  const vocabulaire =
+    typePoste !== null
+      ? (CRENEAUX_PAR_TYPE_POSTE[typePoste] ?? [])
+      : [...CRENEAUX_PAR_TYPE_POSTE.bureau, ...CRENEAUX_PAR_TYPE_POSTE.hotel];
+  return vocabulaire.filter((creneau) => creneauxDistincts.has(creneau));
+}
+
 // Valeurs de "Créneaux souhaités" réellement présentes dans l'historique visible par l'appelant
 // (audit 2026-09-17, demande utilisateur : alimente le select de HistoriqueEvaluations.jsx —
 // jamais une liste figée type CRENEAUX_BUREAU/CRENEAUX_HOTEL de BlocDisponibilites.schema.js, qui
 // mélangerait en plus les deux vocabulaires hôtel/bureau alors que cet écran reste scopé secteur
 // par rôle, voir listerEvaluationsParFormateur ci-dessus). Même périmètre entité/formateurId/
 // typePoste que listerEvaluationsParFormateur (creneau lui-même exclu : c'est justement ce qu'on
-// énumère). Agrégation en JS plutôt qu'un jsonb_array_elements_text en SQL (élément par élément
-// d'un tableau JSONB) : périmètre déjà restreint par role/secteur, pas besoin de la complexité d'un
-// LATERAL pour quelques dizaines de lignes.
+// énumère). Agrégation/filtrage vocabulaire en JS (construireCreneauxDisponibles ci-dessus) plutôt
+// qu'un jsonb_array_elements_text en SQL (élément par élément d'un tableau JSONB) : périmètre déjà
+// restreint par role/secteur, pas besoin de la complexité d'un LATERAL pour quelques dizaines de
+// lignes.
 async function listerCreneauxDisponibles(bd, entiteId, formateurId, typePoste = null) {
   const lignes = await bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
@@ -228,11 +266,7 @@ async function listerCreneauxDisponibles(bd, entiteId, formateurId, typePoste = 
     })
     .select(bd.raw("bloc_disponibilites.donnees -> 'creneaux' as creneaux"));
 
-  const creneauxDistincts = new Set();
-  for (const { creneaux } of lignes) {
-    for (const creneau of creneaux ?? []) creneauxDistincts.add(creneau);
-  }
-  return [...creneauxDistincts].sort();
+  return construireCreneauxDisponibles(lignes, typePoste);
 }
 
 // Une évaluation donnée, scopée par entité (jointure dossiers) — utilisé pour vérifier l'accès
@@ -367,6 +401,7 @@ module.exports = {
   enregistrerReponses,
   listerEvaluationsParFormateur,
   listerCreneauxDisponibles,
+  construireCreneauxDisponibles,
   trouverEvaluationParId,
   listerReponsesEvaluation,
 };
