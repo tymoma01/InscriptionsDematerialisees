@@ -46,8 +46,19 @@ export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orie
 // Filtrée côté serveur selon le rôle connecté (voir backend evaluationEngine.listerHistorique),
 // même principe que listerRendezvousAEvaluer ci-dessus : Formateur ne voit que ses propres
 // évaluations, Inspecteur voit celles de tous les Inspecteurs (secteur bureau, audit 2026-09-17).
-export async function listerHistoriqueEvaluations() {
-  const { data } = await api.get('/evaluations/historique');
+// creneau (audit 2026-09-17, filtre "Créneaux souhaités", omis si vide) : filtré en base, jamais
+// côté client — voir backend evaluationRepository.listerEvaluationsParFormateur.
+export async function listerHistoriqueEvaluations({ creneau } = {}) {
+  const { data } = await api.get('/evaluations/historique', { params: { creneau: creneau || undefined } });
+  return data;
+}
+
+// Valeurs de "Créneaux souhaités" à proposer dans le select du même écran (audit 2026-09-17,
+// demande utilisateur) — jamais une liste figée, voir backend evaluationEngine.
+// listerCreneauxDisponibles : mêmes évaluations que listerHistoriqueEvaluations ci-dessus
+// pourraient renvoyer (même périmètre rôle/secteur), creneau exclu.
+export async function listerCreneauxDisponibles() {
+  const { data } = await api.get('/evaluations/historique/creneaux');
   return data;
 }
 

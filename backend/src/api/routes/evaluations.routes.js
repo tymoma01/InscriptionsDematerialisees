@@ -142,6 +142,13 @@ router.post('/:rendezvousId/presence', async (req, res, next) => {
   }
 });
 
+// creneau (audit 2026-09-17, filtre "Créneaux souhaités" de HistoriqueEvaluations.jsx) :
+// volontairement pas un z.enum figé ici — les codes viennent du bloc "disponibilites" du
+// formulaire d'inscription (BlocDisponibilites.jsx), un code qui ne correspond à rien de réel ne
+// filtre simplement aucune ligne côté evaluationRepository (whereRaw paramétré, aucun risque
+// d'injection), pas rejeté ici (voir Modularité, CLAUDE.md).
+const historiqueQuerySchema = z.object({ creneau: z.string().trim().min(1).optional() });
+
 // GET /api/evaluations/historique — évaluations déjà soumises. formateurId vient toujours de la
 // session, même principe que /a-faire ci-dessus. Formateur : ne voit que ses propres évaluations.
 // Inspecteur (audit 2026-09-17, même repli que /a-faire) : voit TOUTES les évaluations du secteur
@@ -149,8 +156,31 @@ router.post('/:rendezvousId/presence', async (req, res, next) => {
 // formateurId quand roleCode === 'inspecteur'.
 router.get('/historique', async (req, res, next) => {
   try {
-    const historique = await evaluationEngine.listerHistorique(req.entite, req.utilisateur.id, req.utilisateur.roleCode);
+    const { creneau } = historiqueQuerySchema.parse(req.query);
+    const historique = await evaluationEngine.listerHistorique(
+      req.entite,
+      req.utilisateur.id,
+      req.utilisateur.roleCode,
+      creneau ?? null,
+    );
     res.json(historique);
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// GET /api/evaluations/historique/creneaux — valeurs de "Créneaux souhaités" réellement présentes
+// dans l'historique visible par l'utilisateur connecté (même périmètre rôle/secteur que
+// /historique ci-dessus, filtre creneau lui-même exclu) — alimente le select "Créneaux souhaités"
+// (voir HistoriqueEvaluations.jsx), jamais une liste figée. Déclarée AVANT /historique/:id
+// ci-dessous : Express matche les routes dans l'ordre d'enregistrement, "creneaux" serait sinon
+// intercepté par le paramètre positionnel :id (et rejeté en 400 par idPositifSchema, un nombre
+// attendu).
+router.get('/historique/creneaux', async (req, res, next) => {
+  try {
+    const creneaux = await evaluationEngine.listerCreneauxDisponibles(req.entite, req.utilisateur.id, req.utilisateur.roleCode);
+    res.json(creneaux);
   } catch (erreur) {
     next(erreur);
   }

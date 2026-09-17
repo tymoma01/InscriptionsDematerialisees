@@ -26,6 +26,22 @@
   font: inherit;
 }
 
+/* "Créneaux souhaités" (audit 2026-09-17) — même style que .planification__filtre-formateur
+   (Planification.css, filtres "Formateur"/"Expérience") : label/select générique réutilisé partout
+   où ce projet a besoin d'un filtre à choix unique. */
+.historique-evaluations__filtre-creneau {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.historique-evaluations__filtre-creneau select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
 /* Même patron que DossierList.css : conteneur de défilement horizontal dédié, pas toute la page. */
 .historique-evaluations__scroll {
   overflow-x: auto;

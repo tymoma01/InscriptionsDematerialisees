@@ -3,7 +3,7 @@ import StatutBadge from '../workflow/StatutBadge';
 import { normaliserTexte } from '../filtres/normaliserTexte';
 import { useParametreURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
-import { listerHistoriqueEvaluations } from '../../services/evaluationService';
+import { listerHistoriqueEvaluations, listerCreneauxDisponibles } from '../../services/evaluationService';
 import './HistoriqueEvaluations.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -141,6 +141,21 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   const [recherche, setRecherche] = useParametreURL('q', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
+  // "Créneaux souhaités" (audit 2026-09-17, demande utilisateur) : contrairement aux trois
+  // filtres ci-dessus, filtré EN BASE (voir listerHistoriqueEvaluations({ creneau }) dans l'effet
+  // de chargement plus bas), pas sur `evaluations` déjà reçu — même useParametreURL pour rester
+  // cohérent (persisté dans l'URL, comme les autres), mais son changement redéclenche un appel
+  // réseau au lieu d'un simple refiltrage de `evaluationsFiltrees`.
+  const [creneauFiltre, setCreneauFiltre] = useParametreURL('creneau', '');
+  // Options du select ci-dessus — valeurs réellement présentes en base pour l'utilisateur connecté
+  // (voir backend evaluationEngine.listerCreneauxDisponibles), jamais une liste codée en dur type
+  // CRENEAUX_BUREAU (BlocDisponibilites.schema.js) : ce fichier ne connaît pas le vocabulaire
+  // hôtel/bureau, seulement ce qui existe réellement dans l'historique visible par ce rôle.
+  // Chargées une seule fois (n'a pas besoin de suivre `evaluations`, qui lui-même change quand
+  // `creneauFiltre` change — sinon une sélection retirerait ses propres options de la liste).
+  // Uniquement côté Inspecteur (voir `afficherInspecteur`) : la vue Formateur n'affiche pas ce
+  // filtre, inutile d'appeler l'API pour elle.
+  const [optionsCreneaux, setOptionsCreneaux] = useState([]);
 
   // Colonne "Inspecteur" insérée entre "Poste(s) évalué(s)" et "Date du test" uniquement quand
   // demandée (voir `afficherInspecteur` en en-tête de fichier) — recalculée seulement si la prop
@@ -152,11 +167,17 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     return copie;
   }, [afficherInspecteur]);
 
+  // Recharge à chaque changement de creneauFiltre (filtre serveur, voir son commentaire
+  // ci-dessus) — recherche/dates n'en font volontairement pas partie, filtrées côté client sur
+  // `evaluations` une fois reçu (voir evaluationsFiltrees plus bas). Repasse chargement à true à
+  // chaque changement de créneau, comme au montage initial : la ligne de filtres elle-même
+  // disparaît brièvement (voir `if (chargement)` plus bas) — simplification assumée plutôt qu'un
+  // rendu "ancienne liste + indicateur de chargement" non demandé ici.
   useEffect(() => {
     let annule = false;
     setChargement(true);
     setErreur(null);
-    listerHistoriqueEvaluations()
+    listerHistoriqueEvaluations({ creneau: creneauFiltre })
       .then((valeur) => {
         if (!annule) setEvaluations(valeur);
       })
@@ -169,7 +190,25 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     return () => {
       annule = true;
     };
-  }, []);
+  }, [creneauFiltre]);
+
+  // Options du select "Créneaux souhaités" — uniquement si affiché (voir `afficherInspecteur`),
+  // chargées une seule fois au montage (n'a pas à suivre creneauFiltre, voir son commentaire
+  // ci-dessus). Échec silencieux (voir catch vide) : une liste d'options vide ne fait que réduire
+  // le select à sa seule option "Tous", ce n'est pas une erreur bloquante pour la page comme
+  // l'échec du chargement de l'historique lui-même ci-dessus.
+  useEffect(() => {
+    if (!afficherInspecteur) return undefined;
+    let annule = false;
+    listerCreneauxDisponibles()
+      .then((valeur) => {
+        if (!annule) setOptionsCreneaux(valeur);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [afficherInspecteur]);
 
   // Filtrage client (recherche + plage de date sur date_evaluation) sur la liste déjà reçue —
   // même bornage en heure locale que filtrerDossiers.js/Planification.jsx (dateDebutFiltre/
@@ -231,7 +270,12 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   if (erreur) {
     return <p role="alert">{erreur}</p>;
   }
-  if (evaluations.length === 0) {
+  // !creneauFiltre (audit 2026-09-17) : sans cette condition, un filtre "Créneaux souhaités" qui
+  // renvoie zéro évaluation (côté serveur, voir l'effet de chargement plus haut) afficherait à tort
+  // "Aucune évaluation soumise pour l'instant" — message réservé au cas où l'utilisateur n'a
+  // vraiment aucune évaluation, pas à un résultat vide dû à un filtre actif (voir le message dédié
+  // "Aucune évaluation ne correspond aux critères actuels" plus bas, evaluationsTriees.length === 0).
+  if (evaluations.length === 0 && !creneauFiltre) {
     return <p className="historique-evaluations__vide">Aucune évaluation soumise pour l’instant.</p>;
   }
 
@@ -247,6 +291,24 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
             placeholder="Nom, prénom, N° dossier, poste ou résultat"
           />
         </label>
+
+        {/* "Créneaux souhaités" (audit 2026-09-17, demande utilisateur) — uniquement côté
+            Inspecteur (voir `afficherInspecteur`), filtré EN BASE contrairement à Rechercher/Du/Au
+            (voir l'effet de chargement plus haut) : options = optionsCreneaux, jamais une liste
+            codée en dur. */}
+        {afficherInspecteur && (
+          <label className="historique-evaluations__filtre-creneau">
+            <span>Créneaux souhaités</span>
+            <select value={creneauFiltre} onChange={(evenement) => setCreneauFiltre(evenement.target.value)}>
+              <option value="">Tous</option>
+              {optionsCreneaux.map((creneau) => (
+                <option key={creneau} value={creneau}>
+                  {creneau}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {/* Même composant que Dossiers candidats/Suivi des tests (voir FiltrePlageDate.jsx) —
             filtre ici sur date_evaluation ("Date du test") plutôt que la date de dernière mise à

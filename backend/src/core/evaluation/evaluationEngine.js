@@ -483,10 +483,32 @@ async function enregistrerEvaluation(
 // (typePoste=null, comportement inchangé) ; Admin également inchangé (reste filtré à ses propres
 // évaluations comme avant cet audit — hors périmètre de la demande, qui ne porte que sur
 // Inspecteur/Formateur).
-async function listerHistorique(entite, formateurId, roleCode) {
+// creneau (audit 2026-09-17, demande utilisateur, filtre "Créneaux souhaités" de
+// HistoriqueEvaluations.jsx) : filtre indépendant du rôle, combiné en ET avec formateurId/typePoste
+// ci-dessus par listerEvaluationsParFormateur — jamais de confiance dans une valeur non fournie,
+// `null` signifie "aucun filtre" (même convention que formateurId/typePoste, voir commentaire
+// d'en-tête d'evaluationRepository.js).
+async function listerHistorique(entite, formateurId, roleCode, creneau = null) {
   const bd = await db.obtenirKnex();
   const estInspecteur = roleCode === ROLES.INSPECTEUR;
   return evaluationRepository.listerEvaluationsParFormateur(
+    bd,
+    entite.id,
+    estInspecteur ? null : formateurId,
+    estInspecteur ? 'bureau' : null,
+    creneau,
+  );
+}
+
+// Valeurs de "Créneaux souhaités" à proposer dans le select du même écran (audit 2026-09-17,
+// demande utilisateur) — même résolution formateurId/typePoste par rôle que listerHistorique
+// ci-dessus (les options doivent correspondre exactement à ce que la liste peut contenir), creneau
+// lui-même toujours null ici : on énumère justement ce filtre, pas question de le poser en même
+// temps.
+async function listerCreneauxDisponibles(entite, formateurId, roleCode) {
+  const bd = await db.obtenirKnex();
+  const estInspecteur = roleCode === ROLES.INSPECTEUR;
+  return evaluationRepository.listerCreneauxDisponibles(
     bd,
     entite.id,
     estInspecteur ? null : formateurId,
@@ -591,6 +613,7 @@ module.exports = {
   listerRendezvousAEvaluer,
   enregistrerEvaluation,
   listerHistorique,
+  listerCreneauxDisponibles,
   obtenirDetailEvaluation,
   obtenirDetailEvaluationDossier,
 };

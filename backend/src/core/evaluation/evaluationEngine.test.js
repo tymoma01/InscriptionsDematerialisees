@@ -519,7 +519,7 @@ test('listerHistorique (Formateur) passe le formateurId de la session et aucun f
 
   await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'formateur');
 
-  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 5, null]);
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 5, null, null]);
 });
 
 test("listerHistorique (Inspecteur) ignore l'identité connectée et filtre sur le secteur bureau (vue partagée entre tous les Inspecteurs)", async (t) => {
@@ -527,6 +527,37 @@ test("listerHistorique (Inspecteur) ignore l'identité connectée et filtre sur 
   const listerMock = t.mock.method(evaluationRepository, 'listerEvaluationsParFormateur', async () => []);
 
   await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'inspecteur');
+
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau', null]);
+});
+
+// creneau (audit 2026-09-17, filtre "Créneaux souhaités") — indépendant du rôle, transmis tel quel
+// au repository en plus de formateurId/typePoste déjà résolus par rôle ci-dessus.
+test('listerHistorique transmet le filtre creneau reçu, combiné au filtre secteur déjà résolu pour un Inspecteur', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const listerMock = t.mock.method(evaluationRepository, 'listerEvaluationsParFormateur', async () => []);
+
+  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'inspecteur', '6h-9h');
+
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau', '6h-9h']);
+});
+
+// listerCreneauxDisponibles (audit 2026-09-17) — même résolution formateurId/typePoste par rôle
+// que listerHistorique ci-dessus, alimente le select "Créneaux souhaités".
+test('listerCreneauxDisponibles (Formateur) passe le formateurId de la session et aucun filtre secteur', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const listerMock = t.mock.method(evaluationRepository, 'listerCreneauxDisponibles', async () => []);
+
+  await evaluationEngine.listerCreneauxDisponibles(ENTITE_ACCECIT, 5, 'formateur');
+
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 5, null]);
+});
+
+test("listerCreneauxDisponibles (Inspecteur) ignore l'identité connectée et filtre sur le secteur bureau", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const listerMock = t.mock.method(evaluationRepository, 'listerCreneauxDisponibles', async () => []);
+
+  await evaluationEngine.listerCreneauxDisponibles(ENTITE_ACCECIT, 5, 'inspecteur');
 
   assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau']);
 });

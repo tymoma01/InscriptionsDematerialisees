@@ -163,7 +163,13 @@ const SOUS_REQUETE_POSTES_CODES = `(
 // conditionner la requête elle-même, aucune règle métier à faire vivre ici (voir commentaire
 // d'en-tête de ce fichier). leftJoin (pas join strict) : ne doit jamais faire disparaître une
 // évaluation de l'historique si formateur_id était un jour null.
-function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = null) {
+// creneau (audit 2026-09-17, demande utilisateur : filtre "Créneaux souhaités" de
+// HistoriqueEvaluations.jsx) : donnees->'creneaux' est un TABLEAU JSONB (candidat pouvant cocher
+// plusieurs créneaux au formulaire, voir BlocDisponibilites.jsx) — containment `@>` plutôt
+// qu'égalité `->>`, même opérateur que statistiquesRepository.filtrerPosteDossier (donnees->
+// 'posteBureau'/'posteHotel'). `->`/`->>` doit rester du SQL (whereRaw), jamais un nom de colonne
+// littéral (bug 2026-08-10, voir statistiquesRepository.js) — même précaution ici.
+function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = null, creneau = null) {
   return bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -179,6 +185,7 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = nu
     .modify((requete) => {
       if (formateurId !== null) requete.where('evaluations.formateur_id', formateurId);
       if (typePoste !== null) requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
+      if (creneau !== null) requete.whereRaw("bloc_disponibilites.donnees -> 'creneaux' @> ?::jsonb", [JSON.stringify([creneau])]);
     })
     .select(
       'evaluations.id',
@@ -193,6 +200,39 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = nu
       bd.raw(SOUS_REQUETE_POSTES_CODES),
     )
     .orderBy('evaluations.date_evaluation', 'desc');
+}
+
+// Valeurs de "Créneaux souhaités" réellement présentes dans l'historique visible par l'appelant
+// (audit 2026-09-17, demande utilisateur : alimente le select de HistoriqueEvaluations.jsx —
+// jamais une liste figée type CRENEAUX_BUREAU/CRENEAUX_HOTEL de BlocDisponibilites.schema.js, qui
+// mélangerait en plus les deux vocabulaires hôtel/bureau alors que cet écran reste scopé secteur
+// par rôle, voir listerEvaluationsParFormateur ci-dessus). Même périmètre entité/formateurId/
+// typePoste que listerEvaluationsParFormateur (creneau lui-même exclu : c'est justement ce qu'on
+// énumère). Agrégation en JS plutôt qu'un jsonb_array_elements_text en SQL (élément par élément
+// d'un tableau JSONB) : périmètre déjà restreint par role/secteur, pas besoin de la complexité d'un
+// LATERAL pour quelques dizaines de lignes.
+async function listerCreneauxDisponibles(bd, entiteId, formateurId, typePoste = null) {
+  const lignes = await bd('evaluations')
+    .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
+    .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
+      this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
+        'bloc_disponibilites.bloc_code',
+        '=',
+        bd.raw('?', ['disponibilites']),
+      );
+    })
+    .where({ 'dossiers.entite_id': entiteId })
+    .modify((requete) => {
+      if (formateurId !== null) requete.where('evaluations.formateur_id', formateurId);
+      if (typePoste !== null) requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
+    })
+    .select(bd.raw("bloc_disponibilites.donnees -> 'creneaux' as creneaux"));
+
+  const creneauxDistincts = new Set();
+  for (const { creneaux } of lignes) {
+    for (const creneau of creneaux ?? []) creneauxDistincts.add(creneau);
+  }
+  return [...creneauxDistincts].sort();
 }
 
 // Une évaluation donnée, scopée par entité (jointure dossiers) — utilisé pour vérifier l'accès
@@ -326,6 +366,7 @@ module.exports = {
   enregistrerPostesEvaluation,
   enregistrerReponses,
   listerEvaluationsParFormateur,
+  listerCreneauxDisponibles,
   trouverEvaluationParId,
   listerReponsesEvaluation,
 };
