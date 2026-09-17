@@ -44,6 +44,51 @@ function libellePostes(postesCodes) {
   return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode).join(', ');
 }
 
+// Ordre chronologique du vocabulaire bureau — même liste que CRENEAUX_PAR_TYPE_POSTE.bureau côté
+// backend (evaluationRepository.js), dupliquée ici (même choix que POSTE_HOTEL_LIBELLES ci-dessus).
+// Sert à la fois de source pour le select "Créneaux souhaités" (voir optionsCreneaux plus bas,
+// alimenté par listerCreneauxDisponibles) ET de repère d'ordre pour le tri de la colonne "Créneau"
+// ci-dessous (jamais un tri alphabétique de chaînes : '18h-21h' triait avant '6h-9h', bug corrigé
+// audit 2026-09-18 côté backend, même piège évité ici).
+const ORDRE_CRENEAUX_BUREAU = ['6h-9h', '9h-18h', '18h-21h'];
+
+// Vocabulaire hôtel — même liste que CRENEAUX_PAR_TYPE_POSTE.hotel côté backend. Le rôle Inspecteur
+// reste normalement scopé secteur bureau (voir evaluationEngine.listerHistorique), mais une ligne
+// dont les données restent incohérentes en base (même cas que le correctif du select ci-dessus,
+// audit 2026-09-18) peut encore afficher un code hôtel ici — ce tri doit rester correct même dans
+// ce cas, pas seulement pour le vocabulaire bureau.
+const ORDRE_CRENEAUX_HOTEL = ['matin', 'midi', 'soir'];
+
+// Ordre d'affichage combiné (audit 2026-09-19, demande utilisateur : les badges d'une même ligne
+// apparaissaient dans l'ordre brut de stockage en base, incohérent d'une ligne à l'autre) — bureau
+// puis hôtel, une valeur hors des deux vocabulaires (ne devrait pas arriver) repoussée en fin sans
+// faire échouer le tri.
+const ORDRE_CRENEAUX = [...ORDRE_CRENEAUX_BUREAU, ...ORDRE_CRENEAUX_HOTEL];
+
+// Copie triée par ordre chronologique du vocabulaire (jamais l'ordre de stockage en base, ni un tri
+// alphabétique) — voir ORDRE_CRENEAUX ci-dessus. Array.prototype.sort est stable (spec ES2019+),
+// donc deux codes absents du vocabulaire gardent leur ordre relatif d'origine en fin de liste.
+function trierCreneaux(creneaux) {
+  return [...(creneaux ?? [])].sort((a, b) => {
+    const indiceA = ORDRE_CRENEAUX.indexOf(a);
+    const indiceB = ORDRE_CRENEAUX.indexOf(b);
+    return (indiceA === -1 ? ORDRE_CRENEAUX.length : indiceA) - (indiceB === -1 ? ORDRE_CRENEAUX.length : indiceB);
+  });
+}
+
+// Palette "Créneau" (audit 2026-09-18, demande utilisateur) — 3 variantes StatutBadge déjà
+// utilisées ailleurs dans l'app pour des besoins catégoriels (pas un jugement positif/négatif,
+// contrairement à 'echec'/'succes'/'vert-clair' déjà pris par la colonne "Résultat" de CE même
+// tableau, à ne pas réutiliser ici pour éviter toute confusion visuelle) : 'bleu'/'violet' déjà
+// utilisées pour des statuts neutres de planification (TableauDeBordAccueil.jsx, Planification.jsx,
+// PanneauHistoriqueRendezvous.jsx), 'dore' déjà utilisée pour des badges de poste (catégoriel, pas
+// un statut — voir Indicateurs.jsx, PREFIXE_POSTE). Indicateur emoji associé (voir le select plus
+// bas) : couleur la plus proche du badge rendu, un <option> natif ne pouvant pas porter de
+// background-color/pseudo-élément fiable cross-navigateur — un simple caractère Unicode coloré
+// fonctionne partout, contrairement à du CSS ciblant <option>.
+const CRENEAU_VARIANTES = { '6h-9h': 'bleu', '9h-18h': 'dore', '18h-21h': 'violet' };
+const CRENEAU_EMOJI = { '6h-9h': '🔵', '9h-18h': '🟤', '18h-21h': '🟣' };
+
 // Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) évalué(s), résultat) — même
 // principe que Dossiers candidats/Suivi des tests (filtrerDossiers.js/Planification.jsx) : toutes
 // les colonnes visibles du tableau (audit 2026-08-20), jamais seulement un sous-ensemble. Nom/
@@ -99,12 +144,32 @@ const COLONNES_BASE = [
   { cle: 'resultat_global', libelle: 'Résultat', extraire: (e) => libelleResultat(e).toLowerCase() },
 ];
 
+// Colonne "Créneau" (audit 2026-09-18, demande utilisateur) — creneaux (tableau JSONB, voir
+// evaluationRepository.listerEvaluationsParFormateur, même donnée que le filtre "Créneaux
+// souhaités" ci-dessous, aucune nouvelle source). Tri sur le créneau le plus TÔT de l'évaluation
+// (voir ORDRE_CRENEAUX_BUREAU) plutôt qu'un tri alphabétique des codes joints — même piège que le
+// select ci-dessus, une chaîne triée mettrait '18h-21h' avant '6h-9h'. Repli sur la fin du
+// vocabulaire (jamais -1/NaN) si vide ou valeur hors vocabulaire — ne devrait pas arriver pour
+// l'Inspecteur (seul rôle affichant cette colonne, voir `afficherInspecteur`, toujours scopé
+// secteur bureau côté serveur), mais évite un tri incohérent si jamais un cas limite se présentait.
+const COLONNE_CRENEAU = {
+  cle: 'creneaux',
+  libelle: 'Créneau',
+  extraire: (e) => {
+    const indices = (e.creneaux ?? []).map((creneau) => {
+      const indice = ORDRE_CRENEAUX_BUREAU.indexOf(creneau);
+      return indice === -1 ? ORDRE_CRENEAUX_BUREAU.length : indice;
+    });
+    return indices.length > 0 ? Math.min(...indices) : ORDRE_CRENEAUX_BUREAU.length;
+  },
+};
+
 // Colonne "Inspecteur" (audit 2026-09-17, demande utilisateur) — formateur_prenom/formateur_nom,
 // voir evaluationRepository.listerEvaluationsParFormateur, même donnée que la colonne "Assigné à"
 // de ListeEvaluationsAFaire.jsx ("Évaluations à venir"). N'a de sens que si la liste peut contenir
 // des évaluations soumises par un autre utilisateur que celui connecté (voir `afficherInspecteur`
-// en en-tête de composant ci-dessous) — insérée entre "Poste(s) évalué(s)" et "Date du test" (voir
-// son point d'insertion dans COLONNES ci-dessous).
+// en en-tête de composant ci-dessous) — insérée après "Créneau" ci-dessus, donc entre "Poste(s)
+// évalué(s)" et "Date du test" au global (voir point d'insertion dans `colonnes` ci-dessous).
 const COLONNE_INSPECTEUR = {
   cle: 'inspecteur',
   libelle: 'Inspecteur',
@@ -157,13 +222,15 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // filtre, inutile d'appeler l'API pour elle.
   const [optionsCreneaux, setOptionsCreneaux] = useState([]);
 
-  // Colonne "Inspecteur" insérée entre "Poste(s) évalué(s)" et "Date du test" uniquement quand
-  // demandée (voir `afficherInspecteur` en en-tête de fichier) — recalculée seulement si la prop
-  // change (jamais en pratique, une page donnée passe toujours la même valeur).
+  // Colonnes "Créneau" puis "Inspecteur" insérées entre "Poste(s) évalué(s)" et "Date du test"
+  // uniquement quand demandé (voir `afficherInspecteur` en en-tête de fichier) — recalculée
+  // seulement si la prop change (jamais en pratique, une page donnée passe toujours la même
+  // valeur). splice(2, 0, ...) avec les deux colonnes dans cet ordre : l'une derrière l'autre,
+  // pas besoin d'un second splice.
   const colonnes = useMemo(() => {
     if (!afficherInspecteur) return COLONNES_BASE;
     const copie = [...COLONNES_BASE];
-    copie.splice(2, 0, COLONNE_INSPECTEUR);
+    copie.splice(2, 0, COLONNE_CRENEAU, COLONNE_INSPECTEUR);
     return copie;
   }, [afficherInspecteur]);
 
@@ -307,7 +374,10 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
         {/* "Créneaux souhaités" (audit 2026-09-17, demande utilisateur) — uniquement côté
             Inspecteur (voir `afficherInspecteur`), filtré EN BASE contrairement à Rechercher/Du/Au
             (voir l'effet de chargement plus haut) : options = optionsCreneaux, jamais une liste
-            codée en dur. */}
+            codée en dur. Indicateur emoji (audit 2026-09-18, demande utilisateur — même palette
+            CRENEAU_VARIANTES que la colonne "Créneau" du tableau, voir plus bas) : un <option>
+            natif ne peut pas porter de background-color/pseudo-élément CSS de façon fiable
+            cross-navigateur, un caractère Unicode coloré fonctionne partout. */}
         {afficherInspecteur && (
           <label className="historique-evaluations__filtre-creneau">
             <span>Créneaux souhaités</span>
@@ -315,7 +385,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
               <option value="">Tous</option>
               {optionsCreneaux.map((creneau) => (
                 <option key={creneau} value={creneau}>
-                  {creneau}
+                  {CRENEAU_EMOJI[creneau] ?? ''} {creneau}
                 </option>
               ))}
             </select>
@@ -369,6 +439,19 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
                     {evaluation.candidat_prenom} {evaluation.candidat_nom}
                   </td>
                   <td>{libellePostes(evaluation.postes_codes)}</td>
+                  {afficherInspecteur && (
+                    <td>
+                      {(evaluation.creneaux ?? []).length === 0 ? (
+                        '–'
+                      ) : (
+                        <div className="historique-evaluations__badges">
+                          {trierCreneaux(evaluation.creneaux).map((creneau) => (
+                            <StatutBadge key={creneau} libelle={creneau} variante={CRENEAU_VARIANTES[creneau] ?? 'neutre'} />
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  )}
                   {afficherInspecteur && (
                     <td>
                       {evaluation.formateur_prenom} {evaluation.formateur_nom}

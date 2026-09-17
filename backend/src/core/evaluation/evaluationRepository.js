@@ -208,6 +208,11 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = nu
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       bd.raw(SOUS_REQUETE_POSTES_CODES),
+      // creneaux (audit 2026-09-18, demande utilisateur : colonne "Créneau" de
+      // HistoriqueEvaluations.jsx) : bloc_disponibilites déjà joint ci-dessus (jusqu'ici utilisé
+      // seulement au WHERE, jamais exposé dans la réponse) — même donnée que le filtre "Créneaux
+      // souhaités", pas de nouvelle jointure ni de nouvel endpoint.
+      bd.raw("bloc_disponibilites.donnees -> 'creneaux' as creneaux"),
     )
     .orderBy('evaluations.date_evaluation', 'desc');
 }

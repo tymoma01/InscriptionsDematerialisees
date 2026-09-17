@@ -134,6 +134,16 @@
   border-bottom: none;
 }
 
+/* Colonne "Créneau" (audit 2026-09-18) — un candidat peut avoir coché plusieurs créneaux
+   (BlocDisponibilites.jsx, case à cocher), donc potentiellement plusieurs badges dans une même
+   cellule : wrap plutôt que de forcer une seule ligne, même esprit que .historique-evaluations__
+   actions ci-dessous pour l'espacement. */
+.historique-evaluations__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .historique-evaluations tbody tr:hover {
   background-color: var(--couleur-fond-survol-tableau);
 }
