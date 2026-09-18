@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const db = require('../../db/knex');
 const rendezvousService = require('./rendezvousService');
+const rendezvousRepository = require('./rendezvousRepository');
 const workflowEngine = require('../workflow/workflowEngine');
 const invitationTestService = require('./invitationTestService');
 const planificationRendezvousService = require('./planificationRendezvousService');
@@ -34,6 +35,9 @@ test('planifierRendezvousAvecTransitions crée le rendez-vous puis applique les 
     'envoyerInvitationTest',
     async () => ({ emailEnvoye: true, smsEnvoye: true }),
   );
+  // Invariant a posteriori (voir planificationRendezvousService.js) : le rendez-vous fraîchement
+  // créé reste actif une fois les transitions appliquées — cas nominal, rien à signaler.
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 99, statut: 'prevu' }));
 
   const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
     dossierId: 62,
@@ -171,4 +175,58 @@ test("planifierRendezvousAvecTransitions n'envoie aucune convocation pour un ren
 
   assert.deepEqual(resultat.notification, { emailEnvoye: false, smsEnvoye: false });
   assert.equal(envoyerInvitationMock.mock.calls.length, 0);
+});
+
+// Invariant a posteriori (audit 2026-09-19, dossier #127) — couvre le cas où une transition, bien
+// que valide en soi (origine correcte), neutralise EN EFFET DE BORD (neutraliserRendezvousActifsDossier,
+// voir workflowEngine.appliquerTransition) le rendez-vous qu'on vient tout juste de créer dans la
+// même transaction : signale une liste `transitions` incohérente avec cette planification plutôt
+// que de laisser un rendez-vous "planifié puis aussitôt neutralisé" être considéré un succès.
+test("planifierRendezvousAvecTransitions rejette (ErreurRendezvousNeutraliseParSesPropresTransitions) si les transitions neutralisent le rendez-vous qui vient d'être créé", async (t) => {
+  mockerTransaction(t);
+  t.mock.method(rendezvousService, 'creerRendezvous', async () => ({ id: 104 }));
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+  // Simule l'effet de bord : le rendez-vous fraîchement créé a été neutralisé par la transition
+  // qu'on vient d'appliquer (ex. codeAction menant à un statut avec neutralise_rendezvous_actifs=true).
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 104, statut: 'remplace' }));
+  const envoyerInvitationMock = t.mock.method(invitationTestService, 'envoyerInvitationTest', async () => {
+    throw new Error('ne devrait jamais être appelé : la transaction doit être rejetée avant');
+  });
+
+  await assert.rejects(
+    () =>
+      planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
+        dossierId: 62,
+        typeRdv: 'test',
+        dateHeure: '2026-07-24T09:30:00.000Z',
+        formateurId: 8,
+        transitions: [{ codeAction: 'invalider_test', commentaire: 'Mauvais codeAction envoyé par erreur.' }],
+        utilisateurId: 3,
+        roleCode: 'accueil_coordination',
+      }),
+    (erreur) =>
+      erreur instanceof planificationRendezvousService.ErreurRendezvousNeutraliseParSesPropresTransitions &&
+      /neutralisé/.test(erreur.message),
+  );
+  assert.equal(envoyerInvitationMock.mock.calls.length, 0);
+});
+
+test('planifierRendezvousAvecTransitions accepte si le rendez-vous reste "confirme" après les transitions (pas seulement "prevu")', async (t) => {
+  mockerTransaction(t);
+  t.mock.method(rendezvousService, 'creerRendezvous', async () => ({ id: 105 }));
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 11 }));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 105, statut: 'confirme' }));
+  t.mock.method(invitationTestService, 'envoyerInvitationTest', async () => ({ emailEnvoye: true, smsEnvoye: true }));
+
+  const resultat = await planificationRendezvousService.planifierRendezvousAvecTransitions(ENTITE_ACCECIT, {
+    dossierId: 62,
+    typeRdv: 'test',
+    dateHeure: '2026-07-24T09:30:00.000Z',
+    formateurId: 8,
+    transitions: [{ codeAction: 'planifier_test', commentaire: 'Test planifié.' }],
+    utilisateurId: 3,
+    roleCode: 'accueil_coordination',
+  });
+
+  assert.equal(resultat.rendezvous.id, 105);
 });

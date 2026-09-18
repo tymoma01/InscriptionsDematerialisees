@@ -626,6 +626,18 @@
   text-align: center;
 }
 
+/* Repère "voir l'historique" (audit 2026-09-19, demande utilisateur) — sous le badge "Rendez-vous"
+   quand celui-ci est 'annule'/'remplace' (voir rendezvousRepresentatifObsolete, Planification.jsx) :
+   texte discret plutôt qu'un second badge, pour ne pas rivaliser visuellement avec le badge
+   "Statut" (dossier) juste à côté, qui reste le repère principal. */
+.planification__rendezvous-obsolete {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--couleur-texte-secondaire);
+}
+
 /* Cellule Actions : même patron que .dossier-list__actions (DossierList.css) — centre le bouton
    dans la cellule, contrairement au reste du tableau resté aligné à gauche
    (.planification__table th, .planification__table td). */

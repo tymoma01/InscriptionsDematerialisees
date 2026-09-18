@@ -140,6 +140,22 @@ function varianteAfficheeRendezvous(rdv) {
   return varianteStatutRendezvous(rdv.statut);
 }
 
+// Rendez-vous REPRÉSENTATIF (voir rendezvousParCandidat plus bas) dont le statut est 'annule' ou
+// 'remplace' (audit 2026-09-19, demande utilisateur) : ces deux valeurs signifient "ce rendez-vous
+// précis n'est plus actif", jamais "voici l'état actuel du dossier" — rendezvousParCandidat ne les
+// choisit QUE quand aucun rendez-vous à venir n'existe pour ce candidat (repli sur le plus récent,
+// quel que soit son statut, voir son commentaire) : la ligne affichée peut alors donner l'illusion
+// que "Annulé"/"Remplacé" est la dernière nouvelle du dossier, alors que la colonne "Statut" à
+// gauche (dossier.statut_code, toujours à jour) fait foi. Repère visuel ADDITIF seulement (aucun
+// changement de rendezvousParCandidat/LIBELLES_STATUT/varianteStatutRendezvous, partagés avec
+// GestionRendezvous.jsx/PanneauHistoriqueRendezvous.jsx où un 'annule'/'remplace' est justement DE
+// L'HISTORIQUE, pas trompeur dans ce contexte-là) — un candidat replanifié reste consultable en
+// détail via "Voir l'historique des rendez-vous sélectionnés" (case à cocher + bouton, déjà en
+// place), ce repère se contente d'inviter à y regarder plutôt que de dupliquer cette vue en ligne.
+function rendezvousRepresentatifObsolete(rdv) {
+  return ['annule', 'remplace'].includes(rdv.statut);
+}
+
 // Code STABLE du statut AFFICHÉ (colonne "Statut"), pour les boutons de filtre ci-dessous — jamais
 // le libellé français de libelleAfficheRendezvous ci-dessus (locale-dépendant, pas fait pour être
 // comparé) ni le rdv.statut brut seul : un 'prevu' expiré (rendezvousPrevuExpire) doit filtrer avec
@@ -1306,13 +1322,23 @@ export default function Planification() {
                         variante={varianteGroupeStatutDossier(rdv)}
                       />
                     </td>
-                    {/* "Rendez-vous" (ex-colonne "Statut", statut du RENDEZ-VOUS) — inchangée, voir
-                        le commentaire d'en-tête de COLONNES. */}
+                    {/* "Rendez-vous" (ex-colonne "Statut", statut du RENDEZ-VOUS) — badge inchangé,
+                        voir le commentaire d'en-tête de COLONNES. Repère "voir l'historique" ajouté
+                        (audit 2026-09-19, demande utilisateur) quand ce rendez-vous représentatif
+                        est 'annule'/'remplace' — voir rendezvousRepresentatifObsolete. */}
                     <td className="planification__colonne-statut">
                       <StatutBadge
                         libelle={libelleAfficheRendezvous(rdv)}
                         variante={varianteAfficheeRendezvous(rdv)}
                       />
+                      {rendezvousRepresentatifObsolete(rdv) && (
+                        <span
+                          className="planification__rendezvous-obsolete"
+                          title="Ce rendez-vous n'est plus actif — le statut du dossier (colonne « Statut ») reflète l'état réel ; cochez ce candidat puis « Voir l'historique des rendez-vous sélectionnés » pour le détail des tentatives."
+                        >
+                          voir l’historique
+                        </span>
+                      )}
                     </td>
                     <td className="planification__colonne-date-test">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     {/* "Voir le dossier" — même bouton (style/couleur/cadre) que sur la vue

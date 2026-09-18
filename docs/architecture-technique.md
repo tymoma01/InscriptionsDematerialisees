@@ -236,6 +236,70 @@ moment.
 
 ---
 
+## 7. Synchronisation rendez-vous ↔ statut dossier
+
+`rendezvous.statut` (`prevu`/`confirme`/`honore`/`absent`/`annule`/`remplace`) et `dossiers.statut_id`
+vivent dans deux tables indépendantes. **Il n'existe aucun mécanisme générique unique qui les
+synchronise automatiquement** — contrairement à `historique_statuts → dossiers.statut_id`, qui,
+lui, est un vrai trigger PostgreSQL (`sync_dossier_statut()`, migration 010). Chaque statut de
+rendez-vous a son propre comportement, à connaître au cas par cas :
+
+| `rendezvous.statut` | Effet automatique sur le dossier | Mécanisme |
+|---|---|---|
+| `prevu` | Aucun en soi | La création d'un rendez-vous passe systématiquement par `planificationRendezvousService.planifierRendezvousAvecTransitions`, qui exige au moins une transition dossier dans la MÊME transaction (voir §7.2) — ce n'est donc jamais réellement "sans effet", juste porté par un autre mécanisme. |
+| `confirme` | Aucun (intentionnel) | Confirmer sa présence à l'avance n'est pas "le test a eu lieu" ; seul `honore` (posé après coup) doit avoir un effet. Ne change rien à l'éligibilité à la bascule automatique `test_non_realise` (voir `absent` ci-dessous). |
+| `honore` | Le dossier a déjà transité vers une issue positive (`valide_envoi_formation`/`valide_pret_embauche`) | Automatique, mais dans le sens **dossier → rendez-vous** : posé par `evaluationEngine.enregistrerEvaluation`, dans la même transaction que la transition finale du dossier. Câblé en dur dans ce service, pas généralisé par le moteur de workflow. |
+| `absent` | `test_non_realise` | Automatique, deux chemins : (1) bouton "Test non réalisé" (NSPP) → `clotureRendezvousAvecTransitionService`, ou (2) bascule automatique (`basculeTestNonRealiseService`, délai de grâce 24h). Les deux posent `rendezvous.statut='absent'` + motif de désistement dédié ET la transition dossier dans la même transaction. |
+| `annule` | Aucun (choix assumé) | Design intentionnel : le dossier reste sur son statut courant, la reprogrammation reste à l'initiative de l'agent. Affichage : "Suivi des tests" (`Planification.jsx`) marque ce cas d'un repère "voir l'historique" quand c'est le seul rendez-vous représentatif du candidat, sans changer le workflow (voir §7.3). |
+| `remplace` | Sans objet — sentinel technique, jamais un événement réel côté candidat | Posé par `rendezvousRepository.neutraliserRendezvousActifsDossier`, dans deux contextes distincts : (a) une transition dossier dont le statut **d'arrivée** porte `neutralise_rendezvous_actifs=true` (config par entité, migration 051) ; (b) systématiquement par `workflowEngine.forcerStatut` (Admin), quelle que soit la destination. |
+
+### 7.1 `forcerStatut` neutralise toujours, `appliquerTransition` seulement si configuré
+
+`appliquerTransition` (transitions normales, `transitions_statut`) ne neutralise les rendez-vous
+actifs QUE si le statut de destination porte `neutralise_rendezvous_actifs=true` — correct pour un
+parcours normal, où le rendez-vous précis concerné est déjà fermé en amont par l'appelant qui
+connaît CE rendez-vous et pourquoi (ex. `clotureRendezvousAvecTransitionService` pour
+`test_non_realise`).
+
+`forcerStatut` (saut arbitraire vers n'importe quel statut, réservé Admin, hors de toute transition
+déclarée) neutralise **systématiquement** les rendez-vous actifs depuis le 2026-09-09, quelle que
+soit la destination — ce n'était pas le cas avant cette date, ce qui a laissé un dossier forcé vers
+`test_non_realise` avec un rendez-vous resté `prevu` pour une date future (dossier #127, DEV,
+corrigé le 2026-09-19 via `scripts/corrigerRendezvousDesynchronises.js`, script déjà existant pour
+cette classe de bug depuis l'audit du dossier #84). Vérifié le 2026-09-19 : aucun dossier PROD n'est
+dans ce cas (les deux usages de `forcerStatut` en PROD à cette date sont tous deux postérieurs au
+correctif).
+
+### 7.2 Atomicité création + transitions
+
+`planificationRendezvousService.planifierRendezvousAvecTransitions` crée le rendez-vous et applique
+la liste de transitions fournie par l'appelant (front, `CaptureTablette.jsx`, construite à partir de
+`GET /transitions`) dans une **seule transaction DB** — un échec sur une transition annule aussi la
+création du rendez-vous (corrige l'incident historique du dossier #62 : rendez-vous orphelin créé
+sans transition correspondante).
+
+Ceci protège contre une transition invalide (mauvaise origine), mais pas contre une liste de
+transitions **valide individuellement** mais incohérente avec le fait qu'un rendez-vous vient d'être
+créé — ex. une transition dont la destination neutralise les rendez-vous actifs, appliquée juste
+après avoir planifié un nouveau rendez-vous. **Invariant a posteriori** (audit 2026-09-19) : après
+application des transitions, le rendez-vous fraîchement créé est relu ; s'il n'est plus
+`prevu`/`confirme` (donc neutralisé par sa propre liste de transitions), la transaction est rejetée
+(`ErreurRendezvousNeutraliseParSesPropresTransitions`, HTTP 409) — jamais de rendez-vous "planifié
+puis aussitôt neutralisé" persisté. Générique : ne connaît aucun codeAction/statut ACCECIT en dur,
+seulement le contrat "un rendez-vous fraîchement créé doit rester actif".
+
+### 7.3 Écran "Suivi des tests" — une ligne par candidat, pas par rendez-vous
+
+`Planification.jsx` regroupe déjà les rendez-vous par candidat (`rendezvousParCandidat`) : le
+rendez-vous à venir le plus proche s'il y en a un, sinon le plus récent par date, quel que soit son
+statut. Le détail complet reste consultable via "Voir l'historique des rendez-vous sélectionnés"
+(`PanneauHistoriqueRendezvous.jsx`). Depuis le 2026-09-19, quand le rendez-vous représentatif choisi
+est `annule`/`remplace` (aucun rendez-vous actif à afficher à la place), un repère "voir
+l'historique" apparaît sous le badge — signale que ce statut ne représente plus l'état courant du
+dossier (colonne "Statut", toujours à jour) sans dupliquer l'historique en ligne.
+
+---
+
 ## Prochaines étapes techniques (suite à la décision § 1.7)
 
 1. **Service de chiffrement NIR** : créer `backend/src/core/securite/nirCipher.js` (AES-256-GCM, fonctions `chiffrer(nirClair)` / `dechiffrer(nirChiffre, iv)`), remplaçant la logique ad hoc actuellement absente — aucun autre module ne doit accéder au NIR sans passer par ce service.

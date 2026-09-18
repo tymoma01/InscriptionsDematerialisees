@@ -265,6 +265,15 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
     if (erreur instanceof ErreurTransitionInvalide) {
       return res.status(400).json({ erreur: erreur.message });
     }
+    // Invariant a posteriori (audit 2026-09-19, dossier #127) : les `transitions` demandées ont
+    // neutralisé le rendez-vous qui venait d'être créé, dans la MÊME transaction — voir
+    // planificationRendezvousService.js. 409 (conflit entre l'action demandée et son propre
+    // résultat), pas 400 : chaque transition individuelle était valide en soi (contrairement à
+    // ErreurTransitionInvalide ci-dessus), c'est leur combinaison avec CETTE création précise qui
+    // ne l'est pas.
+    if (erreur instanceof planificationRendezvousService.ErreurRendezvousNeutraliseParSesPropresTransitions) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

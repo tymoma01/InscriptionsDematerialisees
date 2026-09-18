@@ -171,6 +171,9 @@ async function listerMotifsPourAction(entite, codeAction) {
 // action n'a par nature AUCUNE ligne `transition_roles` pour la protéger (elle ne passe justement
 // pas par cette table), donc pas de politique "fail closed" équivalente sans ce filet.
 //
+// Voir docs/architecture-technique.md §7 (Synchronisation rendez-vous ↔ statut dossier) pour la
+// vue d'ensemble de qui synchronise quoi — ce commentaire ne couvre que forcerStatut lui-même.
+//
 // Neutralise TOUJOURS tout rendez-vous encore actif du dossier (audit 2026-09-09, dossier #127 —
 // décision utilisateur), contrairement à appliquerTransition ci-dessus qui, lui, ne le fait que si
 // le statut D'ARRIVÉE le demande (statuts.neutralise_rendezvous_actifs). Ce flag reste correct pour

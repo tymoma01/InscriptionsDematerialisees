@@ -1,8 +1,24 @@
 const db = require('../../db/knex');
 const rendezvousService = require('./rendezvousService');
+const rendezvousRepository = require('./rendezvousRepository');
 const workflowEngine = require('../workflow/workflowEngine');
 const invitationTestService = require('./invitationTestService');
 
+// Levée par l'invariant a posteriori ci-dessous (audit 2026-09-19) — distincte de
+// workflowEngine.ErreurTransitionInvalide (les transitions elles-mêmes se sont toutes appliquées
+// sans erreur individuelle ; c'est leur EFFET COMBINÉ sur le rendez-vous qui vient d'être créé qui
+// est incohérent). Exportée pour que l'appelant HTTP (rendezvous.routes.js) puisse la distinguer et
+// répondre 409, même patron que ErreurRendezvousDossierClos (rendezvousService.js).
+class ErreurRendezvousNeutraliseParSesPropresTransitions extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurRendezvousNeutraliseParSesPropresTransitions';
+  }
+}
+
+// Voir docs/architecture-technique.md §7 (Synchronisation rendez-vous ↔ statut dossier), §7.2 en
+// particulier pour l'invariant a posteriori plus bas dans ce fichier.
+//
 // Compose en une seule transaction DB : (1) la création d'un rendez-vous, (2) l'application
 // d'une ou plusieurs transitions de statut sur le dossier. Corrige un bug constaté (dossier 62) :
 // ces deux opérations étaient deux appels HTTP/transactions séparés, donc non atomiques — quand
@@ -55,6 +71,34 @@ async function planifierRendezvousAvecTransitions(
       );
     }
 
+    // Invariant a posteriori (audit 2026-09-19, demande utilisateur, suite à l'audit "Suivi des
+    // tests" — dossier #127) : relit le rendez-vous qu'on vient de créer APRÈS avoir appliqué
+    // `transitions`. S'il n'est plus 'prevu'/'confirme', c'est qu'il vient d'être neutralisé en
+    // 'remplace' — effet de bord de workflowEngine.appliquerTransition/
+    // neutraliserRendezvousActifsDossier quand une des transitions demandées mène à un statut dont
+    // `neutralise_rendezvous_actifs` vaut vrai (migration 051). On ne planifie jamais un rendez-vous
+    // pour, dans le même geste, le neutraliser : ce cas signale que `transitions` ne correspondait
+    // pas à cette planification (mauvais codeAction envoyé par le front), pas une combinaison
+    // valide. Chaque transition individuelle a pu s'appliquer sans lever
+    // ErreurTransitionInvalide (l'origine attendue par transitions_statut correspondait bien au
+    // statut du dossier) — c'est leur EFFET COMBINÉ sur CE rendez-vous précis qui est incohérent,
+    // undétectable transition par transition.
+    // Générique (aucun codeAction/statut ACCECIT en dur ici, voir Modularité, CLAUDE.md) : le seul
+    // contrat vérifié est "un rendez-vous fraîchement créé dans cette même transaction doit rester
+    // actif", valable pour n'importe quelle entité/type de rendez-vous. Lève AVANT le `return` :
+    // la transaction englobante fait tout rollback (création ET transitions), même filet que le
+    // garde-fou de délai plus haut — jamais de rendez-vous "planifié puis neutralisé" persisté.
+    if (transitions.length > 0) {
+      const rendezvousApresTransitions = await rendezvousRepository.trouverRendezvousParId(trx, entite.id, rendezvous.id);
+      if (!['prevu', 'confirme'].includes(rendezvousApresTransitions.statut)) {
+        throw new ErreurRendezvousNeutraliseParSesPropresTransitions(
+          `Les transitions demandées ("${transitions.map(({ codeAction }) => codeAction).join(', ')}") ont neutralisé ` +
+            `(statut "${rendezvousApresTransitions.statut}") le rendez-vous qui venait pourtant d'être créé — cette combinaison ` +
+            "ne correspond probablement pas à une planification valide.",
+        );
+      }
+    }
+
     return { rendezvous, ...resultatTransition };
   });
 
@@ -72,4 +116,4 @@ async function planifierRendezvousAvecTransitions(
   return { ...resultat, notification };
 }
 
-module.exports = { planifierRendezvousAvecTransitions };
+module.exports = { planifierRendezvousAvecTransitions, ErreurRendezvousNeutraliseParSesPropresTransitions };
