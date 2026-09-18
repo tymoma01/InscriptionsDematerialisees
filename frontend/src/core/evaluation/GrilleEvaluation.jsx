@@ -57,6 +57,16 @@ const OUI_NON = [
 // mini-blocs du formulaire.
 const VARIANTE_PAR_CODE_OUI_NON = { oui: 'succes', non: 'echec' };
 
+// Codes des questions "DEBUTANT(E)"/"Débutante" (audit 2026-09-19, demande utilisateur — voir
+// seedQuestionnairesEvaluation.js) : cocher "Oui" pré-coche "Non acquis" sur tous les critères
+// grille_qcu encore vides du MÊME bloc/poste (voir gererChangementReponse plus bas). 'debutant'
+// (femme_valet_chambre/equipier, bloc autonome en tête de formulaire) ET 'debutante' (cafetier,
+// libellé "Débutante", restée fusionnée dans la grille "Process de nettoyage" — voir
+// regrouperQuestionsPourAffichage) : même comportement demandé pour les deux, malgré leur
+// positionnement différent dans le formulaire — étendu le 2026-09-19 (initialement limité à
+// 'debutant' seul, cafetier ajouté sur demande explicite).
+const CODES_QUESTION_DEBUTANT = ['debutant', 'debutante'];
+
 // Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
 // postes (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx
 // (POSTES_HOTEL/POSTES_BUREAU), dupliqués ici plutôt que partagés : quelques lignes de données,
@@ -343,9 +353,38 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     };
   }, [rendezvous.id, postesAmbigus, aucunPosteDeclare, posteResolutionAutomatique]);
 
-  const gererChangementReponse = (indexBloc, cle, valeur) => {
+  // preRemplirNonAcquisSiOui (audit 2026-09-19, demande utilisateur) : réservé aux questions
+  // "debutant"/"debutante" (voir CODES_QUESTION_DEBUTANT ci-dessus, résolu à `true` uniquement à
+  // ces deux points d'appel plus bas) — tous les autres champs du formulaire, y compris les
+  // checkboxes "Connaissance du vocabulaire hôtelier" et les autres champs texte/grille, appellent
+  // cette fonction sans ce 4e argument, comportement strictement inchangé pour eux.
+  //
+  // "Oui" pré-coche "Non acquis" sur CHAQUE critère grille_qcu du MÊME bloc (poste) qui n'a
+  // ENCORE AUCUNE réponse (`== null`, voir valeursParDefaut — jamais `!reponses[cle]`, qui aurait
+  // aussi écrasé une réponse déjà choisie si sa valeur était falsy) — jamais un critère déjà
+  // répondu, manuellement ou par un précédent clic sur "Oui" : un re-clic sur "Oui" après des
+  // réponses partielles ne réinitialise donc rien de déjà saisi (décision utilisateur explicite,
+  // point 3 de la demande — ne jamais écraser un jugement déjà porté par le formateur). "Non" ne
+  // déclenche aucun pré-remplissage (branche `if` ci-dessous non exécutée) — et ne décoche/ne
+  // réinitialise pas non plus un pré-remplissage antérieur si le formateur revient sur "Non" après
+  // avoir cliqué "Oui" : seul le comportement AU CLIC SUR "Oui" est demandé, rien côté "Non" au-delà
+  // de "ne rien pré-cocher" (comportement déjà inchangé, aucune réinitialisation demandée).
+  const gererChangementReponse = (indexBloc, cle, valeur, preRemplirNonAcquisSiOui = false) => {
     setBlocsQuestionnaire((precedent) =>
-      precedent.map((bloc, index) => (index === indexBloc ? { ...bloc, reponses: { ...bloc.reponses, [cle]: valeur } } : bloc)),
+      precedent.map((bloc, index) => {
+        if (index !== indexBloc) return bloc;
+        const reponses = { ...bloc.reponses, [cle]: valeur };
+        if (preRemplirNonAcquisSiOui && valeur === 'oui') {
+          for (const question of bloc.questions) {
+            if (question.type_question !== 'grille_qcu') continue;
+            for (const item of question.items) {
+              const cleItem = cleReponse(question.code, item.code);
+              if (reponses[cleItem] == null) reponses[cleItem] = 'non_acquis';
+            }
+          }
+        }
+        return { ...bloc, reponses };
+      }),
     );
   };
 
@@ -581,7 +620,9 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                               // Même raison de préfixe que les radios grille_qcu ci-dessous.
                               name={`${cleBloc(bloc.posteCode)}-${question.code}-${v.code}`}
                               checked={bloc.reponses[cleReponse(question.code)] === v.code}
-                              onChange={() => gererChangementReponse(indexBloc, cleReponse(question.code), v.code)}
+                              onChange={() =>
+                                gererChangementReponse(indexBloc, cleReponse(question.code), v.code, CODES_QUESTION_DEBUTANT.includes(question.code))
+                              }
                             />
                             {v.libelle}
                           </label>
@@ -668,7 +709,14 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                                   type="radio"
                                   name={`${cleBloc(bloc.posteCode)}-${questionFusionnee.code}-${v.code}`}
                                   checked={bloc.reponses[cleReponse(questionFusionnee.code)] === v.code}
-                                  onChange={() => gererChangementReponse(indexBloc, cleReponse(questionFusionnee.code), v.code)}
+                                  onChange={() =>
+                                    gererChangementReponse(
+                                      indexBloc,
+                                      cleReponse(questionFusionnee.code),
+                                      v.code,
+                                      CODES_QUESTION_DEBUTANT.includes(questionFusionnee.code),
+                                    )
+                                  }
                                 />
                                 {v.libelle}
                               </label>
