@@ -250,7 +250,7 @@ rendez-vous a son propre comportement, à connaître au cas par cas :
 | `confirme` | Aucun (intentionnel) | Confirmer sa présence à l'avance n'est pas "le test a eu lieu" ; seul `honore` (posé après coup) doit avoir un effet. Ne change rien à l'éligibilité à la bascule automatique `test_non_realise` (voir `absent` ci-dessous). |
 | `honore` | Le dossier a déjà transité vers une issue positive (`valide_envoi_formation`/`valide_pret_embauche`) | Automatique, mais dans le sens **dossier → rendez-vous** : posé par `evaluationEngine.enregistrerEvaluation`, dans la même transaction que la transition finale du dossier. Câblé en dur dans ce service, pas généralisé par le moteur de workflow. |
 | `absent` | `test_non_realise` | Automatique, deux chemins : (1) bouton "Test non réalisé" (NSPP) → `clotureRendezvousAvecTransitionService`, ou (2) bascule automatique (`basculeTestNonRealiseService`, délai de grâce 24h). Les deux posent `rendezvous.statut='absent'` + motif de désistement dédié ET la transition dossier dans la même transaction. |
-| `annule` | Aucun (choix assumé) | Design intentionnel : le dossier reste sur son statut courant, la reprogrammation reste à l'initiative de l'agent. Affichage : "Suivi des tests" (`Planification.jsx`) marque ce cas d'un repère "voir l'historique" quand c'est le seul rendez-vous représentatif du candidat, sans changer le workflow (voir §7.3). |
+| `annule` | Aucun (choix assumé) | Design intentionnel : le dossier reste sur son statut courant, la reprogrammation reste à l'initiative de l'agent (voir §7.3). |
 | `remplace` | Sans objet — sentinel technique, jamais un événement réel côté candidat | Posé par `rendezvousRepository.neutraliserRendezvousActifsDossier`, dans deux contextes distincts : (a) une transition dossier dont le statut **d'arrivée** porte `neutralise_rendezvous_actifs=true` (config par entité, migration 051) ; (b) systématiquement par `workflowEngine.forcerStatut` (Admin), quelle que soit la destination. |
 
 ### 7.1 `forcerStatut` neutralise toujours, `appliquerTransition` seulement si configuré
@@ -292,11 +292,11 @@ seulement le contrat "un rendez-vous fraîchement créé doit rester actif".
 
 `Planification.jsx` regroupe déjà les rendez-vous par candidat (`rendezvousParCandidat`) : le
 rendez-vous à venir le plus proche s'il y en a un, sinon le plus récent par date, quel que soit son
-statut. Le détail complet reste consultable via "Voir l'historique des rendez-vous sélectionnés"
-(`PanneauHistoriqueRendezvous.jsx`). Depuis le 2026-09-19, quand le rendez-vous représentatif choisi
-est `annule`/`remplace` (aucun rendez-vous actif à afficher à la place), un repère "voir
-l'historique" apparaît sous le badge — signale que ce statut ne représente plus l'état courant du
-dossier (colonne "Statut", toujours à jour) sans dupliquer l'historique en ligne.
+statut — quand ce rendez-vous représentatif est `annule`/`remplace` (aucun rendez-vous actif à
+afficher à la place), le badge "Rendez-vous" reste affiché tel quel, sans repère supplémentaire
+(un ajout en ce sens, testé le 2026-09-19, a été retiré le même jour, décision utilisateur). Le
+détail complet reste consultable via "Voir l'historique des rendez-vous sélectionnés"
+(`PanneauHistoriqueRendezvous.jsx`).
 
 ---
 
