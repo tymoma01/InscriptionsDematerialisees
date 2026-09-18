@@ -438,6 +438,7 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
       ({
         donnees_disponibilites,
         date_test_planifie,
+        date_rendezvous_test_planifie,
         date_verdict,
         verdict_resultat_global,
         verdict_orientation,
@@ -475,7 +476,13 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
         // nécessaire dans CODE_BADGE_PAR_CODE_DATE).
         datesCles: [
           { code: 'inscription', date: reste.date_creation },
-          date_test_planifie ? { code: 'test_planifie', date: date_test_planifie } : null,
+          // Source = date_rendezvous_test_planifie (audit 2026-09-18, demande utilisateur, voir
+          // dossierRepository.listerDossiersParIds) : date/heure RÉELLEMENT prévue pour le test
+          // (rendez-vous le plus récent, tous statuts), pas date_test_planifie (date à laquelle le
+          // STATUT a basculé vers test_planifie) — celle-ci reste utilisée ci-dessous
+          // (dateTestPlanifie) pour le délai "Inscription → Envoi en test" uniquement, sans
+          // changement de comportement pour ce délai.
+          date_rendezvous_test_planifie ? { code: 'test_planifie', date: date_rendezvous_test_planifie } : null,
           date_verdict
             ? { code: verdict_resultat_global === 'invalide' ? 'verdict_invalide' : 'verdict_valide', date: date_verdict }
             : null,
@@ -509,15 +516,27 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
             [...dates].sort((a, b) => a - b),
           ]),
         ),
+        // Ancre de FIN du délai "Inscription → Envoi en test" (colonne "Dates clés",
+        // construireColonnesAlignees, TableauDossiersSelectionnes.jsx) — DISTINCTE de la date
+        // affichée par la ligne "Test planifié" de `datesCles` ci-dessus depuis le correctif
+        // 2026-09-18 (demande utilisateur : cette ligne montre désormais date_rendezvous_test_planifie,
+        // la date/heure RÉELLEMENT prévue pour le test, pas date_test_planifie, la date de
+        // BASCULEMENT du statut) — ce délai continue volontairement de mesurer jusqu'au basculement
+        // de statut (première planification, MIN(historique_statuts), voir
+        // dossierRepository.listerDossiersParIds), sans changement de comportement pour lui, comme
+        // demandé. Champ dédié plutôt qu'une lecture de `datesCles` (contrairement à avant ce
+        // correctif) : les deux dates ont pu diverger, `datesCles` ne porte plus la bonne valeur
+        // pour ce calcul.
+        dateTestPlanifie: date_test_planifie ?? null,
         // Ancre de FIN du délai "test → verdict" (colonne "Dates clés", construireColonnesAlignees)
         // — la ligne "Verdict" elle-même n'existant plus dans `datesCles` ci-dessus, ce champ dédié
         // reste le seul moyen pour le front de connaître la date exacte du verdict (nécessaire au
         // calcul du délai, indépendamment de son affichage). NULL tant qu'aucune évaluation.
         dateVerdict: date_verdict ?? null,
-        // Ancre de DÉPART du délai "test → verdict" — DISTINCTE de `date_test_planifie` ci-dessus
-        // (première planification, correcte pour la ligne "Test planifié"/le délai "inscription →
-        // test") : correctif audit 2026-08-11, voir dossierRepository.listerDossiersParIds. Champ
-        // dédié plutôt qu'une entrée dans `datesCles` : ce n'est pas une ligne à afficher telle
+        // Ancre de DÉPART du délai "test → verdict" — DISTINCTE de `dateTestPlanifie` ci-dessus
+        // (première planification) : correctif audit 2026-08-11, voir
+        // dossierRepository.listerDossiersParIds. Champ dédié plutôt qu'une entrée dans `datesCles`
+        // : ce n'est pas une ligne à afficher telle
         // quelle, seulement une donnée d'entrée du calcul de délai.
         dateDernierTestPlanifieAvantVerdict: date_derniere_planification_avant_verdict ?? null,
         // Ancres du délai "formation" (colonne "Dates clés", construireColonnesAlignees) — même

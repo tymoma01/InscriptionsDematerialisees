@@ -172,10 +172,17 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
   // dateDebut/dateFin (audit 2026-09-01) : les deux dates brutes du segment, affichées EN PLUS du
   // nombre de jours dans "Dates clés" (voir le rendu de 'delai-valeur' plus bas) — jusqu'ici seul
   // le delta était visible ("8 J"), sans les dates elles-mêmes.
+  // dateFin = dossier.dateTestPlanifie (audit 2026-09-18), PAS dates[indexTestPlanifie].date : ces
+  // deux dates ont divergé depuis ce correctif — la ligne "Test planifié" affiche désormais la
+  // date/heure RÉELLEMENT prévue pour le test (rendez-vous), alors que ce délai continue
+  // volontairement de mesurer jusqu'au basculement de statut (demande utilisateur, voir
+  // dossier.dateTestPlanifie/statistiquesService.listerDossiersParIndicateurs). indexTestPlanifie
+  // reste néanmoins la bonne position d'insertion (juste après la ligne "Test planifié" si elle est
+  // affichée) : seule la VALEUR change, pas le positionnement.
   const indexTestPlanifie = dates.findIndex((d) => d.code === 'test_planifie');
-  if (badgesParCode.has(CODE_DELAI_INSCRIPTION_TEST) && indexTestPlanifie !== -1) {
+  if (badgesParCode.has(CODE_DELAI_INSCRIPTION_TEST) && indexTestPlanifie !== -1 && dossier.dateTestPlanifie) {
     const dateDebut = trouverDateCle(dossier, 'inscription');
-    const dateFin = dates[indexTestPlanifie].date;
+    const dateFin = dossier.dateTestPlanifie;
     ancres.push({
       codeBadge: CODE_DELAI_INSCRIPTION_TEST,
       codeDate: CODE_DELAI_INSCRIPTION_TEST,
@@ -653,11 +660,22 @@ export default function TableauDossiersSelectionnes({
                             // les occurrences du dossier sur la période ("(2) 27/08/2026, 28/08/2026"),
                             // pas une seule date qui laisserait croire à un seul passage alors que la
                             // carte compte des occurrences, pas des dossiers distincts.
+                            // Libellé + fond coloré (audit 2026-09-19, demande utilisateur — corrige
+                            // l'asymétrie visuelle avec les lignes 'date' ci-dessous, qui portent déjà
+                            // ce traitement) : même classe `--${varianteDateCle(...)}` que les lignes
+                            // 'date', plus la classe dédiée `--volumetrie` (désormais retirée du CSS,
+                            // plus aucun appelant) qui laissait ces lignes sans fond ni libellé visible
+                            // — varianteDateCle résout déjà correctement 'volumetrie:<code>' via
+                            // varianteIndicateur (voir Indicateurs.jsx), rien à changer côté résolution
+                            // de couleur. Libellé via libelleIndicateur (déjà utilisé pour l'aria-label
+                            // ci-dessous jusqu'ici, gère 'volumetrie:<code>' contrairement à
+                            // libelleDateCle) désormais aussi affiché, pas seulement porté par
+                            // l'aria-label — devenu inutile une fois le libellé visible, retiré.
                             <li
                               key={ligne.code}
-                              className="tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--volumetrie"
-                              aria-label={libelleIndicateur(ligne.code)}
+                              className={`tableau-dossiers-selectionnes__date-ligne tableau-dossiers-selectionnes__date-ligne--${varianteDateCle(ligne.code)}`}
                             >
+                              <span className="tableau-dossiers-selectionnes__date-libelle">{libelleIndicateur(ligne.code)}</span>
                               <span className="tableau-dossiers-selectionnes__date-valeur">
                                 <span className="tableau-dossiers-selectionnes__date-valeur-jours">({ligne.dates.length})</span>{' '}
                                 {ligne.dates.map((date) => FORMAT_DATE.format(new Date(date))).join(', ')}

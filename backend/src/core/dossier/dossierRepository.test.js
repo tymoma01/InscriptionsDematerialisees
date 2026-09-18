@@ -35,6 +35,25 @@ test('listerDossiersParIds ancre date_verdict sur la DERNIÈRE évaluation du do
   assert.doesNotMatch(sql, /MIN\(evaluations\.date_evaluation\) as date_verdict/);
 });
 
+// Correctif 2026-09-18 (audit tableau de bord, demande utilisateur) — la ligne "Test planifié" de
+// "Dates clés" doit refléter la date/heure RÉELLEMENT prévue pour le test (rendez-vous), pas la
+// date à laquelle le STATUT a basculé vers test_planifie : date_rendezvous_test_planifie (MAX,
+// tous statuts de rendez-vous confondus, décision utilisateur — reste renseignée même une fois le
+// test honoré/absent/annulé) vient s'ajouter à date_test_planifie (MIN historique_statuts,
+// INCHANGÉE, conservée pour le délai "Inscription → Envoi en test" uniquement).
+test('listerDossiersParIds joint le rendez-vous de test le plus RÉCENT (MAX date_heure, tous statuts confondus) sans filtrer sur rendezvous.statut, en plus de date_test_planifie inchangée', () => {
+  const sql = dossierRepository.listerDossiersParIds(bd, 1, [74, 89]).toString();
+  assert.match(sql, /MAX\(date_heure\) as date_rendezvous_test_planifie/);
+  assert.match(sql, /"type_rdv" = 'test'/);
+  assert.doesNotMatch(
+    sql.match(/select "dossier_id", MAX\(date_heure\)[^)]*\) as "dates_rendezvous_test_planifie"/)?.[0] ?? '',
+    /'prevu'|'confirme'/,
+    'ne doit filtrer sur aucun statut de rendez-vous (tous statuts confondus, décision utilisateur)',
+  );
+  assert.match(sql, /MIN\(historique_statuts\.date_changement\) as date_test_planifie/, 'date_test_planifie doit rester inchangée (MIN)');
+  assert.match(sql, /"dates_rendezvous_test_planifie"\."date_rendezvous_test_planifie"/);
+});
+
 // Colonne "Dates clés" enrichie pour les 4 nouvelles cartes "Effectifs par statut" (audit tableau
 // de bord 2026-08-31, décision utilisateur) — une jointure LEFT JOIN dédiée par statut suivi
 // (joindreDateEntreeStatut), MAX(historique_statuts.date_changement), même calcul que

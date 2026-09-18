@@ -578,6 +578,34 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
         .as('dates_test_planifie'),
       'dates_test_planifie.dossier_id',
       'dossiers.id',
+    )
+    // Rendez-vous de TEST le plus récent, tous statuts confondus (audit 2026-09-18, demande
+    // utilisateur : la ligne "Test planifié" de "Dates clés" affichait jusqu'ici
+    // date_test_planifie, la date à laquelle le STATUT a basculé vers test_planifie — pas la
+    // date/heure RÉELLEMENT prévue pour le test, ex. un dossier planifié le 10/09 pour un test le
+    // 17/09 affichait "10/09"). Choix retenu après vérification utilisateur (le dossier ne porte
+    // aucune clé technique reliant une ligne historique_statuts à un rendez-vous précis, donc
+    // aucune règle n'est "la" bonne par construction) : le rendez-vous de test le PLUS RÉCENT par
+    // date_heure, SANS filtrer sur rendezvous.statut — reflète la dernière planification réelle
+    // (utile si le dossier a été replanifié après absence/invalidation) et reste renseigné même
+    // pour un dossier déjà avancé (test honoré/absent/annulé), contrairement au filtre statut IN
+    // ('prevu', 'confirme') déjà utilisé ailleurs (voir rendezvous_actif ci-dessus/
+    // rendezvousRepository.trouverRendezvousTestActifDossier, conçu pour "le prochain rendez-vous
+    // à venir", pas pour cet usage : "Dates clés" doit rester affiché même une fois le test passé).
+    // MAX(date_heure) simple (pas de LATERAL nécessaire, une seule ligne par dossier ici, pas de
+    // colonne supplémentaire à récupérer comme rendezvous_actif/formateur_actif ci-dessus).
+    // DISTINCTE de date_test_planifie ci-dessus, volontairement laissée intacte : ce champ reste
+    // la source du délai "Inscription → Envoi en test" (voir dateTestPlanifie,
+    // statistiquesService.listerDossiersParIndicateurs, TableauDossiersSelectionnes.jsx) — seule la
+    // ligne "Test planifié" affichée doit changer de source, pas ce délai (demande utilisateur).
+    .leftJoin(
+      bd('rendezvous')
+        .where('type_rdv', 'test')
+        .groupBy('dossier_id')
+        .select('dossier_id', bd.raw('MAX(date_heure) as date_rendezvous_test_planifie'))
+        .as('dates_rendezvous_test_planifie'),
+      'dates_rendezvous_test_planifie.dossier_id',
+      'dossiers.id',
     );
 
   // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — une jointure par statut suivi,
@@ -688,6 +716,10 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'statuts.est_final as statut_est_final',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'dates_test_planifie.date_test_planifie',
+      // Source de la ligne "Test planifié" affichée (voir le commentaire du LEFT JOIN ci-dessus) —
+      // date_test_planifie ci-dessus reste exposée en parallèle, uniquement pour le délai
+      // "Inscription → Envoi en test".
+      'dates_rendezvous_test_planifie.date_rendezvous_test_planifie',
       'entree_statut_courant.date_entree_statut_courant',
       // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — voir joindreDateEntreeStatut
       // plus haut (sous-requête `dates_<code>`, colonne `date_entree_<code>`).
