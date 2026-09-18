@@ -302,10 +302,23 @@ export default function GestionRendezvous({
     return <p role="alert">Vous devez être connecté pour consulter les rendez-vous.</p>;
   }
 
-  // Limité au premier élément seulement en mode dernierSeulement (voir son commentaire d'en-tête)
-  // — la liste reçue est toujours triée avec le plus récent (par planification) en premier, ce
-  // slice n'a donc besoin d'aucun tri supplémentaire ici.
-  const rendezvousAffiches = dernierSeulement ? rendezvous.slice(0, 1) : rendezvous;
+  // dernierSeulement (Tests.jsx) : limité au premier élément de `rendezvous` TEL QUE REÇU du back
+  // (rendezvousRepository.listerRendezvousParDossier — actifs d'abord, puis 'remplace' triés par
+  // date de PLANIFICATION décroissante, voir son commentaire) — volontairement PAS retrié ici, ce
+  // choix reste correct pour un aperçu "le rendez-vous le plus pertinent du dossier en ce moment",
+  // pas une timeline.
+  //
+  // Historique complet (Relances.jsx, seul autre point de montage — audit 2026-09-19, demande
+  // utilisateur) : retrié par date_heure DÉCROISSANTE (le rendez-vous le plus proche/récent en
+  // premier), indépendamment de l'ordre reçu du back — celui-ci trie par date de PLANIFICATION, pas
+  // par date du RENDEZ-VOUS lui-même (les deux peuvent diverger, ex. un rendez-vous replanifié sans
+  // entrée journal_audit associée retombe en fin de liste côté back — NULLS LAST — quelle que soit
+  // sa date réelle). Copie (`[...rendezvous]`) : ne modifie jamais `rendezvous` lui-même, dont
+  // l'ordre reste celui du back pour dernierSeulement ci-dessus (même state partagé par les deux
+  // modes).
+  const rendezvousAffiches = dernierSeulement
+    ? rendezvous.slice(0, 1)
+    : [...rendezvous].sort((a, b) => new Date(b.date_heure) - new Date(a.date_heure));
 
   return (
     // gestion-rendezvous--imbrique (dernierSeulement) neutralise la carte (bordure/ombre/fond
