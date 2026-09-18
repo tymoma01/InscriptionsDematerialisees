@@ -82,12 +82,25 @@ const QUESTIONNAIRES_ACCECIT = [
   {
     posteCode: 'femme_valet_chambre',
     questions: [
+      // Repositionné AVANT "Process de nettoyage" (audit 2026-09-19, demande utilisateur — corrige
+      // le placement du 2026-08-26 ci-dessous, qui le plaçait juste après) : bloc autonome Oui/Non
+      // (type 'oui_non' générique, réutilisable, pas câblé en dur pour ce seul critère), toujours
+      // obligatoire. Simple changement d'`ordre` : question déjà existante (code 'debutant'
+      // inchangé), aucune réponse déjà enregistrée n'est affectée par ce déplacement.
+      {
+        code: 'debutant',
+        libelle: 'DEBUTANT(E)',
+        type: 'oui_non',
+        obligatoire: true,
+        ordre: 1,
+        items: [],
+      },
       {
         code: 'process_nettoyage',
         libelle: 'Process de nettoyage',
         type: 'grille_qcu',
         obligatoire: true,
-        ordre: 1,
+        ordre: 2,
         items: [
           { code: 'ouverture_fenetres', libelle: 'Ouvrir les fenêtres' },
           { code: 'vider_poubelles', libelle: 'Vider les poubelles' },
@@ -102,18 +115,14 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'connaissance_linge', libelle: 'Connaissance du linge' },
         ],
       },
-      // Retiré de la grille Acquis/Non acquis/A améliorer ci-dessus (audit 2026-08-26) : ce
-      // n'est pas un jugement de performance à 3 niveaux, une question fermée oui/non. Placé
-      // juste après "Process de nettoyage" (voir Modularité, CLAUDE.md : type 'oui_non'
-      // générique, réutilisable, pas câblé en dur pour ce seul critère).
-      {
-        code: 'debutant',
-        libelle: 'DEBUTANT(E)',
-        type: 'oui_non',
-        obligatoire: true,
-        ordre: 2,
-        items: [],
-      },
+      // 'debutant' retiré des items ci-dessous (audit 2026-09-19, demande utilisateur) : doublon
+      // avec la question autonome 'debutant' (type 'oui_non', ordre 1 ci-dessus) — les deux
+      // stockaient une valeur "débutant(e)" séparément (question_item_id distinct de question_id),
+      // gardait le seul le bloc Oui/Non dédié comme source. L'item déjà en base (9 réponses au
+      // total sur les 2 postes concernés) a été supprimé par scripts/
+      // supprimerItemVocabulaireHotelierDoublonDebutant.js (le seed ne supprime jamais lui-même les
+      // items retirés de la config, voir scripts/supprimerItemsOrphelinsDebutant.js pour le même
+      // patron déjà appliqué le 2026-08-26).
       {
         code: 'vocabulaire_hotelier',
         libelle: 'Connaissance du vocabulaire hôtelier',
@@ -128,7 +137,6 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'ot', libelle: 'OT (objet trouvé)' },
           { code: 'pb', libelle: 'PB (problème technique)' },
           { code: 'dnd', libelle: 'DND (do not disturb/ne pas déranger)' },
-          { code: 'debutant', libelle: 'DEBUTANT(E)' },
           { code: 'delogement', libelle: 'Délogement' },
           { code: 'depart_anticipe', libelle: 'Départ anticipé' },
           { code: 'depart_tardif', libelle: 'Départ tardif' },
@@ -222,12 +230,23 @@ const QUESTIONNAIRES_ACCECIT = [
   {
     posteCode: 'equipier',
     questions: [
+      // Repositionné AVANT "Process de nettoyage" (audit 2026-09-19, demande utilisateur) — voir
+      // le commentaire équivalent sur le poste femme_valet_chambre plus haut. Simple changement
+      // d'`ordre`, aucune réponse déjà enregistrée n'est affectée.
+      {
+        code: 'debutant',
+        libelle: 'DEBUTANT(E)',
+        type: 'oui_non',
+        obligatoire: true,
+        ordre: 1,
+        items: [],
+      },
       {
         code: 'process_nettoyage',
         libelle: 'Process de nettoyage',
         type: 'grille_qcu',
         obligatoire: true,
-        ordre: 1,
+        ordre: 2,
         items: [
           { code: 'aide_cafete', libelle: 'Aide cafète' },
           { code: 'accueil_clients', libelle: 'Accueil clients' },
@@ -241,16 +260,8 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'connaissance_linge', libelle: 'Connaissance du linge' },
         ],
       },
-      // Retiré de la grille Acquis/Non acquis/A améliorer ci-dessus (audit 2026-08-26) — voir le
-      // commentaire équivalent sur le poste femme_valet_chambre plus haut.
-      {
-        code: 'debutant',
-        libelle: 'DEBUTANT(E)',
-        type: 'oui_non',
-        obligatoire: true,
-        ordre: 2,
-        items: [],
-      },
+      // 'debutant' retiré des items ci-dessous (audit 2026-09-19) — voir le commentaire équivalent
+      // sur le poste femme_valet_chambre plus haut.
       {
         code: 'vocabulaire_hotelier',
         libelle: 'Connaissance du vocabulaire hôtelier',
@@ -265,7 +276,6 @@ const QUESTIONNAIRES_ACCECIT = [
           { code: 'ot', libelle: 'OT (objet trouvé)' },
           { code: 'pb', libelle: 'PB (problème technique)' },
           { code: 'dnd', libelle: 'DND (do not disturb)' },
-          { code: 'debutant', libelle: 'DEBUTANT(E)' },
           { code: 'delogement', libelle: 'Délogement' },
           { code: 'depart_anticipe', libelle: 'Départ anticipé' },
           { code: 'depart_tardif', libelle: 'Départ tardif' },
