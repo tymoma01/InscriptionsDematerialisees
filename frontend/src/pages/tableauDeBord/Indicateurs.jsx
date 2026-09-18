@@ -222,8 +222,29 @@ const PREFIXE_VOLUMETRIE = 'volumetrie:';
 // ci-dessus) : 'vert-clair' est déjà prise par "Formations validées" DANS CETTE MÊME SECTION —
 // 'dore' reste cohérent avec la charte (déjà utilisée pour d'autres indicateurs positifs/
 // catégoriels de cet écran, ex. 'conversion' ci-dessus) sans collision visuelle locale.
+// "Test Invalidé" (audit 2026-09-19, demande utilisateur) — même principe/mêmes raisons que "Prêt
+// à l'embauche" ci-dessus (voir son commentaire pour le détail) : réutilise EXACTEMENT le même
+// critère que la part "Invalidé" du camembert "Tests validés vs invalidés" plus bas sur cet écran
+// (indicateurs.verdicts.invalide, backend statistiquesRepository.compterVerdicts/listerVerdicts —
+// dossiers DISTINCTS via filtrerDerniereEvaluation, resultat_global='invalide', date_evaluation
+// dans la période), pas une nouvelle requête d'occurrences sur historique_statuts (aucun statut
+// dédié 'invalide' n'existe d'ailleurs dans workflow.config.json à compter de cette façon — un test
+// invalidé retombe sur un statut terminal 'refuse'/motif, pas une transition à part). Code
+// CLIQUABLE = 'verdict_invalide' (code EXISTANT, déjà utilisé par le segment du camembert, même
+// exclusivité mutuelle avec 'verdict_valide' — PAIRES_INDICATEURS_EXCLUSIFS plus bas). `variante:
+// 'echec'` : couleur du badge "Indicateurs" pour ce même code ailleurs sur cet écran
+// (VARIANTE_PAR_INDICATEUR.verdict_invalide), rouge/rose cohérente avec "Invalidé" dans le
+// camembert (COULEURS_VERDICT.verdict_invalide) — pas encore utilisée dans cette section (aucune
+// collision avec violet/dore/bleu/vert-clair/echec-fort des autres cartes).
 const CARTES_VOLUMETRIE_ACCECIT = [
   { code: 'test_realise', libelle: 'Sessions de test réalisées', variante: 'violet' },
+  {
+    code: 'verdict_invalide',
+    libelle: 'Test Invalidé',
+    variante: 'echec',
+    codeIndicateur: 'verdict_invalide',
+    valeur: (indicateursActuels) => indicateursActuels.verdicts.invalide,
+  },
   {
     code: 'pret_embauche',
     libelle: 'Prêt à l’embauche',
@@ -1036,16 +1057,17 @@ export default function Indicateurs() {
 
             {/* "Volumétrie sur la période" (audit dashboard 2026-09-02, décision affinée le même
                 jour ; rendue cliquable/filtrante le même jour, 2e passe — jusque-là de simples
-                compteurs ; "Formations non validées" ajoutée le 2026-09-14 ; "Prêt à l'embauche"
-                ajoutée le 2026-09-19) — 4 des 5 cartes de CARTES_VOLUMETRIE_ACCECIT comptent
-                "combien de FOIS cet événement s'est produit" (charge de travail réelle, JAMAIS
-                dédupliquée par dossier : un dossier retesté/reformé compte plusieurs fois, voir
-                statistiquesRepository.listerOccurrencesHistorique/listerOccurrencesFormationValidee)
-                — "Prêt à l'embauche" fait exception (dossiers DISTINCTS, même critère que le
-                camembert plus bas, voir son commentaire dans CARTES_VOLUMETRIE_ACCECIT ci-dessus),
-                affichée avec le même format de carte malgré cette nuance de nature (décision
-                utilisateur, cohérence visuelle de la section privilégiée). Style visuellement
-                distinct des tuiles KPI au-dessus (bordure en tirets, voir .indicateurs__tuiles--
+                compteurs ; "Formations non validées" ajoutée le 2026-09-14 ; "Prêt à l'embauche" et
+                "Test Invalidé" ajoutées le 2026-09-19) — 4 des 6 cartes de CARTES_VOLUMETRIE_ACCECIT
+                comptent "combien de FOIS cet événement s'est produit" (charge de travail réelle,
+                JAMAIS dédupliquée par dossier : un dossier retesté/reformé compte plusieurs fois,
+                voir statistiquesRepository.listerOccurrencesHistorique/listerOccurrencesFormationValidee)
+                — "Prêt à l'embauche" et "Test Invalidé" font exception (dossiers DISTINCTS, même
+                critère que les camemberts plus bas, voir leur commentaire dans
+                CARTES_VOLUMETRIE_ACCECIT ci-dessus), affichées avec le même format de carte malgré
+                cette nuance de nature (décision utilisateur, cohérence visuelle de la section
+                privilégiée). Style visuellement distinct des tuiles KPI au-dessus (bordure en
+                tirets, voir .indicateurs__tuiles--
                 volumetrie/.indicateurs__tuile--volumetrie, Indicateurs.css) : le sous-texte
                 explicatif qui accompagnait initialement ce style a été retiré (décision utilisateur,
                 2e passe), la bordure en tirets reste seule porteuse de la distinction "occurrences
@@ -1055,17 +1077,19 @@ export default function Indicateurs() {
                 filtrage que le reste de l'écran (basculerIndicateur) — code cliquable
                 '${PREFIXE_VOLUMETRIE}<code>' résolu génériquement côté back (voir PREFIXE_VOLUMETRIE)
                 SAUF si `codeIndicateur` est fourni explicitement par la carte (voir "Prêt à
-                l'embauche" ci-dessus, qui réutilise un code déjà existant plutôt que d'en générer un
-                nouveau) — un dossier avec plusieurs occurrences n'apparaît qu'UNE FOIS dans le
-                tableau consolidé (dédup côté back), mais sa colonne "Dates clés" liste TOUTES ses
-                occurrences (voir TableauDossiersSelectionnes.jsx, dossier.occurrencesVolumetrie) :
-                il est normal et attendu que le nombre affiché ici (occurrences) soit supérieur ou
-                égal au nombre de lignes du tableau (dossiers distincts), pas une incohérence à
-                corriger — sans objet pour "Prêt à l'embauche", déjà en dossiers distincts.
-                `valeur` : accesseur explicite si fourni (voir "Prêt à l'embauche" ci-dessus, qui lit
-                indicateurs.orientations.pret_embauche plutôt que indicateurs.volumetrieParStatut,
-                deux agrégats backend distincts), repli sur indicateurs.volumetrieParStatut[code]
-                sinon (les 4 cartes "classiques"). `--compacte` (Indicateurs.css) : ces cartes n'ont
+                l'embauche"/"Test Invalidé" ci-dessus, qui réutilisent chacune un code déjà existant
+                plutôt que d'en générer un nouveau) — un dossier avec plusieurs occurrences
+                n'apparaît qu'UNE FOIS dans le tableau consolidé (dédup côté back), mais sa colonne
+                "Dates clés" liste TOUTES ses occurrences (voir TableauDossiersSelectionnes.jsx,
+                dossier.occurrencesVolumetrie) : il est normal et attendu que le nombre affiché ici
+                (occurrences) soit supérieur ou égal au nombre de lignes du tableau (dossiers
+                distincts), pas une incohérence à corriger — sans objet pour "Prêt à l'embauche"/
+                "Test Invalidé", déjà en dossiers distincts.
+                `valeur` : accesseur explicite si fourni (voir "Prêt à l'embauche"/"Test Invalidé"
+                ci-dessus, qui lisent respectivement indicateurs.orientations.pret_embauche et
+                indicateurs.verdicts.invalide plutôt que indicateurs.volumetrieParStatut, des
+                agrégats backend distincts), repli sur indicateurs.volumetrieParStatut[code] sinon
+                (les 4 cartes "classiques"). `--compacte` (Indicateurs.css) : ces cartes n'ont
                 qu'un libellé + un nombre (pas de précision secondaire comme les deux tuiles de délai
                 plus haut), plus resserrées pour absorber cette rangée sans repousser le reste de la
                 page.

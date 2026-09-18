@@ -185,6 +185,19 @@
   color: var(--statut-echec-fort-texte);
 }
 
+/* Manquante jusqu'ici (audit 2026-09-19) : nécessaire pour la tuile "Test Invalidé" de "Volumétrie
+   sur la période" (variante 'echec', voir CARTES_VOLUMETRIE_ACCECIT, Indicateurs.jsx) — même token
+   --statut-echec-* que le badge "Test échoué" affiché ailleurs sur cet écran pour ce même code
+   (VARIANTE_PAR_INDICATEUR.verdict_invalide), même principe que --vert-clair/--echec-fort ci-dessus. */
+.indicateurs__tuile--echec {
+  background-color: var(--statut-echec-fond);
+  border-color: var(--statut-echec-bordure);
+}
+.indicateurs__tuile--echec .indicateurs__tuile-valeur,
+.indicateurs__tuile--echec .indicateurs__tuile-libelle {
+  color: var(--statut-echec-texte);
+}
+
 .indicateurs__tuile--vert-fonce {
   background-color: var(--statut-vert-fonce-fond);
   border-color: var(--statut-vert-fonce-bordure);
