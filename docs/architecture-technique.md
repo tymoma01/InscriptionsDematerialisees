@@ -250,7 +250,7 @@ rendez-vous a son propre comportement, à connaître au cas par cas :
 | `confirme` | Aucun (intentionnel) | Confirmer sa présence à l'avance n'est pas "le test a eu lieu" ; seul `honore` (posé après coup) doit avoir un effet. Ne change rien à l'éligibilité à la bascule automatique `test_non_realise` (voir `absent` ci-dessous). |
 | `honore` | Le dossier a déjà transité vers une issue positive (`valide_envoi_formation`/`valide_pret_embauche`) | Automatique, mais dans le sens **dossier → rendez-vous** : posé par `evaluationEngine.enregistrerEvaluation`, dans la même transaction que la transition finale du dossier. Câblé en dur dans ce service, pas généralisé par le moteur de workflow. |
 | `absent` | `test_non_realise` | Automatique, deux chemins : (1) bouton "Test non réalisé" (NSPP) → `clotureRendezvousAvecTransitionService`, ou (2) bascule automatique (`basculeTestNonRealiseService`, délai de grâce 24h). Les deux posent `rendezvous.statut='absent'` + motif de désistement dédié ET la transition dossier dans la même transaction. |
-| `annule` | `test_non_realise`, **si** le dossier est encore `test_planifie` au moment de l'annulation | Automatique depuis le 2026-09-21 (voir §7.4) — **corrige** l'ancien comportement "Aucun (choix assumé)" ci-dessous, qui laissait le dossier affiché "Test planifié" indéfiniment malgré un rendez-vous annulé (dossiers PROD #29/#41 entre autres, constatés lors de l'audit du même jour). `PATCH /rendezvous/:id` (`rendezvous.routes.js`) compose désormais `changerStatutRendezvous('annule')` + `workflowEngine.appliquerTransition('test_non_realise')` dans la même transaction via `clotureRendezvousAvecTransitionService` — même mécanisme que `absent` ci-dessus, décision utilisateur explicite "pour la cohérence du code". La reprogrammation reste à l'initiative de l'agent (`replanifier_test`, disponible depuis `test_non_realise`) : seul l'AFFICHAGE du dossier cesse de mentir, rien d'autre du workflow ne change. |
+| `annule` | `test_non_realise`, **si** le dossier est encore `test_planifie` au moment de l'annulation | Automatique depuis le 2026-09-21 (voir §7.4) — **corrige** l'ancien comportement "Aucun (choix assumé)" ci-dessous, qui laissait le dossier affiché "Test planifié" indéfiniment malgré un rendez-vous annulé (dossiers PROD #29/#41 entre autres, constatés lors de l'audit du même jour). Composé sur les **deux** chemins qui posent `annule` : `PATCH /rendezvous/:id` (`rendezvous.routes.js`, via `clotureRendezvousAvecTransitionService`) et `syncCalendrierManuelService.js` (composition inline, sa propre transaction, voir §7.4) — même mécanisme que `absent` ci-dessus, décision utilisateur explicite "pour la cohérence du code". La reprogrammation reste à l'initiative de l'agent (`replanifier_test`, disponible depuis `test_non_realise`) : seul l'AFFICHAGE du dossier cesse de mentir, rien d'autre du workflow ne change. |
 | `remplace` | Sans objet — sentinel technique, jamais un événement réel côté candidat | Posé par `rendezvousRepository.neutraliserRendezvousActifsDossier`, dans deux contextes distincts : (a) une transition dossier dont le statut **d'arrivée** porte `neutralise_rendezvous_actifs=true` (config par entité, migration 051) ; (b) systématiquement par `workflowEngine.forcerStatut` (Admin), quelle que soit la destination. |
 
 ### 7.1 `forcerStatut` neutralise toujours, `appliquerTransition` seulement si configuré
@@ -342,6 +342,30 @@ qui reste réservé à `absent`) et (b) l'action `journal_audit` distincte posé
 `FORMATEUR`/`ADMIN`/`SYSTEME` (voir `scripts/seedTransitionRoles.js`) — l'acteur de cette transition
 est le VRAI agent qui annule (jamais l'utilisateur système, contrairement à la bascule 24h) : sa
 trace dans `historique_statuts`/`journal_audit` reste honnête sur qui a déclenché quoi.
+
+**Second chemin manqué au premier passage, corrigé le même jour (audit de suivi 2026-09-21,
+constaté sur 12 dossiers PROD — #27/#29/#30/#37/#41/#42/#52/#53/#60/#62/#73/#85) :**
+`syncCalendrierManuelService.js` (détection d'une suppression d'événement Outlook, cron horaire —
+voir §7 tableau, motif dédié `annule_depuis_outlook`) pose lui aussi `rendezvous.statut='annule'`,
+via un point d'entrée totalement distinct de `PATCH /rendezvous/:id` — non couvert par la première
+passe de ce correctif. Composé désormais de la même façon (`resoudreTransitionAnnulationTest` +
+`workflowEngine.appliquerTransition`), mais **sans** passer par
+`cloturerRendezvousAvecTransition` : ce module tient déjà sa propre transaction par rendez-vous
+(verrouillage `FOR UPDATE` contre une action concurrente, voir son en-tête) et
+`cloturerRendezvousAvecTransition` ouvre systématiquement la sienne — l'imbriquer aurait cassé
+l'atomicité. Composition inline à la place, dans la transaction déjà ouverte, même patron que
+`basculeTestNonRealiseService.executerBasculeTestNonRealise` (qui a la même contrainte). Action
+`journal_audit` dédiée : `dossier_transition_test_non_realise_annulation_sync_outlook`.
+
+**Rattrapage ponctuel** (`scripts/rattraperAnnulationsSyncOutlookNonSynchronisees.js`, même patron
+que `scripts/corrigerRendezvousDesynchronises.js` pour le dossier #127) : les dossiers déjà
+`annule` via ce chemin AVANT le correctif restent bloqués indéfiniment — aucun nouvel événement ne
+se déclenche sur un rendez-vous déjà `annule`. Sélection dynamique (dossier encore `test_planifie`
++ au moins un rendez-vous `test`/`annule`), réutilise `resoudreTransitionAnnulationTest` telle
+quelle. Vérifié sur DEV le 2026-09-21 (rendez-vous de test synthétique inséré directement en base,
+statut `annule`, motif `annule_depuis_outlook`, sur un dossier `test_planifie` existant) : bascule
+correcte vers `test_non_realise`, aucun autre rendez-vous du dossier touché, idempotence confirmée
+sur un second passage (0 candidat restant).
 
 ### 7.5 Filet de sécurité "présence confirmée jamais évaluée" (audit 2026-09-21, dossiers #20/#21/#23)
 

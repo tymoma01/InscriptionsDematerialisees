@@ -19,12 +19,29 @@
 // STATUTS_DOSSIER_RENDEZVOUS_CLOS, même motif obligatoire que toute autre annulation) — mais PAS
 // pour le cas "déplacé" (changerStatutRendezvous ne touche jamais date_heure), qui appelle
 // directement rendezvousRepository.mettreAJourDateHeureRendezvous.
+//
+// Cas "annulé" — compose aussi la transition dossier test_planifie -> test_non_realise (audit
+// 2026-09-21, corrige un angle mort constaté sur 12 dossiers PROD, ex. #29/#41 : ce module posait
+// rendezvous.statut='annule' sans jamais composer avec workflowEngine.appliquerTransition, alors
+// que le chemin UI équivalent — PATCH /rendezvous/:id, rendezvous.routes.js — le fait depuis le
+// 2026-09-21 via rendezvousService.resoudreTransitionAnnulationTest +
+// clotureRendezvousAvecTransitionService.cloturerRendezvousAvecTransition). PAS de réutilisation
+// littérale de cloturerRendezvousAvecTransition ici : cette fonction ouvre TOUJOURS sa propre
+// transaction (aucun bdExistante), donc l'appeler depuis l'intérieur de la transaction `trx` déjà
+// ouverte plus bas casserait l'atomicité de ce module (deux transactions indépendantes au lieu
+// d'une seule — exactement le risque que cloturerRendezvousAvecTransition a été créée pour
+// éliminer, voir son commentaire d'en-tête). Composition inline à la place, dans la MÊME `trx` —
+// même patron que basculeTestNonRealiseService.executerBasculeTestNonRealise (changerStatutRendezvous
+// puis workflowEngine.appliquerTransition, tous deux passés `trx`), qui a exactement la même
+// contrainte (sa propre transaction par rendez-vous, verrouillée par avance).
 
 const db = require('../../db/knex');
 const dossierRepository = require('../dossier/dossierRepository');
 const notesDossierRepository = require('../dossier/notesDossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
 const rendezvousService = require('./rendezvousService');
+const workflowEngine = require('../workflow/workflowEngine');
+const { ROLES } = require('../auth/rbac');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const notificationDeplacementManuelService = require('./notificationDeplacementManuelService');
 // Notification candidat + formateur/inspecteur sur annulation détectée via sync (décision
@@ -89,6 +106,37 @@ async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
         },
         trx,
       );
+
+      // Compose la transition dossier (voir commentaire d'en-tête) — resoudreTransitionAnnulationTest
+      // renvoie [] (jamais une erreur) si le dossier n'est plus test_planifie ou si ce n'est pas un
+      // rendez-vous de type 'test' : l'annulation Outlook ci-dessus reste actée dans tous les cas,
+      // que la transition s'applique ou non.
+      const transitionsAnnulation = await rendezvousService.resoudreTransitionAnnulationTest(
+        entite,
+        { dossierId: rendezvous.dossier_id, rendezvousId: rendezvous.id },
+        trx,
+      );
+      for (const { codeAction, commentaire } of transitionsAnnulation) {
+        await workflowEngine.appliquerTransition(
+          entite,
+          { dossierId: rendezvous.dossier_id, codeAction, commentaire, utilisateurId: utilisateurSysteme.id, roleCode: ROLES.SYSTEME },
+          trx,
+        );
+
+        // Action de journal distincte (même principe que basculeTestNonRealiseService.js et
+        // rendezvous.routes.js : une action par mécanisme d'origine) — ni
+        // 'dossier_transition_test_non_realise_annulation' (bouton PATCH manuel) ni
+        // '..._automatique' (bascule 24h absence) : cette transition-ci part d'une annulation
+        // détectée par la synchronisation Outlook, pas d'une action humaine directe dans l'app.
+        await journalAudit.enregistrerAction(trx, {
+          utilisateurId: utilisateurSysteme.id,
+          entiteId: entite.id,
+          action: 'dossier_transition_test_non_realise_annulation_sync_outlook',
+          tableCible: 'historique_statuts',
+          cibleId: rendezvous.dossier_id,
+          donnees: { dossierId: rendezvous.dossier_id, rendezvousId: rendezvous.id, codeAction },
+        });
+      }
 
       await notesDossierRepository.ajouterNote(trx, {
         dossierId: rendezvous.dossier_id,

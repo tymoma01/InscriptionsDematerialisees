@@ -6,6 +6,7 @@ const dossierRepository = require('../dossier/dossierRepository');
 const notesDossierRepository = require('../dossier/notesDossierRepository');
 const rendezvousRepository = require('./rendezvousRepository');
 const rendezvousService = require('./rendezvousService');
+const workflowEngine = require('../workflow/workflowEngine');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const notificationDeplacementManuelService = require('./notificationDeplacementManuelService');
 const invitationTestService = require('./invitationTestService');
@@ -28,6 +29,11 @@ function mockerBase(t) {
   t.mock.method(dossierRepository, 'trouverUtilisateurSysteme', async () => UTILISATEUR_SYSTEME_FACTICE);
   t.mock.method(journalAudit, 'enregistrerAction', async () => {});
   t.mock.method(notesDossierRepository, 'ajouterNote', async () => 1);
+  // Par défaut, aucune transition dossier composée (voir les tests dédiés ci-dessous pour le cas
+  // où elle s'applique) — évite que resoudreTransitionAnnulationTest (jamais mockée sinon) touche
+  // la bd factice `{}` dans les tests qui ne testent pas spécifiquement ce comportement.
+  t.mock.method(rendezvousService, 'resoudreTransitionAnnulationTest', async () => []);
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 4 }));
   t.mock.method(notificationDeplacementManuelService, 'envoyerNotificationDeplacementManuel', async () => ({
     candidatEmailEnvoye: true,
     formateurEmailEnvoye: true,
@@ -97,6 +103,15 @@ test('executerSyncCalendrierManuel annule le rendez-vous quand son événement O
 
   assert.equal(mettreAJourDateHeureRendezvous.mock.callCount(), 0, 'une annulation ne doit jamais toucher date_heure');
 
+  // resoudreTransitionAnnulationTest décide seule (mockée à [] par mockerBase ci-dessus) : ce test
+  // vérifie juste qu'elle est bien interrogée, avec les bons id — le cas où elle renvoie une
+  // transition est couvert par le test dédié suivant.
+  assert.equal(rendezvousService.resoudreTransitionAnnulationTest.mock.callCount(), 1);
+  const appelResolution = rendezvousService.resoudreTransitionAnnulationTest.mock.calls[0].arguments;
+  assert.equal(appelResolution[0], ENTITE_FACTICE);
+  assert.deepEqual(appelResolution[1], { dossierId: 42, rendezvousId: 10 });
+  assert.equal(workflowEngine.appliquerTransition.mock.callCount(), 0, "aucune transition à appliquer ([] renvoyé par défaut)");
+
   assert.equal(ajouterNote.mock.callCount(), 1);
   assert.equal(ajouterNote.mock.calls[0].arguments[1].dossierId, 42);
   assert.equal(ajouterNote.mock.calls[0].arguments[1].auteurId, UTILISATEUR_SYSTEME_FACTICE.id);
@@ -118,6 +133,50 @@ test('executerSyncCalendrierManuel annule le rendez-vous quand son événement O
   assert.equal(appelAnnulation[1].dossier_id, 42);
   assert.equal(appelAnnulation[1].formateur_id, 7);
   assert.equal(envoyerNotificationDeplacement.mock.callCount(), 0, 'une annulation ne déclenche jamais la notification de déplacement');
+
+  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, total: 1 });
+});
+
+// Audit 2026-09-21 (angle mort constaté sur 12 dossiers PROD, ex. #29/#41) : jusqu'ici, une
+// annulation détectée via la sync Outlook posait rendezvous.statut='annule' SANS jamais composer
+// avec workflowEngine.appliquerTransition, contrairement au chemin UI équivalent (PATCH
+// /rendezvous/:id). Ce test vérifie que la composition est bien faite, dans la MÊME transaction
+// (trx factice partagée, voir creerBdFactice), quand resoudreTransitionAnnulationTest renvoie une
+// transition à appliquer.
+test('executerSyncCalendrierManuel compose la transition dossier test_non_realise quand resoudreTransitionAnnulationTest en renvoie une', async (t) => {
+  mockerBase(t);
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [RDV_FACTICE]);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousPourBasculeVerrouillee', async () => ({
+    ...RDV_FACTICE,
+    statut: 'prevu',
+  }));
+  t.mock.method(graphCalendarService, 'obtenirEvenement', async () => null);
+  t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+  const resoudreTransition = t.mock.method(rendezvousService, 'resoudreTransitionAnnulationTest', async () => [
+    { codeAction: 'test_non_realise', commentaire: 'Test non réalisé (rendez-vous annulé).' },
+  ]);
+  const appliquerTransition = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 4 }));
+  const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.equal(resoudreTransition.mock.callCount(), 1);
+
+  assert.equal(appliquerTransition.mock.callCount(), 1);
+  const appel = appliquerTransition.mock.calls[0].arguments;
+  assert.equal(appel[0], ENTITE_FACTICE);
+  assert.equal(appel[1].dossierId, 42);
+  assert.equal(appel[1].codeAction, 'test_non_realise');
+  assert.equal(appel[1].utilisateurId, UTILISATEUR_SYSTEME_FACTICE.id);
+  // Acteur SYSTEME, pas un utilisateur humain — cette transition part d'une détection automatique
+  // (job de sync), jamais d'une action directe d'un agent dans l'app.
+  assert.equal(appel[1].roleCode, 'systeme');
+
+  // 3 actions journalisées au total pour ce cas : la transition dossier (action DISTINCTE des
+  // autres origines possibles de ce même codeAction), puis rendezvous_annule_sync_outlook.
+  assert.equal(enregistrerAction.mock.callCount(), 2);
+  const actions = enregistrerAction.mock.calls.map((appelAction) => appelAction.arguments[1].action);
+  assert.deepEqual(actions, ['dossier_transition_test_non_realise_annulation_sync_outlook', 'rendezvous_annule_sync_outlook']);
 
   assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, total: 1 });
 });
