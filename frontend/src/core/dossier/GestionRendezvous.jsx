@@ -301,17 +301,25 @@ export default function GestionRendezvous({
   // choix reste correct pour un aperçu "le rendez-vous le plus pertinent du dossier en ce moment",
   // pas une timeline.
   //
-  // Historique complet (Relances.jsx, seul autre point de montage — audit 2026-09-19, demande
-  // utilisateur) : retrié par date_heure DÉCROISSANTE (le rendez-vous le plus proche/récent en
-  // premier), indépendamment de l'ordre reçu du back — celui-ci trie par date de PLANIFICATION, pas
-  // par date du RENDEZ-VOUS lui-même (les deux peuvent diverger, ex. un rendez-vous replanifié sans
-  // entrée journal_audit associée retombe en fin de liste côté back — NULLS LAST — quelle que soit
-  // sa date réelle). Copie (`[...rendezvous]`) : ne modifie jamais `rendezvous` lui-même, dont
-  // l'ordre reste celui du back pour dernierSeulement ci-dessus (même state partagé par les deux
-  // modes).
-  const rendezvousAffiches = dernierSeulement
-    ? rendezvous.slice(0, 1)
-    : [...rendezvous].sort((a, b) => new Date(b.date_heure) - new Date(a.date_heure));
+  // Historique complet (Relances.jsx, seul autre point de montage — audit 2026-09-19, RETRIÉ le
+  // 2026-09-21 : trier par date_heure DÉCROISSANTE, comme depuis le 09-19, produisait un ordre
+  // visuel trompeur dans le cas — rare mais réel — d'une replanification vers une date ANTÉRIEURE
+  // au créneau remplacé : l'ancien rendez-vous 'remplace' (obsolète) s'affichait alors AU-DESSUS
+  // du nouveau rendez-vous actif, alors que ce dernier est bien l'action la plus récente. Trié
+  // désormais par `id` DÉCROISSANT (l'action la plus récente en premier, quelle que soit la date
+  // du rendez-vous lui-même) — PAS par `planifie_le` (la date "Planifié le..." affichée sur
+  // chaque carte, dérivée de journal_audit, voir listerRendezvousParDossier) : `planifie_le` est
+  // NULL pour un rendez-vous créé hors API (script de dev), ce qui aurait reproduit exactement le
+  // même défaut NULLS LAST que le tri back évité par le correctif du 09-19 (voir commentaire
+  // dernierSeulement ci-dessus). `rendezvous.id` (SERIAL, jamais réutilisé, jamais NULL) croît
+  // strictement dans l'ordre d'insertion des lignes — donc dans l'ordre chronologique RÉEL des
+  // actions (création initiale ou replanification), sans aucun des deux écueils. Pour tout
+  // rendez-vous créé via l'API normale, `id` et `planifie_le` croissent ensemble (même transaction,
+  // voir planificationRendezvousService.js) : résultat identique au cas normal, seul le cas de
+  // replanification vers une date antérieure change de comportement (corrigé). Copie
+  // (`[...rendezvous]`) : ne modifie jamais `rendezvous` lui-même, dont l'ordre reste celui du back
+  // pour dernierSeulement ci-dessus (même state partagé par les deux modes).
+  const rendezvousAffiches = dernierSeulement ? rendezvous.slice(0, 1) : [...rendezvous].sort((a, b) => b.id - a.id);
 
   return (
     // gestion-rendezvous--imbrique (dernierSeulement) neutralise la carte (bordure/ombre/fond
