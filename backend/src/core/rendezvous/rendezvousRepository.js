@@ -111,6 +111,24 @@ function listerRendezvousPresenceConfirmeeSansEvaluation(bd, entiteId, { delaiHe
     .select('rendezvous.id', 'rendezvous.dossier_id', 'rendezvous.date_presence_confirmee');
 }
 
+// Filet de sécurité générique "rattrapage annulation test" (audit 2026-09-21, voir
+// rattrapageAnnulationTestService.js) : tout dossier ENCORE test_planifie portant au moins un
+// rendez-vous type='test' statut='annule' — quelle que soit la cause de cette annulation (PATCH
+// manuel, sync Outlook, ou tout futur chemin non identifié), ce module de données ne le sait pas
+// et n'a pas à le savoir. GROUP BY dossier + min(id) : un seul rendez-vous 'annule' suffit par
+// dossier pour que l'appelant interroge rendezvousService.resoudreTransitionAnnulationTest (qui ne
+// dépend que du dossier et du type_rdv, pas de CE rendez-vous précis) — si un même dossier a
+// plusieurs rendez-vous 'annule', ne le renvoyer qu'une fois.
+function listerDossiersAnnulesNonSynchronises(bd, entiteId) {
+  return bd('rendezvous as r')
+    .join('dossiers as d', 'd.id', 'r.dossier_id')
+    .join('statuts as s', 's.id', 'd.statut_id')
+    .where({ 'd.entite_id': entiteId, 'r.type_rdv': 'test', 'r.statut': 'annule', 's.code': 'test_planifie' })
+    .groupBy('d.id')
+    .select('d.id as dossier_id')
+    .select(bd.raw('min(r.id) as rendezvous_id'));
+}
+
 // Marque la présence constatée du candidat, LE JOUR MÊME, par le formateur/inspecteur (bouton
 // "Présent(e)", voir evaluationEngine.marquerPresenceConfirmee pour la vérification d'accès) —
 // exclut ce rendez-vous de listerRendezvousTestNonRealisesAutomatiquement ci-dessus (whereNull sur
@@ -598,6 +616,7 @@ module.exports = {
   listerRendezvousARappeler,
   listerRendezvousTestNonRealisesAutomatiquement,
   listerRendezvousPresenceConfirmeeSansEvaluation,
+  listerDossiersAnnulesNonSynchronises,
   trouverRendezvousPourBasculeVerrouillee,
   marquerPresenceConfirmee,
   trouverRendezvousParId,

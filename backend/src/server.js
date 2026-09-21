@@ -6,6 +6,7 @@ const { PORT, ACTIVER_CRONS_INTERNES } = require('./config/env');
 const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
 const { demarrerCronSyncCalendrierManuel } = require('./jobs/syncCalendrierManuelCron');
 const { demarrerCronRappel } = require('./jobs/rappelCron');
+const { demarrerCronRattrapageAnnulationTest } = require('./jobs/rattrapageAnnulationTestCron');
 
 // Filet de sécurité contre les rejets de promesse jamais rattrapés — sans lui, Node (depuis la
 // v15, comportement par défaut) tue TOUT le process au premier rejet non observé. Constaté en
@@ -70,6 +71,9 @@ async function demarrer() {
 
     // voir jobs/rappelCron.js pour la fréquence (9h/13h30/17h) et le verrou anti-chevauchement.
     demarrerCronRappel();
+
+    // voir jobs/rattrapageAnnulationTestCron.js pour la fréquence et le verrou anti-chevauchement.
+    demarrerCronRattrapageAnnulationTest();
   } else {
     console.log('Crons in-process désactivés (ACTIVER_CRONS_INTERNES=false).');
   }

@@ -411,6 +411,50 @@ fixtures reproduisant ce cas (`CANDIDAT1 CANDIDAT1`/`CasC VERIF-BASCULE-C-PRESEN
 `test_non_realise`, leurs 3 rendez-vous restant byte-for-byte inchangés ; un second passage
 immédiat ne trouve plus aucun dossier éligible (idempotence confirmée).
 
+### 7.6 Filet de sécurité horaire "rattrapage annulation test" (audit de suivi 2026-09-21)
+
+Le correctif §7.4 ne compose la transition qu'AU MOMENT où `rendezvous.statut` passe à `annule` —
+sur les deux chemins connus à cette date (`PATCH /rendezvous/:id`, `syncCalendrierManuelService.js`).
+Un dossier déjà `annule` **avant** ces deux correctifs, ou basculé par un **troisième chemin**
+aujourd'hui inconnu qui poserait `annule` sans composer la transition (exactement le trou constaté
+sur `syncCalendrierManuelService.js` avant son propre correctif), resterait bloqué en
+"Test planifié" indéfiniment — aucun nouvel événement ne se déclenche sur un rendez-vous déjà
+`annule`.
+
+`rattrapageAnnulationTestService.executerRattrapageAnnulationTest(entite)` — même patron que
+`basculeTestNonRealiseService.executerBasculeTestNonRealise` (un dossier par transaction, jamais un
+lot entier), démarré par `jobs/rattrapageAnnulationTestCron.js` (`'0 * * * *'`, verrou en mémoire
+anti-chevauchement, chargé en dev ET en prod via `ACTIVER_CRONS_INTERNES`/`server.js` — même
+mécanisme d'enregistrement que `basculeTestNonRealiseCron.js`/`syncCalendrierManuelCron.js`) :
+
+- Sélection (`rendezvousRepository.listerDossiersAnnulesNonSynchronises`) : dossier ENCORE
+  `test_planifie` portant au moins un rendez-vous `type_rdv='test'` `statut='annule'` — **aucune
+  condition sur le motif ni sur l'origine de l'annulation**, contrairement à un correctif ciblé sur
+  un chemin précis : reste utile même si tous les chemins connus restent corrects indéfiniment.
+- Réutilise `rendezvousService.resoudreTransitionAnnulationTest` telle quelle (même fonction de
+  décision que §7.4/§7.5) — un dossier qui ne remplirait plus les conditions au moment précis de
+  l'écriture (déjà refermé autrement entre-temps) est ignoré, jamais une erreur. Idempotent par
+  construction : un dossier déjà corrigé (par ce cron ou par une transition immédiate) ne
+  réapparaît plus au run suivant.
+- Action `journal_audit` dédiée par dossier corrigé — `dossier_transition_test_non_realise_
+  annulation_rattrapage` — distincte de `..._annulation` (PATCH manuel), `..._annulation_sync_
+  outlook` et `..._automatique` (bascule 24h absence) : trace que CETTE transition précise vient du
+  filet de sécurité horaire, pas d'un événement identifié. Action de passage supplémentaire,
+  `cron_rattrapage_annulation_test`, même patron que `cron_bascule_test_non_realise` — confirme que
+  le cron tourne bien même sur un run à 0 correction.
+- `scripts/rattraperAnnulationsTestNonSynchronisees.js` (ex-`rattraperAnnulationsSyncOutlookNon
+  Synchronisees.js`, renommé une fois ce filet devenu générique) reste disponible pour forcer une
+  correction immédiate sans attendre le prochain passage horaire — même rôle que
+  `scripts/executerBasculeTestNonRealise.js`, appelle désormais la même fonction de service que le
+  cron.
+
+Vérifié sur DEV le 2026-09-21 : job complet (`rattrapageAnnulationTestJob.
+executerPourToutesLesEntitesActives`, pas seulement la fonction de service) exécuté deux fois sur un
+dossier candidat synthétique — 1er passage : dossier corrigé (`test_planifie` → `test_non_realise`),
+`cron_rattrapage_annulation_test` journalisé pour les deux entités actives (`accecit` ET `adaptel`,
+cette dernière à 0 candidat sans cas particulier, confirmant la généricité) ; 2e passage : 0
+candidat, idempotence confirmée.
+
 ---
 
 ## Prochaines étapes techniques (suite à la décision § 1.7)
