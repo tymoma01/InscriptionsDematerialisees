@@ -12,7 +12,10 @@
 // Usage : node scripts/executerBasculeTestNonRealise.js <code_entite>
 
 const { obtenirKnex } = require('../src/db/knex');
-const { executerBasculeTestNonRealise } = require('../src/core/rendezvous/basculeTestNonRealiseService');
+const {
+  executerBasculeTestNonRealise,
+  executerBasculePresenceConfirmeeSansEvaluation,
+} = require('../src/core/rendezvous/basculeTestNonRealiseService');
 
 async function main(codeEntite) {
   const bd = await obtenirKnex();
@@ -25,6 +28,14 @@ async function main(codeEntite) {
     const resultat = await executerBasculeTestNonRealise(entite);
     console.log(
       `Bascule automatique « ${codeEntite} » : ${resultat.bascules} basculé(s), ${resultat.ignores} ignoré(s) (déjà traité manuellement), ${resultat.echecs} échec(s), sur ${resultat.total} rendez-vous éligible(s).`,
+    );
+
+    // Filet de sécurité "présence confirmée jamais évaluée" (audit 2026-09-21, point 3) — même
+    // script manuel, même entité, deuxième bascule indépendante (voir basculeTestNonRealiseJob.js
+    // pour le même enchaînement côté cron in-process).
+    const resultatPresence = await executerBasculePresenceConfirmeeSansEvaluation(entite);
+    console.log(
+      `Bascule "présence confirmée sans évaluation" « ${codeEntite} » : ${resultatPresence.bascules} basculé(s), ${resultatPresence.echecs} échec(s), sur ${resultatPresence.total} rendez-vous éligible(s).`,
     );
   } finally {
     await bd.destroy();

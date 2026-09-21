@@ -734,6 +734,40 @@ async function verifierDelaiAvantReplanification(entite, dossierId, transitions,
   }
 }
 
+// Motif dédié (audit 2026-09-21, angle mort constaté sur les dossiers #29/#41 entre autres) : un
+// rendez-vous de test annulé ('annule') laissait jusqu'ici le dossier affiché "Test planifié"
+// indéfiniment — seul 'absent' déclenchait déjà une synchronisation (voir
+// clotureRendezvousAvecTransitionService.js/basculeTestNonRealiseService.js), 'annule' restait un
+// angle mort documenté mais non traité (docs/architecture-technique.md §7, "design intentionnel").
+// ACCECIT-flavored, même raison que verifierDelaiAvantReplanification ci-dessus (ce fichier
+// interprète le vocabulaire de transitions propre à ACCECIT — codeAction/statuts — jamais connu du
+// moteur générique workflowEngine.js).
+//
+// Décide SEULEMENT si la transition doit être tentée — ne l'applique jamais elle-même (voir
+// rendezvous.routes.js, qui compose via clotureRendezvousAvecTransitionService.
+// cloturerRendezvousAvecTransition — même mécanisme que NSPP/la bascule automatique 24h, demande
+// utilisateur explicite "pour la cohérence du code") : renvoie toujours un tableau, jamais une
+// erreur — [] quand la transition ne s'applique pas (rendez-vous hors type 'test', ou dossier déjà
+// ailleurs que test_planifie, ex. déjà refermé autrement entre-temps) plutôt que de faire échouer
+// une annulation par ailleurs parfaitement valide.
+//
+// Réutilise le MÊME codeAction 'test_non_realise' que le cas 'absent' (même statut dossier de
+// destination, voir workflow.config.json) — la distinction entre les deux causes reste portée par
+// le rendez-vous lui-même (son propre motif de désistement, déjà obligatoire pour 'annule', voir
+// changerStatutRendezvous/STATUTS_DESISTEMENT ci-dessus) et par l'action de journal distincte posée
+// par l'appelant (voir rendezvous.routes.js), jamais par un second codeAction dupliqué en
+// configuration pour la même destination.
+const CODE_ACTION_TEST_NON_REALISE = 'test_non_realise';
+async function resoudreTransitionAnnulationTest(entite, { dossierId, rendezvousId }, bd) {
+  const rendezvous = await rendezvousRepository.trouverRendezvousParId(bd, entite.id, rendezvousId);
+  if (!rendezvous || rendezvous.type_rdv !== 'test') return [];
+
+  const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
+  if (!dossier || dossier.statut_code !== STATUT_PROTEGE_PAR_DELAI_REPLANIFICATION) return [];
+
+  return [{ codeAction: CODE_ACTION_TEST_NON_REALISE, commentaire: 'Test non réalisé (rendez-vous annulé).' }];
+}
+
 module.exports = {
   listerRendezvous,
   changerStatutRendezvous,
@@ -745,6 +779,7 @@ module.exports = {
   creerRendezvous,
   obtenirDisponibilitesFormateur,
   verifierDelaiAvantReplanification,
+  resoudreTransitionAnnulationTest,
   ErreurFormateurInvalide,
   ErreurCreneauPris,
   ErreurDatePassee,

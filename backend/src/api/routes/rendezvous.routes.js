@@ -11,6 +11,7 @@ const {
   ErreurPlanificationOutlook,
 } = rendezvousService;
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
+const { cloturerRendezvousAvecTransition } = require('../../core/rendezvous/clotureRendezvousAvecTransitionService');
 const { ErreurTransitionInvalide } = require('../../core/workflow/workflowEngine');
 const invitationTestService = require('../../core/rendezvous/invitationTestService');
 const journalAudit = require('../../core/audit/journalAudit');
@@ -288,12 +289,30 @@ router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (
     const rendezvousId = idPositifSchema.parse(req.params.rendezvousId);
     const { statut, motifCode } = statutBodySchema.parse(req.body);
 
-    const rendezvous = await rendezvousService.changerStatutRendezvous(req.entite, {
+    // 'annule' compose désormais, dans la MÊME transaction que le changement de statut du
+    // rendez-vous, la transition dossier test_planifie -> test_non_realise quand ce rendez-vous
+    // est un rendez-vous de test représentatif encore actif (audit 2026-09-21, correction demande
+    // utilisateur — voir rendezvousService.resoudreTransitionAnnulationTest, qui renvoie [] si la
+    // transition ne s'applique pas, jamais une erreur : l'annulation elle-même ne doit jamais
+    // échouer pour cette seule raison). 'prevu'/'confirme' inchangés : transitions toujours vide,
+    // même comportement qu'avant ce correctif (cloturerRendezvousAvecTransition avec un tableau
+    // vide de transitions équivaut à changerStatutRendezvous seul).
+    const bdPourDecision = await obtenirKnex();
+    const transitions =
+      statut === 'annule'
+        ? await rendezvousService.resoudreTransitionAnnulationTest(req.entite, { dossierId, rendezvousId }, bdPourDecision)
+        : [];
+
+    const resultat = await cloturerRendezvousAvecTransition(req.entite, {
       dossierId,
       rendezvousId,
-      statut,
-      motifCode,
+      statutRendezvous: statut,
+      motifCodeRendezvous: motifCode,
+      transitions,
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
     });
+    const rendezvous = resultat.rendezvous;
 
     const bd = await obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
@@ -305,6 +324,23 @@ router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (
       donnees: { dossierId, statut, motifCode },
       adresseIp: req.ip,
     });
+
+    // Trace la transition dossier composée ci-dessus séparément (même patron que POST
+    // /transitions, transitions.routes.js) — action distincte de la bascule automatique
+    // ('..._automatique') et du bouton NSPP formateur (dossier_transition_test_non_realise tout
+    // court) : ce cas précis part d'une annulation Accueil/Coordination, pas d'un constat
+    // d'absence.
+    if (transitions.length > 0) {
+      await journalAudit.enregistrerAction(bd, {
+        utilisateurId: req.utilisateur.id,
+        entiteId: req.entite.id,
+        action: 'dossier_transition_test_non_realise_annulation',
+        tableCible: 'historique_statuts',
+        cibleId: dossierId,
+        donnees: { dossierId, rendezvousId, codeAction: transitions[0].codeAction },
+        adresseIp: req.ip,
+      });
+    }
 
     // Annulation SIMPLE d'un test déjà planifié (audit 2026-08-28, notification étendue au candidat
     // le 2026-09-02) — PAS une replanification, qui a son propre texte consolidé via

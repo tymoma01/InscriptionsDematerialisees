@@ -146,4 +146,114 @@ async function executerBasculeTestNonRealise(entite) {
   return { bascules, ignores, echecs, total: rendezvousEligibles.length };
 }
 
-module.exports = { executerBasculeTestNonRealise, CODE_ACTION_TEST_NON_REALISE };
+// Délai de grâce du filet de sécurité "présence confirmée jamais évaluée" (audit 2026-09-21,
+// angle mort constaté sur les dossiers #20 Faty Dia/#21 Olabisi janet Dosunmu/#23 TEST TEST — un
+// formateur/inspecteur avait constaté la présence du candidat, bouton "Présent(e)", sans jamais
+// soumettre d'évaluation ensuite, et listerRendezvousTestNonRealisesAutomatiquement exclut
+// DÉFINITIVEMENT tout rendez-vous avec date_presence_confirmee non nulle — ces dossiers restaient
+// donc bloqués en "Test planifié" indéfiniment, sans aucun mécanisme pour les refermer).
+//
+// 72h, pas 24h comme la bascule "absence" ci-dessus (délai distinct, jamais le même
+// DELAI_GRACE_BASCULE_HEURES) : une présence confirmée signifie qu'un formateur/inspecteur a
+// physiquement traité ce candidat — une évaluation est censée suivre RAPIDEMENT après le test, à
+// la différence d'une absence pure qui, elle, ne dépend d'aucune action humaine ultérieure. 24h
+// suffirait largement en semaine, mais se déclencherait à tort sur un test réalisé un vendredi et
+// évalué le lundi suivant (weekend non travaillé, CLAUDE.md ne mentionne aucune permanence de
+// formateur le week-end) — 72h couvre ce cas (vendredi 9h + 72h = lundi 9h) sans pour autant
+// laisser un dossier réellement oublié traîner des semaines : un compromis délibéré entre "ne
+// jamais gêner un formateur en retard d'un jour ouvré" et "ne pas laisser un filet de sécurité
+// devenir lui-même un point de blocage à rallonge".
+const DELAI_GRACE_PRESENCE_SANS_EVALUATION_HEURES = 72;
+
+// Point d'entrée du filet de sécurité — appelé par le MÊME job/cron que executerBasculeTestNonRealise
+// ci-dessus (voir basculeTestNonRealiseJob.js), pas un second mécanisme de déclenchement séparé.
+//
+// Différence fondamentale avec executerBasculeTestNonRealise ci-dessus (demande utilisateur
+// explicite, point 3) : ne touche JAMAIS rendezvous.statut ni date_presence_confirmee — aucun
+// appel à rendezvousService.changerStatutRendezvous ici, uniquement workflowEngine.
+// appliquerTransition sur le DOSSIER. Le rendez-vous continue donc d'afficher son statut réel
+// (ex. "Présence confirmée") dans la colonne "Rendez-vous", tandis que la colonne "Statut" du
+// dossier affiche "Test non réalisé" — deux informations désormais découplées, comme c'est déjà le
+// cas partout ailleurs dans l'app (voir Planification.jsx, correctif du même audit qui a retiré la
+// dérivation "Non réalisé" qui les confondait justement à tort).
+//
+// Idempotent par construction, même raisonnement que executerBasculeTestNonRealise : ne sélectionne
+// que des dossiers encore test_planifie (voir rendezvousRepository.
+// listerRendezvousPresenceConfirmeeSansEvaluation) — un dossier déjà basculé au run précédent ne
+// réapparaît plus au suivant.
+async function executerBasculePresenceConfirmeeSansEvaluation(entite) {
+  const bd = await db.obtenirKnex();
+
+  const utilisateurSysteme = await dossierRepository.trouverUtilisateurSysteme(bd, entite.id);
+  if (!utilisateurSysteme) {
+    throw new Error(`Utilisateur système non configuré pour l'entité « ${entite.code} » (voir scripts/seedUtilisateurSysteme.js).`);
+  }
+
+  const rendezvousEligibles = await rendezvousRepository.listerRendezvousPresenceConfirmeeSansEvaluation(bd, entite.id, {
+    delaiHeures: DELAI_GRACE_PRESENCE_SANS_EVALUATION_HEURES,
+  });
+
+  let bascules = 0;
+  let ignores = 0;
+  let echecs = 0;
+
+  for (const rendezvous of rendezvousEligibles) {
+    try {
+      // Une transaction PAR rendez-vous, même raisonnement que executerBasculeTestNonRealise
+      // ci-dessus : un échec sur l'un ne doit jamais annuler les bascules déjà réussies sur les
+      // autres.
+      const bascule = await bd.transaction(async (trx) => {
+        // Pas d'équivalent trouverRendezvousPourBasculeVerrouillee ici : rien n'est écrit sur la
+        // ligne `rendezvous` par cette fonction (voir commentaire d'en-tête), donc aucun verrou à
+        // poser dessus. workflowEngine.appliquerTransition relit lui-même le statut COURANT du
+        // dossier à l'intérieur de cette même transaction (jamais une valeur mise en cache depuis
+        // la sélection ci-dessus) et échoue proprement (ErreurTransitionInvalide) si le dossier a
+        // déjà quitté test_planifie entre-temps (évaluation soumise entre-temps, par exemple) —
+        // capturé par le catch ci-dessous, compté comme un échec plutôt que de casser la boucle.
+        await workflowEngine.appliquerTransition(
+          entite,
+          {
+            dossierId: rendezvous.dossier_id,
+            codeAction: CODE_ACTION_TEST_NON_REALISE,
+            commentaire:
+              `Test non réalisé (bascule automatique — présence confirmée le ` +
+              `${FORMAT_DATE_HEURE.format(new Date(rendezvous.date_presence_confirmee))} sans évaluation enregistrée depuis).`,
+            utilisateurId: utilisateurSysteme.id,
+            roleCode: ROLES.SYSTEME,
+          },
+          trx,
+        );
+
+        await journalAudit.enregistrerAction(trx, {
+          utilisateurId: utilisateurSysteme.id,
+          entiteId: entite.id,
+          action: 'dossier_transition_test_non_realise_presence_sans_evaluation_automatique',
+          tableCible: 'historique_statuts',
+          cibleId: rendezvous.dossier_id,
+          donnees: { dossierId: rendezvous.dossier_id, rendezvousId: rendezvous.id, codeAction: CODE_ACTION_TEST_NON_REALISE },
+        });
+
+        return true;
+      });
+
+      if (bascule) bascules += 1;
+      else ignores += 1;
+    } catch (erreur) {
+      console.error(
+        `Échec de la bascule "présence confirmée sans évaluation" pour le rendez-vous ${rendezvous.id} ` +
+          `(dossier ${rendezvous.dossier_id}) :`,
+        erreur.message,
+      );
+      echecs += 1;
+    }
+  }
+
+  return { bascules, ignores, echecs, total: rendezvousEligibles.length };
+}
+
+module.exports = {
+  executerBasculeTestNonRealise,
+  executerBasculePresenceConfirmeeSansEvaluation,
+  CODE_ACTION_TEST_NON_REALISE,
+  DELAI_GRACE_PRESENCE_SANS_EVALUATION_HEURES,
+};

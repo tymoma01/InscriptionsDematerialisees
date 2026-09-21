@@ -68,26 +68,19 @@ const LIBELLES_STATUT = {
   honore: 'Réalisé',
 };
 
-// Rendez-vous 'prevu' (valeur en base INCHANGÉE, uniquement l'affichage ci-dessous) dont la date
-// est déjà passée sans qu'aucun flux (bascule automatique, action manuelle) ne l'ait fait
-// avancer — dossier #37, audit 2026-08-21 : montrer "Prévu" pour un test déjà passé induirait en
-// erreur. Calculé à la volée à chaque rendu (Date.now()), pas mémorisé : cohérent avec le reste
-// de cette page, qui ne maintient aucune horloge vivante.
-function rendezvousPrevuExpire(rdv) {
-  return rdv.statut === 'prevu' && new Date(rdv.date_heure).getTime() < Date.now();
-}
-
-// Libellé/variante EFFECTIFS affichés (titre ET badge) — jamais LIBELLES_STATUT/
-// varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
-// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "NSPP"
-// (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif) — ici,
-// personne n'a constaté/enregistré quoi que ce soit, seule la date a débordé.
+// Libellé/variante EFFECTIFS affichés (titre ET badge) — plus de statut "Non réalisé" dérivé de
+// la date pour un rendez-vous 'prevu' expiré (audit 2026-09-21, correction demande utilisateur) :
+// cette valeur n'existait qu'à l'affichage, jamais en base, et masquait le statut réel du
+// rendez-vous (toujours "Prévu") au moment précis où l'angle mort correspondant (aucune bascule
+// automatique tant que la présence n'a pas été constatée) devait au contraire rester visible — le
+// dossier porte désormais lui-même "Test non réalisé" une fois le filet de sécurité déclenché
+// (voir backend basculeTestNonRealiseService.js), sans qu'il faille en plus travestir le statut
+// du rendez-vous pour le signaler ici. Simple passe-plat vers LIBELLES_STATUT/
+// varianteStatutRendezvous désormais, quelle que soit la date.
 function libelleAffiche(rdv) {
-  if (rendezvousPrevuExpire(rdv)) return 'Non réalisé';
   return LIBELLES_STATUT[rdv.statut] ?? rdv.statut;
 }
 function varianteAffichee(rdv) {
-  if (rendezvousPrevuExpire(rdv)) return 'echec';
   return varianteStatutRendezvous(rdv.statut);
 }
 

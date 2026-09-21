@@ -7,7 +7,7 @@ const rendezvousRepository = require('./rendezvousRepository');
 const rendezvousService = require('./rendezvousService');
 const workflowEngine = require('../workflow/workflowEngine');
 const journalAudit = require('../audit/journalAudit');
-const { executerBasculeTestNonRealise } = require('./basculeTestNonRealiseService');
+const { executerBasculeTestNonRealise, executerBasculePresenceConfirmeeSansEvaluation } = require('./basculeTestNonRealiseService');
 
 const ENTITE_FACTICE = { id: 1, code: 'accecit' };
 const UTILISATEUR_SYSTEME_FACTICE = { id: 99 };
@@ -155,4 +155,83 @@ test('executerBasculeTestNonRealise échoue explicitement si aucun utilisateur s
   t.mock.method(dossierRepository, 'trouverUtilisateurSysteme', async () => undefined);
 
   await assert.rejects(() => executerBasculeTestNonRealise(ENTITE_FACTICE), /Utilisateur système non configuré/);
+});
+
+// executerBasculePresenceConfirmeeSansEvaluation (audit 2026-09-21, point 3 — filet de sécurité
+// "présence confirmée jamais évaluée", dossiers #20/#21/#23). Différence structurante avec
+// executerBasculeTestNonRealise ci-dessus : ne doit JAMAIS appeler rendezvousService.
+// changerStatutRendezvous (demande utilisateur explicite — seul le dossier bascule, jamais le
+// rendez-vous), vérifié explicitement ci-dessous plutôt que supposé.
+function mockerBasePresence(t) {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverUtilisateurSysteme', async () => UTILISATEUR_SYSTEME_FACTICE);
+  t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+}
+
+test("executerBasculePresenceConfirmeeSansEvaluation n'appelle rien si aucun rendez-vous n'est éligible", async (t) => {
+  mockerBasePresence(t);
+  t.mock.method(rendezvousRepository, 'listerRendezvousPresenceConfirmeeSansEvaluation', async () => []);
+  const appliquerTransition = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({}));
+
+  const resultat = await executerBasculePresenceConfirmeeSansEvaluation(ENTITE_FACTICE);
+
+  assert.equal(appliquerTransition.mock.callCount(), 0);
+  assert.deepEqual(resultat, { bascules: 0, ignores: 0, echecs: 0, total: 0 });
+});
+
+test('executerBasculePresenceConfirmeeSansEvaluation bascule le dossier SANS jamais toucher au statut du rendez-vous', async (t) => {
+  mockerBasePresence(t);
+  const rdv = { id: 20, dossier_id: 90, date_presence_confirmee: '2026-09-10T10:07:12.589Z' };
+  t.mock.method(rendezvousRepository, 'listerRendezvousPresenceConfirmeeSansEvaluation', async () => [rdv]);
+  const changerStatutRendezvous = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => {
+    throw new Error('changerStatutRendezvous ne doit JAMAIS être appelé par ce filet de sécurité');
+  });
+  const appliquerTransition = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 4 }));
+  const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  const resultat = await executerBasculePresenceConfirmeeSansEvaluation(ENTITE_FACTICE);
+
+  assert.equal(changerStatutRendezvous.mock.callCount(), 0);
+
+  assert.equal(appliquerTransition.mock.callCount(), 1);
+  const appel = appliquerTransition.mock.calls[0].arguments;
+  assert.equal(appel[0], ENTITE_FACTICE);
+  assert.equal(appel[1].dossierId, 90);
+  assert.equal(appel[1].codeAction, 'test_non_realise');
+  assert.equal(appel[1].utilisateurId, UTILISATEUR_SYSTEME_FACTICE.id);
+  assert.equal(appel[1].roleCode, 'systeme');
+
+  assert.equal(enregistrerAction.mock.callCount(), 1);
+  assert.equal(
+    enregistrerAction.mock.calls[0].arguments[1].action,
+    'dossier_transition_test_non_realise_presence_sans_evaluation_automatique',
+  );
+  assert.deepEqual(resultat, { bascules: 1, ignores: 0, echecs: 0, total: 1 });
+});
+
+test('executerBasculePresenceConfirmeeSansEvaluation transmet le bon délai de grâce (72h) au repository', async (t) => {
+  mockerBasePresence(t);
+  const listerEligibles = t.mock.method(rendezvousRepository, 'listerRendezvousPresenceConfirmeeSansEvaluation', async () => []);
+
+  await executerBasculePresenceConfirmeeSansEvaluation(ENTITE_FACTICE);
+
+  assert.equal(listerEligibles.mock.callCount(), 1);
+  assert.deepEqual(listerEligibles.mock.calls[0].arguments[2], { delaiHeures: 72 });
+});
+
+test('executerBasculePresenceConfirmeeSansEvaluation continue sur les rendez-vous suivants après un échec isolé (dossier déjà sorti de test_planifie entre-temps)', async (t) => {
+  mockerBasePresence(t);
+  const rdv1 = { id: 21, dossier_id: 91, date_presence_confirmee: '2026-09-10T09:00:00.000Z' };
+  const rdv2 = { id: 22, dossier_id: 92, date_presence_confirmee: '2026-09-10T09:00:00.000Z' };
+  t.mock.method(rendezvousRepository, 'listerRendezvousPresenceConfirmeeSansEvaluation', async () => [rdv1, rdv2]);
+  let appel = 0;
+  t.mock.method(workflowEngine, 'appliquerTransition', async () => {
+    appel += 1;
+    if (appel === 1) throw new Error('dossier déjà sorti de test_planifie (évalué entre-temps)');
+    return { statutDestinationId: 4 };
+  });
+
+  const resultat = await executerBasculePresenceConfirmeeSansEvaluation(ENTITE_FACTICE);
+
+  assert.deepEqual(resultat, { bascules: 1, ignores: 0, echecs: 1, total: 2 });
 });

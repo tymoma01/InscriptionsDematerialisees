@@ -51,8 +51,13 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // test qu'on découvre "non réalisé" n'a jamais été confirmé réalisé. SYSTEME ajouté (audit
   // 2026-08-20) pour la bascule automatique du même codeAction, déclenchée par une tâche planifiée
   // sans agent connecté (voir core/rendezvous/basculeTestNonRealiseService.js) — même patron que
-  // inscription_soumise ci-dessus.
-  test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN, ROLES.SYSTEME],
+  // inscription_soumise ci-dessus. ACCUEIL_COORDINATION ajouté (audit 2026-09-21, correction
+  // demande utilisateur) : "Marquer annulé" (PATCH /rendezvous/:id, rendezvous.routes.js) compose
+  // désormais cette même transition quand le rendez-vous annulé est le rendez-vous de test
+  // représentatif d'un dossier encore test_planifie (voir rendezvousService.
+  // resoudreTransitionAnnulationTest) — l'acteur réel est l'agent Accueil/Coordination qui annule,
+  // jamais l'utilisateur système ici (contrairement à la bascule automatique 24h ci-dessus).
+  test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN, ROLES.SYSTEME, ROLES.ACCUEIL_COORDINATION],
   // Replanification d'un nouveau créneau, depuis test_non_realise, invalide, valide_envoi_formation,
   // valide_pret_embauche, OU test_planifie lui-même (replanifier reste possible à tout moment tant
   // que le dossier est encore test_planifie, sans restriction de délai — plusieurs lignes

@@ -97,17 +97,6 @@ function varianteStatutRendezvous(statut) {
   return 'attente';
 }
 
-// Rendez-vous 'prevu' (valeur en base INCHANGÉE, uniquement l'affichage ci-dessous) dont la date
-// est déjà passée sans qu'aucun flux (bascule automatique, action manuelle) ne l'ait fait
-// avancer — même correctif que GestionRendezvous.jsx (dossier #37, audit 2026-08-21) : montrer
-// "Prévu" pour un test déjà passé induirait en erreur. Masqué par défaut ici (case "À venir
-// uniquement" cochée par défaut, voir aVenirSeulement/rendezvousRepository.listerRendezvousTest,
-// qui exclut toute date_heure passée) — reste visible une fois cette case décochée, d'où ce
-// correctif malgré tout.
-function rendezvousPrevuExpire(rdv) {
-  return rdv.statut === 'prevu' && new Date(rdv.date_heure).getTime() < Date.now();
-}
-
 // Fusion visuelle "Test planifié" (prevu/confirme regroupés sous un même badge, audit 2026-08-31)
 // RETIRÉE (audit 2026-09-14, décision utilisateur) : la colonne "Statut" (dossier, ajoutée depuis,
 // audit 2026-09-13, voir GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT plus bas) joue désormais le rôle
@@ -127,35 +116,36 @@ function rendezvousPrevuExpire(rdv) {
 // portent chacun leur propre logique d'affichage, jamais partagée avec celle-ci — voir le
 // commentaire d'en-tête de LIBELLES_STATUT plus haut), vérifié avant de les supprimer ci-dessous.
 
-// Libellé/variante EFFECTIFS (badge, recherche, tri) — jamais LIBELLES_STATUT/
-// varianteStatutRendezvous appliqués tels quels sans être passés par rendezvousPrevuExpire
-// d'abord : "Non réalisé" pour un rendez-vous 'prevu' expiré, DISTINCT de "NSPP"
-// (LIBELLES_STATUT.absent, réservé à un désistement réellement enregistré avec motif).
+// Libellé/variante EFFECTIFS (badge, recherche, tri) — plus de "Non réalisé" dérivé de la date
+// pour un 'prevu' expiré (audit 2026-09-21, correction demande utilisateur) : cette valeur
+// n'existait qu'à l'affichage, jamais en base (rendezvous.statut restait 'prevu'), et masquait le
+// statut réel du rendez-vous juste au moment où l'angle mort correspondant (aucune bascule
+// automatique une fois la présence constatée, ou avant le délai de grâce) doit au contraire
+// rester visible ici — la colonne "Statut" (dossier) porte désormais "Test non réalisé" une fois
+// le filet de sécurité déclenché (voir backend basculeTestNonRealiseService.js), sans qu'il faille
+// en plus travestir le statut du rendez-vous pour le signaler dans CETTE colonne. Simple passe-plat
+// vers LIBELLES_STATUT/varianteStatutRendezvous désormais, quelle que soit la date — les colonnes
+// "Rendez-vous" et "Statut" redeviennent deux informations indépendantes, jamais l'une déduite de
+// l'autre.
 function libelleAfficheRendezvous(rdv) {
-  if (rendezvousPrevuExpire(rdv)) return 'Non réalisé';
   return LIBELLES_STATUT[rdv.statut] ?? rdv.statut;
 }
 function varianteAfficheeRendezvous(rdv) {
-  if (rendezvousPrevuExpire(rdv)) return 'echec';
   return varianteStatutRendezvous(rdv.statut);
 }
 
 // Code STABLE du statut AFFICHÉ (colonne "Statut"), pour les boutons de filtre ci-dessous — jamais
 // le libellé français de libelleAfficheRendezvous ci-dessus (locale-dépendant, pas fait pour être
-// comparé) ni le rdv.statut brut seul : un 'prevu' expiré (rendezvousPrevuExpire) doit filtrer avec
-// les "Non réalisé", pas avec les "Prévu" encore à venir, alors que les deux partagent la même
-// valeur brute en base (voir le commentaire de rendezvousPrevuExpire plus haut — affichage
-// uniquement, jamais écrit en base). 'non_realise' choisi comme code plutôt que de réutiliser
-// 'prevu' : distinct de toute valeur réelle de rendezvous.statut, donc jamais ambigu.
+// comparé). Simple passe-plat vers rdv.statut désormais (voir commentaire ci-dessus) : plus de
+// dérivation 'non_realise' qui n'a jamais existé côté rendezvous.statut.
 function codeStatutAffiche(rdv) {
-  if (rendezvousPrevuExpire(rdv)) return 'non_realise';
   return rdv.statut;
 }
 
 // Boutons de filtre par statut (audit 2026-08-31, décision utilisateur — même pattern que
 // FiltresStatut.jsx sur "Dossiers candidats") — toutes les valeurs que codeStatutAffiche peut
-// renvoyer, dans le même ordre/libellé que LIBELLES_STATUT (+ 'non_realise', qui n'y figure pas
-// puisque ce n'est pas une valeur brute de rendezvous.statut, voir ci-dessus). Liste fixe côté
+// renvoyer, dans le même ordre/libellé que LIBELLES_STATUT (plus de 'non_realise' dérivé depuis le
+// 2026-09-21, voir codeStatutAffiche ci-dessus). Liste fixe côté
 // front, pas chargée depuis une config d'entité : rendezvous.statut est une petite énumération
 // commune au moteur générique (voir rendezvous.routes.js, statutBodySchema), pas un vocabulaire
 // propre à ACCECIT comme les statuts de dossier (table `statuts`, elle bien configurable par
@@ -173,7 +163,6 @@ const STATUTS_FILTRABLES_RENDEZVOUS = [
   { code: 'confirme', libelle: 'Présence confirmée' },
   { code: 'honore', libelle: 'Réalisé' },
   { code: 'absent', libelle: 'NSPP' },
-  { code: 'non_realise', libelle: 'Non réalisé' },
   { code: 'annule', libelle: 'Annulé' },
   { code: 'remplace', libelle: 'Remplacé' },
 ];

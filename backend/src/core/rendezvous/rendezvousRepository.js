@@ -79,6 +79,38 @@ function listerRendezvousTestNonRealisesAutomatiquement(bd, entiteId, { dureeCre
     .select('rendezvous.id', 'rendezvous.dossier_id', 'rendezvous.date_heure');
 }
 
+// Filet de sécurité "présence confirmée jamais évaluée" (audit 2026-09-21, angle mort constaté
+// sur les dossiers #20/#21/#23 — voir basculeTestNonRealiseService.
+// executerBasculePresenceConfirmeeSansEvaluation) : symétrique de
+// listerRendezvousTestNonRealisesAutomatiquement ci-dessus, mais pour l'AUTRE moitié des rendez-
+// vous exclus de cette première liste par son `whereNull('date_presence_confirmee')` — ici au
+// contraire whereNotNull, précisément les rendez-vous qu'un formateur/inspecteur a constatés
+// présents (bouton "Présent(e)", evaluationEngine.marquerPresenceConfirmee) sans jamais avoir
+// ensuite soumis d'évaluation. `rendezvous.statut` encore 'prevu'/'confirme' (jamais 'honore') est
+// la seule condition nécessaire pour détecter "aucune évaluation enregistrée" : voir le commentaire
+// de CATEGORIES_STATUT_HISTORIQUE dans rendezvousService.js — 'honore' n'est posé QUE par
+// evaluationEngine.enregistrerEvaluation, jamais par aucun autre chemin.
+//
+// Le délai se compte depuis date_presence_confirmee (constat de présence), PAS depuis date_heure
+// comme ci-dessus : le créneau a par définition déjà eu lieu (présence constatée), c'est
+// l'absence d'ÉVALUATION qui doit être détectée ici, sur son propre délai — voir
+// DELAI_GRACE_PRESENCE_SANS_EVALUATION_HEURES pour la justification de sa durée (72h, distincte
+// des 24h de grâce ci-dessus).
+function listerRendezvousPresenceConfirmeeSansEvaluation(bd, entiteId, { delaiHeures }) {
+  return bd('rendezvous')
+    .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
+    .where({
+      'dossiers.entite_id': entiteId,
+      'rendezvous.type_rdv': 'test',
+      'statuts.code': 'test_planifie',
+    })
+    .whereIn('rendezvous.statut', ['prevu', 'confirme'])
+    .whereNotNull('rendezvous.date_presence_confirmee')
+    .andWhereRaw('rendezvous.date_presence_confirmee < now() - make_interval(hours => ?)', [delaiHeures])
+    .select('rendezvous.id', 'rendezvous.dossier_id', 'rendezvous.date_presence_confirmee');
+}
+
 // Marque la présence constatée du candidat, LE JOUR MÊME, par le formateur/inspecteur (bouton
 // "Présent(e)", voir evaluationEngine.marquerPresenceConfirmee pour la vérification d'accès) —
 // exclut ce rendez-vous de listerRendezvousTestNonRealisesAutomatiquement ci-dessus (whereNull sur
@@ -565,6 +597,7 @@ function migrerRendezvousVersLieu(trx, { lieuIdOrigine, lieuIdDestination }) {
 module.exports = {
   listerRendezvousARappeler,
   listerRendezvousTestNonRealisesAutomatiquement,
+  listerRendezvousPresenceConfirmeeSansEvaluation,
   trouverRendezvousPourBasculeVerrouillee,
   marquerPresenceConfirmee,
   trouverRendezvousParId,

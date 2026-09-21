@@ -1,7 +1,10 @@
 const { obtenirKnex } = require('../db/knex');
 const dossierRepository = require('../core/dossier/dossierRepository');
 const journalAudit = require('../core/audit/journalAudit');
-const { executerBasculeTestNonRealise } = require('../core/rendezvous/basculeTestNonRealiseService');
+const {
+  executerBasculeTestNonRealise,
+  executerBasculePresenceConfirmeeSansEvaluation,
+} = require('../core/rendezvous/basculeTestNonRealiseService');
 
 // Logique métier du job "bascule automatique Test non réalisé" (CLAUDE.md, étape 8 du parcours),
 // séparée de son déclenchement — voir basculeTestNonRealiseCron.js pour le wrapper node-cron,
@@ -9,6 +12,12 @@ const { executerBasculeTestNonRealise } = require('../core/rendezvous/basculeTes
 // choix du 2026-08-31 (Azure Container Apps Jobs externes) — motif coût, voir rappelJob.js pour le
 // détail du raisonnement (fenêtre de disponibilité 8h-20h Paris déjà garantie par une règle de
 // scale Azure, suffisante pour ce job horaire).
+//
+// Deux bascules distinctes exécutées à chaque passage (audit 2026-09-21, point 3) : l'absence
+// (executerBasculeTestNonRealise, délai de grâce 24h) et le filet de sécurité "présence confirmée
+// jamais évaluée" (executerBasculePresenceConfirmeeSansEvaluation, délai 72h) — deux causes
+// distinctes du même angle mort "Test planifié affiché à tort", chacune avec son propre
+// try/catch pour ne jamais bloquer l'autre.
 //
 // Idempotent (voir basculeTestNonRealiseService.js), donc rejouable sans risque de double
 // transition. Générique (voir Modularité CLAUDE.md) : une entité sans statut "test_planifie" dans
@@ -57,6 +66,30 @@ async function executerPourToutesLesEntitesActives() {
         // Une entité en échec (ex. utilisateur système manquant) ne doit jamais empêcher les
         // autres entités actives d'être traitées à ce même passage.
         console.error(`Bascule automatique "Test non réalisé" (${entite.code}) : échec ✘`, erreur.message);
+      }
+
+      // Filet de sécurité "présence confirmée jamais évaluée" (audit 2026-09-21, point 3) — même
+      // cron horaire, même boucle par entité, mais un échec ici ne doit pas empêcher/répéter la
+      // bascule "absence" ci-dessus : bloc try/catch indépendant, pas un `else`.
+      try {
+        const resultatPresence = await executerBasculePresenceConfirmeeSansEvaluation(entite);
+        console.log(
+          `Bascule automatique "présence confirmée sans évaluation" (${entite.code}) : ${resultatPresence.bascules} basculé(s), ` +
+            `${resultatPresence.echecs} échec(s), sur ${resultatPresence.total} rendez-vous éligible(s).`,
+        );
+
+        const utilisateurSystemePresence = await dossierRepository.trouverUtilisateurSysteme(bd, entite.id);
+        if (utilisateurSystemePresence) {
+          await journalAudit.enregistrerAction(bd, {
+            utilisateurId: utilisateurSystemePresence.id,
+            entiteId: entite.id,
+            action: 'cron_bascule_presence_confirmee_sans_evaluation',
+            tableCible: 'dossiers',
+            donnees: resultatPresence,
+          });
+        }
+      } catch (erreur) {
+        console.error(`Bascule automatique "présence confirmée sans évaluation" (${entite.code}) : échec ✘`, erreur.message);
       }
     }
   } finally {

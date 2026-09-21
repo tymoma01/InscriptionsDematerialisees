@@ -1296,3 +1296,68 @@ test('changerStatutRendezvous accepte une transaction déjà ouverte (bdExistant
 
   assert.equal(obtenirKnex.mock.callCount(), 0);
 });
+
+// resoudreTransitionAnnulationTest (audit 2026-09-21, point 2 : 'annule' -> test_non_realise) —
+// pure fonction de décision, jamais d'écriture : testée directement avec un `bd` factice passé en
+// argument (pas de mock sur db.obtenirKnex, cette fonction n'en appelle jamais).
+test("resoudreTransitionAnnulationTest renvoie [] si le rendez-vous n'est pas un rendez-vous de test", async (t) => {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, type_rdv: 'signature_contrat' }));
+  const trouverDossier = t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    statut_code: 'test_planifie',
+  }));
+
+  const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
+    ENTITE_FACTICE,
+    { dossierId: 90, rendezvousId: 71 },
+    creerBdFactice(),
+  );
+
+  assert.deepEqual(transitions, []);
+  // Court-circuite avant même de lire le dossier : aucune raison de le faire pour un type de
+  // rendez-vous qui ne déclenche jamais cette transition.
+  assert.equal(trouverDossier.mock.callCount(), 0);
+});
+
+test("resoudreTransitionAnnulationTest renvoie [] si le dossier n'est plus test_planifie (déjà refermé autrement entre-temps)", async (t) => {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, type_rdv: 'test' }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ statut_code: 'invalide' }));
+
+  const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
+    ENTITE_FACTICE,
+    { dossierId: 90, rendezvousId: 71 },
+    creerBdFactice(),
+  );
+
+  assert.deepEqual(transitions, []);
+});
+
+test("resoudreTransitionAnnulationTest renvoie [] si le rendez-vous est introuvable, plutôt que d'échouer", async (t) => {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => undefined);
+  const trouverDossier = t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    statut_code: 'test_planifie',
+  }));
+
+  const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
+    ENTITE_FACTICE,
+    { dossierId: 90, rendezvousId: 71 },
+    creerBdFactice(),
+  );
+
+  assert.deepEqual(transitions, []);
+  assert.equal(trouverDossier.mock.callCount(), 0);
+});
+
+test('resoudreTransitionAnnulationTest renvoie la transition test_non_realise quand le rendez-vous est un test et le dossier encore test_planifie', async (t) => {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, type_rdv: 'test' }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ statut_code: 'test_planifie' }));
+
+  const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
+    ENTITE_FACTICE,
+    { dossierId: 90, rendezvousId: 71 },
+    creerBdFactice(),
+  );
+
+  assert.equal(transitions.length, 1);
+  assert.equal(transitions[0].codeAction, 'test_non_realise');
+  assert.ok(transitions[0].commentaire?.trim().length > 0, 'un commentaire est obligatoire côté workflowEngine.appliquerTransition');
+});

@@ -250,7 +250,7 @@ rendez-vous a son propre comportement, à connaître au cas par cas :
 | `confirme` | Aucun (intentionnel) | Confirmer sa présence à l'avance n'est pas "le test a eu lieu" ; seul `honore` (posé après coup) doit avoir un effet. Ne change rien à l'éligibilité à la bascule automatique `test_non_realise` (voir `absent` ci-dessous). |
 | `honore` | Le dossier a déjà transité vers une issue positive (`valide_envoi_formation`/`valide_pret_embauche`) | Automatique, mais dans le sens **dossier → rendez-vous** : posé par `evaluationEngine.enregistrerEvaluation`, dans la même transaction que la transition finale du dossier. Câblé en dur dans ce service, pas généralisé par le moteur de workflow. |
 | `absent` | `test_non_realise` | Automatique, deux chemins : (1) bouton "Test non réalisé" (NSPP) → `clotureRendezvousAvecTransitionService`, ou (2) bascule automatique (`basculeTestNonRealiseService`, délai de grâce 24h). Les deux posent `rendezvous.statut='absent'` + motif de désistement dédié ET la transition dossier dans la même transaction. |
-| `annule` | Aucun (choix assumé) | Design intentionnel : le dossier reste sur son statut courant, la reprogrammation reste à l'initiative de l'agent (voir §7.3). |
+| `annule` | `test_non_realise`, **si** le dossier est encore `test_planifie` au moment de l'annulation | Automatique depuis le 2026-09-21 (voir §7.4) — **corrige** l'ancien comportement "Aucun (choix assumé)" ci-dessous, qui laissait le dossier affiché "Test planifié" indéfiniment malgré un rendez-vous annulé (dossiers PROD #29/#41 entre autres, constatés lors de l'audit du même jour). `PATCH /rendezvous/:id` (`rendezvous.routes.js`) compose désormais `changerStatutRendezvous('annule')` + `workflowEngine.appliquerTransition('test_non_realise')` dans la même transaction via `clotureRendezvousAvecTransitionService` — même mécanisme que `absent` ci-dessus, décision utilisateur explicite "pour la cohérence du code". La reprogrammation reste à l'initiative de l'agent (`replanifier_test`, disponible depuis `test_non_realise`) : seul l'AFFICHAGE du dossier cesse de mentir, rien d'autre du workflow ne change. |
 | `remplace` | Sans objet — sentinel technique, jamais un événement réel côté candidat | Posé par `rendezvousRepository.neutraliserRendezvousActifsDossier`, dans deux contextes distincts : (a) une transition dossier dont le statut **d'arrivée** porte `neutralise_rendezvous_actifs=true` (config par entité, migration 051) ; (b) systématiquement par `workflowEngine.forcerStatut` (Admin), quelle que soit la destination. |
 
 ### 7.1 `forcerStatut` neutralise toujours, `appliquerTransition` seulement si configuré
@@ -297,6 +297,95 @@ afficher à la place), le badge "Rendez-vous" reste affiché tel quel, sans rep�
 (un ajout en ce sens, testé le 2026-09-19, a été retiré le même jour, décision utilisateur). Le
 détail complet reste consultable via "Voir l'historique des rendez-vous sélectionnés"
 (`PanneauHistoriqueRendezvous.jsx`).
+
+**Colonnes "Rendez-vous" et "Statut" désormais toujours découplées (audit 2026-09-21) :** jusqu'à
+cette date, la colonne "Rendez-vous" appliquait sa propre dérivation locale
+(`rendezvousPrevuExpire`) : un rendez-vous encore `prevu` en base, mais dont `date_heure` était
+dépassée, s'affichait "Non réalisé" — une valeur qui n'a **jamais existé** dans
+`rendezvous.statut` (voir le tableau en tête de §7, aucune des 6 valeurs réelles ne s'appelle
+ainsi). Ce raccourci masquait précisément l'angle mort corrigé en §7.5 ci-dessous : un dossier
+pouvait afficher "Test planifié" dans la colonne Statut tout en affichant "Non réalisé" dans la
+colonne Rendez-vous, alors qu'aucune des deux ne reflétait un événement réellement survenu.
+Retiré des deux endroits où il existait (`Planification.jsx` et `GestionRendezvous.jsx`, même
+fonction dupliquée dans les deux fichiers, voir convention CLAUDE.md) : la colonne "Rendez-vous"
+affiche désormais toujours le statut RÉEL du rendez-vous (`Prévu`/`Présence confirmée`/`Réalisé`/
+`NSPP`/`Annulé`/`Remplacé`), quelle que soit la date — c'est désormais uniquement à la colonne
+"Statut" (dossier) qu'il revient de signaler "Test non réalisé", via les mécanismes du tableau
+ci-dessus et de §7.4/§7.5.
+
+### 7.4 `annule` → `test_non_realise` (audit 2026-09-21)
+
+`rendezvousService.resoudreTransitionAnnulationTest(entite, { dossierId, rendezvousId }, bd)` :
+fonction de décision pure (ACCECIT-flavored, même raison que `verifierDelaiAvantReplanification` —
+ce fichier interprète le vocabulaire de transitions propre à ACCECIT, jamais le moteur générique) —
+renvoie `[]` (jamais une erreur) si le rendez-vous n'est pas de type `test`, ou si le dossier n'est
+plus `test_planifie` au moment de l'appel (déjà refermé autrement entre-temps) ; sinon renvoie
+`[{ codeAction: 'test_non_realise', commentaire }]`. N'écrit jamais rien elle-même.
+
+`PATCH /api/dossiers/:dossierId/rendezvous/:rendezvousId` (`rendezvous.routes.js`) appelle cette
+fonction pour construire `transitions`, puis compose `changerStatutRendezvous('annule')` et
+`workflowEngine.appliquerTransition` dans une seule transaction via
+`clotureRendezvousAvecTransitionService.cloturerRendezvousAvecTransition` — même mécanisme que le
+bouton NSPP (`absent`), demande utilisateur explicite "pour la cohérence du code". `transitions: []`
+pour `prevu`/`confirme` (jamais concernés) équivaut exactement à l'ancien comportement
+(`changerStatutRendezvous` seul), aucune régression sur ces deux statuts.
+
+Réutilise le MÊME `codeAction`/statut de destination que `absent` (`test_non_realise`) plutôt qu'un
+second statut dossier dédié — la distinction entre les deux causes reste portée par (a) le motif de
+désistement du rendez-vous lui-même (déjà obligatoire pour `annule`, distinct de `test_non_realise`
+qui reste réservé à `absent`) et (b) l'action `journal_audit` distincte posée par la route
+(`dossier_transition_test_non_realise_annulation`, à ne pas confondre avec
+`dossier_transition_test_non_realise_automatique` du délai de grâce 24h ni
+`dossier_transition_test_non_realise` du bouton NSPP).
+
+`transition_roles` pour `test_non_realise` inclut désormais `ACCUEIL_COORDINATION` en plus de
+`FORMATEUR`/`ADMIN`/`SYSTEME` (voir `scripts/seedTransitionRoles.js`) — l'acteur de cette transition
+est le VRAI agent qui annule (jamais l'utilisateur système, contrairement à la bascule 24h) : sa
+trace dans `historique_statuts`/`journal_audit` reste honnête sur qui a déclenché quoi.
+
+### 7.5 Filet de sécurité "présence confirmée jamais évaluée" (audit 2026-09-21, dossiers #20/#21/#23)
+
+Angle mort distinct de `annule` ci-dessus : `listerRendezvousTestNonRealisesAutomatiquement` (§
+absent, tableau ci-dessus) exclut **définitivement** — pas seulement "pas encore" — tout
+rendez-vous dont `date_presence_confirmee` est renseigné (`whereNull`, voir son commentaire
+d'en-tête dans `rendezvousRepository.js`). Un rendez-vous "Présent(e)" confirmé par un
+formateur/inspecteur, jamais suivi d'une évaluation soumise, ne rentrait donc dans AUCUN des
+mécanismes de synchronisation existants — dossier bloqué en `test_planifie` sans limite de temps.
+
+`basculeTestNonRealiseService.executerBasculePresenceConfirmeeSansEvaluation(entite)` — même
+fichier, même cron horaire (`basculeTestNonRealiseJob.executerPourToutesLesEntitesActives`, un
+`try`/`catch` indépendant de la bascule `absent` pour qu'un échec de l'un n'empêche jamais
+l'autre) :
+
+- Sélection (`rendezvousRepository.listerRendezvousPresenceConfirmeeSansEvaluation`) : dossier
+  `test_planifie`, `rendezvous.type_rdv='test'`, `statut` encore `prevu`/`confirme` (jamais
+  `honore` — seule valeur qu'`evaluationEngine.enregistrerEvaluation` pose, donc seul signal fiable
+  d'"aucune évaluation enregistrée"), `date_presence_confirmee` **non nul**, et **`date_presence_
+  confirmee` + 72h < maintenant**.
+- **Délai de 72h, pas 24h** (`DELAI_GRACE_PRESENCE_SANS_EVALUATION_HEURES`, distinct de
+  `DELAI_GRACE_BASCULE_HEURES` de la bascule `absent`) : le compte à rebours démarre à la
+  confirmation de présence (le créneau a par définition déjà eu lieu), pas à `date_heure`. Choisi
+  pour couvrir un test réalisé un vendredi et évalué le lundi suivant (weekend non travaillé) sans
+  déclencher à tort — 24h aurait basculé ce cas dès le samedi.
+- **Ne touche JAMAIS `rendezvous.statut` ni `date_presence_confirmee`** — contrainte utilisateur
+  explicite, vérifiée par un test dédié
+  (`basculeTestNonRealiseService.test.js`, "ne doit JAMAIS appeler changerStatutRendezvous") : appel
+  direct à `workflowEngine.appliquerTransition` sur le dossier uniquement, jamais composé avec
+  `rendezvousService.changerStatutRendezvous` (contrairement à `absent`/`annule` ci-dessus). Le
+  rendez-vous continue donc d'afficher son statut réel (ex. "Présence confirmée") dans la colonne
+  "Rendez-vous" pendant que la colonne "Statut" affiche "Test non réalisé" — les deux colonnes
+  restent des informations indépendantes (voir §7.3), jamais l'une déduite de l'autre.
+- Action `journal_audit` dédiée : `dossier_transition_test_non_realise_presence_sans_evaluation_
+  automatique`.
+- Idempotent par construction, même raisonnement que la bascule `absent` : un dossier déjà basculé
+  ne réapparaît plus au run suivant (`statuts.code = 'test_planifie'` fait partie du filtre de
+  sélection).
+
+Vérifié en conditions réelles sur DEV le 2026-09-21 (script ad hoc, non conservé) : les 3 dossiers
+fixtures reproduisant ce cas (`CANDIDAT1 CANDIDAT1`/`CasC VERIF-BASCULE-C-PRESENT`/
+`Hotel TEST-SEED 04`, présence confirmée le 2026-09-09/10) basculent correctement vers
+`test_non_realise`, leurs 3 rendez-vous restant byte-for-byte inchangés ; un second passage
+immédiat ne trouve plus aucun dossier éligible (idempotence confirmée).
 
 ---
 
