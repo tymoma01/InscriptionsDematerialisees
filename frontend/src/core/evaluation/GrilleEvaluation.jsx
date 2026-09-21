@@ -59,12 +59,13 @@ const VARIANTE_PAR_CODE_OUI_NON = { oui: 'succes', non: 'echec' };
 
 // Codes des questions "DEBUTANT(E)"/"Débutante" (audit 2026-09-19, demande utilisateur — voir
 // seedQuestionnairesEvaluation.js) : cocher "Oui" pré-coche "Non acquis" sur tous les critères
-// grille_qcu encore vides du MÊME bloc/poste (voir gererChangementReponse plus bas). 'debutant'
-// (femme_valet_chambre/equipier, bloc autonome en tête de formulaire) ET 'debutante' (cafetier,
-// libellé "Débutante", restée fusionnée dans la grille "Process de nettoyage" — voir
-// regrouperQuestionsPourAffichage) : même comportement demandé pour les deux, malgré leur
-// positionnement différent dans le formulaire — étendu le 2026-09-19 (initialement limité à
-// 'debutant' seul, cafetier ajouté sur demande explicite).
+// grille_qcu encore vides du MÊME bloc/poste, et cocher "Non" décoche ceux d'entre eux jamais
+// retouchés depuis (audit 2026-09-21 — voir gererChangementReponse plus bas et bloc.autoRempli,
+// chargerBlocs). 'debutant' (femme_valet_chambre/equipier, bloc autonome en tête de formulaire)
+// ET 'debutante' (cafetier, libellé "Débutante", restée fusionnée dans la grille "Process de
+// nettoyage" — voir regrouperQuestionsPourAffichage) : même comportement demandé pour les deux,
+// malgré leur positionnement différent dans le formulaire — étendu le 2026-09-19 (initialement
+// limité à 'debutant' seul, cafetier ajouté sur demande explicite).
 const CODES_QUESTION_DEBUTANT = ['debutant', 'debutante'];
 
 // Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
@@ -178,6 +179,13 @@ async function chargerBlocs(rendezvousId, postesCodes) {
         posteCode,
         questions,
         reponses: valeursParDefaut(questions),
+        // Clés grille_qcu actuellement posées par le pré-remplissage automatique "Oui" (voir
+        // gererChangementReponse) et jamais retouchées depuis — permet à un clic "Non" de ne
+        // remettre à vide QUE celles-ci, sans toucher aux critères modifiés à la main par le
+        // formateur (audit 2026-09-21, correction demande utilisateur). Un Set, pas un objet
+        // {[cle]: true} : uniquement testé en appartenance/parcouru, jamais sérialisé (voir
+        // construireReponsesBloc/gererEnvoi, qui ignorent ce champ).
+        autoRempli: new Set(),
       })),
     ),
   );
@@ -353,7 +361,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     };
   }, [rendezvous.id, postesAmbigus, aucunPosteDeclare, posteResolutionAutomatique]);
 
-  // preRemplirNonAcquisSiOui (audit 2026-09-19, demande utilisateur) : réservé aux questions
+  // estQuestionDebutant (audit 2026-09-19, demande utilisateur) : réservé aux questions
   // "debutant"/"debutante" (voir CODES_QUESTION_DEBUTANT ci-dessus, résolu à `true` uniquement à
   // ces deux points d'appel plus bas) — tous les autres champs du formulaire, y compris les
   // checkboxes "Connaissance du vocabulaire hôtelier" et les autres champs texte/grille, appellent
@@ -364,26 +372,51 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   // aussi écrasé une réponse déjà choisie si sa valeur était falsy) — jamais un critère déjà
   // répondu, manuellement ou par un précédent clic sur "Oui" : un re-clic sur "Oui" après des
   // réponses partielles ne réinitialise donc rien de déjà saisi (décision utilisateur explicite,
-  // point 3 de la demande — ne jamais écraser un jugement déjà porté par le formateur). "Non" ne
-  // déclenche aucun pré-remplissage (branche `if` ci-dessous non exécutée) — et ne décoche/ne
-  // réinitialise pas non plus un pré-remplissage antérieur si le formateur revient sur "Non" après
-  // avoir cliqué "Oui" : seul le comportement AU CLIC SUR "Oui" est demandé, rien côté "Non" au-delà
-  // de "ne rien pré-cocher" (comportement déjà inchangé, aucune réinitialisation demandée).
-  const gererChangementReponse = (indexBloc, cle, valeur, preRemplirNonAcquisSiOui = false) => {
+  // point 3 de la demande initiale — ne jamais écraser un jugement déjà porté par le formateur).
+  //
+  // "Non" (audit 2026-09-21, correction demande utilisateur : au clic "Non" après un "Oui", tout
+  // restait sur "Non acquis" au lieu d'être décoché) remet à vide (`null`) chaque critère encore
+  // marqué `autoRempli` — c'est-à-dire posé par le pré-remplissage et JAMAIS retouché depuis —
+  // mais laisse intact tout critère que `autoRempli.delete(cle)` ci-dessous a déjà fait sortir de
+  // ce suivi, qu'il ait été modifié à la main après un "Oui" ou répondu alors que DEBUTANT(E)
+  // était encore sur "Non". `bloc.autoRempli` (Set de clés grille_qcu, voir chargerBlocs) est la
+  // seule source de vérité pour cette distinction auto/manuel : `cle` en est toujours retiré dès
+  // qu'une réponse est posée directement dessus (ligne juste en dessous), y compris par un click
+  // "Oui"/"Non" ultérieur sur DEBUTANT(E) lui-même (sa propre clé n'y est de toute façon jamais
+  // ajoutée, seuls les items grille_qcu le sont) — un aller-retour Oui → Non → Oui → modif
+  // manuelle → Non retrouve donc à chaque étape exactement l'état attendu, sans mémoire parasite
+  // d'un cycle précédent (Non vide entièrement le Set après usage, Oui le reconstruit à neuf sur
+  // les seuls critères encore null à ce moment-là).
+  const gererChangementReponse = (indexBloc, cle, valeur, estQuestionDebutant = false) => {
     setBlocsQuestionnaire((precedent) =>
       precedent.map((bloc, index) => {
         if (index !== indexBloc) return bloc;
         const reponses = { ...bloc.reponses, [cle]: valeur };
-        if (preRemplirNonAcquisSiOui && valeur === 'oui') {
+        const autoRempli = new Set(bloc.autoRempli);
+        // Toute réponse explicitement posée par le formateur (y compris sur `cle` elle-même, si
+        // c'était un critère grille_qcu auto-rempli) n'est plus "auto" — no-op si `cle` n'y était
+        // pas (cas de DEBUTANT(E) lui-même, jamais suivi ici, voir plus haut).
+        autoRempli.delete(cle);
+
+        if (estQuestionDebutant && valeur === 'oui') {
           for (const question of bloc.questions) {
             if (question.type_question !== 'grille_qcu') continue;
             for (const item of question.items) {
               const cleItem = cleReponse(question.code, item.code);
-              if (reponses[cleItem] == null) reponses[cleItem] = 'non_acquis';
+              if (reponses[cleItem] == null) {
+                reponses[cleItem] = 'non_acquis';
+                autoRempli.add(cleItem);
+              }
             }
           }
+        } else if (estQuestionDebutant && valeur === 'non') {
+          for (const cleAuto of autoRempli) {
+            reponses[cleAuto] = null;
+          }
+          autoRempli.clear();
         }
-        return { ...bloc, reponses };
+
+        return { ...bloc, reponses, autoRempli };
       }),
     );
   };
