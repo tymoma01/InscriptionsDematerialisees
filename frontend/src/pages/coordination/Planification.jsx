@@ -1357,7 +1357,7 @@ export default function Planification() {
                               </span>
                               <span className="planification__statut-force-infobulle-meta">
                                 {rdv.statut_force_le && FORMAT_DATE_HEURE.format(new Date(rdv.statut_force_le))}
-                                {libelleAuteurStatutForce(rdv) && ` — ${libelleAuteurStatutForce(rdv)}`}
+                                {libelleAuteurStatutForce(rdv) && ` - ${libelleAuteurStatutForce(rdv)}`}
                               </span>
                               {rdv.statut_force_commentaire && (
                                 <span className="planification__statut-force-infobulle-commentaire">

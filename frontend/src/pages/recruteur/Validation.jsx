@@ -395,7 +395,7 @@ export default function Validation() {
                         <span className="page-validation__statut-force-infobulle-titre">Statut forcé manuellement</span>
                         <span className="page-validation__statut-force-infobulle-meta">
                           {dossier.statut_force_le && FORMAT_DATE_HEURE_STATUT_FORCE.format(new Date(dossier.statut_force_le))}
-                          {libelleAuteurStatutForce(dossier) && ` — ${libelleAuteurStatutForce(dossier)}`}
+                          {libelleAuteurStatutForce(dossier) && ` - ${libelleAuteurStatutForce(dossier)}`}
                         </span>
                         {dossier.statut_force_commentaire && (
                           <span className="page-validation__statut-force-infobulle-commentaire">
