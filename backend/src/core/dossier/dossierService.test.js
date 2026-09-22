@@ -379,3 +379,44 @@ test('listerDossiers renvoie rendezvousTestActif à null pour un dossier sans re
 
   assert.equal(dossier.rendezvousTestActif, null);
 });
+
+// Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54, étendu à Validation.jsx
+// section "Changement de statut manuel/forcé") — même coercition que
+// rendezvousService.listerRendezvousTest : `statut_force` brut (dossierRepository.
+// trouverDossierAvecStatutParId) vaut `null` tant qu'aucun changement de statut n'est encore
+// tracé pour ce dossier, jamais mis en front sans normalisation.
+test('obtenirDossier expose statutForce=true quand le dernier changement de statut du dossier est un forçage', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 16,
+    statut_force: true,
+    statut_force_le: '2026-09-17T09:45:28.754Z',
+    statut_force_par_prenom: 'Cheick',
+    statut_force_par_nom: 'Ibrahima',
+    statut_force_commentaire: 'embauchée le 4 Septembre',
+    donnees_disponibilites: null,
+  }));
+
+  const dossier = await dossierService.obtenirDossier(ENTITE, 16);
+
+  assert.equal(dossier.statutForce, true);
+  assert.equal(dossier.statut_force_par_prenom, 'Cheick');
+  assert.equal(dossier.statut_force_commentaire, 'embauchée le 4 Septembre');
+});
+
+test("obtenirDossier expose statutForce=false (jamais null) quand le dossier n'a aucun changement de statut forcé tracé", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 108,
+    statut_force: null,
+    statut_force_le: null,
+    statut_force_par_prenom: null,
+    statut_force_par_nom: null,
+    statut_force_commentaire: null,
+    donnees_disponibilites: null,
+  }));
+
+  const dossier = await dossierService.obtenirDossier(ENTITE, 108);
+
+  assert.equal(dossier.statutForce, false);
+});

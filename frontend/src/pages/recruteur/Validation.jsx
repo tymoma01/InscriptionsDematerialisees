@@ -96,6 +96,48 @@ function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
+// Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 : deux dossiers affichés
+// "Test réalisé" sans qu'aucun rendez-vous n'ait jamais été honoré) — même patron que
+// Planification.jsx (page Coordination, "Suivi des tests"), étendu ici à la fiche dossier
+// détaillée : `dossier.statutForce` vient de dossierService.obtenirDossier (LEFT JOIN LATERAL
+// vers le dernier journal_audit du dossier, voir dossierRepository.trouverDossierAvecStatutParId)
+// — `true` seulement quand le DERNIER changement de statut est passé par /forcer-statut (section
+// "Changement de statut manuel/forcé" plus bas sur cette même page), jamais pour un dossier arrivé
+// au même statut par le parcours normal (évaluation réelle ou marquer-embauche).
+//
+// Dupliqué depuis Planification.jsx plutôt que partagé (voir CLAUDE.md, conventions du projet) :
+// même raisonnement que varianteStatut ci-dessus, déjà son propre mapping local distinct de
+// Planification.jsx/TableauDeBordAccueil.jsx.
+const FORMAT_DATE_HEURE_STATUT_FORCE = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function libelleAuteurStatutForce(dossier) {
+  const nomComplet = [dossier.statut_force_par_prenom, dossier.statut_force_par_nom].filter(Boolean).join(' ');
+  return nomComplet || null;
+}
+
+// Même mécanique de bascule au-dessus/en dessous que positionnerInfobulleStatutForce
+// (Planification.jsx) — dupliquée ici plutôt que partagée pour la même raison (nom de classe/
+// structure d'infobulle propres à cette page). Voir son commentaire pour le détail du
+// raisonnement (measure-on-hover, DOM direct plutôt qu'un état React).
+function positionnerInfobulleStatutForce(evenement) {
+  const conteneur = evenement.currentTarget;
+  const bulle = conteneur.querySelector('.page-validation__statut-force-infobulle');
+  if (!bulle) return;
+  const MARGE_BULLE = 8;
+  const rectConteneur = conteneur.getBoundingClientRect();
+  const hauteurBulle = bulle.getBoundingClientRect().height;
+  const espaceAuDessus = rectConteneur.top;
+  const espaceEnDessous = window.innerHeight - rectConteneur.bottom;
+  const basculerEnDessous = espaceAuDessus < hauteurBulle + MARGE_BULLE && espaceEnDessous > espaceAuDessus;
+  conteneur.classList.toggle('page-validation__statut-conteneur--infobulle-en-dessous', basculerEnDessous);
+}
+
 // Badge "En attente"/"Validée"/"Rejetée" retiré (audit 2026-08-19) : ces trois valeurs de
 // pieces_justificatives.statut_verification ne sont modifiables que par PATCH
 // /api/dossiers/:dossierId/pieces/:pieceId (pieceJustificativeService.mettreAJourStatutVerificationPieceJustificative),
@@ -331,7 +373,39 @@ export default function Validation() {
             {dossier && (
               <div className="page-validation__statut">
                 <span className="page-validation__statut-libelle">Statut :</span>
-                <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
+                {/* Marque + infobulle "Statut forcé manuellement" (audit 2026-09-22, dossiers
+                    #16/#54) UNIQUEMENT si dossier.statutForce — wrapper `position: relative` DÉDIÉ
+                    (pas le badge lui-même, générique/partagé, voir StatutBadge.jsx), même
+                    principe que Planification.jsx ("Suivi des tests"). */}
+                <span
+                  className={
+                    dossier.statutForce
+                      ? 'page-validation__statut-conteneur page-validation__statut-conteneur--force'
+                      : 'page-validation__statut-conteneur'
+                  }
+                  onMouseEnter={dossier.statutForce ? positionnerInfobulleStatutForce : undefined}
+                >
+                  <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
+                  {dossier.statutForce && (
+                    <>
+                      <span className="page-validation__statut-force-marque" aria-hidden="true">
+                        i
+                      </span>
+                      <span className="page-validation__statut-force-infobulle" aria-hidden="true">
+                        <span className="page-validation__statut-force-infobulle-titre">Statut forcé manuellement</span>
+                        <span className="page-validation__statut-force-infobulle-meta">
+                          {dossier.statut_force_le && FORMAT_DATE_HEURE_STATUT_FORCE.format(new Date(dossier.statut_force_le))}
+                          {libelleAuteurStatutForce(dossier) && ` — ${libelleAuteurStatutForce(dossier)}`}
+                        </span>
+                        {dossier.statut_force_commentaire && (
+                          <span className="page-validation__statut-force-infobulle-commentaire">
+                            « {dossier.statut_force_commentaire} »
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </span>
               </div>
             )}
           </div>

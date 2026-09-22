@@ -603,11 +603,16 @@ async function obtenirDossier(entite, dossierId) {
   const bd = await obtenirKnex();
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier) return dossier;
-  const { donnees_disponibilites, ...reste } = dossier;
+  const { donnees_disponibilites, statut_force, ...reste } = dossier;
   return {
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
+    // Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54, Validation.jsx) —
+    // même coercition que rendezvousService.listerRendezvousTest : `statut_force` brut vaut
+    // `null` (jamais `false`) tant qu'aucun changement de statut n'est encore tracé pour ce
+    // dossier, jamais mis en front sans normalisation.
+    statutForce: statut_force === true,
   };
 }
 

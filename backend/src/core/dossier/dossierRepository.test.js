@@ -171,3 +171,18 @@ test("listerHistoriqueFormation scope par dossier ET entité, filtre les 3 statu
   );
   assert.match(sql, /order by "historique_statuts"\."date_changement" asc/);
 });
+
+// Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54, étendu à Validation.jsx
+// section "Changement de statut manuel/forcé") — même fragment SQL que
+// rendezvousRepository.listerRendezvousTest (voir son test dédié pour le détail du raisonnement) :
+// LATERAL (pas un simple LEFT JOIN) pour garantir AU PLUS UNE ligne, jamais 'dossier_marque_embauche'.
+test("trouverDossierAvecStatutParId joint le DERNIER événement journal_audit ('historique_statuts') du dossier via LATERAL, pas un simple LEFT JOIN", () => {
+  const sql = dossierRepository.trouverDossierAvecStatutParId(bd, 1, 42).toString();
+
+  assert.match(sql, /LEFT JOIN LATERAL/);
+  assert.match(sql, /table_cible = 'historique_statuts'/);
+  assert.match(sql, /ORDER BY ja\.date_action DESC/);
+  assert.match(sql, /LIMIT 1/);
+  assert.match(sql, /dernier_changement_statut\.action = 'changement_statut_force'/);
+  assert.doesNotMatch(sql, /dossier_marque_embauche/);
+});

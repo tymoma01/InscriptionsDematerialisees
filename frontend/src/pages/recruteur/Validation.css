@@ -55,6 +55,111 @@
   font-weight: 700;
 }
 
+/* Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 — voir dossier.statutForce,
+   Validation.jsx) — même style/mécanique que .planification__statut-conteneur/-force-marque/
+   -force-infobulle (Planification.css, "Suivi des tests"), dupliqué ici plutôt que partagé (voir
+   CLAUDE.md, conventions du projet). Wrapper `position: relative` dédié — StatutBadge reste
+   inchangé/générique. */
+.page-validation__statut-conteneur {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.page-validation__statut-conteneur--force {
+  cursor: help;
+}
+
+/* Bordure pointillée sur le badge lui-même, ciblée depuis ce wrapper précis — jamais sur le
+   composant générique StatutBadge (StatutBadge.css). */
+.page-validation__statut-conteneur--force .statut-badge {
+  outline: 1.5px dashed var(--couleur-back-office-dore);
+  outline-offset: 2px;
+}
+
+/* Marque discrète toujours visible (pas seulement au survol) — un recruteur doit pouvoir repérer
+   un statut forcé d'un coup d'œil en arrivant sur la fiche, sans avoir à survoler le badge. */
+.page-validation__statut-force-marque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  border: 1px dashed var(--couleur-back-office-dore);
+  color: var(--couleur-back-office-dore);
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Infobulle maison structurée (titre en gras/ligne date-auteur/commentaire en retrait-italique) —
+   même présentation soignée que .planification__statut-force-infobulle (Planification.css),
+   volontairement distincte des tooltips "bruts" précédents du projet (texte simple au survol). */
+.page-validation__statut-force-infobulle {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+
+  min-width: 14rem;
+  max-width: 18rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure);
+  border-left: 3px solid var(--couleur-back-office-dore);
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.page-validation__statut-conteneur:hover .page-validation__statut-force-infobulle,
+.page-validation__statut-conteneur:focus-visible .page-validation__statut-force-infobulle {
+  opacity: 1;
+}
+
+/* Bascule sous le badge quand positionnerInfobulleStatutForce (Validation.jsx) a mesuré un espace
+   au-dessus insuffisant — cette infobulle vit tout en haut de page (ligne de titre), donc quasi
+   toujours basculée en dessous en pratique, contrairement à celle de Planification.jsx (une ligne
+   de tableau, position variable). */
+.page-validation__statut-conteneur--infobulle-en-dessous .page-validation__statut-force-infobulle {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.page-validation__statut-force-infobulle-titre {
+  font-weight: 700;
+  color: var(--couleur-back-office);
+}
+
+.page-validation__statut-force-infobulle-meta {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.78rem;
+}
+
+.page-validation__statut-force-infobulle-commentaire {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--couleur-bordure-legere);
+  font-style: italic;
+}
+
 /* Format "NOM Prénom" classique, même convention que .capture-tablette__candidat-nom
    (CaptureTablette.css) : distingue nom/prénom sans dépendre d'un ordre figé, quelle que soit
    la casse saisie en base. */

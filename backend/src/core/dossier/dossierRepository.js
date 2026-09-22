@@ -88,6 +88,13 @@ function trouverDossierParId(trx, entiteId, dossierId) {
 // rendezvousService.creerRendezvous pour distinguer FDC/VDC sur le poste combiné
 // 'femme_valet_chambre' (aucun code poste distinct pour ce cas, voir postesConstantes.js — la
 // civilité du candidat est le seul signal disponible).
+// LEFT JOIN LATERAL vers le DERNIER événement journal_audit portant sur le statut de ce dossier
+// (audit 2026-09-22, dossiers #16/#54 : badge "Statut forcé manuellement", d'abord posé sur
+// listerRendezvousTest, voir rendezvousRepository.js pour le détail du raisonnement — étendu ici
+// à la fiche dossier détaillée, Validation.jsx, section "Changement de statut manuel/forcé" déjà
+// existante) — même fragment SQL dupliqué tel quel plutôt que partagé (voir CLAUDE.md,
+// conventions du projet), même index dédié (migration 064, idx_journal_audit_table_cible_cible_id_date)
+// que l'autre appelant.
 function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
   return trx('dossiers')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -99,6 +106,17 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
         trx.raw('?', ['disponibilites']),
       );
     })
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT ja.action, ja.utilisateur_id, ja.date_action, ja.donnees
+         FROM journal_audit ja
+         WHERE ja.cible_id = dossiers.id
+           AND ja.table_cible = 'historique_statuts'
+         ORDER BY ja.date_action DESC
+         LIMIT 1
+       ) AS dernier_changement_statut ON true`,
+    )
+    .leftJoin('utilisateurs as agent_changement_statut', 'agent_changement_statut.id', 'dernier_changement_statut.utilisateur_id')
     .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
     .select(
       'dossiers.*',
@@ -108,6 +126,11 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
       'candidats.prenom as candidat_prenom',
       'candidats.civilite as candidat_civilite',
       'bloc_disponibilites.donnees as donnees_disponibilites',
+      trx.raw("dernier_changement_statut.action = 'changement_statut_force' as statut_force"),
+      'dernier_changement_statut.date_action as statut_force_le',
+      'agent_changement_statut.prenom as statut_force_par_prenom',
+      'agent_changement_statut.nom as statut_force_par_nom',
+      trx.raw("dernier_changement_statut.donnees ->> 'commentaire' as statut_force_commentaire"),
     )
     .first();
 }
