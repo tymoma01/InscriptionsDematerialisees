@@ -626,6 +626,117 @@
   text-align: center;
 }
 
+/* Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 : deux dossiers affichés
+   "Test réalisé" sans qu'aucun rendez-vous n'ait jamais été honoré — voir rdv.statutForce,
+   Planification.jsx). Wrapper `position: relative` dédié — même principe que
+   .dossier-list__statut-conteneur (DossierList.css), StatutBadge reste inchangé/générique. */
+.planification__statut-conteneur {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.planification__statut-conteneur--force {
+  cursor: help;
+}
+
+/* Bordure pointillée sur le badge lui-même (distinction "légèrement différente", pas une couleur
+   ou une forme différente qui casserait la cohérence avec les autres badges "Test réalisé") —
+   ciblée via .statut-badge (StatutBadge.css) depuis CE wrapper précis, jamais sur le composant
+   générique lui-même. */
+.planification__statut-conteneur--force .statut-badge {
+  outline: 1.5px dashed var(--couleur-back-office-dore);
+  outline-offset: 2px;
+}
+
+/* Marque discrète toujours visible (pas seulement au survol, contrairement à l'infobulle
+   ci-dessous) — un agent doit pouvoir repérer un dossier forcé d'un coup d'œil dans la colonne,
+   sans avoir à survoler chaque ligne pour le découvrir. Cercle pointillé + "i" : reprend le motif
+   pointillé du badge ci-dessus plutôt que d'introduire une seconde convention visuelle. */
+.planification__statut-force-marque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  border: 1px dashed var(--couleur-back-office-dore);
+  color: var(--couleur-back-office-dore);
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Infobulle maison, mécanique CSS pure identique à .dossier-list__statut-infobulle
+   (DossierList.css, opacity 0->1 au survol/focus, aucun état React — voir
+   positionnerInfobulleStatutForce, Planification.jsx pour la bascule au-dessus/en dessous),
+   mais présentation VOLONTAIREMENT plus soignée que ce précédent (demande utilisateur explicite,
+   audit 2026-09-22) : fond clair + bordure + liseré doré back-office façon carte, plutôt que le
+   pavé gris foncé texte centré déjà utilisé ailleurs — structure interne à 3 niveaux (titre en
+   gras, ligne date/auteur, commentaire en retrait/italique) plutôt qu'une simple liste de lignes
+   toutes au même poids visuel. */
+.planification__statut-force-infobulle {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+
+  min-width: 14rem;
+  max-width: 18rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure);
+  border-left: 3px solid var(--couleur-back-office-dore);
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.planification__statut-conteneur:hover .planification__statut-force-infobulle,
+.planification__statut-conteneur:focus-visible .planification__statut-force-infobulle {
+  opacity: 1;
+}
+
+/* Bascule sous le badge quand positionnerInfobulleStatutForce a mesuré un espace au-dessus
+   insuffisant — même mécanique que .dossier-list__statut-conteneur--infobulle-en-dessous. */
+.planification__statut-conteneur--infobulle-en-dessous .planification__statut-force-infobulle {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
+.planification__statut-force-infobulle-titre {
+  font-weight: 700;
+  color: var(--couleur-back-office);
+}
+
+.planification__statut-force-infobulle-meta {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.78rem;
+}
+
+.planification__statut-force-infobulle-commentaire {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--couleur-bordure-legere);
+  font-style: italic;
+}
+
 /* Cellule Actions : même patron que .dossier-list__actions (DossierList.css) — centre le bouton
    dans la cellule, contrairement au reste du tableau resté aligné à gauche
    (.planification__table th, .planification__table td). */

@@ -262,6 +262,43 @@ function varianteGroupeStatutDossier(rdv) {
   return groupe ? VARIANTE_PAR_GROUPE_STATUT_DOSSIER[groupe] : 'neutre';
 }
 
+// Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 : deux dossiers affichés
+// "Test réalisé" sans qu'aucun rendez-vous n'ait jamais été honoré) — `rdv.statutForce` vient de
+// rendezvousService.listerRendezvousTest (LEFT JOIN LATERAL vers le dernier journal_audit du
+// dossier, voir rendezvousRepository.listerRendezvousTest) : `true` seulement quand le DERNIER
+// changement de statut de ce dossier est passé par /forcer-statut (Admin, sans passer par une
+// évaluation réelle), jamais pour un dossier arrivé au même statut par le parcours normal.
+//
+// Auteur affiché tel quel ("Prénom Nom"), sans repli "Système"/"-" : contrairement à
+// listerHistoriqueRendezvousParDossiers (cree_par_prenom/nom, PanneauHistoriqueRendezvous.jsx),
+// /forcer-statut est une action Admin authentifiée uniquement — jamais posée par un job
+// automatique (voir workflowEngine.forcerStatut) —, donc utilisateur_id y est toujours renseigné en
+// pratique ; un `null` resterait néanmoins un simple silence ci-dessous plutôt qu'un texte devinée.
+function libelleAuteurStatutForce(rdv) {
+  const nomComplet = [rdv.statut_force_par_prenom, rdv.statut_force_par_nom].filter(Boolean).join(' ');
+  return nomComplet || null;
+}
+
+// Même mécanique de bascule au-dessus/en dessous que positionnerInfobulleStatut
+// (core/dossier/DossierList.jsx, "Dossiers candidats") — dupliquée ici plutôt que partagée (voir
+// CLAUDE.md, conventions du projet) : DossierList.jsx ne l'exporte pas, et cette page a son propre
+// nom de classe/structure d'infobulle (plus riche : titre/date-auteur/commentaire, pas une simple
+// liste de lignes — voir son commentaire d'en-tête dans le rendu, plus bas). Voir le commentaire de
+// positionnerInfobulleStatut pour le détail du raisonnement (measure-on-hover, DOM direct plutôt
+// qu'un état React).
+function positionnerInfobulleStatutForce(evenement) {
+  const conteneur = evenement.currentTarget;
+  const bulle = conteneur.querySelector('.planification__statut-force-infobulle');
+  if (!bulle) return;
+  const MARGE_BULLE = 8;
+  const rectConteneur = conteneur.getBoundingClientRect();
+  const hauteurBulle = bulle.getBoundingClientRect().height;
+  const espaceAuDessus = rectConteneur.top;
+  const espaceEnDessous = window.innerHeight - rectConteneur.bottom;
+  const basculerEnDessous = espaceAuDessus < hauteurBulle + MARGE_BULLE && espaceEnDessous > espaceAuDessus;
+  conteneur.classList.toggle('planification__statut-conteneur--infobulle-en-dessous', basculerEnDessous);
+}
+
 // Boutons de filtre par statut DOSSIER (audit 2026-09-13, demande utilisateur) — même pattern que
 // STATUTS_FILTRABLES_RENDEZVOUS ci-dessus, mais sur les groupes de haut niveau plutôt que sur
 // rendezvous.statut. `valide`/`rejete` (fallback neutre, sans groupe) n'ont volontairement AUCUN
@@ -1288,12 +1325,49 @@ export default function Planification() {
                     <td>{libelleExperience(rdv.experience)}</td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
                     {/* "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — voir
-                        le commentaire d'en-tête de GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT. */}
+                        le commentaire d'en-tête de GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT.
+                        Marque + infobulle "Statut forcé manuellement" (audit 2026-09-22, dossiers
+                        #16/#54) UNIQUEMENT si rdv.statutForce — wrapper `position: relative` DÉDIÉ
+                        (pas le badge lui-même, générique/partagé, voir StatutBadge.jsx), même
+                        principe que .dossier-list__statut-conteneur (DossierList.jsx). Infobulle
+                        maison structurée (titre en gras/ligne date+auteur/commentaire en retrait),
+                        pas une simple liste de lignes centrées comme .dossier-list__statut-infobulle
+                        — demande explicite d'une présentation plus soignée pour celle-ci. */}
                     <td className="planification__colonne-statut">
-                      <StatutBadge
-                        libelle={libelleGroupeStatutDossier(rdv)}
-                        variante={varianteGroupeStatutDossier(rdv)}
-                      />
+                      <span
+                        className={
+                          rdv.statutForce
+                            ? 'planification__statut-conteneur planification__statut-conteneur--force'
+                            : 'planification__statut-conteneur'
+                        }
+                        onMouseEnter={rdv.statutForce ? positionnerInfobulleStatutForce : undefined}
+                      >
+                        <StatutBadge
+                          libelle={libelleGroupeStatutDossier(rdv)}
+                          variante={varianteGroupeStatutDossier(rdv)}
+                        />
+                        {rdv.statutForce && (
+                          <>
+                            <span className="planification__statut-force-marque" aria-hidden="true">
+                              i
+                            </span>
+                            <span className="planification__statut-force-infobulle" aria-hidden="true">
+                              <span className="planification__statut-force-infobulle-titre">
+                                Statut forcé manuellement
+                              </span>
+                              <span className="planification__statut-force-infobulle-meta">
+                                {rdv.statut_force_le && FORMAT_DATE_HEURE.format(new Date(rdv.statut_force_le))}
+                                {libelleAuteurStatutForce(rdv) && ` — ${libelleAuteurStatutForce(rdv)}`}
+                              </span>
+                              {rdv.statut_force_commentaire && (
+                                <span className="planification__statut-force-infobulle-commentaire">
+                                  « {rdv.statut_force_commentaire} »
+                                </span>
+                              )}
+                            </span>
+                          </>
+                        )}
+                      </span>
                     </td>
                     {/* "Rendez-vous" (ex-colonne "Statut", statut du RENDEZ-VOUS) — inchangée, voir
                         le commentaire d'en-tête de COLONNES. */}

@@ -1361,3 +1361,53 @@ test('resoudreTransitionAnnulationTest renvoie la transition test_non_realise qu
   assert.equal(transitions[0].codeAction, 'test_non_realise');
   assert.ok(transitions[0].commentaire?.trim().length > 0, 'un commentaire est obligatoire côté workflowEngine.appliquerTransition');
 });
+
+// listerRendezvousTest — badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 :
+// deux dossiers affichés "Test réalisé" sans qu'aucun rendez-vous n'ait jamais été honoré, faute
+// d'être passés par forcerStatut). `statut_force` brut vient de rendezvousRepository.listerRendezvousTest
+// (LEFT JOIN LATERAL vers le dernier journal_audit de ce dossier) : `true` seulement quand ce
+// dernier événement est 'changement_statut_force', `null` quand le dossier n'a encore aucun
+// changement de statut tracé — jamais mise en front sans coercion (voir statutForce ci-dessous).
+test('listerRendezvousTest expose statutForce=true quand le dernier changement de statut du dossier est un forçage', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'listerRendezvousTest', async () => [
+    {
+      id: 1,
+      dossier_id: 16,
+      statut_force: true,
+      statut_force_le: '2026-09-17T09:45:28.754Z',
+      statut_force_par_prenom: 'Cheick',
+      statut_force_par_nom: 'Ibrahima',
+      statut_force_commentaire: 'embauchée le 4 Septembre',
+      donnees_disponibilites: null,
+      donnees_coordonnees: null,
+    },
+  ]);
+
+  const [rdv] = await rendezvousService.listerRendezvousTest(ENTITE_FACTICE, {});
+
+  assert.equal(rdv.statutForce, true);
+  assert.equal(rdv.statut_force_par_prenom, 'Cheick');
+  assert.equal(rdv.statut_force_commentaire, 'embauchée le 4 Septembre');
+});
+
+test("listerRendezvousTest expose statutForce=false (jamais null) quand le dossier n'a aucun changement de statut forcé tracé", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(rendezvousRepository, 'listerRendezvousTest', async () => [
+    {
+      id: 2,
+      dossier_id: 108,
+      statut_force: null,
+      statut_force_le: null,
+      statut_force_par_prenom: null,
+      statut_force_par_nom: null,
+      statut_force_commentaire: null,
+      donnees_disponibilites: null,
+      donnees_coordonnees: null,
+    },
+  ]);
+
+  const [rdv] = await rendezvousService.listerRendezvousTest(ENTITE_FACTICE, {});
+
+  assert.equal(rdv.statutForce, false);
+});

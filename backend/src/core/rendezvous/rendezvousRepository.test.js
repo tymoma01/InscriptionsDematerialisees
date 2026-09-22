@@ -56,3 +56,23 @@ test("listerRendezvousTestNonRealisesAutomatiquement inclut 'prevu' ET 'confirme
 // une vraie Promise dès son retour, pas un query builder dont .toString() reflète le SQL — cette
 // fonction est couverte par un test bout-en-bout (vérification manuelle documentée dans le rapport
 // de la tâche, pas de connexion DB disponible dans cette suite unitaire).
+
+// listerRendezvousTest — badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54).
+// Vérifie la forme du SQL généré (LATERAL, pas un simple LEFT JOIN, pour garantir AU PLUS UNE
+// ligne par dossier même si un dossier accumulait plusieurs événements le même jour) plutôt que
+// d'exécuter contre une vraie base, même patron que les tests ci-dessus.
+test("listerRendezvousTest joint le DERNIER événement journal_audit ('historique_statuts') du dossier via LATERAL, pas un simple LEFT JOIN", () => {
+  const sql = rendezvousRepository.listerRendezvousTest(bd, 1, {}).toString();
+
+  assert.match(sql, /LEFT JOIN LATERAL/);
+  assert.match(sql, /table_cible = 'historique_statuts'/);
+  assert.match(sql, /ORDER BY ja\.date_action DESC/);
+  assert.match(sql, /LIMIT 1/);
+});
+
+test("listerRendezvousTest expose statut_force = (action = 'changement_statut_force'), pas 'dossier_marque_embauche' (transition normale, voir embaucheService)", () => {
+  const sql = rendezvousRepository.listerRendezvousTest(bd, 1, {}).toString();
+
+  assert.match(sql, /dernier_changement_statut\.action = 'changement_statut_force'/);
+  assert.doesNotMatch(sql, /dossier_marque_embauche/);
+});

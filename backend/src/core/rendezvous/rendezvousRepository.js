@@ -296,6 +296,31 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
         bd.raw('?', ['coordonnees']),
       );
     })
+    // LEFT JOIN LATERAL vers le DERNIER événement journal_audit portant sur le statut de ce dossier
+    // (audit 2026-09-22, dossiers #16/#54 : deux dossiers affichés "Test réalisé" sans qu'aucun
+    // rendez-vous n'ait jamais été honoré) — même technique que dossierRepository.listerDossiers
+    // (rendezvous_actif) pour garantir AU PLUS UNE ligne par dossier. `table_cible =
+    // 'historique_statuts'` regroupe TOUTES les origines d'un changement de statut dossier (voir
+    // transitions.routes.js : 'dossier_transition_<codeAction>' pour le parcours normal,
+    // 'changement_statut_force' pour /forcer-statut, 'dossier_marque_embauche' pour la transition
+    // dédiée marquer-embauche) — seule la PLUS RÉCENTE nous intéresse ici : c'est elle qui explique
+    // le statut actuellement affiché. Si elle vaut 'changement_statut_force', ce statut a été posé
+    // par un Admin sans passer par une évaluation réelle (workflowEngine.forcerStatut ignore
+    // volontairement `transitions_statut`/évaluation, voir son commentaire) — c'est le seul cas
+    // qu'on signale (contrairement à 'dossier_marque_embauche', qui passe lui par
+    // workflowEngine.appliquerTransition et respecte donc le parcours normal, voir
+    // embaucheService.marquerEmbauche).
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT ja.action, ja.utilisateur_id, ja.date_action, ja.donnees
+         FROM journal_audit ja
+         WHERE ja.cible_id = dossiers.id
+           AND ja.table_cible = 'historique_statuts'
+         ORDER BY ja.date_action DESC
+         LIMIT 1
+       ) AS dernier_changement_statut ON true`,
+    )
+    .leftJoin('utilisateurs as agent_changement_statut', 'agent_changement_statut.id', 'dernier_changement_statut.utilisateur_id')
     .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
     .select(
       'rendezvous.id',
@@ -310,6 +335,11 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
       'utilisateurs.nom as formateur_nom',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'bloc_coordonnees.donnees as donnees_coordonnees',
+      bd.raw("dernier_changement_statut.action = 'changement_statut_force' as statut_force"),
+      'dernier_changement_statut.date_action as statut_force_le',
+      'agent_changement_statut.prenom as statut_force_par_prenom',
+      'agent_changement_statut.nom as statut_force_par_nom',
+      bd.raw("dernier_changement_statut.donnees ->> 'commentaire' as statut_force_commentaire"),
     )
     .orderBy('rendezvous.date_heure', 'asc');
 

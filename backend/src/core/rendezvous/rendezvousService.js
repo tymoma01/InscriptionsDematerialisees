@@ -317,7 +317,7 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
     dateDebut,
     dateFin,
   });
-  return rendezvous.map(({ donnees_disponibilites, donnees_coordonnees, ...reste }) => ({
+  return rendezvous.map(({ donnees_disponibilites, donnees_coordonnees, statut_force, ...reste }) => ({
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
@@ -327,6 +327,12 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
     // Colonne "Code postal" (audit 2026-09-09), extrait du bloc 'coordonnees' — même patron que
     // dossierService.listerDossiers (candidat_telephone/candidat_email).
     candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
+    // Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54) — `statut_force` brut
+    // (rendezvousRepository.listerRendezvousTest) vaut `null` quand le dossier n'a encore aucun
+    // changement de statut tracé, jamais `false` : coercion explicite ici plutôt que de laisser
+    // `null` filtrer jusqu'au front (même principe que les `?? []`/`?? null` ci-dessus, un booléen
+    // affiché ne doit jamais être ambigu).
+    statutForce: statut_force === true,
   }));
 }
 
