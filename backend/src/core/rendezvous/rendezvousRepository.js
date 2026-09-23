@@ -112,21 +112,56 @@ function listerRendezvousPresenceConfirmeeSansEvaluation(bd, entiteId, { delaiHe
 }
 
 // Filet de sécurité générique "rattrapage annulation test" (audit 2026-09-21, voir
-// rattrapageAnnulationTestService.js) : tout dossier ENCORE test_planifie portant au moins un
-// rendez-vous type='test' statut='annule' — quelle que soit la cause de cette annulation (PATCH
-// manuel, sync Outlook, ou tout futur chemin non identifié), ce module de données ne le sait pas
-// et n'a pas à le savoir. GROUP BY dossier + min(id) : un seul rendez-vous 'annule' suffit par
-// dossier pour que l'appelant interroge rendezvousService.resoudreTransitionAnnulationTest (qui ne
-// dépend que du dossier et du type_rdv, pas de CE rendez-vous précis) — si un même dossier a
-// plusieurs rendez-vous 'annule', ne le renvoyer qu'une fois.
+// rattrapageAnnulationTestService.js) : tout dossier ENCORE test_planifie dont le DERNIER
+// rendez-vous type='test' (le plus récent, id le plus élevé — jamais le plus ancien) est
+// statut='annule' — quelle que soit la cause de cette annulation (PATCH manuel, sync Outlook, ou
+// tout futur chemin non identifié), ce module de données ne le sait pas et n'a pas à le savoir.
+//
+// Correctif du 2026-09-23 (audit dossiers #46/#48/#49/#28/#63/#71/#65/#69/#68, angle mort constaté
+// en amont sur le motif neutralise_par_forcage) : la version précédente prenait le PLUS ANCIEN
+// rendez-vous 'annule' du dossier (`GROUP BY d.id` + `min(r.id)`), sans jamais vérifier qu'un
+// rendez-vous plus récent (replanification légitime) n'avait pas entre-temps remplacé cette
+// annulation — un dossier réellement replanifié (nouveau rendez-vous 'prevu'/'confirme', voire
+// 'remplace'/'annule' plus récent que le premier) se faisait alors reclôturer à tort en
+// test_non_realise. `JOIN LATERAL` (plutôt que `GROUP BY`/`min`) : pour CHAQUE dossier, ne retient
+// que son dernier rendez-vous 'test' (peu importe son statut), et ne matche que si CELUI-LÀ
+// précisément est 'annule' — un rendez-vous 'annule' plus ancien qu'un rendez-vous plus récent
+// (quel que soit le statut de ce dernier) ne fait donc plus jamais matcher le dossier. Même garde
+// en défense côté rendezvousService.resoudreTransitionAnnulationTest (appelé juste après avec
+// `rendezvous_id` ci-dessous) : celle-ci protège contre un TROISIÈME rendez-vous créé entre la
+// sélection ci-dessus et l'écriture, cette requête-ci protège contre le cas déjà présent avant
+// même la sélection.
+//
+// Correctif complémentaire du 2026-09-23 (contrôle fonctionnel, dossier #129) : "le plus récent par
+// id" ne suffit PAS — l'id d'un rendez-vous reflète l'ordre de CRÉATION, pas la date du créneau ni
+// sa pertinence. Dossier #129 : rendez-vous 173 ('prevu', créneau du 24/09) a un id INFÉRIEUR aux
+// rendez-vous 176/177 ('annule', créneaux plus anciens des 10/09 et 11/09, mais créés APRÈS 173) —
+// le LATERAL ci-dessus retenait donc 177 comme "dernier" et aurait déclenché test_non_realise alors
+// qu'un test bel et bien actif (173) existe. `AND NOT EXISTS (...)` : condition INDÉPENDANTE de
+// l'id, en plus de la condition LATERAL ci-dessus (les deux doivent tenir) — un dossier portant ne
+// serait-ce qu'UN rendez-vous 'test' encore 'prevu'/'confirme', quel que soit son id par rapport aux
+// autres, ne matche jamais, point final.
 function listerDossiersAnnulesNonSynchronises(bd, entiteId) {
-  return bd('rendezvous as r')
-    .join('dossiers as d', 'd.id', 'r.dossier_id')
+  return bd('dossiers as d')
     .join('statuts as s', 's.id', 'd.statut_id')
-    .where({ 'd.entite_id': entiteId, 'r.type_rdv': 'test', 'r.statut': 'annule', 's.code': 'test_planifie' })
-    .groupBy('d.id')
-    .select('d.id as dossier_id')
-    .select(bd.raw('min(r.id) as rendezvous_id'));
+    .joinRaw(
+      `JOIN LATERAL (
+         SELECT r.id, r.statut
+         FROM rendezvous r
+         WHERE r.dossier_id = d.id AND r.type_rdv = 'test'
+         ORDER BY r.id DESC
+         LIMIT 1
+       ) AS dernier_rendezvous_test ON true`,
+    )
+    .where({ 'd.entite_id': entiteId, 's.code': 'test_planifie', 'dernier_rendezvous_test.statut': 'annule' })
+    .whereNotExists(function () {
+      this.select(1)
+        .from('rendezvous as r2')
+        .whereRaw('r2.dossier_id = d.id')
+        .andWhere('r2.type_rdv', 'test')
+        .whereIn('r2.statut', ['prevu', 'confirme']);
+    })
+    .select('d.id as dossier_id', 'dernier_rendezvous_test.id as rendezvous_id');
 }
 
 // Marque la présence constatée du candidat, LE JOUR MÊME, par le formateur/inspecteur (bouton
@@ -164,6 +199,38 @@ function trouverRendezvousParId(bd, entiteId, rendezvousId) {
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .where({ 'rendezvous.id': rendezvousId, 'dossiers.entite_id': entiteId })
     .select('rendezvous.*')
+    .first();
+}
+
+// Garde en défense de rendezvousService.resoudreTransitionAnnulationTest (audit 2026-09-23, même
+// correctif que listerDossiersAnnulesNonSynchronises ci-dessus) : vrai si un rendez-vous type='test'
+// plus récent (id strictement supérieur, peu importe son statut) existe sur ce dossier — dans ce
+// cas, `rendezvousId` n'est plus le rendez-vous pertinent, la transition test_non_realise ne doit
+// pas être composée. `id` (SERIAL, jamais réutilisé) comme proxy de récence, même principe que
+// listerHistoriqueRendezvousDossiers/GestionRendezvous.jsx.
+// `.first()` seul (pas de `.then(Boolean)` enchaîné, voir le commentaire de marquerPresenceConfirmee
+// plus haut sur ce même fichier de test) : reste un query builder Knex testable en génération de SQL
+// (.toString()) — l'appelant (`if (await ...)`) coerce déjà correctement un row/`undefined` en booléen
+// sans avoir besoin de Boolean() explicite ici.
+function existeRendezvousTestPlusRecent(bd, dossierId, rendezvousId) {
+  return bd('rendezvous')
+    .where({ dossier_id: dossierId, type_rdv: 'test' })
+    .andWhere('id', '>', rendezvousId)
+    .first();
+}
+
+// Garde en défense complémentaire (audit 2026-09-23, contrôle fonctionnel dossier #129) :
+// existeRendezvousTestPlusRecent ci-dessus compare des id, un proxy de CRÉATION, pas de pertinence —
+// dossier #129, rendez-vous 173 ('prevu', créneau du 24/09) a un id INFÉRIEUR à 176/177 ('annule',
+// créneaux plus anciens mais créés après 173) : existeRendezvousTestPlusRecent(dossier, 177) renvoie
+// FALSE alors qu'un test actif existe bel et bien. Condition INDÉPENDANTE de l'id : vrai dès qu'un
+// rendez-vous 'test' 'prevu'/'confirme' existe sur ce dossier, quel que soit son id par rapport à
+// `rendezvousId` — les deux gardes s'additionnent (voir resoudreTransitionAnnulationTest), aucune ne
+// remplace l'autre.
+function existeRendezvousTestActif(bd, dossierId) {
+  return bd('rendezvous')
+    .where({ dossier_id: dossierId, type_rdv: 'test' })
+    .whereIn('statut', ['prevu', 'confirme'])
     .first();
 }
 
@@ -674,6 +741,8 @@ module.exports = {
   trouverRendezvousPourBasculeVerrouillee,
   marquerPresenceConfirmee,
   trouverRendezvousParId,
+  existeRendezvousTestPlusRecent,
+  existeRendezvousTestActif,
   listerRendezvousParDossier,
   listerRendezvousTest,
   listerHistoriqueRendezvousParDossiers,

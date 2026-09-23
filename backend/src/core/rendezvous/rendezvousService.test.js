@@ -1367,6 +1367,8 @@ test("resoudreTransitionAnnulationTest renvoie [] si le rendez-vous est introuva
 test('resoudreTransitionAnnulationTest renvoie la transition test_non_realise quand le rendez-vous est un test et le dossier encore test_planifie', async (t) => {
   t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, type_rdv: 'test' }));
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ statut_code: 'test_planifie' }));
+  t.mock.method(rendezvousRepository, 'existeRendezvousTestPlusRecent', async () => false);
+  t.mock.method(rendezvousRepository, 'existeRendezvousTestActif', async () => false);
 
   const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
     ENTITE_FACTICE,
@@ -1377,6 +1379,56 @@ test('resoudreTransitionAnnulationTest renvoie la transition test_non_realise qu
   assert.equal(transitions.length, 1);
   assert.equal(transitions[0].codeAction, 'test_non_realise');
   assert.ok(transitions[0].commentaire?.trim().length > 0, 'un commentaire est obligatoire côté workflowEngine.appliquerTransition');
+});
+
+// Garde en défense (audit 2026-09-23, correctif du rattrapage annulation test — voir
+// rendezvousRepository.listerDossiersAnnulesNonSynchronises et
+// rattrapageAnnulationTestService.test.js pour les scénarios bout-en-bout du filet de sécurité) :
+// un rendez-vous 'test' plus récent sur le même dossier rend `rendezvousId` obsolète, peu importe
+// son propre statut (prevu/remplace/annule) — protège aussi bien le filet 72h qu'un rendez-vous créé
+// entre la sélection et l'écriture côté PATCH /rendezvous/:id ou syncCalendrierManuelService.js.
+test('resoudreTransitionAnnulationTest renvoie [] si un rendez-vous test plus récent existe déjà sur le dossier', async (t) => {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, type_rdv: 'test' }));
+  const trouverDossier = t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ statut_code: 'test_planifie' }));
+  const existePlusRecent = t.mock.method(rendezvousRepository, 'existeRendezvousTestPlusRecent', async () => true);
+
+  const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
+    ENTITE_FACTICE,
+    { dossierId: 90, rendezvousId: 71 },
+    creerBdFactice(),
+  );
+
+  assert.deepEqual(transitions, []);
+  assert.equal(trouverDossier.mock.callCount(), 1);
+  assert.equal(existePlusRecent.mock.callCount(), 1);
+  assert.deepEqual(existePlusRecent.mock.calls[0].arguments.slice(1), [90, 71]);
+});
+
+// Garde en défense complémentaire (audit 2026-09-23, contrôle fonctionnel dossier #129 en dev) :
+// existeRendezvousTestPlusRecent seul ne suffit pas — l'id reflète l'ordre de CRÉATION, pas la
+// pertinence. Reproduit exactement le cas constaté : rendez-vous 173 ('prevu', créneau du 24/09,
+// id=173) créé AVANT les rendez-vous 176/177 ('annule', créneaux plus anciens des 10/09 et 11/09,
+// id=176/177) — existeRendezvousTestPlusRecent(dossier, 177) renvoie FALSE (rien n'a un id > 177),
+// donc SANS cette seconde garde, la transition test_non_realise aurait été composée à tort sur un
+// dossier portant pourtant un test actif (173).
+test("resoudreTransitionAnnulationTest renvoie [] si un rendez-vous test 'prevu' existe sur le dossier, même avec un id INFÉRIEUR au rendez-vous annulé (dossier #129 : rendez-vous 173 'prevu' vs rendez-vous 177 'annule' retenu)", async (t) => {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 177, dossier_id: 129, type_rdv: 'test' }));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ statut_code: 'test_planifie' }));
+  // Aucun rendez-vous d'id > 177 sur ce dossier (176/177 sont déjà les deux plus élevés) : la
+  // première garde, seule, ne détecterait rien.
+  const existePlusRecent = t.mock.method(rendezvousRepository, 'existeRendezvousTestPlusRecent', async () => false);
+  const existeActif = t.mock.method(rendezvousRepository, 'existeRendezvousTestActif', async () => true);
+
+  const transitions = await rendezvousService.resoudreTransitionAnnulationTest(
+    ENTITE_FACTICE,
+    { dossierId: 129, rendezvousId: 177 },
+    creerBdFactice(),
+  );
+
+  assert.deepEqual(transitions, []);
+  assert.equal(existePlusRecent.mock.callCount(), 1);
+  assert.equal(existeActif.mock.callCount(), 1);
+  assert.deepEqual(existeActif.mock.calls[0].arguments.slice(1), [129]);
 });
 
 // listerRendezvousTest — badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 :

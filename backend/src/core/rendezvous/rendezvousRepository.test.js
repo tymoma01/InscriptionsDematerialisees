@@ -76,3 +76,68 @@ test("listerRendezvousTest expose statut_force = (action = 'changement_statut_fo
   assert.match(sql, /dernier_changement_statut\.action = 'changement_statut_force'/);
   assert.doesNotMatch(sql, /dossier_marque_embauche/);
 });
+
+// listerDossiersAnnulesNonSynchronises — correctif du 2026-09-23 (angle mort du rattrapage
+// annulation test : un rendez-vous 'annule' ANCIEN faisait matcher le dossier même après une
+// replanification légitime, voir le commentaire d'en-tête de la fonction). Vérifié en génération de
+// SQL (JOIN LATERAL borné à un seul rendez-vous par dossier, le plus récent), même patron que
+// listerRendezvousTest ci-dessus — pas d'exécution contre une vraie base dans cette suite.
+test("listerDossiersAnnulesNonSynchronises ne retient, par dossier, QUE le DERNIER rendez-vous 'test' (ORDER BY id DESC LIMIT 1 dans la LATERAL), jamais le plus ancien", () => {
+  const sql = rendezvousRepository.listerDossiersAnnulesNonSynchronises(bd, 1).toString();
+
+  assert.match(sql, /JOIN LATERAL/);
+  assert.match(sql, /r\.dossier_id = d\.id AND r\.type_rdv = 'test'/);
+  assert.match(sql, /ORDER BY r\.id DESC/);
+  assert.match(sql, /LIMIT 1/);
+  // Régression : ne doit plus jamais regrouper par dossier avec min(id) (comportement d'avant ce
+  // correctif, qui retenait le PLUS ANCIEN rendez-vous 'annule' plutôt que le plus récent).
+  assert.doesNotMatch(sql, /min\(r\.id\)/i);
+  assert.doesNotMatch(sql, /group by/i);
+});
+
+test("listerDossiersAnnulesNonSynchronises ne matche que si le DERNIER rendez-vous 'test' du dossier est 'annule' (pas seulement s'il EN EXISTE un quelque part dans l'historique)", () => {
+  const sql = rendezvousRepository.listerDossiersAnnulesNonSynchronises(bd, 1).toString();
+
+  assert.match(sql, /"dernier_rendezvous_test"\."statut" = 'annule'/);
+  // La condition porte sur le rendez-vous résolu par la LATERAL (dernier_rendezvous_test), jamais
+  // directement sur "rendezvous"."statut" — sinon n'importe quel rendez-vous 'annule', même ancien,
+  // ferait à nouveau matcher le dossier.
+  assert.doesNotMatch(sql, /"rendezvous"\."statut" = 'annule'/);
+});
+
+// existeRendezvousTestPlusRecent — garde en défense côté rendezvousService.
+// resoudreTransitionAnnulationTest (voir son commentaire) : un simple id strictement supérieur,
+// type_rdv='test', peu importe le statut de ce rendez-vous plus récent.
+test("existeRendezvousTestPlusRecent compare sur id strictement supérieur (pas >=), sans filtrer par statut", () => {
+  const sql = rendezvousRepository.existeRendezvousTestPlusRecent(bd, 90, 71).toString();
+
+  assert.match(sql, /"dossier_id" = 90/);
+  assert.match(sql, /"type_rdv" = 'test'/);
+  assert.match(sql, /"id" > 71/);
+  assert.doesNotMatch(sql, /"statut"/);
+});
+
+// existeRendezvousTestActif — correctif complémentaire du 2026-09-23 (dossier #129, voir le
+// commentaire d'en-tête de la fonction) : condition INDÉPENDANTE de l'id, contrairement à
+// existeRendezvousTestPlusRecent ci-dessus.
+test("existeRendezvousTestActif filtre sur statut 'prevu'/'confirme', jamais sur l'id (contrairement à existeRendezvousTestPlusRecent)", () => {
+  const sql = rendezvousRepository.existeRendezvousTestActif(bd, 129).toString();
+
+  assert.match(sql, /"dossier_id" = 129/);
+  assert.match(sql, /"type_rdv" = 'test'/);
+  assert.match(sql, /"statut" in \('prevu', 'confirme'\)/i);
+  assert.doesNotMatch(sql, /"id" >/);
+});
+
+// listerDossiersAnnulesNonSynchronises — correctif complémentaire du 2026-09-23 (dossier #129) :
+// exclut désormais tout dossier portant AU MOINS un rendez-vous 'test' 'prevu'/'confirme', en plus
+// de la condition LATERAL déjà en place (testée plus haut) — deux conditions indépendantes, l'une
+// n'excuse pas l'autre.
+test("listerDossiersAnnulesNonSynchronises exclut tout dossier portant un rendez-vous 'test' 'prevu'/'confirme', indépendamment de l'id du dernier rendez-vous retenu par la LATERAL", () => {
+  const sql = rendezvousRepository.listerDossiersAnnulesNonSynchronises(bd, 1).toString();
+
+  assert.match(sql, /not exists/i);
+  assert.match(sql, /r2\.dossier_id = d\.id/);
+  assert.match(sql, /"r2"\."type_rdv" = 'test'/);
+  assert.match(sql, /"r2"\."statut" in \('prevu', 'confirme'\)/i);
+});

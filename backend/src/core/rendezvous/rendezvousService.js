@@ -794,6 +794,23 @@ async function resoudreTransitionAnnulationTest(entite, { dossierId, rendezvousI
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier || dossier.statut_code !== STATUT_PROTEGE_PAR_DELAI_REPLANIFICATION) return [];
 
+  // Garde en défense (audit 2026-09-23, même correctif que
+  // rendezvousRepository.listerDossiersAnnulesNonSynchronises) : si un rendez-vous 'test' plus
+  // récent que celui-ci existe déjà sur le dossier (peu importe son statut), `rendezvousId` n'est
+  // plus le rendez-vous pertinent — une replanification a eu lieu entre-temps, ne pas reclôturer le
+  // dossier à tort. Protège les DEUX appelants (rendezvous.routes.js, syncCalendrierManuelService.js)
+  // contre un rendez-vous créé entre leur propre sélection et cet appel, en plus de protéger le
+  // filet de sécurité horaire (rattrapageAnnulationTestService.js) contre un rendez-vous 'annule'
+  // devenu obsolète depuis la sélection de listerDossiersAnnulesNonSynchronises.
+  if (await rendezvousRepository.existeRendezvousTestPlusRecent(bd, dossierId, rendezvousId)) return [];
+
+  // Garde en défense complémentaire (audit 2026-09-23, contrôle fonctionnel dossier #129) : l'id
+  // n'est qu'un proxy de CRÉATION, pas de pertinence — un rendez-vous 'test' 'prevu'/'confirme' peut
+  // avoir un id INFÉRIEUR à `rendezvousId` (créé avant, mais toujours actif aujourd'hui) et passer
+  // au travers du garde-fou ci-dessus. Vrai dès qu'un rendez-vous actif existe sur ce dossier, quel
+  // que soit son id.
+  if (await rendezvousRepository.existeRendezvousTestActif(bd, dossierId)) return [];
+
   return [{ codeAction: CODE_ACTION_TEST_NON_REALISE, commentaire: 'Test non réalisé (rendez-vous annulé).' }];
 }
 
