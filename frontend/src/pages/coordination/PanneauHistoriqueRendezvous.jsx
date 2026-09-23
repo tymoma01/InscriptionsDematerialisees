@@ -11,6 +11,11 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+// Date et heure formatées SÉPARÉMENT (tooltip "Dossier clos" ci-dessous, texte "le [date] à
+// [heure]") — FORMAT_DATE_HEURE ci-dessus les concatène sans "à", pas ce qui est demandé ici.
+const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
 // Catégories produites par le back (voir backend/src/core/rendezvous/rendezvousService.js,
 // CATEGORIES_STATUT_HISTORIQUE) — libellé + variante StatutBadge décidés ici, ce composant
 // générique (StatutBadge) ne connaît aucun code métier (voir Modularité, CLAUDE.md).
@@ -19,6 +24,13 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // décision utilisateur — même renommage que Planification.jsx/GestionRendezvous.jsx/
 // ListeEvaluationsAFaire.jsx) : ce statut n'a désormais plus qu'une seule origine possible — NSPP
 // ou la bascule automatique, "Marquer absent" ayant été retiré côté Accueil/Coordination/Admin.
+// 'clos_sans_action' (audit 2026-09-23) : rendez-vous 'prevu'/'confirme' encore actif mais dont le
+// DOSSIER a déjà quitté test_planifie (typiquement le filet de sécurité 72h "présence confirmée
+// sans évaluation", voir le commentaire de CATEGORIES_STATUT_HISTORIQUE.CLOS_SANS_ACTION côté back)
+// — distinct de 'a_traiter' : ici il n'y a plus rien à traiter, le dossier est déjà refermé.
+// Variante 'neutre-fort' (gris, même famille que 'remplace' sur Planification.jsx/
+// GestionRendezvous.jsx) et non 'alerte' (orange, réservé à une action réellement en attente) :
+// cette ligne ne demande plus aucune action.
 const LIBELLES_STATUT_HISTORIQUE = {
   a_venir: 'À venir',
   honore: 'Honoré',
@@ -26,6 +38,7 @@ const LIBELLES_STATUT_HISTORIQUE = {
   annule: 'Annulé',
   replanifie: 'Replanifié',
   a_traiter: 'À traiter',
+  clos_sans_action: 'Dossier clos',
 };
 const VARIANTES_STATUT_HISTORIQUE = {
   a_venir: 'bleu',
@@ -34,7 +47,21 @@ const VARIANTES_STATUT_HISTORIQUE = {
   annule: 'echec-fort',
   replanifie: 'violet',
   a_traiter: 'alerte',
+  clos_sans_action: 'neutre-fort',
 };
+
+// Tooltip natif (attribut title) du badge "Dossier clos" ci-dessus — même mécanique que les autres
+// tooltips de ce panneau (note tronquée, "Non tracé" du créateur), pas la carte stylée de
+// Planification.jsx (mécanisme absent de ce fichier, pas justifié pour un seul badge ici). Texte
+// identique (à la source de la date près) à celui du badge équivalent sur Planification.jsx —
+// décision utilisateur du 2026-09-23. `dossier_statut_libelle`/`dossier_statut_change_le` viennent
+// de rendezvousRepository.listerHistoriqueRendezvousParDossiers, jamais un libellé en dur ici (voir
+// Modularité, CLAUDE.md).
+function tooltipDossierClos(rdv) {
+  const date = rdv.dossier_statut_change_le ? new Date(rdv.dossier_statut_change_le) : null;
+  const quand = date ? ` le ${FORMAT_DATE.format(date)} à ${FORMAT_HEURE.format(date)}` : '';
+  return `Dossier déjà clôturé (${rdv.dossier_statut_libelle})${quand} - ce rendez-vous n'est plus actionnable.`;
+}
 
 // Colonne "Notes/Motif" : les deux SEULES sources réellement rattachées à CE rendez-vous précis
 // (voir backend/src/core/rendezvous/rendezvousRepository.js) — mutuellement exclusives en
@@ -225,6 +252,7 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                         <StatutBadge
                           libelle={LIBELLES_STATUT_HISTORIQUE[rdv.statutCategorise] ?? rdv.statutCategorise}
                           variante={VARIANTES_STATUT_HISTORIQUE[rdv.statutCategorise]}
+                          title={rdv.statutCategorise === 'clos_sans_action' ? tooltipDossierClos(rdv) : undefined}
                         />
                       </td>
                       <td className="panneau-historique-rendezvous__colonne-formateur">

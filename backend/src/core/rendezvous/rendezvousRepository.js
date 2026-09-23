@@ -401,6 +401,7 @@ function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
+    .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
     .leftJoin('motifs', 'motifs.id', 'rendezvous.motif_id')
     .leftJoin('evaluations', 'evaluations.rendezvous_id', 'rendezvous.id')
@@ -410,6 +411,24 @@ function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
         .andOnIn('audit_creation.action', ['rendezvous_cree', 'rendezvous_cree_avec_transitions']);
     })
     .leftJoin('utilisateurs as agent_createur', 'agent_createur.id', 'audit_creation.utilisateur_id')
+    // Date du DERNIER changement de statut du dossier (pas seulement un forçage admin, contrairement
+    // à l'usage qu'en fait listerRendezvousTest ci-dessus) — sert à horodater le badge "Dossier clos"
+    // (rendezvousService.categoriserStatutRendezvous, catégorie CLOS_SANS_ACTION) dans le tooltip de
+    // PanneauHistoriqueRendezvous.jsx : la date à laquelle le dossier a quitté 'test_planifie', pas
+    // celle du rendez-vous lui-même (resté 'prevu'/'confirme', jamais mis à jour par le filet 72h qui
+    // a produit cette bascule, voir basculeTestNonRealiseService.
+    // executerBasculePresenceConfirmeeSansEvaluation). Même patron LEFT JOIN LATERAL que
+    // listerRendezvousTest (une seule ligne garantie par dossier, la plus récente).
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT ja.date_action
+         FROM journal_audit ja
+         WHERE ja.cible_id = dossiers.id
+           AND ja.table_cible = 'historique_statuts'
+         ORDER BY ja.date_action DESC
+         LIMIT 1
+       ) AS dernier_changement_statut_dossier ON true`,
+    )
     .where({ 'dossiers.entite_id': entiteId, 'rendezvous.type_rdv': 'test' })
     .whereIn('rendezvous.dossier_id', dossierIds)
     .select(
@@ -429,6 +448,11 @@ function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
       'audit_creation.date_action as cree_le',
       'agent_createur.prenom as cree_par_prenom',
       'agent_createur.nom as cree_par_nom',
+      // Statut ACTUEL du dossier (pas celui du rendez-vous) — voir
+      // rendezvousService.categoriserStatutRendezvous, catégorie CLOS_SANS_ACTION.
+      'statuts.code as dossier_statut_code',
+      'statuts.libelle as dossier_statut_libelle',
+      'dernier_changement_statut_dossier.date_action as dossier_statut_change_le',
     )
     .orderBy([{ column: 'rendezvous.dossier_id' }, { column: 'rendezvous.date_heure', order: 'desc' }]);
 }

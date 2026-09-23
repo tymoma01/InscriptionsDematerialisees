@@ -54,6 +54,13 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+// Date et heure formatées SÉPARÉMENT (tooltip "Dossier déjà clôturé" ci-dessous, texte "le [date] à
+// [heure]") — FORMAT_DATE_HEURE ci-dessus les concatène sans "à", pas ce qui est demandé ici. Mêmes
+// formats que PanneauHistoriqueRendezvous.jsx (FORMAT_DATE/FORMAT_HEURE), dupliqués plutôt que
+// partagés (voir CLAUDE.md, conventions du projet).
+const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
 // Même mapping que GestionRendezvous.jsx (libellé + polarité visuelle d'un statut de
 // rendez-vous) — dupliqué plutôt que partagé : une poignée de lignes, pas de quoi justifier un
 // utilitaire commun (voir CLAUDE.md, conventions du projet).
@@ -132,6 +139,37 @@ function libelleAfficheRendezvous(rdv) {
 }
 function varianteAfficheeRendezvous(rdv) {
   return varianteStatutRendezvous(rdv.statut);
+}
+
+// Badge "Dossier clos" (audit 2026-09-23) : signale qu'un rendez-vous encore 'prevu'/'confirme'
+// n'est en réalité plus actionnable, le DOSSIER associé ayant déjà quitté 'test_planifie' —
+// typiquement le filet de sécurité 72h "présence confirmée sans évaluation"
+// (basculeTestNonRealiseService.executerBasculePresenceConfirmeeSansEvaluation), qui transitionne
+// le dossier SANS jamais toucher rendezvous.statut, par choix. Liste BLANCHE ('test_planifie' =
+// seul statut où ce rendez-vous reste réellement actionnable), pas une liste noire des statuts
+// "clos" à deviner — même principe que rendezvousService.STATUT_DOSSIER_RENDEZVOUS_ACTIONNABLE
+// côté back (categoriserStatutRendezvous, PanneauHistoriqueRendezvous.jsx), dupliqué ici plutôt que
+// partagé (voir CLAUDE.md, conventions du projet) : ce fichier est déjà ACCECIT-flavored (voir
+// GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT plus bas), contrairement au moteur générique
+// (workflowEngine.js) qui, lui, ne nomme jamais aucun statut.
+const STATUT_DOSSIER_RENDEZVOUS_ACTIONNABLE_ACCECIT = 'test_planifie';
+function rendezvousDossierClos(rdv) {
+  return ['prevu', 'confirme'].includes(rdv.statut) && rdv.dossier_statut_code !== STATUT_DOSSIER_RENDEZVOUS_ACTIONNABLE_ACCECIT;
+}
+
+// Texte du tooltip natif du marqueur "Dossier clos" ci-dessus — même formule que
+// PanneauHistoriqueRendezvous.jsx (décision utilisateur du 2026-09-23), tiret simple (pas de tiret
+// cadratin). `dossier_statut_libelle` vient de rendezvousService.listerRendezvousTest, jamais un
+// libellé en dur ici (voir Modularité, CLAUDE.md). `rdv.statut_force_le` réutilisé tel quel — ce
+// champ porte en réalité la date du DERNIER changement de statut du dossier, quelle qu'en soit la
+// cause (voir rendezvousRepository.listerRendezvousTest, LEFT JOIN LATERAL vers journal_audit),
+// jamais uniquement celle d'un forçage admin malgré son nom : déjà sélectionné pour toute ligne,
+// pas seulement quand rdv.statutForce est vrai, donc réutilisable ici sans aller-retour backend
+// supplémentaire.
+function tooltipDossierClos(rdv) {
+  const date = rdv.statut_force_le ? new Date(rdv.statut_force_le) : null;
+  const quand = date ? ` le ${FORMAT_DATE.format(date)} à ${FORMAT_HEURE.format(date)}` : '';
+  return `Dossier déjà clôturé (${rdv.dossier_statut_libelle})${quand} - ce rendez-vous n'est plus actionnable.`;
 }
 
 // Code STABLE du statut AFFICHÉ (colonne "Statut"), pour les boutons de filtre ci-dessous — jamais
@@ -297,6 +335,23 @@ function positionnerInfobulleStatutForce(evenement) {
   const espaceEnDessous = window.innerHeight - rectConteneur.bottom;
   const basculerEnDessous = espaceAuDessus < hauteurBulle + MARGE_BULLE && espaceEnDessous > espaceAuDessus;
   conteneur.classList.toggle('planification__statut-conteneur--infobulle-en-dessous', basculerEnDessous);
+}
+
+// Même mécanique que positionnerInfobulleStatutForce ci-dessus, dupliquée pour le badge "Dossier
+// déjà clôturé" (colonne "Rendez-vous", voir rendezvousDossierClos) — classes dédiées
+// (.planification__rdv-conteneur/-clos-infobulle), jamais celles du badge forcé : les deux peuvent
+// apparaître sur la même ligne (colonnes différentes), chacun doit se positionner indépendamment.
+function positionnerInfobulleRdvClos(evenement) {
+  const conteneur = evenement.currentTarget;
+  const bulle = conteneur.querySelector('.planification__rdv-clos-infobulle');
+  if (!bulle) return;
+  const MARGE_BULLE = 8;
+  const rectConteneur = conteneur.getBoundingClientRect();
+  const hauteurBulle = bulle.getBoundingClientRect().height;
+  const espaceAuDessus = rectConteneur.top;
+  const espaceEnDessous = window.innerHeight - rectConteneur.bottom;
+  const basculerEnDessous = espaceAuDessus < hauteurBulle + MARGE_BULLE && espaceEnDessous > espaceAuDessus;
+  conteneur.classList.toggle('planification__rdv-conteneur--infobulle-en-dessous', basculerEnDessous);
 }
 
 // Boutons de filtre par statut DOSSIER (audit 2026-09-13, demande utilisateur) — même pattern que
@@ -1370,12 +1425,40 @@ export default function Planification() {
                       </span>
                     </td>
                     {/* "Rendez-vous" (ex-colonne "Statut", statut du RENDEZ-VOUS) — inchangée, voir
-                        le commentaire d'en-tête de COLONNES. */}
+                        le commentaire d'en-tête de COLONNES. Marque + infobulle "Dossier déjà
+                        clôturé" (audit 2026-09-23) UNIQUEMENT si rendezvousDossierClos(rdv) — même
+                        mécanique (wrapper position: relative dédié + liseré pointillé + cercle "i" +
+                        carte stylée au survol) que le badge "Statut forcé manuellement" ci-dessus,
+                        mais classes ET couleur dédiées (gris, --statut-neutre-fort-bordure) : deux
+                        signaux différents sur une même ligne (un humain a forcé ce statut / une
+                        clôture automatique a rendu CE rendez-vous caduc), le doré reste réservé au
+                        premier pour ne pas laisser croire au même sens. Infobulle en texte simple
+                        (une seule ligne, voir tooltipDossierClos), pas la structure à 3 niveaux
+                        (titre/meta/commentaire) du badge forcé — décision utilisateur 2026-09-23. */}
                     <td className="planification__colonne-statut">
-                      <StatutBadge
-                        libelle={libelleAfficheRendezvous(rdv)}
-                        variante={varianteAfficheeRendezvous(rdv)}
-                      />
+                      <span
+                        className={
+                          rendezvousDossierClos(rdv)
+                            ? 'planification__rdv-conteneur planification__rdv-conteneur--clos'
+                            : 'planification__rdv-conteneur'
+                        }
+                        onMouseEnter={rendezvousDossierClos(rdv) ? positionnerInfobulleRdvClos : undefined}
+                      >
+                        <StatutBadge
+                          libelle={libelleAfficheRendezvous(rdv)}
+                          variante={varianteAfficheeRendezvous(rdv)}
+                        />
+                        {rendezvousDossierClos(rdv) && (
+                          <>
+                            <span className="planification__rdv-clos-marque" aria-hidden="true">
+                              i
+                            </span>
+                            <span className="planification__rdv-clos-infobulle" aria-hidden="true">
+                              {tooltipDossierClos(rdv)}
+                            </span>
+                          </>
+                        )}
+                      </span>
                     </td>
                     <td className="planification__colonne-date-test">{FORMAT_DATE_HEURE.format(new Date(rdv.date_heure))}</td>
                     {/* "Voir le dossier" — même bouton (style/couleur/cadre) que sur la vue

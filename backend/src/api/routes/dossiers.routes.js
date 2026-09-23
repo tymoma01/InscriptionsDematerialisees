@@ -335,7 +335,7 @@ const historiqueRendezvousQuerySchema = z.object({
 // futur, tous statuts, catégorisés) des rendez-vous de test d'un ou plusieurs dossiers (bouton
 // "Voir l'historique des rendez-vous sélectionnés", page Planification côté Coordination) — voir
 // rendezvousService.listerHistoriqueRendezvousDossiers pour la logique de catégorisation
-// (À venir/Honoré/NSPP/Annulé/Replanifié/À traiter — libellés décidés côté front,
+// (À venir/Honoré/NSPP/Annulé/Replanifié/À traiter/Dossier clos — libellés décidés côté front,
 // PanneauHistoriqueRendezvous.jsx, cette route ne renvoie que les codes catégorie). Distinct de
 // GET /api/dossiers/rendezvous
 // ci-dessus (rendez-vous À VENIR uniquement, tous dossiers confondus) : ici c'est l'inverse,

@@ -737,6 +737,90 @@
   font-style: italic;
 }
 
+/* Badge "Dossier déjà clôturé" (audit 2026-09-23, colonne "Rendez-vous" : un rendez-vous encore
+   'prevu'/'confirme' alors que le dossier a déjà quitté test_planifie, voir
+   rendezvousDossierClos, Planification.jsx) — même mécanique CSS que le bloc "Statut forcé
+   manuellement" ci-dessus (wrapper position: relative dédié, liseré pointillé + cercle "i" +
+   carte stylée au survol/focus), classes ET couleur dédiées : gris (--statut-neutre-fort-bordure,
+   même famille que le badge "Remplacé") plutôt que doré, pour ne jamais laisser croire au même
+   sens qu'un forçage manuel — les deux marqueurs peuvent apparaître sur la même ligne, dans deux
+   colonnes différentes. */
+.planification__rdv-conteneur {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.planification__rdv-conteneur--clos {
+  cursor: help;
+}
+
+.planification__rdv-conteneur--clos .statut-badge {
+  outline: 1.5px dashed var(--statut-neutre-fort-bordure);
+  outline-offset: 2px;
+}
+
+.planification__rdv-clos-marque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  border: 1px dashed var(--statut-neutre-fort-bordure);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Infobulle en texte simple (une seule ligne, voir tooltipDossierClos) — pas la structure à 3
+   niveaux (titre/meta/commentaire) du badge forcé ci-dessus, décision utilisateur 2026-09-23 :
+   carte stylée (fond clair + bordure + liseré gris) réutilisée pour la cohérence visuelle,
+   contenu plus simple. */
+.planification__rdv-clos-infobulle {
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+
+  min-width: 14rem;
+  max-width: 18rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-bordure);
+  border-left: 3px solid var(--statut-neutre-fort-bordure);
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.planification__rdv-conteneur:hover .planification__rdv-clos-infobulle,
+.planification__rdv-conteneur:focus-visible .planification__rdv-clos-infobulle {
+  opacity: 1;
+}
+
+/* Bascule sous le badge quand positionnerInfobulleRdvClos a mesuré un espace au-dessus
+   insuffisant — même mécanique que .planification__statut-conteneur--infobulle-en-dessous. */
+.planification__rdv-conteneur--infobulle-en-dessous .planification__rdv-clos-infobulle {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
 /* Cellule Actions : même patron que .dossier-list__actions (DossierList.css) — centre le bouton
    dans la cellule, contrairement au reste du tableau resté aligné à gauche
    (.planification__table th, .planification__table td). */

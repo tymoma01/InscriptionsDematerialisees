@@ -1113,7 +1113,7 @@ test('listerHistoriqueRendezvousDossiers catégorise À venir un rendez-vous "pr
   t.mock.method(db, 'obtenirKnex', async () => ({}));
   mockerNotesVides(t);
   t.mock.method(rendezvousRepository, 'listerHistoriqueRendezvousParDossiers', async () => [
-    { id: 1, dossier_id: 1, date_heure: DATE_FUTURE, statut: 'prevu', evaluation_id: null },
+    { id: 1, dossier_id: 1, date_heure: DATE_FUTURE, statut: 'prevu', evaluation_id: null, dossier_statut_code: 'test_planifie' },
   ]);
 
   const resultat = await rendezvousService.listerHistoriqueRendezvousDossiers(ENTITE_FACTICE, [1]);
@@ -1125,12 +1125,29 @@ test('listerHistoriqueRendezvousDossiers catégorise À traiter un rendez-vous "
   t.mock.method(db, 'obtenirKnex', async () => ({}));
   mockerNotesVides(t);
   t.mock.method(rendezvousRepository, 'listerHistoriqueRendezvousParDossiers', async () => [
-    { id: 2, dossier_id: 2, date_heure: DATE_PASSEE, statut: 'confirme', evaluation_id: null },
+    { id: 2, dossier_id: 2, date_heure: DATE_PASSEE, statut: 'confirme', evaluation_id: null, dossier_statut_code: 'test_planifie' },
   ]);
 
   const resultat = await rendezvousService.listerHistoriqueRendezvousDossiers(ENTITE_FACTICE, [2]);
 
   assert.equal(resultat.rendezvous[0].statutCategorise, rendezvousService.CATEGORIES_STATUT_HISTORIQUE.A_TRAITER);
+});
+
+// Filet de sécurité 72h "présence confirmée sans évaluation" (basculeTestNonRealiseService.
+// executerBasculePresenceConfirmeeSansEvaluation) : transitionne le DOSSIER vers test_non_realise
+// sans jamais toucher rendezvous.statut, par choix (voir son commentaire d'en-tête) — même
+// rendez-vous que le test "À traiter" ci-dessus (confirme, actif, passé, sans évaluation), seule la
+// valeur de dossier_statut_code change.
+test('listerHistoriqueRendezvousDossiers catégorise Dossier clos (clos_sans_action) un rendez-vous "confirme" toujours actif dont le dossier a déjà quitté test_planifie', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  mockerNotesVides(t);
+  t.mock.method(rendezvousRepository, 'listerHistoriqueRendezvousParDossiers', async () => [
+    { id: 2, dossier_id: 2, date_heure: DATE_PASSEE, statut: 'confirme', evaluation_id: null, dossier_statut_code: 'test_non_realise' },
+  ]);
+
+  const resultat = await rendezvousService.listerHistoriqueRendezvousDossiers(ENTITE_FACTICE, [2]);
+
+  assert.equal(resultat.rendezvous[0].statutCategorise, rendezvousService.CATEGORIES_STATUT_HISTORIQUE.CLOS_SANS_ACTION);
 });
 
 test('listerHistoriqueRendezvousDossiers catégorise Replanifié un rendez-vous "prevu" plus ancien qu\'un autre rendez-vous du même dossier (réplanification jamais actée sur l\'ancien, voir dossiers #74/#88)', async (t) => {
@@ -1139,7 +1156,7 @@ test('listerHistoriqueRendezvousDossiers catégorise Replanifié un rendez-vous 
   t.mock.method(rendezvousRepository, 'listerHistoriqueRendezvousParDossiers', async () => [
     { id: 1, dossier_id: 88, date_heure: '2026-08-01T09:00:00.000Z', statut: 'prevu', evaluation_id: null },
     { id: 2, dossier_id: 88, date_heure: '2026-08-10T09:00:00.000Z', statut: 'prevu', evaluation_id: null },
-    { id: 3, dossier_id: 88, date_heure: DATE_FUTURE, statut: 'prevu', evaluation_id: null },
+    { id: 3, dossier_id: 88, date_heure: DATE_FUTURE, statut: 'prevu', evaluation_id: null, dossier_statut_code: 'test_planifie' },
   ]);
 
   const resultat = await rendezvousService.listerHistoriqueRendezvousDossiers(ENTITE_FACTICE, [88]);
@@ -1155,9 +1172,9 @@ test("listerHistoriqueRendezvousDossiers calcule le rendez-vous actif indépenda
   t.mock.method(rendezvousRepository, 'listerHistoriqueRendezvousParDossiers', async () => [
     // Dossier 1 : un seul rendez-vous, passé, toujours actif -> À traiter (pas Replanifié : rien
     // d'autre n'existe pour ce dossier).
-    { id: 1, dossier_id: 1, date_heure: DATE_PASSEE, statut: 'prevu', evaluation_id: null },
+    { id: 1, dossier_id: 1, date_heure: DATE_PASSEE, statut: 'prevu', evaluation_id: null, dossier_statut_code: 'test_planifie' },
     // Dossier 2 : un seul rendez-vous, futur -> À venir.
-    { id: 2, dossier_id: 2, date_heure: DATE_FUTURE, statut: 'prevu', evaluation_id: null },
+    { id: 2, dossier_id: 2, date_heure: DATE_FUTURE, statut: 'prevu', evaluation_id: null, dossier_statut_code: 'test_planifie' },
   ]);
 
   const resultat = await rendezvousService.listerHistoriqueRendezvousDossiers(ENTITE_FACTICE, [1, 2]);

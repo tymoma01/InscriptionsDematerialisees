@@ -366,16 +366,39 @@ const CATEGORIES_STATUT_HISTORIQUE = Object.freeze({
   // une action en attente côté Accueil/Coordination ou formateur, distincte des 5 catégories
   // demandées mais nécessaire pour ne pas mentir sur une date passée en l'affichant "à venir".
   A_TRAITER: 'a_traiter',
+  // Rendez-vous actif ('prevu'/'confirme', sans évaluation) dont le DOSSIER a pourtant déjà quitté
+  // 'test_planifie' (audit 2026-09-23) — distinct de A_TRAITER ci-dessus : ici il n'y a plus rien à
+  // traiter, le dossier a déjà été refermé par ailleurs (typiquement le filet de sécurité 72h
+  // "présence confirmée sans évaluation", basculeTestNonRealiseService.
+  // executerBasculePresenceConfirmeeSansEvaluation, qui transitionne le DOSSIER sans jamais toucher
+  // rendezvous.statut, par choix — voir son commentaire d'en-tête). Ce cas ne peut structurellement
+  // se produire QUE via ce filet : toute autre sortie de 'test_planifie' neutralise déjà les
+  // rendez-vous actifs restants (statuts.neutralise_rendezvous_actifs, migration 051) ou pose
+  // evaluation_id (couvert par HONORE ci-dessus).
+  CLOS_SANS_ACTION: 'clos_sans_action',
 });
+
+// Seul statut dossier depuis lequel un rendez-vous 'prevu'/'confirme' actif reste réellement
+// actionnable (CLOS_SANS_ACTION ci-dessus) — liste BLANCHE (un seul code à maintenir) plutôt que
+// liste noire des statuts "clos" (qui varieraient par entité et qu'il faudrait deviner à l'avance,
+// voir Modularité CLAUDE.md) : même principe que STATUT_PROTEGE_PAR_DELAI_REPLANIFICATION ci-dessus,
+// déjà un code ACCECIT en dur dans ce même fichier (rendezvousService.js n'a pas la contrainte de
+// généricité stricte de workflowEngine.js, qui lui ne nomme jamais aucun statut).
+const STATUT_DOSSIER_RENDEZVOUS_ACTIONNABLE = 'test_planifie';
 
 // `estRendezvousActif` : vrai si CE rendez-vous est le plus récent parmi les 'prevu'/'confirme'
 // sans évaluation de son dossier (voir trouverRendezvousTestActifDossier) — calculé une fois par
 // dossier par l'appelant, pas ici (cette fonction reste une pure fonction de catégorisation).
+// `rendezvous.dossier_statut_code` (voir rendezvousRepository.listerHistoriqueRendezvousParDossiers)
+// sert uniquement à CLOS_SANS_ACTION ci-dessous.
 function categoriserStatutRendezvous(rendezvous, estRendezvousActif) {
   if (rendezvous.evaluation_id) return CATEGORIES_STATUT_HISTORIQUE.HONORE;
   if (rendezvous.statut === 'annule') return CATEGORIES_STATUT_HISTORIQUE.ANNULE;
   if (rendezvous.statut === 'absent') return CATEGORIES_STATUT_HISTORIQUE.MANQUE;
   if (!estRendezvousActif) return CATEGORIES_STATUT_HISTORIQUE.REPLANIFIE;
+  if (rendezvous.dossier_statut_code !== STATUT_DOSSIER_RENDEZVOUS_ACTIONNABLE) {
+    return CATEGORIES_STATUT_HISTORIQUE.CLOS_SANS_ACTION;
+  }
   return new Date(rendezvous.date_heure).getTime() > Date.now()
     ? CATEGORIES_STATUT_HISTORIQUE.A_VENIR
     : CATEGORIES_STATUT_HISTORIQUE.A_TRAITER;

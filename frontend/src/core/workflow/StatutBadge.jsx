@@ -13,6 +13,13 @@ import './StatutBadge.css';
 // "Expérience", voir TableauDeBordAccueil.css). Une variante inconnue de variables.css
 // retomberait simplement sur les couleurs par défaut de .statut-badge (voir ci-dessous) faute de
 // règle --statut-badge--X correspondante, jamais une erreur.
-export default function StatutBadge({ libelle, variante = 'neutre' }) {
-  return <span className={`statut-badge statut-badge--${variante}`}>{libelle}</span>;
+// `title` optionnel (audit 2026-09-23, badge "Dossier clos" de PanneauHistoriqueRendezvous.jsx) :
+// simple passe-plat vers l'attribut HTML natif, jamais interprété ici — reste cohérent avec le
+// principe du composant (aucune connaissance d'un code métier), un tooltip natif n'en est pas un.
+export default function StatutBadge({ libelle, variante = 'neutre', title }) {
+  return (
+    <span className={`statut-badge statut-badge--${variante}`} title={title}>
+      {libelle}
+    </span>
+  );
 }
