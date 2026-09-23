@@ -50,6 +50,27 @@ const VARIANTES_STATUT_HISTORIQUE = {
   clos_sans_action: 'neutre-fort',
 };
 
+// Bloc 2 (audit 2026-09-23) : un rendez-vous catégorisé 'annule' dont le motif est
+// 'neutralise_par_forcage' (workflowEngine.forcerStatut, Admin — jamais choisi par un agent) porte
+// un libellé/badge distincts d'une VRAIE annulation candidat, même categorie 'annule' en base — pas
+// de nouvelle catégorie ni de second filtre "Annulé" (décision utilisateur explicite) : uniquement
+// une exception d'affichage sur ce seul cas, ici plutôt que dans categoriserStatutRendezvous côté
+// back (qui reste, lui, sans connaissance du motif — pure catégorisation de statut).
+const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
+function rendezvousAnnuleParForcage(rdv) {
+  return rdv.statutCategorise === 'annule' && rdv.motif_code === CODE_MOTIF_NEUTRALISE_PAR_FORCAGE;
+}
+function libelleStatutHistorique(rdv) {
+  if (rendezvousAnnuleParForcage(rdv)) return 'Annulé (forçage)';
+  return LIBELLES_STATUT_HISTORIQUE[rdv.statutCategorise] ?? rdv.statutCategorise;
+}
+function varianteStatutHistorique(rdv) {
+  // 'neutre-fort' (gris) plutôt que 'echec-fort' (rouge, désistement candidat) — même choix que
+  // Planification.jsx (rendezvousAnnuleParForcage/varianteAfficheeRendezvous).
+  if (rendezvousAnnuleParForcage(rdv)) return 'neutre-fort';
+  return VARIANTES_STATUT_HISTORIQUE[rdv.statutCategorise];
+}
+
 // Tooltip natif (attribut title) du badge "Dossier clos" ci-dessus — même mécanique que les autres
 // tooltips de ce panneau (note tronquée, "Non tracé" du créateur), pas la carte stylée de
 // Planification.jsx (mécanisme absent de ce fichier, pas justifié pour un seul badge ici). Texte
@@ -250,8 +271,8 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                       </td>
                       <td className="panneau-historique-rendezvous__colonne-statut">
                         <StatutBadge
-                          libelle={LIBELLES_STATUT_HISTORIQUE[rdv.statutCategorise] ?? rdv.statutCategorise}
-                          variante={VARIANTES_STATUT_HISTORIQUE[rdv.statutCategorise]}
+                          libelle={libelleStatutHistorique(rdv)}
+                          variante={varianteStatutHistorique(rdv)}
                           title={rdv.statutCategorise === 'clos_sans_action' ? tooltipDossierClos(rdv) : undefined}
                         />
                       </td>

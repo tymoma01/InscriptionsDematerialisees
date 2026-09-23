@@ -19,6 +19,18 @@ const { ROLES } = require('../auth/rbac');
 // front et back sur ce projet, voir CLAUDE.md conventions).
 const STATUT_RENDEZVOUS_REMPLACE = 'remplace';
 
+// forcerStatut (bloc 2, audit 2026-09-23) : valeur/motif distincts de STATUT_RENDEZVOUS_REMPLACE
+// ci-dessus — 'remplace' reste réservé à une VRAIE replanification (un nouveau rendez-vous
+// remplace effectivement l'ancien, voir rendezvousService.creerRendezvous/appliquerTransition
+// ci-dessus) ; un forçage de statut, lui, n'en crée jamais — 'annule' est sémantiquement correct
+// (le rendez-vous n'aura simplement plus lieu). Motif dédié en categorie 'systeme' (jamais
+// 'desistement', voir scripts/seedMotifNeutraliseParForcage.js) : listerMotifsDesistement() ne doit
+// jamais le proposer dans le menu agent "Marquer annulé"/"Marquer absent" (GestionRendezvous.jsx),
+// ce n'est pas un motif qu'un agent choisit.
+const STATUT_RENDEZVOUS_ANNULE = 'annule';
+const CATEGORIE_MOTIF_SYSTEME = 'systeme';
+const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
+
 // Erreur métier distincte d'une Error générique (500 opaque) — même principe que
 // ErreurPieceJustificativeInvalide (pieceJustificativeService.js) et ErreurStatistiquesInvalide
 // (statistiquesService.js) : les appelants HTTP (transitions.routes.js, mais aussi
@@ -187,13 +199,26 @@ async function listerMotifsPourAction(entite, codeAction) {
 // dossier bloqué en "Test non réalisé" avec un rendez-vous toujours "prevu" pour une date future
 // (dossier #127, audit du 2026-09-09 : test_non_realise porte neutralise_rendezvous_actifs=false
 // pour ACCECIT, correct pour le bouton "Test non réalisé"/la bascule automatique, pas pour ce
-// chemin-ci). `statutRemplace` (jamais 'absent') : forcerStatut ne connaît par nature aucun motif de
-// désistement réel (contrairement au bouton "Test non réalisé" ci-dessus) — 'remplace' est déjà le
-// sentinel générique du moteur pour "neutralisé sans être un désistement précis" (même valeur que
-// appliquerTransition ci-dessus). Retourne les id des rendez-vous neutralisés (jamais utilisé par
-// appliquerTransition, qui ignore la valeur de retour de neutraliserRendezvousActifsDossier) pour que
-// l'appelant (transitions.routes.js, POST /forcer-statut) les journalise individuellement — cette
-// fonction reste un moteur générique, sans dépendance à journalAudit (voir l'en-tête de ce fichier).
+// chemin-ci).
+//
+// `'annule'` + motif `neutralise_par_forcage` (bloc 2, audit 2026-09-23 — corrige un choix
+// sémantiquement faux : 'remplace' doit rester réservé à une VRAIE replanification, où un nouveau
+// rendez-vous remplace effectivement l'ancien — jamais le cas ici, forcerStatut n'en crée aucun).
+// Motif résolu directement via motifRepository (déjà une dépendance de ce fichier, voir motif_requis
+// des transitions plus haut) — PAS via rendezvousService.changerStatutRendezvous, qui reste hors de
+// portée de ce moteur générique (voir l'en-tête de ce fichier, aucune dépendance vers un service
+// métier) et qui, de toute façon, ne recherche un motif que dans categorie 'desistement' — ce
+// nouveau motif est en 'systeme', catégorie distincte, jamais proposé dans le menu agent
+// "Marquer annulé"/"Marquer absent". Résolu AVANT toute écriture (transaction pas encore ouverte) :
+// un forçage doit échouer PROPREMENT (aucune écriture) si l'entité n'a pas encore ce motif seedé,
+// plutôt que d'écrire un dossier déplacé avec des rendez-vous neutralisés sans motif exploitable.
+//
+// Retourne un objet par rendez-vous neutralisé (id/statutAvant/outlookEventId/formateurId, voir
+// rendezvousRepository.neutraliserRendezvousActifsDossier) — plus riche qu'un simple id (avant ce
+// correctif) : l'appelant (transitions.routes.js, POST /forcer-statut) en a besoin pour journaliser
+// le VRAI statut d'origine de chaque rendez-vous et pour supprimer son événement Outlook le cas
+// échéant — cette fonction reste un moteur générique, sans dépendance à journalAudit ni à
+// graphCalendarService (voir l'en-tête de ce fichier).
 async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilisateurId, roleCode }) {
   if (roleCode !== ROLES.ADMIN) {
     throw new ErreurTransitionInvalide('Seul le rôle Admin peut forcer le statut d’un dossier.');
@@ -216,6 +241,20 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
     throw new ErreurTransitionInvalide(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
   }
 
+  // Résolution AVANT toute écriture (voir commentaire ci-dessus) — fail fast, aucune transaction
+  // ouverte à ce stade.
+  const motifNeutralisation = await motifRepository.trouverMotifParCode(
+    bd,
+    entite.id,
+    CATEGORIE_MOTIF_SYSTEME,
+    CODE_MOTIF_NEUTRALISE_PAR_FORCAGE,
+  );
+  if (!motifNeutralisation) {
+    throw new ErreurTransitionInvalide(
+      `Motif neutralise_par_forcage absent pour cette entité « ${entite.code} » (voir scripts/seedMotifNeutraliseParForcage.js).`,
+    );
+  }
+
   const rendezvousNeutralises = await bd.transaction(async (trx) => {
     await dossierRepository.enregistrerChangementStatut(trx, {
       dossierId,
@@ -224,11 +263,11 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
       commentaire,
     });
 
-    const lignes = await rendezvousRepository.neutraliserRendezvousActifsDossier(trx, {
+    return rendezvousRepository.neutraliserRendezvousActifsDossier(trx, {
       dossierId,
-      statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
+      statutRemplace: STATUT_RENDEZVOUS_ANNULE,
+      motifId: motifNeutralisation.id,
     });
-    return lignes.map((ligne) => ligne.id);
   });
 
   return {
@@ -236,6 +275,7 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
     statutAvantLibelle: dossier.statut_libelle,
     statutApresCode: statutCible.code,
     statutApresLibelle: statutCible.libelle,
+    motifNeutralisationCode: motifNeutralisation.code,
     rendezvousNeutralises,
   };
 }

@@ -134,10 +134,26 @@ function varianteStatutRendezvous(statut) {
 // vers LIBELLES_STATUT/varianteStatutRendezvous désormais, quelle que soit la date — les colonnes
 // "Rendez-vous" et "Statut" redeviennent deux informations indépendantes, jamais l'une déduite de
 // l'autre.
+// Bloc 2 (audit 2026-09-23) : un rendez-vous 'annule' par workflowEngine.forcerStatut (Admin, hors
+// parcours normal) porte ce motif système, jamais choisi par un agent (voir
+// scripts/seedMotifNeutraliseParForcage.js, categorie 'systeme') — distinct visuellement d'une VRAIE
+// annulation candidat, même statut brut en base. Le filtre "Annulé" (STATUTS_FILTRABLES_RENDEZVOUS
+// plus bas) reste UNIQUE et continue de les inclure (décision utilisateur explicite) : seuls le
+// libellé et la couleur du badge changent, jamais le code de statut ni un filtre séparé.
+const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
+function rendezvousAnnuleParForcage(rdv) {
+  return rdv.statut === 'annule' && rdv.motif_code === CODE_MOTIF_NEUTRALISE_PAR_FORCAGE;
+}
+
 function libelleAfficheRendezvous(rdv) {
+  if (rendezvousAnnuleParForcage(rdv)) return 'Annulé (forçage)';
   return LIBELLES_STATUT[rdv.statut] ?? rdv.statut;
 }
 function varianteAfficheeRendezvous(rdv) {
+  // 'neutre-fort' (gris) plutôt que 'echec' (rouge, désistement candidat) : ce badge ne signale pas
+  // un désistement, seulement un forçage administratif — même famille de couleur que le badge
+  // "Remplacé" (varianteStatutRendezvous ci-dessus), pas une nouvelle teinte inventée pour ce cas.
+  if (rendezvousAnnuleParForcage(rdv)) return 'neutre-fort';
   return varianteStatutRendezvous(rdv.statut);
 }
 

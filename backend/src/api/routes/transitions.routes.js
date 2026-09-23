@@ -6,6 +6,8 @@ const { ErreurRendezvousDossierClos } = require('../../core/rendezvous/rendezvou
 const dossierRepository = require('../../core/dossier/dossierRepository');
 const { envoyerEmailFormationValidee } = require('../../core/dossier/notificationFormationValideeService');
 const embaucheService = require('../../core/dossier/embaucheService');
+const utilisateurRepository = require('../../core/auth/utilisateurRepository');
+const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -234,6 +236,50 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
   }
 });
 
+// Bloc 2 (audit 2026-09-23) : supprime l'événement Outlook de chaque rendez-vous neutralisé par
+// forcerStatut qui en possédait un — APRÈS la validation de la transaction forcerStatut (jamais dans
+// la même transaction Neon qu'un appel réseau externe, même principe que rendezvousService.
+// creerRendezvous plus haut dans ce projet). Exportée en plus de `router` (voir en bas de fichier) :
+// ce projet n'a aucune convention de test au niveau route/HTTP (supertest ou équivalent), cette
+// fonction reste donc directement testable en l'appelant telle quelle, sans monter Express.
+//
+// Try/catch PAR rendez-vous, jamais un seul englobant : un échec Graph sur l'un ne doit jamais
+// empêcher la suppression des suivants, ni faire échouer la réponse HTTP (le forçage est déjà acté
+// en base à ce stade). `rendezvous.outlookEventId`/`rendezvous.formateurId` viennent de
+// workflowEngine.forcerStatut (lui-même depuis rendezvousRepository.
+// neutraliserRendezvousActifsDossier) — un rendez-vous sans formateur assigné ou sans événement
+// connu (ex. type_rdv jamais synchronisé à Outlook) est silencieusement ignoré, rien à supprimer.
+async function supprimerEvenementsOutlookRendezvousNeutralises(entite, { rendezvousNeutralises, utilisateurId, adresseIp }) {
+  const bd = await obtenirKnex();
+  for (const rendezvous of rendezvousNeutralises) {
+    if (!rendezvous.outlookEventId || !rendezvous.formateurId) continue;
+    try {
+      const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvous.formateurId);
+      if (!formateur) continue;
+      const emailCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(formateur);
+      await graphCalendarService.supprimerEvenement(emailCalendrier, rendezvous.outlookEventId);
+    } catch (erreur) {
+      console.error(
+        `Échec de la suppression de l'événement Outlook ${rendezvous.outlookEventId} du rendez-vous ` +
+          `${rendezvous.id} (forçage de statut) :`,
+        erreur.message,
+      );
+      // Action dédiée (demande explicite) : distincte de 'rendezvous_neutralise_force' — celle-ci
+      // trace spécifiquement l'ÉCHEC de nettoyage Outlook, jamais mélangée à la neutralisation
+      // elle-même (déjà actée en base, réussie, indépendamment de ce nettoyage best-effort).
+      await journalAudit.enregistrerAction(bd, {
+        utilisateurId,
+        entiteId: entite.id,
+        action: 'rendezvous_suppression_outlook_echec',
+        tableCible: 'rendezvous',
+        cibleId: rendezvous.id,
+        donnees: { outlookEventId: rendezvous.outlookEventId, erreur: erreur.message },
+        adresseIp,
+      });
+    }
+  }
+}
+
 // POST /api/dossiers/:dossierId/transitions/forcer-statut — place le dossier sur N'IMPORTE QUEL
 // statut existant de l'entité, indépendamment du statut courant et sans passer par
 // `transitions_statut` (voir workflowEngine.forcerStatut) — réservé à Admin (ROLES_FORCER_STATUT).
@@ -279,17 +325,39 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, r
     // pour rester cohérent avec le reste du journal d'audit (une ligne = un changement d'état d'UNE
     // ressource). Vide (aucune écriture) si le dossier n'avait aucun rendez-vous actif — comportement
     // silencieux déjà en place côté neutraliserRendezvousActifsDossier.
-    for (const rendezvousId of resultat.rendezvousNeutralises) {
+    //
+    // `donnees` enrichi (bloc 2, audit 2026-09-23) : statutRendezvousAvant/statutRendezvousApres +
+    // motifCode s'ajoutent à statutAvant/statutApres du DOSSIER déjà présents — le rendez-vous passe
+    // désormais à 'annule' (plus 'remplace', voir workflowEngine.forcerStatut) avec un motif
+    // exploitable. Entrées EXISTANTES jamais réécrites : uniquement les nouvelles, à partir de ce
+    // correctif.
+    for (const rendezvous of resultat.rendezvousNeutralises) {
       await journalAudit.enregistrerAction(bd, {
         utilisateurId: req.utilisateur.id,
         entiteId: req.entite.id,
         action: 'rendezvous_neutralise_force',
         tableCible: 'rendezvous',
-        cibleId: rendezvousId,
-        donnees: { dossierId, statutAvant: resultat.statutAvantCode, statutApres: resultat.statutApresCode },
+        cibleId: rendezvous.id,
+        donnees: {
+          dossierId,
+          statutAvant: resultat.statutAvantCode,
+          statutApres: resultat.statutApresCode,
+          statutRendezvousAvant: rendezvous.statutAvant,
+          statutRendezvousApres: 'annule',
+          motifCode: resultat.motifNeutralisationCode,
+        },
         adresseIp: req.ip,
       });
     }
+
+    // Suppression Outlook (bloc 2, B4) — APRÈS la validation de la transaction forcerStatut,
+    // best-effort, jamais bloquant pour la réponse (voir supprimerEvenementsOutlookRendezvousNeutralises
+    // ci-dessus pour le détail try/catch par rendez-vous).
+    await supprimerEvenementsOutlookRendezvousNeutralises(req.entite, {
+      rendezvousNeutralises: resultat.rendezvousNeutralises,
+      utilisateurId: req.utilisateur.id,
+      adresseIp: req.ip,
+    });
 
     res.status(201).json(resultat);
   } catch (erreur) {
@@ -344,3 +412,7 @@ router.post('/marquer-embauche', requireRole(...ROLES_MARQUER_EMBAUCHE), async (
 });
 
 module.exports = router;
+// Attachée sur l'objet router (une fonction Express est un objet, une propriété en plus ne gêne
+// jamais son usage comme middleware) — voir le commentaire de la fonction elle-même, aucune
+// convention de test HTTP dans ce projet, elle reste testée directement ainsi.
+module.exports.supprimerEvenementsOutlookRendezvousNeutralises = supprimerEvenementsOutlookRendezvousNeutralises;

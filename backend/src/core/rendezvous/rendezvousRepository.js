@@ -141,19 +141,36 @@ function listerRendezvousPresenceConfirmeeSansEvaluation(bd, entiteId, { delaiHe
 // l'id, en plus de la condition LATERAL ci-dessus (les deux doivent tenir) — un dossier portant ne
 // serait-ce qu'UN rendez-vous 'test' encore 'prevu'/'confirme', quel que soit son id par rapport aux
 // autres, ne matche jamais, point final.
+//
+// Double sécurité du bloc 2 (audit 2026-09-23) : exclut en plus tout dossier dont le DERNIER
+// rendez-vous test 'annule' porte le motif 'neutralise_par_forcage' (workflowEngine.forcerStatut,
+// jamais une VRAIE annulation candidat) — ce cas ne devrait déjà plus jamais matcher (forcerStatut
+// ne pose jamais 'annule' en arrivant sur 'test_planifie' lui-même dans l'usage normal), mais reste
+// une garde peu coûteuse si un Admin force malgré tout un dossier VERS test_planifie avec un
+// rendez-vous encore actif à neutraliser au passage : ce rattrapage n'a pas à s'en mêler, l'Admin
+// vient justement d'agir consciemment. `LEFT JOIN` (pas `JOIN`) : un rendez-vous sans motif
+// (motif_id NULL, ex. une VRAIE annulation via PATCH /rendezvous/:id sans motif_id renseigné avant
+// ce chantier) doit continuer à matcher normalement, jamais être exclu par erreur faute de ligne
+// `motifs` à joindre.
 function listerDossiersAnnulesNonSynchronises(bd, entiteId) {
   return bd('dossiers as d')
     .join('statuts as s', 's.id', 'd.statut_id')
     .joinRaw(
       `JOIN LATERAL (
-         SELECT r.id, r.statut
+         SELECT r.id, r.statut, r.motif_id
          FROM rendezvous r
          WHERE r.dossier_id = d.id AND r.type_rdv = 'test'
          ORDER BY r.id DESC
          LIMIT 1
        ) AS dernier_rendezvous_test ON true`,
     )
+    .leftJoin('motifs as motif_dernier_rendezvous_test', 'motif_dernier_rendezvous_test.id', 'dernier_rendezvous_test.motif_id')
     .where({ 'd.entite_id': entiteId, 's.code': 'test_planifie', 'dernier_rendezvous_test.statut': 'annule' })
+    .andWhere(function () {
+      this.whereNot('motif_dernier_rendezvous_test.code', 'neutralise_par_forcage').orWhereNull(
+        'motif_dernier_rendezvous_test.code',
+      );
+    })
     .whereNotExists(function () {
       this.select(1)
         .from('rendezvous as r2')
@@ -349,6 +366,12 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
+    // motif_code (bloc 2, audit 2026-09-23) : Planification.jsx (colonne "Rendez-vous") en a besoin
+    // pour distinguer un rendez-vous annulé par un candidat d'un rendez-vous annulé par un forçage
+    // de statut Admin (motif 'neutralise_par_forcage') — même libellé "Annulé" en base
+    // (rendezvous.statut) mais affichage différent souhaité, voir libelleAfficheRendezvous/
+    // varianteAfficheeRendezvous côté front.
+    .leftJoin('motifs', 'motifs.id', 'rendezvous.motif_id')
     .leftJoin('dossier_donnees_formulaire as bloc_disponibilites', function () {
       this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn(
         'bloc_disponibilites.bloc_code',
@@ -394,6 +417,7 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
       'rendezvous.dossier_id',
       'rendezvous.date_heure',
       'rendezvous.statut',
+      'motifs.code as motif_code',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       'statuts.code as dossier_statut_code',
@@ -619,16 +643,46 @@ function mettreAJourDateHeureRendezvous(bd, rendezvousId, dateHeure) {
 // pouvoir neutraliser TOUS les rendez-vous actifs d'un dossier passant à un statut clos, quel que
 // soit leur type — les appelants existants (rendezvousService.creerRendezvous) continuent de
 // fournir `typeRdv` explicitement, comportement inchangé pour eux.
-// `.returning('id')` (audit 2026-09-09, workflowEngine.forcerStatut) : le nombre de lignes
-// affectées ne suffisait plus au nouvel appelant, qui doit journaliser CHAQUE rendez-vous
-// neutralisé individuellement (voir transitions.routes.js, POST /forcer-statut) — appliquerTransition
-// continue d'ignorer la valeur de retour, comportement inchangé pour lui.
-function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, statutRemplace }) {
-  const requete = bd('rendezvous')
+// `motifId` optionnel (bloc 2, audit 2026-09-23, workflowEngine.forcerStatut) : SANS lui, le
+// comportement reste STRICTEMENT celui d'avant ce correctif — seul `statut` écrit, jamais
+// `motif_id` (appliquerTransition, l'autre appelant, ne le fournit jamais). AVEC lui, `motif_id` est
+// écrit dans la MÊME requête UPDATE que `statut`, jamais une écriture séparée.
+//
+// Renvoie désormais un objet par rendez-vous neutralisé (id/statutAvant/outlookEventId/formateurId)
+// plutôt qu'un simple `{ id }` (`.returning('id')` seul, avant ce correctif) : `RETURNING` ne
+// renvoie que l'état APRÈS écriture, jamais l'ancien `statut` — un SELECT préalable (verrouillé,
+// `.forUpdate()`, toujours dans la même transaction que l'UPDATE qui suit) est donc nécessaire pour
+// que l'appelant (transitions.routes.js, POST /forcer-statut) puisse journaliser le VRAI statut
+// d'origine de chaque rendez-vous ET supprimer son événement Outlook le cas échéant
+// (`outlook_event_id`/`formateur_id`, jamais exposés jusqu'ici par cette fonction).
+// appliquerTransition continue d'ignorer intégralement cette valeur de retour, comportement inchangé
+// pour lui malgré la forme différente.
+async function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, statutRemplace, motifId }) {
+  const requeteSelection = bd('rendezvous')
     .where({ dossier_id: dossierId })
-    .whereIn('statut', ['prevu', 'confirme']);
-  if (typeRdv) requete.andWhere({ type_rdv: typeRdv });
-  return requete.update({ statut: statutRemplace }).returning('id');
+    .whereIn('statut', ['prevu', 'confirme'])
+    .forUpdate();
+  if (typeRdv) requeteSelection.andWhere({ type_rdv: typeRdv });
+
+  const avant = await requeteSelection.select('id', 'statut', 'outlook_event_id', 'formateur_id');
+  if (avant.length === 0) return [];
+
+  const donneesEcrites = { statut: statutRemplace };
+  if (motifId !== undefined) donneesEcrites.motif_id = motifId;
+
+  await bd('rendezvous')
+    .whereIn(
+      'id',
+      avant.map((ligne) => ligne.id),
+    )
+    .update(donneesEcrites);
+
+  return avant.map((ligne) => ({
+    id: ligne.id,
+    statutAvant: ligne.statut,
+    outlookEventId: ligne.outlook_event_id,
+    formateurId: ligne.formateur_id,
+  }));
 }
 
 // Nombre de candidats déjà assignés à ce formateur au même horaire exact (voir

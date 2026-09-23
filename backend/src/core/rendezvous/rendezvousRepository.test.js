@@ -141,3 +141,106 @@ test("listerDossiersAnnulesNonSynchronises exclut tout dossier portant un rendez
   assert.match(sql, /"r2"\."type_rdv" = 'test'/);
   assert.match(sql, /"r2"\."statut" in \('prevu', 'confirme'\)/i);
 });
+
+// listerDossiersAnnulesNonSynchronises — double sécurité du bloc 2 (audit 2026-09-23) : exclut en
+// plus tout dossier dont le dernier rendez-vous 'annule' porte le motif 'neutralise_par_forcage'
+// (workflowEngine.forcerStatut), jamais une vraie annulation candidat.
+test("listerDossiersAnnulesNonSynchronises exclut le dernier rendez-vous 'annule' si son motif est 'neutralise_par_forcage' (LEFT JOIN motifs, un rendez-vous sans motif reste inclus)", () => {
+  const sql = rendezvousRepository.listerDossiersAnnulesNonSynchronises(bd, 1).toString();
+
+  assert.match(sql, /left join "motifs" as "motif_dernier_rendezvous_test"/i);
+  assert.match(sql, /"motif_dernier_rendezvous_test"\."id" = "dernier_rendezvous_test"\."motif_id"/);
+  assert.match(sql, /not "motif_dernier_rendezvous_test"\."code" = 'neutralise_par_forcage'/);
+  // Un rendez-vous sans motif (motif_id NULL, donc pas de ligne motifs à joindre) doit rester
+  // matché : le OR whereNull ci-dessous, pas une exclusion par défaut faute de jointure.
+  assert.match(sql, /or "motif_dernier_rendezvous_test"\."code" is null/i);
+});
+
+// listerRendezvousTest — bloc 2 (audit 2026-09-23, B8) : Planification.jsx a besoin du motif pour
+// distinguer un rendez-vous annulé par un candidat d'un rendez-vous annulé par un forçage de
+// statut Admin (même 'statut' brut en base : 'annule' dans les deux cas).
+test('listerRendezvousTest joint motifs et expose motif_code', () => {
+  const sql = rendezvousRepository.listerRendezvousTest(bd, 1, {}).toString();
+
+  assert.match(sql, /left join "motifs" on "motifs"\."id" = "rendezvous"\."motif_id"/i);
+  assert.match(sql, /"motifs"\."code" as "motif_code"/);
+});
+
+// neutraliserRendezvousActifsDossier — bloc 2 (audit 2026-09-23, B2/B9) : devenue une fonction
+// async à deux requêtes (SELECT verrouillé puis UPDATE, voir son commentaire) — plus un simple
+// query builder chaînable, donc plus testable en génération de SQL (.toString()) comme les
+// fonctions ci-dessus. Testée en comportement contre un `bd` factice minimal, même principe que
+// workflowEngine.test.js/rendezvousService.test.js (repositories mockées), mais ICI c'est cette
+// fonction elle-même qui est sous test — le `bd` factice simule donc le query builder Knex
+// directement plutôt que de mocker une couche au-dessus.
+function creerBdFacticeNeutralisation(lignesSelectionnees) {
+  const appelsUpdate = [];
+  function bd(table) {
+    assert.equal(table, 'rendezvous');
+    let idsWhereIn = null;
+    const builder = {
+      where: () => builder,
+      andWhere: () => builder,
+      forUpdate: () => builder,
+      whereIn: (colonne, valeurs) => {
+        if (colonne === 'id') idsWhereIn = valeurs;
+        return builder;
+      },
+      select: async () => lignesSelectionnees,
+      update: async (donnees) => {
+        appelsUpdate.push({ ids: idsWhereIn, donnees });
+        return lignesSelectionnees.length;
+      },
+    };
+    return builder;
+  }
+  bd.appelsUpdate = appelsUpdate;
+  return bd;
+}
+
+test('neutraliserRendezvousActifsDossier sans motifId : comportement STRICTEMENT inchangé (seul `statut` écrit, jamais `motif_id`)', async () => {
+  const lignes = [
+    { id: 10, statut: 'prevu', outlook_event_id: 'evt-1', formateur_id: 5 },
+    { id: 11, statut: 'confirme', outlook_event_id: null, formateur_id: null },
+  ];
+  const bdFactice = creerBdFacticeNeutralisation(lignes);
+
+  const resultat = await rendezvousRepository.neutraliserRendezvousActifsDossier(bdFactice, {
+    dossierId: 90,
+    statutRemplace: 'remplace',
+  });
+
+  assert.deepEqual(resultat, [
+    { id: 10, statutAvant: 'prevu', outlookEventId: 'evt-1', formateurId: 5 },
+    { id: 11, statutAvant: 'confirme', outlookEventId: null, formateurId: null },
+  ]);
+  assert.equal(bdFactice.appelsUpdate.length, 1);
+  assert.deepEqual(bdFactice.appelsUpdate[0].donnees, { statut: 'remplace' });
+  assert.deepEqual(bdFactice.appelsUpdate[0].ids, [10, 11]);
+});
+
+test('neutraliserRendezvousActifsDossier avec motifId : `motif_id` écrit dans la MÊME requête UPDATE que `statut`', async () => {
+  const lignes = [{ id: 20, statut: 'prevu', outlook_event_id: null, formateur_id: null }];
+  const bdFactice = creerBdFacticeNeutralisation(lignes);
+
+  await rendezvousRepository.neutraliserRendezvousActifsDossier(bdFactice, {
+    dossierId: 90,
+    statutRemplace: 'annule',
+    motifId: 501,
+  });
+
+  assert.equal(bdFactice.appelsUpdate.length, 1);
+  assert.deepEqual(bdFactice.appelsUpdate[0].donnees, { statut: 'annule', motif_id: 501 });
+});
+
+test('neutraliserRendezvousActifsDossier renvoie [] et ne fait AUCUNE écriture si aucun rendez-vous actif', async () => {
+  const bdFactice = creerBdFacticeNeutralisation([]);
+
+  const resultat = await rendezvousRepository.neutraliserRendezvousActifsDossier(bdFactice, {
+    dossierId: 90,
+    statutRemplace: 'remplace',
+  });
+
+  assert.deepEqual(resultat, []);
+  assert.equal(bdFactice.appelsUpdate.length, 0);
+});

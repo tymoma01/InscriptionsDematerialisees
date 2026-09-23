@@ -1314,6 +1314,42 @@ test('changerStatutRendezvous accepte une transaction déjà ouverte (bdExistant
   assert.equal(obtenirKnex.mock.callCount(), 0);
 });
 
+// Non-régression (bloc 2, audit 2026-09-23, B1/B9) : le motif 'neutralise_par_forcage' du nouveau
+// bloc 2 est créé en categorie 'systeme' (jamais 'desistement', voir
+// scripts/seedMotifNeutraliseParForcage.js), précisément pour ne JAMAIS interférer avec
+// changerStatutRendezvous ci-dessous — qui reste, lui, hardcodé sur 'desistement'
+// (CATEGORIE_MOTIF_DESISTEMENT) pour TOUT motifCode reçu, quel qu'il soit. Ce test verrouille cette
+// constante pour 'test_non_realise'/'annule_depuis_outlook' — les trois appelants réels de
+// changerStatutRendezvous avec ces codes (PATCH /rendezvous/:id et le bouton NSPP via
+// clotureRendezvousAvecTransitionService, basculeTestNonRealiseService.js le filet 24h,
+// syncCalendrierManuelService.js la sync Outlook) cesseraient tous de fonctionner si ce fichier
+// changeait un jour cette catégorie pour l'un de ces deux codes précis.
+for (const motifCode of ['test_non_realise', 'annule_depuis_outlook']) {
+  test(`changerStatutRendezvous résout toujours le motif '${motifCode}' en categorie 'desistement' (non-régression bloc 2 : NSPP/filet 24h/sync Outlook)`, async (t) => {
+    t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+    t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+      id: 90,
+      statut_code: 'test_planifie',
+      statut_libelle: 'Test planifié',
+    }));
+    t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, statut: 'prevu' }));
+    const trouverMotif = t.mock.method(motifRepository, 'trouverMotifParCode', async () => ({ id: 24, code: motifCode }));
+    t.mock.method(rendezvousRepository, 'mettreAJourStatutRendezvous', async () => ({ id: 71, statut: 'absent' }));
+
+    await rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, {
+      dossierId: 90,
+      rendezvousId: 71,
+      statut: 'absent',
+      motifCode,
+    });
+
+    assert.equal(trouverMotif.mock.callCount(), 1);
+    const appel = trouverMotif.mock.calls[0].arguments;
+    assert.equal(appel[2], 'desistement');
+    assert.equal(appel[3], motifCode);
+  });
+}
+
 // resoudreTransitionAnnulationTest (audit 2026-09-21, point 2 : 'annule' -> test_non_realise) —
 // pure fonction de décision, jamais d'écriture : testée directement avec un `bd` factice passé en
 // argument (pas de mock sur db.obtenirKnex, cette fonction n'en appelle jamais).
