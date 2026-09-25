@@ -3,7 +3,7 @@ const { z } = require('zod');
 const statistiquesService = require('../../core/statistiques/statistiquesService');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConstantes');
 
 // Monté sur '/api/statistiques' (voir app.js) — tableau de bord KPI back-office. Ouvert à
@@ -15,7 +15,7 @@ const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConsta
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireRole(ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN));
+router.use(requireRole(...ROLES_ACCUEIL, ROLES.ADMIN));
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 

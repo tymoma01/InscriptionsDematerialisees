@@ -44,8 +44,16 @@ export async function listerMotifsPourAction(codeAction) {
 // ForcerStatutDossier.jsx) : place le dossier directement sur `statutCode`, indépendamment du
 // statut courant et sans passer par `transitions_statut`/appliquerTransition ci-dessus. utilisateurId
 // jamais envoyé ici non plus, même raison que pour appliquerTransition.
-export async function forcerStatut(dossierId, { statutCode, commentaire }) {
-  const { data } = await api.post(`/dossiers/${dossierId}/transitions/forcer-statut`, { statutCode, commentaire });
+// dateEmbauche (audit 2026-09-25) : optionnel — jamais envoyé (undefined) sauf quand statutCode
+// vaut "embauche" (voir ModaleForcerStatut.jsx, estStatutEmbauche). `axios` omet une clé à
+// `undefined` du corps JSON envoyé, même comportement que marquerEmbauche ci-dessous n'a jamais eu
+// besoin de gérer (son champ est, lui, toujours obligatoire).
+export async function forcerStatut(dossierId, { statutCode, commentaire, dateEmbauche }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/transitions/forcer-statut`, {
+    statutCode,
+    commentaire,
+    dateEmbauche,
+  });
   return data;
 }
 

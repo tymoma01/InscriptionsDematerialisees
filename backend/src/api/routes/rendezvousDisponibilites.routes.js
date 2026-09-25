@@ -4,7 +4,7 @@ const rendezvousService = require('../../core/rendezvous/rendezvousService');
 const { ErreurFormateurInvalide, ErreurPlanificationOutlook } = rendezvousService;
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/rendezvous' (voir app.js) — top-level, distinct de '/api/dossiers/:dossierId/
 // rendezvous' (rendezvous.routes.js, scopé à un dossier précis) : la lecture de disponibilité
@@ -15,7 +15,7 @@ const router = Router();
 // Mêmes rôles que ROLES_GESTION_RENDEZVOUS (rendezvous.routes.js) — seuls Accueil/Coordination/
 // Admin ouvrent la modale de planification (ModalePlanificationTest.jsx), jamais Formateur/
 // Inspecteur. Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_LECTURE_DISPONIBILITES = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_LECTURE_DISPONIBILITES = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_LECTURE_DISPONIBILITES));

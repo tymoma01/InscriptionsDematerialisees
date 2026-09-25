@@ -1,18 +1,15 @@
 import { Link } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
+import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
 import './BoutonNouvelleInscription.css';
 
-// Codes de rôle en dur plutôt qu'une constante partagée : le projet n'exporte aujourd'hui aucun
-// équivalent front de ROLES (backend/src/core/auth/rbac.js), même choix déjà fait ailleurs (ex.
-// GestionRendezvous.ROLES_GESTION_RENDEZVOUS, HistoriqueRelances.jsx) pour leurs propres
-// comparaisons de rôle.
 // Admin ajouté (audit 2026-09-02, capture utilisateur : bouton absent pour ce rôle) — même
 // périmètre que ROLES_GESTION_RENDEZVOUS/BarreNavigation.jsx (entrée "Dossiers candidats") :
-// Admin voit et peut utiliser toutes les actions d'Accueil/Coordination sur cette page, jamais
-// une exception isolée. POST /api/candidats (route liée, voir Link ci-dessous) reste public côté
-// API — aucune vérification de rôle à assouplir là-bas, ce bouton n'ouvre qu'une porte déjà
-// ouverte à quiconque connaît l'URL "/".
-const ROLES_AUTORISES = ['accueil_coordination', 'admin'];
+// Admin voit et peut utiliser toutes les actions d'Accueil/Coordination (donc de Planning aussi,
+// voir ROLES_ACCUEIL) sur cette page, jamais une exception isolée. POST /api/candidats (route
+// liée, voir Link ci-dessous) reste public côté API — aucune vérification de rôle à assouplir
+// là-bas, ce bouton n'ouvre qu'une porte déjà ouverte à quiconque connaît l'URL "/".
+const ROLES_AUTORISES = [...ROLES_ACCUEIL, 'admin'];
 
 // SVG dessiné à la main (silhouette + badge "+"), dans le même esprit épuré qu'une icône
 // lucide-react — le projet n'a aucune bibliothèque d'icônes installée (voir package.json), pas de

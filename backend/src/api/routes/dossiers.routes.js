@@ -13,7 +13,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dossiers' (voir app.js) — distinct du routeur pièces justificatives, monté
 // lui sur '/api/dossiers/:dossierId/pieces' (pieces.routes.js) : les deux coexistent sans
@@ -26,7 +26,7 @@ router.use(requireAuth);
 // dossiers en attente") — mêmes rôles que la gestion des pièces justificatives (pieces.routes.js),
 // c'est la suite du même parcours interne. Rôle Recruteur retiré (audit 2026-08-27) : plus aucune
 // fonction dans le workflow v4, voir suppression du rôle en base.
-const ROLES_CONSULTATION_DOSSIERS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_CONSULTATION_DOSSIERS = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET /rendezvous ci-dessous (audit 2026-08-20,
 // accès à "Suivi des tests") — pas à ROLES_CONSULTATION_DOSSIERS lui-même : ces deux rôles n'ont
@@ -54,7 +54,7 @@ const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATE
 // à Formateur/Inspecteur, Validation/Indicateurs à Admin...), il n'a donc pas à restreindre par
 // rôle au-delà de "utilisateur back-office authentifié" — la donnée renvoyée (un simple
 // horodatage) ne révèle rien de sensible par elle-même.
-const ROLES_TOUT_BACK_OFFICE = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+const ROLES_TOUT_BACK_OFFICE = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 // GET /api/dossiers?statut=code — liste des dossiers de l'entité courante, filtrable par statut.
 // Le code de statut n'est jamais figé ici : il vient de la table `statuts`, configurable par
@@ -82,7 +82,7 @@ router.get('/', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, ne
 // jamais voulu, voir le commentaire de ROLES_CONSULTATION_RENDEZVOUS_TEST plus bas). Le choix des
 // 3 statuts eux-mêmes reste propre à ACCECIT (voir Modularité, CLAUDE.md), porté par
 // dossierRepository.listerSuiviFormation plutôt qu'un paramètre client.
-const ROLES_SUIVI_FORMATION = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+const ROLES_SUIVI_FORMATION = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 router.get('/suivi-formation', requireRole(...ROLES_SUIVI_FORMATION), async (req, res, next) => {
   try {
     const dossiers = await dossierService.listerSuiviFormation(req.entite);
@@ -127,7 +127,7 @@ router.get('/derniere-modification', requireRole(...ROLES_TOUT_BACK_OFFICE), asy
 // convention que le reste du projet (voir CLAUDE.md, dupliqué plutôt que partagé pour quelques
 // lignes de données).
 // Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_EXPORT_ZIP_PIECES_GROUPE = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_EXPORT_ZIP_PIECES_GROUPE = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 // Même schéma CSV que historiqueRendezvousQuerySchema plus bas (dossierIds="12,45,67") — pas
 // partagé entre les deux : ce fichier duplique déjà ce patron pour /rendezvous/historique, une
@@ -457,7 +457,7 @@ router.get('/:dossierId/evaluation', requireRole(...ROLES_CONSULTATION_DOSSIERS)
 // rôles, mais un appel API direct doit être refusé indépendamment de ce masquage) — même principe
 // que le reste de ce fichier (chaque route pose sa propre restriction, jamais héritée d'un autre
 // contrôle supposé déjà fait ailleurs).
-const ROLES_MODIFICATION_INSCRIPTION = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_MODIFICATION_INSCRIPTION = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 router.patch('/:dossierId/inscription', requireRole(...ROLES_MODIFICATION_INSCRIPTION), async (req, res, next) => {
   try {

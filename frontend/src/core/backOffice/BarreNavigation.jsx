@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
+import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
 import './BarreNavigation.css';
 
 // Catalogue des destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
@@ -40,9 +41,8 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Tableau de bord',
     chemin: '/tableau-de-bord/indicateurs',
     estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
-    // Mêmes rôles que statistiques.routes.js. Rôle Recruteur retiré (audit 2026-08-27) — voir
-    // suppression du rôle en base.
-    roles: ['accueil_coordination', 'admin'],
+    // Mêmes rôles que statistiques.routes.js.
+    roles: [...ROLES_ACCUEIL, 'admin'],
   },
   {
     cle: 'dossiers',
@@ -56,9 +56,8 @@ const ELEMENTS_NAVIGATION = [
       chemin.startsWith('/accueil/') ||
       chemin.startsWith('/coordination/dossiers/') ||
       chemin.startsWith('/recruteur/'),
-    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS. Rôle Recruteur retiré
-    // (audit 2026-08-27) — voir suppression du rôle en base.
-    roles: ['accueil_coordination', 'admin'],
+    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS.
+    roles: [...ROLES_ACCUEIL, 'admin'],
   },
   {
     cle: 'suivi-tests',
@@ -69,8 +68,8 @@ const ELEMENTS_NAVIGATION = [
     // rendez-vous assignés sur cette page (restriction posée côté serveur, voir
     // dossiers.routes.js — jamais une simple restriction d'affichage). Mêmes rôles que
     // dossiers.routes.js (route /rendezvous) et formateurs.routes.js pour Accueil/Coordination/
-    // Admin. Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-    roles: ['accueil_coordination', 'admin', 'formateur', 'inspecteur'],
+    // Admin.
+    roles: [...ROLES_ACCUEIL, 'admin', 'formateur', 'inspecteur'],
   },
   {
     cle: 'suivi-formation',
@@ -81,7 +80,7 @@ const ELEMENTS_NAVIGATION = [
     // patron : Accueil/Coordination lecture seule, Formateur/Inspecteur/Admin accès complet,
     // différencié DANS la page — voir SuiviFormation.jsx — pas par un second onglet). Mêmes rôles
     // que dossiers.routes.js, route /suivi-formation (ROLES_SUIVI_FORMATION).
-    roles: ['accueil_coordination', 'admin', 'formateur', 'inspecteur'],
+    roles: [...ROLES_ACCUEIL, 'admin', 'formateur', 'inspecteur'],
   },
   {
     cle: 'comptes-utilisateurs',

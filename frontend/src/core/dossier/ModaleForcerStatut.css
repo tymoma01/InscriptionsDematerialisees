@@ -20,7 +20,10 @@
   border-radius: var(--rayon-bordure);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   width: 100%;
-  max-width: 30rem;
+  /* Élargie (bloc 3, audit 2026-09-25 ; ~720px demandé explicitement en suite d'audit, remplace le
+     34rem/544px précédent) : chaque étape doit tenir sur une seule ligne (intertitre + badges),
+     pas seulement la liste de choix groupée en général. */
+  max-width: 45rem;
   padding: 1.75rem;
 }
 
@@ -69,6 +72,126 @@
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   font: inherit;
+}
+
+/* Liste de choix groupée (bloc 3, audit 2026-09-25 ; réajustée en suite d'audit — plus AUCUNE
+   hauteur bornée ni défilement interne : tous les statuts doivent rester visibles d'un coup,
+   quitte à ce que la MODALE elle-même s'allonge — voir .modale-forcer-statut__fond ci-dessus, déjà
+   `overflow-y: auto` sur la fenêtre entière pour ce cas). */
+.modale-forcer-statut__choix-liste {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.25rem 0.75rem;
+}
+
+/* Une ligne par étape (bloc 3 suite) : intertitre dans une colonne de largeur FIXE à gauche,
+   badges de l'étape alignés à droite sur la même ligne, retour à la ligne automatique gauche à
+   droite DANS la colonne des badges uniquement (jamais l'intertitre qui, lui, reste sur sa
+   colonne) — voir .modale-forcer-statut__badges-groupe plus bas. `role="group"` (JSX) plutôt que
+   `<fieldset>` : voir le commentaire JSX, <legend> ne s'aligne pas de façon fiable en flex selon
+   les navigateurs.*/
+.modale-forcer-statut__groupe {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-top: 1px solid var(--couleur-bordure-legere);
+  padding: 0.6rem 0;
+}
+
+.modale-forcer-statut__groupe:first-child {
+  border-top: none;
+}
+
+.modale-forcer-statut__titre-groupe {
+  flex: 0 0 6.5rem;
+  padding-top: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--couleur-texte-secondaire);
+}
+
+.modale-forcer-statut__badges-groupe {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Le badge EST le bouton de choix (bloc 3 suite, point 3) : pas de rond radio visible — l'input
+   reste présent et fonctionnel (clavier/lecteur d'écran), seulement masqué visuellement (patron
+   "visually-hidden" standard, jamais `display: none`/`visibility: hidden`, qui le retireraient de
+   la navigation clavier et de l'arbre d'accessibilité). Scopé sous .modale-forcer-statut__badges-
+   groupe (deux classes, spécificité > `.modale-forcer-statut label` ci-dessus qui poserait sinon
+   `flex-direction: column` sur ces mêmes <label>). */
+.modale-forcer-statut__badges-groupe .modale-forcer-statut__choix {
+  position: relative;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.modale-forcer-statut__choix input[type='radio'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Normal : léger surlignage au survol (bloc 3 suite, point 4) — le badge lui-même garde son
+   apparence StatutBadge habituelle, rien à changer sur .statut-badge ici. */
+.modale-forcer-statut__badges-groupe .modale-forcer-statut__choix:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* Focus clavier (bloc 3 suite, point 4 : "contour visible") — sur l'input masqué lui-même
+   (`:focus-visible`, jamais un simple `:focus` qui s'afficherait aussi au clic souris) : sélecteur
+   frère général (`~`, pas `+`) pour cibler le badge que la coche de sélection soit présente ou non
+   entre les deux dans le DOM (voir JSX) — pas de `:has()` nécessaire. */
+.modale-forcer-statut__choix input[type='radio']:focus-visible ~ .statut-badge {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 2px;
+}
+
+/* Sélectionné (bloc 3 suite, point 4) : contour épais de la couleur DU STATUT (--couleur-choix,
+   posée en style inline depuis le JSX — même variable --statut-<variante>-bordure que celle déjà
+   lue par StatutBadge pour sa propre bordure fine), jamais une couleur générique. */
+.modale-forcer-statut__choix--selectionne .statut-badge {
+  outline: 2.5px solid var(--couleur-choix);
+  outline-offset: 1.5px;
+}
+
+.modale-forcer-statut__coche {
+  font-weight: 700;
+  color: var(--couleur-choix);
+}
+
+/* Statut actuel du dossier (bloc 3 suite, point 4) : non cliquable, atténué, jamais confondu avec
+   un choix réellement sélectionnable. */
+.modale-forcer-statut__choix--actuel {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.modale-forcer-statut__badges-groupe .modale-forcer-statut__choix--actuel:hover {
+  background-color: transparent;
+}
+
+.modale-forcer-statut__etiquette-actuel {
+  font-size: 0.78rem;
+  color: var(--couleur-texte-secondaire);
 }
 
 .modale-forcer-statut textarea {

@@ -3,7 +3,7 @@ const { z } = require('zod');
 const dossierService = require('../../core/dossier/dossierService');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dossiers/:dossierId/formation' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici, même patron que relances.routes.js/notes.routes.js.
@@ -14,7 +14,7 @@ const router = Router({ mergeParams: true });
 // historique de formation, en lecture seule — ces entrées sont produites automatiquement par les
 // transitions de "Suivi des formations" (SuiviFormation.jsx), jamais saisies directement ici, donc
 // aucune route d'écriture dans ce fichier.
-const ROLES_LECTURE_FORMATION = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+const ROLES_LECTURE_FORMATION = [...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 
 router.use(requireAuth);
 

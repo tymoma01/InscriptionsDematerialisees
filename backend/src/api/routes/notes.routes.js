@@ -5,7 +5,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dossiers/:dossierId/notes' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici, même patron que relances.routes.js.
@@ -17,7 +17,7 @@ const router = Router({ mergeParams: true });
 // comme les autres — même chose pour l'inspecteur, côté bureau). Pas de distinction lecture/
 // écriture entre rôles : simple journal partagé. Rôle Recruteur retiré (audit 2026-08-27) — voir
 // suppression du rôle en base.
-const ROLES_NOTES_DOSSIER = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+const ROLES_NOTES_DOSSIER = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
 

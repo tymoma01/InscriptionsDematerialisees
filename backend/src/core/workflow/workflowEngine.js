@@ -7,7 +7,7 @@ const motifRepository = require('../motifs/motifRepository');
 // toutes des repositories, jamais un service métier) — voir neutraliserRendezvousActifsDossier
 // ci-dessous, seul point d'usage.
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
-const { ROLES } = require('../auth/rbac');
+const { ROLES, ROLES_FORCAGE } = require('../auth/rbac');
 
 // Valeur de `rendezvous.statut` pour un rendez-vous neutralisé — même sentinel que
 // rendezvousService.STATUT_REMPLACE (core/rendezvous/rendezvousService.js), dupliquée ici plutôt
@@ -30,6 +30,14 @@ const STATUT_RENDEZVOUS_REMPLACE = 'remplace';
 const STATUT_RENDEZVOUS_ANNULE = 'annule';
 const CATEGORIE_MOTIF_SYSTEME = 'systeme';
 const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
+
+// Date d'embauche (audit 2026-09-25) — forcer un dossier vers ce statut doit renseigner
+// dossiers.date_embauche exactement comme le parcours normal (embaucheService.marquerEmbauche,
+// core/dossier/embaucheService.js), voir son usage dans forcerStatut ci-dessous. Même regex que
+// embaucheService.REGEX_DATE_ISO (dupliquée, jamais importée : ce fichier n'a aucune dépendance
+// vers un service métier, voir son en-tête).
+const CODE_STATUT_EMBAUCHE = 'embauche';
+const REGEX_DATE_EMBAUCHE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Erreur métier distincte d'une Error générique (500 opaque) — même principe que
 // ErreurPieceJustificativeInvalide (pieceJustificativeService.js) et ErreurStatistiquesInvalide
@@ -171,6 +179,35 @@ async function listerMotifsPourAction(entite, codeAction) {
   return motifRepository.listerMotifsParCategorie(bd, entite.id, codeAction);
 }
 
+// Statuts exclus du forçage (bloc 3, audit 2026-09-25, décision utilisateur explicite) — EXCEPTION
+// assumée au principe de généricité de ce fichier (voir son en-tête : "aucun statut ni transition
+// nommés en dur") : ces codes sont des paliers hérités d'un ancien circuit de validation
+// (workflow v2/v3, "en_attente_verdict"/"verdict_positif"/"verdict_negatif"/
+// "en_attente_validation_recruteur"/"en_attente_verification"), jamais atteints par le parcours
+// normal actuel, qu'aucun Admin/Planning n'a de raison légitime de choisir par forçage. Centralisés
+// ici en un seul endroit plutôt que dispersés, pour rester le SEUL point à modifier si la liste
+// change — un miroir de cette même liste existe côté frontend (ModaleForcerStatut.jsx), pour ne
+// jamais proposer ces statuts dans la liste de choix (décision produit, pas seulement une
+// validation serveur après coup).
+//
+// `valide`/`rejete` : hérités pour ACCECIT (ancien circuit recruteur, 0 dossier aujourd'hui) mais
+// restent le vocabulaire ACTUEL du workflow Adaptel (dossier #46, entite adaptel, toujours à ce
+// statut) — exclus donc UNIQUEMENT pour ACCECIT, jamais pour Adaptel ni pour une entité non listée
+// ici (Modularité, CLAUDE.md : un code de statut n'a de sens que dans le workflow de son entité).
+const STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES = [
+  'en_attente_verification',
+  'en_attente_verdict',
+  'verdict_positif',
+  'verdict_negatif',
+  'en_attente_validation_recruteur',
+];
+const STATUTS_EXCLUS_FORCAGE_PAR_ENTITE = {
+  accecit: ['valide', 'rejete'],
+};
+function statutsExclusForcage(codeEntite) {
+  return [...STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES, ...(STATUTS_EXCLUS_FORCAGE_PAR_ENTITE[codeEntite] ?? [])];
+}
+
 // Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur) — contourne
 // volontairement `transitions_statut` : contrairement à appliquerTransition ci-dessus, qui ne
 // permet jamais de sauter une étape (une seule origine possible par transition, voir Modularité),
@@ -219,9 +256,10 @@ async function listerMotifsPourAction(entite, codeAction) {
 // le VRAI statut d'origine de chaque rendez-vous et pour supprimer son événement Outlook le cas
 // échéant — cette fonction reste un moteur générique, sans dépendance à journalAudit ni à
 // graphCalendarService (voir l'en-tête de ce fichier).
-async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilisateurId, roleCode }) {
-  if (roleCode !== ROLES.ADMIN) {
-    throw new ErreurTransitionInvalide('Seul le rôle Admin peut forcer le statut d’un dossier.');
+async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEmbauche, utilisateurId, roleCode }) {
+  // Admin et Planning (ROLES_FORCAGE, rbac.js — audit 2026-09-25, rôle Planning).
+  if (!ROLES_FORCAGE.includes(roleCode)) {
+    throw new ErreurTransitionInvalide('Seuls les rôles Admin et Planning peuvent forcer le statut d’un dossier.');
   }
   if (!commentaire || !commentaire.trim()) {
     throw new ErreurTransitionInvalide('Un commentaire est obligatoire pour forcer un changement de statut.');
@@ -239,6 +277,21 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
   }
   if (statutCible.id === dossier.statut_id) {
     throw new ErreurTransitionInvalide(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
+  }
+  // Bloc 3 (audit 2026-09-25, décision utilisateur) — voir STATUTS_EXCLUS_FORCAGE_* ci-dessus.
+  if (statutsExclusForcage(entite.code).includes(statutCible.code)) {
+    throw new ErreurTransitionInvalide('Ce statut ne peut pas être choisi par forçage.');
+  }
+  // Date d'embauche (audit 2026-09-25, suite du bloc 3) — EXCEPTION assumée au principe de
+  // généricité de ce fichier, même nature que STATUTS_EXCLUS_FORCAGE_* ci-dessus : forcer un
+  // dossier vers "embauche" doit renseigner dossiers.date_embauche exactement comme le parcours
+  // normal (embaucheService.marquerEmbauche), sinon la fiche resterait "Embauché" sans date. Même
+  // regex que marquerEmbaucheBodySchema/embaucheService (AAAA-MM-JJ, aucune borne min/max — voir
+  // leur commentaire respectif : une date future est un cas d'usage légitime).
+  if (statutCible.code === CODE_STATUT_EMBAUCHE && (!dateEmbauche || !REGEX_DATE_EMBAUCHE.test(dateEmbauche))) {
+    throw new ErreurTransitionInvalide(
+      'Une date d’embauche valide (AAAA-MM-JJ) est obligatoire pour forcer le statut "embauche".',
+    );
   }
 
   // Résolution AVANT toute écriture (voir commentaire ci-dessus) — fail fast, aucune transaction
@@ -262,6 +315,13 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, utilis
       utilisateurId,
       commentaire,
     });
+
+    // Même endroit que le parcours normal (dossiers.date_embauche, voir
+    // embaucheService.marquerEmbauche/dossierRepository.mettreAJourDateEmbauche), dans la MÊME
+    // transaction que le changement de statut ci-dessus — jamais l'un sans l'autre.
+    if (statutCible.code === CODE_STATUT_EMBAUCHE) {
+      await dossierRepository.mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche });
+    }
 
     return rendezvousRepository.neutraliserRendezvousActifsDossier(trx, {
       dossierId,

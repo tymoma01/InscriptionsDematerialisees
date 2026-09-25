@@ -14,7 +14,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dossiers/:dossierId/pieces' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici (portée normalement limitée au routeur parent).
@@ -29,7 +29,7 @@ router.use(requireAuth);
 // section Parcours fonctionnel : "Prise de pièces justificatives par l'accueil" ; commentaire plus
 // bas : "pas une décision qu'un recruteur/accueil choisit" — recruteur historique, rôle retiré,
 // audit 2026-08-27). L'admin est inclus par cohérence avec son rôle de gestion globale.
-const ROLES_GESTION_PIECES = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_GESTION_PIECES = [...ROLES_ACCUEIL, ROLES.ADMIN];
 // Consultation (liste, téléchargement) ouverte à tous les rôles internes.
 const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 // Export groupé (ZIP) : Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 — besoin RH

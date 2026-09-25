@@ -5,7 +5,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/lieux' (voir app.js) — top-level, même patron que formateurs.routes.js : un
 // agent Accueil/Coordination doit pouvoir lister les lieux pour planifier un rendez-vous de test
@@ -16,7 +16,7 @@ const { ROLES } = require('../../core/auth/rbac');
 const router = Router();
 
 // Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_GESTION_LIEUX = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_GESTION_LIEUX = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_GESTION_LIEUX));

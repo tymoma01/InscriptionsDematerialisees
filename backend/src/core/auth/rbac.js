@@ -24,13 +24,31 @@
 // dans celui d'Adaptel (transitions valider_dossier/rejeter_dossier réassignées à
 // ACCUEIL_COORDINATION, voir scripts/ajouterAccueilCoordinationValidationDossierAdaptel.js) —
 // rôle supprimé de la table `roles` en base, les 8 comptes qui le portaient désactivés.
+//
+// PLANNING ajouté (audit 2026-09-25, rôle « Planning ») : exactement les droits d'Accueil/
+// Coordination (voir ROLES_ACCUEIL ci-dessous) + le droit de forcer un statut (voir ROLES_FORCAGE),
+// jamais un rôle à part entière avec ses propres routes/transition_roles distincts — c'est
+// pourquoi il n'apparaît JAMAIS seul dans le code, toujours via l'un de ces deux groupes.
 const ROLES = Object.freeze({
   ACCUEIL_COORDINATION: 'accueil_coordination',
+  PLANNING: 'planning',
   FORMATEUR: 'formateur',
   INSPECTEUR: 'inspecteur',
   ADMIN: 'admin',
   SYSTEME: 'systeme',
 });
+
+// Groupes de rôles centralisés (audit 2026-09-25) : évite de dupliquer `[ROLES.ACCUEIL_COORDINATION,
+// ROLES.PLANNING]`/`[ROLES.ADMIN, ROLES.PLANNING]` dans les 16+ gates de route qui en avaient
+// besoin — un seul endroit à modifier si un futur rôle rejoint l'un de ces deux groupes. Toujours
+// utilisés via spread (`...ROLES_ACCUEIL`) dans un appel `requireRole(...)`/un tableau `ROLES_*`
+// existant, jamais réassignés ni mutés (voir Object.freeze ci-dessous).
+//
+// ROLES_ACCUEIL : tout ce qu'Accueil/Coordination peut faire — Planning en hérite intégralement.
+const ROLES_ACCUEIL = Object.freeze([ROLES.ACCUEIL_COORDINATION, ROLES.PLANNING]);
+// ROLES_FORCAGE : qui peut forcer le statut d'un dossier (POST /forcer-statut) — Admin, plus
+// Planning (voir transitions.routes.js ROLES_FORCAGE, workflowEngine.forcerStatut).
+const ROLES_FORCAGE = Object.freeze([ROLES.ADMIN, ROLES.PLANNING]);
 
 // utilisateur est le payload minimal posé en session par authService.connecter — voir
 // core/auth/session.js et api/middlewares/auth.middleware.js.
@@ -38,4 +56,4 @@ function utilisateurARole(utilisateur, ...codesAutorises) {
   return Boolean(utilisateur) && codesAutorises.includes(utilisateur.roleCode);
 }
 
-module.exports = { ROLES, utilisateurARole };
+module.exports = { ROLES, ROLES_ACCUEIL, ROLES_FORCAGE, utilisateurARole };

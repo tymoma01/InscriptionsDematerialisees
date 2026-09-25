@@ -24,6 +24,25 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+// Badge de rôle (bloc 3, audit 2026-09-25, rôle Planning) — le rôle était jusqu'ici affiché en
+// texte brut (`u.role_libelle`) dans le tableau, seule la colonne "Statut de compte" (Actif/
+// Désactivé) portait un StatutBadge coloré. Une variante par rôle : Planning distinct
+// d'Accueil/Coordination bien qu'il en hérite tous les droits (voir ROLES_ACCUEIL,
+// rolesGroupes.js) — visuellement, ce reste deux rôles différents dans ce tableau. Rôle absent
+// de ce mapping (nouveau rôle non encore coloré ici, ou 'systeme'/'recruteur' hérités non
+// assignables) : retombe sur la variante neutre plutôt que d'échouer, même principe que
+// TableauDeBordAccueil.jsx/VARIANTE_PAR_CODE_ACCECIT.
+const VARIANTE_PAR_ROLE = {
+  accueil_coordination: 'bleu',
+  planning: 'violet',
+  formateur: 'succes',
+  inspecteur: 'vert-clair',
+  admin: 'dore',
+};
+function varianteRole(codeRole) {
+  return VARIANTE_PAR_ROLE[codeRole] ?? 'neutre';
+}
+
 // Options du filtre "Statut de compte" — {code, libelle} comme les rôles ci-dessous, pour
 // réutiliser FiltresStatut.jsx tel quel (voir son en-tête : générique par nature, peu importe ce
 // que "statuts" représente). Codes propres à cette page, aucun lien avec la table `statuts` des
@@ -312,7 +331,9 @@ export default function Utilisateurs() {
                       {u.email}
                     </td>
                     <td className="table-utilisateurs__colonne-telephone">{u.telephone || '-'}</td>
-                    <td className="table-utilisateurs__colonne-role_libelle">{u.role_libelle}</td>
+                    <td className="table-utilisateurs__colonne-role_libelle">
+                      <StatutBadge libelle={u.role_libelle} variante={varianteRole(u.role_code)} />
+                    </td>
                     <td className="table-utilisateurs__colonne-actif">
                       <StatutBadge libelle={u.actif ? 'Actif' : 'Désactivé'} variante={u.actif ? 'succes' : 'echec'} />
                     </td>

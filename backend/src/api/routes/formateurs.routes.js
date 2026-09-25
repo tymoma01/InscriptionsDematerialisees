@@ -2,7 +2,7 @@ const { Router } = require('express');
 const utilisateurService = require('../../core/auth/utilisateurService');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/formateurs' (voir app.js) — top-level, distinct de '/api/utilisateurs' (gestion
 // des comptes, admin uniquement) : un agent Accueil/Coordination doit pouvoir lister les
@@ -11,7 +11,7 @@ const { ROLES } = require('../../core/auth/rbac');
 const router = Router();
 
 // Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_LECTURE_FORMATEURS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_LECTURE_FORMATEURS = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 router.use(requireAuth);
 router.use(requireRole(...ROLES_LECTURE_FORMATEURS));

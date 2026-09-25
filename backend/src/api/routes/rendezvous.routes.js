@@ -18,7 +18,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dossiers/:dossierId/rendezvous' (voir app.js) — `mergeParams: true`
 // indispensable pour que req.params.dossierId reste visible ici, même patron que
@@ -29,7 +29,7 @@ const router = Router({ mergeParams: true });
 // reprogrammations" ; "motif de désistement enregistré systématiquement") — mêmes rôles que la
 // gestion des pièces justificatives et des relances. Rôle Recruteur retiré (audit 2026-08-27) —
 // voir suppression du rôle en base.
-const ROLES_GESTION_RENDEZVOUS = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_GESTION_RENDEZVOUS = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais aux routes

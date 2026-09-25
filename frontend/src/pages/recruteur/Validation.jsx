@@ -10,6 +10,7 @@ import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import ModaleForcerStatut from '../../core/dossier/ModaleForcerStatut';
 import ModaleMarquerEmbauche from '../../core/dossier/ModaleMarquerEmbauche';
 import { useSession } from '../../core/auth/useSession';
+import { ROLES_ACCUEIL, ROLES_FORCAGE } from '../../core/auth/rolesGroupes';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier, listerStatuts } from '../../services/dossierService';
 import { obtenirEvaluationDossier } from '../../services/evaluationService';
@@ -19,19 +20,10 @@ import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementA
 import api from '../../services/api';
 import './Validation.css';
 
-// Rôle autorisé pour le changement de statut manuel/forcé (audit RBAC 2026-08-31, décision
-// utilisateur) — Admin SEUL, contrairement à ROLES_GESTION_TRANSITIONS (backend,
-// transitions.routes.js) : littéral en dur plutôt qu'une constante partagée, même choix déjà fait
-// par BoutonNouvelleInscription.jsx/Connexion.jsx (voir leur commentaire respectif) faute
-// d'équivalent front de backend/src/core/auth/rbac.js. La vraie garde reste côté serveur
-// (ROLES_FORCER_STATUT, transitions.routes.js) — ce test ne fait que masquer le bouton pour les
-// autres rôles.
-const ROLE_ADMIN = 'admin';
-// Rôle autorisé pour "Marquer comme embauché" (audit 2026-08-31, nouveau statut terminal
-// "Embauché") — même littéral en dur qu'ailleurs sur cette page (voir ROLE_ADMIN ci-dessus), même
-// raison : pas d'équivalent front de backend/src/core/auth/rbac.js. La vraie garde reste côté
-// serveur (ROLES_MARQUER_EMBAUCHE, transitions.routes.js).
-const ROLE_ACCUEIL_COORDINATION = 'accueil_coordination';
+// Rôles autorisés pour le changement de statut manuel/forcé (audit RBAC 2026-08-31 ; étendu au
+// rôle Planning le 2026-09-25, voir ROLES_FORCAGE) — miroir de ROLES_FORCAGE côté backend
+// (transitions.routes.js). La vraie garde reste côté serveur — ce test ne fait que masquer le
+// bouton pour les autres rôles.
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -179,10 +171,10 @@ const LIBELLE_PIECE_ORPHELINE = 'À recapturer (fichier perdu)';
 export default function Validation() {
   const { dossierId } = useParams();
   const { utilisateur } = useSession();
-  const estAdmin = utilisateur?.roleCode === ROLE_ADMIN;
-  // "Marquer comme embauché" (audit 2026-08-31) : Accueil/Coordination OU Admin — contrairement à
-  // estAdmin ci-dessus (réservé au changement de statut forcé), les deux rôles y ont accès.
-  const peutMarquerEmbauche = [ROLE_ACCUEIL_COORDINATION, ROLE_ADMIN].includes(utilisateur?.roleCode);
+  const peutForcerStatut = ROLES_FORCAGE.includes(utilisateur?.roleCode);
+  // "Marquer comme embauché" (audit 2026-08-31) : Accueil/Coordination (donc Planning aussi, voir
+  // ROLES_ACCUEIL) OU Admin.
+  const peutMarquerEmbauche = [...ROLES_ACCUEIL, 'admin'].includes(utilisateur?.roleCode);
 
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -204,7 +196,7 @@ export default function Validation() {
   const [erreurEvaluation, setErreurEvaluation] = useState(null);
 
   // Changement de statut manuel/forcé (audit RBAC 2026-08-31) — statuts de l'entité et état de la
-  // modale, seulement utiles pour Admin (voir estAdmin plus bas) : jamais chargés pour les autres
+  // modale, seulement utiles pour Admin (voir peutForcerStatut plus bas) : jamais chargés pour les autres
   // rôles, GET /dossiers/statuts leur étant de toute façon fermé côté serveur
   // (ROLES_CONSULTATION_DOSSIERS, dossiers.routes.js) — un fetch inutile échouerait en 403 pour
   // rien.
@@ -247,7 +239,7 @@ export default function Validation() {
   }, [dossierId]);
 
   useEffect(() => {
-    if (!estAdmin) return undefined;
+    if (!peutForcerStatut) return undefined;
     let annule = false;
     listerStatuts()
       .then((valeur) => {
@@ -257,7 +249,7 @@ export default function Validation() {
     return () => {
       annule = true;
     };
-  }, [estAdmin]);
+  }, [peutForcerStatut]);
 
   const rechargerDossierApresTransition = () => {
     obtenirDossier(dossierId)
@@ -265,11 +257,11 @@ export default function Validation() {
       .catch(() => {});
   };
 
-  const gererForcageStatut = async (statutCode, commentaire) => {
+  const gererForcageStatut = async (statutCode, commentaire, dateEmbauche) => {
     setForcageEnCours(true);
     setErreurForcage(null);
     try {
-      await forcerStatut(dossierId, { statutCode, commentaire });
+      await forcerStatut(dossierId, { statutCode, commentaire, dateEmbauche });
       setModaleForcerStatutOuverte(false);
       rechargerDossierApresTransition();
     } catch (erreur) {
@@ -435,7 +427,7 @@ export default function Validation() {
 
         {/* "Marquer comme embauché" (audit 2026-08-31, nouveau statut terminal "Embauché", après
             "Validé - prêt à l'embauche") — Accueil/Coordination OU Admin, contrairement au bloc
-            "Décision" plus bas (estAdmin seul) : action normale du parcours (transition
+            "Décision" plus bas (peutForcerStatut seul) : action normale du parcours (transition
             marquer_embauche déclarée dans transitions_statut, voir workflow.config.json), pas un
             contournement, donc pas réservée à Admin. Visible uniquement quand le statut courant du
             dossier est précisément "valide_pret_embauche" — la transition serait de toute façon
@@ -626,7 +618,7 @@ export default function Validation() {
             transitions normales de `transitions_statut` (une seule origine possible chacune),
             alors que le changement de statut forcé doit pouvoir cibler N'IMPORTE QUEL statut
             indépendamment du statut courant — un besoin structurellement différent. */}
-        {estAdmin && (
+        {peutForcerStatut && (
           <ErrorBoundary key={`forcer-statut-${dossierId}`} titre="Changement de statut manuel/forcé">
             <section className="page-validation__forcer-statut">
               <div className="page-validation__forcer-statut-entete">
@@ -641,18 +633,19 @@ export default function Validation() {
                 </button>
               </div>
               <p className="page-validation__forcer-statut-description">
-                Réservé au rôle Admin — place le dossier directement sur le statut choisi, en
-                dehors du parcours normal (voir la modale de confirmation pour le détail des effets
-                de bord).
+                Réservé aux rôles Admin et Planning : place le dossier directement sur le statut
+                choisi, en dehors du parcours normal (voir la fenêtre de confirmation pour le
+                détail des effets de bord).
               </p>
             </section>
           </ErrorBoundary>
         )}
 
-        {estAdmin && modaleForcerStatutOuverte && dossier && (
+        {peutForcerStatut && modaleForcerStatutOuverte && dossier && (
           <ModaleForcerStatut
             dossier={dossier}
             statuts={statuts}
+            entiteCode={utilisateur?.entiteCode}
             enCours={forcageEnCours}
             erreur={erreurForcage}
             onAnnuler={() => {

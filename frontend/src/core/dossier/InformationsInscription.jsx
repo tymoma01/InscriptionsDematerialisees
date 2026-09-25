@@ -5,6 +5,7 @@ import { useSession } from '../auth/useSession';
 import { useRafraichissementAuto } from './useRafraichissementAuto';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import StatutBadge from '../workflow/StatutBadge';
+import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
 import './InformationsInscription.css';
 
 // Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
@@ -20,7 +21,7 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // Inspecteur) — restriction d'AFFICHAGE seulement, la vraie garde est côté back
 // (dossiers.routes.js, ROLES_MODIFICATION_INSCRIPTION) : un appel API direct depuis un autre rôle
 // serait refusé indépendamment de ce masquage.
-const ROLES_MODIFICATION_INSCRIPTION = ['admin', 'accueil_coordination'];
+const ROLES_MODIFICATION_INSCRIPTION = ['admin', ...ROLES_ACCUEIL];
 
 // Mêmes libellés que les blocs du formulaire d'inscription (BlocInfosPerso.jsx,
 // BlocDisponibilites.jsx, BlocMutuelle.jsx, BlocConsentementRGPD.jsx) — dupliqués plutôt que

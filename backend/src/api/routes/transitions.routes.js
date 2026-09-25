@@ -12,7 +12,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL, ROLES_FORCAGE } = require('../../core/auth/rbac');
 
 // Email candidat "Formation validée" (audit 2026-08-31, décision utilisateur, texte définitif) —
 // déclenché quand codeAction === CODE_ACTION_FORMATION_VALIDEE. Ce codeAction est dédié
@@ -63,21 +63,22 @@ const router = Router({ mergeParams: true });
 // transition_roles pour ces couples-là. Défense en profondeur : les deux niveaux sont
 // complémentaires, ni redondants ni contradictoires. Rôle Recruteur retiré (audit 2026-08-27) —
 // voir suppression du rôle en base.
-const ROLES_GESTION_TRANSITIONS = [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+const ROLES_GESTION_TRANSITIONS = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
-// Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur) — réservé à
-// Admin SEUL, contrairement à ROLES_GESTION_TRANSITIONS ci-dessus : cette action contourne
-// délibérément `transitions_statut`/`transition_roles` (voir workflowEngine.forcerStatut), donc
-// aucune des deux couches de contrôle habituelles ne s'applique ici — ce gate de route est le SEUL
-// verrou avant l'écriture (avec la revérification défensive dans workflowEngine.forcerStatut).
-const ROLES_FORCER_STATUT = [ROLES.ADMIN];
+// Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur ; étendu au rôle
+// Planning le 2026-09-25, voir ROLES_FORCAGE dans rbac.js) — contrairement à
+// ROLES_GESTION_TRANSITIONS ci-dessus, cette action contourne délibérément
+// `transitions_statut`/`transition_roles` (voir workflowEngine.forcerStatut), donc aucune des deux
+// couches de contrôle habituelles ne s'applique ici — ce gate de route est le SEUL verrou avant
+// l'écriture (avec la revérification défensive dans workflowEngine.forcerStatut). Plus de constante
+// locale : `ROLES_FORCAGE` est désormais LE groupe centralisé (rbac.js), utilisé tel quel.
 
 // Marquer un dossier comme embauché (audit 2026-08-31, nouveau statut terminal "Embauché", après
 // "Validé - prêt à l'embauche") — Accueil/Coordination (acteur qui accueille le candidat le jour
 // de la signature de contrat, CLAUDE.md étape 10) ou Admin, jamais Formateur/Inspecteur. Même
 // gate que scripts/seedTransitionRoles.js (marquer_embauche), posé ici en plus pour ne jamais
-// dépendre uniquement de `transition_roles` — cohérent avec ROLES_FORCER_STATUT ci-dessus.
-const ROLES_MARQUER_EMBAUCHE = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+// dépendre uniquement de `transition_roles`.
+const ROLES_MARQUER_EMBAUCHE = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 router.use(requireAuth);
 
@@ -89,6 +90,14 @@ const forcerStatutBodySchema = z.object({
   // statut forcé contourne le parcours normal, la raison doit systématiquement être tracée (voir
   // journal_audit ci-dessous et son action dédiée 'changement_statut_force').
   commentaire: z.string().trim().min(1),
+  // dateEmbauche (audit 2026-09-25, forçage vers "embauche") : optionnelle ICI — le caractère
+  // obligatoire dépend du statut CIBLE choisi (statutCode), une donnée métier que Zod ne doit pas
+  // trancher seul (même principe que motifCode dans transitionBodySchema, dont l'obligation dépend
+  // de transitions_statut.motif_requis en base) — revérifiée dans workflowEngine.forcerStatut,
+  // seul endroit qui connaît réellement le statut résolu. Même format/regex que
+  // marquerEmbaucheBodySchema ci-dessus (chaîne 'AAAA-MM-JJ' brute d'un <input type="date">,
+  // jamais z.coerce.date() — même raison, voir son commentaire).
+  dateEmbauche: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date d’embauche invalide (attendu AAAA-MM-JJ).').optional(),
 });
 
 // dateEmbauche : chaîne 'AAAA-MM-JJ' (valeur brute d'un <input type="date">, voir
@@ -282,18 +291,19 @@ async function supprimerEvenementsOutlookRendezvousNeutralises(entite, { rendezv
 
 // POST /api/dossiers/:dossierId/transitions/forcer-statut — place le dossier sur N'IMPORTE QUEL
 // statut existant de l'entité, indépendamment du statut courant et sans passer par
-// `transitions_statut` (voir workflowEngine.forcerStatut) — réservé à Admin (ROLES_FORCER_STATUT).
-// Distinct de POST / ci-dessus : jamais de codeAction ici, seulement le code du statut cible choisi
-// librement (onglet "Dossier" de la fiche, section Admin uniquement, voir Validation.jsx).
-router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, res, next) => {
+// `transitions_statut` (voir workflowEngine.forcerStatut) — réservé à Admin et Planning
+// (ROLES_FORCAGE, rbac.js). Distinct de POST / ci-dessus : jamais de codeAction ici, seulement le
+// code du statut cible choisi librement (onglet "Dossier" de la fiche, voir Validation.jsx).
+router.post('/forcer-statut', requireRole(...ROLES_FORCAGE), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    const { statutCode, commentaire } = forcerStatutBodySchema.parse(req.body);
+    const { statutCode, commentaire, dateEmbauche } = forcerStatutBodySchema.parse(req.body);
 
     const resultat = await workflowEngine.forcerStatut(req.entite, {
       dossierId,
       statutCode,
       commentaire,
+      dateEmbauche,
       utilisateurId: req.utilisateur.id,
       roleCode: req.utilisateur.roleCode,
     });
@@ -302,7 +312,9 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, r
     // Action dédiée 'changement_statut_force', distincte de 'dossier_transition_<codeAction>'
     // ci-dessus (demande explicite, pour repérer ces changements sans repasser par le parcours
     // normal dans le journal d'audit) — ancien/nouveau statut + commentaire + admin auteur
-    // (utilisateurId ci-dessous) systématiquement tracés.
+    // (utilisateurId ci-dessous) systématiquement tracés. `dateEmbauche` ajoutée (audit 2026-09-25)
+    // — toujours `undefined` pour un forçage vers un autre statut qu'"embauche" (Zod l'accepte
+    // absente), jamais une valeur devinée.
     await journalAudit.enregistrerAction(bd, {
       utilisateurId: req.utilisateur.id,
       entiteId: req.entite.id,
@@ -314,6 +326,7 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCER_STATUT), async (req, r
         statutAvant: resultat.statutAvantCode,
         statutApres: resultat.statutApresCode,
         commentaire,
+        dateEmbauche,
       },
       adresseIp: req.ip,
     });

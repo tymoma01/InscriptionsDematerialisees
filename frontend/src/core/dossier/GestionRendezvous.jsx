@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSession } from '../auth/useSession';
+import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
 import StatutBadge from '../workflow/StatutBadge';
 import {
   listerRendezvous,
@@ -134,7 +135,7 @@ const STATUTS_DOSSIER_RENDEZVOUS_CLOS = [
 // "Valider et planifier un test" (première planification d'un test, voir son commentaire d'en-tête) :
 // jamais deux listes de rôles à faire évoluer séparément pour une même action. Rôle Recruteur
 // retiré (audit 2026-08-27) — voir suppression du rôle en base.
-export const ROLES_GESTION_RENDEZVOUS = ['accueil_coordination', 'admin'];
+export const ROLES_GESTION_RENDEZVOUS = [...ROLES_ACCUEIL, 'admin'];
 
 // Rendez-vous d'un dossier (CLAUDE.md, besoin Accueil/Coordination : "relances et
 // reprogrammations" + "motif de désistement enregistré systématiquement, pour objectiver le

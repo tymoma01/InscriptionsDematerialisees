@@ -5,7 +5,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dossiers/:dossierId/relances' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici, même patron que pieces.routes.js.
@@ -16,7 +16,7 @@ const router = Router({ mergeParams: true });
 // justificatives : accueil et coordination sont un seul rôle (ROLES.ACCUEIL_COORDINATION, voir
 // core/auth/rbac.js), l'admin consulte/agit aussi sur le dossier. Rôle Recruteur retiré (audit
 // 2026-08-27) — voir suppression du rôle en base.
-const ROLES_GESTION_RELANCES = [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN];
+const ROLES_GESTION_RELANCES = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais à POST, qui reste

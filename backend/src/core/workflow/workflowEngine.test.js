@@ -155,7 +155,7 @@ test('forcerStatut neutralise aussi vers un statut où neutralise_rendezvous_act
   assert.equal(neutraliserMock.mock.calls.length, 1);
 });
 
-test('forcerStatut rejette un rôle autre qu’Admin', async (t) => {
+test('forcerStatut rejette un rôle autre qu’Admin/Planning', async (t) => {
   mockerKnex(t);
   mockerDependancesBase(t);
 
@@ -168,7 +168,7 @@ test('forcerStatut rejette un rôle autre qu’Admin', async (t) => {
         utilisateurId: 5,
         roleCode: 'accueil_coordination',
       }),
-    /Seul le rôle Admin peut forcer/,
+    /Seuls les rôles Admin et Planning peuvent forcer/,
   );
 });
 
@@ -241,4 +241,230 @@ test("appliquerTransition neutralise toujours en 'remplace' (jamais 'annule', ja
   assert.equal(appel.dossierId, 127);
   assert.equal(appel.statutRemplace, 'remplace');
   assert.equal('motifId' in appel, false, 'appliquerTransition ne doit jamais passer motifId à neutraliserRendezvousActifsDossier');
+});
+
+// ═══ Bloc 3 (audit 2026-09-25) : rôle Planning + statuts exclus du forçage ═══
+
+const ENTITE_ADAPTEL = { id: 2, code: 'adaptel' };
+
+test("forcerStatut accepte le rôle Planning (ROLES_FORCAGE), même comportement qu'Admin", async (t) => {
+  mockerKnex(t);
+  mockerDependancesBase(t, { neutraliserRendezvousActifsDossier: async () => [] });
+
+  await assert.doesNotReject(() =>
+    workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+      dossierId: 127,
+      statutCode: 'test_non_realise',
+      commentaire: 'Test Planning.',
+      utilisateurId: 9,
+      roleCode: 'planning',
+    }),
+  );
+});
+
+// Non-régression explicite (bloc 3) : Accueil/Coordination seul (sans être Planning) reste refusé.
+test('forcerStatut rejette toujours un compte Accueil/Coordination seul', async (t) => {
+  mockerKnex(t);
+  mockerDependancesBase(t);
+
+  await assert.rejects(
+    () =>
+      workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+        dossierId: 127,
+        statutCode: 'test_non_realise',
+        commentaire: 'Test.',
+        utilisateurId: 5,
+        roleCode: 'accueil_coordination',
+      }),
+    /Seuls les rôles Admin et Planning peuvent forcer/,
+  );
+});
+
+// Non-régression : Formateur/Inspecteur, jamais concernés, restent refusés.
+test('forcerStatut rejette toujours Formateur et Inspecteur', async (t) => {
+  mockerKnex(t);
+  mockerDependancesBase(t);
+
+  for (const roleCode of ['formateur', 'inspecteur']) {
+    await assert.rejects(
+      () =>
+        workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+          dossierId: 127,
+          statutCode: 'test_non_realise',
+          commentaire: 'Test.',
+          utilisateurId: 5,
+          roleCode,
+        }),
+      /Seuls les rôles Admin et Planning peuvent forcer/,
+    );
+  }
+});
+
+// Statuts exclus du forçage (STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES) — refusés pour TOUTE entité.
+for (const statutExclu of [
+  'en_attente_verification',
+  'en_attente_verdict',
+  'verdict_positif',
+  'verdict_negatif',
+  'en_attente_validation_recruteur',
+]) {
+  test(`forcerStatut refuse le statut exclu '${statutExclu}' (toutes entités)`, async (t) => {
+    mockerKnex(t);
+    const { neutraliserMock } = mockerDependancesBase(t, {
+      trouverStatutParCode: async () => ({ id: 99, code: statutExclu, libelle: 'Peu importe' }),
+    });
+
+    await assert.rejects(
+      () =>
+        workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+          dossierId: 127,
+          statutCode: statutExclu,
+          commentaire: 'Test.',
+          utilisateurId: 9,
+          roleCode: 'admin',
+        }),
+      /Ce statut ne peut pas être choisi par forçage/,
+    );
+    assert.equal(neutraliserMock.mock.calls.length, 0);
+  });
+}
+
+// 'valide'/'rejete' : exclus UNIQUEMENT pour ACCECIT.
+for (const statutHeriteAccecit of ['valide', 'rejete']) {
+  test(`forcerStatut refuse '${statutHeriteAccecit}' pour ACCECIT`, async (t) => {
+    mockerKnex(t);
+    mockerDependancesBase(t, {
+      trouverStatutParCode: async () => ({ id: 99, code: statutHeriteAccecit, libelle: 'Peu importe' }),
+    });
+
+    await assert.rejects(
+      () =>
+        workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+          dossierId: 127,
+          statutCode: statutHeriteAccecit,
+          commentaire: 'Test.',
+          utilisateurId: 9,
+          roleCode: 'admin',
+        }),
+      /Ce statut ne peut pas être choisi par forçage/,
+    );
+  });
+}
+
+// ... mais restent disponibles pour Adaptel, où ce sont les statuts réels du workflow (dossier
+// #46, voir l'audit).
+test("forcerStatut accepte 'valide' pour Adaptel (statut réel de son workflow, pas hérité)", async (t) => {
+  mockerKnex(t);
+  const { neutraliserMock } = mockerDependancesBase(t, {
+    trouverDossierAvecStatutParId: async () => ({ id: 46, statut_id: 3, statut_code: 'en_attente_pieces', statut_libelle: 'En attente de pièces' }),
+    trouverStatutParCode: async () => ({ id: 99, code: 'valide', libelle: 'Validé' }),
+    neutraliserRendezvousActifsDossier: async () => [],
+  });
+
+  await assert.doesNotReject(() =>
+    workflowEngine.forcerStatut(ENTITE_ADAPTEL, {
+      dossierId: 46,
+      statutCode: 'valide',
+      commentaire: 'Correction manuelle Adaptel.',
+      utilisateurId: 9,
+      roleCode: 'admin',
+    }),
+  );
+  assert.equal(neutraliserMock.mock.calls.length, 1);
+});
+
+// ═══ Bloc 3 suite (audit 2026-09-25) : date d'embauche lors d'un forçage vers "embauche" ═══
+
+const STATUT_EMBAUCHE = { id: 44, code: 'embauche', libelle: 'Embauché', neutralise_rendezvous_actifs: true };
+
+test("forcerStatut refuse un forçage vers 'embauche' sans dateEmbauche", async (t) => {
+  mockerKnex(t);
+  const { neutraliserMock } = mockerDependancesBase(t, { trouverStatutParCode: async () => STATUT_EMBAUCHE });
+  const mettreAJourDateEmbaucheMock = t.mock.method(dossierRepository, 'mettreAJourDateEmbauche', async () => {});
+
+  await assert.rejects(
+    () =>
+      workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+        dossierId: 127,
+        statutCode: 'embauche',
+        commentaire: 'Test.',
+        utilisateurId: 9,
+        roleCode: 'admin',
+      }),
+    /Une date d’embauche valide \(AAAA-MM-JJ\) est obligatoire pour forcer le statut "embauche"/,
+  );
+  assert.equal(neutraliserMock.mock.calls.length, 0);
+  assert.equal(mettreAJourDateEmbaucheMock.mock.calls.length, 0);
+});
+
+// Même regex qu'embaucheService/marquerEmbaucheBodySchema — une date malformée doit être refusée
+// au même titre qu'absente (le Zod du body l'accepte comme `string` optionnelle, quel que soit son
+// contenu si non fourni via le schéma réel ; ce test couvre uniquement la revalidation interne à
+// forcerStatut, indépendante de Zod).
+test("forcerStatut refuse un forçage vers 'embauche' avec une dateEmbauche malformée", async (t) => {
+  mockerKnex(t);
+  mockerDependancesBase(t, { trouverStatutParCode: async () => STATUT_EMBAUCHE });
+
+  await assert.rejects(
+    () =>
+      workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+        dossierId: 127,
+        statutCode: 'embauche',
+        commentaire: 'Test.',
+        dateEmbauche: '25/12/2026',
+        utilisateurId: 9,
+        roleCode: 'admin',
+      }),
+    /Une date d’embauche valide \(AAAA-MM-JJ\) est obligatoire/,
+  );
+});
+
+test("forcerStatut enregistre dateEmbauche sur dossiers.date_embauche (même fonction que le parcours normal), dans la MÊME transaction que le changement de statut", async (t) => {
+  mockerKnex(t);
+  const { enregistrerChangementStatutMock, neutraliserMock } = mockerDependancesBase(t, {
+    trouverStatutParCode: async () => STATUT_EMBAUCHE,
+    neutraliserRendezvousActifsDossier: async () => [],
+  });
+  const mettreAJourDateEmbaucheMock = t.mock.method(dossierRepository, 'mettreAJourDateEmbauche', async () => {});
+
+  const resultat = await workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+    dossierId: 127,
+    statutCode: 'embauche',
+    commentaire: 'Correction manuelle.',
+    dateEmbauche: '2026-10-01',
+    utilisateurId: 9,
+    roleCode: 'admin',
+  });
+
+  assert.equal(resultat.statutApresCode, 'embauche');
+  assert.equal(mettreAJourDateEmbaucheMock.mock.calls.length, 1);
+  const appelDateEmbauche = mettreAJourDateEmbaucheMock.mock.calls[0].arguments;
+  assert.equal(appelDateEmbauche[0], TRX_FACTICE, 'mettreAJourDateEmbauche doit recevoir la même transaction que enregistrerChangementStatut/neutraliserRendezvousActifsDossier');
+  assert.deepEqual(appelDateEmbauche[1], { dossierId: 127, dateEmbauche: '2026-10-01' });
+
+  // Ordre : le changement de statut est déjà enregistré avant l'écriture de la date (même patron
+  // que embaucheService.marquerEmbauche — transition puis date), toujours dans la même transaction.
+  assert.equal(enregistrerChangementStatutMock.mock.calls.length, 1);
+  assert.equal(enregistrerChangementStatutMock.mock.calls[0].arguments[0], TRX_FACTICE);
+  assert.equal(neutraliserMock.mock.calls[0].arguments[0], TRX_FACTICE);
+});
+
+test("forcerStatut n'exige ni n'écrit dateEmbauche pour un forçage vers un autre statut qu'embauche", async (t) => {
+  mockerKnex(t);
+  mockerDependancesBase(t, { neutraliserRendezvousActifsDossier: async () => [] });
+  const mettreAJourDateEmbaucheMock = t.mock.method(dossierRepository, 'mettreAJourDateEmbauche', async () => {
+    throw new Error('ne doit pas être appelé pour un statut autre que "embauche"');
+  });
+
+  await assert.doesNotReject(() =>
+    workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+      dossierId: 127,
+      statutCode: 'test_non_realise',
+      commentaire: 'Correction manuelle.',
+      utilisateurId: 9,
+      roleCode: 'admin',
+      // dateEmbauche volontairement absent : ne doit jamais être exigé hors du statut "embauche".
+    }),
+  );
+  assert.equal(mettreAJourDateEmbaucheMock.mock.calls.length, 0);
 });
