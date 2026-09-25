@@ -107,7 +107,9 @@
    "bon/mauvais rôle") ni 'rose'/'alerte'/'echec-fort'/'vert-clair' (déjà attachées à des statuts de
    DOSSIER précis ailleurs — Planification.jsx/TableauDeBordAccueil.jsx/SuiviFormation.jsx — pas
    de raison de leur donner un second sens ici). Assignation arbitraire (aucune règle métier ne lie
-   un rôle à une teinte) : bleu/violet/doré/gris soutenu, quatre tons distincts et neutres entre eux. */
+   un rôle à une teinte) : bleu/violet/doré/gris soutenu, quatre tons distincts et neutres entre eux
+   — turquoise ajouté pour Planning (audit 2026-09-25, voir plus bas), cinquième ton tout aussi
+   distinct des quatre premiers. */
 .page-utilisateurs .filtres-statut__statuts button[data-statut='accueil_coordination']:not(.actif) {
   background-color: var(--statut-bleu-fond);
   border-color: var(--statut-bleu-bordure);
@@ -149,6 +151,21 @@
 .page-utilisateurs .filtres-statut__statuts button[data-statut='inspecteur'].actif {
   background-color: var(--statut-neutre-fort-texte);
   border-color: var(--statut-neutre-fort-texte);
+  color: #ffffff;
+}
+
+/* Rôle "Planning" (audit 2026-09-25) — sarcelle/turquoise (--statut-turquoise-*, variables.css) :
+   seule teinte encore libre parmi les 4 déjà attribuées ci-dessus (bleu/violet/doré/gris soutenu),
+   même couleur que le badge de la colonne "Rôle" (voir varianteRole, Utilisateurs.jsx) — jamais
+   deux couleurs différentes pour un même rôle selon l'endroit où il apparaît. */
+.page-utilisateurs .filtres-statut__statuts button[data-statut='planning']:not(.actif) {
+  background-color: var(--statut-turquoise-fond);
+  border-color: var(--statut-turquoise-bordure);
+  color: var(--statut-turquoise-texte);
+}
+.page-utilisateurs .filtres-statut__statuts button[data-statut='planning'].actif {
+  background-color: var(--statut-turquoise-texte);
+  border-color: var(--statut-turquoise-texte);
   color: #ffffff;
 }
 

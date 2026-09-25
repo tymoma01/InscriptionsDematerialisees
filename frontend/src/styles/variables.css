@@ -198,6 +198,15 @@
   --statut-vert-fonce-texte: #0a5c33;
   --statut-vert-fonce-bordure: #7ecf9c;
 
+  /* Sarcelle/turquoise (audit 2026-09-25, badge de rôle "Planning", Comptes utilisateurs) — teinte
+     encore inutilisée par les autres variantes ci-dessus : distincte de 'bleu' (plus indigo,
+     #1a4d8f) et de 'vert-clair'/'vert-fonce' (verts francs, sans composante bleue), à mi-chemin
+     entre les deux sans se confondre avec aucun. Même construction fond pastel/texte foncé/bordure
+     intermédiaire que le reste de la palette, contraste fond/texte du même ordre (>= 6:1 visé). */
+  --statut-turquoise-fond: #d3f3f0;
+  --statut-turquoise-texte: #0b6e6e;
+  --statut-turquoise-bordure: #9de0da;
+
   /* Palette "Expérience" (audit 2026-09-02, filtre + colonne "Expérience" sur Dossiers
      candidats) — famille DISTINCTE de la palette de statuts ci-dessus (décision utilisateur
      explicite : éviter toute confusion visuelle entre les deux familles de filtre sur la même

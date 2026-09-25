@@ -87,6 +87,12 @@
   border-color: var(--statut-vert-fonce-bordure);
 }
 
+.statut-badge--turquoise {
+  background-color: var(--statut-turquoise-fond);
+  color: var(--statut-turquoise-texte);
+  border-color: var(--statut-turquoise-bordure);
+}
+
 /* Colonne "Expérience" (Dossiers candidats, audit 2026-09-02) — palette dédiée --experience-*
    (variables.css), volontairement séparée de --statut-* : même lien visuel direct que les badges
    de statut avec les badges du filtre correspondant (voir TableauDeBordAccueil.css,

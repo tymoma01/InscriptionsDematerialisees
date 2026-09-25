@@ -34,7 +34,12 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 // TableauDeBordAccueil.jsx/VARIANTE_PAR_CODE_ACCECIT.
 const VARIANTE_PAR_ROLE = {
   accueil_coordination: 'bleu',
-  planning: 'violet',
+  // 'turquoise' (audit 2026-09-25, corrige le choix initial 'violet' — jamais appliqué au filtre
+  // "Rôle" ci-dessous, resté sans couleur jusqu'à ce correctif) : sarcelle/turquoise, teinte
+  // encore inutilisée par aucun des 4 autres rôles ici, ni par le filtre correspondant
+  // (Utilisateurs.css, [data-statut='planning']) — les deux endroits doivent porter EXACTEMENT la
+  // même couleur.
+  planning: 'turquoise',
   formateur: 'succes',
   inspecteur: 'vert-clair',
   admin: 'dore',
