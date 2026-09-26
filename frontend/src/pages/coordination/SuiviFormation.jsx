@@ -353,28 +353,12 @@ export default function SuiviFormation() {
 
         {!chargement && !erreur && (
           <>
-            {/* Filtre "Entité" Hôtellerie/Tertiaire (demande utilisateur) inséré via
-                filtresSupplementaires, sous "Tous" — même composant partagé que Dossiers
-                candidats/Suivi des tests (voir FiltreEntite.jsx). */}
-            <FiltresStatut
-              statuts={STATUTS_FILTRABLES}
-              statutFiltre={statutFiltre}
-              onChangerStatutFiltre={setStatutFiltre}
-              compteurTous={dossiersRechercheDateExperience.length}
-              compteurs={compteursParStatut}
-              filtresSupplementaires={
-                <FiltreEntite
-                  entitesFiltre={entitesFiltre}
-                  onBasculerEntite={basculerEntiteFiltre}
-                  compteurHotel={compteurHotel}
-                  compteurBureau={compteurBureau}
-                />
-              }
-            />
-
-            {/* Recherche/dates/expérience — plus de bouton "Plus de filtres" pour les masquer
-                (retiré le 2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx
-                supprimé, ce bloc reste désormais visible en permanence). */}
+            {/* Ordre aligné sur Suivi des tests (Planification.jsx, redesign 2026-09-26, demande
+                utilisateur explicite "même disposition... et même ordre") : filtres en liste
+                déroulante (Expérience), puis barre de recherche, puis panneau de filtres en
+                boutons, puis la liste. Plus de bouton "Plus de filtres" pour les masquer (retiré le
+                2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx supprimé,
+                ce bloc reste désormais visible en permanence). */}
             {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que
                 Planification.jsx (Suivi des tests), filtrage entièrement client. */}
             <div className="page-suivi-formation__filtres-avances">
@@ -409,6 +393,45 @@ export default function SuiviFormation() {
               dateFinFiltre={dateFinFiltre}
               onChangerDateFinFiltre={setDateFinFiltre}
             />
+
+            {/* Panneau de filtres en boutons — plusieurs ajustements successifs le 2026-09-26 (voir
+                SuiviFormation.css, .page-suivi-formation__panneau-filtres, pour le détail), ce
+                dernier étant le seul à changer la STRUCTURE du DOM : demande utilisateur explicite,
+                "la position actuelle du bloc Statut est validée, ne la change pas — déplace
+                uniquement le bloc Secteur tout à gauche". Le séparateur et le groupe "Statut"
+                sont désormais enveloppés ensemble (.page-suivi-formation__bloc-statut) pour former
+                UNE seule unité dans la grille à 3 colonnes du panneau (1fr / auto / 1fr) : Secteur
+                dans la 1ʳᵉ colonne (aligné à gauche), ce bloc dans la 2ᵉ (centrée par les deux
+                colonnes 1fr qui l'entourent), 3ᵉ colonne vide — Suivi des tests, lui, N'A PAS été
+                touché (Planification.jsx/.css), sa disposition reste celle validée. Dupliqué
+                plutôt que partagé (CLAUDE.md, conventions du projet). Un seul bloc "Statut" ici
+                (pas de second bloc "Rendez-vous" comme sur Suivi des tests, cette page n'a qu'une
+                seule notion de statut). */}
+            <div className="page-suivi-formation__panneau-filtres">
+              <div className="page-suivi-formation__filtre-entite-standalone">
+                <FiltreEntite
+                  entitesFiltre={entitesFiltre}
+                  onBasculerEntite={basculerEntiteFiltre}
+                  compteurHotel={compteurHotel}
+                  compteurBureau={compteurBureau}
+                />
+              </div>
+
+              <div className="page-suivi-formation__bloc-statut">
+                <span className="page-suivi-formation__separateur" aria-hidden="true" />
+
+                <div className="page-suivi-formation__groupe-filtre-statut">
+                  <span className="page-suivi-formation__label-filtre-statut">Statut</span>
+                  <FiltresStatut
+                    statuts={STATUTS_FILTRABLES}
+                    statutFiltre={statutFiltre}
+                    onChangerStatutFiltre={setStatutFiltre}
+                    compteurTous={dossiersRechercheDateExperience.length}
+                    compteurs={compteursParStatut}
+                  />
+                </div>
+              </div>
+            </div>
           </>
         )}
 

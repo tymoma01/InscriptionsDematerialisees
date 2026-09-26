@@ -21,49 +21,178 @@
   color: var(--couleur-erreur);
 }
 
-/* Bloc de gauche : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire (FiltreEntite.jsx, demande
-   utilisateur) côte à côte juste en dessous — même colonne de largeur fixe que
-   TableauDeBordAccueil.css (Dossiers candidats)/Planification.css (Suivi des tests), distincte de
-   la boîte de statuts à droite (.filtres-statut__statuts ci-dessous). Surcharge
-   .filtres-statut__gauche (générique, en rangée par défaut, voir FiltresStatut.css) : scopée à ce
-   conteneur, pas dans le fichier générique — Utilisateurs.jsx réutilise le même composant sans ce
-   besoin de colonne figée. */
-.page-suivi-formation .filtres-statut__gauche {
-  flex-direction: column;
-  align-items: stretch;
-  width: 260px;
-  /* Espacement vertical "Tous" / Hôtellerie-Tertiaire — même valeur/raison que
-     TableauDeBordAccueil.css/Planification.css : le gap: var(--espace-petit) hérité de
-     .filtres-statut__gauche (FiltresStatut.css, pensé pour une disposition en RANGÉE)
-     rapprocherait trop les deux lignes une fois passées en colonne ci-dessus. */
+/* Panneau de filtres "Hôtellerie/Tertiaire + Statut" — redesign 2026-09-26, 4e et dernière version
+   (demande utilisateur explicite : "la position actuelle du bloc Statut est validée, ne la change
+   pas — déplace uniquement le bloc Secteur tout à gauche") — variante propre à CE panneau, Suivi
+   des tests restant inchangé dans sa disposition (voir Planification.css,
+   .planification__ligne-entite-statut, jamais touché ici — demande utilisateur explicite point 5).
+   Dupliqué plutôt que partagé (CLAUDE.md, conventions du projet).
+   display: grid, 3 colonnes 1fr / auto / 1fr (suggestion explicite de l'utilisateur, "si ce n'est
+   pas possible de façon robuste, centre-le... par exemple une grille à trois colonnes") — SEUL
+   moyen robuste de garder Secteur PLAQUÉ à gauche ET Statut VRAIMENT centré dans le panneau
+   (indépendant de la largeur de Secteur) en même temps : un flex avec justify-content ne peut
+   satisfaire les deux à la fois (centrer le GROUPE des deux blocs, comme avant cet ajustement,
+   ancre leur position relative l'un à l'autre, pas chacun indépendamment dans le panneau). Colonne
+   1 (1fr) : .page-suivi-formation__filtre-entite-standalone (Secteur), justify-self: start (voir
+   sa propre règle plus bas). Colonne 2 (auto) : .page-suivi-formation__bloc-statut (séparateur +
+   groupe "Statut" enveloppés ensemble, voir SuiviFormation.jsx et sa propre règle plus bas) — auto
+   la dimensionne exactement à son contenu, les deux colonnes 1fr de part et d'autre (colonne 1 ET
+   la 3ᵉ colonne implicite, sans aucun élément dedans — un enfant n'est pas nécessaire pour qu'une
+   colonne explicite existe et prenne sa part d'espace) la centrent alors mécaniquement dans la
+   largeur totale du panneau. align-items: center : inchangé, fonctionne à l'identique en grid qu'en
+   flex. flex-wrap retiré (propriété flex, sans effet en grid). */
+.page-suivi-formation__panneau-filtres {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  margin-bottom: var(--espace-moyen);
+  padding: var(--espace-petit) var(--espace-moyen);
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
+}
+
+/* Bloc "séparateur + Statut" — enveloppe dédiée (voir SuiviFormation.jsx), SEULE façon de faire de
+   ces deux éléments UNE unité qui occupe la colonne 2 (auto) ci-dessus, plutôt que 2 items séparés
+   qui se répartiraient chacun dans une colonne différente de la grille (auto-placement). gap
+   généreux (--espace-grand, 1.5rem, inchangé depuis l'ajustement précédent — "le même écart
+   qu'actuellement", point 3) : seul espacement entre le séparateur et le groupe "Statut", identique
+   des deux côtés du trait puisque c'est la SEULE règle d'espacement en jeu entre les deux. */
+.page-suivi-formation__bloc-statut {
+  display: flex;
+  align-items: center;
   gap: var(--espace-grand);
 }
 
-.page-suivi-formation .filtres-statut__tous button {
-  width: 100%;
+/* Séparateur vertical — élément dédié (span, voir SuiviFormation.jsx), désormais enfant flex de
+   .page-suivi-formation__bloc-statut ci-dessus (plus un enfant direct du panneau). */
+.page-suivi-formation__separateur {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  background-color: var(--couleur-bordure-legere);
 }
 
-/* Un seul palier, même raison/valeur que TableauDeBordAccueil.css/Planification.css : en dessous,
-   le bloc de gauche (260px fixe) et les boutons de statut (libellés parfois longs comme
-   "Formation non validée") ne tiennent plus confortablement côte à côte sans se comprimer — on
-   empile les deux zones plutôt que de continuer à les serrer horizontalement. */
-@media (max-width: 640px) {
-  .page-suivi-formation .filtres-statut {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .page-suivi-formation .filtres-statut__gauche {
-    width: 100%;
-  }
+/* Bloc Secteur — colonne 1 de la grille (voir le commentaire du panneau ci-dessus). justify-self:
+   start : PLAQUÉ contre le bord gauche de cette colonne (donc contre la marge intérieure gauche du
+   panneau, demande utilisateur explicite point 1 — "aligné sur sa marge intérieure gauche"), pas
+   étiré sur toute sa largeur (1fr, généralement bien plus large que son propre contenu) ni centré
+   dedans (comportement par défaut d'un enfant grid, stretch). FiltreEntite.jsx pose `width: 100%`
+   sur lui-même (voir son commentaire d'en-tête) : sans ce justify-self, ce width: 100% aurait de
+   toute façon étiré ce conteneur (et donc Hôtellerie/Tertiaire) sur toute la colonne 1fr. */
+.page-suivi-formation__filtre-entite-standalone {
+  justify-self: start;
 }
 
-/* Boutons de filtre par statut (audit 2026-08-31, décision utilisateur) — même traitement que
-   Dossiers candidats (TableauDeBordAccueil.css) : centrés au lieu du flex-start par défaut de
-   FiltresStatut.css (flex-wrap déjà son comportement de base ici, contrairement à la grille à 3
-   colonnes qu'il a fallu retirer là-bas — rien d'autre à changer). */
+/* Hôtellerie ET Tertiaire côte à côte, sur la MÊME ligne (ajustement 2026-09-26, demande
+   utilisateur explicite point 1 — remplace un premier essai empilé, calqué à tort sur Suivi des
+   tests) — FiltreEntite.jsx reste un simple `display: flex` en rangée PAR DÉFAUT (voir son
+   commentaire d'en-tête) : aucun flex-direction à poser ici, contrairement à Suivi des tests. gap
+   resserré (même valeur que le reste du panneau, cohérence visuelle) : seule surcharge nécessaire,
+   `.filtre-entite button { flex: 1 }` (FiltreEntite.css) suffit déjà à répartir les deux boutons à
+   parts égales dans une rangée, sans avoir besoin de width: 100% ni flex: none (utiles uniquement
+   en colonne, voir Suivi des tests). */
+.page-suivi-formation__filtre-entite-standalone .filtre-entite {
+  gap: 0.35rem;
+}
+
+/* FiltreEntite.jsx ne pose lui-même aucune bordure sur ses boutons (seule leur couleur l'est, via
+   [data-entite='hotel'/'bureau']) — sans elle ici, aucun contour visible. */
+.page-suivi-formation__filtre-entite-standalone .filtre-entite button {
+  border: 1px solid var(--couleur-bordure);
+}
+
+/* Groupe "Statut" (label + FiltresStatut) — seul groupe de ce type sur cette page (pas de second
+   bloc "Rendez-vous" à distinguer comme sur Suivi des tests) : min-width: 0 directement dans la
+   règle de base plutôt qu'un sélecteur :last-child dédié — nécessaire pour que ce groupe puisse
+   rétrécir/replier ses boutons en interne (voir .filtres-statut__statuts plus bas) quand la place
+   manque, au lieu de forcer le panneau à s'élargir. */
+.page-suivi-formation__groupe-filtre-statut {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.page-suivi-formation__label-filtre-statut {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* HARMONISATION — mêmes valeurs exactes que .planification .filtres-statut button
+   (Planification.css) : même padding, même taille de police, même arrondi, taille compacte, pour
+   tout bouton de ce panneau (Hôtellerie/Tertiaire, "Tous" et chaque statut). white-space: nowrap
+   (demande utilisateur explicite, 3e ajustement : "le bouton Hôtellerie (2) passe sur deux
+   lignes") — .filtres-statut__statuts button (FiltresStatut.css) le pose déjà pour les boutons de
+   statut, mais ni "Tous" (.filtres-statut__tous button) ni .filtre-entite button ne l'avaient : un
+   bouton compact, une fois son texte trop large pour la place que lui laisse flex: 1
+   (FiltreEntite.css), repliait sinon son propre texte plutôt que de garder une seule ligne. */
+.page-suivi-formation .filtres-statut button,
+.page-suivi-formation__filtre-entite-standalone .filtre-entite button {
+  padding: 0.4rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Ce <nav> pose lui-même margin-bottom/gap (FiltresStatut.css, pensé pour un usage en pleine
+   page) — neutralisés ici, l'espacement de CE panneau est entièrement porté par
+   .page-suivi-formation__panneau-filtres ci-dessus. min-width: 0 : garantie anti-débordement, même
+   raison que .page-suivi-formation__groupe-filtre-statut ci-dessus. */
+.page-suivi-formation .filtres-statut {
+  margin-bottom: 0;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* Cadre ivoire de FiltresStatut.css retiré (fond/bordure/ombre remis à `none`/`0`) — devenu un
+   second cadre imbriqué inutile maintenant que .page-suivi-formation__panneau-filtres porte, LUI
+   SEUL, le fond/la bordure/l'ombre du panneau commun. flex-wrap: wrap (contrairement au
+   nowrap+scroll du bloc "Statut" sur Suivi des tests, réservé là-bas au bloc "Rendez-vous" plus à
+   risque de débordement) : seul groupe de ce type ici, il reçoit directement le repli en 2 lignes
+   internes, alignées sous le premier bouton (même mécanique que Suivi des tests, voir son
+   commentaire), si la place manque (4 boutons seulement, mais compteurs à 2 chiffres possibles).
+   justify-content repasse au flex-start par défaut de FiltresStatut.css (ancien "center" retiré,
+   même choix final que Suivi des tests : sans cadre à centrer dedans, flex-start est plus cohérent
+   avec un bloc compact). */
 .page-suivi-formation .filtres-statut__statuts {
-  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Survol : léger renforcement (même règle générique que Suivi des tests) — ne cible que les
+   boutons colorés (statuts, Hôtellerie/Tertiaire), jamais "Tous", qui garde son style inchangé. */
+.page-suivi-formation .filtres-statut__statuts button:hover,
+.page-suivi-formation__filtre-entite-standalone .filtre-entite button:hover {
+  filter: brightness(0.94);
+}
+
+/* Bloc Secteur — état SÉLECTIONNÉ (même correctif que Suivi des tests, Planification.css) :
+   FiltreEntite.css ne colore que `:not(.actif)`, son état sélectionné compte normalement sur le
+   fond doré générique `.filtres-statut button.actif`, qui exige un ancêtre
+   <nav className="filtres-statut"> — FiltreEntite est ici rendu EN DEHORS de ce <nav> (bloc
+   autonome), ce filet ne s'applique donc jamais. Même inversion que les filtres de statut
+   ci-dessus (fond = teinte pleine de la couleur du secteur, texte blanc) plutôt que le fond doré
+   générique : Hôtellerie/Tertiaire gardent leur propre identité de couleur une fois sélectionnés. */
+.page-suivi-formation__filtre-entite-standalone .filtre-entite button[data-entite='hotel'].actif {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+}
+.page-suivi-formation__filtre-entite-standalone .filtre-entite button[data-entite='bureau'].actif {
+  background-color: var(--statut-dore-texte);
+  border-color: var(--statut-dore-texte);
+  color: #ffffff;
 }
 
 /* Couleur de chaque filtre de statut alignée sur le badge correspondant dans la liste (même

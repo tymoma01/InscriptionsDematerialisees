@@ -57,111 +57,239 @@
   color: var(--couleur-erreur);
 }
 
-/* Repère visuel entre les deux barres de filtres par statut (audit 2026-09-13, demande
-   utilisateur : "Rendez-vous" sur sa propre ligne, "Statut" partageant la sienne avec
-   Hôtellerie/Tertiaire — réorganisation 2026-09-14) — align-items: flex-start (pas center) :
-   FiltresStatut peut s'étaler sur plusieurs lignes (voir .filtres-statut__statuts, flex-wrap),
-   le label doit rester calé en haut plutôt que se centrer sur toute la hauteur prise.
-   justify-content: center essayé puis ANNULÉ (audit 2026-09-14, deux demandes utilisateur
-   successives) : revient à l'alignement à gauche d'origine. flex: 1; min-width: 0 : sans effet
-   quand ce bloc est un simple enfant de bloc (barre "Rendez-vous", pleine largeur par défaut),
-   mais nécessaire quand il partage .planification__ligne-entite-statut avec Hôtellerie/Tertiaire
-   (barre "Statut") — lui laisse réclamer tout l'espace restant sur la ligne plutôt que de se
-   limiter à la largeur de son contenu, min-width: 0 l'autorisant malgré tout à rétrécir sous
-   cette largeur si nécessaire (comportement par défaut d'un enfant flex sans lui serait
-   min-width: auto, qui l'empêcherait de rétrécir sous la largeur de son contenu non wrappé). */
+/* Groupe "Statut" ou "Rendez-vous" (label + FiltresStatut) — enfant flex de
+   .planification__ligne-entite-statut aux côtés de Hôtellerie/Tertiaire. margin-bottom: 0 :
+   l'écart sous la ligne est porté une seule fois par .planification__ligne-entite-statut
+   elle-même (ci-dessous), pas par chacun de ses enfants. align-items: center : le label se centre
+   simplement sur la hauteur, en ligne, de sa propre barre de boutons.
+   flex: 0 0 auto (ajustement 2026-09-26, CORRIGE une régression, demande utilisateur : "il reste
+   un large espace vide entre le dernier bouton du bloc Statut et le séparateur du bloc
+   Rendez-vous") — cause identifiée : l'ancien flex: 1 partagé par CETTE MÊME classe forçait le
+   bloc "Statut" (peu de boutons, contenu étroit) à s'étirer sur une part ÉGALE à celle du bloc
+   "Rendez-vous", laissant tout l'espace excédentaire vide entre son dernier bouton et le
+   séparateur suivant — pas une marge, mais bien flex-grow qui poussait sa largeur bien au-delà de
+   son contenu réel. flex: 0 0 auto (basis: auto, grow: 0, shrink: 0) : ce groupe se limite
+   désormais à la largeur de son propre contenu, ni plus ni moins — SEUL le bloc "Rendez-vous"
+   (dernier enfant, voir la règle dédiée juste après .planification__ligne-entite-statut ci-dessous)
+   reste autorisé à grandir dans l'espace restant. */
 .planification__groupe-filtre-statut {
   display: flex;
-  align-items: flex-start;
-  gap: var(--espace-petit);
-  margin-bottom: var(--espace-petit);
-  flex: 1;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+/* AUCUN bloc ne s'étire (ajustement final 2026-09-26, demande utilisateur explicite : "les blocs
+   eux-mêmes ne s'étirent pas : seul l'espace ENTRE eux varie" — retire l'essai précédent où
+   "Rendez-vous" seul grandissait en flex: 1 1 auto, incompatible avec une répartition ÉGALE de
+   l'espace libre par justify-content: space-between ci-dessous : un item qui grandit lui-même
+   absorbe justement tout ce que space-between aurait autrement réparti). "Rendez-vous" garde
+   malgré tout min-width: 0 ICI (pas sur la règle de base, qui n'en a pas besoin) : sans lui, un
+   enfant flex par défaut (min-width: auto) refuserait de rétrécir sous la largeur de son PROPRE
+   contenu non contraint, ce qui l'empêcherait de wrapper correctement en interne (voir
+   .planification__ligne-entite-statut > .planification__groupe-filtre-statut:last-child
+   .filtres-statut__statuts plus bas) quand la place vient réellement à manquer — seul ce bloc a
+   besoin de rétrécir, les deux autres n'ont jamais à le faire en pratique. */
+.planification__ligne-entite-statut > .planification__groupe-filtre-statut:last-child {
   min-width: 0;
 }
 
-/* Écart resserré entre "Hôtellerie/Tertiaire + Statut" et "Rendez-vous" (audit 2026-09-14,
-   demande utilisateur) — cause du surplus : ce même bloc .planification__groupe-filtre-statut sert
-   ICI de flex item DANS .planification__ligne-entite-statut (barre "Statut"), son margin-bottom
-   s'ajoutant donc à celui, déjà suffisant, de .planification__ligne-entite-statut lui-même
-   (les deux ne se cumulent PAS pour son unique autre usage, standalone, barre "Rendez-vous"
-   ci-dessous — un simple bloc de page n'a rien pour doubler avec). Neutralisé uniquement dans ce
-   contexte imbriqué pour retrouver un écart identique aux autres lignes de filtres au-dessus
-   (barre "À venir uniquement"/Formateur/Expérience, barre de recherche). */
-.planification__ligne-entite-statut .planification__groupe-filtre-statut {
-  margin-bottom: 0;
-}
-
-/* padding-top : aligne approximativement le texte du label avec celui des boutons "Tous"/du
-   premier statut juste à côté (padding vertical de .filtres-statut button, FiltresStatut.css),
-   plutôt qu'un simple alignement au sommet du bloc qui le décalerait visuellement vers le haut. */
 .planification__label-filtre-statut {
   flex-shrink: 0;
-  padding-top: 0.5rem;
   font-weight: 600;
   color: var(--couleur-texte-secondaire);
 }
 
-/* Ligne "Hôtellerie/Tertiaire + Statut" (réorganisation 2026-09-14, demande utilisateur) —
-   FiltreEntite à gauche dans son propre conteneur de largeur bornée (voir
-   .planification__filtre-entite-standalone ci-dessous), la barre "Statut" (label + FiltresStatut)
-   juste à sa droite, se partageant l'espace restant (voir flex: 1 sur
-   .planification__groupe-filtre-statut ci-dessus). flex-wrap : à défaut de place (tablette
-   étroite), la barre "Statut" repasse sous Hôtellerie/Tertiaire plutôt que de se comprimer.
-   justify-content: center essayé puis ANNULÉ (audit 2026-09-14, deux demandes utilisateur
-   successives) : revient à l'alignement à gauche d'origine, valeur par défaut (flex-start) donc
-   rien à déclarer explicitement ici. */
+/* Panneau de filtres "Hôtellerie/Tertiaire + Statut + Rendez-vous" — porte LUI SEUL le fond/la
+   bordure/l'ombre d'un panneau unique, sobre, entourant les trois blocs (voir
+   .planification .filtres-statut__statuts plus bas, qui a perdu son propre cadre ivoire imbriqué).
+   Cinq enfants flex dans l'ordre du DOM (Planification.jsx) : FiltreEntite, séparateur, "Statut",
+   séparateur, "Rendez-vous" (voir .planification__separateur plus bas). align-items: center :
+   demande utilisateur explicite ("les trois blocs sont centrés verticalement... les lignes Statut
+   et Rendez-vous s'alignent au milieu du bloc Secteur") — le bloc Secteur (2 boutons empilés) est
+   mécaniquement le plus haut des trois, centrer aligne les deux autres barres sur son milieu.
+   justify-content: space-between (ajustement final 2026-09-26, demande utilisateur explicite :
+   "le bloc Secteur démarre au bord gauche du panneau, le bloc Rendez-vous se termine au bord
+   droit... les deux intervalles entre blocs sont égaux") — AUCUN bloc ne s'étirant plus lui-même
+   (voir .planification__groupe-filtre-statut/.planification__filtre-entite-standalone,
+   flex: 0 0 auto), tout l'espace libre de la ligne est désormais réparti par CE
+   justify-content, à parts égales, dans chacun des 4 intervalles (Secteur-séparateur,
+   séparateur-Statut, Statut-séparateur, séparateur-Rendez-vous) plutôt que concentré à droite.
+   gap: reste un PLANCHER minimal (ajustement précédent, demande utilisateur : "garde un écart
+   minimal entre les blocs quand la place manque") — gap et justify-content: space-between se
+   cumulent (gap est un minimum garanti, space-between distribue l'espace EN PLUS, à parts égales
+   dans les mêmes intervalles) : jamais moins que ce gap, potentiellement plus si la ligne a de la
+   place à revendre. flex-wrap : dernier rempart si même Secteur+Statut seuls (qui ne rétrécissent
+   jamais, voir leur flex: 0 0 auto) ne tenaient plus sur la largeur réelle — un cas extrême, en
+   pratique le wrap interne de "Rendez-vous" (.planification .filtres-statut__statuts:last-child
+   plus bas) absorbe déjà l'essentiel des largeurs serrées avant d'en arriver là ; seul risque
+   résiduel accepté : un séparateur pourrait alors rester seul en fin de ligne 1 si "Rendez-vous"
+   bascule en ligne 2 (cas limite, non rencontré sur les largeurs tablette/desktop visées). */
 .planification__ligne-entite-statut {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--espace-grand);
-  margin-bottom: var(--espace-petit);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-moyen);
+  padding: var(--espace-petit) var(--espace-moyen);
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
 }
 
-/* FiltreEntite.jsx pose `width: 100%` sur lui-même (voir le commentaire de son usage plus haut) —
-   sans ce conteneur, il s'étirerait sur toute la largeur de .planification__ligne-entite-statut,
-   ne laissant plus de place à la barre "Statut" juste à côté. flex: 0 0 260px (pas juste
-   max-width) : garde cette largeur même si la ligne a de la place à revendre, pour un bouton
-   Hôtellerie/Tertiaire de taille stable plutôt que variable selon ce qu'il reste après "Statut". */
+/* Séparateur vertical — élément dédié (span, voir Planification.jsx) plutôt qu'un border sur le
+   bloc suivant (ancienne approche, retirée) : avec justify-content: space-between ci-dessus,
+   c'est le SEUL moyen de garder le trait centré dans son intervalle (demande utilisateur explicite
+   "même distance du bloc de gauche et du bloc de droite") — space-between répartit l'espace libre
+   à PARTS ÉGALES dans CHACUN des 4 intervalles entre les 5 enfants flex (3 blocs + 2 séparateurs),
+   donc autant avant qu'après chaque séparateur, par construction. flex: 0 0 auto : ne grandit/ne
+   rétrécit jamais (une simple ligne de 1px, jamais un "bloc" au sens de cette page). align-self:
+   stretch (plutôt que le align-items: center hérité du conteneur) : occupe toute la hauteur de la
+   ligne, quelle que soit la hauteur du bloc le plus haut (Secteur, 2 boutons empilés). */
+.planification__separateur {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  background-color: var(--couleur-bordure-legere);
+}
+
+/* Bloc Secteur — ajusté à son contenu (flex: 0 0 auto), jamais étiré (ajustement 2026-09-26,
+   demande utilisateur explicite : "bloc Secteur et bloc Statut : largeur ajustée à leur contenu")
+   — remplace un ancien flex: 0 0 8rem fixe : la largeur réelle des deux boutons empilés
+   ("Hôtellerie (nn)"/"Tertiaire (nn)", le plus long des deux) suffit désormais elle-même de
+   référence, sans valeur arbitraire à ajuster manuellement si les libellés changent un jour.
+   FiltreEntite.jsx pose `width: 100%` sur lui-même (voir son commentaire d'usage plus haut), qui a
+   donc toujours besoin de ce conteneur (même auto-dimensionné) pour ne pas s'étirer sur toute la
+   largeur de .planification__ligne-entite-statut. */
 .planification__filtre-entite-standalone {
-  flex: 0 0 260px;
+  flex: 0 0 auto;
 }
 
-/* Correctif décalage vertical Hôtellerie/Tertiaire vs "Tous"/badges de la barre "Statut" (audit
-   2026-09-14, signalé par l'utilisateur) — cause réelle : FiltreEntite.jsx ne définit aucun
-   padding/bordure/rayon sur ses propres boutons (voir son commentaire d'en-tête, "aucune règle de
-   layout de ligne ici, seulement l'apparence propre à ce filtre" — sous-entendu : le PADDING/FORME
-   du bouton restait à la charge du conteneur générique FiltresStatut, via son sélecteur de
-   descendance `.filtres-statut button` déjà documenté dans FiltresStatut.jsx : "Les boutons qu'il
-   contient héritent malgré tout du style .filtres-statut button/.actif ci-dessous"). Tant que
-   FiltreEntite était rendu via `filtresSupplementaires` DANS le <nav> "Statut" (avant la
-   réorganisation 2026-09-14 ci-dessus), ses boutons héritaient donc gratuitement de ce padding —
-   devenu orphelin depuis qu'il est rendu en sibling AUTONOME hors de ce <nav>, retombant sur le
-   bouton par défaut du navigateur (plus petit, coins carrés) à côté d'un "Tous" en pilule pleine
-   taille. Reproduit ici la même règle de base que .filtres-statut button (FiltresStatut.css) —
-   seuls padding/bordure/rayon/curseur : les couleurs restent celles, déjà correctes, de
-   FiltreEntite.css ([data-entite='hotel'/'bureau'], plus spécifiques donc jamais écrasées par ce
-   qui suit). */
+/* Hôtellerie AU-DESSUS de Tertiaire, PAS côte à côte (redesign 2026-09-26, demande utilisateur
+   explicite) — FiltreEntite.jsx lui-même reste un simple `display: flex` en rangée (voir son
+   commentaire d'en-tête : "aucune règle de layout de ligne ici... la page appelante reste libre de
+   disposer" ce bloc), cette page choisit ici l'empilement vertical. align-items: stretch (pas le
+   center hérité de FiltreEntite.css) : les deux boutons doivent occuper toute la largeur du
+   conteneur (voir width: 100% sur les boutons ci-dessous) pour être "de même largeur" comme
+   demandé, pas seulement centrés à la largeur de leur propre texte. */
+.planification__filtre-entite-standalone .filtre-entite {
+  flex-direction: column;
+  align-items: stretch;
+  /* Resserré depuis le 0.5rem par défaut de FiltreEntite.css (ajustement 2026-09-26, demande
+     utilisateur : même resserrement "de la même façon dans les trois blocs" que le gap
+     bouton-à-bouton de Statut/Rendez-vous ci-dessous). */
+  gap: 0.35rem;
+}
+
+/* Largeur pleine et stable : les deux boutons du bloc Secteur partagent alors mécaniquement la
+   même largeur, celle (fixe) de .planification__filtre-entite-standalone ci-dessus — flex: 1 de
+   FiltreEntite.css (pensé pour une disposition en rangée) n'aurait ici aucun effet utile en
+   colonne (il porterait sur la hauteur, pas la largeur), remplacé explicitement. border : ce
+   composant ne pose lui-même aucune bordure sur ses boutons (seule leur couleur l'est, via
+   [data-entite='hotel'/'bureau'], voir FiltreEntite.css) — sans elle ici, aucun contour visible. */
 .planification__filtre-entite-standalone .filtre-entite button {
-  padding: 0.5rem 1rem;
+  flex: none;
+  width: 100%;
   border: 1px solid var(--couleur-bordure);
+}
+
+/* HARMONISATION (redesign 2026-09-26, demande utilisateur explicite) : même padding, même taille
+   de police, même arrondi, taille compacte, pour TOUT bouton de filtre de ce panneau — Hôtellerie/
+   Tertiaire (.filtre-entite), "Tous" et chaque statut (.filtres-statut, "Tous" et les boutons de
+   .filtres-statut__statuts sont tous deux des descendants de <nav className="filtres-statut">,
+   donc couverts par CE seul sélecteur). `.planification`/`.planification__filtre-entite-standalone`
+   (2 classes chacun) battent de façon fiable les règles des composants génériques eux-mêmes
+   (FiltresStatut.css/FiltreEntite.css, 1 classe + 1 type), sans dépendre de l'ordre de chargement
+   des CSS. border-radius répété ici (déjà 999px par défaut sur .filtres-statut button, mais pas
+   sur .filtre-entite button, qui n'en pose aucun, voir la règle précédente) : une seule valeur
+   commune aux deux plutôt que dupliquée seulement là où elle manquait. Padding horizontal resserré
+   à 0.55rem (ajustement 2026-09-26, demande utilisateur : "Annulé"/"Remplacé" débordaient à droite
+   du panneau) — 0.75rem à l'origine ; vertical (0.4rem) inchangé, la hauteur des boutons ne doit
+   pas bouger. white-space: nowrap (ajustement 2026-09-26, demande utilisateur, constaté sur Suivi
+   des formations mais corrigé ici aussi par cohérence explicite — "aucun bouton de filtre ne doit
+   jamais passer à la ligne à l'intérieur de lui-même... sur cet écran comme sur Suivi des tests") :
+   .filtres-statut__statuts button (FiltresStatut.css) le pose déjà pour les boutons de statut,
+   mais ni "Tous" (.filtres-statut__tous button) ni .filtre-entite button ne l'avaient — simple
+   garde-fou supplémentaire, aucun changement de disposition. */
+.planification .filtres-statut button,
+.planification__filtre-entite-standalone .filtre-entite button {
+  padding: 0.4rem 0.55rem;
   border-radius: 999px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-/* Boutons de filtre par statut (audit 2026-08-31, révisé le même jour — décision utilisateur) :
-   "Tous" reste collé à l'extrême gauche (position fixe), seul le groupe des 7 autres filtres se
-   centre dans l'espace restant à sa droite — PAS l'ensemble "Tous" + cadre centré comme un seul
-   bloc (comportement précédent, retiré : .filtres-statut passait alors de justify-content:
-   space-between à center, ce qui décalait "Tous" vers la droite avec le reste plutôt que de le
-   garder à gauche). Revient donc au justify-content: space-between par défaut de FiltresStatut.css
-   pour .filtres-statut (rien à surcharger ici) et au flex: 1 par défaut de .filtres-statut__statuts
-   (rien à surcharger non plus) — même patron que TableauDeBordAccueil.css/SuiviFormation.css
-   ("Dossiers candidats"/"Suivi des formations") : le cadre s'étire sur tout l'espace restant après
-   "Tous", et justify-content: center CI-DESSOUS centre les boutons À L'INTÉRIEUR de ce cadre déjà
-   étiré, sans avoir besoin de le resserrer à la largeur de son contenu. */
+/* Ce <nav> pose lui-même margin-bottom: var(--espace-moyen) ET gap: var(--espace-petit)
+   (FiltresStatut.css, pensé pour un usage en pleine page) — margin-bottom neutralisé (l'espacement
+   de CE panneau est désormais entièrement porté par .planification__ligne-entite-statut,
+   padding/margin-bottom plus haut, un seul point de contrôle). gap resserré à 0.35rem (ajustement
+   2026-09-26, demande utilisateur : espacement entre boutons réduit "de la même façon dans les
+   trois blocs" — voir aussi .planification__filtre-entite-standalone .filtre-entite ci-dessus et
+   .planification .filtres-statut__statuts ci-dessous) — c'est l'espace entre "Tous" et la boîte de
+   statuts. min-width: 0 (garantie anti-débordement, demande utilisateur explicite) : SURTOUT utile
+   pour l'instance "Rendez-vous" de ce <nav>, seule à vivre dans un
+   .planification__groupe-filtre-statut:last-child (flex: 1 1 auto, lui-même min-width: 0 — voir
+   plus haut) censé rétrécir/wrapper sous la pression ; sans le répéter ICI, un enfant flex par
+   défaut (min-width: auto) refuserait malgré tout de rétrécir sous la largeur de son PROPRE
+   contenu non contraint. Sans effet notable pour l'instance "Statut" (parent désormais
+   flex: 0 0 auto, jamais sous pression), mais un seul sélecteur couvre les deux — inoffensif ici. */
+.planification .filtres-statut {
+  margin-bottom: 0;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* Boutons de filtre par statut — redesign 2026-09-26 (2e version, demande utilisateur explicite) :
+   fond/bordure/ombre du cadre ivoire de FiltresStatut.css RETIRÉS ici (background-color/border/
+   box-shadow/padding remis à `none`/`0`) — ce cadre, pensé pour un usage AUTONOME de FiltresStatut
+   (ex. Dossiers candidats, Suivi des formations, chacun sa propre barre isolée), devient un second
+   cadre imbriqué inutile maintenant que .planification__ligne-entite-statut porte, LUI SEUL, le
+   fond/la bordure/l'ombre du panneau commun aux trois blocs (voir son commentaire). flex-wrap:
+   nowrap PAR DÉFAUT ici (Secteur/Statut, comportement conservé tel quel — ajustement 2026-09-26,
+   demande utilisateur "le bloc Secteur et le bloc Statut restent inchangés") : contrairement à un
+   usage autonome, ce groupe partage sa ligne avec Secteur et l'autre barre FiltresStatut — un
+   retour à la ligne ICI casserait la disposition en une seule ligne pour CES deux blocs, qui n'en
+   ont pas besoin (peu de boutons, tiennent déjà). overflow-x: auto en filet de sécurité SEULEMENT
+   (pas une barre de défilement voulue) : invisible tant que tout tient (cas normal). Le bloc
+   "Rendez-vous" (plus de boutons, libellés plus longs — "Annulé"/"Remplacé") a sa PROPRE règle
+   ci-dessous qui repasse en flex-wrap: wrap plutôt que nowrap+scroll, voir son commentaire.
+   gap resserré à 0.35rem (même raison que .planification .filtres-statut ci-dessus) : espace entre
+   chaque bouton de statut. min-width: 0 déjà posé par FiltresStatut.css lui-même (inchangé).
+   justify-content repasse au flex-start par défaut de FiltresStatut.css (ancien override "center"
+   retiré : sans cadre à centrer dedans, flex-start aligne simplement les boutons à la suite de
+   "Tous", plus cohérent avec un bloc compact qu'un centrage qui créerait un vide asymétrique). */
 .planification .filtres-statut__statuts {
-  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0.35rem;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* Bloc "Rendez-vous" (dernier du DOM, voir Planification.jsx) — SEUL à repasser en flex-wrap: wrap
+   (ajustement 2026-09-26, demande utilisateur explicite : "si la place manque... les boutons du
+   bloc Rendez-vous passent sur une deuxième ligne À L'INTÉRIEUR de leur bloc, alignés sous le
+   premier bouton, plutôt que de déborder. Le bloc Secteur et le bloc Statut restent inchangés").
+   Alignement "sous le premier bouton" obtenu SANS règle supplémentaire : .filtres-statut__statuts
+   est déjà un flex item distinct de "Tous" (.filtres-statut__gauche, son sibling, voir
+   FiltresStatut.jsx) — un retour à la ligne À L'INTÉRIEUR de cette boîte démarre donc
+   naturellement au bord gauche de CETTE boîte (justify-content: flex-start ci-dessus), soit
+   exactement sous son premier bouton, jamais sous "Tous" ni sous le label. `:last-child` (pas une
+   classe dédiée) : cible le bloc "Rendez-vous" par sa position dans le DOM (dernier
+   .planification__groupe-filtre-statut de la ligne), sans avoir à ajouter de classe JSX
+   supplémentaire — spécificité (3 classes) suffisante pour battre la règle générique
+   .planification .filtres-statut__statuts ci-dessus (2 classes) quel que soit l'ordre de
+   chargement. overflow-x redevient sans objet une fois le wrap actif (plus rien ne dépasse), pas
+   besoin de le réinitialiser explicitement. */
+.planification__ligne-entite-statut > .planification__groupe-filtre-statut:last-child .filtres-statut__statuts {
+  flex-wrap: wrap;
 }
 
 /* Couleur de chaque filtre de statut alignée sur le badge correspondant dans la colonne "Statut"
@@ -234,6 +362,85 @@
 .planification .filtres-statut__statuts button[data-statut='remplace'].actif {
   background-color: var(--statut-neutre-fort-texte);
   border-color: var(--statut-neutre-fort-texte);
+  color: #ffffff;
+}
+
+/* Couleur des filtres de statut DOSSIER (bloc "Statut", demande utilisateur 2026-09-26) — même
+   principe/mêmes tokens que le bloc "Rendez-vous" ci-dessus : chaque code reprend EXACTEMENT la
+   variante déjà utilisée par le badge correspondant dans la colonne "Statut" du tableau (voir
+   VARIANTE_PAR_GROUPE_STATUT_DOSSIER, Planification.jsx — 'test_planifie' -> 'bleu',
+   'test_realise' -> 'violet', 'test_non_realise' -> 'alerte'). Mêmes tokens --statut-<variante>-*
+   que StatutBadge.css, même inversion à l'état actif (fond = teinte `texte`, texte blanc) que les
+   filtres "Rendez-vous" ci-dessus, pour un traitement visuel identique aux deux barres. "Tous"
+   (.filtres-statut__tous button, non concerné par ce sélecteur) garde son style foncé habituel,
+   inchangé (demande utilisateur explicite). */
+.planification .filtres-statut__statuts button[data-statut='test_planifie']:not(.actif) {
+  background-color: var(--statut-bleu-fond);
+  border-color: var(--statut-bleu-bordure);
+  color: var(--statut-bleu-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='test_planifie'].actif {
+  background-color: var(--statut-bleu-texte);
+  border-color: var(--statut-bleu-texte);
+  color: #ffffff;
+}
+
+.planification .filtres-statut__statuts button[data-statut='test_realise']:not(.actif) {
+  background-color: var(--statut-violet-fond);
+  border-color: var(--statut-violet-bordure);
+  color: var(--statut-violet-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='test_realise'].actif {
+  background-color: var(--statut-violet-texte);
+  border-color: var(--statut-violet-texte);
+  color: #ffffff;
+}
+
+.planification .filtres-statut__statuts button[data-statut='test_non_realise']:not(.actif) {
+  background-color: var(--statut-alerte-fond);
+  border-color: var(--statut-alerte-bordure);
+  color: var(--statut-alerte-texte);
+}
+.planification .filtres-statut__statuts button[data-statut='test_non_realise'].actif {
+  background-color: var(--statut-alerte-texte);
+  border-color: var(--statut-alerte-texte);
+  color: #ffffff;
+}
+
+/* Survol : léger renforcement (demande utilisateur explicite, "même logique que les filtres
+   Rendez-vous... Survol : léger renforcement") — une seule règle générique plutôt qu'une variante
+   par couleur : un assombrissement léger et uniforme (filter: brightness) fonctionne quelle que
+   soit la teinte de fond active à ce moment (claire ou, une fois sélectionné, la teinte pleine),
+   sans avoir à décliner une valeur par variante. Ne cible QUE les boutons colorés (statuts,
+   Hôtellerie/Tertiaire) — jamais "Tous" (.filtres-statut__tous button), qui garde son style
+   inchangé (demande utilisateur explicite, voir plus haut). */
+.planification .filtres-statut__statuts button:hover,
+.planification__filtre-entite-standalone .filtre-entite button:hover {
+  filter: brightness(0.94);
+}
+
+/* Bloc Secteur (Hôtellerie/Tertiaire) — état SÉLECTIONNÉ manquant (audit 2026-09-26, demande
+   utilisateur : "apparaissent maintenant gris" — vérification faite, PAS l'état voulu, une vraie
+   perte de style à corriger). Cause : FiltreEntite.css ne colore que `:not(.actif)` (voir son
+   commentaire d'en-tête, ligne 43/49) — sur les écrans qui le passent en `filtresSupplementaires`
+   d'un <nav className="filtres-statut"> (ex. TableauDeBordAccueil.jsx), l'état sélectionné retombe
+   sur le fond doré générique `.filtres-statut button.actif` (FiltresStatut.css). Ici, FiltreEntite
+   est rendu EN DEHORS de tout <nav className="filtres-statut"> (bloc autonome, voir
+   .planification__filtre-entite-standalone) : ce filet générique ne s'applique donc jamais, et un
+   bouton sélectionné retombait sur l'apparence par défaut du navigateur (gris) faute de toute autre
+   règle. Corrigé ici avec la MÊME inversion que les filtres Statut/Rendez-vous ci-dessus (fond =
+   teinte pleine de la couleur du secteur, texte blanc) plutôt que le fond doré générique : Hôtellerie/
+   Tertiaire ont leur propre identité de couleur (bleu/doré), la garder au lieu de la remplacer par
+   une troisième teinte (doré générique) au moment précis où elle devrait au contraire ressortir le
+   plus. */
+.planification__filtre-entite-standalone .filtre-entite button[data-entite='hotel'].actif {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
+}
+.planification__filtre-entite-standalone .filtre-entite button[data-entite='bureau'].actif {
+  background-color: var(--statut-dore-texte);
+  border-color: var(--statut-dore-texte);
   color: #ffffff;
 }
 

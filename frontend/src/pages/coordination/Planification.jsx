@@ -1149,10 +1149,11 @@ export default function Planification() {
           onChangerDateFinFiltre={setDateFinFiltre}
         />
 
-        {/* Hôtellerie/Tertiaire + "Statut" (dossier) sur une même ligne (réorganisation 2026-09-14,
-            demande utilisateur — l'entité Hôtellerie/Tertiaire n'est plus imbriquée dans la barre
-            "Rendez-vous" via filtresSupplementaires comme avant cette date, mais rendue en sibling
-            AUTONOME juste devant la barre "Statut"). FiltreEntite.jsx pose `width: 100%` sur
+        {/* Hôtellerie/Tertiaire + "Statut" (dossier) + "Rendez-vous" sur UNE SEULE ligne
+            (réorganisation 2026-09-26, demande utilisateur — "Rendez-vous" vivait jusqu'ici sur sa
+            propre ligne dédiée sous celle-ci, voir historique git ; les trois groupes partagent
+            désormais .planification__ligne-entite-statut, séparateur vertical entre chaque paire
+            porté par le CSS, voir son commentaire). FiltreEntite.jsx pose `width: 100%` sur
             lui-même (pensé pour la colonne .filtres-statut__gauche de FiltresStatut, qui le
             contraignait jusqu'ici) : hors de ce contexte, il lui faut son propre conteneur de
             largeur bornée pour ne pas s'étirer sur toute la ligne — même correctif déjà appliqué
@@ -1168,19 +1169,28 @@ export default function Planification() {
             />
           </div>
 
+          {/* Séparateur vertical entre Secteur et Statut — élément dédié (pas un simple border sur
+              le bloc suivant, voir historique git) : seule façon de le garder visuellement CENTRÉ
+              dans son intervalle une fois que .planification__ligne-entite-statut répartit l'espace
+              libre via justify-content: space-between (ajustement 2026-09-26, demande utilisateur :
+              "chaque séparateur vertical est centré dans son intervalle") — un border-left collé au
+              bloc suivant aurait tout l'espace distribué d'un seul côté du trait (avant lui),
+              jamais réparti des deux côtés à parts égales. aria-hidden : purement décoratif. */}
+          <span className="planification__separateur" aria-hidden="true" />
+
           {/* Barre "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — même
-              composant FiltresStatut, mêmes 4 groupes que la colonne "Statut" du tableau
-              (STATUTS_FILTRABLES_DOSSIER/codeGroupeStatutDossier) : "Tous" + un bouton par groupe,
-              compteur dynamique. Se combine en ET avec TOUS les autres filtres de la page (voir
-              rendezvousParCandidatFiltres) — y compris le filtre "Rendez-vous" plus bas, chacun
-              ignorant délibérément sa PROPRE valeur dans le calcul de ses compteurs mais tenant
-              compte de celle de l'autre (voir compteursParStatutDossier/
-              rendezvousParCandidatAvantStatutDossier plus haut), pour que les deux barres restent
-              cohérentes entre elles quelle que soit la combinaison active. Un label "Statut" à
-              gauche (planification__label-filtre-statut) sert de seul repère visuel avec la barre
-              "Rendez-vous" plus bas — FiltresStatut est un composant générique déjà bien
-              identifiable par ses propres libellés de boutons, le label n'est là que pour lever
-              l'ambiguïté entre les deux familles avant que l'agent n'ait lu un seul bouton. */}
+              composant FiltresStatut que la barre "Rendez-vous" juste à sa droite, mêmes 4 groupes
+              que la colonne "Statut" du tableau (STATUTS_FILTRABLES_DOSSIER/codeGroupeStatutDossier) :
+              "Tous" + un bouton par groupe, compteur dynamique. Se combine en ET avec TOUS les
+              autres filtres de la page (voir rendezvousParCandidatFiltres) — y compris le filtre
+              "Rendez-vous" à sa droite, chacun ignorant délibérément sa PROPRE valeur dans le
+              calcul de ses compteurs mais tenant compte de celle de l'autre (voir
+              compteursParStatutDossier/rendezvousParCandidatAvantStatutDossier plus haut), pour que
+              les deux barres restent cohérentes entre elles quelle que soit la combinaison active.
+              Un label "Statut" à gauche (planification__label-filtre-statut) sert de seul repère
+              visuel avec la barre "Rendez-vous" voisine — FiltresStatut est un composant générique
+              déjà bien identifiable par ses propres libellés de boutons, le label n'est là que pour
+              lever l'ambiguïté entre les deux familles avant que l'agent n'ait lu un seul bouton. */}
           <div className="planification__groupe-filtre-statut">
             <span className="planification__label-filtre-statut">Statut</span>
             <FiltresStatut
@@ -1192,29 +1202,32 @@ export default function Planification() {
               compteurs={compteursParStatutDossier}
             />
           </div>
-        </div>
 
-        {/* Barre "Rendez-vous" (statut du RENDEZ-VOUS, audit 2026-08-31), sur sa propre ligne
-            dédiée sous Hôtellerie/Tertiaire + Statut (réorganisation 2026-09-14, demande
-            utilisateur) — même composant/pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) :
-            "Tous" + un bouton par statut affiché avec compteur dynamique entre parenthèses.
-            Combinable avec "À venir uniquement"/Formateur/Rechercher/Du-Au/Statut (dossier)
-            ci-dessus (voir statutRdvFiltre, filtrage client sur la liste déjà groupée par
-            candidat) — une combinaison sans résultat (ex. "À venir uniquement" + "Réalisé")
-            affiche simplement "(0)" plutôt que d'être bloquée, voir le commentaire de
-            compteursParStatutRdv. Deux paramètres d'URL distincts (statut_rdv/statut_dossier, voir
-            leur déclaration plus haut) : jamais de collision possible entre les deux filtres dans
-            un lien partagé/mis en favori. */}
-        <div className="planification__groupe-filtre-statut">
-          <span className="planification__label-filtre-statut">Rendez-vous</span>
-          <FiltresStatut
-            statuts={STATUTS_FILTRABLES_RENDEZVOUS}
-            statutFiltre={statutRdvFiltre}
-            onChangerStatutFiltre={setStatutRdvFiltre}
-            ariaLabel="Filtrer par statut de rendez-vous"
-            compteurTous={rendezvousParCandidatAvantStatutRdv.length}
-            compteurs={compteursParStatutRdv}
-          />
+          {/* Séparateur vertical entre Statut et Rendez-vous — voir le commentaire du séparateur
+              Secteur/Statut ci-dessus, même raison exacte. */}
+          <span className="planification__separateur" aria-hidden="true" />
+
+          {/* Barre "Rendez-vous" (statut du RENDEZ-VOUS, audit 2026-08-31) — même
+              composant/pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un
+              bouton par statut affiché avec compteur dynamique entre parenthèses. Combinable avec
+              "À venir uniquement"/Formateur/Rechercher/Du-Au/Statut (dossier) ci-dessus (voir
+              statutRdvFiltre, filtrage client sur la liste déjà groupée par candidat) — une
+              combinaison sans résultat (ex. "À venir uniquement" + "Réalisé") affiche simplement
+              "(0)" plutôt que d'être bloquée, voir le commentaire de compteursParStatutRdv. Deux
+              paramètres d'URL distincts (statut_rdv/statut_dossier, voir leur déclaration plus
+              haut) : jamais de collision possible entre les deux filtres dans un lien partagé/mis
+              en favori. */}
+          <div className="planification__groupe-filtre-statut">
+            <span className="planification__label-filtre-statut">Rendez-vous</span>
+            <FiltresStatut
+              statuts={STATUTS_FILTRABLES_RENDEZVOUS}
+              statutFiltre={statutRdvFiltre}
+              onChangerStatutFiltre={setStatutRdvFiltre}
+              ariaLabel="Filtrer par statut de rendez-vous"
+              compteurTous={rendezvousParCandidatAvantStatutRdv.length}
+              compteurs={compteursParStatutRdv}
+            />
+          </div>
         </div>
 
         {/* Barre d'actions groupées — même style visuel que TableauDeBordAccueil.jsx (Dossiers
