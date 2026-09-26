@@ -655,8 +655,11 @@ function mettreAJourDateHeureRendezvous(bd, rendezvousId, dateHeure) {
 // que l'appelant (transitions.routes.js, POST /forcer-statut) puisse journaliser le VRAI statut
 // d'origine de chaque rendez-vous ET supprimer son événement Outlook le cas échéant
 // (`outlook_event_id`/`formateur_id`, jamais exposés jusqu'ici par cette fonction).
-// appliquerTransition continue d'ignorer intégralement cette valeur de retour, comportement inchangé
-// pour lui malgré la forme différente.
+// `statutApres` ajouté (audit 2026-09-26, workflowEngine.appliquerTransition) : appliquerTransition
+// journalise désormais lui aussi, par rendez-vous, une entrée 'rendezvous_neutralise_transition'
+// (voir son commentaire) — jusqu'ici il ignorait intégralement cette valeur de retour, ce n'est plus
+// le cas. `statutApres` est simplement `statutRemplace` reporté par ligne, plutôt que de faire
+// deviner l'appelant : ce paramètre est déjà connu de cette fonction au moment de l'UPDATE.
 async function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, statutRemplace, motifId }) {
   const requeteSelection = bd('rendezvous')
     .where({ dossier_id: dossierId })
@@ -680,6 +683,7 @@ async function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, stat
   return avant.map((ligne) => ({
     id: ligne.id,
     statutAvant: ligne.statut,
+    statutApres: statutRemplace,
     outlookEventId: ligne.outlook_event_id,
     formateurId: ligne.formateur_id,
   }));

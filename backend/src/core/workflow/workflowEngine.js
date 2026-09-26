@@ -8,6 +8,12 @@ const motifRepository = require('../motifs/motifRepository');
 // ci-dessous, seul point d'usage.
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const { ROLES, ROLES_FORCAGE } = require('../auth/rbac');
+// journalAudit (audit 2026-09-26) : simple écriture de traçabilité (src/core/audit/journalAudit.js),
+// même catégorie que dossierRepository/motifRepository ci-dessus (aucune logique métier propre à un
+// domaine, contrairement à rendezvousService/graphCalendarService, volontairement absents de ce
+// fichier — voir forcerStatut plus bas). Seul point d'usage : la neutralisation générique ci-dessous
+// (appliquerTransition), jusqu'ici totalement silencieuse — voir son commentaire.
+const journalAudit = require('../audit/journalAudit');
 
 // Valeur de `rendezvous.statut` pour un rendez-vous neutralisé — même sentinel que
 // rendezvousService.STATUT_REMPLACE (core/rendezvous/rendezvousService.js), dupliquée ici plutôt
@@ -151,11 +157,31 @@ async function appliquerTransition(
   // bloc "Décision" masqué après l'incident du dossier #75 : un rendez-vous a besoin de
   // date/lieu/formateur que l'appelant seul connaît, une neutralisation n'a besoin de rien de
   // plus que le dossier lui-même, donc aucun effet de bord manquant possible ici).
+  // Traçabilité (audit 2026-09-26, suite à l'incident des rendez-vous évalués restés 'remplace',
+  // voir scripts/reparerRendezvousEvaluesRemplaces.js) : jusqu'ici, cette neutralisation était un
+  // simple UPDATE silencieux, sans aucune entrée journal_audit — contrairement au chemin
+  // forcerStatut (action 'rendezvous_neutralise_force', écrite par l'appelant HTTP, voir son
+  // commentaire plus bas) qui, lui, garde sa propre traçabilité distincte pour ne jamais doubler
+  // celle-ci : forcerStatut n'appelle jamais appliquerTransition (chemin totalement séparé), donc
+  // aucun risque de doublon entre les deux actions. Une entrée par rendez-vous neutralisé, dans la
+  // MÊME transaction (bd) que le changement de statut du dossier ci-dessus.
   if (transition.statut_destination_neutralise_rendezvous_actifs) {
-    await rendezvousRepository.neutraliserRendezvousActifsDossier(bd, {
+    const rendezvousNeutralises = await rendezvousRepository.neutraliserRendezvousActifsDossier(bd, {
       dossierId,
       statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
     });
+    for (const rdv of rendezvousNeutralises) {
+      // eslint-disable-next-line no-await-in-loop -- peu de rendez-vous actifs par dossier, même
+      // transaction que le changement de statut ci-dessus.
+      await journalAudit.enregistrerAction(bd, {
+        utilisateurId,
+        entiteId: entite.id,
+        action: 'rendezvous_neutralise_transition',
+        tableCible: 'rendezvous',
+        cibleId: rdv.id,
+        donnees: { dossierId, codeAction, statutAvant: rdv.statutAvant, statutApres: rdv.statutApres },
+      });
+    }
   }
 
   return { statutDestinationId: transition.statut_destination_id };

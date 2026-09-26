@@ -6,6 +6,7 @@ const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
 const workflowRepository = require('./workflowRepository');
+const journalAudit = require('../audit/journalAudit');
 const workflowEngine = require('./workflowEngine');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
@@ -223,7 +224,10 @@ test("appliquerTransition neutralise toujours en 'remplace' (jamais 'annule', ja
   }));
   t.mock.method(workflowRepository, 'transitionAutoriseePourRole', async () => true);
   t.mock.method(dossierRepository, 'enregistrerChangementStatut', async () => {});
-  const neutraliserMock = t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => [{ id: 999 }]);
+  const neutraliserMock = t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => [
+    { id: 999, statutAvant: 'prevu', statutApres: 'remplace' },
+  ]);
+  t.mock.method(journalAudit, 'enregistrerAction', async () => {});
   // motifRepository.trouverMotifParCode : jamais appelé ici (motif_requis=false), mais mocké quand
   // même pour éviter tout risque d'appel réel non intentionnel sur un `bd` factice.
   t.mock.method(motifRepository, 'trouverMotifParCode', async () => {
@@ -241,6 +245,97 @@ test("appliquerTransition neutralise toujours en 'remplace' (jamais 'annule', ja
   assert.equal(appel.dossierId, 127);
   assert.equal(appel.statutRemplace, 'remplace');
   assert.equal('motifId' in appel, false, 'appliquerTransition ne doit jamais passer motifId à neutraliserRendezvousActifsDossier');
+});
+
+// Traçabilité (audit 2026-09-26) : jusqu'ici, cette neutralisation générique n'écrivait AUCUNE
+// entrée journal_audit (contrairement au chemin forcerStatut, tracé côté route) — voir le
+// commentaire d'en-tête de ce bloc dans workflowEngine.js.
+test("appliquerTransition écrit une entrée journal_audit 'rendezvous_neutralise_transition' PAR rendez-vous neutralisé, dans la même transaction", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 127, statut_id: 11 }));
+  t.mock.method(workflowRepository, 'trouverTransition', async () => ({
+    id: 1,
+    statut_destination_id: 17,
+    statut_destination_neutralise_rendezvous_actifs: true,
+    motif_requis: false,
+  }));
+  t.mock.method(workflowRepository, 'transitionAutoriseePourRole', async () => true);
+  t.mock.method(dossierRepository, 'enregistrerChangementStatut', async () => {});
+  t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => [
+    { id: 160, statutAvant: 'prevu', statutApres: 'remplace' },
+    { id: 161, statutAvant: 'confirme', statutApres: 'remplace' },
+  ]);
+  const enregistrerActionMock = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  const trxFactice = { estUneTrxExistante: true };
+  await workflowEngine.appliquerTransition(
+    ENTITE_ACCECIT,
+    { dossierId: 127, codeAction: 'invalider_test', commentaire: 'Test échoué.', utilisateurId: 9, roleCode: 'admin' },
+    trxFactice,
+  );
+
+  assert.equal(enregistrerActionMock.mock.calls.length, 2);
+  const [bdAppel, donneesAppel] = enregistrerActionMock.mock.calls[0].arguments;
+  assert.equal(bdAppel, trxFactice, 'doit écrire dans la même transaction que le changement de statut');
+  assert.equal(donneesAppel.utilisateurId, 9);
+  assert.equal(donneesAppel.entiteId, ENTITE_ACCECIT.id);
+  assert.equal(donneesAppel.action, 'rendezvous_neutralise_transition');
+  assert.equal(donneesAppel.tableCible, 'rendezvous');
+  assert.equal(donneesAppel.cibleId, 160);
+  assert.deepEqual(donneesAppel.donnees, { dossierId: 127, codeAction: 'invalider_test', statutAvant: 'prevu', statutApres: 'remplace' });
+
+  const deuxiemeAppel = enregistrerActionMock.mock.calls[1].arguments[1];
+  assert.equal(deuxiemeAppel.cibleId, 161);
+  assert.deepEqual(deuxiemeAppel.donnees, { dossierId: 127, codeAction: 'invalider_test', statutAvant: 'confirme', statutApres: 'remplace' });
+});
+
+test("appliquerTransition n'écrit AUCUNE entrée journal_audit si aucun rendez-vous n'est neutralisé", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 127, statut_id: 11 }));
+  t.mock.method(workflowRepository, 'trouverTransition', async () => ({
+    id: 1,
+    statut_destination_id: 17,
+    statut_destination_neutralise_rendezvous_actifs: true,
+    motif_requis: false,
+  }));
+  t.mock.method(workflowRepository, 'transitionAutoriseePourRole', async () => true);
+  t.mock.method(dossierRepository, 'enregistrerChangementStatut', async () => {});
+  t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => []);
+  const enregistrerActionMock = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  await workflowEngine.appliquerTransition(
+    ENTITE_ACCECIT,
+    { dossierId: 127, codeAction: 'invalider_test', commentaire: 'Test échoué.', utilisateurId: 9, roleCode: 'admin' },
+    { estUneTrxExistante: true },
+  );
+
+  assert.equal(enregistrerActionMock.mock.calls.length, 0);
+});
+
+test("appliquerTransition n'écrit aucune entrée journal_audit quand le statut destination ne neutralise pas les rendez-vous actifs (neutralise_rendezvous_actifs=false)", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 127, statut_id: 11 }));
+  t.mock.method(workflowRepository, 'trouverTransition', async () => ({
+    id: 1,
+    statut_destination_id: 15,
+    statut_destination_neutralise_rendezvous_actifs: false,
+    motif_requis: false,
+  }));
+  t.mock.method(workflowRepository, 'transitionAutoriseePourRole', async () => true);
+  t.mock.method(dossierRepository, 'enregistrerChangementStatut', async () => {});
+  const neutraliserMock = t.mock.method(rendezvousRepository, 'neutraliserRendezvousActifsDossier', async () => {
+    throw new Error('ne doit pas être appelé (neutralise_rendezvous_actifs=false)');
+  });
+  const enregistrerActionMock = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  await workflowEngine.appliquerTransition(
+    ENTITE_ACCECIT,
+    { dossierId: 127, codeAction: 'confirmer_test_realise', commentaire: 'Test réalisé.', utilisateurId: 9, roleCode: 'formateur' },
+    { estUneTrxExistante: true },
+  );
+
+  assert.equal(neutraliserMock.mock.calls.length, 0);
+  assert.equal(enregistrerActionMock.mock.calls.length, 0);
 });
 
 // ═══ Bloc 3 (audit 2026-09-25) : rôle Planning + statuts exclus du forçage ═══

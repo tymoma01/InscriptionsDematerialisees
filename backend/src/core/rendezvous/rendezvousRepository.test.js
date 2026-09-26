@@ -211,8 +211,8 @@ test('neutraliserRendezvousActifsDossier sans motifId : comportement STRICTEMENT
   });
 
   assert.deepEqual(resultat, [
-    { id: 10, statutAvant: 'prevu', outlookEventId: 'evt-1', formateurId: 5 },
-    { id: 11, statutAvant: 'confirme', outlookEventId: null, formateurId: null },
+    { id: 10, statutAvant: 'prevu', statutApres: 'remplace', outlookEventId: 'evt-1', formateurId: 5 },
+    { id: 11, statutAvant: 'confirme', statutApres: 'remplace', outlookEventId: null, formateurId: null },
   ]);
   assert.equal(bdFactice.appelsUpdate.length, 1);
   assert.deepEqual(bdFactice.appelsUpdate[0].donnees, { statut: 'remplace' });

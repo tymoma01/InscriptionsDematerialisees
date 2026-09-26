@@ -191,9 +191,13 @@ test('enregistrerEvaluation applique invalider_test pour un verdict négatif, qu
   });
 
   assert.equal(appliquerTransitionMock.mock.calls[0].arguments[1].codeAction, 'invalider_test');
-  // Un verdict négatif n'a pas d'issue positive : rendezvous.statut reste inchangé ('honore'
-  // réservé aux verdicts valides, voir enregistrerEvaluation).
-  assert.equal(mettreAJourStatutRendezvousMock.mock.calls.length, 0);
+  // Correctif 2026-09-26 : un verdict négatif fait AUSSI passer le rendez-vous à 'honore' — le
+  // test a bien eu lieu, seule son issue diffère. Avant ce correctif, appliquerTransition (mocké
+  // ci-dessus) avait déjà neutralisé ce même rendez-vous en 'remplace' côté vraie implémentation,
+  // sans correction ultérieure : c'est précisément ce que ce test vérifie n'être plus le cas.
+  assert.equal(mettreAJourStatutRendezvousMock.mock.calls.length, 1);
+  assert.equal(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[1], 10);
+  assert.deepEqual(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[2], { statut: 'honore', motifId: null });
 });
 
 test('enregistrerEvaluation accepte les réponses grille_qcu sur l\'échelle bureau (aucune_connaissance/excellent)', async (t) => {

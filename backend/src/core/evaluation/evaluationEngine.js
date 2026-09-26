@@ -443,14 +443,21 @@ async function enregistrerEvaluation(
     // dossier vers valide_pret_embauche/valide_envoi_formation mais ne touchait jusqu'ici jamais
     // rendezvous.statut, resté "prevu" indéfiniment — la fiche dossier affichait alors à la fois
     // "Prévu" sur le rendez-vous ET "Ce test est déjà clôturé" (GestionRendezvous.jsx,
-    // STATUTS_DOSSIER_RENDEZVOUS_CLOS). 'honore' seulement pour un verdict VALIDE
-    // (codeActionFinal !== CODE_ACTION_INVALIDATION) : un test invalidé n'a pas eu une issue
-    // positive, rendezvous.statut reste "prevu" dans ce cas (pas de nouveau statut demandé pour
-    // ce cas-là — un dossier invalidé peut encore être reprogrammé, voir STATUTS_REPLANIFIABLES
-    // côté front).
-    if (codeActionFinal !== CODE_ACTION_INVALIDATION) {
-      await rendezvousRepository.mettreAJourStatutRendezvous(trx, rendezvousId, { statut: 'honore', motifId: null });
-    }
+    // STATUTS_DOSSIER_RENDEZVOUS_CLOS).
+    //
+    // Correctif 2026-09-26 (rendez-vous test orphelins au statut 'remplace', voir
+    // scripts/reparerRendezvousEvaluesRemplaces.js) : 'honore' est désormais posé QUEL QUE SOIT le
+    // verdict, y compris invalider_test — jusqu'ici, ce commentaire affirmait à tort que
+    // rendezvous.statut "reste prevu" pour un verdict négatif. En réalité l'appel
+    // workflowEngine.appliquerTransition juste au-dessus a DÉJÀ neutralisé ce même rendez-vous en
+    // 'remplace' (test_realise -> invalide porte, lui aussi, neutralise_rendezvous_actifs=true —
+    // exactement comme les statuts positifs) : sans cette écriture, le rendez-vous qui vient
+    // d'être évalué restait affiché "Remplacé" (sémantique : supplanté par un autre rendez-vous —
+    // faux ici, ce rendez-vous a réellement eu lieu) au lieu de "Réalisé". 'honore' signifie que le
+    // test a eu lieu et a été évalué, indépendamment de son résultat — un dossier invalidé peut
+    // toujours être reprogrammé ensuite (voir STATUTS_REPLANIFIABLES côté front), ce nouveau
+    // rendez-vous restera, lui, "prevu" jusqu'à sa propre évaluation.
+    await rendezvousRepository.mettreAJourStatutRendezvous(trx, rendezvousId, { statut: 'honore', motifId: null });
 
     return { evaluationId, codeActionFinal };
   }).then(async ({ evaluationId, codeActionFinal }) => {
