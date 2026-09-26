@@ -37,3 +37,8 @@ router.get('/', requireRole(...ROLES_LECTURE_FORMATION), async (req, res, next) 
 });
 
 module.exports = router;
+// Attachée sur l'objet router (même patron que transitions.routes.js/dossiers.routes.js) —
+// permet au test (formation.routes.test.js) de vérifier que l'Inspecteur GARDE bien cet accès
+// (audit 2026-09-26, retrait de son accès à "Suivi des formations" — cette route-ci, l'historique
+// en lecture seule de la fiche dossier, n'est PAS concernée par ce retrait).
+module.exports.ROLES_LECTURE_FORMATION = ROLES_LECTURE_FORMATION;

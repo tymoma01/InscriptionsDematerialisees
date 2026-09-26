@@ -76,11 +76,13 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Suivi des formations',
     chemin: '/coordination/suivi-formation',
     estActif: (chemin) => chemin.startsWith('/coordination/suivi-formation'),
-    // Suivi de formation (audit 2026-08-28) — mêmes rôles que 'suivi-tests' ci-dessus (même
-    // patron : Accueil/Coordination lecture seule, Formateur/Inspecteur/Admin accès complet,
-    // différencié DANS la page — voir SuiviFormation.jsx — pas par un second onglet). Mêmes rôles
-    // que dossiers.routes.js, route /suivi-formation (ROLES_SUIVI_FORMATION).
-    roles: [...ROLES_ACCUEIL, 'admin', 'formateur', 'inspecteur'],
+    // Suivi de formation (audit 2026-08-28) — mêmes rôles que 'suivi-tests' ci-dessus à l'origine
+    // (Accueil/Coordination lecture seule, Formateur/Inspecteur/Admin accès complet, différencié
+    // DANS la page — voir SuiviFormation.jsx — pas par un second onglet), Inspecteur RETIRÉ depuis
+    // (audit 2026-09-26, règle métier confirmée : aucun dossier Tertiaire — le secteur de
+    // l'Inspecteur — ne passe en formation). Mêmes rôles que dossiers.routes.js, route
+    // /suivi-formation (ROLES_SUIVI_FORMATION), et App.jsx (garde de route équivalente).
+    roles: [...ROLES_ACCUEIL, 'admin', 'formateur'],
   },
   {
     cle: 'comptes-utilisateurs',

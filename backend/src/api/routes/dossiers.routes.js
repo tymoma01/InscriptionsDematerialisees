@@ -75,14 +75,25 @@ router.get('/', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, ne
 // prise — voir dossierRepository.STATUTS_SUIVI_FORMATION) — le filtre "En attente"/"Formation
 // validée"/"Formation non validée"/"Tous" (FiltresStatut.jsx) s'applique CLIENT-side sur cette
 // liste, pas un paramètre de requête ici. Rôles : Accueil/Coordination (lecture seule, pas
-// d'action, voir SuiviFormation.jsx) ET Formateur/Inspecteur (accès complet, boutons "Formation
+// d'action, voir SuiviFormation.jsx) ET Formateur (accès complet, boutons "Formation
 // validée"/"Formation non validée") — même patron restreint que GET /rendezvous ci-dessous
-// (ROLES_CONSULTATION_RENDEZVOUS_TEST), plutôt qu'élargir ROLES_CONSULTATION_DOSSIERS à ces deux
-// rôles (ce qui leur donnerait accès à la liste COMPLÈTE des dossiers, tous statuts confondus —
-// jamais voulu, voir le commentaire de ROLES_CONSULTATION_RENDEZVOUS_TEST plus bas). Le choix des
-// 3 statuts eux-mêmes reste propre à ACCECIT (voir Modularité, CLAUDE.md), porté par
+// (ROLES_CONSULTATION_RENDEZVOUS_TEST), plutôt qu'élargir ROLES_CONSULTATION_DOSSIERS à ce rôle
+// (ce qui lui donnerait accès à la liste COMPLÈTE des dossiers, tous statuts confondus — jamais
+// voulu, voir le commentaire de ROLES_CONSULTATION_RENDEZVOUS_TEST plus bas). Le choix des 3
+// statuts eux-mêmes reste propre à ACCECIT (voir Modularité, CLAUDE.md), porté par
 // dossierRepository.listerSuiviFormation plutôt qu'un paramètre client.
-const ROLES_SUIVI_FORMATION = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+//
+// Inspecteur RETIRÉ (audit 2026-09-26, règle métier confirmée : aucun dossier Tertiaire — le
+// secteur de l'Inspecteur — ne passe en formation) : il garde ROLES_LECTURE_FORMATION
+// (formation.routes.js, historique de la fiche dossier, lecture seule) et ROLES_GESTION_TRANSITIONS
+// (transitions.routes.js, garde générique nécessaire à ses transitions d'évaluation) — seul CE
+// rôle-ci (accès à la LISTE "Suivi des formations" elle-même) lui est retiré. Les lignes
+// transition_roles des transitions marquer_formation_validee/invalider_formation sont, elles,
+// retirées séparément en base (voir backend/scripts/retirerInspecteurTransitionsFormation.js) :
+// cette constante ne couvre que la liste, jamais les transitions elles-mêmes (déjà re-vérifiées
+// indépendamment par workflowEngine.appliquerTransition via transition_roles, voir
+// ROLES_GESTION_TRANSITIONS dans transitions.routes.js).
+const ROLES_SUIVI_FORMATION = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.ADMIN];
 router.get('/suivi-formation', requireRole(...ROLES_SUIVI_FORMATION), async (req, res, next) => {
   try {
     const dossiers = await dossierService.listerSuiviFormation(req.entite);
@@ -489,3 +500,9 @@ router.patch('/:dossierId/inscription', requireRole(...ROLES_MODIFICATION_INSCRI
 });
 
 module.exports = router;
+// Attachée sur l'objet router (même patron que transitions.routes.js/
+// supprimerEvenementsOutlookRendezvousNeutralises, aucune convention de test HTTP dans ce projet) —
+// permet au test (dossiers.routes.test.js) de vérifier directement la VRAIE liste de rôles plutôt
+// que de la deviner/dupliquer, pour ne jamais dériver silencieusement de ce qui est réellement
+// monté sur GET /suivi-formation ci-dessus.
+module.exports.ROLES_SUIVI_FORMATION = ROLES_SUIVI_FORMATION;

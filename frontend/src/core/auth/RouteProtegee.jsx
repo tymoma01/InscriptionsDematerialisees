@@ -16,11 +16,32 @@ import PageBackOffice from '../backOffice/PageBackOffice';
 // pages/inspecteur/Evaluation.jsx (lien de convocation email formateur/inspecteur), désormais
 // généralisé à toutes les routes protégées.
 //
-// Ne vérifie que la PRÉSENCE d'une session, jamais la légitimité du rôle vis-à-vis de la page
-// demandée : la vérification de rôle reste entièrement côté serveur (requireAuth + requireRole,
-// voir App.jsx et backend/src/api/routes) — cette garde évite seulement d'afficher un écran
-// inutilisable (aller-retour réseau en échec, 401) à un visiteur qui n'a même pas de session.
-export default function RouteProtegee({ children }) {
+// Ne vérifie que la PRÉSENCE d'une session par défaut, jamais la légitimité du rôle vis-à-vis de
+// la page demandée : la vérification de rôle reste entièrement côté serveur (requireAuth +
+// requireRole, voir App.jsx et backend/src/api/routes) — cette garde évite seulement d'afficher un
+// écran inutilisable (aller-retour réseau en échec, 401/403) à un visiteur qui n'a même pas de
+// session, ou dont le rôle n'a de toute façon pas accès à cette page.
+//
+// `roles` optionnel (audit 2026-09-26, retrait de l'accès Inspecteur à "Suivi des formations") :
+// quand fourni, redirige tout rôle NON listé vers SON écran d'accueil plutôt que de le laisser
+// atteindre une page qui lui répondra 403 au premier appel réseau — reste un confort d'affichage
+// (même principe que le commentaire ci-dessus), jamais la sécurité elle-même, qui reste posée côté
+// serveur (voir App.jsx, route correspondante). Sans ce prop (comportement historique, la majorité
+// des routes), aucune vérification de rôle n'est faite ici.
+//
+// DESTINATION_PAR_ROLE/DESTINATION_PAR_DEFAUT dupliqués depuis Connexion.jsx (voir CLAUDE.md,
+// conventions du projet) plutôt qu'importés : mêmes valeurs EXACTES à maintenir en cohérence
+// manuellement si l'une des deux change — l'écran d'accueil d'un rôle doit rester identique après
+// connexion et après un refus de route protégée par rôle, sous peine de rebonds différents pour un
+// même utilisateur selon le chemin emprunté.
+const DESTINATION_PAR_ROLE = {
+  formateur: '/formateur/evaluations',
+  inspecteur: '/inspecteur/evaluations',
+  admin: '/accueil/tableau-de-bord',
+};
+const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
+
+export default function RouteProtegee({ children, roles }) {
   const { utilisateur, chargement } = useSession();
   const location = useLocation();
 
@@ -35,6 +56,10 @@ export default function RouteProtegee({ children }) {
   if (!utilisateur) {
     const cible = `${location.pathname}${location.search}`;
     return <Navigate to={`/connexion?redirection=${encodeURIComponent(cible)}`} replace />;
+  }
+
+  if (roles && !roles.includes(utilisateur.roleCode)) {
+    return <Navigate to={DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT} replace />;
   }
 
   return children;

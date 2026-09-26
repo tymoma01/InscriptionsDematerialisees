@@ -429,3 +429,8 @@ module.exports = router;
 // jamais son usage comme middleware) — voir le commentaire de la fonction elle-même, aucune
 // convention de test HTTP dans ce projet, elle reste testée directement ainsi.
 module.exports.supprimerEvenementsOutlookRendezvousNeutralises = supprimerEvenementsOutlookRendezvousNeutralises;
+// Permet au test (dossiers.routes.test.js) de vérifier que l'Inspecteur GARDE bien cet accès
+// générique (audit 2026-09-26, retrait de son accès à "Suivi des formations" — cette garde-ci,
+// commune à TOUTES les transitions, n'est PAS concernée : la restriction fine se joue en base,
+// table transition_roles, voir backend/scripts/retirerInspecteurTransitionsFormation.js).
+module.exports.ROLES_GESTION_TRANSITIONS = ROLES_GESTION_TRANSITIONS;

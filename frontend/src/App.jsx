@@ -16,6 +16,14 @@ import Utilisateurs from './pages/admin/Utilisateurs';
 import Indicateurs from './pages/tableauDeBord/Indicateurs';
 import Connexion from './pages/connexion/Connexion';
 import RouteProtegee from './core/auth/RouteProtegee';
+import { ROLES_ACCUEIL } from './core/auth/rolesGroupes';
+
+// Rôles autorisés sur "Suivi des formations" (audit 2026-09-26, retrait de l'Inspecteur — règle
+// métier confirmée : aucun dossier Tertiaire ne passe en formation) — même liste que
+// ROLES_SUIVI_FORMATION (backend/src/api/routes/dossiers.routes.js) et l'entrée correspondante de
+// BarreNavigation.jsx, dupliquée plutôt que partagée (CLAUDE.md, conventions du projet) : les trois
+// doivent rester en phase manuellement si cette liste change à nouveau.
+const ROLES_SUIVI_FORMATION = [...ROLES_ACCUEIL, 'admin', 'formateur'];
 
 // Table de routes minimale : inscription (candidat, sans authentification), connexion (agent) et
 // les écrans internes — tableau de bord, vérification des pièces justificatives, relances,
@@ -90,7 +98,7 @@ export default function App() {
         <Route
           path="/coordination/suivi-formation"
           element={
-            <RouteProtegee>
+            <RouteProtegee roles={ROLES_SUIVI_FORMATION}>
               <SuiviFormation />
             </RouteProtegee>
           }

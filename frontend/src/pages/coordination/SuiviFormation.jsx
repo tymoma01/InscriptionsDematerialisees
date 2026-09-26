@@ -21,14 +21,16 @@ import './SuiviFormation.css';
 // atteint "Validé - envoyé en formation", avec retour manuel du résultat de formation (saisi à la
 // main par l'agent depuis un support externe, papier ou autre — pas d'intégration SmartOF ici).
 //
-// Une SEULE page partagée par les 4 rôles (Accueil/Coordination, Formateur, Inspecteur, Admin —
-// voir BarreNavigation.jsx), pas dupliquée par rôle comme Evaluation.jsx : même patron que
+// Une SEULE page partagée par 3 rôles (Accueil/Coordination, Formateur, Admin — voir
+// BarreNavigation.jsx ; Inspecteur RETIRÉ, audit 2026-09-26, règle métier confirmée : aucun
+// dossier Tertiaire — le secteur de l'Inspecteur — ne passe en formation, voir App.jsx pour la
+// garde de route équivalente), pas dupliquée par rôle comme Evaluation.jsx : même patron que
 // Planification.jsx ("Suivi des tests"), qui différencie déjà en interne Coordination
-// (lecture/actions groupées) de Formateur/Inspecteur (lecture seule sur certains blocs) via un
-// simple test sur roleCode, plutôt que deux pages quasi identiques. Ici : Accueil/Coordination
-// voit la liste en LECTURE SEULE (aucun bouton), Formateur/Inspecteur/Admin ont les 2 boutons
-// d'action. La vraie barrière reste côté serveur (transition_roles, voir workflowEngine.js) —
-// masquer les boutons ici n'est qu'un confort d'affichage, pas la sécurité elle-même.
+// (lecture/actions groupées) de Formateur (lecture seule sur certains blocs) via un simple test
+// sur roleCode, plutôt que deux pages quasi identiques. Ici : Accueil/Coordination voit la liste en
+// LECTURE SEULE (aucun bouton), Formateur/Admin ont les 2 boutons d'action. La vraie barrière reste
+// côté serveur (transition_roles, voir workflowEngine.js) — masquer les boutons ici n'est qu'un
+// confort d'affichage, pas la sécurité elle-même.
 //
 // Statuts affichables (point 1, audit 2026-08-28) — même mapping variante que les 6 autres pages
 // qui portent VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx et al.), dupliqué plutôt que
@@ -183,7 +185,9 @@ export default function SuiviFormation() {
   // "Poste").
   const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
 
-  const accesComplet = ['formateur', 'inspecteur', 'admin'].includes(utilisateur?.roleCode);
+  // Inspecteur retiré (audit 2026-09-26, règle métier confirmée : aucun dossier Tertiaire ne
+  // passe en formation) — voir le commentaire d'en-tête de ce fichier.
+  const accesComplet = ['formateur', 'admin'].includes(utilisateur?.roleCode);
 
   useEffect(() => {
     let annule = false;
