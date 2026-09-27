@@ -29,14 +29,38 @@
    .filtres-statut__statuts (FiltresStatut.css : boîte ivoire, boutons pilule, wrap) pour que cette
    rangée de badges se lise comme une extension naturelle de la barre de filtres juste en dessous,
    pas comme un composant isolé.
-   margin-bottom (audit 2026-09-11, retrait du bouton "Plus de filtres"/panneau repliable —
-   composant PanneauFiltresRepliable.jsx supprimé) : ce bloc Expérience est désormais le dernier
-   avant la liste de dossiers, plus question de compter sur le margin-bottom du panneau disparu —
-   même valeur (var(--espace-petit)) que .filtres-recherche-dossiers (FiltresRechercheDossiers.css)
-   juste au-dessus, pour un espacement cohérent des deux côtés de ce bloc. */
+   margin-top/-bottom ALIGNÉS (audit 2026-09-27, demande utilisateur explicite : "même écart entre
+   la barre de recherche et le panneau Expérience qu'entre le panneau Expérience et le tableau") —
+   corrige margin-top: var(--espace-moyen) (1rem, datant du panneau "Plus de filtres" disparu,
+   audit 2026-09-11) qui ne correspondait plus à margin-bottom: var(--espace-petit) (0.5rem) : un
+   écart du double au-dessus par rapport à en dessous. Les deux valent désormais var(--espace-petit), la
+   même que .filtres-recherche-dossiers (FiltresRechercheDossiers.css) juste au-dessus — écart
+   identique des deux côtés de ce bloc.
+   padding vertical resserré (demande utilisateur explicite : "réduis sa marge intérieure
+   verticale... hauteur ajustée à cette ligne, comparable à celle de la barre de recherche") —
+   .filtres-statut__statuts (FiltresStatut.css) pose padding: var(--espace-petit) UNIFORME (0.5rem
+   haut/bas ET gauche/droite) ; seul le vertical est réduit ici, l'horizontal reste inchangé.
+   0 (resserré une 4e fois, même jour — 0.3rem, puis 0.15rem, puis 0.05rem jugés encore
+   insuffisants à l'écran) : PLUS aucune marge propre à la boîte, son bord haut/bas touche
+   désormais directement le bord haut/bas des badges/du titre qu'elle contient — la hauteur de
+   cette boîte est donc entièrement celle de son contenu (padding vertical des boutons,
+   .filtres-statut__statuts button, FiltresStatut.css — inchangé, hors périmètre de cette
+   demande : "sans changer la taille des boutons"). Plancher atteint pour ce levier précis :
+   au-delà, seule la réduction du padding DES BOUTONS eux-mêmes ferait encore baisser la hauteur
+   totale, ce que cette page n'a pas demandé de toucher.
+   `.tableau-bord-accueil__filtres-experience.filtres-statut__statuts` (2 classes sur ce même
+   élément, voir TableauDeBordAccueil.jsx) plutôt qu'une seule : la règle générique ci-dessus a
+   elle aussi 1 classe de spécificité, un simple `.tableau-bord-accueil__filtres-experience { ... }`
+   ne la battrait donc pas de façon fiable (égalité de spécificité, dépendrait de l'ordre de
+   chargement des deux fichiers CSS) — 2 classes l'emportent toujours, sans ambiguïté. */
+.tableau-bord-accueil__filtres-experience.filtres-statut__statuts {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .tableau-bord-accueil__filtres-experience {
   margin-bottom: var(--espace-petit);
-  margin-top: var(--espace-moyen);
+  margin-top: var(--espace-petit);
 }
 
 /* Titre "Expérience" à l'intérieur du cadre (audit 2026-09-02, 3e passe : de retour EN LIGNE avec
