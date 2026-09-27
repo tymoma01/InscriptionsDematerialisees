@@ -630,19 +630,25 @@ export default function TableauDeBordAccueil() {
     [dossiersRechercheDate, statutFiltre, experienceFiltre],
   );
 
-  // "À planifier" ajouté en TÊTE de liste (audit 2026-09-14, demande explicite — indicateur
-  // prioritaire pour l'accueil, attire l'attention avant même "Inscrit") : entrée construite à la
-  // main, pas via CODES_STATUTS_FILTRES_ACCUEIL (voir le commentaire de CODE_A_PLANIFIER plus haut
-  // — ce code n'existe dans aucun `statuts` renvoyé par le back, rien à filtrer depuis ce tableau
-  // pour lui). S'ajoute aux 3 statuts qu'il regroupe, ne les remplace pas : Inscrit/En attente de
-  // pièces/Test non planifié restent chacun leur propre bouton juste après, inchangés.
-  const statutsFiltres = useMemo(
-    () => [
-      { code: CODE_A_PLANIFIER, libelle: 'À planifier' },
-      ...statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code)),
-    ],
-    [statuts],
-  );
+  // "À planifier" inséré juste après "En attente de pièces" (audit 2026-09-27, demande
+  // utilisateur — déplacé de la tête de liste, où il vivait depuis son ajout, audit 2026-09-14) :
+  // entrée construite à la main, pas via CODES_STATUTS_FILTRES_ACCUEIL (voir le commentaire de
+  // CODE_A_PLANIFIER plus haut — ce code n'existe dans aucun `statuts` renvoyé par le back, rien à
+  // filtrer depuis ce tableau pour lui). S'ajoute aux 3 statuts qu'il regroupe, ne les remplace
+  // pas : Inscrit/En attente de pièces/Test non planifié restent chacun leur propre bouton,
+  // inchangés. `indexApresEnAttentePieces` : position d'insertion dans `filtres` (déjà trié par
+  // `ordre` côté back, voir CODES_STATUTS_FILTRES_ACCUEIL) plutôt qu'un index fixe — repli en tête
+  // de liste (comportement d'avant ce correctif) si 'en_attente_pieces' n'apparaît pas dans
+  // `statuts` (cas limite, jamais rencontré en pratique).
+  const statutsFiltres = useMemo(() => {
+    const filtres = statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code));
+    const entreeAPlanifier = { code: CODE_A_PLANIFIER, libelle: 'À planifier' };
+    const indexApresEnAttentePieces = filtres.findIndex((statut) => statut.code === 'en_attente_pieces') + 1;
+    if (indexApresEnAttentePieces === 0) {
+      return [entreeAPlanifier, ...filtres];
+    }
+    return [...filtres.slice(0, indexApresEnAttentePieces), entreeAPlanifier, ...filtres.slice(indexApresEnAttentePieces)];
+  }, [statuts]);
 
   // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
   // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
