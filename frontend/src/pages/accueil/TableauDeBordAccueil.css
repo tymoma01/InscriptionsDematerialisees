@@ -244,6 +244,20 @@
    distinctif à côté des 8 autres teintes toutes chromatiques du filtre — voir
    VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx) pour le détail du choix final de
    --statut-rose-*. */
+/* "À planifier" (audit 2026-09-27, demande utilisateur) : PAS un statut réel de dossier (voir
+   CODE_A_PLANIFIER, TableauDeBordAccueil.jsx — somme de 3 statuts), donc aucune entrée dans
+   VARIANTE_PAR_CODE_ACCECIT/StatutBadge à reprendre ici comme pour les autres filtres de ce bloc —
+   teinte choisie explicitement : --statut-turquoise-* (sarcelle), la MÊME que le badge du rôle
+   Planning (Comptes utilisateurs, variables.css) — lien visuel volontaire avec l'équipe qui traite
+   cette file, pas une réutilisation d'un badge de statut existant. Distincte des autres teintes du
+   filtre (bleu pour 'test_planifie', vert clair/foncé pour 'valide_pret_embauche'/'embauche', etc.
+   ci-dessous) : sarcelle n'est utilisée nulle part ailleurs dans ce bloc. */
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='a_planifier']:not(.actif) {
+  background-color: var(--statut-turquoise-fond);
+  border-color: var(--statut-turquoise-bordure);
+  color: var(--statut-turquoise-texte);
+}
+
 .tableau-bord-accueil .filtres-statut__statuts button[data-statut='nouveau']:not(.actif) {
   background-color: var(--statut-neutre-fond);
   border-color: var(--statut-neutre-bordure);
@@ -314,6 +328,16 @@
   background-color: var(--statut-vert-fonce-fond);
   border-color: var(--statut-vert-fonce-bordure);
   color: var(--statut-vert-fonce-texte);
+}
+
+/* Survol : léger renforcement (audit 2026-09-27, demande utilisateur — "À planifier" et,
+   cohérence oblige, tous les filtres colorés de ce bloc) — un seul assombrissement léger et
+   uniforme (filter: brightness), quelle que soit la teinte de fond active à ce moment (claire ou,
+   une fois sélectionné, le fond doré générique de .filtres-statut button.actif), plutôt qu'une
+   valeur déclinée par teinte. Ne cible que la boîte de statuts, jamais "Tous"
+   (.filtres-statut__tous button), dont le style reste inchangé. */
+.tableau-bord-accueil .filtres-statut__statuts button:hover {
+  filter: brightness(0.94);
 }
 
 /* Palier "2 colonnes" (audit 2026-08-23) retiré avec la grille elle-même (voir le commentaire
