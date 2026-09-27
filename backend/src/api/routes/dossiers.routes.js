@@ -4,6 +4,7 @@ const { z } = require('zod');
 // utilisée ici pour l'export ZIP groupé (GET /pieces/export-zip-groupe ci-dessous).
 const { ZipArchive } = require('archiver');
 const dossierService = require('../../core/dossier/dossierService');
+const disponibiliteEmbaucheService = require('../../core/dossier/disponibiliteEmbaucheService');
 const relanceService = require('../../core/dossier/relanceService');
 const rendezvousService = require('../../core/rendezvous/rendezvousService');
 const workflowEngine = require('../../core/workflow/workflowEngine');
@@ -56,15 +57,32 @@ const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATE
 // horodatage) ne révèle rien de sensible par elle-même.
 const ROLES_TOUT_BACK_OFFICE = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
-// GET /api/dossiers?statut=code — liste des dossiers de l'entité courante, filtrable par statut.
-// Le code de statut n'est jamais figé ici : il vient de la table `statuts`, configurable par
-// entité (voir Modularité, CLAUDE.md) — un code inconnu pour l'entité renvoie simplement une
-// liste vide, pas une erreur.
+// dispoDebut/dispoFin (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
+// l'embauche") — LES DEUX ou AUCUN, jamais un seul : une période filtrée a besoin de ses deux
+// bornes pour avoir un sens (voir dossierRepository.listerDossiers pour la formule de
+// chevauchement elle-même).
+const dispoQuerySchema = z
+  .object({
+    dispoDebut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    dispoFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  })
+  .refine((valeurs) => Boolean(valeurs.dispoDebut) === Boolean(valeurs.dispoFin), {
+    message: 'dispoDebut et dispoFin doivent être fournis ensemble, ou aucun des deux.',
+  });
+
+// GET /api/dossiers?statut=code&dispoDebut=AAAA-MM-JJ&dispoFin=AAAA-MM-JJ — liste des dossiers de
+// l'entité courante, filtrable par statut. Le code de statut n'est jamais figé ici : il vient de
+// la table `statuts`, configurable par entité (voir Modularité, CLAUDE.md) — un code inconnu pour
+// l'entité renvoie simplement une liste vide, pas une erreur.
 router.get('/', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
   try {
-    const dossiers = await dossierService.listerDossiers(req.entite, { statutCode: req.query.statut });
+    const { dispoDebut, dispoFin } = dispoQuerySchema.parse(req.query);
+    const dossiers = await dossierService.listerDossiers(req.entite, { statutCode: req.query.statut, dispoDebut, dispoFin });
     res.json(dossiers);
   } catch (erreur) {
+    if (erreur instanceof z.ZodError) {
+      return res.status(400).json({ erreur: 'Paramètres de filtre invalides.', details: erreur.flatten() });
+    }
     next(erreur);
   }
 });
@@ -499,6 +517,40 @@ router.patch('/:dossierId/inscription', requireRole(...ROLES_MODIFICATION_INSCRI
   }
 });
 
+// POST /api/dossiers/:dossierId/disponibilite-embauche — corrige la disponibilité d'un candidat
+// "Validé - prêt à l'embauche" (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
+// l'embauche") — RÉUTILISE ROLES_MODIFICATION_INSCRIPTION (demande utilisateur explicite point 4) :
+// mêmes rôles que le bouton "Modifier" de la fiche dossier, cohérent (même nature d'action :
+// corriger une donnée déclarative du candidat, jamais Formateur/Inspecteur). Toute la validation
+// métier (dates, commentaire obligatoire, dossier au bon statut) vit dans
+// disponibiliteEmbaucheService, cette route ne fait que traduire ses erreurs en codes HTTP.
+router.post(
+  '/:dossierId/disponibilite-embauche',
+  requireRole(...ROLES_MODIFICATION_INSCRIPTION),
+  async (req, res, next) => {
+    try {
+      const correction = await disponibiliteEmbaucheService.corrigerDisponibiliteEmbauche(
+        req.entite,
+        req.params.dossierId,
+        req.body,
+        { utilisateurId: req.utilisateur.id, adresseIp: req.ip },
+      );
+      if (!correction) {
+        return res.status(404).json({ erreur: `Dossier "${req.params.dossierId}" introuvable.` });
+      }
+      res.status(201).json(correction);
+    } catch (erreur) {
+      if (erreur instanceof z.ZodError) {
+        return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+      }
+      if (erreur instanceof disponibiliteEmbaucheService.ErreurDisponibiliteEmbaucheInvalide) {
+        return res.status(400).json({ erreur: erreur.message });
+      }
+      next(erreur);
+    }
+  },
+);
+
 module.exports = router;
 // Attachée sur l'objet router (même patron que transitions.routes.js/
 // supprimerEvenementsOutlookRendezvousNeutralises, aucune convention de test HTTP dans ce projet) —
@@ -506,3 +558,6 @@ module.exports = router;
 // que de la deviner/dupliquer, pour ne jamais dériver silencieusement de ce qui est réellement
 // monté sur GET /suivi-formation ci-dessus.
 module.exports.ROLES_SUIVI_FORMATION = ROLES_SUIVI_FORMATION;
+// Même raison, pour le test de la nouvelle route POST /:dossierId/disponibilite-embauche
+// (audit 2026-09-28).
+module.exports.ROLES_MODIFICATION_INSCRIPTION = ROLES_MODIFICATION_INSCRIPTION;

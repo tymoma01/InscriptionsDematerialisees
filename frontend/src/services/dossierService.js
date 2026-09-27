@@ -4,8 +4,26 @@ import api from './api';
 // n'ait pas à connaître la forme exacte de l'API back-end (même principe que
 // pieceJustificativeService.js).
 
-export async function listerDossiers({ statut } = {}) {
-  const { data } = await api.get('/dossiers', { params: statut ? { statut } : {} });
+// dispoDebut/dispoFin (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche")
+// — LES DEUX ou AUCUN (voir dossiers.routes.js, validation zod dédiée) ; filtrage SERVEUR,
+// contrairement au reste des filtres de cette page (recherche/statut/expérience/entité), tous
+// client (voir TableauDeBordAccueil.jsx).
+export async function listerDossiers({ statut, dispoDebut, dispoFin } = {}) {
+  const params = {};
+  if (statut) params.statut = statut;
+  if (dispoDebut && dispoFin) {
+    params.dispoDebut = dispoDebut;
+    params.dispoFin = dispoFin;
+  }
+  const { data } = await api.get('/dossiers', { params });
+  return data;
+}
+
+// Corrige la disponibilité d'un candidat "Validé - prêt à l'embauche" (audit 2026-09-28) — SANS
+// écraser la déclaration d'origine du candidat, voir ModaleDisponibiliteEmbauche.jsx/
+// backend/disponibiliteEmbaucheService.js.
+export async function corrigerDisponibiliteEmbauche(dossierId, { dateDebut, dateFin, commentaire }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/disponibilite-embauche`, { dateDebut, dateFin, commentaire });
   return data;
 }
 

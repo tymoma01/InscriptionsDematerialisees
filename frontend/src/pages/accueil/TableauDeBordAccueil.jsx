@@ -9,10 +9,11 @@ import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametre
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
-import { listerDossiers, listerStatuts } from '../../services/dossierService';
+import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
+import ModaleDisponibiliteEmbauche from './ModaleDisponibiliteEmbauche';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import api from '../../services/api';
 import './TableauDeBordAccueil.css';
@@ -118,6 +119,32 @@ function infoBulleStatut(dossier) {
   const lignes = [`Pour : ${FORMAT_DATE_HEURE_INFOBULLE.format(new Date(dateHeure))}`];
   lignes.push(formateur ? `Formateur : ${formateur}` : 'Formateur : non assigné');
   return lignes;
+}
+
+// 'AAAA-MM-JJ' -> 'JJ/MM' (audit 2026-09-28, bouton "Dispo : ..." sous le badge "Validé - prêt à
+// l'embauche") — simple découpage de chaîne, JAMAIS `new Date(...)` : ces dates sont déjà des
+// chaînes 'AAAA-MM-JJ' pures (voir dossierService.js/disponibiliteEmbaucheService.js côté back),
+// un passage par Date() risquerait un décalage d'un jour selon le fuseau du navigateur pour une
+// date sans heure (même précaution que versDateInput, InformationsInscription.jsx).
+function formaterDateCourte(valeurIso) {
+  const [, mois, jour] = valeurIso.split('-');
+  return `${jour}/${mois}`;
+}
+
+// Formats EXACTS demandés (demande utilisateur explicite, audit 2026-09-28) : "Dispo : immédiate"
+// (déclaration d'origine immédiate, jamais corrigée, sans date de fin) / "Dispo : immédiate →
+// JJ/MM" (idem, avec une date de fin) / "Dispo : à partir du JJ/MM" (date de début connue, sans
+// fin) / "Dispo : JJ/MM → JJ/MM" (date de début ET de fin connues — extension logique du format
+// précédent, non explicitement donnée mais cohérente avec elle). `dateDebut: null` signifie
+// "immédiate" (voir dossierService.calculerDisponibiliteEffective) — ne peut survenir QUE sans
+// correction, une correction ayant toujours une date de début concrète.
+function formaterDisponibiliteEffective({ dateDebut, dateFin }) {
+  if (dateDebut === null) {
+    return dateFin ? `Dispo : immédiate → ${formaterDateCourte(dateFin)}` : 'Dispo : immédiate';
+  }
+  return dateFin
+    ? `Dispo : ${formaterDateCourte(dateDebut)} → ${formaterDateCourte(dateFin)}`
+    : `Dispo : à partir du ${formaterDateCourte(dateDebut)}`;
 }
 
 // Libellés des postes (colonne "Poste" de DossierList.jsx) — mêmes codes/libellés que
@@ -315,6 +342,87 @@ export default function TableauDeBordAccueil() {
   // '' = toutes les tranches d'expérience confondues, jamais une valeur de code réelle.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
+  // Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — LES DEUX ou
+  // AUCUN (voir dossierService.listerDossiers), persistés dans l'URL comme les autres filtres de
+  // cette page. Filtrage SERVEUR (contrairement à recherche/statut/expérience/entité ci-dessus,
+  // tous client) : demande utilisateur explicite — voir l'effet de chargement plus bas, dont ces
+  // deux valeurs font désormais partie des dépendances.
+  const [dispoDebut, setDispoDebut] = useParametreURL('dispo_debut', '');
+  const [dispoFin, setDispoFin] = useParametreURL('dispo_fin', '');
+  // Brouillon LOCAL des deux champs de date, distinct des valeurs ci-dessus effectivement
+  // appliquées (persistées dans l'URL, qui déclenchent le rechargement serveur) — "Appliquer"/
+  // "Effacer" (demande utilisateur explicite, pas de filtrage au fil de la saisie comme les
+  // autres champs de cette page) copient/vident ce brouillon vers les valeurs appliquées.
+  // Initialisés depuis l'URL (pas '') : un lien partagé/mis en favori avec ce filtre déjà actif
+  // doit afficher les dates déjà saisies dans les champs, pas des champs vides à côté d'une liste
+  // déjà filtrée.
+  const [dispoDebutBrouillon, setDispoDebutBrouillon] = useState(dispoDebut);
+  const [dispoFinBrouillon, setDispoFinBrouillon] = useState(dispoFin);
+  const filtreDisponibiliteActif = Boolean(dispoDebut && dispoFin);
+
+  const appliquerFiltreDisponibilite = () => {
+    if (!dispoDebutBrouillon || !dispoFinBrouillon) return;
+    setDispoDebut(dispoDebutBrouillon);
+    setDispoFin(dispoFinBrouillon);
+  };
+  const effacerFiltreDisponibilite = () => {
+    setDispoDebutBrouillon('');
+    setDispoFinBrouillon('');
+    setDispoDebut('');
+    setDispoFin('');
+  };
+
+  // Fenêtre de correction de disponibilité (audit 2026-09-28) — `dossierDispoAConfirmer` porte le
+  // dossier COMPLET (pas seulement son id) : ModaleDisponibiliteEmbauche.jsx a besoin de
+  // disponibiliteDeclaree/disponibiliteEffective pour son préremplissage/sa lecture seule, déjà
+  // présents sur l'objet dossier (voir dossierService.listerDossiers), aucun second appel réseau.
+  const [dossierDispoAConfirmer, setDossierDispoAConfirmer] = useState(null);
+  const [dispoEnregistrementEnCours, setDispoEnregistrementEnCours] = useState(false);
+  const [erreurDispo, setErreurDispo] = useState(null);
+
+  const enregistrerCorrectionDisponibilite = async ({ dateDebut, dateFin, commentaire }) => {
+    setDispoEnregistrementEnCours(true);
+    setErreurDispo(null);
+    try {
+      await corrigerDisponibiliteEmbauche(dossierDispoAConfirmer.id, { dateDebut, dateFin, commentaire });
+      setDossierDispoAConfirmer(null);
+      // Re-fetch immédiat (pas d'attente du prochain rafraîchissement automatique) : l'agent doit
+      // voir sa correction reflétée dans le bouton "Dispo : ..." sans délai — même filtre dispo
+      // que la liste actuellement affichée, sinon le dossier corrigé disparaîtrait à tort si sa
+      // nouvelle période ne chevauche plus plus la période filtrée (comportement attendu, mais
+      // recalculé ici avec les VRAIES valeurs déjà appliquées, pas un simple retrait local).
+      listerDossiers({ dispoDebut, dispoFin })
+        .then(setDossiers)
+        .catch(() => {});
+    } catch (erreur) {
+      setErreurDispo(
+        erreur.response?.data?.erreur ?? "Impossible d'enregistrer cette disponibilité. Merci de réessayer.",
+      );
+    } finally {
+      setDispoEnregistrementEnCours(false);
+    }
+  };
+
+  // Passée à DossierList (prop `sousBadgeStatut`, voir son commentaire d'en-tête) — bouton
+  // "Dispo : ..." sous le badge "Validé - prêt à l'embauche", SEULEMENT quand le filtre est
+  // réellement appliqué (demande utilisateur explicite point B3 : "Quand ce filtre est actif") et
+  // seulement pour ce statut précis, jamais les autres (une disponibilité "corrigible" n'a de sens
+  // que pour un dossier à ce statut, voir disponibiliteEmbaucheService.js côté back qui refuse
+  // exactement la même chose). `dossier.disponibiliteEffective` toujours présent sur un dossier
+  // valide_pret_embauche (voir dossierService.listerDossiers), jamais un second appel réseau ici.
+  function sousBadgeStatutDisponibilite(dossier) {
+    if (!filtreDisponibiliteActif || dossier.statut_code !== 'valide_pret_embauche') return null;
+    return (
+      <button type="button" onClick={() => setDossierDispoAConfirmer(dossier)}>
+        {formaterDisponibiliteEffective(dossier.disponibiliteEffective)}
+        {/* Mention discrète (demande utilisateur explicite point B3) — jamais dans le texte
+            principal du bouton, pour ne pas alourdir la lecture rapide de "Dispo : ...". */}
+        {dossier.disponibiliteEffective.corrigee && (
+          <span className="tableau-bord-accueil__dispo-corrigee"> (corrigé)</span>
+        )}
+      </button>
+    );
+  }
 
   useEffect(() => {
     listerStatuts()
@@ -325,17 +433,22 @@ export default function TableauDeBordAccueil() {
       });
   }, []);
 
-  // Un seul chargement, tous statuts confondus (statutFiltre n'est plus un paramètre de requête,
-  // voir son commentaire de déclaration) : le filtrage par statut se fait désormais entièrement
-  // client, comme recherche/dateDebutFiltre/dateFinFiltre/entitesFiltre ci-dessous — nécessaire
-  // pour calculer le compteur de CHAQUE bouton de statut (dossiersFiltresSansStatut ci-dessous) à
-  // partir de la même liste en mémoire, plutôt que de ne connaître que le statut actuellement
-  // sélectionné.
+  // Tous statuts confondus (statutFiltre n'est plus un paramètre de requête, voir son commentaire
+  // de déclaration) : le filtrage par statut se fait entièrement client, comme
+  // recherche/dateDebutFiltre/dateFinFiltre/entitesFiltre ci-dessous — nécessaire pour calculer le
+  // compteur de CHAQUE bouton de statut (dossiersFiltresSansStatut ci-dessous) à partir de la même
+  // liste en mémoire, plutôt que de ne connaître que le statut actuellement sélectionné.
+  //
+  // dispoDebut/dispoFin en dépendances (audit 2026-09-28) — SEUL filtre de cette page à recharger
+  // depuis le serveur : ce chargement n'est donc plus "un seul", contrairement au commentaire
+  // historique ci-dessus (conservé pour le reste, toujours vrai pour tous les AUTRES filtres) —
+  // se redéclenche à chaque application/effacement du filtre "Disponibilité des candidats prêts à
+  // l'embauche" (voir appliquerFiltreDisponibilite/effacerFiltreDisponibilite plus haut).
   useEffect(() => {
     let annule = false;
     setChargementDossiers(true);
     setErreur(null);
-    listerDossiers()
+    listerDossiers({ dispoDebut, dispoFin })
       .then((valeur) => {
         if (!annule) setDossiers(valeur);
       })
@@ -348,13 +461,16 @@ export default function TableauDeBordAccueil() {
     return () => {
       annule = true;
     };
-  }, []);
+  }, [dispoDebut, dispoFin]);
 
   // Rafraîchissement automatique (audit 2026-08-24) : silencieux (ne touche jamais
   // chargementDossiers/erreur ci-dessus, réservés au chargement initial) — un échec ponctuel de
   // ce re-fetch en arrière-plan n'a pas à afficher d'erreur, le prochain tick réessaiera.
+  // dispoDebut/dispoFin transmis ici aussi (audit 2026-09-28) : sinon, ce rafraîchissement
+  // périodique silencieux écraserait la liste déjà filtrée côté serveur par la liste COMPLÈTE dès
+  // le prochain tick, quelques secondes après avoir appliqué le filtre.
   useRafraichissementAuto(() => {
-    listerDossiers()
+    listerDossiers({ dispoDebut, dispoFin })
       .then(setDossiers)
       .catch(() => {});
   });
@@ -706,43 +822,109 @@ export default function TableauDeBordAccueil() {
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
-        {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
-            disposition/composant visuel que la boîte de badges de statut (.filtres-statut__statuts,
-            réutilisée telle quelle plutôt que dupliquée) : boîte ivoire, boutons pilule, compteur
-            entre parenthèses. Comportement de sélection DÉLIBÉRÉMENT différent de FiltresStatut.jsx
-            (pas de bouton "Tous" séparé) : cliquer le badge déjà actif le désactive (retour à
-            experienceFiltre === ''), alors qu'un bouton de statut ne se désactive que via "Tous" —
-            demande explicite, cohérente avec l'absence d'équivalent "Tous" pour ce filtre à 4
-            valeurs seulement. data-experience (comme data-statut) : accroche de couleur par
-            valeur, voir TableauDeBordAccueil.css. */}
-        <div
-          className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
-          role="group"
-          aria-label="Filtrer par expérience"
-        >
-          {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
-              <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
-              badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
-              filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
-              inventé ici. */}
-          <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
-          {/* Badges regroupés dans leur propre bloc flex (audit 2026-09-02) — le titre reste
-              calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
-              bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
-              TableauDeBordAccueil.css. */}
-          <div className="tableau-bord-accueil__filtres-experience-badges">
-            {CODES_EXPERIENCE_ACCECIT.map((code) => (
+        {/* Expérience + Disponibilité des candidats prêts à l'embauche, sur la même ligne (audit
+            2026-09-28, demande utilisateur explicite : "réduis sa largeur à son contenu. À sa
+            droite, sur la même ligne, un nouveau bloc") — Expérience réduite à son contenu
+            (voir TableauDeBordAccueil.css), le second bloc prend le reste de la largeur. */}
+        <div className="tableau-bord-accueil__ligne-experience-disponibilite">
+          {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
+              disposition/composant visuel que la boîte de badges de statut (.filtres-statut__statuts,
+              réutilisée telle quelle plutôt que dupliquée) : boîte ivoire, boutons pilule, compteur
+              entre parenthèses. Comportement de sélection DÉLIBÉRÉMENT différent de FiltresStatut.jsx
+              (pas de bouton "Tous" séparé) : cliquer le badge déjà actif le désactive (retour à
+              experienceFiltre === ''), alors qu'un bouton de statut ne se désactive que via "Tous" —
+              demande explicite, cohérente avec l'absence d'équivalent "Tous" pour ce filtre à 4
+              valeurs seulement. data-experience (comme data-statut) : accroche de couleur par
+              valeur, voir TableauDeBordAccueil.css. */}
+          <div
+            className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
+            role="group"
+            aria-label="Filtrer par expérience"
+          >
+            {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
+                <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
+                badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
+                filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
+                inventé ici. */}
+            <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
+            {/* Badges regroupés dans leur propre bloc flex (audit 2026-09-02) — le titre reste
+                calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
+                bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
+                TableauDeBordAccueil.css. */}
+            <div className="tableau-bord-accueil__filtres-experience-badges">
+              {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  data-experience={code}
+                  className={experienceFiltre === code ? 'actif' : ''}
+                  onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
+                >
+                  {libelleExperience(code)}
+                  <strong> ({compteursParExperience[code] ?? 0})</strong>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — deux
+              dates + Appliquer/Effacer, dans le même style que les autres filtres de cette page
+              (boîte ivoire, voir TableauDeBordAccueil.css). Filtrage SERVEUR (voir l'effet de
+              chargement plus haut) et bouton "Dispo : ..." sous le badge "Validé - prêt à
+              l'embauche" (sousBadgeStatutDisponibilite plus bas) n'apparaissent que quand ce
+              filtre est réellement APPLIQUÉ (dispoDebut/dispoFin, pas le simple brouillon en
+              cours de saisie) — voir filtreDisponibiliteActif. */}
+          <div
+            className="filtres-statut__statuts tableau-bord-accueil__filtre-disponibilite-embauche"
+            role="group"
+            aria-label="Filtrer par disponibilité des candidats prêts à l'embauche"
+          >
+            {/* Libellé raccourci (ajustement 2026-09-28, demande utilisateur explicite : le texte
+                complet touchait le bloc "Expérience" voisin) — aria-label du groupe ci-dessus
+                garde le texte complet et descriptif, seul le libellé VISIBLE est raccourci. */}
+            <span className="tableau-bord-accueil__filtre-disponibilite-embauche-titre">
+              Disponibilité (prêts à l&apos;embauche)
+            </span>
+            <div className="tableau-bord-accueil__filtre-disponibilite-embauche-champs">
+              <label htmlFor="dispo-embauche-debut">
+                Du
+                <input
+                  id="dispo-embauche-debut"
+                  type="date"
+                  value={dispoDebutBrouillon}
+                  onChange={(evenement) => setDispoDebutBrouillon(evenement.target.value)}
+                />
+              </label>
+              <label htmlFor="dispo-embauche-fin">
+                Au
+                <input
+                  id="dispo-embauche-fin"
+                  type="date"
+                  value={dispoFinBrouillon}
+                  onChange={(evenement) => setDispoFinBrouillon(evenement.target.value)}
+                />
+              </label>
               <button
-                key={code}
                 type="button"
-                data-experience={code}
-                className={experienceFiltre === code ? 'actif' : ''}
-                onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
+                onClick={appliquerFiltreDisponibilite}
+                disabled={!dispoDebutBrouillon || !dispoFinBrouillon}
               >
-                {libelleExperience(code)}
-                <strong> ({compteursParExperience[code] ?? 0})</strong>
+                Appliquer
               </button>
-            ))}
+              {/* Désactivé tant qu'aucune date n'est saisie NULLE PART (demande utilisateur
+                  explicite, ajustement de mise en page 2026-09-28) — ni dans le brouillon en
+                  cours de saisie, ni dans le filtre déjà appliqué : auparavant conditionné au
+                  seul filtre appliqué (filtreDisponibiliteActif), ce qui laissait "Effacer"
+                  cliquable-mais-inutile alors qu'aucune date n'était encore saisie, et
+                  inversement ne permettait pas de vider un brouillon non encore appliqué. */}
+              <button
+                type="button"
+                onClick={effacerFiltreDisponibilite}
+                disabled={!dispoDebutBrouillon && !dispoFinBrouillon && !filtreDisponibiliteActif}
+              >
+                Effacer
+              </button>
+            </div>
           </div>
         </div>
 
@@ -838,6 +1020,7 @@ export default function TableauDeBordAccueil() {
             libelleExperience={libelleExperience}
             varianteExperience={varianteExperience}
             infoBulleStatut={infoBulleStatut}
+            sousBadgeStatut={sousBadgeStatutDisponibilite}
             dossiersSelectionnes={dossiersSelectionnes}
             onTogglerSelectionDossier={togglerSelectionDossier}
             toutSelectionne={tousVisiblesSelectionnes}
@@ -884,6 +1067,19 @@ export default function TableauDeBordAccueil() {
           libellePoste={libellePoste}
           onFermer={() => setModaleGroupeeOuverte(null)}
           onTermine={terminerActionGroupee}
+        />
+      )}
+
+      {dossierDispoAConfirmer && (
+        <ModaleDisponibiliteEmbauche
+          dossier={dossierDispoAConfirmer}
+          enCours={dispoEnregistrementEnCours}
+          erreur={erreurDispo}
+          onAnnuler={() => {
+            setDossierDispoAConfirmer(null);
+            setErreurDispo(null);
+          }}
+          onConfirmer={enregistrerCorrectionDisponibilite}
         />
       )}
     </PageBackOffice>

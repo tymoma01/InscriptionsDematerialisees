@@ -263,6 +263,32 @@
   display: inline-flex;
 }
 
+/* `sousBadgeStatut` (audit 2026-09-28) — bloc générique SOUS le badge, contenu fourni par
+   l'appelant (voir DossierList.jsx, même principe d'externalisation que infoBulleStatut) :
+   aujourd'hui le bouton "Dispo : ..." du filtre "Disponibilité des candidats prêts à l'embauche"
+   (TableauDeBordAccueil.jsx). `display: block` (contrairement à .statut-conteneur ci-dessus,
+   inline-flex) : passe TOUJOURS à la ligne sous le badge, quelle que soit la largeur disponible. */
+.dossier-list__sous-badge-statut {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.dossier-list__sous-badge-statut button {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-size: 0.75rem;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.dossier-list__sous-badge-statut button:hover,
+.dossier-list__sous-badge-statut button:focus-visible {
+  background-color: var(--couleur-fond-secondaire);
+}
+
 /* Même mécanique CSS pure (opacity 0->1 au survol/focus, aucun état React) que
    .calendrier-hebdo__creneau__infobulle (CalendrierHebdomadaireDisponibilite.css)/
    .bouton-nouvelle-inscription__infobulle (BoutonNouvelleInscription.css), seuls autres endroits

@@ -186,3 +186,50 @@ test("trouverDossierAvecStatutParId joint le DERNIER événement journal_audit (
   assert.match(sql, /dernier_changement_statut\.action = 'changement_statut_force'/);
   assert.doesNotMatch(sql, /dossier_marque_embauche/);
 });
+
+// Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — comportement
+// vérifié en direct sur DEV (Neon) pendant l'implémentation (chevauchement/exclusion réels, voir
+// le rapport livré à l'utilisateur), ces tests couvrent la FORME du SQL généré : même principe que
+// les tests ci-dessus, aucune dépendance métier testable autrement qu'en lisant la requête (pas de
+// connexion réelle ici, voir l'en-tête de ce fichier).
+test('listerDossiers sans dispoDebut/dispoFin : la jointure vers les corrections reste posée (affichage), mais aucune clause de chevauchement ni filtre forcé sur valide_pret_embauche', () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, {}).toString();
+  // La LATERAL est toujours jointe (sert à disponibiliteEffective même sans filtre actif, voir
+  // dossierService.listerDossiers) — seule la clause WHERE de chevauchement est conditionnelle.
+  assert.match(sql, /disponibilites_embauche_corrigees/i);
+  assert.doesNotMatch(sql, /'valide_pret_embauche'/);
+  assert.doesNotMatch(sql, /COALESCE\(disponibilite_corrigee\.date_debut/);
+});
+
+test('listerDossiers avec un seul des deux paramètres (dispoDebut sans dispoFin) : ignoré, comportement identique à aucun filtre', () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, { dispoDebut: '2026-10-15' }).toString();
+  assert.doesNotMatch(sql, /'valide_pret_embauche'/);
+});
+
+test('listerDossiers avec dispoDebut ET dispoFin : force le statut valide_pret_embauche et pose la clause de chevauchement', () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, { dispoDebut: '2026-10-15', dispoFin: '2026-11-30' }).toString();
+  assert.match(sql, /"statuts"\."code" = 'valide_pret_embauche'/);
+  // Borne basse : disponible dès lors que sa date de début (corrigée si présente, sinon
+  // déclarée) est NULLE (immédiate, jamais de borne basse) OU <= à la fin de la période filtrée.
+  assert.match(
+    sql,
+    /COALESCE\(disponibilite_corrigee\.date_debut, NULLIF\(bloc_disponibilites\.donnees->>'dateDebut', ''\)::date\) IS NULL/,
+  );
+  assert.match(sql, /<= '2026-11-30'/);
+  // Borne haute : la date de fin EFFECTIVE (correction ENTIÈRE si elle existe — CASE WHEN sur la
+  // présence d'une correction, jamais un COALESCE champ à champ, voir le commentaire du
+  // repository) doit être NULLE (pas de fin connue) OU >= au début de la période filtrée.
+  assert.match(sql, /CASE WHEN disponibilite_corrigee\.date_debut IS NOT NULL/);
+  assert.match(sql, />= '2026-10-15'/);
+});
+
+test('listerDossiers rejoint disponibilites_embauche_corrigees via LEFT JOIN LATERAL trié sur created_at DESC, id DESC (la plus récente correction fait foi)', () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, {}).toString();
+  assert.match(sql, /LEFT JOIN LATERAL[\s\S]*FROM disponibilites_embauche_corrigees c[\s\S]*ORDER BY c\.created_at DESC, c\.id DESC[\s\S]*LIMIT 1/);
+});
+
+test('listerDossiers caste les dates de correction en texte dans le SELECT (jamais un objet Date JS décalé par le fuseau)', () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, {}).toString();
+  assert.match(sql, /disponibilite_corrigee\.date_debut::text as disponibilite_corrigee_date_debut/);
+  assert.match(sql, /disponibilite_corrigee\.date_fin::text as disponibilite_corrigee_date_fin/);
+});

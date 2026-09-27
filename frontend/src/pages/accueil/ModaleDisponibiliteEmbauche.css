@@ -1,0 +1,139 @@
+/* Même patron que ModaleResultatFormation.css (SuiviFormation.jsx) : fond sous l'en-tête ACCECIT/
+   BarreNavigation plutôt qu'inset: 0, carte centrée via margin: auto. Monté depuis
+   TableauDeBordAccueil.jsx, toujours à l'intérieur d'un <PageBackOffice>. */
+.modale-disponibilite-embauche__fond {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-disponibilite-embauche {
+  margin: auto;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 30rem;
+  padding: 1.75rem;
+}
+
+.modale-disponibilite-embauche h2 {
+  margin: 0 0 0.5rem;
+  color: var(--couleur-back-office);
+}
+
+.modale-disponibilite-embauche > p {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+}
+
+.modale-disponibilite-embauche__accent {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+}
+
+/* Déclaration d'origine — LECTURE SEULE, encadré discret pour bien la distinguer des champs de
+   saisie du formulaire juste en dessous (demande utilisateur explicite : rester visible mais
+   jamais confondue avec un champ modifiable). */
+.modale-disponibilite-embauche__declaration {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 1.25rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+  font-size: 0.9rem;
+}
+
+.modale-disponibilite-embauche__declaration-titre {
+  font-weight: 600;
+  color: var(--couleur-texte-secondaire);
+}
+
+.modale-disponibilite-embauche form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-disponibilite-embauche label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--couleur-texte);
+}
+
+.modale-disponibilite-embauche__dates {
+  display: flex;
+  gap: var(--espace-moyen);
+}
+
+.modale-disponibilite-embauche__dates label {
+  flex: 1;
+}
+
+.modale-disponibilite-embauche input[type='date'],
+.modale-disponibilite-embauche textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.modale-disponibilite-embauche textarea {
+  resize: vertical;
+}
+
+.modale-disponibilite-embauche [role='alert'] {
+  margin: 0;
+  color: var(--couleur-erreur);
+  font-size: 0.9rem;
+}
+
+.modale-disponibilite-embauche__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+}
+
+.modale-disponibilite-embauche__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.modale-disponibilite-embauche__actions button[type='button'] {
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.modale-disponibilite-embauche__actions button[type='button']:hover:not(:disabled) {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.modale-disponibilite-embauche__actions button[type='submit'] {
+  border: 1px solid var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.modale-disponibilite-embauche__actions button[type='submit']:hover:not(:disabled) {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.modale-disponibilite-embauche__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

@@ -259,7 +259,14 @@ function mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche }) {
 // simple LEFT JOIN dupliquerait la ligne dossier pour chaque rendez-vous actif si jamais il y en
 // avait plusieurs. Formateur du même LATERAL (pas une jointure directe à `dossiers`) : ce n'est PAS
 // le formateur du dossier au sens large, seulement celui assigné à CE rendez-vous précis.
-function listerDossiers(bd, entiteId, { statutCode } = {}) {
+// dispoDebut/dispoFin (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche",
+// Dossiers candidats) : optionnels, TOUJOURS fournis ensemble par l'appelant (voir
+// dossierService.listerDossiers, la validation "les deux ou aucun" vit là, pas ici) — seule
+// requête de cette liste à filtrer par une notion propre à ACCECIT (valide_pret_embauche) plutôt
+// que par un simple statutCode générique, d'où ce paramètre dédié plutôt qu'une réutilisation de
+// statutCode. Filtrage EN SQL (pas client, contrairement au reste des filtres de cette page, voir
+// TableauDeBordAccueil.jsx) : demande utilisateur explicite.
+function listerDossiers(bd, entiteId, { statutCode, dispoDebut, dispoFin } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -289,6 +296,23 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
        ) AS rendezvous_actif ON true`,
     )
     .leftJoin('utilisateurs as formateur_actif', 'formateur_actif.id', 'rendezvous_actif.formateur_id')
+    // Dernière correction de disponibilité (migration 065) — LATERAL (pas un simple LEFT JOIN) :
+    // garantit AU PLUS UNE ligne par dossier même s'il en existe plusieurs (voir
+    // disponibiliteEmbaucheRepository.trouverDerniereCorrection, même tri created_at DESC, id DESC
+    // dupliqué ici plutôt que réutilisé — cette requête reste un simple SELECT, pas de dépendance
+    // vers un autre module de repository). Jointe pour TOUS les dossiers (pas seulement
+    // valide_pret_embauche) : peu coûteux, et évite de dupliquer cette requête une seconde fois
+    // uniquement pour le cas filtré.
+    .joinRaw(
+      `LEFT JOIN LATERAL (
+         SELECT c.date_debut, c.date_fin, c.commentaire, c.created_at, c.utilisateur_id
+         FROM disponibilites_embauche_corrigees c
+         WHERE c.dossier_id = dossiers.id
+         ORDER BY c.created_at DESC, c.id DESC
+         LIMIT 1
+       ) AS disponibilite_corrigee ON true`,
+    )
+    .leftJoin('utilisateurs as auteur_disponibilite_corrigee', 'auteur_disponibilite_corrigee.id', 'disponibilite_corrigee.utilisateur_id')
     .where('dossiers.entite_id', entiteId)
     .select(
       'dossiers.id',
@@ -304,11 +328,62 @@ function listerDossiers(bd, entiteId, { statutCode } = {}) {
       'rendezvous_actif.date_heure as rendezvous_test_date_heure',
       'formateur_actif.prenom as rendezvous_test_formateur_prenom',
       'formateur_actif.nom as rendezvous_test_formateur_nom',
+      // Castées en texte (`::text`) — les colonnes source sont de type `date` (migration 065) :
+      // sans ce cast, le driver `pg` les renverrait en objets Date JS (fuseau local), au risque
+      // d'un décalage d'un jour une fois sérialisées en JSON (même piège déjà documenté ailleurs
+      // dans ce projet, voir InformationsInscription.jsx/versDateInput). Le WHERE de chevauchement
+      // plus bas continue de référencer les colonnes natives `date` de la LATERAL (jamais ce
+      // cast), aucun impact sur la comparaison de dates elle-même.
+      bd.raw('disponibilite_corrigee.date_debut::text as disponibilite_corrigee_date_debut'),
+      bd.raw('disponibilite_corrigee.date_fin::text as disponibilite_corrigee_date_fin'),
+      'disponibilite_corrigee.commentaire as disponibilite_corrigee_commentaire',
+      'disponibilite_corrigee.created_at as disponibilite_corrigee_date',
+      'auteur_disponibilite_corrigee.prenom as disponibilite_corrigee_auteur_prenom',
+      'auteur_disponibilite_corrigee.nom as disponibilite_corrigee_auteur_nom',
     )
     .orderBy('dossiers.date_maj', 'desc');
 
   if (statutCode) {
     requete.andWhere('statuts.code', statutCode);
+  }
+
+  // Chevauchement disponibilité EFFECTIVE / période filtrée (audit 2026-09-28, décision
+  // utilisateur explicite) : l'effective est la correction si elle existe (whole-row : date_fin
+  // de la correction prévaut alors même si NULL — un agent qui laisse volontairement la fin vide
+  // ne doit jamais retomber sur la date de fin DÉCLARÉE), sinon la déclaration JSONB d'origine
+  // ('' -> NULL via NULLIF, "aucune date" = disponibilité immédiate ou fin inconnue selon le
+  // champ). `disponibilite_corrigee.date_debut IS NOT NULL` sert de marqueur fiable "une
+  // correction existe" (date_debut y est NOT NULL en base, donc NULL ici signifie uniquement
+  // "LATERAL n'a rien trouvé").
+  //
+  // Formule de chevauchement, décision utilisateur explicite : une disponibilité "immédiate"
+  // (effective_debut NULL, pas de borne basse) chevauche TOUJOURS la période, SAUF si sa date de
+  // fin est antérieure au début de la période filtrée — c'est exactement
+  // `effective_debut <= dispoFin` (trivialement vrai si NULL) ET
+  // `effective_fin >= dispoDebut` (trivialement vrai si NULL, donc "pas de fin connue" chevauche
+  // aussi toujours à partir de son début).
+  if (dispoDebut && dispoFin) {
+    requete.andWhere('statuts.code', 'valide_pret_embauche');
+    requete.andWhereRaw(
+      `
+      (
+        COALESCE(disponibilite_corrigee.date_debut, NULLIF(bloc_disponibilites.donnees->>'dateDebut', '')::date) IS NULL
+        OR COALESCE(disponibilite_corrigee.date_debut, NULLIF(bloc_disponibilites.donnees->>'dateDebut', '')::date) <= ?
+      )
+      AND
+      (
+        (CASE WHEN disponibilite_corrigee.date_debut IS NOT NULL
+           THEN disponibilite_corrigee.date_fin
+           ELSE NULLIF(bloc_disponibilites.donnees->>'dateFin', '')::date
+         END) IS NULL
+        OR (CASE WHEN disponibilite_corrigee.date_debut IS NOT NULL
+              THEN disponibilite_corrigee.date_fin
+              ELSE NULLIF(bloc_disponibilites.donnees->>'dateFin', '')::date
+            END) >= ?
+      )
+      `,
+      [dispoFin, dispoDebut],
+    );
   }
 
   return requete;

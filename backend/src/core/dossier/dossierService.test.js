@@ -420,3 +420,54 @@ test("obtenirDossier expose statutForce=false (jamais null) quand le dossier n'a
 
   assert.equal(dossier.statutForce, false);
 });
+
+// calculerDisponibiliteEffective (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
+// l'embauche") — fonction pure, aucun mock nécessaire.
+test('calculerDisponibiliteEffective : sans correction, disponibilite immédiate déclarée -> dateDebut null (jamais de date, même vide)', () => {
+  const effective = dossierService.calculerDisponibiliteEffective(
+    { disponibiliteImmediate: true, dateDebut: '', dateFin: '' },
+    null,
+  );
+  assert.deepEqual(effective, { dateDebut: null, dateFin: null, corrigee: false, correction: null });
+});
+
+test('calculerDisponibiliteEffective : sans correction, date de début déclarée, pas de date de fin', () => {
+  const effective = dossierService.calculerDisponibiliteEffective(
+    { disponibiliteImmediate: false, dateDebut: '2026-10-15', dateFin: '' },
+    null,
+  );
+  assert.deepEqual(effective, { dateDebut: '2026-10-15', dateFin: null, corrigee: false, correction: null });
+});
+
+test('calculerDisponibiliteEffective : sans correction, date de début ET de fin déclarées', () => {
+  const effective = dossierService.calculerDisponibiliteEffective(
+    { disponibiliteImmediate: false, dateDebut: '2026-10-15', dateFin: '2026-11-30' },
+    null,
+  );
+  assert.deepEqual(effective, { dateDebut: '2026-10-15', dateFin: '2026-11-30', corrigee: false, correction: null });
+});
+
+// La correction fait foi ENTIÈREMENT (jamais un mélange champ à champ avec la déclaration) — même
+// si la déclaration d'origine portait une date de fin, une correction SANS date de fin doit
+// rendre une disponibilité effective SANS date de fin (pas celle, différente, de la déclaration).
+test('calculerDisponibiliteEffective : une correction sans date de fin ne retombe JAMAIS sur la date de fin déclarée', () => {
+  const effective = dossierService.calculerDisponibiliteEffective(
+    { disponibiliteImmediate: false, dateDebut: '2026-01-01', dateFin: '2026-02-01' },
+    { dateDebut: '2026-10-15', dateFin: null, commentaire: 'Confirmé par téléphone', auteurPrenom: 'Awa', auteurNom: 'Diallo', date: '2026-09-28T10:00:00.000Z' },
+  );
+  assert.deepEqual(effective, {
+    dateDebut: '2026-10-15',
+    dateFin: null,
+    corrigee: true,
+    correction: { commentaire: 'Confirmé par téléphone', auteurPrenom: 'Awa', auteurNom: 'Diallo', date: '2026-09-28T10:00:00.000Z' },
+  });
+});
+
+test('calculerDisponibiliteEffective : une correction a TOUJOURS une date de début concrète, jamais "immédiate" (dateDebut jamais null si corrigée)', () => {
+  const effective = dossierService.calculerDisponibiliteEffective(
+    { disponibiliteImmediate: true, dateDebut: '', dateFin: '' },
+    { dateDebut: '2026-09-28', dateFin: '2026-12-31', commentaire: 'RAS', auteurPrenom: 'Awa', auteurNom: 'Diallo', date: '2026-09-28T10:00:00.000Z' },
+  );
+  assert.equal(effective.dateDebut, '2026-09-28');
+  assert.notEqual(effective.dateDebut, null);
+});

@@ -25,29 +25,37 @@
   color: var(--couleur-erreur);
 }
 
+/* Ligne "Expérience + Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28, demande
+   utilisateur explicite) — les deux boîtes (chacune sa propre `.filtres-statut__statuts`) côte à
+   côte, Expérience réduite à son contenu (flex: 0 0 auto ci-dessous), Disponibilité prenant le
+   reste de la largeur (flex: 1, voir plus bas). margin-top/-bottom PORTÉS ICI (pas sur chaque
+   boîte individuellement, contrairement à avant cet ajout) : un seul point de contrôle pour
+   l'écart avant/après cette LIGNE entière — mêmes valeurs (var(--espace-petit)) qu'avant, pour
+   rester identiques à l'écart déjà en place avec la barre de recherche au-dessus et le tableau en
+   dessous (audit 2026-09-27). */
+.tableau-bord-accueil__ligne-experience-disponibilite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--espace-moyen);
+  margin-top: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+}
+
 /* Filtre "Expérience" (audit 2026-09-02, refonte visuelle en badges) — réutilise directement
    .filtres-statut__statuts (FiltresStatut.css : boîte ivoire, boutons pilule, wrap) pour que cette
    rangée de badges se lise comme une extension naturelle de la barre de filtres juste en dessous,
    pas comme un composant isolé.
-   margin-top/-bottom ALIGNÉS (audit 2026-09-27, demande utilisateur explicite : "même écart entre
-   la barre de recherche et le panneau Expérience qu'entre le panneau Expérience et le tableau") —
-   corrige margin-top: var(--espace-moyen) (1rem, datant du panneau "Plus de filtres" disparu,
-   audit 2026-09-11) qui ne correspondait plus à margin-bottom: var(--espace-petit) (0.5rem) : un
-   écart du double au-dessus par rapport à en dessous. Les deux valent désormais var(--espace-petit), la
-   même que .filtres-recherche-dossiers (FiltresRechercheDossiers.css) juste au-dessus — écart
-   identique des deux côtés de ce bloc.
-   padding vertical resserré (demande utilisateur explicite : "réduis sa marge intérieure
-   verticale... hauteur ajustée à cette ligne, comparable à celle de la barre de recherche") —
-   .filtres-statut__statuts (FiltresStatut.css) pose padding: var(--espace-petit) UNIFORME (0.5rem
-   haut/bas ET gauche/droite) ; seul le vertical est réduit ici, l'horizontal reste inchangé.
-   0 (resserré une 4e fois, même jour — 0.3rem, puis 0.15rem, puis 0.05rem jugés encore
-   insuffisants à l'écran) : PLUS aucune marge propre à la boîte, son bord haut/bas touche
-   désormais directement le bord haut/bas des badges/du titre qu'elle contient — la hauteur de
-   cette boîte est donc entièrement celle de son contenu (padding vertical des boutons,
-   .filtres-statut__statuts button, FiltresStatut.css — inchangé, hors périmètre de cette
-   demande : "sans changer la taille des boutons"). Plancher atteint pour ce levier précis :
-   au-delà, seule la réduction du padding DES BOUTONS eux-mêmes ferait encore baisser la hauteur
-   totale, ce que cette page n'a pas demandé de toucher.
+   padding vertical resserré à 0 (plusieurs resserrements successifs, audit 2026-09-27, demande
+   utilisateur explicite) : PLUS aucune marge propre à la boîte, sa hauteur est entièrement celle
+   de son contenu (padding vertical des boutons, .filtres-statut__statuts button, FiltresStatut.css
+   — inchangé, hors périmètre : "sans changer la taille des boutons").
+   flex: 0 0 auto (audit 2026-09-28, demande utilisateur explicite : "réduis sa largeur à son
+   contenu") — remplace le flex: 1 hérité de .filtres-statut__statuts (FiltresStatut.css, pensé
+   pour un usage en pleine largeur) : cette boîte se limite désormais à la largeur de son contenu
+   (titre + 4 badges), laissant le reste de la ligne au bloc "Disponibilité" juste à sa droite
+   (flex: 1, voir plus bas) — SANS EFFET tant que le parent n'était pas un flex container (avant
+   cet ajout, .tableau-bord-accueil__filtres-experience vivait seule, flex: 1 restait inerte).
    `.tableau-bord-accueil__filtres-experience.filtres-statut__statuts` (2 classes sur ce même
    élément, voir TableauDeBordAccueil.jsx) plutôt qu'une seule : la règle générique ci-dessus a
    elle aussi 1 classe de spécificité, un simple `.tableau-bord-accueil__filtres-experience { ... }`
@@ -56,11 +64,7 @@
 .tableau-bord-accueil__filtres-experience.filtres-statut__statuts {
   padding-top: 0;
   padding-bottom: 0;
-}
-
-.tableau-bord-accueil__filtres-experience {
-  margin-bottom: var(--espace-petit);
-  margin-top: var(--espace-petit);
+  flex: 0 0 auto;
 }
 
 /* Titre "Expérience" à l'intérieur du cadre (audit 2026-09-02, 3e passe : de retour EN LIGNE avec
@@ -144,6 +148,153 @@
   background-color: var(--couleur-back-office);
   border-color: var(--couleur-back-office);
   color: #ffffff;
+}
+
+/* Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28, 2e ajustement de
+   mise en page le même jour — demande utilisateur explicite : "le libellé touche le bloc
+   Expérience et le bouton Effacer dépasse du panneau à droite") — même boîte ivoire que
+   "Expérience" à sa gauche (.filtres-statut__statuts, FiltresStatut.css).
+   flex: 1; min-width: 0 (demande utilisateur explicite point 4, REMPLACE le choix du 1er
+   ajustement — "aucun min-width: 0", volontairement — qui reposait sur une hypothèse erronée :
+   la cause réelle du débordement n'était pas une décision de wrap ratée, mais un CONTENU bien
+   trop large — libellé complet non abrégé, champs date larges, boutons grassement paddés —
+   simplement plus large que le panneau entier, y compris seul sur sa propre ligne après un wrap.
+   min-width: 0 laisse ce bloc se dimensionner correctement dans la ligne aux côtés d'Expérience
+   (flex: 0 0 auto, largeur fixe) plutôt que de forcer un dépassement ; le contenu est désormais
+   rendu compact (libellé raccourci, champs/boutons resserrés, voir plus bas) pour tenir dans
+   l'espace ainsi restant, y compris seul sur sa ligne si .tableau-bord-accueil__ligne-experience-
+   disponibilite (le parent, flex-wrap: wrap, inchangé) fait encore passer ce bloc entier en
+   dessous d'Expérience sur un panneau vraiment étroit (point 5, toujours garanti par ce
+   flex-wrap parent — inchangé depuis le 1er ajustement). padding vertical resserré à 0, même
+   raison que "Expérience" (même hauteur, demande utilisateur explicite point 6, 1er ajustement,
+   inchangé). */
+.tableau-bord-accueil__filtre-disponibilite-embauche.filtres-statut__statuts {
+  padding-top: 0;
+  padding-bottom: 0;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+/* Titre raccourci (demande utilisateur explicite point 1 : "Disponibilité (prêts à l'embauche)",
+   voir TableauDeBordAccueil.jsx — l'aria-label du groupe garde le texte complet) — sinon même
+   style que .tableau-bord-accueil__filtres-experience-titre (gras, sans fond ni bordure, curseur
+   par défaut). white-space: nowrap : ce texte, même raccourci, ne doit jamais se replier sur
+   plusieurs lignes en interne — flex-shrink: 0 l'empêche aussi d'être compressé par les champs
+   voisins (voir .tableau-bord-accueil__filtre-disponibilite-embauche-champs, qui absorbe seule la
+   compression via min-width: 0). */
+.tableau-bord-accueil__filtre-disponibilite-embauche-titre {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--couleur-texte);
+  background: none;
+  border: none;
+  cursor: default;
+  white-space: nowrap;
+}
+
+/* Champs "Du"/"Au" + boutons "Appliquer"/"Effacer", tous sur une seule ligne (flex-wrap: nowrap,
+   inchangé depuis le 1er ajustement) — min-width: 0 (nouveau) : c'est CE conteneur, pas la boîte
+   elle-même, qui doit accepter de rétrécir en priorité si la ligne est vraiment serrée (le titre,
+   lui, garde flex-shrink: 0 ci-dessus, jamais compressé). justify-content: flex-start : les
+   éléments s'enchaînent immédiatement après le titre, espacement régulier (var(--espace-petit)) et
+   identique entre chaque paire d'éléments, à l'intérieur de ce bloc comme dans celui d'Expérience
+   (même valeur de gap dans les deux, demande utilisateur explicite point 4). */
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--espace-petit);
+}
+
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs label {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* Champs date COMPACTS (demande utilisateur explicite point 2 : "largeur ajustée au format
+   jj/mm/aaaa et à l'icône du calendrier, sans espace superflu") — 7.75rem (repli depuis 9.5rem) :
+   valeur mesurée pour tenir la date affichée + l'icône native du picker sans le vide qui
+   subsistait avant, testée sur les navigateurs courants (Chrome/Edge/Firefox, rendu Chromium de la
+   tablette de production). padding horizontal resserré (0.6rem -> 0.4rem) en cohérence. Largeur
+   FIXE et IDENTIQUE pour les deux champs (inchangé, demande utilisateur explicite, 1er ajustement).
+   height/box-sizing inchangés (1er ajustement) : toujours la même hauteur que les boutons
+   ci-dessous. */
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs input[type='date'] {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 7.75rem;
+  height: 2.1rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+/* "Appliquer"/"Effacer" COMPACTS (demande utilisateur explicite point 3 : "même espacement
+   interne que les boutons de filtre") — padding/font-size repris tels quels de
+   .filtres-statut__statuts button (FiltresStatut.css, boutons de statut compacts de ce même
+   panneau : 0.5rem 0.6rem, 0.85rem), remplace le padding plus généreux du 1er ajustement
+   (0 0.9rem, hauteur imposée séparément). height/box-sizing inchangés (même hauteur que les
+   champs date ci-dessus, demande utilisateur explicite, 1er ajustement) — le padding vertical
+   n'a donc plus d'effet réel sur la hauteur (déjà fixée), seul le padding horizontal compte ici
+   pour la largeur du bouton. */
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs button {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: 2.1rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* "Appliquer" — plein/affirmé (même langage que les boutons d'action de cette page). */
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs button:first-of-type {
+  border: 1px solid var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs button:first-of-type:not(:disabled):hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
+/* "Effacer" — SECONDAIRE et DISCRET (demande utilisateur explicite point 5) : contour et texte
+   atténués (--couleur-bordure-legere/--couleur-texte-secondaire, pas la paire "franche" utilisée
+   ailleurs pour un bouton neutre), poids normal (pas 600 comme "Appliquer") — se lit comme une
+   action secondaire/de réinitialisation, jamais au même niveau que "Appliquer". */
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs button:last-of-type {
+  border: 1px solid var(--couleur-bordure-legere);
+  background-color: transparent;
+  color: var(--couleur-texte-secondaire);
+  font-weight: 400;
+}
+
+.tableau-bord-accueil__filtre-disponibilite-embauche-champs button:last-of-type:not(:disabled):hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+/* Mention "(corrigé)" — discrète (demande utilisateur explicite point B3), jamais dans le texte
+   principal du bouton "Dispo : ...", voir sousBadgeStatutDisponibilite (TableauDeBordAccueil.jsx). */
+.tableau-bord-accueil__dispo-corrigee {
+  font-style: italic;
+  color: var(--couleur-texte-secondaire);
 }
 
 /* Bloc de gauche (refonte 2026-08-23) : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire côte
@@ -231,8 +382,15 @@
    juste en dessous réutilise LITTÉRALEMENT la même classe .filtres-statut__statuts (voir son
    propre commentaire plus haut) — sans cette exclusion, cette grille s'appliquerait aussi à elle
    (seulement 4 badges, structure différente — titre + bloc badges, pas des boutons en enfants
-   directs — aucun besoin ni sens à une grille à 6 colonnes ici). */
-.tableau-bord-accueil .filtres-statut__statuts:not(.tableau-bord-accueil__filtres-experience) {
+   directs — aucun besoin ni sens à une grille à 6 colonnes ici).
+   :not(.tableau-bord-accueil__filtre-disponibilite-embauche) (audit 2026-09-28) : même raison,
+   cette boîte-là réutilise elle aussi LITTÉRALEMENT .filtres-statut__statuts (deux champs de date
+   + deux boutons, structure encore différente — aucun besoin ni sens à une grille à 6 colonnes ici
+   non plus). */
+.tableau-bord-accueil
+  .filtres-statut__statuts:not(.tableau-bord-accueil__filtres-experience):not(
+    .tableau-bord-accueil__filtre-disponibilite-embauche
+  ) {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }

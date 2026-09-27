@@ -65,3 +65,25 @@ test('POST /transitions (garde générique) : Inspecteur GARDE l\'accès (ROLES_
   assert.equal(nextAppele, true);
   assert.equal(res.statutEnvoye, null);
 });
+
+// POST /dossiers/:dossierId/disponibilite-embauche (audit 2026-09-28, correction de
+// disponibilité "Validé - prêt à l'embauche") — réutilise ROLES_MODIFICATION_INSCRIPTION (demande
+// utilisateur explicite), voir dossiers.routes.js pour l'export de cette constante.
+test('POST /dossiers/:dossierId/disponibilite-embauche : Formateur et Inspecteur reçoivent 403', () => {
+  const middleware = requireRole(...dossiersRouter.ROLES_MODIFICATION_INSCRIPTION);
+  for (const roleCode of ['formateur', 'inspecteur']) {
+    const { nextAppele, res } = appelerMiddleware(middleware, roleCode);
+    assert.equal(nextAppele, false, `${roleCode} devrait être refusé`);
+    assert.equal(res.statutEnvoye, 403);
+    assert.deepEqual(res.corpsEnvoye, { erreur: 'Rôle insuffisant pour cette action.' });
+  }
+});
+
+test('POST /dossiers/:dossierId/disponibilite-embauche : Accueil/Coordination, Planning et Admin sont acceptés', () => {
+  const middleware = requireRole(...dossiersRouter.ROLES_MODIFICATION_INSCRIPTION);
+  for (const roleCode of ['accueil_coordination', 'planning', 'admin']) {
+    const { nextAppele, res } = appelerMiddleware(middleware, roleCode);
+    assert.equal(nextAppele, true, `${roleCode} devrait être accepté`);
+    assert.equal(res.statutEnvoye, null);
+  }
+});

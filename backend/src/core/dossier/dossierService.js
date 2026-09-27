@@ -469,6 +469,34 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
   return !candidatExistant;
 }
 
+// Disponibilité EFFECTIVE (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
+// l'embauche") — la correction fait foi ENTIÈREMENT si elle existe (jamais un mélange champ par
+// champ avec la déclaration : une correction sans date de fin signifie "volontairement sans fin
+// connue", pas "reprendre la fin déclarée"), sinon la déclaration d'origine du bloc
+// 'disponibilites'. `dateDebut: null` signifie "immédiate" (déclaration) — une correction, elle,
+// a TOUJOURS une date de début réelle (voir disponibiliteEmbaucheService, jamais "immédiate").
+function calculerDisponibiliteEffective(donneesDeclarees, correction) {
+  if (correction) {
+    return {
+      dateDebut: correction.dateDebut,
+      dateFin: correction.dateFin ?? null,
+      corrigee: true,
+      correction: {
+        commentaire: correction.commentaire,
+        auteurPrenom: correction.auteurPrenom,
+        auteurNom: correction.auteurNom,
+        date: correction.date,
+      },
+    };
+  }
+  return {
+    dateDebut: donneesDeclarees?.disponibiliteImmediate ? null : donneesDeclarees?.dateDebut || null,
+    dateFin: donneesDeclarees?.dateFin || null,
+    corrigee: false,
+    correction: null,
+  };
+}
+
 // Postes recherchés exposés à plat (postesBureau/postesHotel) pour la colonne "Poste" des
 // tableaux de bord — même patron que evaluationEngine.listerRendezvousAEvaluer, qui fait la même
 // extraction depuis le même bloc 'disponibilites' (voir dossierRepository.listerDossiers).
@@ -478,9 +506,14 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
 // pas encore été rempli (dossier tout juste créé).
 // candidat_code_postal (audit 2026-09-09) : même bloc 'coordonnees' déjà joint, même patron que
 // candidat_telephone/candidat_email juste au-dessus — colonne "Code postal" de DossierList.jsx.
-async function listerDossiers(entite, { statutCode } = {}) {
+//
+// dispoDebut/dispoFin (audit 2026-09-28) : optionnels, filtrage SERVEUR (voir
+// dossierRepository.listerDossiers) — LES DEUX ou AUCUN, jamais un seul (une période a besoin de
+// ses deux bornes pour avoir un sens ; voir dossiers.routes.js pour la validation zod qui rejette
+// explicitement un seul des deux avec un 400).
+async function listerDossiers(entite, { statutCode, dispoDebut, dispoFin } = {}) {
   const bd = await obtenirKnex();
-  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode });
+  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut, dispoFin });
   return dossiers.map(
     ({
       donnees_disponibilites,
@@ -488,6 +521,12 @@ async function listerDossiers(entite, { statutCode } = {}) {
       rendezvous_test_date_heure,
       rendezvous_test_formateur_prenom,
       rendezvous_test_formateur_nom,
+      disponibilite_corrigee_date_debut,
+      disponibilite_corrigee_date_fin,
+      disponibilite_corrigee_commentaire,
+      disponibilite_corrigee_date,
+      disponibilite_corrigee_auteur_prenom,
+      disponibilite_corrigee_auteur_nom,
       ...reste
     }) => ({
       ...reste,
@@ -511,6 +550,22 @@ async function listerDossiers(entite, { statutCode } = {}) {
             formateurNom: rendezvous_test_formateur_nom,
           }
         : null,
+      // Déclaration d'origine (audit 2026-09-28) — affichée en lecture seule dans la fenêtre de
+      // correction (ModaleDisponibiliteEmbauche.jsx) : jamais modifiée par ce module, voir
+      // disponibiliteEmbaucheService.js.
+      disponibiliteDeclaree: {
+        disponibiliteImmediate: donnees_disponibilites?.disponibiliteImmediate ?? true,
+        dateDebut: donnees_disponibilites?.dateDebut || null,
+        dateFin: donnees_disponibilites?.dateFin || null,
+      },
+      disponibiliteEffective: calculerDisponibiliteEffective(donnees_disponibilites, disponibilite_corrigee_date_debut ? {
+        dateDebut: disponibilite_corrigee_date_debut,
+        dateFin: disponibilite_corrigee_date_fin,
+        commentaire: disponibilite_corrigee_commentaire,
+        auteurPrenom: disponibilite_corrigee_auteur_prenom,
+        auteurNom: disponibilite_corrigee_auteur_nom,
+        date: disponibilite_corrigee_date,
+      } : null),
     }),
   );
 }
@@ -892,4 +947,8 @@ module.exports = {
   obtenirInscriptionComplete,
   modifierInscription,
   ErreurInscriptionConflit,
+  // Exportée pour test direct (dossierService.test.js) — logique métier pure (audit 2026-09-28,
+  // filtre "Disponibilité des candidats prêts à l'embauche"), pas seulement un détail interne de
+  // listerDossiers.
+  calculerDisponibiliteEffective,
 };

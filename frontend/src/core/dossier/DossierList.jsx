@@ -120,6 +120,14 @@ const COLONNES = [
 // fourni (undefined), la colonne "Statut" se rend à l'identique d'avant, aucune régression pour un
 // futur appelant qui n'en aurait pas besoin.
 //
+// `sousBadgeStatut(dossier)` (audit 2026-09-28) : même principe d'externalisation, mais un
+// ReactNode CLIQUABLE affiché SOUS le badge (pas une infobulle au survol) — aujourd'hui, le bouton
+// "Dispo : ..." du filtre "Disponibilité des candidats prêts à l'embauche"
+// (TableauDeBordAccueil.jsx), propre à ACCECIT, ce composant générique ne sait pas non plus ce
+// qui le justifie. `null`/`undefined` (valeur falsy) pour ne rien rendre sous ce badge précis —
+// l'appelant décide ligne par ligne (typiquement, seulement les dossiers "Validé - prêt à
+// l'embauche" quand ce filtre est actif), pas ce composant.
+//
 // Tri entièrement client, sur la liste déjà reçue (déjà filtrée par statut/recherche/date par
 // l'appelant, voir TableauDeBordAccueil.jsx/Backoffice.jsx) : ni l'une ni l'autre des deux pages
 // qui utilisent ce composant ne pagine côté serveur, un paramètre de tri sur GET /api/dossiers
@@ -142,6 +150,7 @@ export default function DossierList({
   libelleExperience,
   varianteExperience,
   infoBulleStatut,
+  sousBadgeStatut,
   actions = [],
   dossiersSelectionnes,
   onTogglerSelectionDossier,
@@ -263,6 +272,7 @@ export default function DossierList({
             // Calculé une seule fois par ligne (pas une fois pour le test de présence, une autre
             // pour le contenu) — voir le rendu de la colonne "Statut" plus bas.
             const infoBulle = infoBulleStatut?.(dossier);
+            const sousBadge = sousBadgeStatut?.(dossier);
             return (
             <tr key={dossier.id}>
               {selectionActive && (
@@ -338,6 +348,7 @@ export default function DossierList({
                     </span>
                   )}
                 </span>
+                {sousBadge && <div className="dossier-list__sous-badge-statut">{sousBadge}</div>}
               </td>
               {/* Colonne "Dernière mise à jour" retirée du visuel (demande utilisateur
                   2026-09-10) — dossier.date_maj reste utilisé pour le tri par défaut (voir COLONNES_MASQUEES
