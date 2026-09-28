@@ -121,6 +121,42 @@ test('corrigerDisponibiliteEmbauche accepte une date de fin absente (disponibili
   assert.equal(enregistrerCorrectionMock.mock.calls[0].arguments[1].dateFin, null);
 });
 
+// Bug 2026-09-28 : le front envoie explicitement `dateFin: null` (jamais un simple champ absent,
+// voir ModaleDisponibiliteEmbauche.jsx) quand le champ « Jusqu'au » est laissé vide — un schéma
+// avec seulement `.optional()` (qui n'accepte que `undefined`, pas `null`) rejetait ce cas
+// pourtant valide avec un ZodError, d'où le « Données invalides » au clic sur « Enregistrer »
+// sans date de fin. Ce test couvre précisément ce cas, distinct du `dateFin: ''` déjà couvert
+// ci-dessus.
+test('corrigerDisponibiliteEmbauche accepte dateFin: null (forme réellement envoyée par le front pour un champ vide)', async (t) => {
+  mockerKnex(t);
+  const { enregistrerCorrectionMock } = mockerDependancesBase(t);
+
+  await disponibiliteEmbaucheService.corrigerDisponibiliteEmbauche(
+    ENTITE,
+    128,
+    { dateDebut: '2026-10-15', dateFin: null, commentaire: 'Pas de fin connue' },
+    { utilisateurId: 9, adresseIp: '127.0.0.1' },
+  );
+  assert.equal(enregistrerCorrectionMock.mock.calls[0].arguments[1].dateFin, null);
+});
+
+// Troisième forme possible ("ou omise", cf. point 2 de la demande) : la clé dateFin n'existe
+// carrément pas dans le corps reçu — cas déjà couvert indirectement par `.optional()`, mais
+// vérifié explicitement ici pour ne pas dépendre implicitement du comportement des deux tests
+// voisins (chaîne vide / null).
+test('corrigerDisponibiliteEmbauche accepte un champ dateFin totalement absent du corps reçu', async (t) => {
+  mockerKnex(t);
+  const { enregistrerCorrectionMock } = mockerDependancesBase(t);
+
+  await disponibiliteEmbaucheService.corrigerDisponibiliteEmbauche(
+    ENTITE,
+    128,
+    { dateDebut: '2026-10-15', commentaire: 'Pas de fin connue' },
+    { utilisateurId: 9, adresseIp: '127.0.0.1' },
+  );
+  assert.equal(enregistrerCorrectionMock.mock.calls[0].arguments[1].dateFin, null);
+});
+
 test("corrigerDisponibiliteEmbauche rejette un dossier qui n'est pas au statut valide_pret_embauche", async (t) => {
   mockerKnex(t);
   mockerDependancesBase(t, {

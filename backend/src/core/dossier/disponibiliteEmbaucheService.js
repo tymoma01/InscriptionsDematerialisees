@@ -25,12 +25,18 @@ const schemaCorrection = z
       .string()
       .trim()
       .regex(REGEX_DATE_ISO, 'La date de début est obligatoire (AAAA-MM-JJ).'),
+    // `.nullable()` en plus de `.optional()` (bug 2026-09-28) : le front envoie explicitement
+    // `dateFin: null` en JSON quand le champ est laissé vide (voir ModaleDisponibiliteEmbauche.jsx),
+    // jamais un simple champ absent — or `.optional()` seul n'accepte que `undefined`, pas `null`
+    // (distinction Zod classique), ce qui faisait échouer .parse() avec un ZodError sur un cas
+    // pourtant parfaitement valide ("pas de date de fin"). Les trois formes (absente, null, chaîne
+    // vide) sont désormais acceptées et normalisées en `null`.
     dateFin: z
       .string()
       .trim()
+      .nullable()
       .optional()
-      .default('')
-      .transform((valeur) => (valeur === '' ? null : valeur))
+      .transform((valeur) => (valeur ? valeur : null))
       .refine((valeur) => valeur === null || REGEX_DATE_ISO.test(valeur), {
         message: 'Date de fin invalide (AAAA-MM-JJ).',
       }),

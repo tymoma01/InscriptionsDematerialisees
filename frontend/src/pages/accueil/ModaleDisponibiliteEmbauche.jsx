@@ -53,9 +53,16 @@ export default function ModaleDisponibiliteEmbauche({ dossier, onConfirmer, onAn
     onConfirmer({ dateDebut, dateFin: dateFin || null, commentaire: commentaire.trim() });
   };
 
-  const declarationTexte = disponibiliteDeclaree?.disponibiliteImmediate
-    ? 'Immédiate'
-    : `Du ${formaterDate(disponibiliteDeclaree?.dateDebut)}${disponibiliteDeclaree?.dateFin ? ` au ${formaterDate(disponibiliteDeclaree.dateFin)}` : ' (sans date de fin précisée)'}`;
+  // "Non renseignée" (ajustement 2026-09-28) : distincte d'"Immédiate" — un dossier n'ayant
+  // STRICTEMENT aucun bloc 'disponibilites' enregistré (voir dossierService.js,
+  // disponibiliteDeclaree.nonRenseignee) n'a pas déclaré "immédiate", il n'a simplement rien
+  // déclaré du tout ; sans cette distinction, disponibiliteDeclaree.disponibiliteImmediate
+  // retombait sur `true` par défaut même en l'absence totale de déclaration.
+  const declarationTexte = disponibiliteDeclaree?.nonRenseignee
+    ? 'Non renseignée'
+    : disponibiliteDeclaree?.disponibiliteImmediate
+      ? 'Immédiate'
+      : `Du ${formaterDate(disponibiliteDeclaree?.dateDebut)}${disponibiliteDeclaree?.dateFin ? ` au ${formaterDate(disponibiliteDeclaree.dateFin)}` : ' (sans date de fin précisée)'}`;
 
   return (
     <div className="modale-disponibilite-embauche__fond">

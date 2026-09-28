@@ -475,12 +475,22 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
 // connue", pas "reprendre la fin déclarée"), sinon la déclaration d'origine du bloc
 // 'disponibilites'. `dateDebut: null` signifie "immédiate" (déclaration) — une correction, elle,
 // a TOUJOURS une date de début réelle (voir disponibiliteEmbaucheService, jamais "immédiate").
+// `nonRenseignee` (audit 2026-09-28, ajustement affichage colonne "Statut") — corrige une
+// confusion : SANS ce champ, un dossier n'ayant STRICTEMENT AUCUN bloc 'disponibilites' enregistré
+// (donneesDeclarees null, dossier créé avant que ce bloc n'existe, ou jamais rempli) retombait
+// sur EXACTEMENT le même { dateDebut: null, dateFin: null } qu'une disponibilité réellement
+// déclarée "immédiate, sans date de fin" — impossible de distinguer les deux côté front,
+// affichait "immédiate" dans les deux cas alors qu'aucune déclaration n'existe dans le second.
+// `nonRenseignee: true` UNIQUEMENT quand donneesDeclarees est absent ET qu'aucune correction
+// n'existe (une correction, elle, renseigne TOUJOURS une date de début concrète — jamais
+// "non renseignée" une fois corrigée, voir le premier bloc if ci-dessous).
 function calculerDisponibiliteEffective(donneesDeclarees, correction) {
   if (correction) {
     return {
       dateDebut: correction.dateDebut,
       dateFin: correction.dateFin ?? null,
       corrigee: true,
+      nonRenseignee: false,
       correction: {
         commentaire: correction.commentaire,
         auteurPrenom: correction.auteurPrenom,
@@ -489,10 +499,14 @@ function calculerDisponibiliteEffective(donneesDeclarees, correction) {
       },
     };
   }
+  if (!donneesDeclarees) {
+    return { dateDebut: null, dateFin: null, corrigee: false, nonRenseignee: true, correction: null };
+  }
   return {
-    dateDebut: donneesDeclarees?.disponibiliteImmediate ? null : donneesDeclarees?.dateDebut || null,
-    dateFin: donneesDeclarees?.dateFin || null,
+    dateDebut: donneesDeclarees.disponibiliteImmediate ? null : donneesDeclarees.dateDebut || null,
+    dateFin: donneesDeclarees.dateFin || null,
     corrigee: false,
+    nonRenseignee: false,
     correction: null,
   };
 }
@@ -553,7 +567,12 @@ async function listerDossiers(entite, { statutCode, dispoDebut, dispoFin } = {})
       // Déclaration d'origine (audit 2026-09-28) — affichée en lecture seule dans la fenêtre de
       // correction (ModaleDisponibiliteEmbauche.jsx) : jamais modifiée par ce module, voir
       // disponibiliteEmbaucheService.js.
+      // nonRenseignee (audit 2026-09-28) : même raison que calculerDisponibiliteEffective
+      // ci-dessus — sans ce champ, disponibiliteImmediate retombait sur `true` par défaut
+      // (`?? true`) même en l'ABSENCE totale de bloc 'disponibilites', affichant à tort
+      // "Immédiate" dans la fenêtre de correction pour un dossier n'ayant jamais rien déclaré.
       disponibiliteDeclaree: {
+        nonRenseignee: !donnees_disponibilites,
         disponibiliteImmediate: donnees_disponibilites?.disponibiliteImmediate ?? true,
         dateDebut: donnees_disponibilites?.dateDebut || null,
         dateFin: donnees_disponibilites?.dateFin || null,

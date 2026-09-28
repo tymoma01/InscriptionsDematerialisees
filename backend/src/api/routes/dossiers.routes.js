@@ -541,7 +541,13 @@ router.post(
       res.status(201).json(correction);
     } catch (erreur) {
       if (erreur instanceof z.ZodError) {
-        return res.status(400).json({ erreur: 'Données invalides.', details: erreur.flatten() });
+        // Message précis lié au champ en cause plutôt que le générique "Données invalides."
+        // (bug 2026-09-28) : schemaCorrection porte déjà un message explicite sur chaque règle
+        // (date de début obligatoire, date de fin invalide/antérieure, commentaire obligatoire),
+        // ne pas les jeter au profit d'un message plat — `erreur.errors[0]` est le premier échec
+        // rencontré par Zod, suffisant ici vu qu'un seul champ est en cause à la fois dans ce
+        // formulaire.
+        return res.status(400).json({ erreur: erreur.errors[0]?.message ?? 'Données invalides.', details: erreur.flatten() });
       }
       if (erreur instanceof disponibiliteEmbaucheService.ErreurDisponibiliteEmbaucheInvalide) {
         return res.status(400).json({ erreur: erreur.message });

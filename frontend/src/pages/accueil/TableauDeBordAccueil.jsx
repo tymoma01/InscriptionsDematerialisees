@@ -8,6 +8,7 @@ import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
+import { ROLES_ACCUEIL } from '../../core/auth/rolesGroupes';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -131,6 +132,16 @@ function formaterDateCourte(valeurIso) {
   return `${jour}/${mois}`;
 }
 
+// Rôles autorisés à CORRIGER la disponibilité (audit 2026-09-28, demande utilisateur explicite
+// point 5) — même liste que ROLES_MODIFICATION_INSCRIPTION côté back
+// (backend/src/api/routes/dossiers.routes.js, route POST /:dossierId/disponibilite-embauche),
+// dupliquée plutôt que partagée (CLAUDE.md, conventions du projet) : les deux doivent rester en
+// phase manuellement si cette liste change. Les autres rôles (Formateur/Inspecteur) voient le
+// même bouton "Dispo : ..." en LECTURE SEULE (voir sousBadgeStatutDisponibilite plus bas) — la
+// vraie barrière reste côté serveur (403, déjà vérifié par les tests backend), masquer le clic ici
+// n'est qu'un confort d'affichage.
+const ROLES_MODIFICATION_DISPONIBILITE = [...ROLES_ACCUEIL, 'admin'];
+
 // Formats EXACTS demandés (demande utilisateur explicite, audit 2026-09-28) : "Dispo : immédiate"
 // (déclaration d'origine immédiate, jamais corrigée, sans date de fin) / "Dispo : immédiate →
 // JJ/MM" (idem, avec une date de fin) / "Dispo : à partir du JJ/MM" (date de début connue, sans
@@ -138,7 +149,13 @@ function formaterDateCourte(valeurIso) {
 // précédent, non explicitement donnée mais cohérente avec elle). `dateDebut: null` signifie
 // "immédiate" (voir dossierService.calculerDisponibiliteEffective) — ne peut survenir QUE sans
 // correction, une correction ayant toujours une date de début concrète.
-function formaterDisponibiliteEffective({ dateDebut, dateFin }) {
+// "Dispo : non renseignée" (ajustement 2026-09-28, demande utilisateur explicite point 3) :
+// `nonRenseignee: true` UNIQUEMENT quand le candidat n'a STRICTEMENT rien déclaré ET qu'aucune
+// correction n'existe (voir dossierService.calculerDisponibiliteEffective) — distinct
+// d'"immédiate" (déclaration explicite, disponibiliteImmediate: true), vérifié avant toute autre
+// chose ci-dessous.
+function formaterDisponibiliteEffective({ dateDebut, dateFin, nonRenseignee }) {
+  if (nonRenseignee) return 'Dispo : non renseignée';
   if (dateDebut === null) {
     return dateFin ? `Dispo : immédiate → ${formaterDateCourte(dateFin)}` : 'Dispo : immédiate';
   }
@@ -411,15 +428,34 @@ export default function TableauDeBordAccueil() {
   // exactement la même chose). `dossier.disponibiliteEffective` toujours présent sur un dossier
   // valide_pret_embauche (voir dossierService.listerDossiers), jamais un second appel réseau ici.
   function sousBadgeStatutDisponibilite(dossier) {
-    if (!filtreDisponibiliteActif || dossier.statut_code !== 'valide_pret_embauche') return null;
-    return (
-      <button type="button" onClick={() => setDossierDispoAConfirmer(dossier)}>
-        {formaterDisponibiliteEffective(dossier.disponibiliteEffective)}
-        {/* Mention discrète (demande utilisateur explicite point B3) — jamais dans le texte
+    // TOUJOURS affiché pour tout dossier "Validé - prêt à l'embauche" (ajustement 2026-09-28,
+    // demande utilisateur explicite point 2, CORRIGE la version précédente qui le masquait tant
+    // que le filtre de période n'était pas appliqué — filtreDisponibiliteActif retiré de cette
+    // condition, n'est plus utilisé QUE par le filtre lui-même désormais).
+    if (dossier.statut_code !== 'valide_pret_embauche') return null;
+    // "Dispo : non renseignée" (point 3) : même bouton cliquable qu'une disponibilité déjà
+    // connue, pour permettre à l'agent de la SAISIR une première fois — formaterDisponibiliteEffective
+    // gère déjà ce texte, voir son commentaire (nonRenseignee).
+    const texte = formaterDisponibiliteEffective(dossier.disponibiliteEffective);
+    const contenu = (
+      <>
+        {texte}
+        {/* Mention discrète (demande utilisateur explicite point 4) — jamais dans le texte
             principal du bouton, pour ne pas alourdir la lecture rapide de "Dispo : ...". */}
         {dossier.disponibiliteEffective.corrigee && (
           <span className="tableau-bord-accueil__dispo-corrigee"> (corrigé)</span>
         )}
+      </>
+    );
+    // Cliquable UNIQUEMENT pour les rôles autorisés à corriger (demande utilisateur explicite
+    // point 5) — les autres (Formateur/Inspecteur) voient le même texte, même emplacement, en
+    // simple lecture seule (un <span>, jamais un <button> : ni curseur pointer, ni onClick posé).
+    if (!ROLES_MODIFICATION_DISPONIBILITE.includes(utilisateur?.roleCode)) {
+      return <span className="tableau-bord-accueil__dispo-lecture-seule">{contenu}</span>;
+    }
+    return (
+      <button type="button" onClick={() => setDossierDispoAConfirmer(dossier)}>
+        {contenu}
       </button>
     );
   }
@@ -870,10 +906,11 @@ export default function TableauDeBordAccueil() {
           {/* Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — deux
               dates + Appliquer/Effacer, dans le même style que les autres filtres de cette page
               (boîte ivoire, voir TableauDeBordAccueil.css). Filtrage SERVEUR (voir l'effet de
-              chargement plus haut) et bouton "Dispo : ..." sous le badge "Validé - prêt à
-              l'embauche" (sousBadgeStatutDisponibilite plus bas) n'apparaissent que quand ce
-              filtre est réellement APPLIQUÉ (dispoDebut/dispoFin, pas le simple brouillon en
-              cours de saisie) — voir filtreDisponibiliteActif. */}
+              chargement plus haut) : `filtreDisponibiliteActif` ne pilote plus que CE filtre
+              (dates/requête serveur) — le bouton "Dispo : ..." sous le badge "Validé - prêt à
+              l'embauche" (sousBadgeStatutDisponibilite plus bas), lui, s'affiche désormais pour
+              TOUT dossier à ce statut, que ce filtre soit actif ou non (ajustement 2026-09-28,
+              demande utilisateur explicite : "que le filtre de période soit actif ou non"). */}
           <div
             className="filtres-statut__statuts tableau-bord-accueil__filtre-disponibilite-embauche"
             role="group"

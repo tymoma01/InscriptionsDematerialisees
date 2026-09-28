@@ -428,7 +428,7 @@ test('calculerDisponibiliteEffective : sans correction, disponibilite immédiate
     { disponibiliteImmediate: true, dateDebut: '', dateFin: '' },
     null,
   );
-  assert.deepEqual(effective, { dateDebut: null, dateFin: null, corrigee: false, correction: null });
+  assert.deepEqual(effective, { dateDebut: null, dateFin: null, corrigee: false, nonRenseignee: false, correction: null });
 });
 
 test('calculerDisponibiliteEffective : sans correction, date de début déclarée, pas de date de fin', () => {
@@ -436,7 +436,7 @@ test('calculerDisponibiliteEffective : sans correction, date de début déclaré
     { disponibiliteImmediate: false, dateDebut: '2026-10-15', dateFin: '' },
     null,
   );
-  assert.deepEqual(effective, { dateDebut: '2026-10-15', dateFin: null, corrigee: false, correction: null });
+  assert.deepEqual(effective, { dateDebut: '2026-10-15', dateFin: null, corrigee: false, nonRenseignee: false, correction: null });
 });
 
 test('calculerDisponibiliteEffective : sans correction, date de début ET de fin déclarées', () => {
@@ -444,7 +444,30 @@ test('calculerDisponibiliteEffective : sans correction, date de début ET de fin
     { disponibiliteImmediate: false, dateDebut: '2026-10-15', dateFin: '2026-11-30' },
     null,
   );
-  assert.deepEqual(effective, { dateDebut: '2026-10-15', dateFin: '2026-11-30', corrigee: false, correction: null });
+  assert.deepEqual(effective, { dateDebut: '2026-10-15', dateFin: '2026-11-30', corrigee: false, nonRenseignee: false, correction: null });
+});
+
+// nonRenseignee (audit 2026-09-28, ajustement affichage colonne "Statut") — un dossier SANS bloc
+// 'disponibilites' du tout (donneesDeclarees null : dossier jamais rempli) doit être distingué
+// d'une disponibilité réellement déclarée "immédiate" — sans ce champ, les deux retombaient sur
+// EXACTEMENT le même { dateDebut: null, dateFin: null }, impossible à distinguer côté front (voir
+// TableauDeBordAccueil.jsx, "Dispo : non renseignée").
+test("calculerDisponibiliteEffective : AUCUN bloc 'disponibilites' déclaré ET aucune correction -> nonRenseignee: true (distinct d'une disponibilité immédiate)", () => {
+  const effective = dossierService.calculerDisponibiliteEffective(null, null);
+  assert.deepEqual(effective, { dateDebut: null, dateFin: null, corrigee: false, nonRenseignee: true, correction: null });
+});
+
+test("calculerDisponibiliteEffective : une correction sur un dossier sans déclaration d'origine -> nonRenseignee reste false (une correction renseigne TOUJOURS une date concrète)", () => {
+  const effective = dossierService.calculerDisponibiliteEffective(null, {
+    dateDebut: '2026-10-15',
+    dateFin: null,
+    commentaire: 'Confirmé par téléphone',
+    auteurPrenom: 'Awa',
+    auteurNom: 'Diallo',
+    date: '2026-09-28T10:00:00.000Z',
+  });
+  assert.equal(effective.nonRenseignee, false);
+  assert.equal(effective.corrigee, true);
 });
 
 // La correction fait foi ENTIÈREMENT (jamais un mélange champ à champ avec la déclaration) — même
@@ -459,6 +482,7 @@ test('calculerDisponibiliteEffective : une correction sans date de fin ne retomb
     dateDebut: '2026-10-15',
     dateFin: null,
     corrigee: true,
+    nonRenseignee: false,
     correction: { commentaire: 'Confirmé par téléphone', auteurPrenom: 'Awa', auteurNom: 'Diallo', date: '2026-09-28T10:00:00.000Z' },
   });
 });

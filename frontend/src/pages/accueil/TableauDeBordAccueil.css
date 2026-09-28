@@ -290,8 +290,27 @@
   background-color: var(--couleur-fond-secondaire);
 }
 
-/* Mention "(corrigé)" — discrète (demande utilisateur explicite point B3), jamais dans le texte
-   principal du bouton "Dispo : ...", voir sousBadgeStatutDisponibilite (TableauDeBordAccueil.jsx). */
+/* Version LECTURE SEULE du bouton "Dispo : ..." (ajustement 2026-09-28, demande utilisateur
+   explicite point 5 : Formateur/Inspecteur voient le même texte, même emplacement, jamais
+   cliquable) — un <span>, pas un <button> (voir sousBadgeStatutDisponibilite,
+   TableauDeBordAccueil.jsx) : reprend exactement le même gabarit visuel que
+   .dossier-list__sous-badge-statut button (DossierList.css, padding/bordure/rayon/taille de
+   police identiques) MOINS cursor: pointer — dupliqué plutôt que partagé (CLAUDE.md, conventions
+   du projet), ce composant générique n'a pas à savoir qu'une variante non cliquable existe. */
+.tableau-bord-accueil__dispo-lecture-seule {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font-size: 0.75rem;
+}
+
+/* Mention "(corrigé)" — discrète (demande utilisateur explicite point 4), jamais dans le texte
+   principal du bouton/texte "Dispo : ...", voir sousBadgeStatutDisponibilite
+   (TableauDeBordAccueil.jsx) — commune au bouton (rôles autorisés) ET au <span> lecture seule
+   ci-dessus (Formateur/Inspecteur). */
 .tableau-bord-accueil__dispo-corrigee {
   font-style: italic;
   color: var(--couleur-texte-secondaire);
