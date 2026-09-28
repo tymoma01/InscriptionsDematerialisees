@@ -187,12 +187,16 @@ test("trouverDossierAvecStatutParId joint le DERNIER événement journal_audit (
   assert.doesNotMatch(sql, /dossier_marque_embauche/);
 });
 
-// Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — comportement
-// vérifié en direct sur DEV (Neon) pendant l'implémentation (chevauchement/exclusion réels, voir
-// le rapport livré à l'utilisateur), ces tests couvrent la FORME du SQL généré : même principe que
-// les tests ci-dessus, aucune dépendance métier testable autrement qu'en lisant la requête (pas de
-// connexion réelle ici, voir l'en-tête de ce fichier).
-test('listerDossiers sans dispoDebut/dispoFin : la jointure vers les corrections reste posée (affichage), mais aucune clause de chevauchement ni filtre forcé sur valide_pret_embauche', () => {
+// Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28 ; dispoFin RETIRÉ le
+// même jour, demande utilisateur explicite, PUIS formule corrigée le même jour — dispoDebut sert
+// de date PONCTUELLE des deux côtés : "qui est réellement disponible à cette date", pas "qui a une
+// disponibilité encore ouverte à l'infini à partir d'un moment" — un candidat dont la
+// déclaration/correction commence APRÈS dispoDebut ne doit pas apparaître, voir le commentaire du
+// repository) — comportement vérifié en direct sur DEV (Neon) pendant l'implémentation
+// (chevauchement/exclusion réels, voir le rapport livré à l'utilisateur), ces tests couvrent la
+// FORME du SQL généré : même principe que les tests ci-dessus, aucune dépendance métier testable
+// autrement qu'en lisant la requête (pas de connexion réelle ici, voir l'en-tête de ce fichier).
+test('listerDossiers sans dispoDebut : la jointure vers les corrections reste posée (affichage), mais aucune clause de chevauchement ni filtre forcé sur valide_pret_embauche', () => {
   const sql = dossierRepository.listerDossiers(bd, 1, {}).toString();
   // La LATERAL est toujours jointe (sert à disponibiliteEffective même sans filtre actif, voir
   // dossierService.listerDossiers) — seule la clause WHERE de chevauchement est conditionnelle.
@@ -201,26 +205,23 @@ test('listerDossiers sans dispoDebut/dispoFin : la jointure vers les corrections
   assert.doesNotMatch(sql, /COALESCE\(disponibilite_corrigee\.date_debut/);
 });
 
-test('listerDossiers avec un seul des deux paramètres (dispoDebut sans dispoFin) : ignoré, comportement identique à aucun filtre', () => {
+test('listerDossiers avec dispoDebut : force le statut valide_pret_embauche et pose la clause "disponible à cette date précise" (dateDebut <= dispoDebut ET dateFin >= dispoDebut)', () => {
   const sql = dossierRepository.listerDossiers(bd, 1, { dispoDebut: '2026-10-15' }).toString();
-  assert.doesNotMatch(sql, /'valide_pret_embauche'/);
-});
-
-test('listerDossiers avec dispoDebut ET dispoFin : force le statut valide_pret_embauche et pose la clause de chevauchement', () => {
-  const sql = dossierRepository.listerDossiers(bd, 1, { dispoDebut: '2026-10-15', dispoFin: '2026-11-30' }).toString();
   assert.match(sql, /"statuts"\."code" = 'valide_pret_embauche'/);
-  // Borne basse : disponible dès lors que sa date de début (corrigée si présente, sinon
-  // déclarée) est NULLE (immédiate, jamais de borne basse) OU <= à la fin de la période filtrée.
+  // Borne basse : disponible dès lors que sa date de début (corrigée si présente, sinon déclarée)
+  // est NULLE (immédiate, jamais de borne basse) OU <= à la date filtrée — un candidat dont la
+  // disponibilité commence APRÈS cette date ne doit pas apparaître.
   assert.match(
     sql,
     /COALESCE\(disponibilite_corrigee\.date_debut, NULLIF\(bloc_disponibilites\.donnees->>'dateDebut', ''\)::date\) IS NULL/,
   );
-  assert.match(sql, /<= '2026-11-30'/);
   // Borne haute : la date de fin EFFECTIVE (correction ENTIÈRE si elle existe — CASE WHEN sur la
   // présence d'une correction, jamais un COALESCE champ à champ, voir le commentaire du
-  // repository) doit être NULLE (pas de fin connue) OU >= au début de la période filtrée.
+  // repository) doit être NULLE (pas de fin connue) OU >= à la même date filtrée.
   assert.match(sql, /CASE WHEN disponibilite_corrigee\.date_debut IS NOT NULL/);
-  assert.match(sql, />= '2026-10-15'/);
+  // Les DEUX bornes comparées à la MÊME date dispoDebut (2 occurrences du littéral, pas dispoFin).
+  const occurrences = sql.match(/'2026-10-15'/g) ?? [];
+  assert.strictEqual(occurrences.length, 2);
 });
 
 test('listerDossiers rejoint disponibilites_embauche_corrigees via LEFT JOIN LATERAL trié sur created_at DESC, id DESC (la plus récente correction fait foi)', () => {

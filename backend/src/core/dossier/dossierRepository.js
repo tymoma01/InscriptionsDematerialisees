@@ -259,14 +259,15 @@ function mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche }) {
 // simple LEFT JOIN dupliquerait la ligne dossier pour chaque rendez-vous actif si jamais il y en
 // avait plusieurs. Formateur du même LATERAL (pas une jointure directe à `dossiers`) : ce n'est PAS
 // le formateur du dossier au sens large, seulement celui assigné à CE rendez-vous précis.
-// dispoDebut/dispoFin (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche",
-// Dossiers candidats) : optionnels, TOUJOURS fournis ensemble par l'appelant (voir
-// dossierService.listerDossiers, la validation "les deux ou aucun" vit là, pas ici) — seule
-// requête de cette liste à filtrer par une notion propre à ACCECIT (valide_pret_embauche) plutôt
-// que par un simple statutCode générique, d'où ce paramètre dédié plutôt qu'une réutilisation de
-// statutCode. Filtrage EN SQL (pas client, contrairement au reste des filtres de cette page, voir
-// TableauDeBordAccueil.jsx) : demande utilisateur explicite.
-function listerDossiers(bd, entiteId, { statutCode, dispoDebut, dispoFin } = {}) {
+// dispoDebut (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche",
+// Dossiers candidats ; dispoFin RETIRÉ le même jour — demande utilisateur explicite, voir
+// dossiers.routes.js/TableauDeBordAccueil.jsx : le filtre ne porte plus qu'une borne basse, plage
+// OUVERTE, sans date de fin) : optionnel — seule requête de cette liste à filtrer par une notion
+// propre à ACCECIT (valide_pret_embauche) plutôt que par un simple statutCode générique, d'où ce
+// paramètre dédié plutôt qu'une réutilisation de statutCode. Filtrage EN SQL (pas client,
+// contrairement au reste des filtres de cette page, voir TableauDeBordAccueil.jsx) : demande
+// utilisateur explicite.
+function listerDossiers(bd, entiteId, { statutCode, dispoDebut } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -347,22 +348,26 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut, dispoFin } = {})
     requete.andWhere('statuts.code', statutCode);
   }
 
-  // Chevauchement disponibilité EFFECTIVE / période filtrée (audit 2026-09-28, décision
-  // utilisateur explicite) : l'effective est la correction si elle existe (whole-row : date_fin
-  // de la correction prévaut alors même si NULL — un agent qui laisse volontairement la fin vide
-  // ne doit jamais retomber sur la date de fin DÉCLARÉE), sinon la déclaration JSONB d'origine
-  // ('' -> NULL via NULLIF, "aucune date" = disponibilité immédiate ou fin inconnue selon le
-  // champ). `disponibilite_corrigee.date_debut IS NOT NULL` sert de marqueur fiable "une
-  // correction existe" (date_debut y est NOT NULL en base, donc NULL ici signifie uniquement
-  // "LATERAL n'a rien trouvé").
+  // Disponibilité EFFECTIVE du candidat À LA DATE dispoDebut (audit 2026-09-28, décision
+  // utilisateur explicite, revu le même jour : dispoFin retiré de l'API, mais dispoDebut sert
+  // maintenant de date ponctuelle des DEUX côtés — "qui est RÉELLEMENT disponible à cette date",
+  // pas "qui a une disponibilité qui touche un jour cette date et les suivants indéfiniment". Un
+  // candidat dont la déclaration/correction commence APRÈS dispoDebut n'est pas encore disponible
+  // à cette date : il ne doit PAS apparaître, même sans date de fin connue (bug corrigé — la
+  // version précédente ignorait entièrement la date de début du candidat). L'effective est la
+  // correction si elle existe (whole-row : date_fin de la correction prévaut alors même si NULL —
+  // un agent qui laisse volontairement la fin vide ne doit jamais retomber sur la date de fin
+  // DÉCLARÉE), sinon la déclaration JSONB d'origine ('' -> NULL via NULLIF ; "disponibilité
+  // immédiate" ne renseigne JAMAIS dateDebut côté front, voir BlocDisponibilites.jsx/.schema.js —
+  // NULLIF sur '' retombe donc naturellement sur NULL sans avoir à tester le booléen
+  // disponibiliteImmediate séparément). `disponibilite_corrigee.date_debut IS NOT NULL` sert de
+  // marqueur fiable "une correction existe" (date_debut y est NOT NULL en base, donc NULL ici
+  // signifie uniquement "LATERAL n'a rien trouvé").
   //
-  // Formule de chevauchement, décision utilisateur explicite : une disponibilité "immédiate"
-  // (effective_debut NULL, pas de borne basse) chevauche TOUJOURS la période, SAUF si sa date de
-  // fin est antérieure au début de la période filtrée — c'est exactement
-  // `effective_debut <= dispoFin` (trivialement vrai si NULL) ET
-  // `effective_fin >= dispoDebut` (trivialement vrai si NULL, donc "pas de fin connue" chevauche
-  // aussi toujours à partir de son début).
-  if (dispoDebut && dispoFin) {
+  // Formule (borne basse ET borne haute comparées à la MÊME date dispoDebut) : visible si sa date
+  // de début effective est NULLE (immédiate, jamais de borne basse) OU <= dispoDebut, ET sa date
+  // de fin effective est NULLE (pas de fin connue) OU >= dispoDebut.
+  if (dispoDebut) {
     requete.andWhere('statuts.code', 'valide_pret_embauche');
     requete.andWhereRaw(
       `
@@ -382,7 +387,7 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut, dispoFin } = {})
             END) >= ?
       )
       `,
-      [dispoFin, dispoDebut],
+      [dispoDebut, dispoDebut],
     );
   }
 

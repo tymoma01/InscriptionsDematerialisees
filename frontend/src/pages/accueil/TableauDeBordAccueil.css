@@ -180,10 +180,16 @@
 /* Titre raccourci (demande utilisateur explicite point 1 : "Disponibilité (prêts à l'embauche)",
    voir TableauDeBordAccueil.jsx — l'aria-label du groupe garde le texte complet) — sinon même
    style que .tableau-bord-accueil__filtres-experience-titre (gras, sans fond ni bordure, curseur
-   par défaut). white-space: nowrap : ce texte, même raccourci, ne doit jamais se replier sur
-   plusieurs lignes en interne — flex-shrink: 0 l'empêche aussi d'être compressé par les champs
-   voisins (voir .tableau-bord-accueil__filtre-disponibilite-embauche-champs, qui absorbe seule la
-   compression via min-width: 0). */
+   par défaut). Sur DEUX lignes (ajustement 2026-09-28, demande utilisateur explicite : le libellé
+   sur une seule ligne dépassait encore de sa cellule en prod) — saut de ligne explicite entre
+   "Disponibilité" et "(prêts à l'embauche)" posé côté JSX (<br />, TableauDeBordAccueil.jsx), pas
+   ici : la largeur nécessaire du titre est ainsi celle du plus long des deux segments, pas de la
+   phrase entière. text-align: center pour que le segment le plus court ("Disponibilité") reste
+   visuellement centré au-dessus de l'autre plutôt que collé à gauche. flex-shrink: 0 (inchangé) :
+   jamais compressé par les champs voisins (voir .tableau-bord-accueil__filtre-disponibilite-
+   embauche-champs, qui absorbe seule la compression via min-width: 0) — white-space: nowrap
+   retiré : il ne s'appliquait plus qu'à chacun des deux segments désormais séparés par le <br />,
+   sans utilité, et aurait pu forcer une largeur inutilement grande sur un panneau très étroit. */
 .tableau-bord-accueil__filtre-disponibilite-embauche-titre {
   flex-shrink: 0;
   font-weight: 700;
@@ -191,16 +197,20 @@
   background: none;
   border: none;
   cursor: default;
-  white-space: nowrap;
+  text-align: center;
+  line-height: 1.2;
 }
 
-/* Champs "Du"/"Au" + boutons "Appliquer"/"Effacer", tous sur une seule ligne (flex-wrap: nowrap,
-   inchangé depuis le 1er ajustement) — min-width: 0 (nouveau) : c'est CE conteneur, pas la boîte
-   elle-même, qui doit accepter de rétrécir en priorité si la ligne est vraiment serrée (le titre,
-   lui, garde flex-shrink: 0 ci-dessus, jamais compressé). justify-content: flex-start : les
-   éléments s'enchaînent immédiatement après le titre, espacement régulier (var(--espace-petit)) et
-   identique entre chaque paire d'éléments, à l'intérieur de ce bloc comme dans celui d'Expérience
-   (même valeur de gap dans les deux, demande utilisateur explicite point 4). */
+/* Champ "Du" + boutons "Appliquer"/"Effacer", tous sur une seule ligne (flex-wrap: nowrap,
+   inchangé depuis le 1er ajustement) — champ "Au" RETIRÉ (audit 2026-09-28, demande utilisateur
+   explicite : filtre à borne basse seule, voir TableauDeBordAccueil.jsx) : cette classe reste
+   inchangée, elle n'a jamais rien su du nombre de champs qu'elle contient. min-width: 0 : c'est CE
+   conteneur, pas la boîte elle-même, qui doit accepter de rétrécir en priorité si la ligne est
+   vraiment serrée (le titre, lui, garde flex-shrink: 0 ci-dessus, jamais compressé).
+   justify-content: flex-start : les éléments s'enchaînent immédiatement après le titre,
+   espacement régulier (var(--espace-petit)) et identique entre chaque paire d'éléments, à
+   l'intérieur de ce bloc comme dans celui d'Expérience (même valeur de gap dans les deux, demande
+   utilisateur explicite point 4). */
 .tableau-bord-accueil__filtre-disponibilite-embauche-champs {
   display: flex;
   flex: 1;
@@ -221,14 +231,14 @@
   white-space: nowrap;
 }
 
-/* Champs date COMPACTS (demande utilisateur explicite point 2 : "largeur ajustée au format
+/* Champ date COMPACT (demande utilisateur explicite point 2 : "largeur ajustée au format
    jj/mm/aaaa et à l'icône du calendrier, sans espace superflu") — 7.75rem (repli depuis 9.5rem) :
    valeur mesurée pour tenir la date affichée + l'icône native du picker sans le vide qui
    subsistait avant, testée sur les navigateurs courants (Chrome/Edge/Firefox, rendu Chromium de la
-   tablette de production). padding horizontal resserré (0.6rem -> 0.4rem) en cohérence. Largeur
-   FIXE et IDENTIQUE pour les deux champs (inchangé, demande utilisateur explicite, 1er ajustement).
-   height/box-sizing inchangés (1er ajustement) : toujours la même hauteur que les boutons
-   ci-dessous. */
+   tablette de production). padding horizontal resserré (0.6rem -> 0.4rem) en cohérence. Un seul
+   champ désormais (le second, "Au", retiré le 2026-09-28 — demande utilisateur explicite) : cette
+   largeur fixe reste pertinente telle quelle, aucun changement nécessaire ici. height/box-sizing
+   inchangés (1er ajustement) : toujours la même hauteur que les boutons ci-dessous. */
 .tableau-bord-accueil__filtre-disponibilite-embauche-champs input[type='date'] {
   flex-shrink: 0;
   box-sizing: border-box;
@@ -403,9 +413,9 @@
    (seulement 4 badges, structure différente — titre + bloc badges, pas des boutons en enfants
    directs — aucun besoin ni sens à une grille à 6 colonnes ici).
    :not(.tableau-bord-accueil__filtre-disponibilite-embauche) (audit 2026-09-28) : même raison,
-   cette boîte-là réutilise elle aussi LITTÉRALEMENT .filtres-statut__statuts (deux champs de date
-   + deux boutons, structure encore différente — aucun besoin ni sens à une grille à 6 colonnes ici
-   non plus). */
+   cette boîte-là réutilise elle aussi LITTÉRALEMENT .filtres-statut__statuts (un champ de date
+   + deux boutons — champ "Au" retiré le même jour, structure encore différente — aucun besoin ni
+   sens à une grille à 6 colonnes ici non plus). */
 .tableau-bord-accueil
   .filtres-statut__statuts:not(.tableau-bord-accueil__filtres-experience):not(
     .tableau-bord-accueil__filtre-disponibilite-embauche

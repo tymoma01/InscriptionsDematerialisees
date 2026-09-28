@@ -521,13 +521,13 @@ function calculerDisponibiliteEffective(donneesDeclarees, correction) {
 // candidat_code_postal (audit 2026-09-09) : même bloc 'coordonnees' déjà joint, même patron que
 // candidat_telephone/candidat_email juste au-dessus — colonne "Code postal" de DossierList.jsx.
 //
-// dispoDebut/dispoFin (audit 2026-09-28) : optionnels, filtrage SERVEUR (voir
-// dossierRepository.listerDossiers) — LES DEUX ou AUCUN, jamais un seul (une période a besoin de
-// ses deux bornes pour avoir un sens ; voir dossiers.routes.js pour la validation zod qui rejette
-// explicitement un seul des deux avec un 400).
-async function listerDossiers(entite, { statutCode, dispoDebut, dispoFin } = {}) {
+// dispoDebut (audit 2026-09-28, dispoFin retiré le même jour — demande utilisateur explicite,
+// voir dossiers.routes.js) : optionnel, filtrage SERVEUR (voir dossierRepository.listerDossiers)
+// — sert de date ponctuelle ("qui est disponible à cette date"), pas de borne basse d'une plage
+// ouverte.
+async function listerDossiers(entite, { statutCode, dispoDebut } = {}) {
   const bd = await obtenirKnex();
-  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut, dispoFin });
+  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut });
   return dossiers.map(
     ({
       donnees_disponibilites,

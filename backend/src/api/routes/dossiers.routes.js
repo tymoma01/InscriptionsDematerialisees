@@ -57,27 +57,28 @@ const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATE
 // horodatage) ne révèle rien de sensible par elle-même.
 const ROLES_TOUT_BACK_OFFICE = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
-// dispoDebut/dispoFin (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
-// l'embauche") — LES DEUX ou AUCUN, jamais un seul : une période filtrée a besoin de ses deux
-// bornes pour avoir un sens (voir dossierRepository.listerDossiers pour la formule de
-// chevauchement elle-même).
-const dispoQuerySchema = z
-  .object({
-    dispoDebut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    dispoFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  })
-  .refine((valeurs) => Boolean(valeurs.dispoDebut) === Boolean(valeurs.dispoFin), {
-    message: 'dispoDebut et dispoFin doivent être fournis ensemble, ou aucun des deux.',
-  });
+// dispoDebut (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche" ;
+// dispoFin RETIRÉ le même jour, demande utilisateur explicite — un seul paramètre d'entrée
+// désormais, mais utilisé comme date PONCTUELLE des deux côtés côté requête (voir
+// dossierRepository.listerDossiers) : "qui est RÉELLEMENT disponible à cette date", pas "qui a une
+// disponibilité qui commence un jour et n'a jamais de fin connue" — un candidat dont la
+// disponibilité commence APRÈS cette date n'apparaît pas. La date de fin déclarée/corrigée d'un
+// candidat reste affichée par ailleurs, voir formaterDisponibiliteEffective/
+// sousBadgeStatutDisponibilite, TableauDeBordAccueil.jsx — ce n'est que le FILTRE qui n'en tient
+// plus compte comme borne haute distincte (elle sert désormais de comparaison à la même date que
+// la borne basse).
+const dispoQuerySchema = z.object({
+  dispoDebut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 
-// GET /api/dossiers?statut=code&dispoDebut=AAAA-MM-JJ&dispoFin=AAAA-MM-JJ — liste des dossiers de
-// l'entité courante, filtrable par statut. Le code de statut n'est jamais figé ici : il vient de
-// la table `statuts`, configurable par entité (voir Modularité, CLAUDE.md) — un code inconnu pour
-// l'entité renvoie simplement une liste vide, pas une erreur.
+// GET /api/dossiers?statut=code&dispoDebut=AAAA-MM-JJ — liste des dossiers de l'entité courante,
+// filtrable par statut. Le code de statut n'est jamais figé ici : il vient de la table `statuts`,
+// configurable par entité (voir Modularité, CLAUDE.md) — un code inconnu pour l'entité renvoie
+// simplement une liste vide, pas une erreur.
 router.get('/', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
   try {
-    const { dispoDebut, dispoFin } = dispoQuerySchema.parse(req.query);
-    const dossiers = await dossierService.listerDossiers(req.entite, { statutCode: req.query.statut, dispoDebut, dispoFin });
+    const { dispoDebut } = dispoQuerySchema.parse(req.query);
+    const dossiers = await dossierService.listerDossiers(req.entite, { statutCode: req.query.statut, dispoDebut });
     res.json(dossiers);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {

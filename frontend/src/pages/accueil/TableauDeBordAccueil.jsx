@@ -359,34 +359,35 @@ export default function TableauDeBordAccueil() {
   // '' = toutes les tranches d'expérience confondues, jamais une valeur de code réelle.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
-  // Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — LES DEUX ou
-  // AUCUN (voir dossierService.listerDossiers), persistés dans l'URL comme les autres filtres de
-  // cette page. Filtrage SERVEUR (contrairement à recherche/statut/expérience/entité ci-dessus,
-  // tous client) : demande utilisateur explicite — voir l'effet de chargement plus bas, dont ces
-  // deux valeurs font désormais partie des dépendances.
+  // Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28 ; dispoFin RETIRÉ
+  // le même jour, demande utilisateur explicite : "je pense qu'il faut qu'on puisse filtrer par
+  // date de début de dispo uniquement" — un seul champ visible, mais côté back cette date sert de
+  // comparaison PONCTUELLE des deux côtés (dateDebut ET dateFin du candidat, voir
+  // dossierRepository.listerDossiers) : "qui est réellement disponible à cette date", pas "qui a
+  // une disponibilité qui commence un jour peu importe quand". La date de fin déclarée/corrigée
+  // d'un candidat reste visible par ailleurs, voir formaterDisponibiliteEffective/
+  // sousBadgeStatutDisponibilite plus bas : ce n'est que le FILTRE qui n'en tient plus compte comme
+  // borne distincte, rien n'a disparu de l'affichage) — persisté dans l'URL comme les autres
+  // filtres de cette page. Filtrage SERVEUR (contrairement à recherche/statut/expérience/entité
+  // ci-dessus, tous client) : demande utilisateur explicite — voir l'effet de chargement plus bas,
+  // dont cette valeur fait désormais partie des dépendances.
   const [dispoDebut, setDispoDebut] = useParametreURL('dispo_debut', '');
-  const [dispoFin, setDispoFin] = useParametreURL('dispo_fin', '');
-  // Brouillon LOCAL des deux champs de date, distinct des valeurs ci-dessus effectivement
-  // appliquées (persistées dans l'URL, qui déclenchent le rechargement serveur) — "Appliquer"/
-  // "Effacer" (demande utilisateur explicite, pas de filtrage au fil de la saisie comme les
-  // autres champs de cette page) copient/vident ce brouillon vers les valeurs appliquées.
-  // Initialisés depuis l'URL (pas '') : un lien partagé/mis en favori avec ce filtre déjà actif
-  // doit afficher les dates déjà saisies dans les champs, pas des champs vides à côté d'une liste
-  // déjà filtrée.
+  // Brouillon LOCAL du champ de date, distinct de la valeur ci-dessus effectivement appliquée
+  // (persistée dans l'URL, qui déclenche le rechargement serveur) — "Appliquer"/"Effacer" (demande
+  // utilisateur explicite, pas de filtrage au fil de la saisie comme les autres champs de cette
+  // page) copient/vident ce brouillon vers la valeur appliquée. Initialisé depuis l'URL (pas '') :
+  // un lien partagé/mis en favori avec ce filtre déjà actif doit afficher la date déjà saisie dans
+  // le champ, pas un champ vide à côté d'une liste déjà filtrée.
   const [dispoDebutBrouillon, setDispoDebutBrouillon] = useState(dispoDebut);
-  const [dispoFinBrouillon, setDispoFinBrouillon] = useState(dispoFin);
-  const filtreDisponibiliteActif = Boolean(dispoDebut && dispoFin);
+  const filtreDisponibiliteActif = Boolean(dispoDebut);
 
   const appliquerFiltreDisponibilite = () => {
-    if (!dispoDebutBrouillon || !dispoFinBrouillon) return;
+    if (!dispoDebutBrouillon) return;
     setDispoDebut(dispoDebutBrouillon);
-    setDispoFin(dispoFinBrouillon);
   };
   const effacerFiltreDisponibilite = () => {
     setDispoDebutBrouillon('');
-    setDispoFinBrouillon('');
     setDispoDebut('');
-    setDispoFin('');
   };
 
   // Fenêtre de correction de disponibilité (audit 2026-09-28) — `dossierDispoAConfirmer` porte le
@@ -408,7 +409,7 @@ export default function TableauDeBordAccueil() {
       // que la liste actuellement affichée, sinon le dossier corrigé disparaîtrait à tort si sa
       // nouvelle période ne chevauche plus plus la période filtrée (comportement attendu, mais
       // recalculé ici avec les VRAIES valeurs déjà appliquées, pas un simple retrait local).
-      listerDossiers({ dispoDebut, dispoFin })
+      listerDossiers({ dispoDebut })
         .then(setDossiers)
         .catch(() => {});
     } catch (erreur) {
@@ -475,16 +476,16 @@ export default function TableauDeBordAccueil() {
   // compteur de CHAQUE bouton de statut (dossiersFiltresSansStatut ci-dessous) à partir de la même
   // liste en mémoire, plutôt que de ne connaître que le statut actuellement sélectionné.
   //
-  // dispoDebut/dispoFin en dépendances (audit 2026-09-28) — SEUL filtre de cette page à recharger
-  // depuis le serveur : ce chargement n'est donc plus "un seul", contrairement au commentaire
-  // historique ci-dessus (conservé pour le reste, toujours vrai pour tous les AUTRES filtres) —
-  // se redéclenche à chaque application/effacement du filtre "Disponibilité des candidats prêts à
+  // dispoDebut en dépendance (audit 2026-09-28) — SEUL filtre de cette page à recharger depuis le
+  // serveur : ce chargement n'est donc plus "un seul", contrairement au commentaire historique
+  // ci-dessus (conservé pour le reste, toujours vrai pour tous les AUTRES filtres) — se
+  // redéclenche à chaque application/effacement du filtre "Disponibilité des candidats prêts à
   // l'embauche" (voir appliquerFiltreDisponibilite/effacerFiltreDisponibilite plus haut).
   useEffect(() => {
     let annule = false;
     setChargementDossiers(true);
     setErreur(null);
-    listerDossiers({ dispoDebut, dispoFin })
+    listerDossiers({ dispoDebut })
       .then((valeur) => {
         if (!annule) setDossiers(valeur);
       })
@@ -497,16 +498,16 @@ export default function TableauDeBordAccueil() {
     return () => {
       annule = true;
     };
-  }, [dispoDebut, dispoFin]);
+  }, [dispoDebut]);
 
   // Rafraîchissement automatique (audit 2026-08-24) : silencieux (ne touche jamais
   // chargementDossiers/erreur ci-dessus, réservés au chargement initial) — un échec ponctuel de
   // ce re-fetch en arrière-plan n'a pas à afficher d'erreur, le prochain tick réessaiera.
-  // dispoDebut/dispoFin transmis ici aussi (audit 2026-09-28) : sinon, ce rafraîchissement
-  // périodique silencieux écraserait la liste déjà filtrée côté serveur par la liste COMPLÈTE dès
-  // le prochain tick, quelques secondes après avoir appliqué le filtre.
+  // dispoDebut transmis ici aussi (audit 2026-09-28) : sinon, ce rafraîchissement périodique
+  // silencieux écraserait la liste déjà filtrée côté serveur par la liste COMPLÈTE dès le
+  // prochain tick, quelques secondes après avoir appliqué le filtre.
   useRafraichissementAuto(() => {
-    listerDossiers({ dispoDebut, dispoFin })
+    listerDossiers({ dispoDebut })
       .then(setDossiers)
       .catch(() => {});
   });
@@ -903,12 +904,21 @@ export default function TableauDeBordAccueil() {
             </div>
           </div>
 
-          {/* Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — deux
-              dates + Appliquer/Effacer, dans le même style que les autres filtres de cette page
-              (boîte ivoire, voir TableauDeBordAccueil.css). Filtrage SERVEUR (voir l'effet de
-              chargement plus haut) : `filtreDisponibiliteActif` ne pilote plus que CE filtre
-              (dates/requête serveur) — le bouton "Dispo : ..." sous le badge "Validé - prêt à
-              l'embauche" (sousBadgeStatutDisponibilite plus bas), lui, s'affiche désormais pour
+          {/* Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — une
+              seule date ("Du") + Appliquer/Effacer, dans le même style que les autres filtres de
+              cette page (boîte ivoire, voir TableauDeBordAccueil.css). Champ "Au" RETIRÉ le même
+              jour (demande utilisateur explicite, pour que la boîte tienne dans sa cellule en
+              prod). Côté back, cette date sert de comparaison PONCTUELLE des deux côtés — dateDebut
+              ET dateFin du candidat (voir dossierRepository.listerDossiers) : "qui est réellement
+              disponible à cette date", jamais "qui a une disponibilité qui commence un jour peu
+              importe quand" (un candidat dont la disponibilité commence après cette date
+              n'apparaît pas). La date de fin déclarée/corrigée d'un candidat reste affichée par
+              ailleurs (voir formaterDisponibiliteEffective/sousBadgeStatutDisponibilite plus bas),
+              ce filtre n'en tient simplement plus compte comme borne DISTINCTE, il compare
+              désormais les deux dates du candidat à cette même date filtrée. Filtrage SERVEUR (voir
+              l'effet de chargement plus haut) : `filtreDisponibiliteActif` ne pilote plus que CE
+              filtre (date/requête serveur) — le bouton "Dispo : ..." sous le badge "Validé - prêt
+              à l'embauche" (sousBadgeStatutDisponibilite plus bas), lui, s'affiche désormais pour
               TOUT dossier à ce statut, que ce filtre soit actif ou non (ajustement 2026-09-28,
               demande utilisateur explicite : "que le filtre de période soit actif ou non"). */}
           <div
@@ -918,9 +928,17 @@ export default function TableauDeBordAccueil() {
           >
             {/* Libellé raccourci (ajustement 2026-09-28, demande utilisateur explicite : le texte
                 complet touchait le bloc "Expérience" voisin) — aria-label du groupe ci-dessus
-                garde le texte complet et descriptif, seul le libellé VISIBLE est raccourci. */}
+                garde le texte complet et descriptif, seul le libellé VISIBLE est raccourci.
+                Retour à la ligne forcé entre les deux segments (ajustement 2026-09-28, demande
+                utilisateur explicite : le libellé sur une seule ligne dépassait encore de sa
+                boîte en prod) — <br />, pas un simple espace insécable : ce titre garde
+                flex-shrink: 0 (TableauDeBordAccueil.css), donc SEUL un saut de ligne explicite
+                réduit sa largeur nécessaire, un wrap "naturel" au gré de l'espace disponible ne
+                suffirait pas à le faire tenir dans la cellule. */}
             <span className="tableau-bord-accueil__filtre-disponibilite-embauche-titre">
-              Disponibilité (prêts à l&apos;embauche)
+              Disponibilité
+              <br />
+              (prêts à l&apos;embauche)
             </span>
             <div className="tableau-bord-accueil__filtre-disponibilite-embauche-champs">
               <label htmlFor="dispo-embauche-debut">
@@ -932,20 +950,7 @@ export default function TableauDeBordAccueil() {
                   onChange={(evenement) => setDispoDebutBrouillon(evenement.target.value)}
                 />
               </label>
-              <label htmlFor="dispo-embauche-fin">
-                Au
-                <input
-                  id="dispo-embauche-fin"
-                  type="date"
-                  value={dispoFinBrouillon}
-                  onChange={(evenement) => setDispoFinBrouillon(evenement.target.value)}
-                />
-              </label>
-              <button
-                type="button"
-                onClick={appliquerFiltreDisponibilite}
-                disabled={!dispoDebutBrouillon || !dispoFinBrouillon}
-              >
+              <button type="button" onClick={appliquerFiltreDisponibilite} disabled={!dispoDebutBrouillon}>
                 Appliquer
               </button>
               {/* Désactivé tant qu'aucune date n'est saisie NULLE PART (demande utilisateur
@@ -957,7 +962,7 @@ export default function TableauDeBordAccueil() {
               <button
                 type="button"
                 onClick={effacerFiltreDisponibilite}
-                disabled={!dispoDebutBrouillon && !dispoFinBrouillon && !filtreDisponibiliteActif}
+                disabled={!dispoDebutBrouillon && !filtreDisponibiliteActif}
               >
                 Effacer
               </button>

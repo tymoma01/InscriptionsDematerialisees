@@ -4,17 +4,16 @@ import api from './api';
 // n'ait pas à connaître la forme exacte de l'API back-end (même principe que
 // pieceJustificativeService.js).
 
-// dispoDebut/dispoFin (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche")
-// — LES DEUX ou AUCUN (voir dossiers.routes.js, validation zod dédiée) ; filtrage SERVEUR,
-// contrairement au reste des filtres de cette page (recherche/statut/expérience/entité), tous
-// client (voir TableauDeBordAccueil.jsx).
-export async function listerDossiers({ statut, dispoDebut, dispoFin } = {}) {
+// dispoDebut (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche" ;
+// dispoFin RETIRÉ le même jour, demande utilisateur explicite — un seul paramètre d'entrée, utilisé
+// côté back comme date PONCTUELLE ("qui est disponible à cette date précise"), voir
+// dossiers.routes.js/dossierRepository.listerDossiers) ; filtrage SERVEUR, contrairement au reste
+// des filtres de cette page (recherche/statut/expérience/entité), tous client (voir
+// TableauDeBordAccueil.jsx).
+export async function listerDossiers({ statut, dispoDebut } = {}) {
   const params = {};
   if (statut) params.statut = statut;
-  if (dispoDebut && dispoFin) {
-    params.dispoDebut = dispoDebut;
-    params.dispoFin = dispoFin;
-  }
+  if (dispoDebut) params.dispoDebut = dispoDebut;
   const { data } = await api.get('/dossiers', { params });
   return data;
 }
