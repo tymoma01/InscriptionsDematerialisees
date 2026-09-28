@@ -6,9 +6,8 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
-import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
+import { useParametreURL } from '../../core/filtres/useParametreURL';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
-import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
@@ -390,6 +389,19 @@ const STATUTS_FILTRABLES_DOSSIER = [
   { code: GROUPE_TEST_NON_REALISE, libelle: 'Test non réalisé' },
 ];
 
+// Barre "Secteur" (redesign 2026-09-28, demande utilisateur : "Une section avec soit tous, soit
+// hôtellerie, soit tertiaire") — choix exclusif à 3 valeurs (Tous/Hôtellerie/Tertiaire), même
+// composant FiltresStatut que les barres "Statut"/"Rendez-vous" juste à côté (voir leur rendu plus
+// bas), plutôt que l'ancien FiltreEntite.jsx (deux boutons indépendamment activables, jamais
+// d'option "Tous" propre) — remplace son usage spécifiquement sur CETTE page : FiltreEntite.jsx
+// garde son comportement Set/multi-sélection inchangé pour ses autres appelants (Dossiers
+// candidats/Suivi des formations/Backoffice), pas un composant partagé à modifier en profondeur
+// pour un seul écran (voir Modularité, CLAUDE.md).
+const STATUTS_FILTRABLES_SECTEUR = [
+  { code: 'hotel', libelle: 'Hôtellerie' },
+  { code: 'bureau', libelle: 'Tertiaire' },
+];
+
 // Libellés des postes (colonne "Poste") — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx,
 // dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
 const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
@@ -633,14 +645,18 @@ export default function Planification() {
   // tranches confondues.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
 
-  // Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même composant/mécanisme que
-  // TableauDeBordAccueil.jsx (Dossiers candidats, voir FiltreEntite.jsx) : deux boutons
-  // indépendamment activables, jamais d'option "Toutes" dédiée (ferait doublon avec "Tous", déjà
-  // porté par FiltresStatut ci-dessous), Set vide = aucune restriction. Filtrage entièrement
-  // client (rdv.postesHotel/postesBureau déjà présents sur chaque rendez-vous renvoyé par
-  // GET /api/dossiers/rendezvous, voir listerRendezvousTest), même mécanisme que
+  // Filtre "Secteur" (Tous/Hôtellerie/Tertiaire, redesign 2026-09-28, demande utilisateur) — choix
+  // exclusif, même sentinelle 'tous' dans l'URL que statutRdvFiltre/statutDossierFiltre ci-dessous
+  // (paramètre 'secteur', distinct des leurs). Remplace l'ancien Set entitesFiltre/
+  // basculerEntiteFiltre (useEnsembleURL, deux boutons indépendamment activables) — un seul candidat
+  // n'a jamais qu'un secteur "sélectionné" à la fois sur cet écran désormais, cohérent avec les
+  // deux autres barres de filtre de la même ligne (voir .planification__ligne-entite-statut).
+  // Filtrage entièrement client (rdv.postesHotel/postesBureau déjà présents sur chaque rendez-vous
+  // renvoyé par GET /api/dossiers/rendezvous, voir listerRendezvousTest), même mécanisme que
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
-  const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
+  const [secteurFiltreBrut, setSecteurFiltreBrut] = useParametreURL('secteur', 'tous');
+  const secteurFiltre = secteurFiltreBrut === 'tous' ? null : secteurFiltreBrut;
+  const setSecteurFiltre = (valeur) => setSecteurFiltreBrut(valeur === null ? 'tous' : valeur);
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
   // voir rendezvousRepository.listerRendezvousTest) — même choix que DossierList.jsx. Défaut =
@@ -806,16 +822,23 @@ export default function Planification() {
     });
   }, [rendezvousFiltres]);
 
-  // Compteurs des boutons "Hôtellerie"/"Tertiaire" (demande utilisateur, même principe que
-  // compteurHotel/compteurBureau sur TableauDeBordAccueil.jsx) : calculés sur rendezvousParCandidat
-  // (recherche/plage de date/aVenirSeulement/formateurFiltre déjà appliqués, voir son commentaire
-  // ci-dessus), AVANT le filtre entité lui-même — chaque bouton doit répondre à "combien de
-  // candidats si je clique CE bouton", indépendamment de l'état actuel de entitesFiltre — mais
-  // statut(rendez-vous)/statut(dossier)/expérience réappliqués manuellement ici (comme sur
-  // TableauDeBordAccueil.jsx) pour que ces deux compteurs reflètent malgré tout les AUTRES filtres
-  // déjà actifs, conformément à la liste actuellement affichée sur cet écran. statutDossierFiltre
-  // ajouté ici (audit 2026-09-13, nouvelle barre de filtres "Statut") au même titre que
-  // statutRdvFiltre, déjà présent avant cet ajout.
+  // Compteurs de la barre "Secteur" (Tous/Hôtellerie/Tertiaire, redesign 2026-09-28) — calculés sur
+  // rendezvousParCandidat (recherche/plage de date/aVenirSeulement/formateurFiltre déjà appliqués,
+  // voir son commentaire ci-dessus), AVANT le filtre secteur lui-même — chaque bouton doit répondre
+  // à "combien de candidats si je clique CE bouton", indépendamment de l'état actuel de
+  // secteurFiltre — mais statut(rendez-vous)/statut(dossier)/expérience réappliqués manuellement ici
+  // (même principe que TableauDeBordAccueil.jsx) pour que ces compteurs reflètent malgré tout les
+  // AUTRES filtres déjà actifs, conformément à la liste actuellement affichée sur cet écran.
+  const compteurTousSecteur = useMemo(
+    () =>
+      rendezvousParCandidat.filter(
+        (rdv) =>
+          (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
+          (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre) &&
+          (!experienceFiltre || rdv.experience === experienceFiltre),
+      ).length,
+    [rendezvousParCandidat, statutRdvFiltre, statutDossierFiltre, experienceFiltre],
+  );
   const compteurHotel = useMemo(
     () =>
       rendezvousParCandidat.filter(
@@ -838,22 +861,18 @@ export default function Planification() {
       ).length,
     [rendezvousParCandidat, statutRdvFiltre, statutDossierFiltre, experienceFiltre],
   );
+  const compteursParSecteur = useMemo(() => ({ hotel: compteurHotel, bureau: compteurBureau }), [compteurHotel, compteurBureau]);
 
-  // Filtre entité appliqué juste après le regroupement par candidat (même position que
+  // Filtre secteur appliqué juste après le regroupement par candidat (même position que
   // dossiersFiltresBase sur TableauDeBordAccueil.jsx) : tout ce qui suit (compteurs de statut/
-  // expérience, liste triée) reflète donc déjà l'entité sélectionnée, seuls les DEUX compteurs
-  // ci-dessus l'ignorent délibérément (voir leur commentaire). Set vide = aucune restriction,
-  // mêmes deux valeurs 'hotel'/'bureau' que TableauDeBordAccueil.jsx — un candidat avec les deux
-  // familles de postes renseignées n'est pas exclu au double titre (voir filtrerDossiers.js,
-  // même principe).
+  // expérience, liste triée) reflète donc déjà le secteur sélectionné, seuls les compteurs
+  // ci-dessus l'ignorent délibérément (voir leur commentaire). null (= "Tous") : aucune restriction,
+  // sinon exactement une des deux valeurs 'hotel'/'bureau' (choix exclusif, voir secteurFiltre).
   const rendezvousParCandidatEntite = useMemo(() => {
-    if (entitesFiltre.size === 0) return rendezvousParCandidat;
-    return rendezvousParCandidat.filter(
-      (rdv) =>
-        (entitesFiltre.has('hotel') && (rdv.postesHotel ?? []).length > 0) ||
-        (entitesFiltre.has('bureau') && (rdv.postesBureau ?? []).length > 0),
-    );
-  }, [rendezvousParCandidat, entitesFiltre]);
+    if (!secteurFiltre) return rendezvousParCandidat;
+    const cle = secteurFiltre === 'hotel' ? 'postesHotel' : 'postesBureau';
+    return rendezvousParCandidat.filter((rdv) => (rdv[cle] ?? []).length > 0);
+  }, [rendezvousParCandidat, secteurFiltre]);
 
   // Base commune aux DEUX barres de statut (Rendez-vous ET Statut dossier, audit 2026-09-13) —
   // une ligne par candidat, APRÈS recherche/plage de date/aVenirSeulement/formateurFiltre/entité/
@@ -1149,23 +1168,24 @@ export default function Planification() {
           onChangerDateFinFiltre={setDateFinFiltre}
         />
 
-        {/* Hôtellerie/Tertiaire + "Statut" (dossier) + "Rendez-vous" sur UNE SEULE ligne
-            (réorganisation 2026-09-26, demande utilisateur — "Rendez-vous" vivait jusqu'ici sur sa
-            propre ligne dédiée sous celle-ci, voir historique git ; les trois groupes partagent
-            désormais .planification__ligne-entite-statut, séparateur vertical entre chaque paire
-            porté par le CSS, voir son commentaire). FiltreEntite.jsx pose `width: 100%` sur
-            lui-même (pensé pour la colonne .filtres-statut__gauche de FiltresStatut, qui le
-            contraignait jusqu'ici) : hors de ce contexte, il lui faut son propre conteneur de
-            largeur bornée pour ne pas s'étirer sur toute la ligne — même correctif déjà appliqué
-            pour son unique autre usage standalone, TableauDossiersSelectionnes.jsx (voir
-            .tableau-dossiers-selectionnes__filtre-entite, même valeur de max-width reprise ici). */}
+        {/* "Secteur" (Tous/Hôtellerie/Tertiaire) + "Statut" (dossier) + "Rendez-vous" sur UNE SEULE
+            ligne (réorganisation 2026-09-26, demande utilisateur), les trois groupes partagent
+            .planification__ligne-entite-statut, séparateur vertical entre chaque paire porté par le
+            CSS (voir son commentaire). Secteur redesigné (2026-09-28, demande utilisateur : "Une
+            section avec soit tous, soit hôtellerie, soit tertiaire") en choix exclusif — même
+            composant FiltresStatut/même label que Statut et Rendez-vous juste à sa droite, plutôt
+            que l'ancien FiltreEntite.jsx (deux boutons indépendamment activables, jamais de "Tous"),
+            pour que les trois barres de cette ligne partagent enfin la même logique d'interaction. */}
         <div className="planification__ligne-entite-statut">
-          <div className="planification__filtre-entite-standalone">
-            <FiltreEntite
-              entitesFiltre={entitesFiltre}
-              onBasculerEntite={basculerEntiteFiltre}
-              compteurHotel={compteurHotel}
-              compteurBureau={compteurBureau}
+          <div className="planification__groupe-filtre-statut">
+            <span className="planification__label-filtre-statut">Secteur</span>
+            <FiltresStatut
+              statuts={STATUTS_FILTRABLES_SECTEUR}
+              statutFiltre={secteurFiltre}
+              onChangerStatutFiltre={setSecteurFiltre}
+              ariaLabel="Filtrer par secteur"
+              compteurTous={compteurTousSecteur}
+              compteurs={compteursParSecteur}
             />
           </div>
 
