@@ -167,14 +167,30 @@
    dessous d'Expérience sur un panneau vraiment étroit (point 5, toujours garanti par ce
    flex-wrap parent — inchangé depuis le 1er ajustement). padding vertical resserré à 0, même
    raison que "Expérience" (même hauteur, demande utilisateur explicite point 6, 1er ajustement,
-   inchangé). */
-.tableau-bord-accueil__filtre-disponibilite-embauche.filtres-statut__statuts {
+   inchangé).
+   flex-wrap: wrap (correctif interface 2026-09-28, remplace nowrap) : le titre étant de nouveau
+   sur une seule ligne (voir ci-dessous), c'est le bloc des champs, en entier, qui passe sous le
+   titre quand la boîte est trop étroite — jamais le titre qui se coupe. row-gap aligné sur le
+   gap horizontal hérité.
+   flex: 1 1 24rem (même correctif, remplace flex: 1) : avec une base à 0, la boîte ne passait
+   JAMAIS sous "Expérience" (le flex-wrap du parent ne se déclenche que si la base ne tient pas)
+   et se comprimait jusqu'à quelques px en largeur tablette, son contenu débordant alors du
+   panneau (constaté à 1024 et 768 px). 24rem = largeur du bloc des champs seul (libellé + date
+   + deux boutons) : en dessous, la boîte passe sur sa propre ligne, où tout tient sur une ligne.
+   justify-content: flex-start (même correctif) : annule le `center` de
+   `.tableau-bord-accueil .filtres-statut__statuts` (plus bas) — une fois les champs passés sous
+   le titre, titre et champ date partent ainsi du même bord gauche au lieu d'un titre centré
+   au-dessus de champs calés à gauche. `.tableau-bord-accueil` ajouté au sélecteur pour battre
+   cette règle en spécificité sans dépendre de l'ordre des règles. */
+.tableau-bord-accueil .tableau-bord-accueil__filtre-disponibilite-embauche.filtres-statut__statuts {
   padding-top: 0;
   padding-bottom: 0;
-  flex: 1;
+  flex: 1 1 24rem;
   min-width: 0;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
+  row-gap: var(--espace-petit);
 }
 
 /* Titre raccourci (demande utilisateur explicite point 1 : "Disponibilité (prêts à l'embauche)",
@@ -189,7 +205,11 @@
    jamais compressé par les champs voisins (voir .tableau-bord-accueil__filtre-disponibilite-
    embauche-champs, qui absorbe seule la compression via min-width: 0) — white-space: nowrap
    retiré : il ne s'appliquait plus qu'à chacun des deux segments désormais séparés par le <br />,
-   sans utilité, et aurait pu forcer une largeur inutilement grande sur un panneau très étroit. */
+   sans utilité, et aurait pu forcer une largeur inutilement grande sur un panneau très étroit.
+   De nouveau sur UNE seule ligne (correctif interface 2026-09-28, remplace le <br /> ci-dessus) :
+   white-space: nowrap rétabli, text-align: center retiré (sans objet sur une seule ligne) — le
+   manque de place est désormais absorbé par le retour à la ligne du bloc des champs (flex-wrap:
+   wrap sur la boîte, voir plus haut), pas par le titre. */
 .tableau-bord-accueil__filtre-disponibilite-embauche-titre {
   flex-shrink: 0;
   font-weight: 700;
@@ -197,7 +217,7 @@
   background: none;
   border: none;
   cursor: default;
-  text-align: center;
+  white-space: nowrap;
   line-height: 1.2;
 }
 
@@ -210,11 +230,13 @@
    justify-content: flex-start : les éléments s'enchaînent immédiatement après le titre,
    espacement régulier (var(--espace-petit)) et identique entre chaque paire d'éléments, à
    l'intérieur de ce bloc comme dans celui d'Expérience (même valeur de gap dans les deux, demande
-   utilisateur explicite point 4). */
+   utilisateur explicite point 4).
+   flex: 1 0 auto (correctif interface 2026-09-28, remplace flex: 1 + min-width: 0) : ce bloc ne
+   se comprime plus sous la largeur de son contenu — faute de place, il passe EN ENTIER sous le
+   titre (flex-wrap: wrap de la boîte), libellé, date et boutons restant alignés sur une ligne. */
 .tableau-bord-accueil__filtre-disponibilite-embauche-champs {
   display: flex;
-  flex: 1;
-  min-width: 0;
+  flex: 1 0 auto;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
@@ -238,13 +260,19 @@
    tablette de production). padding horizontal resserré (0.6rem -> 0.4rem) en cohérence. Un seul
    champ désormais (le second, "Au", retiré le 2026-09-28 — demande utilisateur explicite) : cette
    largeur fixe reste pertinente telle quelle, aucun changement nécessaire ici. height/box-sizing
-   inchangés (1er ajustement) : toujours la même hauteur que les boutons ci-dessous. */
+   inchangés (1er ajustement) : toujours la même hauteur que les boutons ci-dessous.
+   width: auto + padding horizontal 0.6rem (correctif interface 2026-09-28, remplacent 7.75rem et
+   0.4rem) : la largeur fixe était trop juste, l'icône du calendrier empiétait sur l'année
+   ("2026" coupé). Aligné sur les champs "Du"/"Au" de la barre de recherche juste au-dessus
+   (.filtre-plage-date input, core/filtres/FiltrePlageDate.css : largeur naturelle, padding
+   0.6rem) plutôt qu'une nouvelle valeur fixe — même rendu que ces champs quel que soit le
+   navigateur. */
 .tableau-bord-accueil__filtre-disponibilite-embauche-champs input[type='date'] {
   flex-shrink: 0;
   box-sizing: border-box;
-  width: 7.75rem;
+  width: auto;
   height: 2.1rem;
-  padding: 0.3rem 0.4rem;
+  padding: 0.3rem 0.6rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   font: inherit;

@@ -12,6 +12,7 @@ import { ROLES_ACCUEIL } from '../../core/auth/rolesGroupes';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import { dateDuJourParis } from '../../core/dossier/dateDuJourParis';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
 import ModaleDisponibiliteEmbauche from './ModaleDisponibiliteEmbauche';
@@ -378,15 +379,21 @@ export default function TableauDeBordAccueil() {
   // page) copient/vident ce brouillon vers la valeur appliquée. Initialisé depuis l'URL (pas '') :
   // un lien partagé/mis en favori avec ce filtre déjà actif doit afficher la date déjà saisie dans
   // le champ, pas un champ vide à côté d'une liste déjà filtrée.
-  const [dispoDebutBrouillon, setDispoDebutBrouillon] = useState(dispoDebut);
+  // Sans dispo_debut dans l'URL, préremplissage avec la date du jour (correctif interface
+  // 2026-09-28) — brouillon SEULEMENT : le filtre n'est appliqué qu'au clic sur "Appliquer", la
+  // liste reste complète à l'ouverture. dateDuJourParis (fuseau Europe/Paris, jamais UTC) : pas de
+  // veille affichée entre minuit et 2 h.
+  const [dispoDebutBrouillon, setDispoDebutBrouillon] = useState(() => dispoDebut || dateDuJourParis());
   const filtreDisponibiliteActif = Boolean(dispoDebut);
 
   const appliquerFiltreDisponibilite = () => {
     if (!dispoDebutBrouillon) return;
     setDispoDebut(dispoDebutBrouillon);
   };
+  // "Effacer" retire le filtre appliqué et remet le champ à la date du jour (même état qu'à
+  // l'ouverture de l'écran), pas à vide.
   const effacerFiltreDisponibilite = () => {
-    setDispoDebutBrouillon('');
+    setDispoDebutBrouillon(dateDuJourParis());
     setDispoDebut('');
   };
 
@@ -905,7 +912,7 @@ export default function TableauDeBordAccueil() {
           </div>
 
           {/* Filtre "Disponibilité des candidats prêts à l'embauche" (audit 2026-09-28) — une
-              seule date ("Du") + Appliquer/Effacer, dans le même style que les autres filtres de
+              seule date ("À partir de", ex-"Du") + Appliquer/Effacer, dans le même style que les autres filtres de
               cette page (boîte ivoire, voir TableauDeBordAccueil.css). Champ "Au" RETIRÉ le même
               jour (demande utilisateur explicite, pour que la boîte tienne dans sa cellule en
               prod). Côté back, cette date sert de comparaison PONCTUELLE des deux côtés — dateDebut
@@ -929,20 +936,15 @@ export default function TableauDeBordAccueil() {
             {/* Libellé raccourci (ajustement 2026-09-28, demande utilisateur explicite : le texte
                 complet touchait le bloc "Expérience" voisin) — aria-label du groupe ci-dessus
                 garde le texte complet et descriptif, seul le libellé VISIBLE est raccourci.
-                Retour à la ligne forcé entre les deux segments (ajustement 2026-09-28, demande
-                utilisateur explicite : le libellé sur une seule ligne dépassait encore de sa
-                boîte en prod) — <br />, pas un simple espace insécable : ce titre garde
-                flex-shrink: 0 (TableauDeBordAccueil.css), donc SEUL un saut de ligne explicite
-                réduit sa largeur nécessaire, un wrap "naturel" au gré de l'espace disponible ne
-                suffirait pas à le faire tenir dans la cellule. */}
+                De nouveau sur UNE seule ligne (correctif interface 2026-09-28, remplace le <br />
+                de l'ajustement précédent) : white-space: nowrap côté CSS ; sur écran étroit, c'est
+                le bloc des champs qui passe sous le titre, jamais le titre qui se coupe. */}
             <span className="tableau-bord-accueil__filtre-disponibilite-embauche-titre">
-              Disponibilité
-              <br />
-              (prêts à l&apos;embauche)
+              Disponibilité (prêts à l&apos;embauche)
             </span>
             <div className="tableau-bord-accueil__filtre-disponibilite-embauche-champs">
               <label htmlFor="dispo-embauche-debut">
-                Du
+                À partir de
                 <input
                   id="dispo-embauche-debut"
                   type="date"
@@ -953,7 +955,10 @@ export default function TableauDeBordAccueil() {
               <button type="button" onClick={appliquerFiltreDisponibilite} disabled={!dispoDebutBrouillon}>
                 Appliquer
               </button>
-              {/* Désactivé tant qu'aucune date n'est saisie NULLE PART (demande utilisateur
+              {/* Désactivé quand il n'y a rien à effacer : aucun filtre appliqué ET champ déjà à
+                  la date du jour (préremplissage, correctif interface 2026-09-28 — le champ n'est
+                  plus jamais vide à l'ouverture). Historique :
+                  désactivé tant qu'aucune date n'est saisie NULLE PART (demande utilisateur
                   explicite, ajustement de mise en page 2026-09-28) — ni dans le brouillon en
                   cours de saisie, ni dans le filtre déjà appliqué : auparavant conditionné au
                   seul filtre appliqué (filtreDisponibiliteActif), ce qui laissait "Effacer"
@@ -962,7 +967,7 @@ export default function TableauDeBordAccueil() {
               <button
                 type="button"
                 onClick={effacerFiltreDisponibilite}
-                disabled={!dispoDebutBrouillon && !filtreDisponibiliteActif}
+                disabled={dispoDebutBrouillon === dateDuJourParis() && !filtreDisponibiliteActif}
               >
                 Effacer
               </button>
