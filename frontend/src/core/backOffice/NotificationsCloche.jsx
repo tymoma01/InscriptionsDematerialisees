@@ -37,6 +37,12 @@ function demandeVersNotification(demande) {
 // aucun envoi SMS/email. Monté une seule fois (comme "Mon profil"), autonome (son propre polling),
 // même patron que BarreNavigation.jsx/BoutonNouvelleInscription.jsx.
 //
+// Restreinte à Admin/RH (audit 2026-09-28, demande utilisateur explicite : "cette cloche ne doit
+// être que pour les rh et les admins") — retirée pour Accueil/Coordination et Planning (voir
+// `visible` plus bas). EnTeteBackOffice.jsx continue de monter ce composant sans condition sur
+// TOUTES les pages back-office (patron d'auto-gating inchangé, voir son propre commentaire) : le
+// filtrage par rôle reste entièrement local à CE composant, pas remonté à l'appelant.
+//
 // RH (simplification 2026-09-28, demande utilisateur explicite — revient sur un premier essai de
 // notifications stockées par destinataire à l'envoi, plus un rattrapage pour tout RH promu après
 // coup : trop compliqué, et un compte RH créé après une demande ne recevait quand même rien tant
@@ -59,6 +65,10 @@ export default function NotificationsCloche() {
   // premier appel réseau, plutôt que de tenter puis corriger.
   const { utilisateur, chargement: chargementSession } = useSession();
   const estRh = utilisateur?.roleCode === 'rh';
+  // Seuls Admin/RH voient la cloche (voir commentaire d'en-tête) — Formateur/Inspecteur exclus
+  // aussi, même si non explicitement nommés dans la demande utilisateur ("que pour les rh et les
+  // admins" est une liste fermée, pas une simple exclusion d'Accueil/Planning).
+  const visible = utilisateur?.roleCode === 'rh' || utilisateur?.roleCode === 'admin';
 
   const [total, setTotal] = useState(0);
   const [notifications, setNotifications] = useState([]);
@@ -74,7 +84,10 @@ export default function NotificationsCloche() {
   };
 
   useEffect(() => {
-    if (chargementSession) return undefined;
+    // `visible` couvre déjà `!chargementSession` (utilisateur reste null tant que la session
+    // n'est pas résolue, voir son calcul plus haut) — un rôle non autorisé ou une session encore en
+    // cours de résolution ne déclenche donc aucun appel réseau ni polling inutile.
+    if (chargementSession || !visible) return undefined;
 
     rafraichirCompteur();
 
@@ -89,7 +102,7 @@ export default function NotificationsCloche() {
       document.removeEventListener('visibilitychange', verifier);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estRh, chargementSession]);
+  }, [estRh, visible, chargementSession]);
 
   useEffect(() => {
     function surClicExterieur(evenement) {
@@ -137,6 +150,13 @@ export default function NotificationsCloche() {
       // Silencieux : un prochain clic réessaiera, même principe que useRafraichissementAuto.js.
     }
   };
+
+  // Rien à monter pour un rôle non autorisé (Accueil/Coordination, Planning, Formateur,
+  // Inspecteur) — ni pour la brève fenêtre où la session n'est pas encore résolue (`visible` vaut
+  // alors faussement `false`, utilisateur étant encore null : mieux vaut ne rien afficher un
+  // instant que de laisser la cloche apparaître puis disparaître). Après les hooks ci-dessus
+  // (jamais avant, voir la règle des Hooks) — même patron que EnTeteBackOffice.jsx.
+  if (chargementSession || !visible) return null;
 
   return (
     <div className="notifications-cloche" ref={conteneurRef}>
