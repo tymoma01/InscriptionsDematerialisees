@@ -285,19 +285,23 @@
   background-color: var(--couleur-back-office-hover);
 }
 
-/* "Effacer" — SECONDAIRE et DISCRET (demande utilisateur explicite point 5) : contour et texte
-   atténués (--couleur-bordure-legere/--couleur-texte-secondaire, pas la paire "franche" utilisée
-   ailleurs pour un bouton neutre), poids normal (pas 600 comme "Appliquer") — se lit comme une
-   action secondaire/de réinitialisation, jamais au même niveau que "Appliquer". */
+/* "Effacer" — bouton secondaire (correctif interface 2026-09-28, remplace la variante trop
+   discrète du point 5 précédent : --couleur-bordure-legere/--couleur-texte-secondaire se lisait
+   comme du texte grisé, pas comme un bouton actif). Reprend le style de bouton secondaire déjà
+   utilisé ailleurs dans le projet (.gestion-transitions__actions button, GestionTransitions.css :
+   contour + texte dans la couleur brune de la charte, fond transparent, survol en brun très clair)
+   plutôt que d'en inventer un nouveau — même paire de couleurs que "Appliquer" ci-dessus
+   (--couleur-back-office), juste sans le remplissage plein. Hauteur/arrondi/taille de police déjà
+   identiques à "Appliquer" via la règle commune ci-dessus (`button` seul) : rien à redéfinir ici. */
 .tableau-bord-accueil__filtre-disponibilite-embauche-champs button:last-of-type {
-  border: 1px solid var(--couleur-bordure-legere);
+  border: 1px solid var(--couleur-back-office);
   background-color: transparent;
-  color: var(--couleur-texte-secondaire);
+  color: var(--couleur-back-office);
   font-weight: 400;
 }
 
 .tableau-bord-accueil__filtre-disponibilite-embauche-champs button:last-of-type:not(:disabled):hover {
-  background-color: var(--couleur-fond-secondaire);
+  background-color: var(--couleur-back-office-clair);
 }
 
 /* Version LECTURE SEULE du bouton "Dispo : ..." (ajustement 2026-09-28, demande utilisateur

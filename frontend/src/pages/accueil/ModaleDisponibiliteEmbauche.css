@@ -77,8 +77,20 @@
   gap: var(--espace-moyen);
 }
 
+/* Correctif interface 2026-09-28 : les deux labels sont `flex:1` dans une rangée `flex` (donc déjà
+   étirés à la même hauteur par le `stretch` par défaut du conteneur), mais leur propre contenu
+   (`flex-direction: column`) restait packé en haut (`flex-start` par défaut) — quand l'un des deux
+   libellés prenait plus de place que l'autre (ex. un texte sur deux lignes), son champ de date se
+   retrouvait plus bas que l'autre. `justify-content: flex-end` plaque le contenu de chaque label
+   (texte + champ) en bas de sa boîte, donc les deux <input type="date"> restent alignés sur leur
+   bord bas quel que soit le nombre de lignes du libellé au-dessus. `min-width: 0` (au lieu du
+   défaut `auto` des flex items) empêche un libellé plus long de forcer sa colonne à s'élargir plus
+   que l'autre : les deux gardent la même largeur (1fr chacun), le texte trop long wrappe plutôt que
+   d'élargir la colonne. */
 .modale-disponibilite-embauche__dates label {
   flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .modale-disponibilite-embauche input[type='date'],
@@ -87,6 +99,18 @@
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   font: inherit;
+}
+
+/* Largeur/hauteur identiques pour les deux champs de date (correctif interface 2026-09-28) :
+   `width: 100%` fait que chacun occupe exactement toute la largeur de son label (déjà égale entre
+   les deux, voir .modale-disponibilite-embauche__dates label ci-dessus) plutôt que sa largeur
+   intrinsèque (qui peut légèrement varier d'un navigateur à l'autre pour un <input type="date">) ;
+   `height` explicite pour ne pas dépendre du rendu par défaut, potentiellement différent entre
+   deux inputs autrement identiques selon le moteur de rendu. */
+.modale-disponibilite-embauche__dates input[type='date'] {
+  width: 100%;
+  height: 2.5rem;
+  box-sizing: border-box;
 }
 
 .modale-disponibilite-embauche textarea {

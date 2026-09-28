@@ -84,7 +84,12 @@ export default function ModaleDisponibiliteEmbauche({ dossier, onConfirmer, onAn
         <form onSubmit={confirmer}>
           <div className="modale-disponibilite-embauche__dates">
             <label htmlFor="disponibilite-date-debut">
-              Disponible à partir du <span className="champ-obligatoire">*</span>
+              {/* Espace insécable avant l'astérisque (correctif interface 2026-09-28) : un espace
+                  normal y est un point de coupure valide, ce qui faisait passer l'astérisque seul
+                  à la ligne et désalignait ce champ par rapport à "Jusqu'au" — voir
+                  .modale-disponibilite-embauche__dates label ci-dessous pour l'alignement par le
+                  bas qui rend les deux champs robustes même si un libellé venait à wrapper. */}
+              Disponible à partir du{' '}<span className="champ-obligatoire">*</span>
               <input
                 id="disponibilite-date-debut"
                 type="date"
