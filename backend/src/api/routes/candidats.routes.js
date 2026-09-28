@@ -1,12 +1,22 @@
 const { Router } = require('express');
 const { z } = require('zod');
-const { inscrireCandidat, verifierDisponibilite, ErreurInscriptionConflit } = require('../../core/dossier/dossierService');
+const {
+  inscrireCandidat,
+  verifierDisponibilite,
+  rechercherCandidats,
+  ErreurInscriptionConflit,
+} = require('../../core/dossier/dossierService');
 const formulaireService = require('../../core/formulaire/formulaireService');
 const { limiteurVerificationDisponibilite } = require('../middlewares/rateLimiter');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
+const { requireAuth } = require('../middlewares/auth.middleware');
+const { requireRole } = require('../middlewares/rbac.middleware');
+const { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH } = require('../../core/auth/rbac');
 
 const router = Router();
+
+const ROLES_RECHERCHE_CANDIDATS = [...new Set([...ROLES_DPAE_DEMANDEUR, ...ROLES_DPAE_RH])];
 
 // GET /api/candidats/formulaire-config — blocs actifs/ordre du formulaire d'inscription pour
 // l'entité résolue par sous-domaine (req.entite, voir entiteContext). Aucune authentification
@@ -17,6 +27,20 @@ router.get('/formulaire-config', async (req, res, next) => {
   try {
     const blocs = await formulaireService.obtenirConfigurationFormulaire(req.entite);
     res.json(blocs);
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// GET /api/candidats/recherche — autocomplétion "nom du salarié" du module Demandes DPAE
+// (RechercheCandidatSalarie.jsx). Authentifiée (contrairement aux deux routes ci-dessus) : liste
+// nom/prénom de candidats existants, une donnée personnelle qu'un visiteur non connecté (le
+// candidat sur la tablette d'inscription) n'a aucune raison de pouvoir interroger.
+router.get('/recherche', requireAuth, requireRole(...ROLES_RECHERCHE_CANDIDATS), async (req, res, next) => {
+  try {
+    const texte = typeof req.query.q === 'string' ? req.query.q : '';
+    const candidats = await rechercherCandidats(req.entite, texte);
+    res.json(candidats);
   } catch (erreur) {
     next(erreur);
   }

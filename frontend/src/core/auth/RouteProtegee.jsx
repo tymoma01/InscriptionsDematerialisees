@@ -38,6 +38,9 @@ const DESTINATION_PAR_ROLE = {
   formateur: '/formateur/evaluations',
   inspecteur: '/inspecteur/evaluations',
   admin: '/accueil/tableau-de-bord',
+  // rh (module Demandes DPAE, 2026-09-28) : aucun accès à /accueil/tableau-de-bord (dossiers
+  // candidats, hors périmètre RH) — son propre "chez soi" est la file de demandes à traiter.
+  rh: '/rh/dpae',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
 

@@ -29,12 +29,18 @@
 // Coordination (voir ROLES_ACCUEIL ci-dessous) + le droit de forcer un statut (voir ROLES_FORCAGE),
 // jamais un rôle à part entière avec ses propres routes/transition_roles distincts — c'est
 // pourquoi il n'apparaît JAMAIS seul dans le code, toujours via l'un de ces deux groupes.
+//
+// RH ajouté (module Demandes DPAE, 2026-09-28) : traite/valide/rejette les demandes DPAE
+// (accueilCoordination/planning/admin les créent, voir ROLES_DPAE_DEMANDEUR ci-dessous) — rôle à
+// part entière, pas un alias d'un groupe existant (contrairement à Planning), avec ses propres
+// routes (api/routes/dpae.routes.js).
 const ROLES = Object.freeze({
   ACCUEIL_COORDINATION: 'accueil_coordination',
   PLANNING: 'planning',
   FORMATEUR: 'formateur',
   INSPECTEUR: 'inspecteur',
   ADMIN: 'admin',
+  RH: 'rh',
   SYSTEME: 'systeme',
 });
 
@@ -49,6 +55,13 @@ const ROLES_ACCUEIL = Object.freeze([ROLES.ACCUEIL_COORDINATION, ROLES.PLANNING]
 // ROLES_FORCAGE : qui peut forcer le statut d'un dossier (POST /forcer-statut) — Admin, plus
 // Planning (voir transitions.routes.js ROLES_FORCAGE, workflowEngine.forcerStatut).
 const ROLES_FORCAGE = Object.freeze([ROLES.ADMIN, ROLES.PLANNING]);
+// ROLES_DPAE_DEMANDEUR : qui peut créer/suivre une demande DPAE (api/routes/dpae.routes.js,
+// POST /, GET /mes-demandes) — même équipe que le reste du parcours candidat, Admin inclus.
+const ROLES_DPAE_DEMANDEUR = Object.freeze([...ROLES_ACCUEIL, ROLES.ADMIN]);
+// ROLES_DPAE_RH : qui peut consulter la file RH et valider/rejeter une demande DPAE — RH, plus
+// Admin (même convention que tout le reste du projet : Admin garde un accès de secours sur
+// chaque domaine métier).
+const ROLES_DPAE_RH = Object.freeze([ROLES.RH, ROLES.ADMIN]);
 
 // utilisateur est le payload minimal posé en session par authService.connecter — voir
 // core/auth/session.js et api/middlewares/auth.middleware.js.
@@ -56,4 +69,11 @@ function utilisateurARole(utilisateur, ...codesAutorises) {
   return Boolean(utilisateur) && codesAutorises.includes(utilisateur.roleCode);
 }
 
-module.exports = { ROLES, ROLES_ACCUEIL, ROLES_FORCAGE, utilisateurARole };
+module.exports = {
+  ROLES,
+  ROLES_ACCUEIL,
+  ROLES_FORCAGE,
+  ROLES_DPAE_DEMANDEUR,
+  ROLES_DPAE_RH,
+  utilisateurARole,
+};

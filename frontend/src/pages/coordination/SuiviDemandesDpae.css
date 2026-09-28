@@ -1,0 +1,68 @@
+.page-suivi-dpae {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+}
+
+.page-suivi-dpae__entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+}
+
+.page-suivi-dpae__entete h1 {
+  color: var(--couleur-back-office);
+  margin: 0;
+}
+
+.page-suivi-dpae__actions {
+  margin-bottom: var(--espace-moyen);
+}
+
+.page-suivi-dpae__nouvelle {
+  display: inline-block;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.page-suivi-dpae__nouvelle:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.page-suivi-dpae__table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  overflow: hidden;
+  box-shadow: var(--ombre-bloc);
+}
+
+.page-suivi-dpae__table th,
+.page-suivi-dpae__table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  text-align: left;
+}
+
+.page-suivi-dpae__table th {
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.page-suivi-dpae__table tbody tr:hover {
+  background-color: var(--couleur-fond-survol-tableau);
+}
+
+.page-suivi-dpae [role='alert'] {
+  color: var(--couleur-erreur);
+}

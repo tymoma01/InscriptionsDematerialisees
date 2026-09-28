@@ -30,8 +30,10 @@ router.use(requireAuth);
 // bas : "pas une décision qu'un recruteur/accueil choisit" — recruteur historique, rôle retiré,
 // audit 2026-08-27). L'admin est inclus par cohérence avec son rôle de gestion globale.
 const ROLES_GESTION_PIECES = [...ROLES_ACCUEIL, ROLES.ADMIN];
-// Consultation (liste, téléchargement) ouverte à tous les rôles internes.
-const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+// Consultation (liste, téléchargement) ouverte à tous les rôles internes — RH ajouté (module
+// Demandes DPAE, 2026-09-28, demande utilisateur explicite) au même titre que Formateur/
+// Inspecteur : consultation seule, jamais ROLES_GESTION_PIECES/ROLES_EXPORT_ZIP_PIECES ci-dessous.
+const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.RH];
 // Export groupé (ZIP) : Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 — besoin RH
 // "second contrôle"), étendu à Accueil/Coordination et Admin le 2026-08-17. Volontairement plus
 // restreint que ROLES_CONSULTATION_PIECES (exclut Formateur/Inspecteur) : télécharger le contenu

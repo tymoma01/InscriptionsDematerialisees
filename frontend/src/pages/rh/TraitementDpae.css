@@ -1,0 +1,56 @@
+.page-traitement-dpae {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+}
+
+.page-traitement-dpae__entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+}
+
+.page-traitement-dpae__entete h1 {
+  color: var(--couleur-back-office);
+  margin: 0;
+}
+
+/* FiltresStatut.jsx porte déjà son propre style (FiltresStatut.css) — juste l'espacement avec le
+   tableau ci-dessous, propre à cette page. */
+.page-traitement-dpae .filtres-statut {
+  margin-bottom: var(--espace-moyen);
+}
+
+.page-traitement-dpae__table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  overflow: hidden;
+  box-shadow: var(--ombre-bloc);
+}
+
+.page-traitement-dpae__table th,
+.page-traitement-dpae__table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  text-align: left;
+}
+
+.page-traitement-dpae__table th {
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.page-traitement-dpae__table tbody tr:hover {
+  background-color: var(--couleur-fond-survol-tableau);
+}
+
+.page-traitement-dpae [role='alert'] {
+  color: var(--couleur-erreur);
+}

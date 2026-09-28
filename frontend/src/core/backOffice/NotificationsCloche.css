@@ -1,0 +1,122 @@
+.notifications-cloche {
+  position: relative;
+}
+
+/* Même formule que .en-tete-back-office__action (EnTeteBackOffice.css) : fond clair + bordure/
+   texte dorés, pour rester dans le même système visuel que "Mon profil" juste à côté. */
+.notifications-cloche__bouton {
+  position: relative;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--couleur-back-office-dore);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office-clair);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notifications-cloche__bouton:hover {
+  background-color: var(--couleur-back-office-dore);
+}
+
+.notifications-cloche__badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background-color: var(--couleur-erreur);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.notifications-cloche__panneau {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  width: 22rem;
+  max-width: calc(100vw - 2rem);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.notifications-cloche__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  font-weight: 600;
+  color: var(--couleur-back-office);
+}
+
+.notifications-cloche__entete button {
+  border: none;
+  background: none;
+  color: var(--couleur-primaire);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 400;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+.notifications-cloche__info {
+  margin: 0;
+  padding: 0.75rem;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+}
+
+.notifications-cloche__liste {
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.notifications-cloche__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background: none;
+  cursor: pointer;
+}
+
+.notifications-cloche__item:hover,
+.notifications-cloche__item:focus-visible {
+  background-color: var(--couleur-fond-secondaire);
+  outline: none;
+}
+
+.notifications-cloche__item--non-lue {
+  background-color: var(--couleur-back-office-clair);
+}
+
+.notifications-cloche__item--non-lue:hover {
+  background-color: var(--couleur-back-office-dore);
+}
+
+.notifications-cloche__message {
+  color: var(--couleur-texte);
+  font-size: 0.9rem;
+}
+
+.notifications-cloche__date {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.78rem;
+}

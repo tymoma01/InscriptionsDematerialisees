@@ -1,0 +1,176 @@
+/* Même mise en page que le reste du back-office (largeur max centrée) — .bloc-formulaire vient de
+   styles/blocFormulaire.css (chargé globalement, main.jsx), réutilisé tel quel pour cette page
+   plutôt que redéfini (même charte visuelle que le formulaire d'inscription candidat). */
+.page-demande-dpae {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+}
+
+.page-demande-dpae__entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+}
+
+.page-demande-dpae__entete h1 {
+  color: var(--couleur-back-office);
+  margin: 0 0 var(--espace-moyen);
+}
+
+.page-demande-dpae form {
+  display: flex;
+  flex-direction: column;
+}
+
+.bloc-formulaire label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: var(--espace-petit);
+}
+
+.bloc-formulaire label.champ-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: var(--espace-moyen);
+  display: inline-flex;
+}
+
+.bloc-formulaire textarea {
+  font-family: var(--police-base);
+  color: var(--couleur-texte);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.4rem 0.6rem;
+  resize: vertical;
+}
+
+.bloc-formulaire input[type='time'] {
+  font-family: var(--police-base);
+  color: var(--couleur-texte);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  padding: 0.4rem 0.6rem;
+}
+
+.page-demande-dpae__jours-concernes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: var(--espace-petit);
+}
+
+.page-demande-dpae__jour-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-demande-dpae__horaires-communs {
+  display: flex;
+  gap: var(--espace-moyen);
+  flex-wrap: wrap;
+}
+
+/* Grille de cartes "jour" en grand format (demande utilisateur : "les jours en gros ... intuitif",
+   même esprit que la maquette d'origine) — chaque jour est une carte large, tactile, qu'on bascule
+   Travail/Repos d'un tap plutôt qu'un tableau HTML classique aux cellules étroites. */
+.page-demande-dpae__semaine-type {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-top: var(--espace-petit);
+}
+
+.page-demande-dpae__carte-jour {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+  border: 2px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+  overflow: hidden;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.page-demande-dpae__carte-jour--travail {
+  border-color: var(--statut-succes-bordure);
+  background-color: var(--statut-succes-fond);
+}
+
+.page-demande-dpae__carte-jour-bascule {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: var(--espace-moyen) var(--espace-petit);
+  cursor: pointer;
+  font: inherit;
+}
+
+/* Nom du jour "en gros" (demande utilisateur explicite) — nettement plus grand que le reste du
+   formulaire, lisible d'un coup d'œil sur tablette. */
+.page-demande-dpae__carte-jour-nom {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--couleur-texte);
+  text-transform: capitalize;
+}
+
+.page-demande-dpae__carte-jour-statut {
+  padding: 0.25rem 0.9rem;
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte-secondaire);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.page-demande-dpae__carte-jour--travail .page-demande-dpae__carte-jour-statut {
+  background-color: var(--statut-succes-texte);
+  color: #ffffff;
+}
+
+.page-demande-dpae__carte-jour-horaires {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0 var(--espace-petit) var(--espace-petit);
+}
+
+.page-demande-dpae__carte-jour-horaires input[type='time'] {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.page-demande-dpae__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.page-demande-dpae__actions button {
+  padding: 0.7rem 1.75rem;
+  border-radius: var(--rayon-bordure);
+  border: 1px solid var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.page-demande-dpae__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.page-demande-dpae form [role='alert'] {
+  color: var(--couleur-erreur);
+}

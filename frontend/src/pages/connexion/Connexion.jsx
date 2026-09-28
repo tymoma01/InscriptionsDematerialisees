@@ -47,6 +47,9 @@ const DESTINATION_PAR_ROLE = {
   formateur: '/formateur/evaluations',
   inspecteur: '/inspecteur/evaluations',
   admin: '/accueil/tableau-de-bord',
+  // rh (module Demandes DPAE, 2026-09-28) — voir RouteProtegee.jsx, même valeur EXACTE à
+  // maintenir en cohérence manuellement (voir commentaire d'en-tête ci-dessus).
+  rh: '/rh/dpae',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
 

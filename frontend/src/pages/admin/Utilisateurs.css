@@ -279,6 +279,17 @@
   width: 9rem;
 }
 
+/* StatutBadge.css impose `white-space: nowrap` par défaut (utile ailleurs, où le badge reste
+   toujours court) — "Accueil / Coordination" déborde de cette colonne à 9rem avec cette règle
+   (demande utilisateur, badge qui ne rentrait pas). Override scopé à cette seule colonne plutôt
+   que touché sur StatutBadge.css lui-même (générique, partagé par toute l'app) : un retour à la
+   ligne reste acceptable pour un badge de rôle assis au milieu de sa cellule, jamais souhaitable
+   pour, par exemple, un badge de statut de dossier. */
+.table-utilisateurs__colonne-role_libelle .statut-badge {
+  white-space: normal;
+  text-align: center;
+}
+
 .table-utilisateurs__colonne-actif {
   width: 6.5rem;
 }

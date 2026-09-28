@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSession } from './useSession';
 import { seDeconnecter } from '../../services/authService';
 import ModaleMonProfil from './ModaleMonProfil';
+import NotificationsCloche from '../backOffice/NotificationsCloche';
 import './EnTeteBackOffice.css';
 
 // En-tête commun aux écrans internes authentifiés (accueil, coordination, recruteur, formateur,
@@ -43,6 +44,11 @@ export default function EnTeteBackOffice() {
 
   return (
     <div className="en-tete-back-office">
+      {/* Système de notifications internes (module Demandes DPAE, 2026-09-28) — même patron
+          d'auto-gating que ce composant lui-même (session propre à NotificationsCloche.jsx),
+          visible pour tous les rôles : rien de spécifique à la DPAE ici, générique par
+          construction (voir son commentaire d'en-tête). */}
+      <NotificationsCloche />
       <button type="button" className="en-tete-back-office__action" onClick={() => setProfilOuvert(true)}>
         Mon profil
       </button>

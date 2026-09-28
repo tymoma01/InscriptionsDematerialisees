@@ -20,6 +20,8 @@ const moiRoutes = require('./api/routes/moi.routes');
 const formateursRoutes = require('./api/routes/formateurs.routes');
 const lieuxRoutes = require('./api/routes/lieux.routes');
 const statistiquesRoutes = require('./api/routes/statistiques.routes');
+const dpaeRoutes = require('./api/routes/dpae.routes');
+const notificationsRoutes = require('./api/routes/notifications.routes');
 const { FRONTEND_URL } = require('./config/env');
 
 // Build statique du front (React/Vite), copié dans public/ à la racine du conteneur par le
@@ -149,6 +151,14 @@ async function creerApp() {
   // Tableau de bord KPI (CLAUDE.md, section Tableau de bord : "indicateurs de pilotage et
   // filtres") — Recruteur/Admin uniquement, voir statistiques.routes.js.
   app.use('/api/statistiques', statistiquesRoutes);
+  // Module Demandes DPAE (2026-09-28, spécifique à ACCECIT — voir Modularité, CLAUDE.md) — top-
+  // level, pas nichée sous un dossier candidat (une demande DPAE n'est jamais rattachée à un
+  // dossier, seulement optionnellement à un candidat via candidat_id), voir dpae.routes.js.
+  app.use('/api/dpae', dpaeRoutes);
+  // Notifications internes génériques (cloche back-office, voir NotificationsCloche.jsx) —
+  // volontairement distinctes de notificationFactory.js (SMS/email candidat), voir
+  // notifications.routes.js.
+  app.use('/api/notifications', notificationsRoutes);
 
   // Une requête /api/* qui n'a matché aucune route ci-dessus est une vraie 404 d'API — à
   // renvoyer en JSON, jamais laisser tomber jusqu'à la route de repli SPA ci-dessous (qui,

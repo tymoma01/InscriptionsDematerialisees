@@ -12,10 +12,13 @@ const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConsta
 // ("Aucun moyen actuel d'anticiper les désistements"), ce tableau de bord en lecture seule (aucune
 // donnée sensible NIR/RIB/pièces) répond directement à ce besoin. Rôle Recruteur retiré (audit
 // 2026-08-27) — voir suppression du rôle en base.
+//
+// RH ajouté (module Demandes DPAE, 2026-09-28, demande utilisateur explicite) — cohérent avec le
+// reste du module : lecture seule, aucune donnée sensible sur ce tableau de bord.
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_ACCUEIL, ROLES.ADMIN));
+router.use(requireRole(...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH));
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 

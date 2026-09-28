@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
+import { ROLES_ACCUEIL, ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH } from '../auth/rolesGroupes';
 import './BarreNavigation.css';
 
 // Catalogue des destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
@@ -41,8 +41,9 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Tableau de bord',
     chemin: '/tableau-de-bord/indicateurs',
     estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
-    // Mêmes rôles que statistiques.routes.js.
-    roles: [...ROLES_ACCUEIL, 'admin'],
+    // Mêmes rôles que statistiques.routes.js. RH ajouté (module Demandes DPAE, 2026-09-28, demande
+    // utilisateur explicite) — lecture seule, cohérent avec le reste de ses accès.
+    roles: [...ROLES_ACCUEIL, 'admin', 'rh'],
   },
   {
     cle: 'dossiers',
@@ -56,8 +57,11 @@ const ELEMENTS_NAVIGATION = [
       chemin.startsWith('/accueil/') ||
       chemin.startsWith('/coordination/dossiers/') ||
       chemin.startsWith('/recruteur/'),
-    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS.
-    roles: [...ROLES_ACCUEIL, 'admin'],
+    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS — RH ajouté (module Demandes
+    // DPAE, 2026-09-28, demande utilisateur explicite) : consultation seule (Validation.jsx masque
+    // déjà "Forcer le statut"/"Embauche" pour tout rôle hors ROLES_FORCAGE/ROLES_ACCUEIL+admin,
+    // donc naturellement en lecture seule pour RH, voir son commentaire d'en-tête).
+    roles: [...ROLES_ACCUEIL, 'admin', 'rh'],
   },
   {
     cle: 'suivi-tests',
@@ -83,6 +87,22 @@ const ELEMENTS_NAVIGATION = [
     // l'Inspecteur — ne passe en formation). Mêmes rôles que dossiers.routes.js, route
     // /suivi-formation (ROLES_SUIVI_FORMATION), et App.jsx (garde de route équivalente).
     roles: [...ROLES_ACCUEIL, 'admin', 'formateur'],
+  },
+  {
+    cle: 'demandes-dpae',
+    // Module Demandes DPAE (2026-09-28) — même patron que "historique-evaluations"/
+    // "evaluations-a-venir" ci-dessus (Formateur/Inspecteur) : deux écrans logiquement distincts
+    // (déposer/suivre une demande côté Accueil/Coordination, la traiter côté RH) partagent une
+    // seule entrée de navigation, `chemin` fonction du rôle connecté. Admin voit la file RH
+    // (seule des deux qui a un sens pour un rôle qui n'est ni l'un ni l'autre par défaut).
+    // Placée avant "Comptes utilisateurs" (demande utilisateur explicite, 2026-09-28) : l'ordre de
+    // ce tableau pilote directement l'ordre d'affichage des onglets.
+    libelle: 'Demandes DPAE',
+    chemin: (roleCode) => (roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi'),
+    estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
+    // Mêmes rôles que dpae.routes.js (ROLES_DPAE_DEMANDEUR ∪ ROLES_DPAE_RH), voir
+    // core/auth/rolesGroupes.js.
+    roles: [...new Set([...ROLES_DPAE_DEMANDEUR, ...ROLES_DPAE_RH])],
   },
   {
     cle: 'comptes-utilisateurs',

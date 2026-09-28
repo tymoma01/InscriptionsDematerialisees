@@ -1,0 +1,666 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import PageBackOffice from '../../core/backOffice/PageBackOffice';
+import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
+import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
+import { creerDemande } from '../../services/dpaeService';
+import './DemandeDpae.css';
+
+// Types de demande — mêmes valeurs que demandeBodySchema (backend/src/api/routes/dpae.routes.js,
+// z.enum), dupliquées ici plutôt que partagées (convention du projet, voir CLAUDE.md).
+const TYPES_DEMANDE = [
+  { code: 'nouvelle_embauche', libelle: 'Nouvelle embauche' },
+  { code: 'prolongation', libelle: 'Prolongation' },
+  { code: 'ajout_retrait_jours', libelle: 'Ajout/retrait de jours' },
+  { code: 'passage_cdi', libelle: 'Passage CDI' },
+  { code: 'changement_horaires_affectation', libelle: 'Changement horaires/affectation' },
+];
+
+// Postes hôtel — mêmes codes/libellés que BlocDisponibilites.jsx (POSTES_HOTEL), dupliqués ici
+// plutôt que partagés (même convention). Réutilise le catalogue déjà en place plutôt que d'en
+// inventer un nouveau (voir postesConstantes.js côté back).
+const POSTES_HOTEL = [
+  { code: 'femme_valet_chambre', libelle: 'Femme/Valet de chambre' },
+  { code: 'cafetier', libelle: 'Cafetier' },
+  { code: 'equipier', libelle: 'Équipier' },
+  { code: 'gouvernant', libelle: 'Gouvernant(e)' },
+  { code: 'autre', libelle: 'Autre' },
+];
+
+const JOURS_SEMAINE = [
+  { code: 'lundi', libelle: 'Lundi' },
+  { code: 'mardi', libelle: 'Mardi' },
+  { code: 'mercredi', libelle: 'Mercredi' },
+  { code: 'jeudi', libelle: 'Jeudi' },
+  { code: 'vendredi', libelle: 'Vendredi' },
+  { code: 'samedi', libelle: 'Samedi' },
+  { code: 'dimanche', libelle: 'Dimanche' },
+];
+
+function semaineTypeInitiale() {
+  return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '' }));
+}
+
+const DONNEES_INITIALES = {
+  typeDemande: '',
+  salarieNom: '',
+  salariePrenom: '',
+  salarieTelephone: '',
+  salarieDejaEmploye: false,
+  candidatId: null,
+  hotel: '',
+  typeContrat: '',
+  motifCdd: '',
+  salarieRemplaceNom: '',
+  dateFinAbsence: '',
+  raisonSurcroit: '',
+  division: '',
+  divisionAutre: '',
+  poste: '',
+  posteAutre: '',
+  dateDebut: '',
+  dateFin: '',
+  heureArriveeJ1: '',
+  heuresParMois: '',
+  modificationsDemandees: false,
+  modificationHoraires: false,
+  modificationJoursRepos: false,
+  modificationAffectation: false,
+  nouvelleAffectation: '',
+  typeChangementJours: '',
+  joursConcernes: [],
+  raisonChangementJours: '',
+  raisonIdentiqueContrat: '',
+  semaineType: semaineTypeInitiale(),
+  horairesDifferentsParJour: false,
+  heureDebutCommune: '',
+  heureFinCommune: '',
+  autreChoseSignaler: '',
+  verifBesoinHotel: false,
+  verifTousJoursInclus: false,
+  verifNonPlanification: false,
+};
+
+// Formulaire "Nouvelle demande DPAE" (module Demandes DPAE, 2026-09-28) — reprend les sections de
+// la maquette d'origine (voir le plan) avec le style de l'outil (PageBackOffice/EnTeteBackOffice,
+// mêmes classes .bloc-formulaire que le formulaire d'inscription candidat, voir
+// styles/blocFormulaire.css). Pas de brouillon : un seul bouton "Envoyer à la RH", désactivé tant
+// que le formulaire n'est pas complet — même esprit que la maquette (voir demandeDpaeService.js,
+// pas de statut brouillon côté back).
+//
+// "Jours concernés" (ajout/retrait de jours) : simple liste de dates ajoutées/retirées une à une,
+// plutôt que la grille tactile de la maquette — même donnée finale (un tableau de dates), pour un
+// premier jet plus simple à développer/tester (voir le plan, section Simplifications).
+export default function DemandeDpae() {
+  const navigate = useNavigate();
+  const [donnees, setDonnees] = useState(DONNEES_INITIALES);
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [erreur, setErreur] = useState(null);
+
+  const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
+
+  // `candidat` nul : soit une nouvelle saisie libre efface la sélection au fil de la frappe (voir
+  // onChanger ci-dessous), soit l'agent clique "Retirer" (RechercheCandidatSalarie.jsx) — dans les
+  // deux cas, nom ET prénom doivent repartir vides pour une ressaisie propre, pas seulement
+  // candidatId (bug signalé : "Retirer" ne vidait pas les champs, donnant l'impression de ne rien
+  // faire alors que seule la mention "Candidat existant sélectionné" disparaissait).
+  const selectionnerCandidat = (candidat) => {
+    if (!candidat) {
+      setDonnees((precedent) => ({ ...precedent, candidatId: null, salarieNom: '', salariePrenom: '' }));
+      return;
+    }
+    setDonnees((precedent) => ({
+      ...precedent,
+      candidatId: candidat.id,
+      salarieNom: candidat.nom,
+      salariePrenom: candidat.prenom,
+    }));
+  };
+
+  const definirJourSemaine = (index, champs) => {
+    setDonnees((precedent) => ({
+      ...precedent,
+      semaineType: precedent.semaineType.map((jour, indexJour) => (indexJour === index ? { ...jour, ...champs } : jour)),
+    }));
+  };
+
+  const ajouterJourConcerne = () => definir('joursConcernes', [...donnees.joursConcernes, { date: '' }]);
+  const definirJourConcerne = (index, date) =>
+    definir(
+      'joursConcernes',
+      donnees.joursConcernes.map((jour, indexJour) => (indexJour === index ? { date } : jour)),
+    );
+  const retirerJourConcerne = (index) =>
+    definir(
+      'joursConcernes',
+      donnees.joursConcernes.filter((_, indexJour) => indexJour !== index),
+    );
+
+  const estAjoutRetraitJours = donnees.typeDemande === 'ajout_retrait_jours';
+
+  const formulaireComplet =
+    donnees.typeDemande &&
+    donnees.salarieNom.trim() &&
+    donnees.salariePrenom.trim() &&
+    donnees.verifBesoinHotel &&
+    donnees.verifTousJoursInclus &&
+    donnees.verifNonPlanification;
+
+  const envoyer = async (evenement) => {
+    evenement.preventDefault();
+    if (!formulaireComplet || envoiEnCours) return;
+
+    setEnvoiEnCours(true);
+    setErreur(null);
+    try {
+      const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, ...reste } = donnees;
+
+      // Semaine type envoyée telle quelle si horaires différents par jour, sinon les heures
+      // communes sont recopiées sur chaque jour "travail" — le back reçoit toujours la même forme
+      // (un tableau de 7 entrées), sans avoir à connaître cette bascule d'interface.
+      const semaineType = donnees.horairesDifferentsParJour
+        ? donnees.semaineType
+        : donnees.semaineType.map((jour) =>
+            jour.statut === 'travail' ? { ...jour, heureDebut: heureDebutCommune, heureFin: heureFinCommune } : jour,
+          );
+      await creerDemande({
+        ...reste,
+        candidatId: candidatId || undefined,
+        heuresParMois: heuresParMois ? Number(heuresParMois) : undefined,
+        semaineType,
+        joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
+      });
+      navigate('/coordination/dpae/suivi');
+    } catch (erreurRequete) {
+      setErreur(erreurRequete.response?.data?.erreur ?? "Impossible d'envoyer la demande.");
+    } finally {
+      setEnvoiEnCours(false);
+    }
+  };
+
+  return (
+    <PageBackOffice>
+      <div className="page-demande-dpae">
+        <header className="page-demande-dpae__entete">
+          <h1>Nouvelle demande DPAE</h1>
+          <EnTeteBackOffice />
+        </header>
+
+        <form onSubmit={envoyer}>
+          <fieldset className="bloc-formulaire">
+            <legend>Informations de saisie</legend>
+            <label>
+              <span>
+                Il s&rsquo;agit de… <span className="champ-obligatoire">*</span>
+              </span>
+              <select value={donnees.typeDemande} onChange={(e) => definir('typeDemande', e.target.value)} required>
+                <option value="">Choisir…</option>
+                {TYPES_DEMANDE.map((type) => (
+                  <option key={type.code} value={type.code}>
+                    {type.libelle}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset className="bloc-formulaire">
+            <legend>Données du salarié</legend>
+            <label>
+              <span>
+                Nom <span className="champ-obligatoire">*</span>
+              </span>
+              <RechercheCandidatSalarie
+                valeur={donnees.salarieNom}
+                onChanger={(valeur) => {
+                  definir('salarieNom', valeur);
+                  if (donnees.candidatId) definir('candidatId', null);
+                }}
+                onSelectionnerCandidat={selectionnerCandidat}
+                candidatId={donnees.candidatId}
+              />
+            </label>
+            <label>
+              <span>
+                Prénom <span className="champ-obligatoire">*</span>
+              </span>
+              <input
+                type="text"
+                value={donnees.salariePrenom}
+                onChange={(e) => definir('salariePrenom', e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              <span>Téléphone</span>
+              <input type="tel" value={donnees.salarieTelephone} onChange={(e) => definir('salarieTelephone', e.target.value)} />
+            </label>
+
+            <fieldset>
+              <legend>A déjà travaillé chez nous ?</legend>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="salarieDejaEmploye"
+                  checked={donnees.salarieDejaEmploye === true}
+                  onChange={() => definir('salarieDejaEmploye', true)}
+                />
+                Oui
+              </label>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="salarieDejaEmploye"
+                  checked={donnees.salarieDejaEmploye === false}
+                  onChange={() => definir('salarieDejaEmploye', false)}
+                />
+                Non
+              </label>
+            </fieldset>
+
+            <label>
+              <span>Hôtel</span>
+              <input type="text" value={donnees.hotel} onChange={(e) => definir('hotel', e.target.value)} />
+            </label>
+          </fieldset>
+
+          <fieldset className="bloc-formulaire">
+            <legend>Paramètres du contrat</legend>
+            <fieldset>
+              <legend>Type de contrat</legend>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="typeContrat"
+                  checked={donnees.typeContrat === 'cdd'}
+                  onChange={() => definir('typeContrat', 'cdd')}
+                />
+                CDD
+              </label>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="typeContrat"
+                  checked={donnees.typeContrat === 'cdi'}
+                  onChange={() => definir('typeContrat', 'cdi')}
+                />
+                CDI
+              </label>
+            </fieldset>
+
+            {donnees.typeContrat === 'cdd' && (
+              <>
+                <fieldset>
+                  <legend>Raison du CDD</legend>
+                  <label className="champ-inline">
+                    <input
+                      type="radio"
+                      name="motifCdd"
+                      checked={donnees.motifCdd === 'remplacement_absent'}
+                      onChange={() => definir('motifCdd', 'remplacement_absent')}
+                    />
+                    Remplacer salarié absent
+                  </label>
+                  <label className="champ-inline">
+                    <input
+                      type="radio"
+                      name="motifCdd"
+                      checked={donnees.motifCdd === 'surcroit_activite'}
+                      onChange={() => definir('motifCdd', 'surcroit_activite')}
+                    />
+                    Surcroît d&rsquo;activité
+                  </label>
+                </fieldset>
+
+                {donnees.motifCdd === 'remplacement_absent' && (
+                  <>
+                    <label>
+                      <span>Nom du salarié remplacé</span>
+                      <input
+                        type="text"
+                        value={donnees.salarieRemplaceNom}
+                        onChange={(e) => definir('salarieRemplaceNom', e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Date de fin d&rsquo;absence</span>
+                      <input
+                        type="date"
+                        value={donnees.dateFinAbsence}
+                        onChange={(e) => definir('dateFinAbsence', e.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
+
+                {donnees.motifCdd === 'surcroit_activite' && (
+                  <label>
+                    <span>Raison du surcroît</span>
+                    <textarea
+                      rows={2}
+                      value={donnees.raisonSurcroit}
+                      onChange={(e) => definir('raisonSurcroit', e.target.value)}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+
+            <label>
+              <span>Entité</span>
+              <select value={donnees.division} onChange={(e) => definir('division', e.target.value)}>
+                <option value="">Choisir…</option>
+                <option value="acchot">ACCHOT</option>
+                <option value="rm">RM</option>
+                <option value="autre">Autre</option>
+              </select>
+            </label>
+            {donnees.division === 'autre' && (
+              <label>
+                <span>Préciser l&rsquo;entité</span>
+                <input type="text" value={donnees.divisionAutre} onChange={(e) => definir('divisionAutre', e.target.value)} />
+              </label>
+            )}
+
+            <label>
+              <span>Poste</span>
+              <select value={donnees.poste} onChange={(e) => definir('poste', e.target.value)}>
+                <option value="">Choisir…</option>
+                {POSTES_HOTEL.map((poste) => (
+                  <option key={poste.code} value={poste.code}>
+                    {poste.libelle}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {donnees.poste === 'autre' && (
+              <label>
+                <span>Préciser le poste</span>
+                <input type="text" value={donnees.posteAutre} onChange={(e) => definir('posteAutre', e.target.value)} />
+              </label>
+            )}
+
+            <label>
+              <span>Premier jour</span>
+              <input type="date" value={donnees.dateDebut} onChange={(e) => definir('dateDebut', e.target.value)} />
+            </label>
+            <label>
+              <span>Dernier jour</span>
+              <input type="date" value={donnees.dateFin} onChange={(e) => definir('dateFin', e.target.value)} />
+            </label>
+            <label>
+              <span>Heure d&rsquo;arrivée jour 1</span>
+              <input type="time" value={donnees.heureArriveeJ1} onChange={(e) => definir('heureArriveeJ1', e.target.value)} />
+            </label>
+            <label>
+              <span>Heures/mois</span>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={donnees.heuresParMois}
+                onChange={(e) => definir('heuresParMois', e.target.value)}
+              />
+            </label>
+
+            <fieldset>
+              <legend>Les jours ou horaires changent-ils ?</legend>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="modificationsDemandees"
+                  checked={donnees.modificationsDemandees === false}
+                  onChange={() => definir('modificationsDemandees', false)}
+                />
+                Non
+              </label>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="modificationsDemandees"
+                  checked={donnees.modificationsDemandees === true}
+                  onChange={() => definir('modificationsDemandees', true)}
+                />
+                Oui
+              </label>
+            </fieldset>
+          </fieldset>
+
+          {donnees.modificationsDemandees && (
+            <fieldset className="bloc-formulaire">
+              <legend>Modifications</legend>
+              <label className="champ-inline">
+                <input
+                  type="checkbox"
+                  checked={donnees.modificationHoraires}
+                  onChange={(e) => definir('modificationHoraires', e.target.checked)}
+                />
+                Horaires
+              </label>
+              <label className="champ-inline">
+                <input
+                  type="checkbox"
+                  checked={donnees.modificationJoursRepos}
+                  onChange={(e) => definir('modificationJoursRepos', e.target.checked)}
+                />
+                Jours de repos
+              </label>
+              <label className="champ-inline">
+                <input
+                  type="checkbox"
+                  checked={donnees.modificationAffectation}
+                  onChange={(e) => definir('modificationAffectation', e.target.checked)}
+                />
+                Hôtel ou poste
+              </label>
+              {donnees.modificationAffectation && (
+                <label>
+                  <span>Nouvelle affectation</span>
+                  <input
+                    type="text"
+                    value={donnees.nouvelleAffectation}
+                    onChange={(e) => definir('nouvelleAffectation', e.target.value)}
+                  />
+                </label>
+              )}
+            </fieldset>
+          )}
+
+          {estAjoutRetraitJours && (
+            <fieldset className="bloc-formulaire">
+              <legend>Gestion des jours</legend>
+              <fieldset>
+                <legend>Ajouter ou retirer des jours ?</legend>
+                <label className="champ-inline">
+                  <input
+                    type="radio"
+                    name="typeChangementJours"
+                    checked={donnees.typeChangementJours === 'ajouter'}
+                    onChange={() => definir('typeChangementJours', 'ajouter')}
+                  />
+                  Ajouter des jours
+                </label>
+                <label className="champ-inline">
+                  <input
+                    type="radio"
+                    name="typeChangementJours"
+                    checked={donnees.typeChangementJours === 'retirer'}
+                    onChange={() => definir('typeChangementJours', 'retirer')}
+                  />
+                  Retirer des jours
+                </label>
+              </fieldset>
+
+              <div className="page-demande-dpae__jours-concernes">
+                <span>Jours concernés</span>
+                {donnees.joursConcernes.map((jour, index) => (
+                  <div key={index} className="page-demande-dpae__jour-ligne">
+                    <input type="date" value={jour.date} onChange={(e) => definirJourConcerne(index, e.target.value)} />
+                    <button type="button" onClick={() => retirerJourConcerne(index)}>
+                      Retirer
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={ajouterJourConcerne}>
+                  + Ajouter un jour
+                </button>
+              </div>
+
+              <label>
+                <span>Raison du changement</span>
+                <textarea
+                  rows={2}
+                  value={donnees.raisonChangementJours}
+                  onChange={(e) => definir('raisonChangementJours', e.target.value)}
+                />
+              </label>
+
+              <fieldset>
+                <legend>Même raison que le contrat ?</legend>
+                {[
+                  ['oui', 'Oui'],
+                  ['non', 'Non'],
+                  ['ne_sais_pas', 'Je ne sais pas'],
+                ].map(([code, libelle]) => (
+                  <label key={code} className="champ-inline">
+                    <input
+                      type="radio"
+                      name="raisonIdentiqueContrat"
+                      checked={donnees.raisonIdentiqueContrat === code}
+                      onChange={() => definir('raisonIdentiqueContrat', code)}
+                    />
+                    {libelle}
+                  </label>
+                ))}
+              </fieldset>
+            </fieldset>
+          )}
+
+          <fieldset className="bloc-formulaire">
+            <legend>Semaine type</legend>
+            <label className="champ-inline">
+              <input
+                type="checkbox"
+                checked={donnees.horairesDifferentsParJour}
+                onChange={(e) => definir('horairesDifferentsParJour', e.target.checked)}
+              />
+              Horaires différents selon les jours
+            </label>
+
+            {!donnees.horairesDifferentsParJour && (
+              <div className="page-demande-dpae__horaires-communs">
+                <label>
+                  <span>Début de journée</span>
+                  <input
+                    type="time"
+                    value={donnees.heureDebutCommune}
+                    onChange={(e) => definir('heureDebutCommune', e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Fin de journée</span>
+                  <input
+                    type="time"
+                    value={donnees.heureFinCommune}
+                    onChange={(e) => definir('heureFinCommune', e.target.value)}
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Grille de jours en grand format, tactile (demande utilisateur : "les jours en gros
+                ... intuitif", même esprit que la maquette d'origine — un jour = une carte qu'on
+                bascule Travail/Repos d'un tap, plutôt qu'un tableau HTML classique). Chaque carte
+                porte son propre couple horaire quand "Horaires différents selon les jours" est
+                cochée, sinon les deux champs communs juste au-dessus s'appliquent à tous les jours
+                "Travail" (voir la recopie faite dans envoyer() à l'envoi). */}
+            <div className="page-demande-dpae__semaine-type">
+              {donnees.semaineType.map((jour, index) => {
+                const libelle = JOURS_SEMAINE.find((j) => j.code === jour.jour)?.libelle;
+                const enTravail = jour.statut === 'travail';
+                return (
+                  // <div>, pas <button> : un <input type="time"> ne peut pas vivre dans un
+                  // <button> (contenu interactif interdit par la spec HTML) — seule la bascule
+                  // Travail/Repos ci-dessous est un vrai <button>, les champs d'heure restent des
+                  // frères, pas des enfants du bouton.
+                  <div key={jour.jour} className={`page-demande-dpae__carte-jour${enTravail ? ' page-demande-dpae__carte-jour--travail' : ''}`}>
+                    <button
+                      type="button"
+                      className="page-demande-dpae__carte-jour-bascule"
+                      onClick={() => definirJourSemaine(index, { statut: enTravail ? 'repos' : 'travail' })}
+                    >
+                      <span className="page-demande-dpae__carte-jour-nom">{libelle}</span>
+                      <span className="page-demande-dpae__carte-jour-statut">{enTravail ? 'Travail' : 'Repos'}</span>
+                    </button>
+                    {enTravail && donnees.horairesDifferentsParJour && (
+                      <div className="page-demande-dpae__carte-jour-horaires">
+                        <input
+                          type="time"
+                          value={jour.heureDebut}
+                          onChange={(e) => definirJourSemaine(index, { heureDebut: e.target.value })}
+                        />
+                        <input
+                          type="time"
+                          value={jour.heureFin}
+                          onChange={(e) => definirJourSemaine(index, { heureFin: e.target.value })}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <fieldset className="bloc-formulaire">
+            <legend>Validation avant envoi</legend>
+            <label>
+              <span>Autre chose à signaler ?</span>
+              <textarea
+                rows={2}
+                value={donnees.autreChoseSignaler}
+                onChange={(e) => definir('autreChoseSignaler', e.target.value)}
+              />
+            </label>
+
+            <label className="champ-inline">
+              <input
+                type="checkbox"
+                checked={donnees.verifBesoinHotel}
+                onChange={(e) => definir('verifBesoinHotel', e.target.checked)}
+                required
+              />
+              J&rsquo;ai vérifié le besoin auprès de l&rsquo;hôtel <span className="champ-obligatoire">*</span>
+            </label>
+            <label className="champ-inline">
+              <input
+                type="checkbox"
+                checked={donnees.verifTousJoursInclus}
+                onChange={(e) => definir('verifTousJoursInclus', e.target.checked)}
+                required
+              />
+              Je confirme que tous les jours sont inclus dans cette demande <span className="champ-obligatoire">*</span>
+            </label>
+            <label className="champ-inline">
+              <input
+                type="checkbox"
+                checked={donnees.verifNonPlanification}
+                onChange={(e) => definir('verifNonPlanification', e.target.checked)}
+                required
+              />
+              Je m&rsquo;engage à ne pas planifier avant validation RH <span className="champ-obligatoire">*</span>
+            </label>
+
+            {erreur && <p role="alert">{erreur}</p>}
+
+            <div className="page-demande-dpae__actions">
+              <button type="submit" disabled={!formulaireComplet || envoiEnCours}>
+                {envoiEnCours ? 'Envoi…' : 'Envoyer à la RH'}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      </div>
+    </PageBackOffice>
+  );
+}

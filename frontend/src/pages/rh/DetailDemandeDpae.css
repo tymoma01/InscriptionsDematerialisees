@@ -1,0 +1,109 @@
+.page-detail-dpae {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+}
+
+.page-detail-dpae__entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--espace-moyen);
+  margin-bottom: var(--espace-moyen);
+}
+
+.page-detail-dpae__entete h1 {
+  color: var(--couleur-back-office);
+  margin: 0.3rem 0 0.5rem;
+}
+
+.page-detail-dpae__retour {
+  border: none;
+  background: none;
+  color: var(--couleur-primaire);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.page-detail-dpae__badges {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  flex-wrap: wrap;
+}
+
+.page-detail-dpae__lien-candidat {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+.page-detail-dpae__bloc {
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: var(--ombre-bloc);
+  padding: var(--espace-grand);
+  margin-bottom: var(--espace-moyen);
+}
+
+.page-detail-dpae__bloc h2 {
+  margin: 0 0 var(--espace-petit);
+  color: var(--couleur-primaire);
+  font-size: 1.05rem;
+}
+
+.page-detail-dpae__ligne {
+  display: flex;
+  gap: var(--espace-petit);
+  margin: 0.25rem 0;
+}
+
+.page-detail-dpae__libelle {
+  flex: 0 0 12rem;
+  color: var(--couleur-texte-secondaire);
+  font-weight: 600;
+}
+
+.page-detail-dpae__semaine-type {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.page-detail-dpae__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.page-detail-dpae__actions [role='alert'] {
+  margin-right: auto;
+  color: var(--couleur-erreur);
+}
+
+.page-detail-dpae__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-detail-dpae__valider {
+  border: 1px solid var(--couleur-succes);
+  background-color: var(--couleur-succes);
+  color: #ffffff;
+}
+
+.page-detail-dpae__rejeter {
+  border: 1px solid var(--couleur-erreur);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-erreur);
+}
+
+.page-detail-dpae__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

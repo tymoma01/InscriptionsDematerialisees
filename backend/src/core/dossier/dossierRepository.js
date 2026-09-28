@@ -50,6 +50,20 @@ function trouverCandidatParEmail(trx, entiteId, email) {
   return trx('candidats').where({ entite_id: entiteId, email }).first();
 }
 
+// Autocomplétion "nom du salarié" (module Demandes DPAE, RechercheCandidatSalarie.jsx) — ILIKE
+// simple sur nom/prénom, pas de dé-accentuation façon normaliserTexte.js (utilitaire front
+// uniquement) : suffisant pour un premier jet, extension possible via l'extension Postgres
+// `unaccent` si la recherche s'avère trop stricte à l'usage.
+function rechercherCandidatsParNom(trx, entiteId, texte, limite = 8) {
+  const motif = `%${texte}%`;
+  return trx('candidats')
+    .where({ entite_id: entiteId })
+    .andWhere((constructeur) => constructeur.whereILike('nom', motif).orWhereILike('prenom', motif))
+    .select('id', 'nom', 'prenom', 'date_naissance')
+    .orderBy('nom')
+    .limit(limite);
+}
+
 function trouverStatutInitial(trx, entiteId) {
   return trx('statuts').where({ entite_id: entiteId, est_initial: true }).first();
 }
@@ -929,6 +943,7 @@ module.exports = {
   insererCandidat,
   trouverCandidatParNirHash,
   trouverCandidatParEmail,
+  rechercherCandidatsParNom,
   trouverStatutInitial,
   creerDossier,
   trouverDossierParId,

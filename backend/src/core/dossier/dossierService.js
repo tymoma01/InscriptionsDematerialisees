@@ -469,6 +469,17 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
   return !candidatExistant;
 }
 
+// Autocomplétion "nom du salarié" (module Demandes DPAE, GET /api/candidats/recherche) — texte
+// trop court (1 caractère) volontairement ignoré : évite de renvoyer une bonne partie de la base
+// candidats à la première frappe.
+async function rechercherCandidats(entite, texte) {
+  const valeur = texte.trim();
+  if (valeur.length < 2) return [];
+
+  const bd = await obtenirKnex();
+  return dossierRepository.rechercherCandidatsParNom(bd, entite.id, valeur);
+}
+
 // Disponibilité EFFECTIVE (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
 // l'embauche") — la correction fait foi ENTIÈREMENT si elle existe (jamais un mélange champ par
 // champ avec la déclaration : une correction sans date de fin signifie "volontairement sans fin
@@ -956,6 +967,7 @@ async function modifierInscription(entite, dossierId, donneesBrutes) {
 module.exports = {
   inscrireCandidat,
   verifierDisponibilite,
+  rechercherCandidats,
   listerDossiers,
   listerSuiviFormation,
   listerHistoriqueFormation,

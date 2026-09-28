@@ -10,3 +10,7 @@ export const ROLES_ACCUEIL = ['accueil_coordination', 'planning'];
 // ROLES_FORCAGE : qui voit/peut utiliser "Forcer le statut" (Validation.jsx) — Admin, plus
 // Planning.
 export const ROLES_FORCAGE = ['admin', 'planning'];
+// ROLES_DPAE_DEMANDEUR / ROLES_DPAE_RH : miroir de core/auth/rbac.js (module Demandes DPAE,
+// 2026-09-28) — qui crée/suit une demande DPAE, et qui la traite côté RH.
+export const ROLES_DPAE_DEMANDEUR = [...ROLES_ACCUEIL, 'admin'];
+export const ROLES_DPAE_RH = ['rh', 'admin'];

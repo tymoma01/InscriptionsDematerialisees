@@ -8,12 +8,20 @@
 const { obtenirKnex } = require('../src/db/knex');
 const { ROLES } = require('../src/core/auth/rbac');
 
+// ROLES.RECRUTEUR retiré (correctif 2026-09-28, module Demandes DPAE) : ce rôle n'existe plus
+// dans rbac.js depuis sa suppression du projet (audit 2026-08-27, voir son commentaire d'en-tête —
+// "rôle supprimé de la table `roles` en base, les 8 comptes qui le portaient désactivés"). L'entrée
+// valait donc `{ code: undefined, libelle: 'Recruteur' }`, ce que Knex refuse dans un `where` —
+// le script plantait dès cette ligne, avant même d'atteindre toute entrée placée après elle (ici,
+// ROLES.RH ci-dessous).
 const ROLES_A_AMORCER = [
   { code: ROLES.ACCUEIL_COORDINATION, libelle: 'Accueil / Coordination' },
-  { code: ROLES.RECRUTEUR, libelle: 'Recruteur' },
   { code: ROLES.FORMATEUR, libelle: 'Formateur' },
   { code: ROLES.INSPECTEUR, libelle: 'Inspecteur' },
   { code: ROLES.ADMIN, libelle: 'Admin' },
+  // RH (module Demandes DPAE, 2026-09-28) : traite/valide/rejette les demandes DPAE — voir
+  // core/auth/rbac.js, ROLES_DPAE_RH.
+  { code: ROLES.RH, libelle: 'RH' },
   { code: ROLES.SYSTEME, libelle: 'Système (automatisation)' },
 ];
 

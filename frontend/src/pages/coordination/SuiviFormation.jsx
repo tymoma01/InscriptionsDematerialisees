@@ -36,9 +36,7 @@ import './SuiviFormation.css';
 // qui portent VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx et al.), dupliqué plutôt que
 // partagé (voir CLAUDE.md conventions du projet). "En attente" reste le libellé affiché pour
 // valide_envoi_formation SUR CETTE PAGE (comportement par défaut avant ce changement), distinct de
-// son libellé officiel "Validé - envoyé en formation" utilisé ailleurs dans l'app (badge de
-// statut, lui, garde toujours le libellé officiel — voir StatutBadge ci-dessous, jamais "En
-// attente").
+// son libellé officiel "Validé - envoyé en formation" utilisé ailleurs dans l'app.
 const STATUTS_FILTRABLES = [
   { code: 'valide_envoi_formation', libelle: 'En attente' },
   { code: 'valide_pret_embauche', libelle: 'Formation validée' },
@@ -49,6 +47,19 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   valide_pret_embauche: 'vert-clair',
   formation_non_validee: 'echec-fort',
 };
+// Libellé de badge : le libellé officiel est repris pour CHAQUE statut, SAUF celui-ci (correctif
+// 2026-09-28, demande utilisateur — revient sur l'audit 2026-08-28 qui imposait explicitement le
+// libellé officiel complet sur le badge, "jamais En attente") : "Validé - envoyé en formation" est
+// le plus long des trois libellés officiels de cette page, seul à forcer le retour à la ligne dans
+// .page-suivi-formation__item (flex-wrap: wrap) et donc seul à donner une hauteur de ligne
+// différente des deux autres statuts. Réutilise le même texte court que STATUTS_FILTRABLES
+// ci-dessus plutôt que d'en inventer un troisième.
+const LIBELLE_BADGE_PAR_CODE = {
+  valide_envoi_formation: 'En attente',
+};
+function libelleBadgeStatut(dossier) {
+  return LIBELLE_BADGE_PAR_CODE[dossier.statut_code] ?? dossier.statut_libelle;
+}
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
@@ -459,7 +470,7 @@ export default function SuiviFormation() {
                     : '—'}
                 </span>
                 <span className="page-suivi-formation__experience">{libelleExperience(dossier.experience)}</span>
-                <StatutBadge libelle={dossier.statut_libelle} variante={varianteStatut(dossier.statut_code)} />
+                <StatutBadge libelle={libelleBadgeStatut(dossier)} variante={varianteStatut(dossier.statut_code)} />
 
                 {accesComplet && dossier.statut_code === 'valide_envoi_formation' && (
                   <div className="page-suivi-formation__actions">

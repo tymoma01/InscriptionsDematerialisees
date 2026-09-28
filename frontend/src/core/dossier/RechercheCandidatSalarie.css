@@ -1,0 +1,72 @@
+/* Positionnement relatif : la liste de suggestions ci-dessous se pose en absolu juste sous le
+   champ, même patron qu'un menu déroulant natif. */
+.recherche-candidat-salarie {
+  position: relative;
+}
+
+.recherche-candidat-salarie__suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.recherche-candidat-salarie__suggestions li + li {
+  margin-top: 0.15rem;
+}
+
+.recherche-candidat-salarie__suggestions button[role='option'] {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: var(--rayon-bordure);
+  background: none;
+  font: inherit;
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.recherche-candidat-salarie__suggestions button[role='option']:hover,
+.recherche-candidat-salarie__suggestions button[role='option']:focus-visible {
+  background-color: var(--couleur-fond-secondaire);
+  outline: none;
+}
+
+.recherche-candidat-salarie__naissance {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.recherche-candidat-salarie__info {
+  padding: 0.45rem 0.6rem;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.recherche-candidat-salarie__selection {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: var(--couleur-succes);
+}
+
+.recherche-candidat-salarie__selection button {
+  border: none;
+  background: none;
+  color: var(--couleur-primaire);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}

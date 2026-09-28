@@ -27,7 +27,14 @@ router.use(requireAuth);
 // dossiers en attente") — mêmes rôles que la gestion des pièces justificatives (pieces.routes.js),
 // c'est la suite du même parcours interne. Rôle Recruteur retiré (audit 2026-08-27) : plus aucune
 // fonction dans le workflow v4, voir suppression du rôle en base.
-const ROLES_CONSULTATION_DOSSIERS = [...ROLES_ACCUEIL, ROLES.ADMIN];
+//
+// RH ajouté (module Demandes DPAE, 2026-09-28, demande utilisateur explicite) — en LECTURE
+// seulement : RH n'a jamais accès à ROLES_MODIFICATION_INSCRIPTION/ROLES_EXPORT_ZIP_PIECES_GROUPE
+// plus bas, tous deux distincts de cette constante. Contrairement à Formateur/Inspecteur (ajoutés
+// uniquement à ROLES_LECTURE_INSCRIPTION, un seul dossier à la fois via leurs rendez-vous
+// assignés), RH est ajouté ICI, à la racine : besoin explicite de parcourir la liste complète des
+// dossiers (écran "Dossiers candidats"), pas seulement un dossier déjà identifié par ailleurs.
+const ROLES_CONSULTATION_DOSSIERS = [...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET /rendezvous ci-dessous (audit 2026-08-20,
 // accès à "Suivi des tests") — pas à ROLES_CONSULTATION_DOSSIERS lui-même : ces deux rôles n'ont
