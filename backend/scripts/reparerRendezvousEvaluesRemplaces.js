@@ -31,8 +31,16 @@ const RENDEZVOUS_CIBLES = [12, 31, 34, 35, 51, 54, 56, 60, 78, 79];
 // Usage :
 //   node scripts/reparerRendezvousEvaluesRemplaces.js               (simulation)
 //   node scripts/reparerRendezvousEvaluesRemplaces.js --appliquer   (écriture réelle)
+//
+// --cible-dev=<id> (bug 2026-09-28, point 4 de la demande) : remplace RENDEZVOUS_CIBLES par un
+// SEUL identifiant, pour tester le chemin d'écriture complet sur un rendez-vous de test créé pour
+// l'occasion, sans jamais toucher à la liste figée des 10 identifiants de production ni exiger de
+// la dupliquer/modifier pour un test. Refusée si NODE_ENV=production (voir plus bas) — jamais
+// destinée à un usage en prod, seulement à vérifier en DEV que le script fonctionne avant de le
+// lancer avec --appliquer sur la vraie liste.
 
 const { obtenirKnex } = require('../src/db/knex');
+const { NODE_ENV } = require('../src/config/env');
 const journalAudit = require('../src/core/audit/journalAudit');
 
 const ACTION_JOURNAL_AUDIT = 'rendezvous_requalifie_honore';
@@ -96,6 +104,12 @@ async function chargerContexte(bd, rendezvousId) {
 // Résolu une fois par entité rencontrée (même convention que
 // scripts/desactiverComptesRoleRecruteur.js) — utilisateur_id de l'entrée journal_audit, plutôt que
 // null, pour rester cohérent avec les autres actions "système" déjà journalisées de cette façon.
+//
+// Corrigé (bug prod 2026-09-28) : accepte n'importe quel query builder (bd OU trx) — appelée ICI
+// systématiquement hors transaction, sur `bd` directement (voir main ci-dessous), jamais sur `trx`
+// comme avant. Le cache pré-rempli avant l'ouverture de la transaction fait qu'un appel ultérieur
+// avec `trx` (défensif, voir la boucle d'écriture) ne déclenche plus aucune requête : simple lecture
+// de cache.
 async function resoudreUtilisateurSysteme(bd, entiteId, cache) {
   if (cache.has(entiteId)) return cache.get(entiteId);
   const utilisateur = await bd('utilisateurs')
@@ -109,6 +123,21 @@ async function resoudreUtilisateurSysteme(bd, entiteId, cache) {
 
 async function main() {
   const appliquer = process.argv.includes('--appliquer');
+
+  // --cible-dev=<id> (point 4) : jamais en production — la connexion elle-même pointe vers la
+  // base de prod dès que NODE_ENV=production (voir db/config.js), donc cette option n'a aucune
+  // raison d'exister dans ce contexte ; refus explicite avant même d'ouvrir la connexion.
+  const argCibleDev = process.argv.find((argument) => argument.startsWith('--cible-dev='));
+  if (argCibleDev && NODE_ENV === 'production') {
+    console.error("Option --cible-dev= refusée : NODE_ENV=production. Cette option est réservée aux tests en DEV.");
+    process.exitCode = 1;
+    return;
+  }
+  const ciblesActuelles = argCibleDev ? [Number(argCibleDev.slice('--cible-dev='.length))] : RENDEZVOUS_CIBLES;
+  if (argCibleDev) {
+    console.log(`(DEV) --cible-dev= actif : rendez-vous #${ciblesActuelles[0]} uniquement (liste figée RENDEZVOUS_CIBLES ignorée).`);
+  }
+
   const bd = await obtenirKnex();
   const cacheUtilisateurSysteme = new Map();
 
@@ -120,8 +149,8 @@ async function main() {
     );
 
     const decisions = [];
-    for (const rendezvousId of RENDEZVOUS_CIBLES) {
-      // eslint-disable-next-line no-await-in-loop -- 10 identifiants fixes, séquentiel suffisant.
+    for (const rendezvousId of ciblesActuelles) {
+      // eslint-disable-next-line no-await-in-loop -- une poignée d'identifiants fixes, séquentiel suffisant.
       const contexte = await chargerContexte(bd, rendezvousId);
       const decision = determinerStatutTraitement(contexte);
       decisions.push({ rendezvousId, contexte, decision });
@@ -149,16 +178,50 @@ async function main() {
 
     const eligibles = decisions.filter((d) => d.decision.code === 'ELIGIBLE');
 
+    // Résolution du compte système — TOUJOURS avant toute transaction d'écriture, et TOUJOURS
+    // exécutée (simulation comme application, point 3) : une simulation réussie doit garantir que
+    // l'application passera, donc elle doit échouer aux mêmes conditions. L'entité vient du
+    // dossier de chaque rendez-vous (contexte.rendezvous.entite_id, chargé via la jointure
+    // dossiers dans chargerContexte) — jamais de rendezvous.entite_id, qui n'existe pas (voir le
+    // commentaire de chargerContexte) : c'est cette confusion qui causait le crash en prod
+    // (rendezvousVerrouille, lu par un SELECT sans jointure, n'avait pas cette colonne — undefined
+    // passé tel quel à la clause WHERE, rejeté par le driver avant même d'atteindre la base).
+    const entitesConcernees = [...new Set(eligibles.map((d) => d.contexte.rendezvous.entite_id))];
+    let resolutionEnEchec = false;
+    for (const entiteId of entitesConcernees) {
+      // eslint-disable-next-line no-await-in-loop -- peu d'entités distinctes, séquentiel suffisant.
+      const utilisateurSystemeId = await resoudreUtilisateurSysteme(bd, entiteId, cacheUtilisateurSysteme);
+      if (utilisateurSystemeId === null) {
+        console.error(`Compte système introuvable pour l'entité #${entiteId} (rôle "systeme") — aucune écriture ne sera faite pour cette entité.`);
+        resolutionEnEchec = true;
+      } else {
+        console.log(`Compte système qui sera utilisé pour l'entité #${entiteId} : utilisateur #${utilisateurSystemeId}.`);
+      }
+    }
+
     if (!appliquer) {
       console.log(
-        `\nSimulation terminée : ${eligibles.length}/${RENDEZVOUS_CIBLES.length} rendez-vous seraient requalifiés. ` +
+        `\nSimulation terminée : ${eligibles.length}/${ciblesActuelles.length} rendez-vous seraient requalifiés. ` +
           'Relancer avec --appliquer pour écrire réellement.',
       );
+      if (resolutionEnEchec) {
+        console.log(
+          'ATTENTION : le compte système est introuvable pour au moins une entité concernée — --appliquer échouerait sans rien écrire tant que ce point n\'est pas corrigé.',
+        );
+      }
       return;
     }
 
     if (eligibles.length === 0) {
       console.log('\nAucun rendez-vous éligible — rien à appliquer.');
+      return;
+    }
+
+    if (resolutionEnEchec) {
+      console.error(
+        "\nArrêt propre : compte système introuvable pour au moins une entité concernée — aucune transaction ouverte, aucune écriture effectuée.",
+      );
+      process.exitCode = 1;
       return;
     }
 
@@ -184,8 +247,13 @@ async function main() {
           continue;
         }
 
+        // entite_id vient de contexteActuel.rendezvous (chargé via chargerContexte, jointure
+        // dossiers), jamais de rendezvousVerrouille (SELECT direct sur `rendezvous`, sans cette
+        // colonne — voir plus haut). Lecture de cache uniquement : déjà résolu avant l'ouverture
+        // de cette transaction, pour CETTE entité précisément (sinon resolutionEnEchec aurait
+        // arrêté le script avant d'arriver ici).
         // eslint-disable-next-line no-await-in-loop
-        const utilisateurSystemeId = await resoudreUtilisateurSysteme(trx, rendezvousVerrouille.entite_id, cacheUtilisateurSysteme);
+        const utilisateurSystemeId = await resoudreUtilisateurSysteme(trx, contexteActuel.rendezvous.entite_id, cacheUtilisateurSysteme);
 
         // eslint-disable-next-line no-await-in-loop
         await trx('rendezvous').where({ id: rendezvousId }).update({ statut: 'honore', motif_id: null });
@@ -193,7 +261,7 @@ async function main() {
         // eslint-disable-next-line no-await-in-loop
         await journalAudit.enregistrerAction(trx, {
           utilisateurId: utilisateurSystemeId,
-          entiteId: rendezvousVerrouille.entite_id,
+          entiteId: contexteActuel.rendezvous.entite_id,
           action: ACTION_JOURNAL_AUDIT,
           tableCible: 'rendezvous',
           cibleId: rendezvousId,
@@ -211,13 +279,13 @@ async function main() {
       }
     });
 
-    console.log(`\n${nbAppliques}/${RENDEZVOUS_CIBLES.length} rendez-vous requalifié(s) ✔`);
+    console.log(`\n${nbAppliques}/${ciblesActuelles.length} rendez-vous requalifié(s) ✔`);
   } finally {
     await bd.destroy();
   }
 }
 
-module.exports = { determinerStatutTraitement, RENDEZVOUS_CIBLES };
+module.exports = { determinerStatutTraitement, resoudreUtilisateurSysteme, RENDEZVOUS_CIBLES };
 
 if (require.main === module) {
   main().catch((erreur) => {
