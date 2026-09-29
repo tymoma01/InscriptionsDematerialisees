@@ -1,0 +1,27 @@
+/* Encadré repliable partagé (2026-09-29) — style UNIQUE de l'encadré « Voir les informations
+   d'inscription complètes » (InformationsInscription.jsx), sorti de InformationsInscription.css pour
+   être réutilisé tel quel par le bloc « Site(s) d'affectation » du formulaire DPAE
+   (SelecteurSitesAffectation.jsx), sans seconde implémentation.
+
+   Mécanisme : <details className="encadre-repliable"> + <summary> NATIFS. Le <summary> garde son
+   affichage par défaut (display: list-item) : c'est ce qui lui donne la flèche native du navigateur
+   (▸ replié, ▾ déplié), le clic sur toute la ligne de titre et l'ouverture au clavier (Tab puis
+   Entrée ou Espace). Ne jamais le passer en display: flex/grid — la flèche disparaîtrait.
+
+   Chargé globalement (main.jsx, comme blocFormulaire.css) : la classe ne dépend d'aucune page. */
+.encadre-repliable {
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.encadre-repliable summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--couleur-back-office);
+}
+
+.encadre-repliable summary:hover {
+  text-decoration: underline;
+}

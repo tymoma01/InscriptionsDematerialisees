@@ -2,24 +2,14 @@
    habillage carte que HistoriqueRelances.css/NotesDossier.css (fond blanc, bordure légère,
    coins arrondis) pour le conteneur global, pour rester visuellement cohérente avec les autres
    sections de la fiche dossier. Le contenu déplié, lui, suit désormais la maquette en cartes
-   internes (audit 2026-08-19, refonte visuelle) — voir plus bas. */
+   internes (audit 2026-08-19, refonte visuelle) — voir plus bas.
+   Habillage carte + <summary> (gras, couleur back-office, souligné au survol) : déplacés tels quels
+   dans la classe partagée .encadre-repliable (styles/encadreRepliable.css, 2026-09-29), réutilisée
+   par le bloc « Site(s) d'affectation » du formulaire DPAE. Ne restent ici que la largeur et les
+   marges propres à cette section. */
 .informations-inscription {
   max-width: var(--largeur-max-formulaire);
   margin: 0 auto var(--espace-grand);
-  padding: var(--espace-moyen);
-  background-color: var(--couleur-fond);
-  border: 1px solid var(--couleur-bordure-legere);
-  border-radius: var(--rayon-bordure);
-}
-
-.informations-inscription summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--couleur-back-office);
-}
-
-.informations-inscription summary:hover {
-  text-decoration: underline;
 }
 
 /* En-tête de section (bouton "Modifier" seul, aligné à droite) — pas de titre ici, voir le

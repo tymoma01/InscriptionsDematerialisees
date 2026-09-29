@@ -581,7 +581,7 @@ export default function InformationsInscription({ dossierId }) {
     : '-';
 
   return (
-    <section className="informations-inscription">
+    <section className="informations-inscription encadre-repliable">
       <details onToggle={gererOuverture}>
         <summary>Voir les informations d'inscription complètes</summary>
 
