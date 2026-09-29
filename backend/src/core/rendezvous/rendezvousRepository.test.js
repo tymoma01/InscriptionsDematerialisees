@@ -61,6 +61,22 @@ test("listerRendezvousTestNonRealisesAutomatiquement inclut 'prevu' ET 'confirme
 // Vérifie la forme du SQL généré (LATERAL, pas un simple LEFT JOIN, pour garantir AU PLUS UNE
 // ligne par dossier même si un dossier accumulait plusieurs événements le même jour) plutôt que
 // d'exécuter contre une vraie base, même patron que les tests ci-dessus.
+// Filtre secteur de l'Inspecteur (audit 2026-09-29) — même clause que
+// evaluationRepository.listerRendezvousAEvaluer : un dossier Hôtellerie (typePoste 'hotel') ou sans
+// bloc 'disponibilites' (typePoste NULL) ne satisfait pas `= 'bureau'` et n'est donc pas renvoyé.
+test("listerRendezvousTest avec typePoste='bureau' ne garde que les dossiers dont bloc_disponibilites.typePoste vaut 'bureau'", () => {
+  const sql = rendezvousRepository.listerRendezvousTest(bd, 1, { formateurId: 7, typePoste: 'bureau' }).toString();
+
+  assert.match(sql, /bloc_disponibilites\.donnees ->> 'typePoste' = 'bureau'/);
+  assert.match(sql, /"rendezvous"\."formateur_id" = 7/);
+});
+
+test('listerRendezvousTest sans typePoste : aucune clause de secteur (Admin/Accueil/Planning/Formateur inchangés)', () => {
+  const sql = rendezvousRepository.listerRendezvousTest(bd, 1, { formateurId: 5 }).toString();
+
+  assert.doesNotMatch(sql, /'typePoste'/);
+});
+
 test("listerRendezvousTest joint le DERNIER événement journal_audit ('historique_statuts') du dossier via LATERAL, pas un simple LEFT JOIN", () => {
   const sql = rendezvousRepository.listerRendezvousTest(bd, 1, {}).toString();
 

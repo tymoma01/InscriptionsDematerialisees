@@ -360,7 +360,14 @@ function listerRendezvousParDossier(bd, dossierId) {
 // statut_code`/`statuts.libelle as statut_libelle` que dossierRepository.listerDossiers. join
 // (pas leftJoin) : un dossier a toujours un statut_id non nul (colonne NOT NULL, migration 004),
 // même choix que dossierRepository.listerDossiers.
-function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
+//
+// typePoste (audit 2026-09-29, demande utilisateur : l'Inspecteur ne doit voir que le secteur
+// Tertiaire sur "Suivi des tests") : filtre optionnel sur bloc_disponibilites.donnees->>'typePoste',
+// clause IDENTIQUE à evaluationRepository.listerRendezvousAEvaluer (même vocabulaire 'bureau'/
+// 'hotel'). null/undefined = aucun filtre (tous les autres rôles, comportement inchangé). Un
+// dossier sans bloc 'disponibilites' (typePoste NULL) est exclu dès qu'un typePoste est demandé —
+// même comportement que l'écran d'évaluation de l'Inspecteur.
+function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, dateDebut, dateFin, typePoste } = {}) {
   const requete = bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -439,6 +446,9 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
   }
   if (formateurId) {
     requete.andWhere('rendezvous.formateur_id', formateurId);
+  }
+  if (typePoste) {
+    requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
   }
   if (dateDebut) {
     requete.andWhere('rendezvous.date_heure', '>=', dateDebut);
