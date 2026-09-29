@@ -4,6 +4,17 @@
   position: relative;
 }
 
+/* Même largeur que les autres champs du bloc (audit 2026-09-29, demande utilisateur) : dans le
+   formulaire DPAE, chaque <label> est une colonne flex dont les champs directs s'étirent sur toute
+   la largeur ; ici c'est le conteneur ci-dessus qui s'étire, pas l'<input> qu'il enveloppe (resté
+   à sa largeur naturelle, ~173px). width: 100% + border-box : occupe toute la largeur du conteneur,
+   bordure et padding compris, comme ses voisins. */
+.recherche-candidat-salarie input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+}
+
 .recherche-candidat-salarie__suggestions {
   position: absolute;
   z-index: 20;

@@ -142,6 +142,7 @@ export default function DemandeDpae() {
     donnees.typeDemande &&
     donnees.salarieNom.trim() &&
     donnees.salariePrenom.trim() &&
+    donnees.hotel.trim() &&
     donnees.verifBesoinHotel &&
     donnees.verifTousJoursInclus &&
     donnees.verifNonPlanification;
@@ -258,9 +259,13 @@ export default function DemandeDpae() {
               </label>
             </fieldset>
 
+            {/* Obligatoire (audit 2026-09-29) : une DPAE porte toujours sur un hôtel — contrôlé aussi
+                côté serveur (dpae.routes.js, demandeBodySchema). */}
             <label>
-              <span>Hôtel</span>
-              <input type="text" value={donnees.hotel} onChange={(e) => definir('hotel', e.target.value)} />
+              <span>
+                Hôtel <span className="champ-obligatoire">*</span>
+              </span>
+              <input type="text" value={donnees.hotel} onChange={(e) => definir('hotel', e.target.value)} required />
             </label>
           </fieldset>
 

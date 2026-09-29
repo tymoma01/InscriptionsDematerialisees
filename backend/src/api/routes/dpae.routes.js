@@ -38,7 +38,11 @@ const demandeBodySchema = z.object({
   candidatId: idPositifSchema.optional(),
   // Texte libre (pas une FK `lieux`, voir migration 066 et son commentaire) : `lieux` liste les
   // lieux de TEST candidat, une notion distincte de l'hôtel concerné par une demande de staffing.
-  hotel: z.string().trim().optional(),
+  // Obligatoire (audit 2026-09-29, demande utilisateur) : une DPAE porte toujours sur un hôtel —
+  // module Hôtellerie uniquement (postes hôtel seuls, voir DemandeDpae.jsx). Contrôlé ici, pas
+  // seulement dans le formulaire : trim() puis min(1) rejette aussi une saisie faite d'espaces.
+  // La colonne reste nullable en base (demandes antérieures inchangées).
+  hotel: z.string().trim().min(1, "L'hôtel est obligatoire."),
   typeContrat: enumOptionnel(['cdd', 'cdi']),
   motifCdd: enumOptionnel(['remplacement_absent', 'surcroit_activite']),
   salarieRemplaceNom: z.string().trim().optional(),
@@ -213,3 +217,7 @@ router.patch('/:id/rejeter', requireRole(...ROLES_DPAE_RH), async (req, res, nex
 });
 
 module.exports = router;
+// Schéma de validation exposé pour dpae.routes.test.js (même convention que dossiers.routes.js :
+// aucune infrastructure de test HTTP dans ce projet, on teste le VRAI schéma monté sur POST /,
+// jamais une copie).
+module.exports.demandeBodySchema = demandeBodySchema;
