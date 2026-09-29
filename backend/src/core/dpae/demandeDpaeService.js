@@ -5,6 +5,7 @@
 const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const notificationService = require('../notifications/notificationService');
+const siteAffectationRepository = require('./siteAffectationRepository');
 
 const STATUT_ENVOYEE = 'envoyee';
 const STATUT_VALIDEE = 'validee';
@@ -12,6 +13,9 @@ const STATUT_REJETEE = 'rejetee';
 
 class ErreurDemandeIntrouvable extends Error {}
 class ErreurDemandeDejaTraitee extends Error {}
+// Site(s) d'affectation inexistant(s), inactif(s) ou d'une autre entité (voir creerEtEnvoyer) —
+// traduit en 400 avec son message par dpae.routes.js.
+class ErreurSitesAffectationInvalides extends Error {}
 
 function libelleSalarie(demande) {
   return `${demande.salarie_prenom} ${demande.salarie_nom}`;
@@ -33,12 +37,30 @@ async function verifierDemandeExiste(bd, entite, demandeId) {
 // consommée par NotificationsCloche.jsx pour ce rôle) — vrai dès l'instant où une demande existe,
 // pour n'importe quel compte RH quelle que soit la date à laquelle il a obtenu ce rôle, sans
 // synchronisation à maintenir.
+//
+// Sites d'affectation (2026-09-29, référentiel `sites_affectation`, migration 069) : la demande et
+// ses liens sont enregistrés dans UNE SEULE transaction — aucun enregistrement partiel en cas
+// d'erreur. Chaque id est d'abord vérifié (existant, actif, de cette entité) ; un seul id invalide
+// refuse toute la demande AVANT la moindre écriture. La présence d'au moins un site et l'absence de
+// doublon sont déjà garanties par la route (dpae.routes.js, demandeBodySchema).
 async function creerEtEnvoyer(entite, demandeurId, donnees) {
   const bd = await db.obtenirKnex();
-  return demandeDpaeRepository.creerDemande(bd, {
-    ...donnees,
-    entiteId: entite.id,
-    demandeurId,
+  const { sitesAffectationIds = [], ...champsDemande } = donnees;
+  return bd.transaction(async (trx) => {
+    const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds);
+    const idsInvalides = sitesAffectationIds.filter((id) => !idsValides.includes(id));
+    if (idsInvalides.length > 0) {
+      throw new ErreurSitesAffectationInvalides(
+        `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
+      );
+    }
+    const demandeId = await demandeDpaeRepository.creerDemande(trx, {
+      ...champsDemande,
+      entiteId: entite.id,
+      demandeurId,
+    });
+    await siteAffectationRepository.lierSitesDemande(trx, demandeId, sitesAffectationIds);
+    return demandeId;
   });
 }
 
@@ -54,9 +76,14 @@ async function listerPourRh(entite, statut = STATUT_ENVOYEE) {
   return demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut);
 }
 
+// sites_affectation (2026-09-29) : sites liés à la demande, [{ id, nom, initiales }] — vide pour
+// une demande antérieure au référentiel, dont l'affichage retombe alors sur l'ancien texte `hotel`
+// (voir DetailDemandeDpae.jsx).
 async function obtenirDemande(entite, demandeId) {
   const bd = await db.obtenirKnex();
-  return verifierDemandeExiste(bd, entite, demandeId);
+  const demande = await verifierDemandeExiste(bd, entite, demandeId);
+  const sitesAffectation = await siteAffectationRepository.listerSitesDemande(bd, demandeId);
+  return { ...demande, sites_affectation: sitesAffectation };
 }
 
 async function valider(entite, demandeId, traitantId) {
@@ -120,4 +147,5 @@ module.exports = {
   rejeter,
   ErreurDemandeIntrouvable,
   ErreurDemandeDejaTraitee,
+  ErreurSitesAffectationInvalides,
 };

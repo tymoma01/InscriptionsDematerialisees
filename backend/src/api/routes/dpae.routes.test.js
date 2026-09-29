@@ -5,39 +5,52 @@ const dpaeRouter = require('./dpae.routes');
 
 const { demandeBodySchema } = dpaeRouter;
 
-// Champ "Hôtel" obligatoire côté serveur (audit 2026-09-29) — testé sur le VRAI schéma monté sur
-// POST /api/dpae (exporté par dpae.routes.js, même convention que dossiers.routes.test.js).
+// Testé sur le VRAI schéma monté sur POST /api/dpae (exporté par dpae.routes.js, même convention
+// que dossiers.routes.test.js).
 const DEMANDE_VALIDE = {
   typeDemande: 'nouvelle_embauche',
   salarieNom: 'Martin',
   salariePrenom: 'Léa',
   salarieDejaEmploye: false,
-  hotel: 'Hôtel du Cadran',
+  sitesAffectationIds: [10],
   verifBesoinHotel: true,
   verifTousJoursInclus: true,
   verifNonPlanification: true,
 };
 
-test('POST /api/dpae : une demande avec un hôtel renseigné est acceptée (hôtel conservé, sans espaces superflus)', () => {
-  const resultat = demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, hotel: '  Hôtel du Cadran  ' });
-  assert.equal(resultat.success, true);
-  assert.equal(resultat.data.hotel, 'Hôtel du Cadran');
+const MESSAGE_SITES_OBLIGATOIRES = "Au moins un site d'affectation est obligatoire.";
+
+// Site(s) d'affectation (référentiel, migration 069, 2026-09-29) — remplace l'ancien champ texte
+// `hotel` obligatoire. L'existence/l'état actif/l'entité de chaque id sont vérifiés par le service
+// (voir demandeDpaeService.test.js), ce schéma ne garantit que la forme de la liste.
+test("POST /api/dpae : un site d'affectation -> accepté ; plusieurs sites -> acceptés, tous conservés", () => {
+  assert.deepEqual(demandeBodySchema.parse(DEMANDE_VALIDE).sitesAffectationIds, [10]);
+  assert.deepEqual(demandeBodySchema.parse({ ...DEMANDE_VALIDE, sitesAffectationIds: [10, 11, 12] }).sitesAffectationIds, [10, 11, 12]);
 });
 
-test('POST /api/dpae : hôtel absent, vide ou fait d\'espaces -> refusé avec un message explicite', () => {
-  const { hotel: _hotel, ...sansHotel } = DEMANDE_VALIDE;
+test("POST /api/dpae : liste de sites vide ou absente -> refus « Au moins un site d'affectation est obligatoire. »", () => {
+  const { sitesAffectationIds: _ids, ...sansSites } = DEMANDE_VALIDE;
   for (const [cas, donnees] of [
-    ['absent', sansHotel],
-    ['vide', { ...DEMANDE_VALIDE, hotel: '' }],
-    ['espaces', { ...DEMANDE_VALIDE, hotel: '   ' }],
+    ['vide', { ...DEMANDE_VALIDE, sitesAffectationIds: [] }],
+    ['absente', sansSites],
   ]) {
     const resultat = demandeBodySchema.safeParse(donnees);
     assert.equal(resultat.success, false, cas);
-    assert.ok(resultat.error.flatten().fieldErrors.hotel, `${cas} : erreur attendue sur le champ hotel`);
+    assert.deepEqual(resultat.error.flatten().fieldErrors.sitesAffectationIds, [MESSAGE_SITES_OBLIGATOIRES], cas);
   }
-  assert.deepEqual(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, hotel: '' }).error.flatten().fieldErrors.hotel, [
-    "L'hôtel est obligatoire.",
+});
+
+test('POST /api/dpae : un même site deux fois dans la liste -> refus', () => {
+  const resultat = demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, sitesAffectationIds: [10, 11, 10] });
+  assert.equal(resultat.success, false);
+  assert.deepEqual(resultat.error.flatten().fieldErrors.sitesAffectationIds, [
+    "Un même site d'affectation ne peut pas être sélectionné deux fois.",
   ]);
+});
+
+test("POST /api/dpae : l'ancien champ texte hotel n'est plus exigé (toléré s'il est fourni)", () => {
+  assert.equal(demandeBodySchema.safeParse(DEMANDE_VALIDE).success, true);
+  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, hotel: 'Hôtel du Cadran' }).success, true);
 });
 
 test("POST /api/dpae : le champ Entité (division) reste facultatif (inchangé)", () => {
