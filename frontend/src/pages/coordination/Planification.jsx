@@ -576,6 +576,10 @@ export default function Planification() {
   // back pour Formateur/Inspecteur — rendezvous.routes.js/relances.routes.js restent réservés à
   // Accueil/Coordination/Recruteur/Admin, décision volontairement non étendue ici).
   const estFormateurOuInspecteur = ['formateur', 'inspecteur'].includes(utilisateur?.roleCode);
+  // Inspecteur seul (audit 2026-09-29) : le serveur ne lui renvoie plus que des rendez-vous
+  // Tertiaire (typePoste 'bureau', voir rendezvousService.filtresListeRendezvousTestParRole) — le
+  // groupe "Secteur" n'a donc plus rien à filtrer pour lui et est masqué (voir le panneau plus bas).
+  const estInspecteur = utilisateur?.roleCode === 'inspecteur';
 
   const [rendezvous, setRendezvous] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -655,7 +659,9 @@ export default function Planification() {
   // renvoyé par GET /api/dossiers/rendezvous, voir listerRendezvousTest), même mécanisme que
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
   const [secteurFiltreBrut, setSecteurFiltreBrut] = useParametreURL('secteur', 'tous');
-  const secteurFiltre = secteurFiltreBrut === 'tous' ? null : secteurFiltreBrut;
+  // Ignoré pour l'Inspecteur (groupe "Secteur" masqué, voir estInspecteur) : un lien partagé
+  // portant ?secteur=hotel viderait sinon sa liste sans aucun bouton visible pour lever ce filtre.
+  const secteurFiltre = estInspecteur || secteurFiltreBrut === 'tous' ? null : secteurFiltreBrut;
   const setSecteurFiltre = (valeur) => setSecteurFiltreBrut(valeur === null ? 'tous' : valeur);
 
   // Tri entièrement client sur la liste déjà reçue (GET /api/dossiers/rendezvous ne pagine pas,
@@ -1168,85 +1174,91 @@ export default function Planification() {
           onChangerDateFinFiltre={setDateFinFiltre}
         />
 
-        {/* "Secteur" (Tous/Hôtellerie/Tertiaire) + "Statut" (dossier) + "Rendez-vous" sur UNE SEULE
-            ligne (réorganisation 2026-09-26, demande utilisateur), les trois groupes partagent
-            .planification__ligne-entite-statut, séparateur vertical entre chaque paire porté par le
-            CSS (voir son commentaire). Secteur redesigné (2026-09-28, demande utilisateur : "Une
-            section avec soit tous, soit hôtellerie, soit tertiaire") en choix exclusif — même
-            composant FiltresStatut/même label que Statut et Rendez-vous juste à sa droite, plutôt
-            que l'ancien FiltreEntite.jsx (deux boutons indépendamment activables, jamais de "Tous"),
-            pour que les trois barres de cette ligne partagent enfin la même logique d'interaction. */}
-        <div className="planification__ligne-entite-statut">
-          <div className="planification__groupe-filtre-statut">
-            <span className="planification__label-filtre-statut">Secteur</span>
-            <FiltresStatut
-              statuts={STATUTS_FILTRABLES_SECTEUR}
-              statutFiltre={secteurFiltre}
-              onChangerStatutFiltre={setSecteurFiltre}
-              ariaLabel="Filtrer par secteur"
-              compteurTous={compteurTousSecteur}
-              compteurs={compteursParSecteur}
-            />
-          </div>
+        {/* Panneau de filtres en DEUX COLONNES (redesign 2026-09-29, demande utilisateur) —
+            remplace la ligne unique "Secteur | Statut | Rendez-vous" du 2026-09-26, qui ne tenait
+            pas en largeur bureau (1 710 px nécessaires pour 1 234 disponibles) et laissait un
+            séparateur orphelin en bout de première ligne :
+            - à gauche, "Secteur" (libellé centré verticalement, "Tous" + "Hôtellerie" en ligne 1,
+              "Tertiaire" sous "Hôtellerie" en ligne 2) ;
+            - un seul séparateur vertical, sur toute la hauteur ;
+            - à droite, calés à droite du panneau, "Statut" (ligne 1) et "Rendez-vous" (ligne 2),
+              libellés alignés à droite l'un sur l'autre pour que leurs pastilles démarrent au même
+              niveau (grille à deux colonnes, voir .planification__colonne-statuts).
+            Inspecteur : "Secteur" et le séparateur sont masqués (le serveur ne lui renvoie que du
+            Tertiaire, voir estInspecteur), le bloc Statut/Rendez-vous est alors aligné à gauche
+            (modificateur --sans-secteur). Disposition tablette : voir le @container de
+            Planification.css. Composant FiltresStatut, compteurs et logique de filtre inchangés. */}
+        <div className={`planification__ligne-entite-statut${estInspecteur ? ' planification__ligne-entite-statut--sans-secteur' : ''}`}>
+          {!estInspecteur && (
+            <>
+              {/* Secteur (Tous/Hôtellerie/Tertiaire, choix exclusif — redesign 2026-09-28) : même
+                  composant FiltresStatut que Statut/Rendez-vous. */}
+              <div className="planification__groupe-filtre-statut planification__groupe-filtre-secteur">
+                <span className="planification__label-filtre-statut">Secteur</span>
+                <FiltresStatut
+                  statuts={STATUTS_FILTRABLES_SECTEUR}
+                  statutFiltre={secteurFiltre}
+                  onChangerStatutFiltre={setSecteurFiltre}
+                  ariaLabel="Filtrer par secteur"
+                  compteurTous={compteurTousSecteur}
+                  compteurs={compteursParSecteur}
+                />
+              </div>
 
-          {/* Séparateur vertical entre Secteur et Statut — élément dédié (pas un simple border sur
-              le bloc suivant, voir historique git) : seule façon de le garder visuellement CENTRÉ
-              dans son intervalle une fois que .planification__ligne-entite-statut répartit l'espace
-              libre via justify-content: space-between (ajustement 2026-09-26, demande utilisateur :
-              "chaque séparateur vertical est centré dans son intervalle") — un border-left collé au
-              bloc suivant aurait tout l'espace distribué d'un seul côté du trait (avant lui),
-              jamais réparti des deux côtés à parts égales. aria-hidden : purement décoratif. */}
-          <span className="planification__separateur" aria-hidden="true" />
+              {/* Séparateur vertical unique entre les deux colonnes — élément dédié plutôt qu'un
+                  border sur une colonne, pour rester centré dans l'intervalle réparti par
+                  justify-content: space-between. aria-hidden : purement décoratif. */}
+              <span className="planification__separateur" aria-hidden="true" />
+            </>
+          )}
 
-          {/* Barre "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — même
-              composant FiltresStatut que la barre "Rendez-vous" juste à sa droite, mêmes 4 groupes
-              que la colonne "Statut" du tableau (STATUTS_FILTRABLES_DOSSIER/codeGroupeStatutDossier) :
-              "Tous" + un bouton par groupe, compteur dynamique. Se combine en ET avec TOUS les
-              autres filtres de la page (voir rendezvousParCandidatFiltres) — y compris le filtre
-              "Rendez-vous" à sa droite, chacun ignorant délibérément sa PROPRE valeur dans le
-              calcul de ses compteurs mais tenant compte de celle de l'autre (voir
-              compteursParStatutDossier/rendezvousParCandidatAvantStatutDossier plus haut), pour que
-              les deux barres restent cohérentes entre elles quelle que soit la combinaison active.
-              Un label "Statut" à gauche (planification__label-filtre-statut) sert de seul repère
-              visuel avec la barre "Rendez-vous" voisine — FiltresStatut est un composant générique
-              déjà bien identifiable par ses propres libellés de boutons, le label n'est là que pour
-              lever l'ambiguïté entre les deux familles avant que l'agent n'ait lu un seul bouton. */}
-          <div className="planification__groupe-filtre-statut">
-            <span className="planification__label-filtre-statut">Statut</span>
-            <FiltresStatut
-              statuts={STATUTS_FILTRABLES_DOSSIER}
-              statutFiltre={statutDossierFiltre}
-              onChangerStatutFiltre={setStatutDossierFiltre}
-              ariaLabel="Filtrer par statut de dossier"
-              compteurTous={rendezvousParCandidatAvantStatutDossier.length}
-              compteurs={compteursParStatutDossier}
-            />
-          </div>
+          <div className="planification__colonne-statuts">
+            {/* Barre "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — même
+                composant FiltresStatut que la barre "Rendez-vous" juste à sa droite, mêmes 4 groupes
+                que la colonne "Statut" du tableau (STATUTS_FILTRABLES_DOSSIER/codeGroupeStatutDossier) :
+                "Tous" + un bouton par groupe, compteur dynamique. Se combine en ET avec TOUS les
+                autres filtres de la page (voir rendezvousParCandidatFiltres) — y compris le filtre
+                "Rendez-vous" à sa droite, chacun ignorant délibérément sa PROPRE valeur dans le
+                calcul de ses compteurs mais tenant compte de celle de l'autre (voir
+                compteursParStatutDossier/rendezvousParCandidatAvantStatutDossier plus haut), pour que
+                les deux barres restent cohérentes entre elles quelle que soit la combinaison active.
+                Un label "Statut" à gauche (planification__label-filtre-statut) sert de seul repère
+                visuel avec la barre "Rendez-vous" voisine — FiltresStatut est un composant générique
+                déjà bien identifiable par ses propres libellés de boutons, le label n'est là que pour
+                lever l'ambiguïté entre les deux familles avant que l'agent n'ait lu un seul bouton. */}
+            <div className="planification__groupe-filtre-statut">
+              <span className="planification__label-filtre-statut">Statut</span>
+              <FiltresStatut
+                statuts={STATUTS_FILTRABLES_DOSSIER}
+                statutFiltre={statutDossierFiltre}
+                onChangerStatutFiltre={setStatutDossierFiltre}
+                ariaLabel="Filtrer par statut de dossier"
+                compteurTous={rendezvousParCandidatAvantStatutDossier.length}
+                compteurs={compteursParStatutDossier}
+              />
+            </div>
 
-          {/* Séparateur vertical entre Statut et Rendez-vous — voir le commentaire du séparateur
-              Secteur/Statut ci-dessus, même raison exacte. */}
-          <span className="planification__separateur" aria-hidden="true" />
-
-          {/* Barre "Rendez-vous" (statut du RENDEZ-VOUS, audit 2026-08-31) — même
-              composant/pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un
-              bouton par statut affiché avec compteur dynamique entre parenthèses. Combinable avec
-              "À venir uniquement"/Formateur/Rechercher/Du-Au/Statut (dossier) ci-dessus (voir
-              statutRdvFiltre, filtrage client sur la liste déjà groupée par candidat) — une
-              combinaison sans résultat (ex. "À venir uniquement" + "Réalisé") affiche simplement
-              "(0)" plutôt que d'être bloquée, voir le commentaire de compteursParStatutRdv. Deux
-              paramètres d'URL distincts (statut_rdv/statut_dossier, voir leur déclaration plus
-              haut) : jamais de collision possible entre les deux filtres dans un lien partagé/mis
-              en favori. */}
-          <div className="planification__groupe-filtre-statut">
-            <span className="planification__label-filtre-statut">Rendez-vous</span>
-            <FiltresStatut
-              statuts={STATUTS_FILTRABLES_RENDEZVOUS}
-              statutFiltre={statutRdvFiltre}
-              onChangerStatutFiltre={setStatutRdvFiltre}
-              ariaLabel="Filtrer par statut de rendez-vous"
-              compteurTous={rendezvousParCandidatAvantStatutRdv.length}
-              compteurs={compteursParStatutRdv}
-            />
+            {/* Barre "Rendez-vous" (statut du RENDEZ-VOUS, audit 2026-08-31) — même
+                composant/pattern que "Dossiers candidats" (TableauDeBordAccueil.jsx) : "Tous" + un
+                bouton par statut affiché avec compteur dynamique entre parenthèses. Combinable avec
+                "À venir uniquement"/Formateur/Rechercher/Du-Au/Statut (dossier) ci-dessus (voir
+                statutRdvFiltre, filtrage client sur la liste déjà groupée par candidat) — une
+                combinaison sans résultat (ex. "À venir uniquement" + "Réalisé") affiche simplement
+                "(0)" plutôt que d'être bloquée, voir le commentaire de compteursParStatutRdv. Deux
+                paramètres d'URL distincts (statut_rdv/statut_dossier, voir leur déclaration plus
+                haut) : jamais de collision possible entre les deux filtres dans un lien partagé/mis
+                en favori. */}
+            <div className="planification__groupe-filtre-statut">
+              <span className="planification__label-filtre-statut">Rendez-vous</span>
+              <FiltresStatut
+                statuts={STATUTS_FILTRABLES_RENDEZVOUS}
+                statutFiltre={statutRdvFiltre}
+                onChangerStatutFiltre={setStatutRdvFiltre}
+                ariaLabel="Filtrer par statut de rendez-vous"
+                compteurTous={rendezvousParCandidatAvantStatutRdv.length}
+                compteurs={compteursParStatutRdv}
+              />
+            </div>
           </div>
         </div>
 
