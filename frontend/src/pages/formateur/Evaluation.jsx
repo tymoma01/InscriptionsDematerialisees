@@ -58,6 +58,12 @@ export default function Evaluation() {
     setCompteurRafraichissement((compteur) => compteur + 1);
   };
 
+  // "Vue Formateur" de l'Admin (audit 2026-09-29, onglet dédié de BarreNavigation.jsx) : même page, mêmes
+  // composants, le secteur de l'espace (hotellerie) est transmis aux composants partagés, qui
+  // demandent alors au serveur tout ce secteur et affichent le sélecteur "Tous / [nom]". Pour
+  // tout autre rôle : undefined, comportement inchangé.
+  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? 'hotellerie' : undefined;
+
   return (
     <PageBackOffice>
       <div className="page-evaluation">
@@ -73,6 +79,7 @@ export default function Evaluation() {
             onSelectionner={setRendezvousSelectionne}
             rafraichir={compteurRafraichissement}
             rendezvousIdCible={rendezvousIdCible}
+            secteurVueAdmin={secteurVueAdmin}
           />
         )}
 

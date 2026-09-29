@@ -77,6 +77,12 @@ export default function EvaluationInspecteur() {
     setCompteurRafraichissement((compteur) => compteur + 1);
   };
 
+  // "Vue Inspecteur" de l'Admin (audit 2026-09-29, onglet dédié de BarreNavigation.jsx) : même page, mêmes
+  // composants, le secteur de l'espace (tertiaire) est transmis aux composants partagés, qui
+  // demandent alors au serveur tout ce secteur et affichent le sélecteur "Tous / [nom]". Pour
+  // tout autre rôle : undefined, comportement inchangé.
+  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? 'tertiaire' : undefined;
+
   return (
     <PageBackOffice>
       <div className="page-evaluation-inspecteur">
@@ -92,6 +98,7 @@ export default function EvaluationInspecteur() {
             onSelectionner={setRendezvousSelectionne}
             rafraichir={compteurRafraichissement}
             rendezvousIdCible={rendezvousIdCible}
+            secteurVueAdmin={secteurVueAdmin}
             afficherAssigne
           />
         )}

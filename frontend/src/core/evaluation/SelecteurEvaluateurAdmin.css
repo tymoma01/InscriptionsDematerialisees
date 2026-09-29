@@ -1,0 +1,15 @@
+/* Même apparence que le select "Créneaux souhaités" de l'historique
+   (.historique-evaluations__filtre-creneau, HistoriqueEvaluations.css), pour que ce filtre Admin se
+   lise comme un filtre de plus dans la même barre, pas comme un composant à part. */
+.selecteur-evaluateur-admin {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.selecteur-evaluateur-admin select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}

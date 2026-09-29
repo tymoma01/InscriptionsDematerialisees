@@ -88,6 +88,30 @@ const ELEMENTS_NAVIGATION = [
     // /suivi-formation (ROLES_SUIVI_FORMATION), et App.jsx (garde de route équivalente).
     roles: [...ROLES_ACCUEIL, 'admin', 'formateur'],
   },
+  // Vues Formateur / Inspecteur de l'Admin (audit 2026-09-29, demande utilisateur) — ouvrent
+  // l'espace EXISTANT du rôle (mêmes routes, mêmes pages, mêmes composants), l'Admin y voyant tout
+  // le secteur (voir secteurVueAdmin dans pages/formateur et pages/inspecteur). `sousOnglets` : clés
+  // des entrées de CETTE liste à reprendre comme sous-onglets de l'espace, résolues avec
+  // `roleEspace` (même fonction `chemin(roleCode)` que pour un vrai Formateur/Inspecteur) —
+  // aucune route ni libellé dupliqué. Onglet actif = toute route de l'espace.
+  {
+    cle: 'vue-formateur',
+    libelle: 'Vue Formateur',
+    chemin: '/formateur/evaluations',
+    estActif: (chemin) => chemin.startsWith('/formateur/'),
+    roles: ['admin'],
+    roleEspace: 'formateur',
+    sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
+  },
+  {
+    cle: 'vue-inspecteur',
+    libelle: 'Vue Inspecteur',
+    chemin: '/inspecteur/evaluations',
+    estActif: (chemin) => chemin.startsWith('/inspecteur/'),
+    roles: ['admin'],
+    roleEspace: 'inspecteur',
+    sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
+  },
   {
     cle: 'demandes-dpae',
     // Module Demandes DPAE (2026-09-28) — même patron que "historique-evaluations"/
@@ -136,22 +160,59 @@ export default function BarreNavigation() {
     return null;
   }
 
+  // Sous-onglets de l'espace actif (vues Admin, voir `sousOnglets` ci-dessus) — dans une barre
+  // SÉPARÉE, non collante, sous la barre principale : celle-ci est sticky et sa hauteur sert de
+  // référence (--hauteur-barre-navigation, PageBackOffice.css) aux autres éléments collants, une
+  // seconde rangée à l'intérieur la décalerait. Ordre = ordre de ELEMENTS_NAVIGATION, identique à
+  // celui que voit un vrai Formateur/Inspecteur.
+  const espaceActif = elementsVisibles.find((element) => element.sousOnglets && element.estActif(pathname));
+  const sousOnglets = espaceActif
+    ? ELEMENTS_NAVIGATION.filter((element) => espaceActif.sousOnglets.includes(element.cle))
+    : [];
+
   return (
-    <nav className="barre-navigation" aria-label="Navigation back-office">
-      {elementsVisibles.map((element) => {
-        const actif = element.estActif(pathname);
-        const chemin = typeof element.chemin === 'function' ? element.chemin(utilisateur.roleCode) : element.chemin;
-        return (
-          <Link
-            key={element.cle}
-            to={chemin}
-            className={`barre-navigation__lien${actif ? ' barre-navigation__lien--actif' : ''}`}
-            aria-current={actif ? 'page' : undefined}
-          >
-            {element.libelle}
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      {/* --dense (audit 2026-09-29) : au-delà de 6 onglets (aujourd'hui l'Admin seul, avec "Vue
+          Formateur"/"Vue Inspecteur"), liens légèrement resserrés pour que la barre sticky tienne
+          sur une ligne en largeur bureau — sa hauteur sur une ligne sert de référence aux autres
+          éléments collants (--hauteur-barre-navigation). Aucun changement pour les autres rôles. */}
+      <nav
+        className={`barre-navigation${elementsVisibles.length > 6 ? ' barre-navigation--dense' : ''}`}
+        aria-label="Navigation back-office"
+      >
+        {elementsVisibles.map((element) => {
+          const actif = element.estActif(pathname);
+          const chemin = typeof element.chemin === 'function' ? element.chemin(utilisateur.roleCode) : element.chemin;
+          return (
+            <Link
+              key={element.cle}
+              to={chemin}
+              className={`barre-navigation__lien${actif ? ' barre-navigation__lien--actif' : ''}`}
+              aria-current={actif ? 'page' : undefined}
+            >
+              {element.libelle}
+            </Link>
+          );
+        })}
+      </nav>
+      {sousOnglets.length > 0 && (
+        <nav className="barre-navigation-sous-onglets" aria-label={`Navigation ${espaceActif.libelle}`}>
+          {sousOnglets.map((element) => {
+            const chemin = typeof element.chemin === 'function' ? element.chemin(espaceActif.roleEspace) : element.chemin;
+            const actif = pathname.startsWith(chemin);
+            return (
+              <Link
+                key={element.cle}
+                to={chemin}
+                className={`barre-navigation-sous-onglets__lien${actif ? ' barre-navigation-sous-onglets__lien--actif' : ''}`}
+                aria-current={actif ? 'page' : undefined}
+              >
+                {element.libelle}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+    </>
   );
 }

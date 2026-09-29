@@ -12,10 +12,13 @@ export async function obtenirQuestionnaire({ rendezvousId, posteCode }) {
   return data;
 }
 
-// Déjà filtrée par le formateur connecté côté serveur (voir backend evaluations.routes.js) —
-// jamais de formateurId envoyé ici.
-export async function listerRendezvousAEvaluer() {
-  const { data } = await api.get('/evaluations/a-faire');
+// Déjà filtrée selon le rôle connecté côté serveur (voir backend evaluations.routes.js).
+// secteur ('hotellerie' | 'tertiaire') / formateurId : vues Admin "Vue Formateur"/"Vue Inspecteur"
+// (audit 2026-09-29) — ignorés par le serveur pour tout autre rôle ; omis s'ils sont vides.
+export async function listerRendezvousAEvaluer({ secteur, formateurId } = {}) {
+  const { data } = await api.get('/evaluations/a-faire', {
+    params: { secteur: secteur || undefined, formateurId: formateurId || undefined },
+  });
   return data;
 }
 
@@ -48,8 +51,11 @@ export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orie
 // évaluations, Inspecteur voit celles de tous les Inspecteurs (secteur bureau, audit 2026-09-17).
 // creneau (audit 2026-09-17, filtre "Créneaux souhaités", omis si vide) : filtré en base, jamais
 // côté client — voir backend evaluationRepository.listerEvaluationsParFormateur.
-export async function listerHistoriqueEvaluations({ creneau } = {}) {
-  const { data } = await api.get('/evaluations/historique', { params: { creneau: creneau || undefined } });
+// secteur/formateurId : voir listerRendezvousAEvaluer ci-dessus (Admin uniquement côté serveur).
+export async function listerHistoriqueEvaluations({ creneau, secteur, formateurId } = {}) {
+  const { data } = await api.get('/evaluations/historique', {
+    params: { creneau: creneau || undefined, secteur: secteur || undefined, formateurId: formateurId || undefined },
+  });
   return data;
 }
 
@@ -57,8 +63,10 @@ export async function listerHistoriqueEvaluations({ creneau } = {}) {
 // demande utilisateur) — jamais une liste figée, voir backend evaluationEngine.
 // listerCreneauxDisponibles : mêmes évaluations que listerHistoriqueEvaluations ci-dessus
 // pourraient renvoyer (même périmètre rôle/secteur), creneau exclu.
-export async function listerCreneauxDisponibles() {
-  const { data } = await api.get('/evaluations/historique/creneaux');
+export async function listerCreneauxDisponibles({ secteur, formateurId } = {}) {
+  const { data } = await api.get('/evaluations/historique/creneaux', {
+    params: { secteur: secteur || undefined, formateurId: formateurId || undefined },
+  });
   return data;
 }
 

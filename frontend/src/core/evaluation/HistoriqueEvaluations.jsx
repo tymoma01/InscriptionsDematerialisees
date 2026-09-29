@@ -4,6 +4,7 @@ import { normaliserTexte } from '../filtres/normaliserTexte';
 import { useParametreURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerHistoriqueEvaluations, listerCreneauxDisponibles } from '../../services/evaluationService';
+import SelecteurEvaluateurAdmin from './SelecteurEvaluateurAdmin';
 import './HistoriqueEvaluations.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -192,7 +193,16 @@ const COLONNE_INSPECTEUR = {
 // HistoriqueEvaluations.jsx ne la passe pas : la liste y reste filtrée à l'utilisateur connecté, la
 // colonne n'aurait donc rien d'utile à montrer (toujours son propre nom) — comportement Formateur
 // inchangé, même raisonnement que `afficherAssigne` (ListeEvaluationsAFaire.jsx).
-export default function HistoriqueEvaluations({ onSelectionner, afficherInspecteur = false }) {
+// Colonne "Formateur" de la vue Admin "Vue Formateur" (audit 2026-09-29) — même contenu que la
+// colonne "Inspecteur" (evaluations.formateur_id = l'évaluateur), seul le libellé change.
+const COLONNE_FORMATEUR = { ...COLONNE_INSPECTEUR, cle: 'formateur', libelle: 'Formateur' };
+
+// secteurVueAdmin ('hotellerie' | 'tertiaire', audit 2026-09-29) : fourni UNIQUEMENT par les pages
+// Formateur/Inspecteur quand l'utilisateur connecté est Admin ("Vue Formateur"/"Vue Inspecteur").
+// L'historique demande alors au serveur tout ce secteur, tous évaluateurs confondus, affiche la
+// colonne de l'évaluateur et un sélecteur "Tous / [nom]" (paramètre d'URL 'evaluateur'). Absent :
+// comportement inchangé pour le Formateur et l'Inspecteur.
+export default function HistoriqueEvaluations({ onSelectionner, afficherInspecteur = false, secteurVueAdmin }) {
   const [evaluations, setEvaluations] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -212,6 +222,12 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // cohérent (persisté dans l'URL, comme les autres), mais son changement redéclenche un appel
   // réseau au lieu d'un simple refiltrage de `evaluationsFiltrees`.
   const [creneauFiltre, setCreneauFiltre] = useParametreURL('creneau', '');
+  const [evaluateurFiltre, setEvaluateurFiltre] = useParametreURL('evaluateur', '');
+  const filtresAdmin = useMemo(
+    () => (secteurVueAdmin ? { secteur: secteurVueAdmin, formateurId: evaluateurFiltre } : {}),
+    [secteurVueAdmin, evaluateurFiltre],
+  );
+  const afficherEvaluateur = afficherInspecteur || Boolean(secteurVueAdmin);
   // Options du select ci-dessus — valeurs réellement présentes en base pour l'utilisateur connecté
   // (voir backend evaluationEngine.listerCreneauxDisponibles), jamais une liste codée en dur type
   // CRENEAUX_BUREAU (BlocDisponibilites.schema.js) : ce fichier ne connaît pas le vocabulaire
@@ -228,11 +244,18 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // valeur). splice(2, 0, ...) avec les deux colonnes dans cet ordre : l'une derrière l'autre,
   // pas besoin d'un second splice.
   const colonnes = useMemo(() => {
-    if (!afficherInspecteur) return COLONNES_BASE;
-    const copie = [...COLONNES_BASE];
-    copie.splice(2, 0, COLONNE_CRENEAU, COLONNE_INSPECTEUR);
-    return copie;
-  }, [afficherInspecteur]);
+    if (afficherInspecteur) {
+      const copie = [...COLONNES_BASE];
+      copie.splice(2, 0, COLONNE_CRENEAU, COLONNE_INSPECTEUR);
+      return copie;
+    }
+    if (secteurVueAdmin) {
+      const copie = [...COLONNES_BASE];
+      copie.splice(2, 0, COLONNE_FORMATEUR);
+      return copie;
+    }
+    return COLONNES_BASE;
+  }, [afficherInspecteur, secteurVueAdmin]);
 
   // Recharge à chaque changement de creneauFiltre (filtre serveur, voir son commentaire
   // ci-dessus) — recherche/dates n'en font volontairement pas partie, filtrées côté client sur
@@ -244,7 +267,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     let annule = false;
     setChargement(true);
     setErreur(null);
-    listerHistoriqueEvaluations({ creneau: creneauFiltre })
+    listerHistoriqueEvaluations({ creneau: creneauFiltre, ...filtresAdmin })
       .then((valeur) => {
         if (!annule) setEvaluations(valeur);
       })
@@ -257,7 +280,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     return () => {
       annule = true;
     };
-  }, [creneauFiltre]);
+  }, [creneauFiltre, filtresAdmin]);
 
   // Options du select "Créneaux souhaités" — uniquement si affiché (voir `afficherInspecteur`),
   // chargées une seule fois au montage (n'a pas à suivre creneauFiltre, voir son commentaire
@@ -274,7 +297,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   useEffect(() => {
     if (!afficherInspecteur) return undefined;
     let annule = false;
-    listerCreneauxDisponibles()
+    listerCreneauxDisponibles(filtresAdmin)
       .then((valeur) => {
         if (annule) return;
         setOptionsCreneaux(valeur);
@@ -287,7 +310,9 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     // eslint-disable-next-line react-hooks/exhaustive-deps -- creneauFiltre volontairement absent
     // des dépendances : ne doit tourner qu'au montage (voir commentaire ci-dessus), pas à chaque
     // changement de filtre — seulement lire sa valeur courante au moment où les options arrivent.
-  }, [afficherInspecteur]);
+    // filtresAdmin (audit 2026-09-29) : en vue Admin, les options suivent le formateur/inspecteur
+    // sélectionné (mêmes évaluations que la liste) ; constant ({}) hors vue Admin.
+  }, [afficherInspecteur, filtresAdmin]);
 
   // Filtrage client (recherche + plage de date sur date_evaluation) sur la liste déjà reçue —
   // même bornage en heure locale que filtrerDossiers.js/Planification.jsx (dateDebutFiltre/
@@ -343,8 +368,19 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     });
   };
 
+  // Sélecteur Admin (audit 2026-09-29) — rendu aussi pendant le chargement et quand la liste est
+  // vide, pour toujours pouvoir revenir à "Tous".
+  const selecteurAdmin = secteurVueAdmin ? (
+    <SelecteurEvaluateurAdmin secteur={secteurVueAdmin} valeur={evaluateurFiltre} onChanger={setEvaluateurFiltre} />
+  ) : null;
+
   if (chargement) {
-    return <p>Chargement de l’historique…</p>;
+    return (
+      <>
+        {selecteurAdmin && <div className="historique-evaluations__filtres">{selecteurAdmin}</div>}
+        <p>Chargement de l’historique…</p>
+      </>
+    );
   }
   if (erreur) {
     return <p role="alert">{erreur}</p>;
@@ -354,13 +390,20 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // "Aucune évaluation soumise pour l'instant" — message réservé au cas où l'utilisateur n'a
   // vraiment aucune évaluation, pas à un résultat vide dû à un filtre actif (voir le message dédié
   // "Aucune évaluation ne correspond aux critères actuels" plus bas, evaluationsTriees.length === 0).
-  if (evaluations.length === 0 && !creneauFiltre) {
-    return <p className="historique-evaluations__vide">Aucune évaluation soumise pour l’instant.</p>;
+  // !evaluateurFiltre (audit 2026-09-29) : même raison que !creneauFiltre pour le filtre Admin.
+  if (evaluations.length === 0 && !creneauFiltre && !evaluateurFiltre) {
+    return (
+      <>
+        {selecteurAdmin && <div className="historique-evaluations__filtres">{selecteurAdmin}</div>}
+        <p className="historique-evaluations__vide">Aucune évaluation soumise pour l’instant.</p>
+      </>
+    );
   }
 
   return (
     <>
       <div className="historique-evaluations__filtres">
+        {selecteurAdmin}
         <label className="historique-evaluations__filtre-recherche">
           <span>Rechercher</span>
           <input
@@ -452,7 +495,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
                       )}
                     </td>
                   )}
-                  {afficherInspecteur && (
+                  {afficherEvaluateur && (
                     <td>
                       {evaluation.formateur_prenom} {evaluation.formateur_nom}
                     </td>
