@@ -137,12 +137,17 @@ export default function DemandeDpae() {
     );
 
   const estAjoutRetraitJours = donnees.typeDemande === 'ajout_retrait_jours';
+  // CDD de remplacement (audit 2026-09-29) : seul cas où "Nom du salarié remplacé" est obligatoire
+  // — même règle côté serveur (dpae.routes.js, demandeBodySchema). Dans tous les autres cas (CDI,
+  // CDD de surcroît d'activité), la valeur éventuellement saisie n'est pas envoyée (voir envoyer).
+  const estCddRemplacement = donnees.typeContrat === 'cdd' && donnees.motifCdd === 'remplacement_absent';
 
   const formulaireComplet =
     donnees.typeDemande &&
     donnees.salarieNom.trim() &&
     donnees.salariePrenom.trim() &&
     donnees.hotel.trim() &&
+    (!estCddRemplacement || donnees.salarieRemplaceNom.trim()) &&
     donnees.verifBesoinHotel &&
     donnees.verifTousJoursInclus &&
     donnees.verifNonPlanification;
@@ -167,6 +172,7 @@ export default function DemandeDpae() {
       await creerDemande({
         ...reste,
         candidatId: candidatId || undefined,
+        salarieRemplaceNom: estCddRemplacement ? reste.salarieRemplaceNom : undefined,
         heuresParMois: heuresParMois ? Number(heuresParMois) : undefined,
         semaineType,
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
@@ -319,12 +325,17 @@ export default function DemandeDpae() {
 
                 {donnees.motifCdd === 'remplacement_absent' && (
                   <>
+                    {/* Obligatoire dans ce cas précis (CDD de remplacement, voir estCddRemplacement) —
+                        ce champ n'est d'ailleurs affiché que dans ce cas. */}
                     <label>
-                      <span>Nom du salarié remplacé</span>
+                      <span>
+                        Nom du salarié remplacé <span className="champ-obligatoire">*</span>
+                      </span>
                       <input
                         type="text"
                         value={donnees.salarieRemplaceNom}
                         onChange={(e) => definir('salarieRemplaceNom', e.target.value)}
+                        required
                       />
                     </label>
                     <label>

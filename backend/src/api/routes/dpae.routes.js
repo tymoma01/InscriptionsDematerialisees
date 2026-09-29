@@ -74,7 +74,22 @@ const demandeBodySchema = z.object({
   verifBesoinHotel: z.boolean(),
   verifTousJoursInclus: z.boolean(),
   verifNonPlanification: z.boolean(),
-});
+})
+  // "Nom du salarié remplacé" obligatoire UNIQUEMENT pour un CDD de remplacement (audit 2026-09-29,
+  // demande utilisateur) — règle croisée entre champs, d'où ce superRefine plutôt qu'un min(1) sur
+  // le champ lui-même (qui l'imposerait dans tous les cas). salarieRemplaceNom est déjà trimé
+  // ci-dessus : une saisie faite d'espaces arrive ici vide et est refusée. Aucun contrôle pour un
+  // CDI ou un CDD de surcroît d'activité. La date de fin d'absence reste facultative (demande
+  // explicite). Colonne inchangée en base, demandes existantes non concernées.
+  .superRefine((demande, ctx) => {
+    if (demande.typeContrat === 'cdd' && demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['salarieRemplaceNom'],
+        message: 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.',
+      });
+    }
+  });
 
 const rejetBodySchema = z.object({
   motifRejet: z.string().trim().min(1, 'Un motif de rejet est obligatoire.'),
