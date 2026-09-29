@@ -177,7 +177,15 @@ export default function DetailDemandeDpae() {
           <h2>Salarié</h2>
           {ligne('Téléphone', demande.salarie_telephone)}
           {ligne('A déjà travaillé chez nous', demande.salarie_deja_employe ? 'Oui' : 'Non')}
-          {ligne('Hôtel', demande.hotel)}
+          {/* Sites d'affectation (référentiel, 2026-09-29) : liste complète NOM (INITIALES) des sites
+              liés à la demande ; une demande antérieure au référentiel n'a aucun site lié et
+              retombe sur son ancien texte libre (colonne `hotel`, conservée). */}
+          {(demande.sites_affectation ?? []).length > 0
+            ? ligne(
+                "Sites d'affectation",
+                demande.sites_affectation.map((site) => `${site.nom} (${site.initiales})`).join(', '),
+              )
+            : ligne("Site d'affectation", demande.hotel)}
         </section>
 
         <section className="page-detail-dpae__bloc">

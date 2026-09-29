@@ -21,6 +21,7 @@ const formateursRoutes = require('./api/routes/formateurs.routes');
 const lieuxRoutes = require('./api/routes/lieux.routes');
 const statistiquesRoutes = require('./api/routes/statistiques.routes');
 const dpaeRoutes = require('./api/routes/dpae.routes');
+const sitesAffectationRoutes = require('./api/routes/sitesAffectation.routes');
 const notificationsRoutes = require('./api/routes/notifications.routes');
 const { FRONTEND_URL } = require('./config/env');
 
@@ -155,6 +156,9 @@ async function creerApp() {
   // level, pas nichée sous un dossier candidat (une demande DPAE n'est jamais rattachée à un
   // dossier, seulement optionnellement à un candidat via candidat_id), voir dpae.routes.js.
   app.use('/api/dpae', dpaeRoutes);
+  // Référentiel des sites d'affectation des demandes DPAE (migration 069, 2026-09-29) — voir
+  // sitesAffectation.routes.js.
+  app.use('/api/sites-affectation', sitesAffectationRoutes);
   // Notifications internes génériques (cloche back-office, voir NotificationsCloche.jsx) —
   // volontairement distinctes de notificationFactory.js (SMS/email candidat), voir
   // notifications.routes.js.

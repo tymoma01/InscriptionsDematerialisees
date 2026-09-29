@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
 import { creerDemande } from '../../services/dpaeService';
+import SelecteurSitesAffectation from './SelecteurSitesAffectation';
 import './DemandeDpae.css';
 
 // Types de demande — mêmes valeurs que demandeBodySchema (backend/src/api/routes/dpae.routes.js,
@@ -48,7 +49,9 @@ const DONNEES_INITIALES = {
   salarieTelephone: '',
   salarieDejaEmploye: false,
   candidatId: null,
-  hotel: '',
+  // Site(s) d'affectation (2026-09-29) : ids du référentiel `sites_affectation`, remplace l'ancien
+  // champ texte `hotel` (plus envoyé, voir SelecteurSitesAffectation.jsx).
+  sitesAffectationIds: [],
   typeContrat: '',
   motifCdd: '',
   salarieRemplaceNom: '',
@@ -96,6 +99,11 @@ export default function DemandeDpae() {
   const [donnees, setDonnees] = useState(DONNEES_INITIALES);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
+  // Bloc « Site(s) d'affectation » : replié à l'ouverture du formulaire, déplié automatiquement si
+  // l'on tente d'envoyer sans site (voir envoyer) — d'où un état tenu ici, pas dans le sélecteur.
+  const [sitesOuverts, setSitesOuverts] = useState(false);
+  const [erreurSites, setErreurSites] = useState(null);
+  const blocSitesRef = useRef(null);
 
   const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
 
@@ -142,11 +150,15 @@ export default function DemandeDpae() {
   // CDD de surcroît d'activité), la valeur éventuellement saisie n'est pas envoyée (voir envoyer).
   const estCddRemplacement = donnees.typeContrat === 'cdd' && donnees.motifCdd === 'remplacement_absent';
 
-  const formulaireComplet =
+  // Site(s) d'affectation traités à part (2026-09-29) : pour que l'agent puisse TENTER d'envoyer sans
+  // site et que le bloc des sites se déplie alors de lui-même (voir envoyer), le bouton « Envoyer »
+  // ne dépend que des AUTRES champs obligatoires — il reste désactivé pour eux, comme avant. L'envoi
+  // lui-même reste bloqué tant qu'aucun site n'est choisi (et refusé côté serveur de toute façon).
+  const sitesManquants = donnees.sitesAffectationIds.length === 0;
+  const formulaireCompletHorsSites =
     donnees.typeDemande &&
     donnees.salarieNom.trim() &&
     donnees.salariePrenom.trim() &&
-    donnees.hotel.trim() &&
     (!estCddRemplacement || donnees.salarieRemplaceNom.trim()) &&
     donnees.verifBesoinHotel &&
     donnees.verifTousJoursInclus &&
@@ -154,7 +166,15 @@ export default function DemandeDpae() {
 
   const envoyer = async (evenement) => {
     evenement.preventDefault();
-    if (!formulaireComplet || envoiEnCours) return;
+    if (!formulaireCompletHorsSites || envoiEnCours) return;
+    if (sitesManquants) {
+      // Tentative d'envoi sans site : on déplie le bloc et on l'amène à l'écran, pour que l'agent
+      // voie où agir — aucune requête n'est envoyée.
+      setSitesOuverts(true);
+      setErreurSites("Sélectionnez au moins un site d'affectation avant d'envoyer la demande.");
+      blocSitesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     setEnvoiEnCours(true);
     setErreur(null);
@@ -265,14 +285,26 @@ export default function DemandeDpae() {
               </label>
             </fieldset>
 
-            {/* Obligatoire (audit 2026-09-29) : une DPAE porte toujours sur un hôtel — contrôlé aussi
-                côté serveur (dpae.routes.js, demandeBodySchema). */}
-            <label>
-              <span>
-                Hôtel <span className="champ-obligatoire">*</span>
-              </span>
-              <input type="text" value={donnees.hotel} onChange={(e) => definir('hotel', e.target.value)} required />
-            </label>
+            {/* Site(s) d'affectation (2026-09-29) : sélection d'un ou plusieurs sites du référentiel,
+                au moins un obligatoire (envoi bloqué sinon, voir envoyer) — contrôlé aussi côté
+                serveur (dpae.routes.js, sitesAffectationIds). Remplace le champ texte libre. Bloc
+                replié par défaut, déplié automatiquement sur une tentative d'envoi sans site. */}
+            <div ref={blocSitesRef}>
+              <SelecteurSitesAffectation
+                selection={donnees.sitesAffectationIds}
+                onChangerSelection={(ids) => {
+                  definir('sitesAffectationIds', ids);
+                  if (ids.length > 0) setErreurSites(null);
+                }}
+                ouvert={sitesOuverts}
+                onChangerOuvert={setSitesOuverts}
+              />
+              {erreurSites && (
+                <p role="alert" className="page-demande-dpae__erreur-sites">
+                  {erreurSites}
+                </p>
+              )}
+            </div>
           </fieldset>
 
           <fieldset className="bloc-formulaire">
@@ -670,7 +702,7 @@ export default function DemandeDpae() {
             {erreur && <p role="alert">{erreur}</p>}
 
             <div className="page-demande-dpae__actions">
-              <button type="submit" disabled={!formulaireComplet || envoiEnCours}>
+              <button type="submit" disabled={!formulaireCompletHorsSites || envoiEnCours}>
                 {envoiEnCours ? 'Envoi…' : 'Envoyer à la RH'}
               </button>
             </div>

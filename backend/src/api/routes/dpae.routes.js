@@ -36,13 +36,24 @@ const demandeBodySchema = z.object({
   salarieTelephone: z.string().trim().optional(),
   salarieDejaEmploye: z.boolean(),
   candidatId: idPositifSchema.optional(),
-  // Texte libre (pas une FK `lieux`, voir migration 066 et son commentaire) : `lieux` liste les
-  // lieux de TEST candidat, une notion distincte de l'hôtel concerné par une demande de staffing.
-  // Obligatoire (audit 2026-09-29, demande utilisateur) : une DPAE porte toujours sur un hôtel —
-  // module Hôtellerie uniquement (postes hôtel seuls, voir DemandeDpae.jsx). Contrôlé ici, pas
-  // seulement dans le formulaire : trim() puis min(1) rejette aussi une saisie faite d'espaces.
-  // La colonne reste nullable en base (demandes antérieures inchangées).
-  hotel: z.string().trim().min(1, "L'hôtel est obligatoire."),
+  // Ancien champ texte libre "Site d'affectation" (colonne `hotel`, migration 068) — REMPLACÉ le
+  // 2026-09-29 par sitesAffectationIds ci-dessous (référentiel, migration 069). Plus envoyé par le
+  // formulaire ; toléré s'il est fourni (facultatif), la colonne restant en base pour les demandes
+  // antérieures, dont l'affichage retombe dessus (voir DetailDemandeDpae.jsx).
+  hotel: z.string().trim().optional(),
+  // Site(s) d'affectation (2026-09-29, demande utilisateur) : liste OBLIGATOIRE d'ids du référentiel
+  // `sites_affectation`, au moins un, sans doublon. Absente -> même refus qu'une liste vide
+  // (preprocess). L'existence, l'état actif et l'appartenance à l'entité de chaque id sont vérifiés
+  // par demandeDpaeService.creerEtEnvoyer, dans la transaction qui enregistre la demande.
+  sitesAffectationIds: z.preprocess(
+    (valeur) => valeur ?? [],
+    z
+      .array(idPositifSchema)
+      .min(1, "Au moins un site d'affectation est obligatoire.")
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Un même site d'affectation ne peut pas être sélectionné deux fois.",
+      }),
+  ),
   typeContrat: enumOptionnel(['cdd', 'cdi']),
   motifCdd: enumOptionnel(['remplacement_absent', 'surcroit_activite']),
   salarieRemplaceNom: z.string().trim().optional(),
@@ -114,13 +125,18 @@ router.post('/', requireRole(...ROLES_DPAE_DEMANDEUR), async (req, res, next) =>
       action: 'demande_dpae_creation',
       tableCible: 'demandes_dpae',
       cibleId: demandeId,
-      donnees: { typeDemande: donnees.typeDemande },
+      donnees: { typeDemande: donnees.typeDemande, sitesAffectationIds: donnees.sitesAffectationIds },
       adresseIp: req.ip,
     });
 
     res.status(201).json({ demandeId });
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    // Site inexistant, inactif ou d'une autre entité : refus de toute la demande (rien n'a été
+    // enregistré, voir demandeDpaeService.creerEtEnvoyer), message explicite plutôt qu'un 500.
+    if (erreur instanceof demandeDpaeService.ErreurSitesAffectationInvalides) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

@@ -1,0 +1,231 @@
+/* Sélecteur de sites d'affectation (SelecteurSitesAffectation.jsx, 2026-09-29). Carte, <summary>,
+   flèche native, clic et clavier : classe partagée .encadre-repliable (styles/encadreRepliable.css),
+   la MÊME que « Voir les informations d'inscription complètes » — rien de tout cela n'est redéfini
+   ici. Ne restent que l'espacement sous le bloc et le contenu propre à la sélection de sites. */
+.selecteur-sites {
+  margin-bottom: var(--espace-petit);
+}
+
+/* Résumé des sites choisis dans la ligne de titre : texte courant (le libellé qui le précède garde le
+   gras/couleur du <summary>). */
+.selecteur-sites__choix {
+  font-weight: 400;
+  color: var(--couleur-texte);
+}
+
+.selecteur-sites__choix--vide {
+  color: var(--couleur-texte-secondaire);
+  font-style: italic;
+}
+
+.selecteur-sites__contenu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+  margin-top: var(--espace-moyen);
+}
+
+/* Recherche + bouton « + » sur une ligne. */
+.selecteur-sites__barre {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.selecteur-sites__recherche {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.selecteur-sites__bouton-ajout {
+  flex: 0 0 auto;
+  width: 2.4rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.selecteur-sites__bouton-ajout:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
+/* Petit formulaire d'ajout — les <label> héritent de la présentation en colonne du formulaire DPAE
+   (.bloc-formulaire label, DemandeDpae.css). */
+.selecteur-sites__ajout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0 var(--espace-moyen);
+  padding: var(--espace-moyen);
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.selecteur-sites__ajout-actions,
+.selecteur-sites__erreur {
+  grid-column: 1 / -1;
+}
+
+.selecteur-sites__ajout-actions {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
+.selecteur-sites__ajout-actions button,
+.selecteur-sites__valider {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selecteur-sites__ajout-actions .selecteur-sites__bouton-secondaire {
+  background-color: transparent;
+  color: var(--couleur-back-office);
+  font-weight: 400;
+}
+
+.selecteur-sites__ajout-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.selecteur-sites__erreur {
+  margin: var(--espace-petit) 0 0;
+  color: var(--couleur-erreur);
+}
+
+/* Grille des sites : flux par défaut (ligne par ligne, de gauche à droite) — l'ordre alphabétique
+   se lit donc dans le sens de lecture. 4 colonnes en largeur bureau, 2 en tablette. */
+.selecteur-sites__grille {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--espace-petit);
+}
+
+@media (max-width: 1024px) {
+  .selecteur-sites__grille {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.selecteur-sites__site {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.selecteur-sites__site:hover {
+  border-color: var(--couleur-back-office);
+}
+
+/* Case à cocher visuelle : vide si non sélectionné, ✓ blanc sur fond plein sinon. */
+.selecteur-sites__coche {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.selecteur-sites__nom {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.selecteur-sites__initiales {
+  flex: 0 0 auto;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* Site sélectionné : clairement mis en évidence — fond plein couleur back-office, texte blanc. */
+.selecteur-sites__site--selectionne {
+  border-color: var(--couleur-back-office);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.selecteur-sites__site--selectionne:hover {
+  background-color: var(--couleur-back-office-hover);
+}
+
+.selecteur-sites__site--selectionne .selecteur-sites__coche {
+  border-color: #ffffff;
+  background-color: #ffffff;
+  color: var(--couleur-back-office);
+  font-weight: 700;
+}
+
+.selecteur-sites__site--selectionne .selecteur-sites__initiales {
+  color: #ffffff;
+}
+
+.selecteur-sites__vide {
+  margin: 0;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Compteur, « Tout désélectionner » (lien), « Valider la sélection » calé à droite. */
+.selecteur-sites__pied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+.selecteur-sites__compteur {
+  font-weight: 600;
+}
+
+.selecteur-sites__lien {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--couleur-back-office);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.selecteur-sites__lien:disabled {
+  color: var(--couleur-texte-secondaire);
+  text-decoration: none;
+  cursor: default;
+}
+
+.selecteur-sites__valider {
+  margin-left: auto;
+}
+
+.selecteur-sites__valider:hover {
+  background-color: var(--couleur-back-office-hover);
+}
