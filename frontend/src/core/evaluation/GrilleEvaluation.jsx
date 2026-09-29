@@ -14,11 +14,11 @@ const ACQUIS = [
   { code: 'a_ameliorer', libelle: 'A améliorer' },
 ];
 
-// Échelle affichée à un Inspecteur (postes bureau, questions savoir_etre/savoir_faire — voir
-// seedQuestionnairesEvaluation.js) à la place de ACQUIS ci-dessus — mêmes codes que backend
-// evaluationEngine.js (ACQUIS_AUTORISEES, union avec l'échelle hôtel). Rôle qui affiche laquelle
-// des deux échelles, pas le poste du dossier (scope Inspecteur procédural, voir rbac.js) : plus
-// simple et cohérent avec le seul signal déjà utilisé pour masquer Orientation (estInspecteur).
+// Échelle affichée pour un dossier Tertiaire (postes bureau, questions savoir_etre/savoir_faire —
+// voir seedQuestionnairesEvaluation.js) à la place de ACQUIS ci-dessus — mêmes codes que backend
+// evaluationEngine.js (ACQUIS_AUTORISEES, union avec l'échelle hôtel). Choisie selon le secteur du
+// dossier depuis le 2026-09-29 (auparavant selon le rôle connecté), même signal que le masquage de
+// l'Orientation (estTertiaire, voir GrilleEvaluation ci-dessous).
 const NIVEAUX_BUREAU = [
   { code: 'aucune_connaissance', libelle: 'Aucune connaissance' },
   { code: 'a_ameliorer', libelle: 'A améliorer' },
@@ -248,11 +248,16 @@ function construireReponsesBloc(bloc) {
 // prop pour la même raison (pas de useSession() propre à ce composant) — transmis par
 // Evaluation.jsx, qui l'a déjà via sa propre useSession().
 export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAnnuler }) {
-  // Scope Inspecteur procédural (voir rbac.js) : c'est le rôle connecté qui détermine l'échelle de
-  // réponse affichée (NIVEAUX_BUREAU vs ACQUIS) et masque Orientation (le bureau n'a pas de notion
-  // de formation) — jamais une caractéristique du dossier/poste, cohérent avec le fait qu'aucune
-  // vérification technique de scope bureau n'existe côté serveur non plus.
-  const estInspecteur = roleCode === 'inspecteur';
+  // Parcours Tertiaire ou Hôtellerie selon le SECTEUR DU DOSSIER (audit 2026-09-29, remplace le
+  // choix par rôle connecté) : échelle de réponse (NIVEAUX_BUREAU vs ACQUIS), aide-mémoire
+  // d'inspection, et masquage de l'Orientation (le Tertiaire n'a pas de notion de formation). Un
+  // Admin qui évalue un dossier Tertiaire suit donc le parcours Tertiaire. Même règle que le serveur
+  // (evaluationEngine.resoudreParcoursEvaluation, qui refuse de toute façon une orientation
+  // "envoi en formation" sur un dossier Tertiaire) : rendezvous.typePoste exposé par
+  // GET /api/evaluations/a-faire ; repli sur le rôle seulement si le dossier n'a pas de typePoste.
+  const estTertiaire = rendezvous.typePoste
+    ? rendezvous.typePoste === 'bureau'
+    : roleCode === 'inspecteur';
 
   // Plusieurs postes (hôtel OU bureau, jamais les deux à la fois sur un même dossier — typePoste
   // XOR, voir dossierService.js) cochés : le formulaire d'inscription le permet (case à cocher
@@ -308,7 +313,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   // Masqué pour un Inspecteur : le bureau n'a pas de notion de formation, l'évaluation y reste
   // binaire (valide/invalide) sans champ supplémentaire à choisir — pas de remplacement, juste
   // absent (voir enregistrerEvaluation côté back, orientation reste NULL dans ce cas).
-  const orientationVisible = resultatGlobal === 'valide' && !estInspecteur;
+  const orientationVisible = resultatGlobal === 'valide' && !estTertiaire;
 
   const gererChangementResultat = (valeur) => {
     setResultatGlobal(valeur);
@@ -524,7 +529,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
           {/* Même aide-mémoire que sur la grille principale (voir plus bas), positionnée de la
               même façon — juste sous le titre, avant le reste de l'écran — pour rester visible dès
               cette étape de sélection de poste, avant même que la grille ne soit chargée. */}
-          {estInspecteur && <ChecklistInspection />}
+          {estTertiaire && <ChecklistInspection />}
 
           <p>
             <strong>Cochez les postes à évaluer :</strong>
@@ -612,7 +617,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
             laissée en bas de page comme au départ. Pas de <form> imbriqué : ChecklistInspection
             ne rend elle-même aucun <form> (contrairement à NotesDossier plus bas, resté un frère
             du <form> pour cette raison), donc rien n'empêche de l'imbriquer directement ici. */}
-        {estInspecteur && <ChecklistInspection />}
+        {estTertiaire && <ChecklistInspection />}
 
         {blocsQuestionnaire.map((bloc, indexBloc) => (
           <section key={cleBloc(bloc.posteCode)} className="grille-evaluation__bloc-poste">
@@ -696,7 +701,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                         >
                           <legend>{item.libelle}</legend>
                           <div className="grille-evaluation__choix">
-                            {(estInspecteur ? NIVEAUX_BUREAU : ACQUIS).map((v) => (
+                            {(estTertiaire ? NIVEAUX_BUREAU : ACQUIS).map((v) => (
                               <label key={v.code} className={`grille-evaluation__option grille-evaluation__option--${VARIANTE_PAR_CODE_REPONSE[v.code]}`}>
                                 <input
                                   type="radio"

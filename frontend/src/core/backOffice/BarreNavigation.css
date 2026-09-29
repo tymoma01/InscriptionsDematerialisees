@@ -60,6 +60,17 @@
   }
 }
 
+/* Barre à plus de 6 onglets (Admin, audit 2026-09-29 — voir BarreNavigation.jsx) : padding
+   horizontal 1rem -> 0.8rem en largeur bureau (≥ 1025px ; en dessous, la règle tablette ci-dessus
+   resserre déjà davantage). Mesuré : 8 onglets demandent 1 251px pour 1 250px disponibles à
+   1440/1920px, 1 251 pour 1 230 à 1280px — ~51px gagnés ici, la barre tient sur une ligne. */
+@media (min-width: 1025px) {
+  .barre-navigation--dense .barre-navigation__lien {
+    padding-left: 0.8rem;
+    padding-right: 0.8rem;
+  }
+}
+
 .barre-navigation__lien:hover {
   background-color: var(--couleur-fond-secondaire);
 }
@@ -73,4 +84,35 @@
 
 .barre-navigation__lien--actif:hover {
   background-color: var(--couleur-back-office-hover);
+}
+
+/* Sous-onglets d'un espace (vues Admin "Vue Formateur"/"Vue Inspecteur", audit 2026-09-29, voir
+   BarreNavigation.jsx) — barre secondaire NON collante, rapprochée de la barre principale (marge
+   négative qui compense son margin-bottom), plus discrète : pas de fond de panneau, liens plus
+   petits, onglet actif souligné plutôt que rempli, pour ne jamais se confondre avec la barre
+   principale. */
+.barre-navigation-sous-onglets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin: calc(var(--espace-petit) - var(--espace-grand)) 0 var(--espace-grand);
+  padding: 0 var(--espace-petit);
+}
+
+.barre-navigation-sous-onglets__lien {
+  padding: 0.35rem 0.75rem;
+  border-bottom: 2px solid transparent;
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.barre-navigation-sous-onglets__lien:hover {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.barre-navigation-sous-onglets__lien--actif {
+  border-bottom-color: var(--couleur-back-office);
 }

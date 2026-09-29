@@ -1516,3 +1516,75 @@ test("listerRendezvousTest expose statutForce=false (jamais null) quand le dossi
 
   assert.equal(rdv.statutForce, false);
 });
+
+// Filtre secteur de l'Inspecteur sur "Suivi des tests" (audit 2026-09-29, GET
+// /api/dossiers/rendezvous) — pas d'infrastructure HTTP ni de base de test dans ce projet : la
+// décision rôle -> filtres est testée via filtresListeRendezvousTestParRole (fonction pure appelée
+// telle quelle par la route), et le repository est remplacé par une base factice qui applique le
+// MÊME critère que la clause SQL (bloc_disponibilites.donnees->>'typePoste' = typePoste, voir
+// rendezvousRepository.test.js pour la forme réelle du SQL).
+function ligneRendezvousFactice({ id, typePoste, formateurId }) {
+  return {
+    id,
+    dossier_id: 100 + id,
+    formateur_id: formateurId,
+    statut_force: null,
+    donnees_disponibilites: {
+      typePoste,
+      posteHotel: typePoste === 'hotel' ? ['serveur'] : [],
+      posteBureau: typePoste === 'bureau' ? ['assistant'] : [],
+    },
+    donnees_coordonnees: null,
+  };
+}
+
+test("Suivi des tests : un rendez-vous Hôtellerie attribué à un Inspecteur n'est pas renvoyé à cet Inspecteur", async (t) => {
+  const INSPECTEUR_ID = 7;
+  const lignesEnBase = [
+    ligneRendezvousFactice({ id: 1, typePoste: 'hotel', formateurId: INSPECTEUR_ID }),
+    ligneRendezvousFactice({ id: 2, typePoste: 'bureau', formateurId: INSPECTEUR_ID }),
+  ];
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(rendezvousRepository, 'listerRendezvousTest', async (_bd, _entiteId, { formateurId, typePoste }) =>
+    lignesEnBase.filter(
+      (ligne) =>
+        (!formateurId || ligne.formateur_id === formateurId) &&
+        (!typePoste || ligne.donnees_disponibilites.typePoste === typePoste),
+    ),
+  );
+
+  // Même enchaînement que la route GET /api/dossiers/rendezvous (dossiers.routes.js).
+  const filtres = rendezvousService.filtresListeRendezvousTestParRole({
+    roleCode: 'inspecteur',
+    utilisateurId: INSPECTEUR_ID,
+    formateurIdDemande: undefined,
+  });
+  const rendezvous = await rendezvousService.listerRendezvousTest(ENTITE_FACTICE, filtres);
+
+  assert.deepEqual(
+    rendezvous.map((rdv) => rdv.id),
+    [2],
+  );
+  assert.deepEqual(rendezvous[0].postesHotel, []);
+});
+
+test('filtresListeRendezvousTestParRole : Inspecteur -> ses rendez-vous, secteur bureau uniquement ; Formateur -> ses rendez-vous, sans filtre secteur', () => {
+  assert.deepEqual(
+    rendezvousService.filtresListeRendezvousTestParRole({ roleCode: 'inspecteur', utilisateurId: 7, formateurIdDemande: 99 }),
+    { formateurId: 7, typePoste: 'bureau' },
+  );
+  assert.deepEqual(
+    rendezvousService.filtresListeRendezvousTestParRole({ roleCode: 'formateur', utilisateurId: 5, formateurIdDemande: 99 }),
+    { formateurId: 5, typePoste: null },
+  );
+});
+
+test('filtresListeRendezvousTestParRole : Admin, Accueil/Coordination et Planning inchangés (formateur demandé, aucun filtre secteur)', () => {
+  for (const roleCode of ['admin', 'accueil_coordination', 'planning']) {
+    assert.deepEqual(
+      rendezvousService.filtresListeRendezvousTestParRole({ roleCode, utilisateurId: 1, formateurIdDemande: 12 }),
+      { formateurId: 12, typePoste: null },
+      roleCode,
+    );
+  }
+});

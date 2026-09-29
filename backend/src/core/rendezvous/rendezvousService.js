@@ -303,19 +303,38 @@ async function listerMotifsDesistement(entite) {
   return motifRepository.listerMotifsParCategorie(bd, entite.id, CATEGORIE_MOTIF_DESISTEMENT);
 }
 
+// Filtres imposés par le rôle sur GET /api/dossiers/rendezvous ("Suivi des tests") — sortis de
+// la route (dossiers.routes.js) en fonction pure pour être testables sans infrastructure HTTP ni
+// base (voir rendezvousService.test.js). Formateur/Inspecteur : ne voient que LEURS rendez-vous,
+// quoi qu'envoie le client (formateurId forcé à leur propre id, comportement historique inchangé).
+// Inspecteur EN PLUS (audit 2026-09-29, demande utilisateur) : secteur Tertiaire uniquement
+// (typePoste 'bureau'), même règle que evaluationEngine.listerRendezvousAEvaluer — la garde
+// d'assignation (creerRendezvous plus bas) n'empêche pas à elle seule qu'un rendez-vous déjà
+// assigné devienne Hôtellerie (postes modifiés après coup via "Modifier", dossier sans poste au
+// moment de l'assignation). Tous les autres rôles : formateurId demandé par le client, aucun filtre
+// de secteur.
+function filtresListeRendezvousTestParRole({ roleCode, utilisateurId, formateurIdDemande }) {
+  const estFormateurOuInspecteur = [ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(roleCode);
+  return {
+    formateurId: estFormateurOuInspecteur ? utilisateurId : formateurIdDemande,
+    typePoste: roleCode === ROLES.INSPECTEUR ? 'bureau' : null,
+  };
+}
+
 // Vue d'ensemble des rendez-vous de test de l'entité, tous dossiers confondus (page
 // Planification côté Coordination) — contrairement à listerRendezvous ci-dessus, ne prend pas de
 // dossierId : rien à vérifier côté IDOR, la portée est déjà l'entité entière (voir
 // entiteContext), pas un dossier précis.
 // Postes recherchés exposés à plat (postesBureau/postesHotel) pour la colonne "Poste" de
 // Planification.jsx — même patron que dossierService.listerDossiers.
-async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, dateDebut, dateFin } = {}) {
+async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, dateDebut, dateFin, typePoste } = {}) {
   const bd = await db.obtenirKnex();
   const rendezvous = await rendezvousRepository.listerRendezvousTest(bd, entite.id, {
     aVenirSeulement,
     formateurId,
     dateDebut,
     dateFin,
+    typePoste,
   });
   return rendezvous.map(({ donnees_disponibilites, donnees_coordonnees, statut_force, ...reste }) => ({
     ...reste,
@@ -819,6 +838,7 @@ module.exports = {
   changerStatutRendezvous,
   listerMotifsDesistement,
   listerRendezvousTest,
+  filtresListeRendezvousTestParRole,
   listerHistoriqueRendezvousDossiers,
   CATEGORIES_STATUT_HISTORIQUE,
   STATUT_REMPLACE,

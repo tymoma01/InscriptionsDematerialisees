@@ -340,10 +340,17 @@ const rendezvousTestQuerySchema = z.object({
 router.get('/rendezvous', requireRole(...ROLES_CONSULTATION_RENDEZVOUS_TEST), async (req, res, next) => {
   try {
     const { aVenir, formateurId, dateDebut, dateFin } = rendezvousTestQuerySchema.parse(req.query);
-    const estFormateurOuInspecteur = [ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(req.utilisateur.roleCode);
+    // Formateur/Inspecteur limités à leurs propres rendez-vous, Inspecteur limité en plus au
+    // secteur Tertiaire (audit 2026-09-29) — voir rendezvousService.filtresListeRendezvousTestParRole.
+    const filtresRole = rendezvousService.filtresListeRendezvousTestParRole({
+      roleCode: req.utilisateur.roleCode,
+      utilisateurId: req.utilisateur.id,
+      formateurIdDemande: formateurId,
+    });
     const rendezvous = await rendezvousService.listerRendezvousTest(req.entite, {
       aVenirSeulement: aVenir === 'true',
-      formateurId: estFormateurOuInspecteur ? req.utilisateur.id : formateurId,
+      formateurId: filtresRole.formateurId,
+      typePoste: filtresRole.typePoste,
       dateDebut,
       dateFin,
     });

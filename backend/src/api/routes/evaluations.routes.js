@@ -62,6 +62,21 @@ const evaluationBodySchema = z.object({
   blocs: z.array(blocReponsesSchema).min(1),
 });
 
+// Filtres des vues Admin "Vue Formateur"/"Vue Inspecteur" (audit 2026-09-29) — `secteur`
+// (hotellerie | tertiaire) et `formateurId`, lus et validés UNIQUEMENT pour l'Admin : pour tout
+// autre rôle ils ne sont même pas parsés (ignorés, jamais de 400 sur une valeur qu'on n'utiliserait
+// de toute façon pas), et evaluationEngine.filtresEvaluationsParRole les ignore une seconde fois.
+const filtresAdminSchema = z.object({
+  secteur: z.enum(Object.keys(evaluationEngine.TYPE_POSTE_PAR_SECTEUR)).optional(),
+  formateurId: idPositifSchema.optional(),
+});
+
+function lireFiltresAdmin(req) {
+  if (req.utilisateur.roleCode !== ROLES.ADMIN) return {};
+  const { secteur, formateurId } = filtresAdminSchema.parse(req.query);
+  return { secteur, formateurIdDemande: formateurId };
+}
+
 function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
@@ -102,9 +117,11 @@ router.get('/a-faire', async (req, res, next) => {
       req.entite,
       req.utilisateur.id,
       req.utilisateur.roleCode,
+      lireFiltresAdmin(req),
     );
     res.json(rendezvous);
   } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
   }
 });
@@ -162,6 +179,7 @@ router.get('/historique', async (req, res, next) => {
       req.utilisateur.id,
       req.utilisateur.roleCode,
       creneau ?? null,
+      lireFiltresAdmin(req),
     );
     res.json(historique);
   } catch (erreur) {
@@ -179,9 +197,15 @@ router.get('/historique', async (req, res, next) => {
 // attendu).
 router.get('/historique/creneaux', async (req, res, next) => {
   try {
-    const creneaux = await evaluationEngine.listerCreneauxDisponibles(req.entite, req.utilisateur.id, req.utilisateur.roleCode);
+    const creneaux = await evaluationEngine.listerCreneauxDisponibles(
+      req.entite,
+      req.utilisateur.id,
+      req.utilisateur.roleCode,
+      lireFiltresAdmin(req),
+    );
     res.json(creneaux);
   } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
   }
 });
@@ -237,6 +261,11 @@ router.post('/', async (req, res, next) => {
     res.status(201).json(resultat);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    // Évaluation incompatible avec le secteur du dossier (ex. dossier Tertiaire orienté en
+    // formation, audit 2026-09-29) : message métier explicite, jamais le 500 générique.
+    if (erreur instanceof evaluationEngine.ErreurParcoursEvaluation) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });

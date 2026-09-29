@@ -51,6 +51,56 @@ const CODE_ACTION_INVALIDATION = 'invalider_test';
 // s'applique déjà exactement à ce cas.
 const CODE_ACTION_VALIDE_BUREAU = 'valider_pret_embauche';
 
+// Secteurs exposés par l'API d'évaluation (paramètre `secteur` des vues Admin "Vue Formateur"/
+// "Vue Inspecteur", audit 2026-09-29) -> vocabulaire typePoste du bloc 'disponibilites' (celui déjà
+// utilisé par evaluationRepository et le filtre Inspecteur). Clés = valeurs publiques de l'API.
+const TYPE_POSTE_PAR_SECTEUR = Object.freeze({ hotellerie: 'hotel', tertiaire: 'bureau' });
+
+// Refus métier d'une évaluation incompatible avec le secteur du dossier (audit 2026-09-29) — classe
+// dédiée pour que la route la traduise en 400 avec son message, au lieu du 500 générique réservé
+// aux erreurs inattendues (voir evaluations.routes.js).
+class ErreurParcoursEvaluation extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurParcoursEvaluation';
+  }
+}
+
+// Parcours d'évaluation ('tertiaire' ou 'hotellerie') déterminé par le SECTEUR DU DOSSIER (audit
+// 2026-09-29, demande utilisateur) et non plus par le rôle de l'évaluateur : un Admin qui évalue un
+// dossier Tertiaire doit suivre le parcours Tertiaire (pas d'orientation, validation directe, jamais
+// de formation ni d'appel SmartOF). Repli sur le rôle UNIQUEMENT si le dossier n'a pas de typePoste
+// (dossier ancien ou de test sans bloc 'disponibilites') : comportement historique conservé tel
+// quel pour ce cas (Inspecteur -> Tertiaire, tout autre rôle -> Hôtellerie).
+function resoudreParcoursEvaluation({ typePosteDossier, roleCode }) {
+  if (typePosteDossier === 'bureau') return 'tertiaire';
+  if (typePosteDossier === 'hotel') return 'hotellerie';
+  return roleCode === ROLES.INSPECTEUR ? 'tertiaire' : 'hotellerie';
+}
+
+// Filtres (formateurId, typePoste) imposés par le rôle aux listes /a-faire, /historique et
+// /historique/creneaux — fonction pure, testable sans base (voir evaluationEngine.test.js).
+// `vue` : 'a_faire' ou 'historique' (les créneaux suivent la même résolution que l'historique, dont
+// ils énumèrent les valeurs possibles).
+// - Formateur : ses propres rendez-vous/évaluations, aucun filtre secteur (inchangé).
+// - Inspecteur : tout le secteur bureau, tous Inspecteurs confondus (inchangé).
+// - Admin AVEC `secteur` (vues "Vue Formateur"/"Vue Inspecteur", audit 2026-09-29) : tout le
+//   secteur demandé, tous évaluateurs confondus, filtrable par `formateurIdDemande`.
+// - Admin SANS `secteur` : comportement antérieur conservé (à faire : tout ; historique : ses
+//   propres évaluations).
+// `secteur`/`formateurIdDemande` ne sont JAMAIS lus pour un autre rôle que l'Admin — un Formateur
+// ou un Inspecteur qui les envoie n'obtient rien de plus qu'avant (la route ne les transmet déjà
+// que pour l'Admin ; double garde ici).
+function filtresEvaluationsParRole({ roleCode, utilisateurId, vue, secteur, formateurIdDemande }) {
+  if (roleCode === ROLES.INSPECTEUR) return { formateurId: null, typePoste: 'bureau' };
+  if (roleCode === ROLES.ADMIN) {
+    const typePoste = TYPE_POSTE_PAR_SECTEUR[secteur];
+    if (typePoste) return { formateurId: formateurIdDemande ?? null, typePoste };
+    return { formateurId: vue === 'a_faire' ? null : utilisateurId, typePoste: null };
+  }
+  return { formateurId: utilisateurId, typePoste: null };
+}
+
 // Vérifie que le poste choisi par le formateur (quand plusieurs postes sont déclarés sur le
 // dossier, voir GrilleEvaluation.jsx) correspond réellement à un poste attendu pour CE rendez-vous
 // — jamais de confiance dans ce qu'un client envoie, un formateur ne doit pas pouvoir demander le
@@ -239,19 +289,19 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
 // secteur) : cet élargissement ET ce filtre secteur ne touchent QUE la liste — un Inspecteur peut
 // toujours agir sur n'importe quel rendez-vous bureau assigné à un autre Inspecteur, comportement
 // inchangé.
-async function listerRendezvousAEvaluer(entite, formateurId, roleCode) {
+//
+// Admin avec `secteur` (audit 2026-09-29) : voir filtresEvaluationsParRole ci-dessus. typePoste
+// exposé (audit 2026-09-29) : GrilleEvaluation.jsx choisit le parcours (orientation, échelle,
+// aide-mémoire) selon le secteur du dossier, même règle que resoudreParcoursEvaluation.
+async function listerRendezvousAEvaluer(entite, formateurId, roleCode, { secteur, formateurIdDemande } = {}) {
   const bd = await db.obtenirKnex();
-  const estInspecteur = roleCode === ROLES.INSPECTEUR;
-  const rendezvous = await evaluationRepository.listerRendezvousAEvaluer(
-    bd,
-    entite.id,
-    roleCode === ROLES.ADMIN || estInspecteur ? null : formateurId,
-    estInspecteur ? 'bureau' : null,
-  );
+  const filtres = filtresEvaluationsParRole({ roleCode, utilisateurId: formateurId, vue: 'a_faire', secteur, formateurIdDemande });
+  const rendezvous = await evaluationRepository.listerRendezvousAEvaluer(bd, entite.id, filtres.formateurId, filtres.typePoste);
   return rendezvous.map(({ donnees_disponibilites, ...reste }) => ({
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
+    typePoste: donnees_disponibilites?.typePoste ?? null,
   }));
 }
 
@@ -278,9 +328,6 @@ async function enregistrerEvaluation(
   // binaire (valide/invalide) comme pour un Formateur, sans champ supplémentaire à choisir —
   // seul le rôle du soumetteur distingue les deux cas, pas une caractéristique du dossier
   // (scope procédural, voir rbac.js).
-  if (resultatGlobal === 'valide' && roleCode !== ROLES.INSPECTEUR && !ORIENTATIONS_AUTORISEES.includes(orientation)) {
-    throw new Error(`Orientation "${orientation}" invalide (attendu : ${ORIENTATIONS_AUTORISEES.join(', ')}).`);
-  }
   if (!commentaire || !commentaire.trim()) {
     throw new Error('Un commentaire est obligatoire pour toute évaluation.');
   }
@@ -303,6 +350,24 @@ async function enregistrerEvaluation(
   // concerné"), ce n'est pas à n'importe quel FORMATEUR de la remplacer (secteur Hôtel : reste
   // strict). Secteur Bureau (Inspecteur) : calendrier partagé, exemption volontaire.
   await verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCode);
+
+  // Parcours selon le SECTEUR DU DOSSIER (audit 2026-09-29), plus selon le rôle — voir
+  // resoudreParcoursEvaluation. Vérifié AVANT toute écriture : un refus ne laisse aucune trace
+  // partielle. Tertiaire : aucune orientation possible, et "envoi en formation" refusé
+  // explicitement quel que soit l'évaluateur (Admin compris) — règle métier "aucun dossier
+  // Tertiaire en formation". Une orientation "prêt à l'embauche" envoyée par erreur reste ignorée
+  // (persistée NULL), comme avant pour l'Inspecteur. Hôtellerie : orientation obligatoire pour un
+  // verdict positif (inchangé).
+  const { typePoste: typePosteDossier } = await evaluationRepository.trouverPostesDossier(bd, rendezvous.dossier_id);
+  const parcours = resoudreParcoursEvaluation({ typePosteDossier, roleCode });
+  if (parcours === 'tertiaire' && orientation === 'envoi_formation') {
+    throw new ErreurParcoursEvaluation(
+      'Ce dossier relève du secteur Tertiaire : il ne peut pas être orienté en formation. Validez-le sans orientation (prêt à l’embauche) ou invalidez le test.',
+    );
+  }
+  if (resultatGlobal === 'valide' && parcours === 'hotellerie' && !ORIENTATIONS_AUTORISEES.includes(orientation)) {
+    throw new Error(`Orientation "${orientation}" invalide (attendu : ${ORIENTATIONS_AUTORISEES.join(', ')}).`);
+  }
 
   const dejaEvaluee = await evaluationRepository.trouverEvaluationParRendezvous(bd, rendezvousId);
   if (dejaEvaluee) {
@@ -358,7 +423,7 @@ async function enregistrerEvaluation(
       resultatGlobal,
       // Toujours NULL pour un Inspecteur, quoi qu'un client envoie (jamais de confiance dans le
       // payload) : le bureau n'a pas de notion d'orientation, voir la validation plus haut.
-      orientation: resultatGlobal === 'valide' && roleCode !== ROLES.INSPECTEUR ? orientation : null,
+      orientation: resultatGlobal === 'valide' && parcours === 'hotellerie' ? orientation : null,
       commentaire,
     });
     await evaluationRepository.enregistrerReponses(trx, evaluationId, reponsesResolues);
@@ -422,7 +487,7 @@ async function enregistrerEvaluation(
     let codeActionFinal;
     if (resultatGlobal !== 'valide') {
       codeActionFinal = CODE_ACTION_INVALIDATION;
-    } else if (roleCode === ROLES.INSPECTEUR) {
+    } else if (parcours === 'tertiaire') {
       codeActionFinal = CODE_ACTION_VALIDE_BUREAU;
     } else {
       codeActionFinal = CODE_ACTION_PAR_ORIENTATION[orientation];
@@ -495,16 +560,12 @@ async function enregistrerEvaluation(
 // ci-dessus par listerEvaluationsParFormateur — jamais de confiance dans une valeur non fournie,
 // `null` signifie "aucun filtre" (même convention que formateurId/typePoste, voir commentaire
 // d'en-tête d'evaluationRepository.js).
-async function listerHistorique(entite, formateurId, roleCode, creneau = null) {
+// Admin avec `secteur` (audit 2026-09-29) : tout le secteur, filtrable par évaluateur
+// (evaluations.formateur_id) — voir filtresEvaluationsParRole.
+async function listerHistorique(entite, formateurId, roleCode, creneau = null, { secteur, formateurIdDemande } = {}) {
   const bd = await db.obtenirKnex();
-  const estInspecteur = roleCode === ROLES.INSPECTEUR;
-  return evaluationRepository.listerEvaluationsParFormateur(
-    bd,
-    entite.id,
-    estInspecteur ? null : formateurId,
-    estInspecteur ? 'bureau' : null,
-    creneau,
-  );
+  const filtres = filtresEvaluationsParRole({ roleCode, utilisateurId: formateurId, vue: 'historique', secteur, formateurIdDemande });
+  return evaluationRepository.listerEvaluationsParFormateur(bd, entite.id, filtres.formateurId, filtres.typePoste, creneau);
 }
 
 // Valeurs de "Créneaux souhaités" à proposer dans le select du même écran (audit 2026-09-17,
@@ -512,15 +573,10 @@ async function listerHistorique(entite, formateurId, roleCode, creneau = null) {
 // ci-dessus (les options doivent correspondre exactement à ce que la liste peut contenir), creneau
 // lui-même toujours null ici : on énumère justement ce filtre, pas question de le poser en même
 // temps.
-async function listerCreneauxDisponibles(entite, formateurId, roleCode) {
+async function listerCreneauxDisponibles(entite, formateurId, roleCode, { secteur, formateurIdDemande } = {}) {
   const bd = await db.obtenirKnex();
-  const estInspecteur = roleCode === ROLES.INSPECTEUR;
-  return evaluationRepository.listerCreneauxDisponibles(
-    bd,
-    entite.id,
-    estInspecteur ? null : formateurId,
-    estInspecteur ? 'bureau' : null,
-  );
+  const filtres = filtresEvaluationsParRole({ roleCode, utilisateurId: formateurId, vue: 'historique', secteur, formateurIdDemande });
+  return evaluationRepository.listerCreneauxDisponibles(bd, entite.id, filtres.formateurId, filtres.typePoste);
 }
 
 // Détail en lecture seule d'une évaluation déjà soumise (voir DetailEvaluation.jsx) — jamais
@@ -615,6 +671,10 @@ async function obtenirDetailEvaluationDossier(entite, dossierId) {
 }
 
 module.exports = {
+  ErreurParcoursEvaluation,
+  TYPE_POSTE_PAR_SECTEUR,
+  resoudreParcoursEvaluation,
+  filtresEvaluationsParRole,
   marquerPresenceConfirmee,
   listerQuestionnaire,
   listerRendezvousAEvaluer,

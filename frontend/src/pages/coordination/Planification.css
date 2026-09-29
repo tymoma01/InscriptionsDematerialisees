@@ -80,19 +80,48 @@
   flex: 0 0 auto;
 }
 
-/* AUCUN bloc ne s'étire (ajustement final 2026-09-26, demande utilisateur explicite : "les blocs
-   eux-mêmes ne s'étirent pas : seul l'espace ENTRE eux varie" — retire l'essai précédent où
-   "Rendez-vous" seul grandissait en flex: 1 1 auto, incompatible avec une répartition ÉGALE de
-   l'espace libre par justify-content: space-between ci-dessous : un item qui grandit lui-même
-   absorbe justement tout ce que space-between aurait autrement réparti). "Rendez-vous" garde
-   malgré tout min-width: 0 ICI (pas sur la règle de base, qui n'en a pas besoin) : sans lui, un
-   enfant flex par défaut (min-width: auto) refuserait de rétrécir sous la largeur de son PROPRE
-   contenu non contraint, ce qui l'empêcherait de wrapper correctement en interne (voir
-   .planification__ligne-entite-statut > .planification__groupe-filtre-statut:last-child
-   .filtres-statut__statuts plus bas) quand la place vient réellement à manquer — seul ce bloc a
-   besoin de rétrécir, les deux autres n'ont jamais à le faire en pratique. */
-.planification__ligne-entite-statut > .planification__groupe-filtre-statut:last-child {
+/* Colonne de droite "Statut" / "Rendez-vous" (redesign 2026-09-29, demande utilisateur) —
+   remplace la règle ":last-child" du 2026-09-26 (Rendez-vous dernier enfant de la ligne, ce qui
+   n'est plus le cas). Grille à deux colonnes : libellés dans la 1re (largeur du plus long,
+   "Rendez-vous", alignés à DROITE l'un sur l'autre), pastilles dans la 2de — les pastilles de
+   "Statut" et de "Rendez-vous" démarrent ainsi au même niveau. Chaque groupe passe en
+   display: contents pour que son libellé et son FiltresStatut deviennent directement des cellules
+   de cette grille (aucune classe JSX à ajouter par cellule). row-gap 0.35rem = même écart vertical
+   qu'entre "Hôtellerie" et "Tertiaire" dans la colonne Secteur : les lignes 1 et 2 des deux
+   colonnes restent alignées. minmax(0, 1fr) : la colonne des pastilles peut rétrécir (retour à la
+   ligne interne) en largeur tablette, voir le @container plus bas. */
+.planification__colonne-statuts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.35rem;
+  row-gap: 0.35rem;
   min-width: 0;
+}
+
+.planification__colonne-statuts > .planification__groupe-filtre-statut {
+  display: contents;
+}
+
+.planification__colonne-statuts .planification__label-filtre-statut {
+  justify-self: end;
+}
+
+/* Colonne Secteur — "Secteur", "Tous", "Hôtellerie", "Tertiaire" sur UNE seule ligne (retouche
+   2026-09-29, demande utilisateur ; remplace l'essai du même jour qui plaçait "Tertiaire" sous
+   "Hôtellerie"). Cette ligne est centrée verticalement dans le panneau (align-items: center de
+   .planification__ligne-entite-statut) et les pastilles s'alignent sur la ligne du libellé
+   (align-items: center, ici et sur .planification__groupe-filtre-statut). flex-wrap: nowrap hérité
+   de .planification .filtres-statut__statuts : jamais de retour à la ligne en largeur bureau —
+   overflow: visible remplace le filet overflow-x: auto hérité, pour qu'une pastille ne soit jamais
+   masquée derrière une barre de défilement. Retour à la ligne autorisé en largeur tablette
+   seulement, voir le @container plus bas. */
+.planification__groupe-filtre-secteur .filtres-statut {
+  align-items: center;
+}
+
+.planification__groupe-filtre-secteur .filtres-statut__statuts {
+  overflow: visible;
 }
 
 .planification__label-filtre-statut {
@@ -127,8 +156,14 @@
    pratique le wrap interne de "Rendez-vous" (.planification .filtres-statut__statuts:last-child
    plus bas) absorbe déjà l'essentiel des largeurs serrées avant d'en arriver là ; seul risque
    résiduel accepté : un séparateur pourrait alors rester seul en fin de ligne 1 si "Rendez-vous"
-   bascule en ligne 2 (cas limite, non rencontré sur les largeurs tablette/desktop visées). */
+   bascule en ligne 2 (cas limite, non rencontré sur les largeurs tablette/desktop visées).
+   Redesign 2026-09-29 : trois enfants seulement désormais (colonne Secteur, UN séparateur, colonne
+   Statut/Rendez-vous, voir Planification.jsx) — space-between cale Secteur à gauche, la colonne de
+   droite à droite, et centre le séparateur entre les deux ; plus de séparateur orphelin possible
+   en largeur bureau. container-type: inline-size : sert au @container "tablette" plus bas (empile
+   les deux colonnes selon la largeur réelle du panneau, pas celle de l'écran). */
 .planification__ligne-entite-statut {
+  container-type: inline-size;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -140,6 +175,12 @@
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
   box-shadow: 0 1px 3px rgba(122, 90, 52, 0.12);
+}
+
+/* Inspecteur (redesign 2026-09-29) : Secteur et séparateur masqués (voir Planification.jsx), la
+   colonne Statut/Rendez-vous est alors calée à GAUCHE du panneau plutôt qu'à droite. */
+.planification__ligne-entite-statut--sans-secteur {
+  justify-content: flex-start;
 }
 
 /* Séparateur vertical — élément dédié (span, voir Planification.jsx) plutôt qu'un border sur le
@@ -230,24 +271,53 @@
   box-shadow: none;
 }
 
-/* Bloc "Rendez-vous" (dernier du DOM, voir Planification.jsx) — SEUL à repasser en flex-wrap: wrap
-   (ajustement 2026-09-26, demande utilisateur explicite : "si la place manque... les boutons du
-   bloc Rendez-vous passent sur une deuxième ligne À L'INTÉRIEUR de leur bloc, alignés sous le
-   premier bouton, plutôt que de déborder. Le bloc Secteur et le bloc Statut restent inchangés").
-   Alignement "sous le premier bouton" obtenu SANS règle supplémentaire : .filtres-statut__statuts
-   est déjà un flex item distinct de "Tous" (.filtres-statut__gauche, son sibling, voir
-   FiltresStatut.jsx) — un retour à la ligne À L'INTÉRIEUR de cette boîte démarre donc
-   naturellement au bord gauche de CETTE boîte (justify-content: flex-start ci-dessus), soit
-   exactement sous son premier bouton, jamais sous "Tous" ni sous le label. `:last-child` (pas une
-   classe dédiée) : cible le bloc "Rendez-vous" par sa position dans le DOM (dernier
-   .planification__groupe-filtre-statut de la ligne), sans avoir à ajouter de classe JSX
-   supplémentaire — spécificité (3 classes) suffisante pour battre la règle générique
-   .planification .filtres-statut__statuts ci-dessus (2 classes) quel que soit l'ordre de
-   chargement. overflow-x redevient sans objet une fois le wrap actif (plus rien ne dépasse), pas
-   besoin de le réinitialiser explicitement. */
-.planification__ligne-entite-statut > .planification__groupe-filtre-statut:last-child .filtres-statut__statuts {
+/* Statut ET Rendez-vous (colonne de droite, redesign 2026-09-29 — remplace la règle ":last-child"
+   du 2026-09-26, qui ne visait que Rendez-vous comme dernier enfant de la ligne) : retour à la
+   ligne À L'INTÉRIEUR de la boîte de pastilles plutôt que défilement horizontal quand la place
+   manque (largeur tablette). Sans effet en largeur bureau, où tout tient sur une ligne. La
+   2de ligne démarre au bord gauche de CETTE boîte, donc sous la première pastille de statut,
+   jamais sous "Tous" ni sous le libellé. */
+.planification__colonne-statuts .filtres-statut__statuts {
   flex-wrap: wrap;
+  overflow-x: visible;
 }
+
+/* Largeur tablette (panneau trop étroit pour les deux colonnes côte à côte) — seuil 74rem
+   (1 184 px de panneau) mesuré le 2026-09-29 : Secteur (~285 px) + séparateur + Statut/Rendez-vous
+   (~815 px) ≈ 1 117 px avec des compteurs à 3 chiffres, ~70 px de marge pour des compteurs plus
+   longs ; un écran de 1 280 px (panneau de ~1 214 px) reste ainsi en deux colonnes. En dessous :
+   la colonne Secteur passe au-dessus du bloc Statut/Rendez-vous, chacune sur toute la largeur, et
+   le séparateur vertical disparaît (il ne séparerait plus rien). Les pastilles passent à la ligne
+   à l'intérieur de leur groupe (voir la règle précédente), le libellé restant en tête de son
+   groupe : plus aucun débordement horizontal (le groupe Rendez-vous, 801 px sur une ligne,
+   dépassait le panneau de ~100 px à 768 px avant ce redesign). */
+@container (max-width: 74rem) {
+  .planification__separateur {
+    display: none;
+  }
+
+  .planification__groupe-filtre-secteur,
+  .planification__colonne-statuts {
+    flex: 1 1 100%;
+  }
+
+  /* Pastilles de Secteur : retour à la ligne autorisé à l'intérieur du groupe (libellé toujours en
+     tête), comme Statut/Rendez-vous. */
+  .planification__groupe-filtre-secteur .filtres-statut__statuts {
+    flex-wrap: wrap;
+  }
+
+  /* Libellés "Statut"/"Rendez-vous" en tête de leur groupe : alignés sur la PREMIÈRE rangée de
+     pastilles (align-self: start) plutôt que centrés entre deux rangées quand les pastilles
+     passent à la ligne. line-height = hauteur d'une pastille (.planification .filtres-statut
+     button : police 0.8rem × line-height 1.2 + padding vertical 2 × 0.4rem + bordure 2 × 1px),
+     pour que le texte reste centré sur cette première rangée. */
+  .planification__colonne-statuts .planification__label-filtre-statut {
+    align-self: start;
+    line-height: calc(0.8rem * 1.2 + 0.8rem + 2px);
+  }
+}
+
 
 /* Couleur de chaque filtre de statut alignée sur le badge correspondant dans la colonne "Statut"
    du tableau (même demande/patron que TableauDeBordAccueil.css, Dossiers candidats, point 3 de son

@@ -67,6 +67,13 @@ function mockerDependances(t, overrides = {}) {
   return { enregistrerMock, mettreAJourStatutRendezvousMock };
 }
 
+// Dossier Hôtellerie (audit 2026-09-29) : le parcours d'évaluation dépend désormais du SECTEUR DU
+// DOSSIER (evaluationEngine.resoudreParcoursEvaluation), plus du rôle de l'évaluateur. Le dossier
+// par défaut de mockerDependances est Tertiaire (typePoste 'bureau') : les tests du parcours
+// Formateur (orientation, SmartOF) l'utilisent explicitement pour rester dans leur vrai contexte
+// métier, un Formateur n'évaluant que des dossiers Hôtellerie.
+const POSTES_DOSSIER_HOTEL = async () => ({ typePoste: 'hotel', posteBureau: [], posteHotel: [] });
+
 const BLOC_REPONSES = { posteCode: 'nettoyage', reponses: [{ questionCode: 'savoir_etre', questionItemCode: 'ponctualite', valeur: 'excellent' }] };
 
 test("enregistrerEvaluation accepte un verdict positif d'Inspecteur sans orientation, la persiste à NULL, et déclenche valider_pret_embauche", async (t) => {
@@ -158,7 +165,7 @@ test("enregistrerEvaluation ignore une orientation envoyée par erreur par un In
 
 test('enregistrerEvaluation rejette toujours un verdict positif de Formateur sans orientation valide (comportement hôtel inchangé)', async (t) => {
   mockerKnex(t);
-  mockerDependances(t);
+  mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_HOTEL });
 
   await assert.rejects(
     () =>
@@ -224,7 +231,7 @@ test('enregistrerEvaluation accepte les réponses grille_qcu sur l\'échelle bur
 // qu'exécutés réellement.
 test('enregistrerEvaluation déclenche smartOfService.envoyerCandidatEnFormation pour un verdict positif de Formateur avec orientation "envoi_formation"', async (t) => {
   mockerKnex(t);
-  mockerDependances(t);
+  mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_HOTEL });
   t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 18 }));
   const envoyerMock = t.mock.method(smartOfService, 'envoyerCandidatEnFormation', async () => {});
 
@@ -709,4 +716,185 @@ test('obtenirDetailEvaluationDossier ne vérifie aucune appartenance à un forma
 
   assert.equal(resultat.evaluation.id, 901);
   assert.deepEqual(trouverMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 62]);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Parcours selon le SECTEUR DU DOSSIER (audit 2026-09-29) — orientation, validation Tertiaire,
+// SmartOF ne dépendent plus du rôle de l'évaluateur.
+// ---------------------------------------------------------------------------------------------
+const POSTES_DOSSIER_TERTIAIRE = async () => ({ typePoste: 'bureau', posteBureau: [], posteHotel: [] });
+
+// formateurId : 5 = utilisateur assigné à RENDEZVOUS_TEST (seul un Formateur assigné peut évaluer),
+// 1 = Admin (dispensé de l'assignation).
+function evaluationValide(roleCode, orientation) {
+  return {
+    rendezvousId: 10,
+    formateurId: roleCode === 'admin' ? 1 : 5,
+    roleCode,
+    resultatGlobal: 'valide',
+    orientation,
+    commentaire: 'Bon candidat.',
+    blocs: [BLOC_REPONSES],
+  };
+}
+
+test('Admin sur un dossier Tertiaire : "envoi en formation" refusé avec un message explicite, sans rien écrire', async (t) => {
+  mockerKnex(t);
+  const { enregistrerMock } = mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_TERTIAIRE });
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({}));
+  const envoyerMock = t.mock.method(smartOfService, 'envoyerCandidatEnFormation', async () => {});
+
+  await assert.rejects(
+    () => evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, evaluationValide('admin', 'envoi_formation')),
+    (erreur) =>
+      erreur instanceof evaluationEngine.ErreurParcoursEvaluation && /secteur Tertiaire.*ne peut pas être orienté en formation/.test(erreur.message),
+  );
+  assert.equal(enregistrerMock.mock.calls.length, 0);
+  assert.equal(appliquerTransitionMock.mock.calls.length, 0);
+  assert.equal(envoyerMock.mock.calls.length, 0);
+});
+
+test('Formateur ou Inspecteur sur un dossier Tertiaire : "envoi en formation" refusé aussi, quel que soit l\'évaluateur', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_TERTIAIRE });
+  for (const roleCode of ['formateur', 'inspecteur']) {
+    await assert.rejects(
+      () => evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, evaluationValide(roleCode, 'envoi_formation')),
+      evaluationEngine.ErreurParcoursEvaluation,
+      roleCode,
+    );
+  }
+});
+
+test('Admin sur un dossier Tertiaire : verdict positif sans orientation -> valider_pret_embauche, orientation NULL, aucun appel SmartOF', async (t) => {
+  mockerKnex(t);
+  const { enregistrerMock } = mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_TERTIAIRE });
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+  const envoyerMock = t.mock.method(smartOfService, 'envoyerCandidatEnFormation', async () => {});
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, evaluationValide('admin', undefined));
+
+  assert.equal(enregistrerMock.mock.calls[0].arguments[1].orientation, null);
+  assert.equal(appliquerTransitionMock.mock.calls.at(-1).arguments[1].codeAction, 'valider_pret_embauche');
+  assert.equal(envoyerMock.mock.calls.length, 0);
+});
+
+test('Admin sur un dossier Hôtellerie : parcours Formateur (orientation obligatoire ; "envoi en formation" -> valider_envoi_formation + SmartOF)', async (t) => {
+  mockerKnex(t);
+  mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_HOTEL });
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 18 }));
+  const envoyerMock = t.mock.method(smartOfService, 'envoyerCandidatEnFormation', async () => {});
+
+  await assert.rejects(
+    () => evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, evaluationValide('admin', undefined)),
+    /Orientation "undefined" invalide/,
+  );
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, evaluationValide('admin', 'envoi_formation'));
+  assert.equal(appliquerTransitionMock.mock.calls.at(-1).arguments[1].codeAction, 'valider_envoi_formation');
+  assert.deepEqual(envoyerMock.mock.calls[0].arguments, [ENTITE_ACCECIT, { dossierId: 62, roleCode: 'admin' }]);
+});
+
+test("Traçabilité : quand l'Admin évalue, l'évaluation et les transitions portent l'id de l'Admin, et le rendez-vous n'est pas réassigné", async (t) => {
+  mockerKnex(t);
+  const { enregistrerMock, mettreAJourStatutRendezvousMock } = mockerDependances(t, { trouverPostesDossier: POSTES_DOSSIER_HOTEL });
+  const appliquerTransitionMock = t.mock.method(workflowEngine, 'appliquerTransition', async () => ({ statutDestinationId: 42 }));
+  const ADMIN_ID = 1; // RENDEZVOUS_TEST.formateur_id vaut 5 (formateur attribué)
+
+  await evaluationEngine.enregistrerEvaluation(ENTITE_ACCECIT, evaluationValide('admin', 'pret_embauche'));
+
+  assert.equal(enregistrerMock.mock.calls[0].arguments[1].formateurId, ADMIN_ID);
+  for (const appel of appliquerTransitionMock.mock.calls) assert.equal(appel.arguments[1].utilisateurId, ADMIN_ID);
+  // Seule écriture sur le rendez-vous : son statut ('honore'), jamais formateur_id.
+  assert.deepEqual(mettreAJourStatutRendezvousMock.mock.calls[0].arguments[2], { statut: 'honore', motifId: null });
+});
+
+test('resoudreParcoursEvaluation : secteur du dossier prioritaire, repli sur le rôle seulement sans typePoste', () => {
+  const { resoudreParcoursEvaluation } = evaluationEngine;
+  for (const roleCode of ['admin', 'formateur', 'inspecteur']) {
+    assert.equal(resoudreParcoursEvaluation({ typePosteDossier: 'bureau', roleCode }), 'tertiaire', roleCode);
+    assert.equal(resoudreParcoursEvaluation({ typePosteDossier: 'hotel', roleCode }), 'hotellerie', roleCode);
+  }
+  assert.equal(resoudreParcoursEvaluation({ typePosteDossier: null, roleCode: 'inspecteur' }), 'tertiaire');
+  assert.equal(resoudreParcoursEvaluation({ typePosteDossier: null, roleCode: 'formateur' }), 'hotellerie');
+});
+
+// ---------------------------------------------------------------------------------------------
+// Vues Admin "Vue Formateur"/"Vue Inspecteur" (audit 2026-09-29) — paramètres secteur/formateurId
+// pris en compte pour l'Admin seulement.
+// ---------------------------------------------------------------------------------------------
+test('filtresEvaluationsParRole : Admin + secteur -> tout le secteur demandé, filtrable par formateurId', () => {
+  const { filtresEvaluationsParRole } = evaluationEngine;
+  for (const vue of ['a_faire', 'historique']) {
+    assert.deepEqual(filtresEvaluationsParRole({ roleCode: 'admin', utilisateurId: 1, vue, secteur: 'tertiaire' }), { formateurId: null, typePoste: 'bureau' });
+    assert.deepEqual(filtresEvaluationsParRole({ roleCode: 'admin', utilisateurId: 1, vue, secteur: 'hotellerie', formateurIdDemande: 5 }), { formateurId: 5, typePoste: 'hotel' });
+  }
+});
+
+test('filtresEvaluationsParRole : Admin sans secteur -> comportement antérieur (à faire : tout ; historique : ses évaluations)', () => {
+  const { filtresEvaluationsParRole } = evaluationEngine;
+  assert.deepEqual(filtresEvaluationsParRole({ roleCode: 'admin', utilisateurId: 1, vue: 'a_faire' }), { formateurId: null, typePoste: null });
+  assert.deepEqual(filtresEvaluationsParRole({ roleCode: 'admin', utilisateurId: 1, vue: 'historique' }), { formateurId: 1, typePoste: null });
+});
+
+test("filtresEvaluationsParRole : un Formateur ou un Inspecteur qui envoie secteur/formateurId n'obtient rien de plus qu'avant", () => {
+  const { filtresEvaluationsParRole } = evaluationEngine;
+  for (const vue of ['a_faire', 'historique']) {
+    const tentative = { vue, secteur: 'hotellerie', formateurIdDemande: 99 };
+    assert.deepEqual(filtresEvaluationsParRole({ roleCode: 'formateur', utilisateurId: 5, ...tentative }), { formateurId: 5, typePoste: null });
+    assert.deepEqual(filtresEvaluationsParRole({ roleCode: 'inspecteur', utilisateurId: 7, ...tentative }), { formateurId: null, typePoste: 'bureau' });
+  }
+});
+
+// Liste "à faire" de bout en bout (moteur + base factice appliquant les mêmes critères que la
+// requête SQL : formateur_id et bloc_disponibilites.typePoste, voir evaluationRepository).
+const RENDEZVOUS_EN_BASE = [
+  { id: 1, formateur_id: 5, donnees_disponibilites: { typePoste: 'hotel', posteHotel: ['equipier'] } },
+  { id: 2, formateur_id: 6, donnees_disponibilites: { typePoste: 'hotel', posteHotel: ['cafetier'] } },
+  { id: 3, formateur_id: 7, donnees_disponibilites: { typePoste: 'bureau', posteBureau: ['nettoyage'] } },
+];
+function mockerBaseRendezvousAEvaluer(t) {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  return t.mock.method(evaluationRepository, 'listerRendezvousAEvaluer', async (_bd, _entiteId, formateurId, typePoste) =>
+    RENDEZVOUS_EN_BASE.filter(
+      (rdv) => (formateurId === null || rdv.formateur_id === formateurId) && (typePoste === null || rdv.donnees_disponibilites.typePoste === typePoste),
+    ),
+  );
+}
+
+test("listerRendezvousAEvaluer : l'Admin ne reçoit que le secteur demandé (tous évaluateurs), filtrable par formateurId", async (t) => {
+  mockerBaseRendezvousAEvaluer(t);
+  const ids = async (options) => (await evaluationEngine.listerRendezvousAEvaluer(ENTITE_ACCECIT, 1, 'admin', options)).map((rdv) => rdv.id);
+
+  assert.deepEqual(await ids({ secteur: 'hotellerie' }), [1, 2]);
+  assert.deepEqual(await ids({ secteur: 'tertiaire' }), [3]);
+  assert.deepEqual(await ids({ secteur: 'hotellerie', formateurIdDemande: 6 }), [2]);
+  // typePoste exposé pour que GrilleEvaluation choisisse le parcours selon le secteur du dossier.
+  assert.equal((await evaluationEngine.listerRendezvousAEvaluer(ENTITE_ACCECIT, 1, 'admin', { secteur: 'tertiaire' }))[0].typePoste, 'bureau');
+});
+
+test("listerRendezvousAEvaluer : Formateur et Inspecteur inchangés même s'ils envoient secteur/formateurId", async (t) => {
+  mockerBaseRendezvousAEvaluer(t);
+  const tentative = { secteur: 'hotellerie', formateurIdDemande: 6 };
+  const ids = async (utilisateurId, roleCode, options) =>
+    (await evaluationEngine.listerRendezvousAEvaluer(ENTITE_ACCECIT, utilisateurId, roleCode, options)).map((rdv) => rdv.id);
+
+  assert.deepEqual(await ids(5, 'formateur', tentative), await ids(5, 'formateur', undefined));
+  assert.deepEqual(await ids(5, 'formateur', tentative), [1]);
+  assert.deepEqual(await ids(7, 'inspecteur', tentative), await ids(7, 'inspecteur', undefined));
+  assert.deepEqual(await ids(7, 'inspecteur', tentative), [3]);
+});
+
+test("listerHistorique et listerCreneauxDisponibles : Admin + secteur transmis au repository, Formateur inchangé", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const historiqueMock = t.mock.method(evaluationRepository, 'listerEvaluationsParFormateur', async () => []);
+  const creneauxMock = t.mock.method(evaluationRepository, 'listerCreneauxDisponibles', async () => []);
+
+  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 1, 'admin', null, { secteur: 'tertiaire', formateurIdDemande: 7 });
+  await evaluationEngine.listerCreneauxDisponibles(ENTITE_ACCECIT, 1, 'admin', { secteur: 'tertiaire' });
+  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'formateur', null, { secteur: 'tertiaire', formateurIdDemande: 7 });
+
+  assert.deepEqual(historiqueMock.mock.calls[0].arguments.slice(2), [7, 'bureau', null]);
+  assert.deepEqual(creneauxMock.mock.calls[0].arguments.slice(2), [null, 'bureau']);
+  assert.deepEqual(historiqueMock.mock.calls[1].arguments.slice(2), [5, null, null]);
 });

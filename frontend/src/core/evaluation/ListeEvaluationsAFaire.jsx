@@ -7,6 +7,7 @@ import { listerRendezvousAEvaluer, marquerPresenceConfirmee } from '../../servic
 import { appliquerTransition } from '../../services/transitionService';
 import ModaleConfirmationTestNonRealise from './ModaleConfirmationTestNonRealise';
 import ModaleConfirmationPresence from './ModaleConfirmationPresence';
+import SelecteurEvaluateurAdmin from './SelecteurEvaluateurAdmin';
 import './ListeEvaluationsAFaire.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -90,7 +91,18 @@ function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte }
 // ignore formateurId pour ce rôle). pages/formateur/Evaluation.jsx ne la passe pas : la liste y
 // reste filtrée à l'utilisateur connecté, la colonne n'aurait donc rien d'utile à montrer (toujours
 // son propre nom) — comportement Formateur inchangé.
-export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, rendezvousIdCible, afficherAssigne = false }) {
+// secteurVueAdmin ('hotellerie' | 'tertiaire', audit 2026-09-29) : fourni UNIQUEMENT par les pages
+// Formateur/Inspecteur quand l'utilisateur connecté est Admin ("Vue Formateur"/"Vue Inspecteur").
+// La liste demande alors au serveur tout ce secteur, tous formateurs/inspecteurs confondus,
+// affiche la colonne "Assigné à" et un sélecteur "Tous / [nom]" (paramètre d'URL 'evaluateur').
+// Absent : comportement inchangé pour le Formateur et l'Inspecteur.
+export default function ListeEvaluationsAFaire({
+  onSelectionner,
+  rafraichir,
+  rendezvousIdCible,
+  afficherAssigne = false,
+  secteurVueAdmin,
+}) {
   const [rendezvous, setRendezvous] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
@@ -119,12 +131,14 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
   const [recherche, setRecherche] = useParametreURL('q', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
+  const [evaluateurFiltre, setEvaluateurFiltre] = useParametreURL('evaluateur', '');
+  const afficherColonneAssigne = afficherAssigne || Boolean(secteurVueAdmin);
 
   useEffect(() => {
     let annule = false;
     setChargement(true);
     setErreur(null);
-    listerRendezvousAEvaluer()
+    listerRendezvousAEvaluer(secteurVueAdmin ? { secteur: secteurVueAdmin, formateurId: evaluateurFiltre } : {})
       .then((valeur) => {
         if (!annule) setRendezvous(valeur);
       })
@@ -137,7 +151,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
     return () => {
       annule = true;
     };
-  }, [rafraichir]);
+  }, [rafraichir, secteurVueAdmin, evaluateurFiltre]);
 
   // Filtrage client (recherche + plage de date sur date_heure) sur la liste déjà reçue — même
   // bornage en heure locale que filtrerDossiers.js/Planification.jsx (dateDebutFiltre/
@@ -247,19 +261,37 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
     }
   };
 
+  // Sélecteur Admin (audit 2026-09-29) — rendu aussi pendant le chargement et quand la liste est
+  // vide : sinon choisir un formateur sans rendez-vous le ferait disparaître, sans moyen de revenir
+  // à "Tous".
+  const selecteurAdmin = secteurVueAdmin ? (
+    <SelecteurEvaluateurAdmin secteur={secteurVueAdmin} valeur={evaluateurFiltre} onChanger={setEvaluateurFiltre} />
+  ) : null;
+
   if (chargement) {
-    return <p>Chargement…</p>;
+    return (
+      <>
+        {selecteurAdmin && <div className="liste-evaluations__filtres">{selecteurAdmin}</div>}
+        <p>Chargement…</p>
+      </>
+    );
   }
   if (erreur) {
     return <p role="alert">{erreur}</p>;
   }
   if (rendezvous.length === 0) {
-    return <p className="liste-evaluations__vide">Aucune évaluation à faire pour l’instant.</p>;
+    return (
+      <>
+        {selecteurAdmin && <div className="liste-evaluations__filtres">{selecteurAdmin}</div>}
+        <p className="liste-evaluations__vide">Aucune évaluation à faire pour l’instant.</p>
+      </>
+    );
   }
 
   return (
     <>
       <div className="liste-evaluations__filtres">
+        {selecteurAdmin}
         <label className="liste-evaluations__filtre-recherche">
           <span>Rechercher</span>
           <input
@@ -309,7 +341,7 @@ export default function ListeEvaluationsAFaire({ onSelectionner, rafraichir, ren
                   contenir des rendez-vous d'un autre utilisateur que celui connecté (voir
                   `afficherAssigne` en en-tête de fichier). title (audit 2026-09-15) : même tooltip
                   que la colonne Poste ci-dessus, si un nom d'inspecteur dépasse la largeur fixe. */}
-              {afficherAssigne && (
+              {afficherColonneAssigne && (
                 <span className="liste-evaluations__assigne" title={`${rdv.formateur_prenom} ${rdv.formateur_nom}`}>
                   {rdv.formateur_prenom} {rdv.formateur_nom}
                 </span>

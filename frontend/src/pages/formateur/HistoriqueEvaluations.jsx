@@ -35,6 +35,12 @@ export default function PageHistoriqueEvaluations() {
     );
   }
 
+  // "Vue Formateur" de l'Admin (audit 2026-09-29, onglet dédié de BarreNavigation.jsx) : même page, mêmes
+  // composants, le secteur de l'espace (hotellerie) est transmis aux composants partagés, qui
+  // demandent alors au serveur tout ce secteur et affichent le sélecteur "Tous / [nom]". Pour
+  // tout autre rôle : undefined, comportement inchangé.
+  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? 'hotellerie' : undefined;
+
   return (
     <PageBackOffice>
       <div className="page-historique-evaluations">
@@ -45,7 +51,7 @@ export default function PageHistoriqueEvaluations() {
           <EnTeteBackOffice />
         </header>
 
-        {!evaluationSelectionnee && <HistoriqueEvaluations onSelectionner={setEvaluationSelectionnee} />}
+        {!evaluationSelectionnee && <HistoriqueEvaluations onSelectionner={setEvaluationSelectionnee} secteurVueAdmin={secteurVueAdmin} />}
 
         {evaluationSelectionnee && (
           <DetailEvaluation evaluationId={evaluationSelectionnee.id} onFermer={() => setEvaluationSelectionnee(null)} />
