@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL, ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH } from '../auth/rolesGroupes';
+import { ROLES_ACCUEIL, ROLES_DPAE_CONSULTATION } from '../auth/rolesGroupes';
 import './BarreNavigation.css';
 
 // Catalogue des destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
@@ -124,9 +124,9 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Demandes DPAE',
     chemin: (roleCode) => (roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi'),
     estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
-    // Mêmes rôles que dpae.routes.js (ROLES_DPAE_DEMANDEUR ∪ ROLES_DPAE_RH), voir
-    // core/auth/rolesGroupes.js.
-    roles: [...new Set([...ROLES_DPAE_DEMANDEUR, ...ROLES_DPAE_RH])],
+    // Rôles qui peuvent consulter des demandes (Admin, RH, Planning — ROLES_DPAE_CONSULTATION,
+    // 2026-09-30) : Accueil/Coordination n'a plus l'onglet. Voir core/auth/rolesGroupes.js.
+    roles: ROLES_DPAE_CONSULTATION,
   },
   {
     cle: 'comptes-utilisateurs',

@@ -189,3 +189,96 @@ test('rejeter marque la demande rejetée avec le motif et notifie le demandeur',
     motifRejet: 'Poste déjà pourvu',
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Consultation (périmètre révisé le 2026-09-30) — liste de suivi et fiche.
+// ---------------------------------------------------------------------------------------------
+const ENTITE_ADAPTEL = { id: 2, code: 'adaptel' };
+
+// Base factice : demandes de DEUX entités ; le repository filtre sur entite_id (comme la requête
+// SQL, voir demandeDpaeRepository) — c'est ce filtre qui garantit l'isolement entre entités.
+const DEMANDES_EN_BASE = [
+  { id: 1, entite_id: 1, demandeur_id: 16, hotel: 'Ancien texte', date_creation: '2026-09-28T10:00:00Z' },
+  { id: 2, entite_id: 1, demandeur_id: 30, hotel: null, date_creation: '2026-09-29T10:00:00Z' },
+  { id: 3, entite_id: 2, demandeur_id: 30, hotel: null, date_creation: '2026-09-29T11:00:00Z' },
+];
+
+function mockerBaseConsultation(t) {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  const toutesMock = t.mock.method(demandeDpaeRepository, 'listerDemandesPourRh', async (_bd, entiteId, statut) =>
+    DEMANDES_EN_BASE.filter((d) => d.entite_id === entiteId && (statut === null || d.statut === statut)).reverse(),
+  );
+  const miennesMock = t.mock.method(demandeDpaeRepository, 'listerDemandesParDemandeur', async (_bd, entiteId, demandeurId) =>
+    DEMANDES_EN_BASE.filter((d) => d.entite_id === entiteId && d.demandeur_id === demandeurId).reverse(),
+  );
+  t.mock.method(siteAffectationRepository, 'listerSitesParDemandes', async () => [
+    { demande_dpae_id: 2, id: 10, nom: 'AIGLON', initiales: 'AIG' },
+    { demande_dpae_id: 2, id: 11, nom: 'ALBE', initiales: 'AL' },
+  ]);
+  t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async (_bd, entiteId, id) =>
+    DEMANDES_EN_BASE.find((d) => d.entite_id === entiteId && d.id === id),
+  );
+  t.mock.method(siteAffectationRepository, 'listerSitesDemande', async () => []);
+  return { toutesMock, miennesMock };
+}
+
+test('perimetreSuivi : Admin, RH et Planning voient toutes les demandes par défaut, ou les leurs sur demande ; tout autre rôle, jamais que les siennes', () => {
+  const { perimetreSuivi } = demandeDpaeService;
+  for (const roleCode of ['admin', 'rh', 'planning']) {
+    assert.equal(perimetreSuivi({ roleCode, perimetreDemande: undefined }), 'toutes', roleCode);
+    assert.equal(perimetreSuivi({ roleCode, perimetreDemande: 'toutes' }), 'toutes', roleCode);
+    assert.equal(perimetreSuivi({ roleCode, perimetreDemande: 'mes' }), 'mes', roleCode);
+  }
+  // Rôle hors ROLES_DPAE_CONSULTATION_TOUTES (la route le refuse de toute façon en amont) : jamais
+  // plus que ses propres demandes, quoi qu'il demande.
+  assert.equal(perimetreSuivi({ roleCode: 'accueil_coordination', perimetreDemande: 'toutes' }), 'mes');
+});
+
+test("listerSuivi (Admin, RH, Planning) : toutes les demandes de l'entité par défaut, plus récentes d'abord, jamais celles d'une autre entité", async (t) => {
+  const { toutesMock } = mockerBaseConsultation(t);
+  for (const roleCode of ['admin', 'rh', 'planning']) {
+    const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 99, roleCode });
+    assert.deepEqual(demandes.map((d) => d.id), [2, 1], roleCode);
+  }
+  assert.deepEqual(toutesMock.mock.calls.map((appel) => [appel.arguments[1], appel.arguments[2]]), [[1, null], [1, null], [1, null]]);
+});
+
+test("listerSuivi (Planning) « Mes demandes » : seulement les siennes", async (t) => {
+  mockerBaseConsultation(t);
+  const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 16, roleCode: 'planning', perimetreDemande: 'mes' });
+  assert.deepEqual(demandes.map((d) => d.id), [1]);
+});
+
+test('listerSuivi : chaque demande porte ses sites, une demande sans site lié garde son ancien texte (jamais exclue)', async (t) => {
+  mockerBaseConsultation(t);
+  const [recente, ancienne] = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 99, roleCode: 'admin' });
+  assert.deepEqual(recente.sites_affectation, [{ id: 10, nom: 'AIGLON', initiales: 'AIG' }, { id: 11, nom: 'ALBE', initiales: 'AL' }]);
+  assert.deepEqual(ancienne.sites_affectation, []);
+  assert.equal(ancienne.hotel, 'Ancien texte');
+});
+
+test("listerSuivi « Mes demandes » : seulement celles de l'utilisateur, dans son entité", async (t) => {
+  const { miennesMock } = mockerBaseConsultation(t);
+  const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 30, roleCode: 'admin', perimetreDemande: 'mes' });
+  assert.deepEqual(demandes.map((d) => d.id), [2]);
+  assert.deepEqual(miennesMock.mock.calls[0].arguments.slice(1), [1, 30]);
+});
+
+test("peutConsulterDemande : Admin, RH et Planning toutes les fiches ; Accueil/Coordination jamais, même auteur", () => {
+  const { peutConsulterDemande } = demandeDpaeService;
+  const demande = { demandeur_id: 30 };
+  assert.equal(peutConsulterDemande({ roleCode: 'admin', utilisateurId: 1, demande }), true);
+  assert.equal(peutConsulterDemande({ roleCode: 'rh', utilisateurId: 1, demande }), true);
+  assert.equal(peutConsulterDemande({ roleCode: 'planning', utilisateurId: 30, demande }), true);
+  assert.equal(peutConsulterDemande({ roleCode: 'planning', utilisateurId: 1, demande }), true);
+  assert.equal(peutConsulterDemande({ roleCode: 'accueil_coordination', utilisateurId: 30, demande }), false);
+  assert.equal(peutConsulterDemande({ roleCode: 'formateur', utilisateurId: 30, demande }), false);
+});
+
+test("obtenirDemande : une demande d'une autre entité est introuvable, quel que soit le rôle", async (t) => {
+  mockerBaseConsultation(t);
+  // Demande 3 = entité Adaptel : demandée depuis ACCECIT -> introuvable.
+  await assert.rejects(() => demandeDpaeService.obtenirDemande(ENTITE_ACCECIT, 3), demandeDpaeService.ErreurDemandeIntrouvable);
+  // Et inversement, depuis Adaptel, la demande 1 d'ACCECIT est introuvable.
+  await assert.rejects(() => demandeDpaeService.obtenirDemande(ENTITE_ADAPTEL, 1), demandeDpaeService.ErreurDemandeIntrouvable);
+});

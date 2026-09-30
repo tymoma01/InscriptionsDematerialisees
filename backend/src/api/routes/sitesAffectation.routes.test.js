@@ -10,6 +10,13 @@ const { siteBodySchema, ROLES_SITES_AFFECTATION } = sitesAffectationRouter;
 // (voir dossiers.routes.test.js) : on teste le VRAI schéma et la VRAIE liste de rôles montés sur la
 // route, exportés par sitesAffectation.routes.js. Les doublons sont testés côté service
 // (siteAffectationService.test.js), qui porte cette règle.
+// Garde réellement montée sur le routeur (router.use(requireRole(...)), 2e couche après
+// requireAuth) — en plus de la liste de rôles exportée, pour ne jamais tester une copie.
+function gardeMontee() {
+  const couches = sitesAffectationRouter.stack.filter((couche) => !couche.route);
+  return couches[1].handle;
+}
+
 function appelerGardeRole(roleCode) {
   const res = { statutEnvoye: null };
   res.status = (code) => {
@@ -21,6 +28,12 @@ function appelerGardeRole(roleCode) {
   requireRole(...ROLES_SITES_AFFECTATION)({ utilisateur: { roleCode } }, res, () => {
     nextAppele = true;
   });
+  // Même verdict attendu de la garde réellement montée.
+  let nextMonte = false;
+  gardeMontee()({ utilisateur: { roleCode } }, { status: () => ({ json: () => {} }) }, () => {
+    nextMonte = true;
+  });
+  assert.equal(nextMonte, nextAppele, `garde montée divergente pour ${roleCode}`);
   return { nextAppele, statut: res.statutEnvoye };
 }
 
@@ -49,14 +62,15 @@ test('POST /api/sites-affectation : nom ou initiales manquants -> refus', () => 
   assert.equal(siteBodySchema.safeParse({}).success, false);
 });
 
-test('POST /api/sites-affectation : Accueil/Coordination, Planning et Admin autorisés', () => {
-  for (const roleCode of ['accueil_coordination', 'planning', 'admin']) {
+test('POST /api/sites-affectation : Planning et Admin autorisés', () => {
+  for (const roleCode of ['planning', 'admin']) {
     assert.equal(appelerGardeRole(roleCode).nextAppele, true, roleCode);
   }
 });
 
-test('POST /api/sites-affectation : rôle non autorisé (Formateur, Inspecteur, RH) -> 403', () => {
-  for (const roleCode of ['formateur', 'inspecteur', 'rh']) {
+// Accueil/Coordination n'a plus aucun accès DPAE depuis le 2026-09-30 (voir rbac.js).
+test('POST /api/sites-affectation : rôle non autorisé (Accueil/Coordination, Formateur, Inspecteur, RH) -> 403', () => {
+  for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur', 'rh']) {
     const { nextAppele, statut } = appelerGardeRole(roleCode);
     assert.equal(nextAppele, false, roleCode);
     assert.equal(statut, 403, roleCode);

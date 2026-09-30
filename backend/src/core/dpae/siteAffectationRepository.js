@@ -51,7 +51,21 @@ function listerSitesDemande(trx, demandeId) {
     .orderByRaw('lower(sites_affectation.nom) asc');
 }
 
+// Sites de plusieurs demandes en une requête (liste de suivi, 2026-09-30) — une ligne par lien,
+// avec demande_dpae_id pour regroupement côté service. Aucune demande sans site n'y figure :
+// c'est au service de retomber sur l'ancien texte `hotel` pour celles-là (jamais de jointure
+// stricte sur la liste des demandes elle-même, qui les exclurait).
+function listerSitesParDemandes(trx, demandeIds) {
+  if (demandeIds.length === 0) return Promise.resolve([]);
+  return trx('demandes_dpae_sites')
+    .join('sites_affectation', 'sites_affectation.id', 'demandes_dpae_sites.site_affectation_id')
+    .whereIn('demandes_dpae_sites.demande_dpae_id', demandeIds)
+    .select('demandes_dpae_sites.demande_dpae_id', ...COLONNES_SITE)
+    .orderByRaw('lower(sites_affectation.nom) asc');
+}
+
 module.exports = {
+  listerSitesParDemandes,
   listerSitesActifs,
   listerSitesEnConflit,
   creerSite,

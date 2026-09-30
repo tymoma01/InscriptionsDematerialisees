@@ -66,3 +66,48 @@
 .page-suivi-dpae [role='alert'] {
   color: var(--couleur-erreur);
 }
+
+/* Filtre « Mes demandes / Toutes » + bouton « Nouvelle demande » sur une même ligne (2026-09-30) —
+   le filtre à gauche, le bouton calé à droite. */
+.page-suivi-dpae__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-moyen);
+}
+
+.page-suivi-dpae__nouvelle {
+  margin-left: auto;
+}
+
+/* Choix exclusif, même langage que les boutons de filtre du back-office (pilules, actif en plein). */
+.page-suivi-dpae__filtre {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.page-suivi-dpae__filtre button {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--couleur-back-office);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.page-suivi-dpae__filtre button.actif {
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+/* Ligne cliquable : ouvre la fiche de la demande (clic ou Entrée au clavier). */
+.page-suivi-dpae__ligne {
+  cursor: pointer;
+}
+
+.page-suivi-dpae__ligne:focus-visible {
+  outline: 2px solid var(--couleur-back-office);
+  outline-offset: -2px;
+}

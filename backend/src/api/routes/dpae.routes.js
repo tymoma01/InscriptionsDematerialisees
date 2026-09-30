@@ -5,7 +5,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH } = require('../../core/auth/rbac');
+const { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH, ROLES_DPAE_CONSULTATION } = require('../../core/auth/rbac');
 
 // Monté sur '/api/dpae' (voir app.js) — module spécifique à ACCECIT (voir Modularité, CLAUDE.md :
 // pas de moteur générique configurable par entité ici, décision actée avec l'utilisateur).
@@ -141,11 +141,19 @@ router.post('/', requireRole(...ROLES_DPAE_DEMANDEUR), async (req, res, next) =>
   }
 });
 
-// GET /api/dpae/mes-demandes — demandes créées par l'agent connecté, tous statuts (onglet
-// "Suivi des demandes").
-router.get('/mes-demandes', requireRole(...ROLES_DPAE_DEMANDEUR), async (req, res, next) => {
+// GET /api/dpae/suivi?perimetre=toutes|mes — page « Suivi des demandes DPAE » (remplace
+// GET /mes-demandes le 2026-09-30, qui ne renvoyait que les demandes de l'utilisateur connecté :
+// d'où la liste vide constatée pour un Admin qui n'en avait créé aucune). Tous statuts, plus
+// récentes d'abord, sites d'affectation inclus, entité courante uniquement. Périmètre résolu côté
+// serveur (demandeDpaeService.perimetreSuivi) : 'toutes' par défaut pour Admin, RH et Planning
+// (ROLES_DPAE_CONSULTATION_TOUTES), 'mes' sur demande. Accueil/Coordination : 403.
+router.get('/suivi', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
   try {
-    const demandes = await demandeDpaeService.listerMesDemandes(req.entite, req.utilisateur.id);
+    const demandes = await demandeDpaeService.listerSuivi(req.entite, {
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+      perimetreDemande: req.query.perimetre,
+    });
     res.json(demandes);
   } catch (erreur) {
     next(erreur);
@@ -164,17 +172,16 @@ router.get('/', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
   }
 });
 
-// GET /api/dpae/:id — détail, accessible au demandeur propriétaire ou à la RH/Admin. Le contrôle
-// "propriétaire" est appliqué ici (pas dans requireRole, qui ne connaît pas la ressource) —
-// même principe que moi.routes.js pour un accès self-service.
-router.get('/:id', async (req, res, next) => {
+// GET /api/dpae/:id — fiche d'une demande. Garde de rôle explicite (2026-09-30 : auparavant aucune,
+// le seul fait d'être l'auteur suffisait, quel que soit le rôle) : rôles de consultation seulement,
+// puis règle par demande (demandeDpaeService.peutConsulterDemande) — toutes pour Admin, RH et
+// Planning. Demande d'une autre entité : introuvable (404), jamais renvoyée.
+router.get('/:id', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
 
-    const estRh = ROLES_DPAE_RH.includes(req.utilisateur.roleCode);
-    const estProprietaire = demande.demandeur_id === req.utilisateur.id;
-    if (!estRh && !estProprietaire) {
+    if (!demandeDpaeService.peutConsulterDemande({ roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id, demande })) {
       return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
     }
 

@@ -6,6 +6,7 @@ const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const notificationService = require('../notifications/notificationService');
 const siteAffectationRepository = require('./siteAffectationRepository');
+const { ROLES_DPAE_CONSULTATION, ROLES_DPAE_CONSULTATION_TOUTES } = require('../auth/rbac');
 
 const STATUT_ENVOYEE = 'envoyee';
 const STATUT_VALIDEE = 'validee';
@@ -64,9 +65,53 @@ async function creerEtEnvoyer(entite, demandeurId, donnees) {
   });
 }
 
-async function listerMesDemandes(entite, demandeurId) {
+// ---------------------------------------------------------------------------------------------
+// Consultation (périmètre révisé le 2026-09-30, demande utilisateur — voir rbac.js)
+// ---------------------------------------------------------------------------------------------
+
+// Périmètre effectif de la liste de suivi : 'toutes' (toutes les demandes de l'entité) ou 'mes'
+// (celles dont l'utilisateur est l'auteur). Seuls les rôles de ROLES_DPAE_CONSULTATION_TOUTES
+// peuvent obtenir 'toutes' (défaut pour eux) ; pour les autres rôles autorisés à consulter, c'est
+// TOUJOURS 'mes', quoi que demande le client. Fonction pure, testable sans base.
+function perimetreSuivi({ roleCode, perimetreDemande }) {
+  if (!ROLES_DPAE_CONSULTATION_TOUTES.includes(roleCode)) return 'mes';
+  return perimetreDemande === 'mes' ? 'mes' : 'toutes';
+}
+
+// Une fiche est consultable par un rôle qui voit toutes les demandes, ou par son auteur s'il a un
+// rôle de consultation. Accueil/Coordination et tout autre rôle : jamais (même auteur d'une demande
+// ancienne). L'entité est déjà garantie par la recherche de la demande elle-même (entite_id).
+function peutConsulterDemande({ roleCode, utilisateurId, demande }) {
+  if (ROLES_DPAE_CONSULTATION_TOUTES.includes(roleCode)) return true;
+  return ROLES_DPAE_CONSULTATION.includes(roleCode) && demande.demandeur_id === utilisateurId;
+}
+
+// Ajoute à chaque demande ses sites liés ([{ id, nom, initiales }], triés par nom) — tableau vide
+// pour une demande antérieure au référentiel, dont l'affichage retombe alors sur l'ancien texte
+// `hotel`. Une seule requête pour toute la liste (pas une par demande).
+async function ajouterSites(bd, demandes) {
+  const liens = await siteAffectationRepository.listerSitesParDemandes(
+    bd,
+    demandes.map((demande) => demande.id),
+  );
+  return demandes.map((demande) => ({
+    ...demande,
+    sites_affectation: liens
+      .filter((lien) => lien.demande_dpae_id === demande.id)
+      .map(({ id, nom, initiales }) => ({ id, nom, initiales })),
+  }));
+}
+
+// Liste de suivi (« Suivi des demandes DPAE ») — toujours limitée à l'entité courante, plus récentes
+// d'abord, tous statuts. `perimetre` résolu par perimetreSuivi ci-dessus.
+async function listerSuivi(entite, { utilisateurId, roleCode, perimetreDemande }) {
   const bd = await db.obtenirKnex();
-  return demandeDpaeRepository.listerDemandesParDemandeur(bd, entite.id, demandeurId);
+  const perimetre = perimetreSuivi({ roleCode, perimetreDemande });
+  const demandes =
+    perimetre === 'toutes'
+      ? await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, null)
+      : await demandeDpaeRepository.listerDemandesParDemandeur(bd, entite.id, utilisateurId);
+  return ajouterSites(bd, demandes);
 }
 
 // statut par défaut 'envoyee' (file à traiter) — un appelant qui veut l'historique complet
@@ -140,7 +185,9 @@ async function rejeter(entite, demandeId, traitantId, motifRejet) {
 
 module.exports = {
   creerEtEnvoyer,
-  listerMesDemandes,
+  perimetreSuivi,
+  peutConsulterDemande,
+  listerSuivi,
   listerPourRh,
   obtenirDemande,
   valider,

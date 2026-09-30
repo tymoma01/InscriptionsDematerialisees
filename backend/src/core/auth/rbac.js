@@ -55,13 +55,24 @@ const ROLES_ACCUEIL = Object.freeze([ROLES.ACCUEIL_COORDINATION, ROLES.PLANNING]
 // ROLES_FORCAGE : qui peut forcer le statut d'un dossier (POST /forcer-statut) — Admin, plus
 // Planning (voir transitions.routes.js ROLES_FORCAGE, workflowEngine.forcerStatut).
 const ROLES_FORCAGE = Object.freeze([ROLES.ADMIN, ROLES.PLANNING]);
-// ROLES_DPAE_DEMANDEUR : qui peut créer/suivre une demande DPAE (api/routes/dpae.routes.js,
-// POST /, GET /mes-demandes) — même équipe que le reste du parcours candidat, Admin inclus.
-const ROLES_DPAE_DEMANDEUR = Object.freeze([...ROLES_ACCUEIL, ROLES.ADMIN]);
-// ROLES_DPAE_RH : qui peut consulter la file RH et valider/rejeter une demande DPAE — RH, plus
-// Admin (même convention que tout le reste du projet : Admin garde un accès de secours sur
-// chaque domaine métier).
+// Périmètre DPAE (révisé le 2026-09-30, demande utilisateur) — l'Admin a TOUTES les actions DPAE ;
+// Accueil/Coordination n'a PLUS AUCUN accès (ni création, ni consultation, ni ajout de site) ;
+// tout autre rôle non listé ici : aucun accès.
+//
+// ROLES_DPAE_DEMANDEUR : qui peut créer une demande DPAE (dpae.routes.js, POST /), ajouter/lister
+// les sites d'affectation (sitesAffectation.routes.js) et rechercher un candidat pour le champ
+// « Nom » du formulaire (candidats.routes.js, GET /recherche) — Planning et Admin. Accueil/
+// Coordination retiré (auparavant ...ROLES_ACCUEIL).
+const ROLES_DPAE_DEMANDEUR = Object.freeze([ROLES.PLANNING, ROLES.ADMIN]);
+// ROLES_DPAE_RH : traitement RH d'une demande (file RH, valider/rejeter) — RH et Admin, inchangé.
 const ROLES_DPAE_RH = Object.freeze([ROLES.RH, ROLES.ADMIN]);
+// ROLES_DPAE_CONSULTATION : qui peut consulter des demandes DPAE (liste de suivi, fiche).
+const ROLES_DPAE_CONSULTATION = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
+// ROLES_DPAE_CONSULTATION_TOUTES : parmi eux, qui voit TOUTES les demandes de l'entité (filtre
+// « Mes demandes / Toutes ») — les autres ne voient que les demandes dont ils sont l'auteur.
+// Planning ajouté le 2026-09-30 (décision utilisateur confirmée) : il ne voyait jusqu'ici que ses
+// propres demandes. Miroir : frontend/src/core/auth/rolesGroupes.js.
+const ROLES_DPAE_CONSULTATION_TOUTES = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
 
 // utilisateur est le payload minimal posé en session par authService.connecter — voir
 // core/auth/session.js et api/middlewares/auth.middleware.js.
@@ -75,5 +86,7 @@ module.exports = {
   ROLES_FORCAGE,
   ROLES_DPAE_DEMANDEUR,
   ROLES_DPAE_RH,
+  ROLES_DPAE_CONSULTATION,
+  ROLES_DPAE_CONSULTATION_TOUTES,
   utilisateurARole,
 };
