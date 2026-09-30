@@ -17,10 +17,18 @@ import Indicateurs from './pages/tableauDeBord/Indicateurs';
 import Connexion from './pages/connexion/Connexion';
 import DemandeDpae from './pages/coordination/DemandeDpae';
 import SuiviDemandesDpae from './pages/coordination/SuiviDemandesDpae';
+import TableauDeBordDpae from './pages/coordination/TableauDeBordDpae';
 import TraitementDpae from './pages/rh/TraitementDpae';
 import DetailDemandeDpae from './pages/rh/DetailDemandeDpae';
 import RouteProtegee from './core/auth/RouteProtegee';
-import { ROLES_ACCUEIL, ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH, ROLES_DPAE_CONSULTATION } from './core/auth/rolesGroupes';
+import {
+  ROLES_ACCUEIL,
+  ROLES_DPAE_DEMANDEUR,
+  ROLES_DPAE_RH,
+  ROLES_DPAE_CONSULTATION,
+  ROLES_GESTION_PIECES,
+  ROLES_LECTURE_SUIVI_DOSSIER,
+} from './core/auth/rolesGroupes';
 
 // Rôles autorisés sur "Suivi des formations" (audit 2026-09-26, retrait de l'Inspecteur — règle
 // métier confirmée : aucun dossier Tertiaire ne passe en formation) — même liste que
@@ -62,7 +70,10 @@ export default function App() {
         <Route
           path="/accueil/dossiers/:dossierId/pieces"
           element={
-            <RouteProtegee>
+            // Écran de GESTION des pièces (2026-09-30) : réservé aux rôles qui peuvent écrire
+            // (ROLES_GESTION_PIECES, miroir de pieces.routes.js) — les autres consultent les pièces
+            // depuis la fiche dossier, jamais cet écran dont toutes les actions leur sont refusées.
+            <RouteProtegee roles={ROLES_GESTION_PIECES}>
               <VerificationPieces />
             </RouteProtegee>
           }
@@ -70,7 +81,9 @@ export default function App() {
         <Route
           path="/coordination/dossiers/:dossierId/relances"
           element={
-            <RouteProtegee>
+            // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
+            // qui tape l'adresse est renvoyée vers sa page d'accueil.
+            <RouteProtegee roles={ROLES_LECTURE_SUIVI_DOSSIER}>
               <Relances />
             </RouteProtegee>
           }
@@ -78,7 +91,9 @@ export default function App() {
         <Route
           path="/coordination/dossiers/:dossierId/formation"
           element={
-            <RouteProtegee>
+            // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
+            // qui tape l'adresse est renvoyée vers sa page d'accueil.
+            <RouteProtegee roles={ROLES_LECTURE_SUIVI_DOSSIER}>
               <Formation />
             </RouteProtegee>
           }
@@ -86,7 +101,9 @@ export default function App() {
         <Route
           path="/coordination/dossiers/:dossierId/tests"
           element={
-            <RouteProtegee>
+            // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
+            // qui tape l'adresse est renvoyée vers sa page d'accueil.
+            <RouteProtegee roles={ROLES_LECTURE_SUIVI_DOSSIER}>
               <Tests />
             </RouteProtegee>
           }
@@ -183,6 +200,16 @@ export default function App() {
           element={
             <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
               <SuiviDemandesDpae />
+            </RouteProtegee>
+          }
+        />
+        {/* Tableau de bord DPAE (onglet RH, 2026-09-30) — mêmes rôles que le suivi (Admin, RH,
+            Planning), contrôlés aussi côté serveur (dpae.routes.js, GET /tableau-de-bord). */}
+        <Route
+          path="/coordination/dpae/tableau-de-bord"
+          element={
+            <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
+              <TableauDeBordDpae />
             </RouteProtegee>
           }
         />

@@ -48,14 +48,21 @@ export function useRafraichissementAuto(onNouvelleModification) {
           derniereConnueRef.current = derniereModification;
           callbackRef.current();
         }
-      } catch {
+      } catch (erreur) {
         // Un échec ponctuel du polling (réseau, session expirée...) ne doit jamais casser la page
         // qui l'utilise — le prochain tick réessaiera de lui-même.
+        // Sauf un refus de rôle (403 — RH notamment, 2026-09-30) : définitif pour la page, on cesse
+        // alors d'interroger plutôt que de répéter un appel refusé toutes les 45 s.
+        if (erreur?.response?.status === 403) arreter();
       }
     }
 
     verifier(); // établit la référence dès le montage, plutôt que d'attendre le premier tick
     const intervalle = setInterval(verifier, INTERVALLE_MS);
+    function arreter() {
+      annule = true;
+      clearInterval(intervalle);
+    }
 
     function surVisibilite() {
       if (document.visibilityState === 'visible') verifier();

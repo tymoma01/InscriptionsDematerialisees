@@ -22,3 +22,27 @@ export const ROLES_DPAE_CONSULTATION = ['admin', 'rh', 'planning'];
 // Toutes », par défaut Toutes) — Admin, RH et Planning (Planning ajouté le 2026-09-30, décision
 // utilisateur confirmée), comme côté serveur.
 export const ROLES_DPAE_CONSULTATION_TOUTES = ['admin', 'rh', 'planning'];
+
+// Pièces justificatives — miroir EXACT de backend/src/api/routes/pieces.routes.js (2026-09-30),
+// pour n'afficher que les actions que le serveur accepte (aucun bouton menant à un 403).
+// ROLES_GESTION_PIECES : ajouter, remplacer, renommer, vérifier, supprimer une pièce (écran
+// « Gérer les pièces justificatives ») — Accueil/Coordination, Planning, Admin.
+export const ROLES_GESTION_PIECES = [...ROLES_ACCUEIL, 'admin'];
+// ROLES_EXPORT_ZIP_PIECES : « Télécharger toutes les pièces (ZIP) » d'un dossier — les mêmes, plus
+// la RH (ajoutée le 2026-09-30).
+export const ROLES_EXPORT_ZIP_PIECES = [...ROLES_GESTION_PIECES, 'rh'];
+// ROLES_EXPORT_ZIP_PIECES_GROUPE : « Export des pièces » de plusieurs dossiers (Dossiers
+// candidats) — miroir de dossiers.routes.js, RH non incluse.
+export const ROLES_EXPORT_ZIP_PIECES_GROUPE = [...ROLES_ACCUEIL, 'admin'];
+
+// Suivi d'un dossier (2026-09-30) — miroir des lectures serveur des onglets Tests (rendez-vous,
+// rendezvous.routes.js ROLES_LECTURE_RENDEZVOUS), Relances (relances.routes.js
+// ROLES_LECTURE_RELANCES) et Formation (formation.routes.js ROLES_LECTURE_FORMATION) : les trois
+// sont ouvertes aux mêmes rôles, RH exclue.
+export const ROLES_LECTURE_SUIVI_DOSSIER = [...ROLES_ACCUEIL, 'admin', 'formateur', 'inspecteur'];
+// Actions groupées « Relances » et « Replanifier des tests » (Dossiers candidats) — miroir des
+// écritures serveur (relances.routes.js ROLES_GESTION_RELANCES, rendezvous.routes.js
+// ROLES_GESTION_RENDEZVOUS) : Accueil/Coordination, Planning, Admin.
+export const ROLES_ACTIONS_GROUPEES_SUIVI = [...ROLES_ACCUEIL, 'admin'];
+// Notes d'un dossier (lecture et ajout) — miroir de notes.routes.js ROLES_NOTES_DOSSIER : RH exclue.
+export const ROLES_NOTES_DOSSIER = [...ROLES_ACCUEIL, 'admin', 'formateur', 'inspecteur'];

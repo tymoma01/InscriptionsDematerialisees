@@ -87,3 +87,18 @@ test('POST /dossiers/:dossierId/disponibilite-embauche : Accueil/Coordination, P
     assert.equal(res.statutEnvoye, null);
   }
 });
+
+// GET /dossiers/derniere-modification (actualisation automatique du back-office) — RH ajoutée le
+// 2026-09-30. Garde RÉELLEMENT montée sur la route, lue dans la pile du routeur (jamais une copie).
+test('GET /dossiers/derniere-modification : RH autorisée (actualisation automatique), comme les autres rôles back-office', () => {
+  const couche = dossiersRouter.stack.find((c) => c.route && c.route.path === '/derniere-modification' && c.route.methods.get);
+  assert.ok(couche, 'route GET /derniere-modification introuvable');
+  const garde = couche.route.stack[0].handle;
+  for (const roleCode of ['rh', 'accueil_coordination', 'planning', 'formateur', 'inspecteur', 'admin']) {
+    const { nextAppele, res } = appelerMiddleware(garde, roleCode);
+    assert.equal(nextAppele, true, `${roleCode} devrait être accepté`);
+    assert.equal(res.statutEnvoye, null, roleCode);
+  }
+  // Le rôle technique « systeme » (jamais connecté) reste exclu.
+  assert.equal(appelerMiddleware(garde, 'systeme').res.statutEnvoye, 403);
+});

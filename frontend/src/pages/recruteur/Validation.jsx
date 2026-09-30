@@ -10,7 +10,14 @@ import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import ModaleForcerStatut from '../../core/dossier/ModaleForcerStatut';
 import ModaleMarquerEmbauche from '../../core/dossier/ModaleMarquerEmbauche';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_ACCUEIL, ROLES_FORCAGE } from '../../core/auth/rolesGroupes';
+import {
+  ROLES_ACCUEIL,
+  ROLES_FORCAGE,
+  ROLES_GESTION_PIECES,
+  ROLES_EXPORT_ZIP_PIECES,
+  ROLES_LECTURE_SUIVI_DOSSIER,
+  ROLES_NOTES_DOSSIER,
+} from '../../core/auth/rolesGroupes';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier, listerStatuts } from '../../services/dossierService';
 import { obtenirEvaluationDossier } from '../../services/evaluationService';
@@ -175,10 +182,58 @@ export default function Validation() {
   // "Marquer comme embauché" (audit 2026-08-31) : Accueil/Coordination (donc Planning aussi, voir
   // ROLES_ACCUEIL) OU Admin.
   const peutMarquerEmbauche = [...ROLES_ACCUEIL, 'admin'].includes(utilisateur?.roleCode);
+  // Actions sur les pièces (2026-09-30) : affichées seulement aux rôles que le serveur accepte
+  // (pieces.routes.js, miroir core/auth/rolesGroupes.js) — plus aucun bouton menant à un 403.
+  // « Gérer les pièces justificatives » (écriture) : Accueil/Coordination, Planning, Admin.
+  // Export ZIP : les mêmes, plus la RH. Formateur/Inspecteur : consultation seule (liste ci-dessous).
+  const peutGererPieces = ROLES_GESTION_PIECES.includes(utilisateur?.roleCode);
+  const peutExporterPieces = ROLES_EXPORT_ZIP_PIECES.includes(utilisateur?.roleCode);
+  // Sections Rendez-vous, Relances et Notes (2026-09-30) : leurs données et écrans sont refusés à
+  // la RH côté serveur — sections masquées plutôt que menant à un 403. Inchangé pour les autres.
+  const peutSuivreDossier = ROLES_LECTURE_SUIVI_DOSSIER.includes(utilisateur?.roleCode);
+  const peutVoirNotes = ROLES_NOTES_DOSSIER.includes(utilisateur?.roleCode);
+  const [exportEnCours, setExportEnCours] = useState(false);
+  const [erreurExport, setErreurExport] = useState(null);
 
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
+
+  // Export ZIP (2026-09-30) : téléchargé via l'API (plutôt qu'un simple lien <a download>) pour
+  // pouvoir afficher un message clair en cas d'échec — un lien laissait le navigateur télécharger
+  // la réponse d'erreur JSON, ou afficher un échec de téléchargement sans explication.
+  const telechargerToutesLesPieces = async () => {
+    setExportEnCours(true);
+    setErreurExport(null);
+    try {
+      const reponse = await api.get(`/dossiers/${dossierId}/pieces/export-zip`, { responseType: 'blob' });
+      const disposition = reponse.headers['content-disposition'] ?? '';
+      const nomFichier = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `Dossier ${dossierId}.zip`;
+      const url = URL.createObjectURL(reponse.data);
+      const lien = document.createElement('a');
+      lien.href = url;
+      lien.download = nomFichier;
+      document.body.appendChild(lien);
+      lien.click();
+      lien.remove();
+      URL.revokeObjectURL(url);
+    } catch (erreurRequete) {
+      const statut = erreurRequete.response?.status;
+      // Corps d'erreur reçu sous forme de Blob (responseType: 'blob') : relu en JSON pour le message.
+      let messageServeur = null;
+      try {
+        messageServeur = JSON.parse(await erreurRequete.response.data.text()).erreur;
+      } catch {
+        messageServeur = null;
+      }
+      if (statut === 403) setErreurExport(messageServeur ?? "Vous n'avez pas accès à cet export.");
+      else if (statut === 404) setErreurExport(messageServeur ?? 'Aucune pièce justificative à exporter pour ce dossier.');
+      else if (!erreurRequete.response) setErreurExport('Connexion au serveur impossible. Vérifiez le réseau et réessayez.');
+      else setErreurExport("Le téléchargement des pièces a échoué. Merci de réessayer.");
+    } finally {
+      setExportEnCours(false);
+    }
+  };
 
   // Nom du candidat affiché à côté du numéro de dossier dans le titre, même patron que
   // CaptureTablette.jsx (obtenirDossier, statut + nom/prénom déjà joints côté back) : purement
@@ -465,24 +520,32 @@ export default function Validation() {
                   de remplacer une pièce depuis la fiche dossier. Déplacé depuis
                   TableauDeBordAccueil.jsx (bouton "Pièces", audit 2026-08-19) : accessible pour
                   tous les statuts, sans exception, même comportement que là-bas. */}
-              <Link className="page-validation__action" to={`/accueil/dossiers/${dossierId}/pieces`}>
-                Gérer les pièces justificatives
-              </Link>
+              {peutGererPieces && (
+                <Link className="page-validation__action" to={`/accueil/dossiers/${dossierId}/pieces`}>
+                  Gérer les pièces justificatives
+                </Link>
+              )}
               {/* Téléchargement réel (pas un aperçu intégré) : lien classique plutôt qu'un fetch en
                   blob (voir CaptureTablette.jsx pour l'inverse) — le back pose déjà
                   Content-Disposition: attachment (voir pieces.routes.js), le navigateur gère le
                   téléchargement seul via le cookie de session (same-origin). Visible seulement s'il
                   y a quelque chose à exporter. */}
-              {!chargement && !erreur && pieces.length > 0 && (
-                <a
+              {!chargement && !erreur && pieces.length > 0 && peutExporterPieces && (
+                <button
+                  type="button"
                   className="page-validation__bouton-export-zip"
-                  href={`${api.defaults.baseURL}/dossiers/${dossierId}/pieces/export-zip`}
-                  download
+                  onClick={telechargerToutesLesPieces}
+                  disabled={exportEnCours}
                 >
-                  Télécharger toutes les pièces (ZIP)
-                </a>
+                  {exportEnCours ? 'Préparation du ZIP…' : 'Télécharger toutes les pièces (ZIP)'}
+                </button>
               )}
             </div>
+            {erreurExport && (
+              <p role="alert" className="page-validation__erreur-export">
+                {erreurExport}
+              </p>
+            )}
 
             {chargement && <p>Chargement…</p>}
             {erreur && <p role="alert">{erreur}</p>}
@@ -523,6 +586,7 @@ export default function Validation() {
             : une fois ce bandeau en place, une action inline ici restait invisible depuis
             /pieces et /relances. Gardée par STATUTS_REPLANIFIABLES, même règle de disponibilité
             par statut qu'avant. */}
+        {peutSuivreDossier && (
         <section className="page-validation__rendezvous">
           <div className="page-validation__rendezvous-entete">
             <h2>Rendez-vous</h2>
@@ -542,6 +606,7 @@ export default function Validation() {
             </p>
           )}
         </section>
+        )}
 
         {/* Section "Critères de validation du test" (demande utilisateur 2026-09-10) — visible
             SEULEMENT une fois un test réellement effectué pour ce dossier (evaluationDossier
@@ -570,6 +635,7 @@ export default function Validation() {
             rendez-vous existants, hors périmètre de cette fiche. Gardée par
             STATUTS_RELANCES_AUTORISEES, même règle de disponibilité par statut qu'avant ce
             déplacement. */}
+        {peutSuivreDossier && (
         <section className="page-validation__relances">
           <div className="page-validation__relances-entete">
             <h2>Relances</h2>
@@ -589,6 +655,7 @@ export default function Validation() {
             </p>
           )}
         </section>
+        )}
 
         {peutMarquerEmbauche && modaleEmbaucheOuverte && dossier && (
           <ModaleMarquerEmbauche
@@ -656,9 +723,11 @@ export default function Validation() {
           />
         )}
 
-        <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
-          <NotesDossier dossierId={dossierId} />
-        </ErrorBoundary>
+        {peutVoirNotes && (
+          <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
+            <NotesDossier dossierId={dossierId} />
+          </ErrorBoundary>
+        )}
       </div>
     </PageBackOffice>
   );

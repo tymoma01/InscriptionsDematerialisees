@@ -62,7 +62,10 @@ const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATE
 // à Formateur/Inspecteur, Validation/Indicateurs à Admin...), il n'a donc pas à restreindre par
 // rôle au-delà de "utilisateur back-office authentifié" — la donnée renvoyée (un simple
 // horodatage) ne révèle rien de sensible par elle-même.
-const ROLES_TOUT_BACK_OFFICE = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+// RH ajoutée le 2026-09-30 (demande utilisateur) : ses pages (Dossiers candidats, fiche dossier,
+// Tableau de bord, écrans DPAE) utilisent aussi l'actualisation automatique, qui échouait en 403
+// pour ce rôle. Constante utilisée par cette seule route.
+const ROLES_TOUT_BACK_OFFICE = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN, ROLES.RH];
 
 // dispoDebut (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche" ;
 // dispoFin RETIRÉ le même jour, demande utilisateur explicite — un seul paramètre d'entrée

@@ -32,6 +32,14 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
   }
 }
 
+// Même vérification, sans exception (2026-09-30) : utilisée par l'export ZIP (pieces.routes.js)
+// pour répondre 403 « Vous n'avez pas accès à cet export. » à un dossier hors de l'entité courante
+// (dossier d'une autre entité, ou inexistant — jamais distingués, pour ne rien révéler).
+async function dossierAppartientEntite(entite, dossierId) {
+  const bd = await db.obtenirKnex();
+  return Boolean(await dossierRepository.trouverDossierParId(bd, entite.id, dossierId));
+}
+
 // Les codes de type de pièce (CNI, RIB, attestation-formation...) ne sont volontairement pas
 // figés ici : ils viennent de la table `types_pieces`, configurable par entité (voir Modularité,
 // CLAUDE.md) — une autre entité peut avoir un jeu de pièces différent sans toucher ce module.
@@ -452,6 +460,7 @@ async function renommerPieceJustificative(entite, pieceId, nouveauNom) {
 }
 
 module.exports = {
+  dossierAppartientEntite,
   uploaderPieceJustificative,
   telechargerPieceJustificative,
   listerPiecesJustificativesAvecContenu,

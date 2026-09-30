@@ -8,7 +8,7 @@ import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_ACCUEIL } from '../../core/auth/rolesGroupes';
+import { ROLES_ACCUEIL, ROLES_EXPORT_ZIP_PIECES_GROUPE, ROLES_ACTIONS_GROUPEES_SUIVI } from '../../core/auth/rolesGroupes';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -324,6 +324,12 @@ function codesPourFiltreStatut(code) {
 // l'entrée utilisée.
 export default function TableauDeBordAccueil() {
   const { utilisateur, chargement: chargementSession } = useSession();
+  // Actions groupées (2026-09-30) : chacune affichée seulement aux rôles que le serveur accepte
+  // (aucun bouton menant à un 403) ; si aucune ne l'est (RH), la sélection multiple elle-même
+  // disparaît (plus de cases à cocher menant à une barre vide).
+  const peutExporterPiecesGroupe = ROLES_EXPORT_ZIP_PIECES_GROUPE.includes(utilisateur?.roleCode);
+  const peutActionsGroupeesSuivi = ROLES_ACTIONS_GROUPEES_SUIVI.includes(utilisateur?.roleCode);
+  const selectionMultipleDisponible = peutExporterPiecesGroupe || peutActionsGroupeesSuivi;
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState([]);
@@ -989,28 +995,39 @@ export default function TableauDeBordAccueil() {
                 réel — voir son commentaire d'en-tête : le lien statique <a href download> a été
                 remplacé par un bouton, l'URL finale (dossiers filtrés) n'étant connue qu'une fois
                 la vérification terminée. */}
-            <button
-              type="button"
-              className="tableau-bord-accueil__bouton-action-groupee"
-              onClick={lancerExportPieces}
-              disabled={verificationExportEnCours}
-            >
-              {verificationExportEnCours ? 'Vérification…' : 'Export des pièces'}
-            </button>
-            <button
-              type="button"
-              className="tableau-bord-accueil__bouton-action-groupee"
-              onClick={() => setModaleGroupeeOuverte('relance')}
-            >
-              Relances
-            </button>
-            <button
-              type="button"
-              className="tableau-bord-accueil__bouton-action-groupee"
-              onClick={() => setModaleGroupeeOuverte('replanification')}
-            >
-              Replanifier des tests
-            </button>
+            {/* Masqué aux rôles que le serveur refuse (2026-09-30 : RH notamment, voir
+                ROLES_EXPORT_ZIP_PIECES_GROUPE, miroir de dossiers.routes.js) — aucun bouton menant
+                à un 403. */}
+            {peutExporterPiecesGroupe && (
+              <button
+                type="button"
+                className="tableau-bord-accueil__bouton-action-groupee"
+                onClick={lancerExportPieces}
+                disabled={verificationExportEnCours}
+              >
+                {verificationExportEnCours ? 'Vérification…' : 'Export des pièces'}
+              </button>
+            )}
+            {/* « Relances » / « Replanifier des tests » : écritures réservées côté serveur à
+                Accueil/Coordination, Planning et Admin (ROLES_ACTIONS_GROUPEES_SUIVI). */}
+            {peutActionsGroupeesSuivi && (
+              <>
+                <button
+                  type="button"
+                  className="tableau-bord-accueil__bouton-action-groupee"
+                  onClick={() => setModaleGroupeeOuverte('relance')}
+                >
+                  Relances
+                </button>
+                <button
+                  type="button"
+                  className="tableau-bord-accueil__bouton-action-groupee"
+                  onClick={() => setModaleGroupeeOuverte('replanification')}
+                >
+                  Replanifier des tests
+                </button>
+              </>
+            )}
             {/* "Effacer la sélection" (audit 2026-08-25) — même libellé que le bouton déjà en place
                 sur le panneau "Dossiers sélectionnés" du tableau de bord Indicateurs (Indicateurs.jsx,
                 onClick={() => setSelectionIndicateurs(new Set())}), pour rester cohérent d'un écran à
@@ -1068,7 +1085,9 @@ export default function TableauDeBordAccueil() {
             varianteExperience={varianteExperience}
             infoBulleStatut={infoBulleStatut}
             sousBadgeStatut={sousBadgeStatutDisponibilite}
-            dossiersSelectionnes={dossiersSelectionnes}
+            // Sans action groupée disponible pour ce rôle (RH) : pas de colonne de sélection
+            // (DossierList n'affiche les cases que si dossiersSelectionnes est fourni).
+            dossiersSelectionnes={selectionMultipleDisponible ? dossiersSelectionnes : undefined}
             onTogglerSelectionDossier={togglerSelectionDossier}
             toutSelectionne={tousVisiblesSelectionnes}
             onTogglerSelectionnerTout={togglerSelectionnerTout}

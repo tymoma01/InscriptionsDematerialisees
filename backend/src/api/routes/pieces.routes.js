@@ -11,7 +11,8 @@ const pieceJustificativeService = require('../../core/dossier/pieceJustificative
 const dossierService = require('../../core/dossier/dossierService');
 const { ErreurPieceJustificativeInvalide } = pieceJustificativeService;
 const journalAudit = require('../../core/audit/journalAudit');
-const { obtenirKnex } = require('../../db/knex');
+// Objet du module (plutôt que { obtenirKnex } déstructuré) : remplaçable en test (pieces.routes.test.js).
+const db = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
@@ -38,9 +39,15 @@ const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROL
 // "second contrôle"), étendu à Accueil/Coordination et Admin le 2026-08-17. Volontairement plus
 // restreint que ROLES_CONSULTATION_PIECES (exclut Formateur/Inspecteur) : télécharger le contenu
 // réel de toutes les pièces d'un coup est un geste plus sensible que consulter une pièce à la
-// fois, réservé aux rôles qui gèrent déjà ces pièces (ROLES_GESTION_PIECES) — Formateur/
-// Inspecteur, qui n'en ont qu'une consultation en lecture seule, restent hors de ce périmètre.
-const ROLES_EXPORT_ZIP_PIECES = ROLES_GESTION_PIECES;
+// fois — Formateur/Inspecteur, qui n'en ont qu'une consultation en lecture seule, restent hors de
+// ce périmètre.
+// RH ajoutée le 2026-09-30 (demande utilisateur, bug constaté en production : le bouton « Télécharger
+// toutes les pièces (ZIP) » échouait en 403 pour ce rôle) — besoin RH « second contrôle » d'origine.
+// Export seulement : RH n'a AUCUN droit d'écriture (ROLES_GESTION_PIECES inchangé).
+const ROLES_EXPORT_ZIP_PIECES = [...ROLES_GESTION_PIECES, ROLES.RH];
+
+// Message renvoyé (403) quand l'export porte sur un dossier hors de l'entité courante.
+const MESSAGE_ACCES_EXPORT_REFUSE = "Vous n'avez pas accès à cet export.";
 
 // Fichier gardé en mémoire (pas écrit sur le disque du serveur applicatif) : part directement en
 // Buffer vers le connecteur de stockage (StorageConnector.upload attend { nom, contenu: Buffer }).
@@ -128,7 +135,7 @@ router.post('/', requireRole(...ROLES_GESTION_PIECES), upload.single('piece'), a
       roleCode: req.utilisateur.roleCode,
     });
 
-    const bd = await obtenirKnex();
+    const bd = await db.obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
       utilisateurId: req.utilisateur.id,
       entiteId: req.entite.id,
@@ -183,6 +190,11 @@ function nettoyerSegmentChemin(valeur) {
 router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
+    // Dossier d'une autre entité (ou inexistant) : 403 explicite (2026-09-30), plutôt que le 400
+    // « introuvable » générique renvoyé ensuite par le service — jamais aucune pièce exportée.
+    if (!(await pieceJustificativeService.dossierAppartientEntite(req.entite, dossierId))) {
+      return res.status(403).json({ erreur: MESSAGE_ACCES_EXPORT_REFUSE });
+    }
     const { fichiers, manquantes } = await pieceJustificativeService.listerPiecesJustificativesAvecContenu(
       req.entite,
       dossierId,
@@ -234,7 +246,7 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
 
     await archive.finalize();
 
-    const bd = await obtenirKnex();
+    const bd = await db.obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
       utilisateurId: req.utilisateur.id,
       entiteId: req.entite.id,
@@ -323,7 +335,7 @@ router.patch('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res,
       action = 'piece_justificative_renommage';
     }
 
-    const bd = await obtenirKnex();
+    const bd = await db.obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
       utilisateurId: req.utilisateur.id,
       entiteId: req.entite.id,
@@ -353,7 +365,7 @@ router.delete('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res
     // pieceJustificativeService.js pour la règle exacte.
     await pieceJustificativeService.supprimerPieceJustificative(req.entite, pieceId, req.utilisateur.roleCode);
 
-    const bd = await obtenirKnex();
+    const bd = await db.obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
       utilisateurId: req.utilisateur.id,
       entiteId: req.entite.id,

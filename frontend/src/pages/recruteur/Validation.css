@@ -425,3 +425,20 @@ button.page-validation__action--danger:disabled {
   opacity: 0.6;
   cursor: default;
 }
+
+/* Bouton (et non plus lien) depuis le 2026-09-30, voir telechargerToutesLesPieces (Validation.jsx) :
+   police héritée, comme l'ancien <a>. */
+button.page-validation__bouton-export-zip {
+  font-family: inherit;
+}
+
+button.page-validation__bouton-export-zip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Message clair en cas d'échec de l'export ZIP (403, 404, réseau). */
+.page-validation__erreur-export {
+  margin: var(--espace-petit) 0 0;
+  color: var(--couleur-erreur);
+}
