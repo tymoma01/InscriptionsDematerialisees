@@ -90,3 +90,79 @@ test('POST /api/dpae : CDI sans nom du salarié remplacé -> accepté (même si 
   assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, typeContrat: 'cdi' }).success, true);
   assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, typeContrat: 'cdi', motifCdd: 'remplacement_absent' }).success, true);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Périmètre des rôles DPAE (2026-09-30) — testé sur les VRAIES gardes montées sur chaque route :
+// on lit la pile du routeur Express et on exécute le premier middleware de la route (requireRole),
+// jamais une copie des listes de rôles. Aucune infrastructure de test HTTP dans ce projet.
+// ---------------------------------------------------------------------------------------------
+function gardeRoute(methode, chemin) {
+  const couche = dpaeRouter.stack.find((c) => c.route && c.route.path === chemin && c.route.methods[methode]);
+  assert.ok(couche, `route ${methode.toUpperCase()} ${chemin} introuvable`);
+  return couche.route.stack[0].handle;
+}
+
+function executerGarde(garde, roleCode) {
+  const res = { statut: null };
+  res.status = (code) => {
+    res.statut = code;
+    return res;
+  };
+  res.json = () => res;
+  let autorise = false;
+  garde({ utilisateur: { id: 1, roleCode } }, res, () => {
+    autorise = true;
+  });
+  return { autorise, statut: res.statut };
+}
+
+const ACTIONS_DPAE = {
+  'création (POST /)': ['post', '/'],
+  'liste de suivi (GET /suivi)': ['get', '/suivi'],
+  'fiche (GET /:id)': ['get', '/:id'],
+  'file RH (GET /)': ['get', '/'],
+  'validation RH (PATCH /:id/valider)': ['patch', '/:id/valider'],
+  'rejet RH (PATCH /:id/rejeter)': ['patch', '/:id/rejeter'],
+};
+
+test("DPAE : l'Admin passe la garde de CHAQUE route (création, liste, fiche, file RH, validation, rejet)", () => {
+  for (const [action, [methode, chemin]] of Object.entries(ACTIONS_DPAE)) {
+    assert.equal(executerGarde(gardeRoute(methode, chemin), 'admin').autorise, true, action);
+  }
+});
+
+test('DPAE : Accueil/Coordination reçoit 403 sur la création, la liste, la fiche et le traitement', () => {
+  for (const [action, [methode, chemin]] of Object.entries(ACTIONS_DPAE)) {
+    const { autorise, statut } = executerGarde(gardeRoute(methode, chemin), 'accueil_coordination');
+    assert.equal(autorise, false, action);
+    assert.equal(statut, 403, action);
+  }
+});
+
+test('DPAE : création réservée à Planning et Admin (RH, Formateur, Inspecteur refusés)', () => {
+  const garde = gardeRoute('post', '/');
+  for (const roleCode of ['planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'formateur', 'inspecteur', 'accueil_coordination']) {
+    assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  }
+});
+
+test('DPAE : liste de suivi et fiche ouvertes à Admin, RH et Planning ; fermées aux autres rôles', () => {
+  for (const chemin of ['/suivi', '/:id']) {
+    const garde = gardeRoute('get', chemin);
+    for (const roleCode of ['admin', 'rh', 'planning']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
+    for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur']) {
+      assert.equal(executerGarde(garde, roleCode).statut, 403, `${chemin} ${roleCode}`);
+    }
+  }
+});
+
+test('DPAE : traitement RH (file, validation, rejet) réservé à RH et Admin', () => {
+  for (const [methode, chemin] of [['get', '/'], ['patch', '/:id/valider'], ['patch', '/:id/rejeter']]) {
+    const garde = gardeRoute(methode, chemin);
+    for (const roleCode of ['rh', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
+    for (const roleCode of ['planning', 'accueil_coordination', 'formateur']) {
+      assert.equal(executerGarde(garde, roleCode).statut, 403, `${chemin} ${roleCode}`);
+    }
+  }
+});

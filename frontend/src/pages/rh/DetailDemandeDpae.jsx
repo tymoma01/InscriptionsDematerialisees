@@ -5,6 +5,8 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import ModaleRejeterDpae from './ModaleRejeterDpae';
 import { obtenirDemande, validerDemande, rejeterDemande } from '../../services/dpaeService';
+import { useSession } from '../../core/auth/useSession';
+import { ROLES_DPAE_RH } from '../../core/auth/rolesGroupes';
 import './DetailDemandeDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -52,12 +54,17 @@ function ligne(libelle, valeur) {
   );
 }
 
-// Détail d'une demande DPAE côté RH, avec les actions Valider/Rejeter (module Demandes DPAE,
-// 2026-09-28) — accessible aussi au demandeur propriétaire en lecture seule côté back
-// (dpae.routes.js, GET /:id), mais cette page n'est routée que sous /rh/dpae (voir App.jsx) : le
-// demandeur consulte le statut de ses demandes depuis SuiviDemandesDpae.jsx, pas ce détail.
+// Détail d'une demande DPAE (module Demandes DPAE, 2026-09-28). Depuis le 2026-09-30, fiche commune
+// à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, ROLES_DPAE_CONSULTATION),
+// ouverte d'un clic depuis « Suivi des demandes DPAE » ; le serveur décide quelles fiches chacun
+// peut ouvrir (dpae.routes.js, GET /:id). Les actions Valider/Rejeter ne sont affichées qu'aux
+// rôles de traitement RH (RH, Admin), comme côté serveur.
 export default function DetailDemandeDpae() {
   const { demandeId } = useParams();
+  const { utilisateur } = useSession();
+  const peutTraiter = ROLES_DPAE_RH.includes(utilisateur?.roleCode);
+  // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
+  const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
 
   const [demande, setDemande] = useState(null);
@@ -131,7 +138,7 @@ export default function DetailDemandeDpae() {
       <div className="page-detail-dpae">
         <header className="page-detail-dpae__entete">
           <div>
-            <button type="button" className="page-detail-dpae__retour" onClick={() => navigate('/rh/dpae')}>
+            <button type="button" className="page-detail-dpae__retour" onClick={() => navigate(cheminListe)}>
               ← Retour à la liste
             </button>
             <h1>
@@ -251,7 +258,7 @@ export default function DetailDemandeDpae() {
           </section>
         )}
 
-        {demande.statut === 'envoyee' && (
+        {demande.statut === 'envoyee' && peutTraiter && (
           <section className="page-detail-dpae__actions">
             {erreurAction && <p role="alert">{erreurAction}</p>}
             <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleRejetOuverte(true)} disabled={actionEnCours}>

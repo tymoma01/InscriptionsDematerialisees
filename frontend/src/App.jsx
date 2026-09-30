@@ -20,7 +20,7 @@ import SuiviDemandesDpae from './pages/coordination/SuiviDemandesDpae';
 import TraitementDpae from './pages/rh/TraitementDpae';
 import DetailDemandeDpae from './pages/rh/DetailDemandeDpae';
 import RouteProtegee from './core/auth/RouteProtegee';
-import { ROLES_ACCUEIL, ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH } from './core/auth/rolesGroupes';
+import { ROLES_ACCUEIL, ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH, ROLES_DPAE_CONSULTATION } from './core/auth/rolesGroupes';
 
 // Rôles autorisés sur "Suivi des formations" (audit 2026-09-26, retrait de l'Inspecteur — règle
 // métier confirmée : aucun dossier Tertiaire ne passe en formation) — même liste que
@@ -165,9 +165,11 @@ export default function App() {
           }
         />
         {/* Module Demandes DPAE (2026-09-28, spécifique à ACCECIT — voir Modularité, CLAUDE.md).
-            Créer/suivre une demande : Accueil/Coordination/Admin (ROLES_DPAE_DEMANDEUR, même
-            rôles que le reste du parcours candidat). Traiter une demande : RH/Admin
-            (ROLES_DPAE_RH) — voir core/auth/rolesGroupes.js, miroir de backend/src/core/auth/rbac.js. */}
+            Périmètre révisé le 2026-09-30 : créer une demande : Planning/Admin
+            (ROLES_DPAE_DEMANDEUR) ; suivre les demandes et ouvrir une fiche : Admin/RH/Planning
+            (ROLES_DPAE_CONSULTATION) ; file de traitement RH : RH/Admin (ROLES_DPAE_RH).
+            Accueil/Coordination : aucun accès. Voir core/auth/rolesGroupes.js, miroir de
+            backend/src/core/auth/rbac.js. */}
         <Route
           path="/coordination/dpae/nouvelle"
           element={
@@ -179,7 +181,7 @@ export default function App() {
         <Route
           path="/coordination/dpae/suivi"
           element={
-            <RouteProtegee roles={ROLES_DPAE_DEMANDEUR}>
+            <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
               <SuiviDemandesDpae />
             </RouteProtegee>
           }
@@ -195,7 +197,7 @@ export default function App() {
         <Route
           path="/rh/dpae/:demandeId"
           element={
-            <RouteProtegee roles={ROLES_DPAE_RH}>
+            <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
               <DetailDemandeDpae />
             </RouteProtegee>
           }

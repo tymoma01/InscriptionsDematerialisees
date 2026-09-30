@@ -9,7 +9,8 @@ const { ROLES_DPAE_DEMANDEUR } = require('../../core/auth/rbac');
 
 // Monté sur '/api/sites-affectation' (voir app.js) — référentiel des sites d'affectation des
 // demandes DPAE (migration 069). Lecture ET ajout réservés aux rôles qui peuvent créer une DPAE
-// (Accueil/Coordination, Planning, Admin) : ce référentiel n'est utilisé que dans ce formulaire ; la
+// (Planning et Admin depuis le 2026-09-30 — Accueil/Coordination n'a plus aucun accès DPAE, voir
+// rbac.js ROLES_DPAE_DEMANDEUR) : ce référentiel n'est utilisé que dans ce formulaire ; la
 // fiche RH reçoit les sites d'une demande avec la demande elle-même (voir demandeDpaeService).
 const router = Router();
 

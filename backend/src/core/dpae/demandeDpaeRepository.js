@@ -89,7 +89,11 @@ function trouverDemandeParId(trx, entiteId, id) {
 function listerDemandesParDemandeur(trx, entiteId, demandeurId) {
   return requeteDemandesAvecJointures(trx)
     .where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.demandeur_id': demandeurId })
-    .orderBy('demandes_dpae.date_creation', 'desc');
+    .orderBy([
+      { column: 'demandes_dpae.date_creation', order: 'desc' },
+      // Départage stable de deux demandes créées au même instant (2026-09-30).
+      { column: 'demandes_dpae.id', order: 'desc' },
+    ]);
 }
 
 // statut optionnel : la file RH filtre par défaut sur 'envoyee' (voir demandeDpaeService), mais
@@ -97,7 +101,11 @@ function listerDemandesParDemandeur(trx, entiteId, demandeurId) {
 function listerDemandesPourRh(trx, entiteId, statut) {
   const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId });
   if (statut) requete.andWhere({ 'demandes_dpae.statut': statut });
-  return requete.orderBy('demandes_dpae.date_creation', 'desc');
+  return requete.orderBy([
+    { column: 'demandes_dpae.date_creation', order: 'desc' },
+    // Départage stable de deux demandes créées au même instant (2026-09-30).
+    { column: 'demandes_dpae.id', order: 'desc' },
+  ]);
 }
 
 async function creerDemande(trx, donnees) {

@@ -11,8 +11,12 @@ export async function creerDemande(demande) {
   return data;
 }
 
-export async function listerMesDemandes() {
-  const { data } = await api.get('/dpae/mes-demandes');
+// Liste de la page « Suivi des demandes DPAE » (2026-09-30, remplace GET /dpae/mes-demandes) —
+// perimetre 'toutes' | 'mes' ; le serveur décide du périmètre effectif selon le rôle (seuls Admin
+// et RH obtiennent 'toutes'), voir dpae.routes.js GET /suivi. Chaque demande porte
+// sites_affectation ([] pour une demande antérieure au référentiel, qui garde son texte `hotel`).
+export async function listerSuiviDemandes(perimetre) {
+  const { data } = await api.get('/dpae/suivi', { params: perimetre ? { perimetre } : undefined });
   return data;
 }
 
