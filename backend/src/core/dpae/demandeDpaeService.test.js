@@ -222,24 +222,31 @@ function mockerBaseConsultation(t) {
   return { toutesMock, miennesMock };
 }
 
-test('perimetreSuivi : Admin et RH voient toutes les demandes par défaut, ou les leurs sur demande ; tout autre rôle, jamais que les siennes', () => {
+test('perimetreSuivi : Admin, RH et Planning voient toutes les demandes par défaut, ou les leurs sur demande ; tout autre rôle, jamais que les siennes', () => {
   const { perimetreSuivi } = demandeDpaeService;
-  for (const roleCode of ['admin', 'rh']) {
+  for (const roleCode of ['admin', 'rh', 'planning']) {
     assert.equal(perimetreSuivi({ roleCode, perimetreDemande: undefined }), 'toutes', roleCode);
     assert.equal(perimetreSuivi({ roleCode, perimetreDemande: 'toutes' }), 'toutes', roleCode);
     assert.equal(perimetreSuivi({ roleCode, perimetreDemande: 'mes' }), 'mes', roleCode);
   }
-  // Planning : « Toutes » en attente de validation (droit nouveau pour ce rôle, voir rbac.js).
-  assert.equal(perimetreSuivi({ roleCode: 'planning', perimetreDemande: 'toutes' }), 'mes');
+  // Rôle hors ROLES_DPAE_CONSULTATION_TOUTES (la route le refuse de toute façon en amont) : jamais
+  // plus que ses propres demandes, quoi qu'il demande.
+  assert.equal(perimetreSuivi({ roleCode: 'accueil_coordination', perimetreDemande: 'toutes' }), 'mes');
 });
 
-test("listerSuivi (Admin, RH) : toutes les demandes de l'entité, plus récentes d'abord, jamais celles d'une autre entité", async (t) => {
+test("listerSuivi (Admin, RH, Planning) : toutes les demandes de l'entité par défaut, plus récentes d'abord, jamais celles d'une autre entité", async (t) => {
   const { toutesMock } = mockerBaseConsultation(t);
-  for (const roleCode of ['admin', 'rh']) {
+  for (const roleCode of ['admin', 'rh', 'planning']) {
     const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 99, roleCode });
     assert.deepEqual(demandes.map((d) => d.id), [2, 1], roleCode);
   }
-  assert.deepEqual(toutesMock.mock.calls.map((appel) => [appel.arguments[1], appel.arguments[2]]), [[1, null], [1, null]]);
+  assert.deepEqual(toutesMock.mock.calls.map((appel) => [appel.arguments[1], appel.arguments[2]]), [[1, null], [1, null], [1, null]]);
+});
+
+test("listerSuivi (Planning) « Mes demandes » : seulement les siennes", async (t) => {
+  mockerBaseConsultation(t);
+  const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 16, roleCode: 'planning', perimetreDemande: 'mes' });
+  assert.deepEqual(demandes.map((d) => d.id), [1]);
 });
 
 test('listerSuivi : chaque demande porte ses sites, une demande sans site lié garde son ancien texte (jamais exclue)', async (t) => {
@@ -257,13 +264,13 @@ test("listerSuivi « Mes demandes » : seulement celles de l'utilisateur, dans s
   assert.deepEqual(miennesMock.mock.calls[0].arguments.slice(1), [1, 30]);
 });
 
-test("peutConsulterDemande : Admin et RH toutes les fiches ; Planning les siennes ; Accueil/Coordination jamais, même auteur", () => {
+test("peutConsulterDemande : Admin, RH et Planning toutes les fiches ; Accueil/Coordination jamais, même auteur", () => {
   const { peutConsulterDemande } = demandeDpaeService;
   const demande = { demandeur_id: 30 };
   assert.equal(peutConsulterDemande({ roleCode: 'admin', utilisateurId: 1, demande }), true);
   assert.equal(peutConsulterDemande({ roleCode: 'rh', utilisateurId: 1, demande }), true);
   assert.equal(peutConsulterDemande({ roleCode: 'planning', utilisateurId: 30, demande }), true);
-  assert.equal(peutConsulterDemande({ roleCode: 'planning', utilisateurId: 1, demande }), false);
+  assert.equal(peutConsulterDemande({ roleCode: 'planning', utilisateurId: 1, demande }), true);
   assert.equal(peutConsulterDemande({ roleCode: 'accueil_coordination', utilisateurId: 30, demande }), false);
   assert.equal(peutConsulterDemande({ roleCode: 'formateur', utilisateurId: 30, demande }), false);
 });

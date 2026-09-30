@@ -47,7 +47,7 @@ function libelleSites(demande) {
 // GET /api/dpae/suivi (remplace GET /mes-demandes, qui ne renvoyait que les demandes de
 // l'utilisateur connecté : liste vide pour un Admin qui n'en avait créé aucune).
 // - Admin et RH : filtre « Mes demandes / Toutes » (par défaut Toutes, persisté dans l'URL) ;
-//   Planning : ses propres demandes (« Toutes » en attente de validation, voir rolesGroupes.js).
+//   Planning aussi (depuis le 2026-09-30, voir rolesGroupes.js ROLES_DPAE_CONSULTATION_TOUTES).
 // - Plus récentes d'abord (tri serveur). Clic sur une ligne (ou Entrée) : fiche de la demande.
 // - « + Nouvelle demande » : seulement pour les rôles qui peuvent créer (Planning, Admin).
 // Rafraîchissement auto (useRafraichissementAuto) pour voir une validation/un rejet RH sans

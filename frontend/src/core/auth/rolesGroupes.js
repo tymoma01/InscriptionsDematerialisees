@@ -19,5 +19,6 @@ export const ROLES_DPAE_RH = ['rh', 'admin'];
 // ROLES_DPAE_CONSULTATION : consulter des demandes (liste de suivi, fiche).
 export const ROLES_DPAE_CONSULTATION = ['admin', 'rh', 'planning'];
 // ROLES_DPAE_CONSULTATION_TOUTES : voir TOUTES les demandes de l'entité (filtre « Mes demandes /
-// Toutes ») — Planning en attente de validation, comme côté serveur.
-export const ROLES_DPAE_CONSULTATION_TOUTES = ['admin', 'rh'];
+// Toutes », par défaut Toutes) — Admin, RH et Planning (Planning ajouté le 2026-09-30, décision
+// utilisateur confirmée), comme côté serveur.
+export const ROLES_DPAE_CONSULTATION_TOUTES = ['admin', 'rh', 'planning'];

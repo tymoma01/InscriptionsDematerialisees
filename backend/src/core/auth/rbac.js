@@ -70,10 +70,9 @@ const ROLES_DPAE_RH = Object.freeze([ROLES.RH, ROLES.ADMIN]);
 const ROLES_DPAE_CONSULTATION = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
 // ROLES_DPAE_CONSULTATION_TOUTES : parmi eux, qui voit TOUTES les demandes de l'entité (filtre
 // « Mes demandes / Toutes ») — les autres ne voient que les demandes dont ils sont l'auteur.
-// Planning EN ATTENTE de validation utilisateur (2026-09-30) : ce serait un droit NOUVEAU pour ce
-// rôle (il ne voyait jusqu'ici que ses propres demandes) — à ajouter ici, et dans
-// frontend/src/core/auth/rolesGroupes.js, une fois confirmé.
-const ROLES_DPAE_CONSULTATION_TOUTES = Object.freeze([ROLES.ADMIN, ROLES.RH]);
+// Planning ajouté le 2026-09-30 (décision utilisateur confirmée) : il ne voyait jusqu'ici que ses
+// propres demandes. Miroir : frontend/src/core/auth/rolesGroupes.js.
+const ROLES_DPAE_CONSULTATION_TOUTES = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
 
 // utilisateur est le payload minimal posé en session par authService.connecter — voir
 // core/auth/session.js et api/middlewares/auth.middleware.js.

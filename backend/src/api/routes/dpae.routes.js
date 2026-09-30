@@ -145,8 +145,8 @@ router.post('/', requireRole(...ROLES_DPAE_DEMANDEUR), async (req, res, next) =>
 // GET /mes-demandes le 2026-09-30, qui ne renvoyait que les demandes de l'utilisateur connecté :
 // d'où la liste vide constatée pour un Admin qui n'en avait créé aucune). Tous statuts, plus
 // récentes d'abord, sites d'affectation inclus, entité courante uniquement. Périmètre résolu côté
-// serveur (demandeDpaeService.perimetreSuivi) : 'toutes' par défaut pour Admin/RH, toujours 'mes'
-// pour les autres rôles de consultation. Accueil/Coordination : 403.
+// serveur (demandeDpaeService.perimetreSuivi) : 'toutes' par défaut pour Admin, RH et Planning
+// (ROLES_DPAE_CONSULTATION_TOUTES), 'mes' sur demande. Accueil/Coordination : 403.
 router.get('/suivi', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
   try {
     const demandes = await demandeDpaeService.listerSuivi(req.entite, {
@@ -174,8 +174,8 @@ router.get('/', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
 
 // GET /api/dpae/:id — fiche d'une demande. Garde de rôle explicite (2026-09-30 : auparavant aucune,
 // le seul fait d'être l'auteur suffisait, quel que soit le rôle) : rôles de consultation seulement,
-// puis règle par demande (demandeDpaeService.peutConsulterDemande) — toutes pour Admin/RH, les
-// siennes pour les autres. Demande d'une autre entité : introuvable (404), jamais renvoyée.
+// puis règle par demande (demandeDpaeService.peutConsulterDemande) — toutes pour Admin, RH et
+// Planning. Demande d'une autre entité : introuvable (404), jamais renvoyée.
 router.get('/:id', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
