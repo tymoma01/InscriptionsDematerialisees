@@ -166,3 +166,39 @@ test('DPAE : traitement RH (file, validation, rejet) réservé à RH et Admin', 
     }
   }
 });
+
+// ---------------------------------------------------------------------------------------------
+// Tableau de bord DPAE (2026-09-30) — garde réellement montée et filtres. Les indicateurs eux-mêmes
+// (SQL) sont vérifiés sur la base DEV par scripts/testTableauDeBordDpae.js (transaction annulée).
+// ---------------------------------------------------------------------------------------------
+test('GET /api/dpae/tableau-de-bord : Admin, RH et Planning autorisés ; Accueil/Coordination, Formateur et Inspecteur -> 403', () => {
+  const garde = gardeRoute('get', '/tableau-de-bord');
+  for (const roleCode of ['admin', 'rh', 'planning']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur']) {
+    assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  }
+});
+
+test('GET /api/dpae/tableau-de-bord est déclarée AVANT GET /:id (sinon « tableau-de-bord » serait pris pour un identifiant)', () => {
+  const chemins = dpaeRouter.stack.filter((couche) => couche.route?.methods.get).map((couche) => couche.route.path);
+  assert.ok(chemins.indexOf('/tableau-de-bord') < chemins.indexOf('/:id'));
+});
+
+test('Filtres du tableau de bord : valeurs valides acceptées, valeurs vides = « tous »', () => {
+  const { filtresTableauDeBordSchema } = dpaeRouter;
+  assert.deepEqual(
+    filtresTableauDeBordSchema.parse({ debut: '2026-09-01', fin: '2026-09-30', siteId: '12', typeContrat: 'cdd', statut: 'validee' }),
+    { debut: '2026-09-01', fin: '2026-09-30', siteId: 12, typeContrat: 'cdd', statut: 'validee' },
+  );
+  assert.equal(filtresTableauDeBordSchema.parse({ siteId: 'non_reference' }).siteId, 'non_reference');
+  // Valeurs vides -> aucune restriction (undefined) ; clé absente -> absente.
+  const vides = filtresTableauDeBordSchema.parse({ debut: '', siteId: '', typeContrat: '', statut: '' });
+  for (const cle of ['debut', 'fin', 'siteId', 'typeContrat', 'statut']) assert.equal(vides[cle], undefined, cle);
+});
+
+test('Filtres du tableau de bord : valeurs invalides refusées (date, site, contrat, statut)', () => {
+  const { filtresTableauDeBordSchema } = dpaeRouter;
+  for (const invalide of [{ debut: '30/09/2026' }, { siteId: 'abc' }, { siteId: '-3' }, { typeContrat: 'interim' }, { statut: 'brouillon' }]) {
+    assert.equal(filtresTableauDeBordSchema.safeParse(invalide).success, false, JSON.stringify(invalide));
+  }
+});

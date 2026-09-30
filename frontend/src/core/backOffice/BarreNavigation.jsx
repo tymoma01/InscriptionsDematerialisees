@@ -113,20 +113,42 @@ const ELEMENTS_NAVIGATION = [
     sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
   },
   {
-    cle: 'demandes-dpae',
-    // Module Demandes DPAE (2026-09-28) — même patron que "historique-evaluations"/
-    // "evaluations-a-venir" ci-dessus (Formateur/Inspecteur) : deux écrans logiquement distincts
-    // (déposer/suivre une demande côté Accueil/Coordination, la traiter côté RH) partagent une
-    // seule entrée de navigation, `chemin` fonction du rôle connecté. Admin voit la file RH
-    // (seule des deux qui a un sens pour un rôle qui n'est ni l'un ni l'autre par défaut).
-    // Placée avant "Comptes utilisateurs" (demande utilisateur explicite, 2026-09-28) : l'ordre de
-    // ce tableau pilote directement l'ordre d'affichage des onglets.
-    libelle: 'Demandes DPAE',
+    cle: 'rh',
+    // Onglet « RH » (2026-09-30, demande utilisateur) — remplace l'onglet « Demandes DPAE », à la
+    // MÊME position (avant « Comptes utilisateurs » : l'ordre de ce tableau pilote l'ordre des
+    // onglets). Espace à sous-onglets, même mécanisme que « Vue Formateur »/« Vue Inspecteur »
+    // ci-dessus : « Demandes DPAE » puis « Tableau de bord DPAE ». Pas de `roleEspace` : les
+    // sous-onglets calculent leur chemin avec le rôle CONNECTÉ (la RH garde sa file comme
+    // destination). Un clic sur « RH » ouvre « Demandes DPAE ». Actif sur TOUTES les pages DPAE
+    // (suivi, nouvelle demande, tableau de bord sous /coordination/dpae/ ; file RH et fiche sous
+    // /rh/dpae) — aucune adresse existante modifiée.
+    libelle: 'RH',
     chemin: (roleCode) => (roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi'),
     estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
-    // Rôles qui peuvent consulter des demandes (Admin, RH, Planning — ROLES_DPAE_CONSULTATION,
-    // 2026-09-30) : Accueil/Coordination n'a plus l'onglet. Voir core/auth/rolesGroupes.js.
+    // Rôles qui peuvent consulter des demandes (Admin, RH, Planning — ROLES_DPAE_CONSULTATION) :
+    // Accueil/Coordination n'a pas l'onglet. Voir core/auth/rolesGroupes.js.
     roles: ROLES_DPAE_CONSULTATION,
+    sousOnglets: ['dpae-demandes', 'dpae-tableau-de-bord'],
+  },
+  // Sous-onglets de l'espace « RH » — `roles: []` : jamais affichés dans la barre principale, seulement
+  // dans la barre de sous-onglets de leur espace (voir `sousOnglets` ci-dessus).
+  {
+    cle: 'dpae-demandes',
+    libelle: 'Demandes DPAE',
+    // Page de suivi ; file RH conservée comme destination pour le rôle RH (inchangé).
+    chemin: (roleCode) => (roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi'),
+    // Suivi, nouvelle demande, file RH et fiche d'une demande — tout sauf le tableau de bord.
+    estActif: (chemin) =>
+      chemin.startsWith('/rh/dpae') ||
+      (chemin.startsWith('/coordination/dpae/') && !chemin.startsWith('/coordination/dpae/tableau-de-bord')),
+    roles: [],
+  },
+  {
+    cle: 'dpae-tableau-de-bord',
+    libelle: 'Tableau de bord DPAE',
+    chemin: '/coordination/dpae/tableau-de-bord',
+    estActif: (chemin) => chemin.startsWith('/coordination/dpae/tableau-de-bord'),
+    roles: [],
   },
   {
     cle: 'comptes-utilisateurs',
@@ -198,8 +220,12 @@ export default function BarreNavigation() {
       {sousOnglets.length > 0 && (
         <nav className="barre-navigation-sous-onglets" aria-label={`Navigation ${espaceActif.libelle}`}>
           {sousOnglets.map((element) => {
-            const chemin = typeof element.chemin === 'function' ? element.chemin(espaceActif.roleEspace) : element.chemin;
-            const actif = pathname.startsWith(chemin);
+            // Rôle de l'espace s'il en a un (Vue Formateur/Inspecteur de l'Admin), sinon rôle connecté
+            // (espace « RH », 2026-09-30). Actif : règle propre du sous-onglet (plusieurs pages pour
+            // « Demandes DPAE »), identique pour les sous-onglets Formateur/Inspecteur.
+            const roleChemin = espaceActif.roleEspace ?? utilisateur.roleCode;
+            const chemin = typeof element.chemin === 'function' ? element.chemin(roleChemin) : element.chemin;
+            const actif = element.estActif(pathname);
             return (
               <Link
                 key={element.cle}

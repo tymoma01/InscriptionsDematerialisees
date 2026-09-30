@@ -1,0 +1,167 @@
+/* « Tableau de bord DPAE » (TableauDeBordDpae.jsx, 2026-09-30) — seulement ce que le Tableau de bord
+   existant ne fournit pas déjà : filtres, tuiles et blocs graphiques viennent tels quels
+   d'Indicateurs.css (classes indicateurs__…). */
+.tableau-bord-dpae {
+  max-width: var(--largeur-max-formulaire);
+  margin: 0 auto;
+}
+
+.tableau-bord-dpae__filtres {
+  gap: var(--espace-moyen);
+}
+
+.tableau-bord-dpae__reinitialiser {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: var(--rayon-bordure);
+  background: transparent;
+  color: var(--couleur-back-office);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Pendant un rechargement après changement de filtre : l'ancien tableau reste affiché, atténué. */
+.tableau-bord-dpae__contenu--chargement {
+  opacity: 0.55;
+}
+
+.tableau-bord-dpae__section {
+  margin: var(--espace-grand) 0 var(--espace-petit);
+  font-size: 1.15rem;
+  color: var(--couleur-back-office);
+}
+
+/* Tuiles non cliquables ici (contrairement au Tableau de bord existant). */
+.tableau-bord-dpae__tuile {
+  cursor: default;
+}
+
+.tableau-bord-dpae__evolution {
+  margin-top: var(--espace-moyen);
+}
+
+/* 1. « À traiter en priorité » — en tête, bien visible : encadré aux couleurs d'alerte. */
+.tableau-bord-dpae__priorite {
+  padding: var(--espace-moyen);
+  border: 2px solid var(--statut-echec-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--statut-echec-fond);
+}
+
+.tableau-bord-dpae__priorite h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  margin: 0 0 var(--espace-moyen);
+  color: var(--couleur-erreur);
+  font-size: 1.25rem;
+}
+
+.tableau-bord-dpae__compteur {
+  min-width: 1.8rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background-color: var(--couleur-erreur);
+  color: #ffffff;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.tableau-bord-dpae__priorite h3 {
+  margin: 0 0 var(--espace-petit);
+  font-size: 0.95rem;
+  color: var(--couleur-texte);
+}
+
+/* Trois colonnes en largeur bureau, empilées en tablette. */
+.tableau-bord-dpae__colonnes-priorite {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--espace-moyen);
+}
+
+/* Répartition : 3 colonnes en bureau, 2 en tablette, 1 en largeur étroite. */
+.tableau-bord-dpae__grille {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--espace-moyen);
+}
+
+@media (max-width: 1100px) {
+  .tableau-bord-dpae__colonnes-priorite {
+    grid-template-columns: 1fr;
+  }
+
+  .tableau-bord-dpae__grille {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .tableau-bord-dpae__grille {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Listes cliquables (priorités, anticipation) : chaque ligne est un bouton qui ouvre la fiche. */
+.tableau-bord-dpae__liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tableau-bord-dpae__ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tableau-bord-dpae__ligne:hover,
+.tableau-bord-dpae__ligne:focus-visible {
+  border-color: var(--couleur-back-office);
+}
+
+.tableau-bord-dpae__salarie {
+  font-weight: 700;
+}
+
+.tableau-bord-dpae__sites {
+  flex: 1 1 8rem;
+  min-width: 0;
+  color: var(--couleur-texte-secondaire);
+  overflow-wrap: anywhere;
+}
+
+.tableau-bord-dpae__date {
+  white-space: nowrap;
+}
+
+.tableau-bord-dpae__alerte {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background-color: var(--couleur-erreur);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tableau-bord-dpae__liste-vide {
+  margin: 0;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+  font-style: italic;
+}

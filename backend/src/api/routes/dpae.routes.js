@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
+const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -160,6 +161,35 @@ router.get('/suivi', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, n
   }
 });
 
+// GET /api/dpae/tableau-de-bord — « Tableau de bord DPAE » (2026-09-30). Indicateurs calculés en
+// base, entité courante uniquement (tableauDeBordDpaeService / tableauDeBordDpaeRepository). Accès
+// Admin, RH, Planning (ROLES_DPAE_CONSULTATION) ; 403 pour tout autre rôle. Déclarée AVANT
+// GET /:id : sinon « tableau-de-bord » serait pris pour un identifiant de demande.
+// Filtres (tous optionnels) : debut/fin (AAAA-MM-JJ, jours parisiens de création ; défaut : les 30
+// derniers jours), siteId (id d'un site, ou 'non_reference' pour les anciennes demandes sans site
+// lié), typeContrat (cdd|cdi), statut (envoyee|validee|rejetee). Une valeur vide vaut « tous ».
+const videVersIndefini = (valeur) => (valeur === '' ? undefined : valeur);
+const filtresTableauDeBordSchema = z.object({
+  debut: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
+  fin: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
+  siteId: z.preprocess(videVersIndefini, z.union([z.literal('non_reference'), idPositifSchema]).optional()),
+  typeContrat: enumOptionnel(['cdd', 'cdi']),
+  statut: enumOptionnel(['envoyee', 'validee', 'rejetee']),
+});
+
+router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+  try {
+    const filtres = filtresTableauDeBordSchema.parse(req.query);
+    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres));
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof tableauDeBordDpaeService.ErreurFiltresTableauDeBord) {
+      return res.status(400).json({ erreur: erreur.message });
+    }
+    next(erreur);
+  }
+});
+
 // GET /api/dpae — file RH. ?statut=envoyee (défaut, file à traiter) ou ?statut=tous (historique
 // complet, traitées incluses).
 router.get('/', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
@@ -259,3 +289,5 @@ module.exports = router;
 // aucune infrastructure de test HTTP dans ce projet, on teste le VRAI schéma monté sur POST /,
 // jamais une copie).
 module.exports.demandeBodySchema = demandeBodySchema;
+// Filtres du tableau de bord exposés pour dpae.routes.test.js (même raison que ci-dessus).
+module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;

@@ -46,3 +46,12 @@ export async function rechercherCandidats(texte) {
   const { data } = await api.get('/candidats/recherche', { params: { q: texte } });
   return data;
 }
+
+// « Tableau de bord DPAE » (2026-09-30) — indicateurs calculés côté serveur (dpae.routes.js,
+// GET /tableau-de-bord), entité courante. filtres : { debut, fin, siteId, typeContrat, statut },
+// tous optionnels (valeur vide = tous ; période par défaut : les 30 derniers jours).
+export async function obtenirTableauDeBordDpae(filtres = {}) {
+  const params = Object.fromEntries(Object.entries(filtres).filter(([, valeur]) => valeur !== '' && valeur !== undefined && valeur !== null));
+  const { data } = await api.get('/dpae/tableau-de-bord', { params });
+  return data;
+}
