@@ -54,12 +54,16 @@ test('executerSauvegarde : déroulé nominal (dump -> chiffrement -> upload -> r
   assert.equal(stockageSauvegardeGraph.uploaderSauvegarde.mock.calls[0].arguments[0], resultat.nomFichier);
 });
 
-test('executerSauvegarde : purge uniquement les sauvegardes au-delà des 30 plus récentes', async (t) => {
-  const sauvegardesExistantes = Array.from({ length: 33 }, (_, i) => ({
-    id: `item-${i}`,
-    nom: `backup-${i}.dump.enc`,
-    dateCreation: new Date(2026, 0, 33 - i), // déjà triées, la plus récente en premier
-  }));
+test('executerSauvegarde : purge uniquement les sauvegardes vieilles de 30 jours ou plus (fenêtre glissante)', async (t) => {
+  const maintenant = Date.now();
+  const JOUR_MS = 24 * 60 * 60 * 1000;
+  // Bornes volontaires autour du seuil : 29 jours conservée, 30 jours pile purgée (>=).
+  const sauvegardesExistantes = [
+    { id: 'item-0', nom: 'backup-0.dump.enc', dateCreation: new Date(maintenant) },
+    { id: 'item-29', nom: 'backup-29.dump.enc', dateCreation: new Date(maintenant - 29 * JOUR_MS) },
+    { id: 'item-30', nom: 'backup-30.dump.enc', dateCreation: new Date(maintenant - 30 * JOUR_MS) },
+    { id: 'item-31', nom: 'backup-31.dump.enc', dateCreation: new Date(maintenant - 31 * JOUR_MS) },
+  ];
 
   const { sauvegardeService, stockageSauvegardeGraph } = chargerServiceAvecMocks(t, {
     listerSauvegardes: async () => sauvegardesExistantes,
@@ -67,11 +71,10 @@ test('executerSauvegarde : purge uniquement les sauvegardes au-delà des 30 plus
 
   const resultat = await sauvegardeService.executerSauvegarde();
 
-  assert.equal(resultat.sauvegardesSupprimees, 3);
-  assert.equal(stockageSauvegardeGraph.supprimerSauvegarde.mock.calls.length, 3);
+  assert.equal(resultat.sauvegardesSupprimees, 2);
   assert.deepEqual(
     stockageSauvegardeGraph.supprimerSauvegarde.mock.calls.map((appel) => appel.arguments[0]),
-    ['item-30', 'item-31', 'item-32'],
+    ['item-30', 'item-31'],
   );
 });
 

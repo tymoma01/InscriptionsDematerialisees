@@ -11,7 +11,8 @@ const notificationEchecSauvegarde = require('./notificationEchecSauvegarde');
 
 // PITR natif Neon limité à 6h sur le plan gratuit (CLAUDE.md) : cette sauvegarde quotidienne est
 // un filet complémentaire, pas un remplacement — voir docs/sauvegarde-neon.md.
-const NOMBRE_SAUVEGARDES_CONSERVEES = 30;
+const NOMBRE_JOURS_CONSERVATION = 30;
+const NOMBRE_JOURS_CONSERVATION_MS = NOMBRE_JOURS_CONSERVATION * 24 * 60 * 60 * 1000;
 
 // Date du jour dans le fuseau Europe/Paris (jamais celui, potentiellement différent, du serveur/
 // runner CI qui exécute le job) — même principe que anneeMoisParis dans azureOneDriveConnector.js.
@@ -32,12 +33,17 @@ function formaterTailleLisible(octets) {
   return `${valeur.toFixed(1)} ${unites[indexUnite]}`;
 }
 
-// Ne conserve que les NOMBRE_SAUVEGARDES_CONSERVEES sauvegardes les plus récentes sur SharePoint,
-// en supprimant les plus anciennes — appelé à chaque exécution réussie du job (spécification :
-// "supprimer automatiquement les plus anciens à chaque exécution").
+// Ne conserve que les sauvegardes vieilles de moins de NOMBRE_JOURS_CONSERVATION jours sur
+// SharePoint (fenêtre glissante, pas un simple décompte) — appelé à chaque exécution réussie du
+// job. Avec un dump par jour, la plus ancienne conservée sort de la fenêtre à son 30e jour et est
+// purgée au run suivant, qui vient d'en déposer une nouvelle : le nombre de dumps reste ~30 sans
+// jamais dépendre du nombre d'exécutions passées (robuste à un run manqué ou rejoué).
 async function appliquerRetention() {
   const sauvegardes = await stockageSauvegardeGraph.listerSauvegardes(); // déjà triées, plus récente en premier
-  const aSupprimer = sauvegardes.slice(NOMBRE_SAUVEGARDES_CONSERVEES);
+  const maintenant = Date.now();
+  const aSupprimer = sauvegardes.filter(
+    (sauvegarde) => maintenant - sauvegarde.dateCreation.getTime() >= NOMBRE_JOURS_CONSERVATION_MS,
+  );
 
   for (const sauvegarde of aSupprimer) {
     await stockageSauvegardeGraph.supprimerSauvegarde(sauvegarde.id);
@@ -48,7 +54,7 @@ async function appliquerRetention() {
 
 /**
  * Exécute la sauvegarde quotidienne complète : pg_dump -> chiffrement AES-256-GCM -> upload
- * SharePoint -> purge de rétention (30 derniers dumps). Sur échec, notifie explicitement (voir
+ * SharePoint -> purge de rétention (30 derniers jours glissants). Sur échec, notifie explicitement (voir
  * notificationEchecSauvegarde.js) puis relance l'erreur — l'appelant (scripts/sauvegarderNeon.js)
  * est responsable du code de sortie non-zéro, pour qu'un échec ne passe jamais inaperçu (ni par un
  * job planifié silencieux, ni par un log noyé parmi d'autres).
@@ -105,4 +111,4 @@ async function executerSauvegarde() {
   }
 }
 
-module.exports = { executerSauvegarde, appliquerRetention, NOMBRE_SAUVEGARDES_CONSERVEES };
+module.exports = { executerSauvegarde, appliquerRetention, NOMBRE_JOURS_CONSERVATION };

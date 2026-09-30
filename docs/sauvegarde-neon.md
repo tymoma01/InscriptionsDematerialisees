@@ -7,7 +7,7 @@ rétention glissante de 30 jours.
 ## Vue d'ensemble
 
 ```
-pg_dump (-Fc, compressé)  ->  chiffrement AES-256-GCM  ->  upload SharePoint  ->  purge > 30 dumps
+pg_dump (-Fc, compressé)  ->  chiffrement AES-256-GCM  ->  upload SharePoint  ->  purge > 30 jours
    pgDumpService.js            chiffrementSauvegarde.js      stockageSauvegardeGraph.js
 ```
 
@@ -100,10 +100,13 @@ les objets existants de la base cible sont supprimés puis recréés à partir d
 
 ## Politique de rétention
 
-Chaque exécution réussie liste les sauvegardes déjà présentes dans `Backups/neon`, trie par date de
-création, conserve les 30 plus récentes et supprime le reste (voir
-`sauvegardeService.appliquerRetention`). Un échec d'upload n'entraîne aucune purge (la rétention
-s'applique seulement après un upload réussi, voir l'ordre des étapes dans `sauvegardeService.js`).
+Chaque exécution réussie liste les sauvegardes déjà présentes dans `Backups/neon` et supprime celles
+dont la date de création remonte à 30 jours ou plus (fenêtre glissante, pas un décompte des N plus
+récentes — voir `sauvegardeService.appliquerRetention`). Avec un dump par jour, la plus ancienne
+conservée sort de la fenêtre à son 30e jour et est purgée au run suivant : le nombre de dumps reste
+~30 sans dépendre du nombre d'exécutions passées, ce qui reste correct même après un run manqué ou
+rejoué. Un échec d'upload n'entraîne aucune purge (la rétention s'applique seulement après un
+upload réussi, voir l'ordre des étapes dans `sauvegardeService.js`).
 
 ## Dépannage
 

@@ -52,7 +52,7 @@ async function uploaderSauvegarde(nomFichier, contenu) {
 
 /**
  * Liste les sauvegardes déjà présentes, triées de la plus récente à la plus ancienne — utilisé par
- * sauvegardeService.js pour appliquer la politique de rétention (30 derniers dumps).
+ * sauvegardeService.js pour appliquer la politique de rétention (30 derniers jours glissants).
  * @returns {Promise<{id: string, nom: string, dateCreation: Date}[]>}
  */
 async function listerSauvegardes() {
