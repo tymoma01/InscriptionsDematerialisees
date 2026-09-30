@@ -108,3 +108,16 @@
   border-color: var(--couleur-back-office);
   color: #ffffff;
 }
+
+/* Pastille colorée par sa variante (prop `variante`, voir FiltresStatut.jsx) : couleurs du badge
+   de statut correspondant au repos ; une fois sélectionnée, le remplissage plein .actif ci-dessus
+   reste prioritaire (:not(.actif)), comme sur « Dossiers candidats ». */
+.filtres-statut__statuts button[data-variante]:not(.actif) {
+  background-color: var(--pastille-fond);
+  border-color: var(--pastille-bordure);
+  color: var(--pastille-texte);
+}
+
+.filtres-statut__statuts button[data-variante]:hover {
+  filter: brightness(0.94);
+}

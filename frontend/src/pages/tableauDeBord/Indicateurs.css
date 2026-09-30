@@ -153,6 +153,24 @@
   color: var(--statut-attente-texte);
 }
 
+.indicateurs__tuile--succes {
+  background-color: var(--statut-succes-fond);
+  border-color: var(--statut-succes-bordure);
+}
+.indicateurs__tuile--succes .indicateurs__tuile-valeur,
+.indicateurs__tuile--succes .indicateurs__tuile-libelle {
+  color: var(--statut-succes-texte);
+}
+
+.indicateurs__tuile--bleu-gris {
+  background-color: var(--statut-bleu-gris-fond);
+  border-color: var(--statut-bleu-gris-bordure);
+}
+.indicateurs__tuile--bleu-gris .indicateurs__tuile-valeur,
+.indicateurs__tuile--bleu-gris .indicateurs__tuile-libelle {
+  color: var(--statut-bleu-gris-texte);
+}
+
 .indicateurs__tuile--violet {
   background-color: var(--statut-violet-fond);
   border-color: var(--statut-violet-bordure);

@@ -8,6 +8,7 @@ import { useParametreURL } from '../../core/filtres/useParametreURL';
 import { obtenirTableauDeBordDpae } from '../../services/dpaeService';
 import '../tableauDeBord/Indicateurs.css';
 import './TableauDeBordDpae.css';
+import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 
 // « Tableau de bord DPAE » (onglet RH > Tableau de bord DPAE, 2026-09-30). Indicateurs calculés côté
 // serveur (GET /api/dpae/tableau-de-bord, en base, heure de Paris) ; cette page ne fait qu'afficher.
@@ -19,9 +20,9 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 const FORMAT_JOUR_COURT = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' });
 const FORMAT_MOIS = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' });
 
-// Mêmes libellés que la page de suivi et la fiche (dupliqués, convention du projet).
-const LIBELLE_PAR_STATUT = { envoyee: 'Envoyée', validee: 'Validée', rejetee: 'Rejetée' };
-const VARIANTE_PAR_STATUT = { envoyee: 'attente', validee: 'succes', rejetee: 'echec' };
+// Libellé, couleur de badge/tuile et couleur de graphique des statuts : source unique
+// core/dpae/statutsDpae.js (2026-09-30).
+// Libellés de poste : mêmes que la fiche (dupliqués, convention du projet).
 const LIBELLE_PAR_POSTE = {
   femme_valet_chambre: 'Femme/Valet de chambre',
   cafetier: 'Cafetier',
@@ -29,9 +30,6 @@ const LIBELLE_PAR_POSTE = {
   gouvernant: 'Gouvernant(e)',
   autre: 'Autre',
 };
-// Couleurs des graphiques — mêmes teintes que le Tableau de bord existant (vert validé, rouge
-// invalidé, voir COULEURS_VERDICT d'Indicateurs.jsx) ; doré pour « en attente ».
-const COULEURS_STATUT = { envoyee: '#c98a0b', validee: '#0ca30c', rejetee: '#d03b3b' };
 const COULEURS_REPARTITION = ['#2e2013', '#c98a0b', '#4a3aa7', '#0ca30c', '#9ca3af'];
 
 // Colonnes `date` (premier/dernier jour) : même conversion que la fiche (instant ISO relu dans le
@@ -74,7 +72,7 @@ function ListeDemandes({ demandes, colonneDate, libelleDate, vide, marquer }) {
               {libelleDate} {formaterJour(demande[colonneDate])}
             </span>
             {marquer?.(demande)}
-            <StatutBadge libelle={LIBELLE_PAR_STATUT[demande.statut] ?? demande.statut} variante={VARIANTE_PAR_STATUT[demande.statut] ?? 'neutre'} />
+            <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
           </button>
         </li>
       ))}
@@ -179,7 +177,7 @@ export default function TableauDeBordDpae() {
   };
 
   const t = donnees;
-  const nombrePriorites = t ? t.priorite.premierJourProche.length + t.priorite.enAttentePlus24h.length + t.priorite.valideesEnRetard.length : 0;
+  const nombrePriorites = t ? t.priorite.premierJourProche.length + t.priorite.aTraiterPlus24h.length + t.priorite.valideesEnRetard.length : 0;
 
   return (
     <PageBackOffice>
@@ -226,9 +224,11 @@ export default function TableauDeBordDpae() {
             <span>Statut</span>
             <select value={statut} onChange={(e) => setStatut(e.target.value)}>
               <option value="">Tous</option>
-              <option value="envoyee">Envoyée</option>
-              <option value="validee">Validée</option>
-              <option value="rejetee">Rejetée</option>
+              {STATUTS_DPAE.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.libelle}
+                </option>
+              ))}
             </select>
           </label>
           <button type="button" className="tableau-bord-dpae__reinitialiser" onClick={reinitialiser}>
@@ -249,11 +249,11 @@ export default function TableauDeBordDpae() {
               <div className="tableau-bord-dpae__colonnes-priorite">
                 <div>
                   <h3>Premier jour aujourd&rsquo;hui ou demain ({t.priorite.premierJourProche.length})</h3>
-                  <ListeDemandes demandes={t.priorite.premierJourProche} colonneDate="date_debut" libelleDate="1er jour" vide="Aucune demande en attente pour aujourd’hui ou demain." />
+                  <ListeDemandes demandes={t.priorite.premierJourProche} colonneDate="date_debut" libelleDate="1er jour" vide="Aucune demande à traiter pour aujourd’hui ou demain." />
                 </div>
                 <div>
-                  <h3>En attente depuis plus de 24 h ({t.priorite.enAttentePlus24h.length})</h3>
-                  <ListeDemandes demandes={t.priorite.enAttentePlus24h} colonneDate="date_creation" libelleDate="Envoyée le" vide="Aucune demande en attente depuis plus de 24 h." />
+                  <h3>À traiter depuis plus de 24 h ({t.priorite.aTraiterPlus24h.length})</h3>
+                  <ListeDemandes demandes={t.priorite.aTraiterPlus24h} colonneDate="date_creation" libelleDate="Envoyée le" vide="Aucune demande à traiter depuis plus de 24 h." />
                 </div>
                 <div>
                   <h3>Validées après leur premier jour ({t.priorite.valideesEnRetard.length})</h3>
@@ -266,9 +266,9 @@ export default function TableauDeBordDpae() {
             <h2 className="tableau-bord-dpae__section">Activité</h2>
             <div className="indicateurs__tuiles">
               <Tuile valeur={t.activite.total} libelle="Demandes" variante="neutre" />
-              <Tuile valeur={t.activite.parStatut.envoyee} libelle="Envoyées" variante="attente" />
-              <Tuile valeur={t.activite.parStatut.validee} libelle="Validées" variante="vert-clair" />
-              <Tuile valeur={t.activite.parStatut.rejetee} libelle="Rejetées" variante="echec" />
+              {STATUTS_DPAE.map((s) => (
+                <Tuile key={s.code} valeur={t.activite.parStatut[s.code] ?? 0} libelle={s.libellePluriel} variante={s.variante} />
+              ))}
               <Tuile
                 valeur={t.activite.tauxRejet === null ? '—' : `${Math.round(t.activite.tauxRejet * 100)} %`}
                 libelle="Taux de rejet"
@@ -287,8 +287,8 @@ export default function TableauDeBordDpae() {
                   <YAxis allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  {['envoyee', 'validee', 'rejetee'].map((code) => (
-                    <Bar key={code} dataKey={code} name={LIBELLE_PAR_STATUT[code]} stackId="statut" fill={COULEURS_STATUT[code]} />
+                  {STATUTS_DPAE.map((s) => (
+                    <Bar key={s.code} dataKey={s.code} name={s.libelle} stackId="statut" fill={s.couleurGraphique} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>

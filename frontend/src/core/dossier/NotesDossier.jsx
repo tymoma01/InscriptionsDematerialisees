@@ -24,7 +24,20 @@ const LONGUEUR_MAX_CONTENU = 1000;
 //
 // dossierId reçu en prop, comme HistoriqueRelances.jsx/GestionRendezvous.jsx — ce composant ne
 // connaît rien du routage.
-export default function NotesDossier({ dossierId }) {
+//
+// Réutilisable pour une autre cible que le dossier (2026-09-30 : notes d'une demande DPAE, voir
+// DetailDemandeDpae.jsx) — même rendu, mêmes règles. Il suffit de fournir `cibleId` et les deux
+// fonctions d'accès `lister(cibleId)` / `ajouter(cibleId, { contenu })` (réponse de même forme :
+// id, contenu, date_creation, auteur_prenom, auteur_nom, auteur_role_libelle), plus les textes
+// propres à la cible. Sans ces props : comportement historique du dossier, inchangé.
+export default function NotesDossier({
+  dossierId,
+  cibleId = dossierId,
+  lister = listerNotesDossier,
+  ajouter = ajouterNoteDossier,
+  texteAucuneNote = 'Aucune note enregistrée pour ce dossier.',
+  texteErreurChargement = 'Impossible de récupérer les notes de ce dossier.',
+}) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
   const [notes, setNotes] = useState([]);
@@ -38,16 +51,16 @@ export default function NotesDossier({ dossierId }) {
   const chargerNotes = () => {
     setChargement(true);
     setErreur(null);
-    return listerNotesDossier(dossierId)
+    return lister(cibleId)
       .then(setNotes)
-      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? 'Impossible de récupérer les notes de ce dossier.'))
+      .catch((erreur) => setErreur(erreur.response?.data?.erreur ?? texteErreurChargement))
       .finally(() => setChargement(false));
   };
 
   useEffect(() => {
     chargerNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dossierId]);
+  }, [cibleId]);
 
   // Rafraîchissement automatique (audit 2026-08-24) : ne touche que la liste des notes déjà
   // reçues, jamais `contenu` (le brouillon de note en cours de saisie, état séparé ci-dessus) —
@@ -61,7 +74,7 @@ export default function NotesDossier({ dossierId }) {
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
     try {
-      await ajouterNoteDossier(dossierId, { contenu: contenuNettoye });
+      await ajouter(cibleId, { contenu: contenuNettoye });
       setContenu('');
       await chargerNotes();
     } catch (erreur) {
@@ -91,7 +104,7 @@ export default function NotesDossier({ dossierId }) {
       {erreur && <p role="alert">{erreur}</p>}
 
       {!chargement && !erreur && notes.length === 0 && (
-        <p className="notes-dossier__vide">Aucune note enregistrée pour ce dossier.</p>
+        <p className="notes-dossier__vide">{texteAucuneNote}</p>
       )}
 
       {!chargement && !erreur && notes.length > 0 && (

@@ -73,6 +73,12 @@ async function creerJeuDeTest(trx) {
     // Créée le 15/09 à 22 h 30 UTC = 16/09 à 0 h 30 à PARIS : dans la période (16/09 -> 15/10), alors
     // qu'en jour UTC elle en serait exclue. Validée en 1 h.
     d8: await demande({ nom: 'D8', sites: [s1], colonnes: { statut: 'validee', date_creation: '2026-09-15T22:30:00Z', date_traitement: '2026-09-15T23:30:00Z', type_contrat: 'cdi', poste: 'gouvernant', salarie_deja_employe: false } }),
+    // « EN ATTENTE » (2026-09-30) : envoyée il y a 26 h, mise en attente 4 h plus tard, premier jour
+    // AUJOURD'HUI -> doit figurer dans les DEUX listes prioritaires ; aucune décision (pas de délai).
+    d9: await demande({ nom: 'D9', sites: [s3], colonnes: { statut: 'en_attente', date_creation: '2026-10-14T08:00:00Z', motif_mise_en_attente: 'Attente planning', date_mise_en_attente: '2026-10-14T12:00:00Z', date_debut: '2026-10-15', type_contrat: 'cdi', poste: 'equipier', salarie_deja_employe: false } }),
+    // Passée par « En attente » (1 h après l'envoi) puis VALIDÉE 10 h après l'envoi : son délai compte
+    // 10 h (envoi -> décision finale), jamais 1 h (envoi -> mise en attente).
+    d10: await demande({ nom: 'D10', demandeur: u2, sites: [s3], colonnes: { statut: 'validee', date_creation: '2026-10-07T08:00:00Z', motif_mise_en_attente: 'Pièce manquante', date_mise_en_attente: '2026-10-07T09:00:00Z', date_traitement: '2026-10-07T18:00:00Z', date_debut: '2026-10-12', type_contrat: 'cdi', poste: 'cafetier', salarie_deja_employe: true } }),
   };
   return { entiteA, entiteB, u1, u2, s1, s2, s3, ids };
 }
@@ -93,61 +99,61 @@ async function executer() {
         assert.equal(t.filtres.fin, '2026-10-15');
         assert.equal(t.granularite, 'semaine');
       });
-      verifier('Priorité : en attente avec premier jour aujourd’hui ou demain -> D1 seulement (D7 d’une autre entité exclue)', () =>
-        assert.deepEqual(idsDe(t.priorite.premierJourProche), [ids.d1]));
-      verifier('Priorité : en attente depuis plus de 24 h -> D2 seulement (D1 envoyée il y a 2 h)', () =>
-        assert.deepEqual(idsDe(t.priorite.enAttentePlus24h), [ids.d2]));
+      verifier('Priorité : à traiter ou en attente, premier jour aujourd’hui ou demain -> D1 (à traiter) et D9 (en attente) ; D7 d’une autre entité exclue', () =>
+        assert.deepEqual(idsDe(t.priorite.premierJourProche), [ids.d1, ids.d9]));
+      verifier('Priorité : à traiter ou en attente depuis plus de 24 h -> D2 (à traiter) et D9 (en attente) ; D1 envoyée il y a 2 h', () =>
+        assert.deepEqual(idsDe(t.priorite.aTraiterPlus24h), [ids.d2, ids.d9]));
       verifier('Priorité : validée APRÈS son premier jour (retard) -> D3 seulement', () =>
         assert.deepEqual(idsDe(t.priorite.valideesEnRetard), [ids.d3]));
       verifier('Priorité : les lignes portent leurs sites (D1 : SITE DEUX, SITE UN)', () =>
-        assert.deepEqual(t.priorite.premierJourProche[0].sites_affectation.map((s) => s.initiales).sort(), ['SD', 'SU']));
+        assert.deepEqual(t.priorite.premierJourProche.find((l) => l.id === ids.d1).sites_affectation.map((s) => s.initiales).sort(), ['SD', 'SU']));
 
-      verifier('Activité : 6 demandes sur la période (D6 hors période, D7 autre entité, D8 incluse grâce à l’heure de Paris)', () => {
-        assert.equal(t.activite.total, 6);
-        assert.deepEqual(t.activite.parStatut, { envoyee: 2, validee: 3, rejetee: 1 });
+      verifier('Activité : 8 demandes sur la période (D6 hors période, D7 autre entité, D8 incluse grâce à l’heure de Paris), dont 1 en attente', () => {
+        assert.equal(t.activite.total, 8);
+        assert.deepEqual(t.activite.parStatut, { envoyee: 2, en_attente: 1, validee: 4, rejetee: 1 });
       });
-      verifier('Activité : taux de rejet = rejetées / décidées = 1 / 4', () => assert.equal(t.activite.tauxRejet, 0.25));
-      verifier('Activité : délai moyen 32,25 h et médian 3 h sur 4 demandes traitées (122 h, 2 h, 4 h, 1 h)', () => {
-        assert.equal(t.activite.nombreTraitees, 4);
-        assert.equal(t.activite.delaiMoyenHeures, 32.25);
-        assert.equal(t.activite.delaiMedianHeures, 3);
+      verifier('Activité : taux de rejet = rejetées / décidées = 1 / 5 (D9 en attente n’est pas décidée)', () => assert.equal(t.activite.tauxRejet, 0.2));
+      verifier('Activité : délai jusqu’à la décision FINALE — moyen 27,8 h et médian 4 h sur 5 traitées (122, 2, 4, 1 et 10 h pour D10, pas 1 h)', () => {
+        assert.equal(t.activite.nombreTraitees, 5);
+        assert.equal(t.activite.delaiMoyenHeures, 27.8);
+        assert.equal(t.activite.delaiMedianHeures, 4);
       });
-      verifier('Activité : évolution par semaine (lundi), semaines vides incluses', () =>
+      verifier('Activité : évolution par semaine (lundi), semaines vides incluses, série « en attente »', () =>
         assert.deepEqual(t.activite.evolution, [
-          { periode: '2026-09-14', envoyee: 0, validee: 2, rejetee: 0 },
-          { periode: '2026-09-21', envoyee: 0, validee: 0, rejetee: 0 },
-          { periode: '2026-09-28', envoyee: 0, validee: 1, rejetee: 1 },
-          { periode: '2026-10-05', envoyee: 0, validee: 0, rejetee: 0 },
-          { periode: '2026-10-12', envoyee: 2, validee: 0, rejetee: 0 },
+          { periode: '2026-09-14', envoyee: 0, en_attente: 0, validee: 2, rejetee: 0 },
+          { periode: '2026-09-21', envoyee: 0, en_attente: 0, validee: 0, rejetee: 0 },
+          { periode: '2026-09-28', envoyee: 0, en_attente: 0, validee: 1, rejetee: 1 },
+          { periode: '2026-10-05', envoyee: 0, en_attente: 0, validee: 1, rejetee: 0 },
+          { periode: '2026-10-12', envoyee: 2, en_attente: 1, validee: 0, rejetee: 0 },
         ]));
 
-      verifier('Répartition : 4 CDD / 2 CDI ; CDD : 2 remplacements, 2 surcroîts', () => {
-        assert.deepEqual(t.repartition.contrats, { cdd: 4, cdi: 2 });
+      verifier('Répartition : 4 CDD / 4 CDI ; CDD : 2 remplacements, 2 surcroîts', () => {
+        assert.deepEqual(t.repartition.contrats, { cdd: 4, cdi: 4 });
         assert.deepEqual(t.repartition.motifsCdd, { remplacement_absent: 2, surcroit_activite: 2 });
       });
       verifier('Répartition : top sites (une demande à plusieurs sites compte pour chacun) + 1 « Non référencé » (D4)', () => {
         assert.deepEqual(
           t.repartition.sites.map((s) => [s.id, s.nombre]),
           [
+            [s3.id, 3], // à égalité avec SITE UN : départage alphabétique (« SITE TROIS » avant)
             [s1.id, 3],
             [s2.id, 2],
-            [s3.id, 1],
           ],
         );
         assert.equal(t.repartition.nonReferencees, 1);
       });
       verifier('Répartition : par poste, par demandeur, nouveaux / déjà travaillé chez nous', () => {
         const postes = Object.fromEntries(t.repartition.postes.map((p) => [p.poste, p.nombre]));
-        assert.deepEqual(postes, { cafetier: 2, equipier: 2, femme_valet_chambre: 1, gouvernant: 1 });
+        assert.deepEqual(postes, { cafetier: 3, equipier: 3, femme_valet_chambre: 1, gouvernant: 1 });
         assert.deepEqual(
           t.repartition.demandeurs.map((d) => [d.id, d.nombre]),
           [
-            [u1.id, 4],
-            [u2.id, 2],
+            [u1.id, 5],
+            [u2.id, 3],
           ],
         );
-        assert.equal(t.repartition.nouveauxSalaries, 4);
-        assert.equal(t.repartition.dejaTravailleChezNous, 2);
+        assert.equal(t.repartition.nouveauxSalaries, 5);
+        assert.equal(t.repartition.dejaTravailleChezNous, 3);
       });
 
       verifier('Anticipation : CDD finissant sous 7 j -> D3 ; sous 15 j -> D3 et D5 (D4 rejetée et D6 hors période exclues)', () => {
@@ -160,20 +166,27 @@ async function executer() {
       });
 
       const parSite = await calculer({ siteId: s1.id });
-      verifier('Filtre site (SITE UN) : D1, D2, D8', () => assert.deepEqual(parSite.activite.parStatut, { envoyee: 2, validee: 1, rejetee: 0 }));
+      verifier('Filtre site (SITE UN) : D1, D2, D8', () => assert.deepEqual(parSite.activite.parStatut, { envoyee: 2, en_attente: 0, validee: 1, rejetee: 0 }));
       const nonRef = await calculer({ siteId: 'non_reference' });
       verifier('Filtre « Non référencé » : D4 seule', () => assert.equal(nonRef.activite.total, 1));
       const cdi = await calculer({ typeContrat: 'cdi' });
-      verifier('Filtre type de contrat (CDI) : D2 et D8', () => assert.deepEqual(cdi.repartition.contrats, { cdd: 0, cdi: 2 }));
+      verifier('Filtre type de contrat (CDI) : D2, D8, D9 et D10', () => assert.deepEqual(cdi.repartition.contrats, { cdd: 0, cdi: 4 }));
       const rejetees = await calculer({ statut: 'rejetee' });
       verifier('Filtre statut (rejetée) : D4 seule, aucune priorité', () => {
         assert.equal(rejetees.activite.total, 1);
-        assert.equal(rejetees.priorite.premierJourProche.length + rejetees.priorite.enAttentePlus24h.length, 0);
+        assert.equal(rejetees.priorite.premierJourProche.length + rejetees.priorite.aTraiterPlus24h.length, 0);
+      });
+      const enAttente = await calculer({ statut: 'en_attente' });
+      verifier('Filtre statut (en attente) : D9 seule, présente dans les deux listes prioritaires, aucun délai', () => {
+        assert.equal(enAttente.activite.total, 1);
+        assert.deepEqual(idsDe(enAttente.priorite.premierJourProche), [ids.d9]);
+        assert.deepEqual(idsDe(enAttente.priorite.aTraiterPlus24h), [ids.d9]);
+        assert.equal(enAttente.activite.nombreTraitees, 0);
       });
       const longue = await calculer({ debut: '2026-01-01', fin: '2026-10-15' });
       verifier('Période de plus de 3 mois : évolution par mois, D6 (août) désormais comptée', () => {
         assert.equal(longue.granularite, 'mois');
-        assert.equal(longue.activite.total, 7);
+        assert.equal(longue.activite.total, 9);
         assert.equal(longue.activite.evolution.length, 10);
       });
       const autreEntite = await calculer({}, entiteB);

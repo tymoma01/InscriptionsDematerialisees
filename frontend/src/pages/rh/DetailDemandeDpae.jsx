@@ -4,7 +4,17 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import ModaleRejeterDpae from './ModaleRejeterDpae';
-import { obtenirDemande, validerDemande, rejeterDemande } from '../../services/dpaeService';
+import ModaleValiderDpae from './ModaleValiderDpae';
+import NotesDossier from '../../core/dossier/NotesDossier';
+import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import {
+  obtenirDemande,
+  validerDemande,
+  rejeterDemande,
+  mettreEnAttenteDemande,
+  listerNotesDemande,
+  ajouterNoteDemande,
+} from '../../services/dpaeService';
 import { useSession } from '../../core/auth/useSession';
 import { ROLES_DPAE_RH } from '../../core/auth/rolesGroupes';
 import './DetailDemandeDpae.css';
@@ -18,8 +28,9 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-const VARIANTE_PAR_STATUT = { envoyee: 'attente', validee: 'succes', rejetee: 'echec' };
-const LIBELLE_PAR_STATUT = { envoyee: 'À traiter', validee: 'Validée', rejetee: 'Rejetée' };
+// Statuts sans décision finale (2026-09-30) : Valider/Rejeter restent possibles ; « Mettre en
+// attente » seulement depuis « À traiter » (voir demandeDpaeService.js, transitions autorisées).
+const STATUTS_A_DECIDER = ['envoyee', 'en_attente'];
 const LIBELLE_PAR_TYPE = {
   nouvelle_embauche: 'Nouvelle embauche',
   prolongation: 'Prolongation',
@@ -58,7 +69,10 @@ function ligne(libelle, valeur) {
 // à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, ROLES_DPAE_CONSULTATION),
 // ouverte d'un clic depuis « Suivi des demandes DPAE » ; le serveur décide quelles fiches chacun
 // peut ouvrir (dpae.routes.js, GET /:id). Les actions Valider/Rejeter ne sont affichées qu'aux
-// rôles de traitement RH (RH, Admin), comme côté serveur.
+// rôles de traitement RH (RH, Admin), comme côté serveur. « Mettre en attente » (2026-09-30) : même
+// rôles, motif obligatoire, uniquement sur une demande « À traiter ». Notes propres à la demande
+// (2026-09-30) en bas de fiche, juste avant les actions : lecture et ajout pour tous les rôles de
+// consultation (Admin, RH, Planning), même composant et mêmes règles que les notes d'un dossier.
 export default function DetailDemandeDpae() {
   const { demandeId } = useParams();
   const { utilisateur } = useSession();
@@ -72,7 +86,9 @@ export default function DetailDemandeDpae() {
   const [erreur, setErreur] = useState(null);
   const [actionEnCours, setActionEnCours] = useState(false);
   const [erreurAction, setErreurAction] = useState(null);
-  const [modaleRejetOuverte, setModaleRejetOuverte] = useState(false);
+  // null | 'validation' | 'rejet' | 'attente' — une fenêtre de confirmation par décision ; rejet et
+  // mise en attente partagent la même modale à motif obligatoire.
+  const [modaleOuverte, setModaleOuverte] = useState(null);
 
   const charger = () => {
     setChargement(true);
@@ -92,6 +108,7 @@ export default function DetailDemandeDpae() {
     setErreurAction(null);
     try {
       await validerDemande(demandeId);
+      setModaleOuverte(null);
       await charger();
     } catch (erreurRequete) {
       setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de valider cette demande.');
@@ -105,13 +122,32 @@ export default function DetailDemandeDpae() {
     setErreurAction(null);
     try {
       await rejeterDemande(demandeId, motifRejet);
-      setModaleRejetOuverte(false);
+      setModaleOuverte(null);
       await charger();
     } catch (erreurRequete) {
       setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de rejeter cette demande.');
     } finally {
       setActionEnCours(false);
     }
+  };
+
+  const mettreEnAttente = async (motif) => {
+    setActionEnCours(true);
+    setErreurAction(null);
+    try {
+      await mettreEnAttenteDemande(demandeId, motif);
+      setModaleOuverte(null);
+      await charger();
+    } catch (erreurRequete) {
+      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de mettre cette demande en attente.');
+    } finally {
+      setActionEnCours(false);
+    }
+  };
+
+  const fermerModale = () => {
+    setModaleOuverte(null);
+    setErreurAction(null);
   };
 
   if (chargement) {
@@ -146,8 +182,8 @@ export default function DetailDemandeDpae() {
             </h1>
             <div className="page-detail-dpae__badges">
               <StatutBadge
-                libelle={LIBELLE_PAR_STATUT[demande.statut] ?? demande.statut}
-                variante={VARIANTE_PAR_STATUT[demande.statut] ?? 'neutre'}
+                libelle={libelleStatutDpae(demande.statut)}
+                variante={varianteStatutDpae(demande.statut)}
               />
               {/* "En un clic accéder à la fiche du candidat" (demande utilisateur, module Demandes
                   DPAE) — dossier_id résolu côté back via candidat_id (voir demandeDpaeRepository.js,
@@ -178,6 +214,11 @@ export default function DetailDemandeDpae() {
               `${FORMAT_DATE_HEURE.format(new Date(demande.date_traitement))} par ${demande.traitant_prenom} ${demande.traitant_nom}`,
             )}
           {demande.statut === 'rejetee' && ligne('Motif de rejet', demande.motif_rejet)}
+          {/* Dernière mise en attente : affichée tant que la demande reste « En attente ». */}
+          {demande.statut === 'en_attente' &&
+            demande.date_mise_en_attente &&
+            ligne('Mise en attente le', FORMAT_DATE_HEURE.format(new Date(demande.date_mise_en_attente)))}
+          {demande.statut === 'en_attente' && ligne('Motif de mise en attente', demande.motif_mise_en_attente)}
         </section>
 
         <section className="page-detail-dpae__bloc">
@@ -258,24 +299,75 @@ export default function DetailDemandeDpae() {
           </section>
         )}
 
-        {demande.statut === 'envoyee' && peutTraiter && (
+        <NotesDossier
+          cibleId={demande.id}
+          lister={listerNotesDemande}
+          ajouter={ajouterNoteDemande}
+          texteAucuneNote="Aucune note enregistrée pour cette demande."
+          texteErreurChargement="Impossible de récupérer les notes de cette demande."
+        />
+
+        {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (
           <section className="page-detail-dpae__actions">
-            {erreurAction && <p role="alert">{erreurAction}</p>}
-            <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleRejetOuverte(true)} disabled={actionEnCours}>
+            {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
+            <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleOuverte('rejet')} disabled={actionEnCours}>
               Rejeter
             </button>
-            <button type="button" className="page-detail-dpae__valider" onClick={valider} disabled={actionEnCours}>
-              {actionEnCours ? 'Traitement…' : 'Valider'}
+            {demande.statut === 'envoyee' && (
+              <button
+                type="button"
+                className="page-detail-dpae__mettre-en-attente"
+                onClick={() => setModaleOuverte('attente')}
+                disabled={actionEnCours}
+              >
+                Mettre en attente
+              </button>
+            )}
+            <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('validation')} disabled={actionEnCours}>
+              Valider
             </button>
           </section>
         )}
 
-        {modaleRejetOuverte && (
-          <ModaleRejeterDpae
-            onConfirmer={rejeter}
-            onAnnuler={() => setModaleRejetOuverte(false)}
+        {/* Confirmation avant validation (2026-09-30) — même comportement que la demande soit « À
+            traiter » ou « En attente ». Rappel formaté comme les sections de la fiche ci-dessus. */}
+        {modaleOuverte === 'validation' && (
+          <ModaleValiderDpae
+            recapitulatif={[
+              ['Salarié', `${demande.salarie_prenom} ${demande.salarie_nom}`],
+              ['Type de demande', LIBELLE_PAR_TYPE[demande.type_demande] ?? demande.type_demande],
+              ['Type de contrat', demande.type_contrat?.toUpperCase()],
+              ['Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste]],
+              ['Premier jour', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut))],
+              [
+                (demande.sites_affectation ?? []).length > 1 ? "Sites d'affectation" : "Site d'affectation",
+                (demande.sites_affectation ?? []).length > 0
+                  ? demande.sites_affectation.map((site) => `${site.nom} (${site.initiales})`).join(', ')
+                  : demande.hotel,
+              ],
+            ]}
+            onConfirmer={valider}
+            onAnnuler={fermerModale}
             enCours={actionEnCours}
             erreur={erreurAction}
+          />
+        )}
+
+        {modaleOuverte === 'rejet' && (
+          <ModaleRejeterDpae onConfirmer={rejeter} onAnnuler={fermerModale} enCours={actionEnCours} erreur={erreurAction} />
+        )}
+
+        {modaleOuverte === 'attente' && (
+          <ModaleRejeterDpae
+            onConfirmer={mettreEnAttente}
+            onAnnuler={fermerModale}
+            enCours={actionEnCours}
+            erreur={erreurAction}
+            titre="Mettre la demande en attente"
+            libelleMotif="Motif de la mise en attente (obligatoire)"
+            libelleConfirmer="Mettre en attente"
+            libelleEnCours="Mise en attente…"
+            variante="attente"
           />
         )}
       </div>

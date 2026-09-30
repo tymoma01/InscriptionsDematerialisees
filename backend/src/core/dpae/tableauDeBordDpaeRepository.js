@@ -44,27 +44,32 @@ const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.sta
 
 // --- 1. À traiter en priorité ---------------------------------------------------------------------
 
-// En attente dont le premier jour est aujourd'hui ou demain (heure de Paris).
+// Demandes encore sans décision (2026-09-30) : « À traiter » ('envoyee') ET « En attente »
+// ('en_attente') — une mise en attente n'est pas une décision, la demande reste prioritaire.
+const SANS_DECISION = "base.statut IN ('envoyee', 'en_attente')";
+
+// Sans décision, dont le premier jour est aujourd'hui ou demain (heure de Paris).
 function listerPremierJourProche(bd, entiteId, filtres, maintenant) {
   return executerSurBase(
     bd,
     entiteId,
     filtres,
     `SELECT ${COLONNES_LISTE} FROM base
-     WHERE base.statut = 'envoyee' AND base.date_debut BETWEEN ${AUJOURDHUI} AND ${AUJOURDHUI} + 1
+     WHERE ${SANS_DECISION} AND base.date_debut BETWEEN ${AUJOURDHUI} AND ${AUJOURDHUI} + 1
      ORDER BY base.date_debut, base.date_creation`,
     [maintenant, maintenant],
   );
 }
 
-// En attente depuis plus de 24 h (écart réel entre l'envoi et maintenant).
-function listerEnAttentePlus24h(bd, entiteId, filtres, maintenant) {
+// Sans décision depuis plus de 24 h (écart réel entre l'envoi et maintenant — une mise en attente ne
+// remet pas ce compteur à zéro).
+function listerATraiterPlus24h(bd, entiteId, filtres, maintenant) {
   return executerSurBase(
     bd,
     entiteId,
     filtres,
     `SELECT ${COLONNES_LISTE} FROM base
-     WHERE base.statut = 'envoyee' AND base.date_creation < ?::timestamptz - interval '24 hours'
+     WHERE ${SANS_DECISION} AND base.date_creation < ?::timestamptz - interval '24 hours'
      ORDER BY base.date_creation`,
     [maintenant],
   );
@@ -89,7 +94,9 @@ function compterParStatut(bd, entiteId, filtres) {
   return executerSurBase(bd, entiteId, filtres, 'SELECT base.statut, count(*)::int AS nombre FROM base GROUP BY base.statut');
 }
 
-// Délai de traitement RH (envoi -> décision), en heures, sur les demandes décidées de la sélection.
+// Délai de traitement RH (envoi -> décision FINALE), en heures, sur les demandes décidées de la
+// sélection. date_traitement n'est posée qu'à la validation/au rejet, jamais à une mise en attente
+// (voir migration 070) : une demande passée par « En attente » compte donc de son envoi à sa décision.
 async function calculerDelais(bd, entiteId, filtres) {
   const [ligne] = await executerSurBase(
     bd,
@@ -115,6 +122,7 @@ function calculerEvolution(bd, entiteId, filtres, granularite) {
     filtres,
     `SELECT to_char(serie.debut, 'YYYY-MM-DD') AS periode,
             count(base.id) FILTER (WHERE base.statut = 'envoyee')::int AS envoyee,
+            count(base.id) FILTER (WHERE base.statut = 'en_attente')::int AS en_attente,
             count(base.id) FILTER (WHERE base.statut = 'validee')::int AS validee,
             count(base.id) FILTER (WHERE base.statut = 'rejetee')::int AS rejetee
      FROM generate_series(date_trunc('${unite}', ?::date::timestamp), date_trunc('${unite}', ?::date::timestamp), interval '1 ${unite}') AS serie(debut)
@@ -219,7 +227,7 @@ function listerFinsDeCdd(bd, entiteId, filtres, maintenant) {
 module.exports = {
   requeteBase,
   listerPremierJourProche,
-  listerEnAttentePlus24h,
+  listerATraiterPlus24h,
   listerValideesEnRetard,
   compterParStatut,
   calculerDelais,

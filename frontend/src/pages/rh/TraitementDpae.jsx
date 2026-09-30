@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -6,12 +6,11 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { listerDemandesRh } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import './TraitementDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-const VARIANTE_PAR_STATUT = { envoyee: 'attente', validee: 'succes', rejetee: 'echec' };
-const LIBELLE_PAR_STATUT = { envoyee: 'À traiter', validee: 'Validée', rejetee: 'Rejetée' };
 const LIBELLE_PAR_TYPE = {
   nouvelle_embauche: 'Nouvelle embauche',
   prolongation: 'Prolongation',
@@ -26,11 +25,9 @@ const LIBELLE_PAR_TYPE = {
 // dossier, rôle/statut de compte sur Comptes utilisateurs — voir FiltresStatut.jsx). Chaque code
 // correspond exactement à un statut réel de `demandes_dpae` (dpae.routes.js accepte n'importe quel
 // `?statut=`, pas seulement 'envoyee'/'tous' — aucun changement backend nécessaire ici).
-const STATUTS_FILTRABLES = [
-  { code: 'envoyee', libelle: 'À traiter' },
-  { code: 'validee', libelle: 'Validées' },
-  { code: 'rejetee', libelle: 'Rejetées' },
-];
+// Libellés et couleurs : source unique core/dpae/statutsDpae.js (2026-09-30), mêmes couleurs que
+// les badges du tableau ci-dessous.
+const STATUTS_FILTRABLES = STATUTS_DPAE.map(({ code, libellePluriel, variante }) => ({ code, libelle: libellePluriel, variante }));
 
 // File RH du module Demandes DPAE (2026-09-28) — par défaut, uniquement les demandes 'envoyee'
 // (file à traiter, voir dpae.routes.js GET / sans ?statut) ; le filtre "Tous" (statutFiltre nul)
@@ -40,6 +37,21 @@ export default function TraitementDpae() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [statutFiltre, setStatutFiltre] = useState('envoyee');
+  // Compteurs des pastilles (2026-09-30) : calculés sur TOUTES les demandes de l'entité (même
+  // route, ?statut=tous), chargées à part — la liste affichée et son filtrage restent inchangés.
+  const [toutesDemandes, setToutesDemandes] = useState(null);
+
+  const chargerCompteurs = () =>
+    listerDemandesRh('tous')
+      .then(setToutesDemandes)
+      .catch(() => {});
+
+  const compteurs = useMemo(() => {
+    if (!toutesDemandes) return undefined;
+    const parStatut = {};
+    for (const demande of toutesDemandes) parStatut[demande.statut] = (parStatut[demande.statut] ?? 0) + 1;
+    return parStatut;
+  }, [toutesDemandes]);
 
   const charger = (statut) => {
     setChargement(true);
@@ -51,6 +63,7 @@ export default function TraitementDpae() {
 
   useEffect(() => {
     charger(statutFiltre);
+    chargerCompteurs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statutFiltre]);
 
@@ -58,6 +71,7 @@ export default function TraitementDpae() {
     listerDemandesRh(statutFiltre ?? 'tous')
       .then(setDemandes)
       .catch(() => {});
+    chargerCompteurs();
   });
 
   return (
@@ -73,6 +87,8 @@ export default function TraitementDpae() {
           statutFiltre={statutFiltre}
           onChangerStatutFiltre={setStatutFiltre}
           ariaLabel="Filtrer par statut de demande"
+          compteurTous={toutesDemandes?.length}
+          compteurs={compteurs}
         />
 
         {chargement && <p>Chargement…</p>}
@@ -104,10 +120,7 @@ export default function TraitementDpae() {
                     {demande.demandeur_prenom} {demande.demandeur_nom}
                   </td>
                   <td>
-                    <StatutBadge
-                      libelle={LIBELLE_PAR_STATUT[demande.statut] ?? demande.statut}
-                      variante={VARIANTE_PAR_STATUT[demande.statut] ?? 'neutre'}
-                    />
+                    <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
                   </td>
                   <td>
                     <Link to={`/rh/dpae/${demande.id}`}>Voir la demande</Link>

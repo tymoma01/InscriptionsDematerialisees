@@ -40,6 +40,24 @@ export async function rejeterDemande(demandeId, motifRejet) {
   await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet });
 }
 
+// « À traiter » -> « En attente » (2026-09-30), motif obligatoire (refusé sinon côté serveur).
+export async function mettreEnAttenteDemande(demandeId, motif) {
+  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { motif });
+}
+
+// Notes propres à une demande (2026-09-30) — même forme de réponse que les notes d'un dossier
+// (noteDossierService.js), affichées par le même composant NotesDossier.jsx. auteurId jamais
+// envoyé : le back le prend de la session.
+export async function listerNotesDemande(demandeId) {
+  const { data } = await api.get(`/dpae/${demandeId}/notes`);
+  return data;
+}
+
+export async function ajouterNoteDemande(demandeId, { contenu }) {
+  const { data } = await api.post(`/dpae/${demandeId}/notes`, { contenu });
+  return data;
+}
+
 // Autocomplétion "nom du salarié" (RechercheCandidatSalarie.jsx) — texte trop court ignoré côté
 // back (voir dossierService.rechercherCandidats), pas la peine de dupliquer ce seuil ici.
 export async function rechercherCandidats(texte) {

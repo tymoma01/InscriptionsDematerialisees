@@ -8,24 +8,12 @@ import { useParametreURL } from '../../core/filtres/useParametreURL';
 import { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_CONSULTATION_TOUTES } from '../../core/auth/rolesGroupes';
 import { listerSuiviDemandes } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import './SuiviDemandesDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Mêmes 3 statuts que la migration 066 (pas de brouillon, voir demandeDpaeService.js) — variante
-// purement visuelle propre à cette page (même convention que Relances.jsx/VARIANTE_PAR_CODE_ACCECIT,
-// dupliquée plutôt que partagée, voir CLAUDE.md conventions du projet).
-const VARIANTE_PAR_STATUT = {
-  envoyee: 'attente',
-  validee: 'succes',
-  rejetee: 'echec',
-};
-
-const LIBELLE_PAR_STATUT = {
-  envoyee: 'Envoyée',
-  validee: 'Validée',
-  rejetee: 'Rejetée',
-};
+// Libellé et couleur des statuts : source unique core/dpae/statutsDpae.js (2026-09-30).
 
 // Colonne `date` (premier jour) : le pilote PostgreSQL la renvoie comme l'instant de minuit HEURE
 // LOCALE du serveur, sérialisé en UTC (ex. « 2026-09-27T22:00:00.000Z » pour le 28/09) — même
@@ -162,8 +150,8 @@ export default function SuiviDemandesDpae() {
                   </td>
                   <td>
                     <StatutBadge
-                      libelle={LIBELLE_PAR_STATUT[demande.statut] ?? demande.statut}
-                      variante={VARIANTE_PAR_STATUT[demande.statut] ?? 'neutre'}
+                      libelle={libelleStatutDpae(demande.statut)}
+                      variante={varianteStatutDpae(demande.statut)}
                     />
                   </td>
                 </tr>

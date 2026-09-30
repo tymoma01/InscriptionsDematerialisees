@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
+const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
 const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -107,6 +108,16 @@ const rejetBodySchema = z.object({
   motifRejet: z.string().trim().min(1, 'Un motif de rejet est obligatoire.'),
 });
 
+// Mise en attente (2026-09-30) : motif OBLIGATOIRE — absent, vide ou fait d'espaces -> 400.
+const miseEnAttenteBodySchema = z.object({
+  motif: z.string().trim().min(1, 'Un motif de mise en attente est obligatoire.'),
+});
+
+// Notes d'une demande DPAE (2026-09-30) : mêmes règles que les notes d'un dossier (notes.routes.js).
+const noteBodySchema = z.object({
+  contenu: z.string().trim().min(1).max(1000),
+});
+
 function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
@@ -167,14 +178,15 @@ router.get('/suivi', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, n
 // GET /:id : sinon « tableau-de-bord » serait pris pour un identifiant de demande.
 // Filtres (tous optionnels) : debut/fin (AAAA-MM-JJ, jours parisiens de création ; défaut : les 30
 // derniers jours), siteId (id d'un site, ou 'non_reference' pour les anciennes demandes sans site
-// lié), typeContrat (cdd|cdi), statut (envoyee|validee|rejetee). Une valeur vide vaut « tous ».
+// lié), typeContrat (cdd|cdi), statut (envoyee|en_attente|validee|rejetee). Une valeur vide vaut
+// « tous ».
 const videVersIndefini = (valeur) => (valeur === '' ? undefined : valeur);
 const filtresTableauDeBordSchema = z.object({
   debut: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
   fin: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
   siteId: z.preprocess(videVersIndefini, z.union([z.literal('non_reference'), idPositifSchema]).optional()),
   typeContrat: enumOptionnel(['cdd', 'cdi']),
-  statut: enumOptionnel(['envoyee', 'validee', 'rejetee']),
+  statut: enumOptionnel(['envoyee', 'en_attente', 'validee', 'rejetee']),
 });
 
 router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
@@ -284,6 +296,89 @@ router.patch('/:id/rejeter', requireRole(...ROLES_DPAE_RH), async (req, res, nex
   }
 });
 
+// PATCH /api/dpae/:id/mettre-en-attente (2026-09-30) — « À traiter » -> « En attente », RH/Admin
+// (ROLES_DPAE_RH), motif obligatoire. Depuis tout autre statut : 409. Tracé dans journal_audit
+// (auteur = session, motif) ; le demandeur est notifié (demandeDpaeService.mettreEnAttente).
+router.patch('/:id/mettre-en-attente', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const { motif } = miseEnAttenteBodySchema.parse(req.body);
+    await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, motif);
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'demande_dpae_mise_en_attente',
+      tableCible: 'demandes_dpae',
+      cibleId: id,
+      donnees: { motif },
+      adresseIp: req.ip,
+    });
+
+    res.status(204).end();
+  } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+      return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// GET /api/dpae/:id/notes (2026-09-30) — notes propres à la demande, plus récentes d'abord. Lecture
+// ouverte aux mêmes rôles que la fiche (ROLES_DPAE_CONSULTATION : Admin, RH, Planning) ; demande
+// d'une autre entité : 404, aucune note renvoyée.
+router.get('/:id/notes', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    res.json(await notesDemandeDpaeService.listerNotes(req.entite, id));
+  } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+      return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// POST /api/dpae/:id/notes (2026-09-30) — ajoute une note (auteur pris de la session, jamais du
+// corps), mêmes rôles que la lecture. Aucune modification ni suppression (pas de route prévue).
+// Chaque ajout est tracé dans journal_audit.
+router.post('/:id/notes', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const { contenu } = noteBodySchema.parse(req.body);
+    const resultat = await notesDemandeDpaeService.ajouterNote(req.entite, {
+      demandeId: id,
+      contenu,
+      auteurId: req.utilisateur.id,
+    });
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'note_demande_dpae_creation',
+      tableCible: 'notes_demande_dpae',
+      cibleId: resultat.noteId,
+      donnees: { demandeId: id, contenu },
+      adresseIp: req.ip,
+    });
+
+    res.status(201).json(resultat);
+  } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+      return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
 module.exports = router;
 // Schéma de validation exposé pour dpae.routes.test.js (même convention que dossiers.routes.js :
 // aucune infrastructure de test HTTP dans ce projet, on teste le VRAI schéma monté sur POST /,
@@ -291,3 +386,6 @@ module.exports = router;
 module.exports.demandeBodySchema = demandeBodySchema;
 // Filtres du tableau de bord exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
+// Motif de mise en attente et note exposés pour dpae.routes.test.js (même raison que ci-dessus).
+module.exports.miseEnAttenteBodySchema = miseEnAttenteBodySchema;
+module.exports.noteBodySchema = noteBodySchema;

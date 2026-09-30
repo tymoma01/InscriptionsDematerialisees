@@ -37,6 +37,12 @@
   border-color: var(--statut-bleu-bordure);
 }
 
+.statut-badge--bleu-gris {
+  background-color: var(--statut-bleu-gris-fond);
+  color: var(--statut-bleu-gris-texte);
+  border-color: var(--statut-bleu-gris-bordure);
+}
+
 .statut-badge--violet {
   background-color: var(--statut-violet-fond);
   color: var(--statut-violet-texte);

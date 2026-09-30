@@ -73,8 +73,15 @@ function ajouterSitesAuxLignes(lignes, liens) {
 // sans base, voir tableauDeBordDpaeService.test.js). Taux de rejet : rejetées / demandes DÉCIDÉES
 // (validées + rejetées), null s'il n'y a encore aucune décision (jamais un 0 % trompeur).
 function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, liens }) {
-  const parStatut = { envoyee: 0, validee: 0, rejetee: 0, ...enMap(bruts.parStatut.map(({ statut, nombre }) => ({ cle: statut, nombre }))) };
-  const total = parStatut.envoyee + parStatut.validee + parStatut.rejetee;
+  // en_attente (« En attente », 2026-09-30) : compté dans le total, jamais dans les décidées.
+  const parStatut = {
+    envoyee: 0,
+    en_attente: 0,
+    validee: 0,
+    rejetee: 0,
+    ...enMap(bruts.parStatut.map(({ statut, nombre }) => ({ cle: statut, nombre }))),
+  };
+  const total = parStatut.envoyee + parStatut.en_attente + parStatut.validee + parStatut.rejetee;
   const decidees = parStatut.validee + parStatut.rejetee;
   const dejaEmploye = enMap(bruts.dejaEmploye.map(({ cle, nombre }) => ({ cle: String(cle), nombre })));
   const finsDeCdd = ajouterSitesAuxLignes(bruts.finsDeCdd, liens);
@@ -85,7 +92,7 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
     optionsSites,
     priorite: {
       premierJourProche: ajouterSitesAuxLignes(bruts.premierJourProche, liens),
-      enAttentePlus24h: ajouterSitesAuxLignes(bruts.enAttentePlus24h, liens),
+      aTraiterPlus24h: ajouterSitesAuxLignes(bruts.aTraiterPlus24h, liens),
       valideesEnRetard: ajouterSitesAuxLignes(bruts.valideesEnRetard, liens),
     },
     activite: {
@@ -132,7 +139,7 @@ async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = 
 
   const [
     premierJourProche,
-    enAttentePlus24h,
+    aTraiterPlus24h,
     valideesEnRetard,
     parStatut,
     delais,
@@ -148,7 +155,7 @@ async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = 
     optionsSites,
   ] = await executer([
     () => r.listerPremierJourProche(connexion, e, filtres, maintenant),
-    () => r.listerEnAttentePlus24h(connexion, e, filtres, maintenant),
+    () => r.listerATraiterPlus24h(connexion, e, filtres, maintenant),
     () => r.listerValideesEnRetard(connexion, e, filtres),
     () => r.compterParStatut(connexion, e, filtres),
     () => r.calculerDelais(connexion, e, filtres),
@@ -164,7 +171,7 @@ async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = 
     () => siteAffectationRepository.listerSitesActifs(connexion, e),
   ]);
 
-  const idsListes = [...new Set([...premierJourProche, ...enAttentePlus24h, ...valideesEnRetard, ...finsDeCdd].map((ligne) => ligne.id))];
+  const idsListes = [...new Set([...premierJourProche, ...aTraiterPlus24h, ...valideesEnRetard, ...finsDeCdd].map((ligne) => ligne.id))];
   const liens = await siteAffectationRepository.listerSitesParDemandes(connexion, idsListes);
 
   return construireTableauDeBord({
@@ -174,7 +181,7 @@ async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = 
     liens,
     bruts: {
       premierJourProche,
-      enAttentePlus24h,
+      aTraiterPlus24h,
       valideesEnRetard,
       parStatut,
       delais,

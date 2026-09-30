@@ -18,8 +18,11 @@
 }
 
 /* FiltresStatut.jsx porte déjà son propre style (FiltresStatut.css) — juste l'espacement avec le
-   tableau ci-dessous, propre à cette page. */
+   tableau ci-dessous, propre à cette page. align-items: center (2026-09-30) : « Tous » centré sur
+   la hauteur de la boîte des statuts (qui a son propre padding), donc sur la même ligne et à la
+   même hauteur que les autres pastilles — sinon il restait calé en haut, décalé de ce padding. */
 .page-traitement-dpae .filtres-statut {
+  align-items: center;
   margin-bottom: var(--espace-moyen);
 }
 

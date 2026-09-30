@@ -29,6 +29,12 @@ import './FiltresStatut.css';
 // est une réponse à part entière. Seule l'ABSENCE totale de la prop `compteurs` (undefined)
 // désactive l'affichage des compteurs : comportement historique inchangé pour Utilisateurs.jsx,
 // qui réutilise ce même composant pour filtrer par rôle/statut de compte, sans compteur.
+//
+// `variante` optionnelle sur chaque option (2026-09-30, filtres DPAE) : même nom de variante que
+// StatutBadge (ex. 'attente', 'succes', 'bleu-gris'), la pastille prend alors au repos les couleurs
+// --statut-<variante>-* du badge correspondant (voir FiltresStatut.css, une seule règle pour toutes
+// les variantes). Sans `variante` : rendu historique inchangé (les pages qui colorent déjà leurs
+// pastilles via data-statut, ex. TableauDeBordAccueil.css, ne sont pas concernées).
 export default function FiltresStatut({
   statuts = [],
   statutFiltre,
@@ -67,6 +73,16 @@ export default function FiltresStatut({
             // CSS — ce composant générique reste lui-même sans opinion sur ce que "code" représente
             // (voir en-tête de fichier : réutilisé aussi pour rôle/statut de compte).
             data-statut={statut.code}
+            data-variante={statut.variante}
+            style={
+              statut.variante
+                ? {
+                    '--pastille-fond': `var(--statut-${statut.variante}-fond)`,
+                    '--pastille-texte': `var(--statut-${statut.variante}-texte)`,
+                    '--pastille-bordure': `var(--statut-${statut.variante}-bordure)`,
+                  }
+                : undefined
+            }
             className={statutFiltre === statut.code ? 'actif' : ''}
             onClick={() => onChangerStatutFiltre(statut.code)}
           >

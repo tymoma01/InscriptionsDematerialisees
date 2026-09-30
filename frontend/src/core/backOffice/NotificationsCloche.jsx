@@ -19,7 +19,7 @@ const INTERVALLE_MS = 45_000;
 
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-// Une demande DPAE en attente devient une "notification" d'affichage — même forme que
+// Une demande DPAE à traiter devient une "notification" d'affichage — même forme que
 // notifications.routes.js (id/message/lien/lue/date_creation), pour réutiliser le même rendu
 // ci-dessous sans le dupliquer. `lue` toujours false : voir le commentaire de estRh plus bas.
 function demandeVersNotification(demande) {
@@ -168,7 +168,7 @@ export default function NotificationsCloche() {
         aria-expanded={ouvert}
         aria-label={
           estRh
-            ? `Demandes DPAE en attente, ${total}`
+            ? `Demandes DPAE à traiter, ${total}`
             : total > 0
               ? `Notifications, ${total} non lue(s)`
               : 'Notifications'
@@ -181,7 +181,7 @@ export default function NotificationsCloche() {
       {ouvert && (
         <div className="notifications-cloche__panneau" role="menu">
           <div className="notifications-cloche__entete">
-            <span>{estRh ? 'Demandes en attente' : 'Notifications'}</span>
+            <span>{estRh ? 'Demandes à traiter' : 'Notifications'}</span>
             {!estRh && notifications.some((n) => !n.lue) && (
               <button type="button" onClick={toutMarquerLu}>
                 Tout marquer comme lu
@@ -191,7 +191,7 @@ export default function NotificationsCloche() {
 
           {chargement && <p className="notifications-cloche__info">Chargement…</p>}
           {!chargement && notifications.length === 0 && (
-            <p className="notifications-cloche__info">{estRh ? 'Aucune demande en attente.' : 'Aucune notification.'}</p>
+            <p className="notifications-cloche__info">{estRh ? 'Aucune demande à traiter.' : 'Aucune notification.'}</p>
           )}
 
           <ul className="notifications-cloche__liste">

@@ -4,7 +4,21 @@ import './ModaleRejeterDpae.css';
 // Confirmation du rejet d'une demande DPAE — motif obligatoire (voir demandeDpaeService.rejeter,
 // même exigence côté serveur), même patron que ModaleForcerStatut.jsx (core/dossier/) en plus
 // simple : pas de liste de statuts à choisir, un seul champ.
-export default function ModaleRejeterDpae({ onConfirmer, onAnnuler, enCours, erreur }) {
+//
+// Réutilisée pour la mise en attente (2026-09-30, motif également obligatoire côté serveur) : les
+// textes sont des props dont la valeur par défaut reste celle du rejet.
+export default function ModaleRejeterDpae({
+  onConfirmer,
+  onAnnuler,
+  enCours,
+  erreur,
+  titre = 'Rejeter la demande',
+  libelleMotif = 'Motif du rejet (obligatoire)',
+  libelleConfirmer = 'Rejeter la demande',
+  libelleEnCours = 'Rejet…',
+  // 'rejet' (rouge) | 'attente' (bleu-gris) — couleur du bouton de confirmation.
+  variante = 'rejet',
+}) {
   const [motif, setMotif] = useState('');
 
   const confirmer = (evenement) => {
@@ -15,11 +29,11 @@ export default function ModaleRejeterDpae({ onConfirmer, onAnnuler, enCours, err
 
   return (
     <div className="modale-rejeter-dpae__fond">
-      <div className="modale-rejeter-dpae" role="dialog" aria-label="Rejeter la demande DPAE">
-        <h2>Rejeter la demande</h2>
+      <div className={`modale-rejeter-dpae modale-rejeter-dpae--${variante}`} role="dialog" aria-label={`${titre} DPAE`}>
+        <h2>{titre}</h2>
         <form onSubmit={confirmer}>
           <label>
-            <span>Motif du rejet (obligatoire)</span>
+            <span>{libelleMotif}</span>
             <textarea value={motif} onChange={(e) => setMotif(e.target.value)} rows={3} autoFocus />
           </label>
 
@@ -30,7 +44,7 @@ export default function ModaleRejeterDpae({ onConfirmer, onAnnuler, enCours, err
               Annuler
             </button>
             <button type="submit" disabled={enCours || !motif.trim()}>
-              {enCours ? 'Rejet…' : 'Rejeter la demande'}
+              {enCours ? libelleEnCours : libelleConfirmer}
             </button>
           </div>
         </form>

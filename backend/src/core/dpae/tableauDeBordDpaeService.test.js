@@ -45,7 +45,7 @@ test('granularitePeriode : semaine jusqu’à 3 mois de période, mois au-delà'
 
 const BRUTS_VIDES = {
   premierJourProche: [],
-  enAttentePlus24h: [],
+  aTraiterPlus24h: [],
   valideesEnRetard: [],
   parStatut: [],
   delais: { nombre_traitees: 0, moyen_heures: null, median_heures: null },
@@ -64,7 +64,7 @@ test('construireTableauDeBord : sans aucune décision, taux de rejet null (jamai
   const t = construireTableauDeBord({ filtres: {}, granularite: 'semaine', optionsSites: [], liens: [], bruts: BRUTS_VIDES });
   assert.equal(t.activite.total, 0);
   assert.equal(t.activite.tauxRejet, null);
-  assert.deepEqual(t.activite.parStatut, { envoyee: 0, validee: 0, rejetee: 0 });
+  assert.deepEqual(t.activite.parStatut, { envoyee: 0, en_attente: 0, validee: 0, rejetee: 0 });
   assert.deepEqual(t.repartition.contrats, { cdd: 0, cdi: 0 });
   assert.deepEqual(t.repartition.motifsCdd, { remplacement_absent: 0, surcroit_activite: 0 });
   assert.deepEqual(t.anticipation, { sous7Jours: 0, sous15Jours: 0, demandes: [] });
@@ -110,6 +110,59 @@ test('construireTableauDeBord : taux de rejet sur les décidées, sites rattach�
   assert.deepEqual(t.priorite.premierJourProche[1].sites_affectation, []);
   assert.equal(t.anticipation.sous7Jours, 1);
   assert.equal(t.anticipation.sous15Jours, 2);
+});
+
+test('construireTableauDeBord : les demandes « En attente » comptent dans le total et leur compteur, jamais dans les décidées (taux de rejet inchangé)', () => {
+  const t = construireTableauDeBord({
+    filtres: {},
+    granularite: 'semaine',
+    optionsSites: [],
+    liens: [],
+    bruts: {
+      ...BRUTS_VIDES,
+      parStatut: [
+        { statut: 'envoyee', nombre: 2 },
+        { statut: 'en_attente', nombre: 4 },
+        { statut: 'validee', nombre: 3 },
+        { statut: 'rejetee', nombre: 1 },
+      ],
+      delais: { nombre_traitees: 4, moyen_heures: 10, median_heures: 8 },
+    },
+  });
+  assert.deepEqual(t.activite.parStatut, { envoyee: 2, en_attente: 4, validee: 3, rejetee: 1 });
+  assert.equal(t.activite.total, 10);
+  assert.equal(t.activite.tauxRejet, 0.25); // 1 / (3 + 1) : les 4 en attente ne sont pas décidées
+  assert.equal(t.activite.nombreTraitees, 4);
+});
+
+// SQL réellement envoyé à la base par une fonction du repository (bd.raw simulé, aucune connexion).
+async function sqlEnvoye(t, fonction, ...arguments_) {
+  const bd = knex({ client: 'pg' });
+  const raw = t.mock.method(bd, 'raw', async () => ({ rows: [{}] }));
+  await fonction(bd, 7, { debut: '2026-09-01', fin: '2026-09-30', siteId: null, typeContrat: null, statut: null }, ...arguments_);
+  return raw.mock.calls[0].arguments[0];
+}
+
+test('À traiter en priorité : « premier jour aujourd’hui ou demain » et « depuis plus de 24 h » portent sur À traiter ET En attente', async (t) => {
+  const maintenant = new Date('2026-09-30T10:00:00Z');
+  for (const fonction of [tableauDeBordDpaeRepository.listerPremierJourProche, tableauDeBordDpaeRepository.listerATraiterPlus24h]) {
+    const sql = await sqlEnvoye(t, fonction, maintenant);
+    assert.match(sql, /base\.statut IN \('envoyee', 'en_attente'\)/, fonction.name);
+  }
+});
+
+test('Délai de traitement : mesuré jusqu’à la décision finale (date_traitement), qu’une mise en attente ne pose jamais', async (t) => {
+  const sql = await sqlEnvoye(t, tableauDeBordDpaeRepository.calculerDelais);
+  assert.match(sql, /base\.date_traitement - base\.date_creation/);
+  assert.match(sql, /WHERE base\.date_traitement IS NOT NULL/);
+  assert.doesNotMatch(sql, /date_mise_en_attente/);
+});
+
+test('Évolution : une série « en_attente » en plus des trois autres statuts', async (t) => {
+  const sql = await sqlEnvoye(t, tableauDeBordDpaeRepository.calculerEvolution, 'semaine');
+  for (const statut of ['envoyee', 'en_attente', 'validee', 'rejetee']) {
+    assert.match(sql, new RegExp(`FILTER \\(WHERE base\\.statut = '${statut}'\\)::int AS ${statut}`));
+  }
 });
 
 test('requeteBase : toujours filtrée sur l’entité et sur le jour de création en heure de Paris ; filtres optionnels', () => {

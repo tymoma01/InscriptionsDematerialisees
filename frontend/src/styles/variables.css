@@ -198,6 +198,14 @@
   --statut-vert-fonce-texte: #0a5c33;
   --statut-vert-fonce-bordure: #7ecf9c;
 
+  /* Bleu-gris (2026-09-30, statut DPAE « En attente ») — demande suspendue, ni à traiter ni
+     décidée : teinte froide et désaturée, distincte de l'ambre « À traiter », du vert « Validée »
+     et du rouge « Rejetée » avec lesquels elle apparaît, comme du bleu franc (--statut-bleu-*).
+     Contraste texte/fond 6,8:1 (WCAG AA). */
+  --statut-bleu-gris-fond: #e8eef4;
+  --statut-bleu-gris-texte: #3f5368;
+  --statut-bleu-gris-bordure: #b9c7d6;
+
   /* Sarcelle/turquoise (audit 2026-09-25, badge de rôle "Planning", Comptes utilisateurs) — teinte
      encore inutilisée par les autres variantes ci-dessus : distincte de 'bleu' (plus indigo,
      #1a4d8f) et de 'vert-clair'/'vert-fonce' (verts francs, sans composante bleue), à mi-chemin

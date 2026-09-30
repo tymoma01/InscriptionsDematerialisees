@@ -11,6 +11,13 @@ const { ROLES_DPAE_CONSULTATION, ROLES_DPAE_CONSULTATION_TOUTES } = require('../
 const STATUT_ENVOYEE = 'envoyee';
 const STATUT_VALIDEE = 'validee';
 const STATUT_REJETEE = 'rejetee';
+// « En attente » (2026-09-30) : la RH suspend une demande « À traiter » (motif obligatoire) avant
+// de décider. Transitions autorisées (aucune autre) :
+//   envoyee (« À traiter ») -> en_attente | validee | rejetee
+//   en_attente              -> validee | rejetee
+const STATUT_EN_ATTENTE = 'en_attente';
+// Statuts depuis lesquels une décision finale (validation/rejet) est encore possible.
+const STATUTS_A_DECIDER = [STATUT_ENVOYEE, STATUT_EN_ATTENTE];
 
 class ErreurDemandeIntrouvable extends Error {}
 class ErreurDemandeDejaTraitee extends Error {}
@@ -134,7 +141,7 @@ async function obtenirDemande(entite, demandeId) {
 async function valider(entite, demandeId, traitantId) {
   const bd = await db.obtenirKnex();
   const demande = await verifierDemandeExiste(bd, entite, demandeId);
-  if (demande.statut !== STATUT_ENVOYEE) {
+  if (!STATUTS_A_DECIDER.includes(demande.statut)) {
     throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" déjà traitée (statut « ${demande.statut} »).`);
   }
 
@@ -161,7 +168,7 @@ async function rejeter(entite, demandeId, traitantId, motifRejet) {
 
   const bd = await db.obtenirKnex();
   const demande = await verifierDemandeExiste(bd, entite, demandeId);
-  if (demande.statut !== STATUT_ENVOYEE) {
+  if (!STATUTS_A_DECIDER.includes(demande.statut)) {
     throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" déjà traitée (statut « ${demande.statut} »).`);
   }
 
@@ -183,6 +190,37 @@ async function rejeter(entite, demandeId, traitantId, motifRejet) {
   ]);
 }
 
+// Mise en attente (2026-09-30) : uniquement depuis « À traiter » ('envoyee') — une demande déjà en
+// attente ou déjà décidée est refusée (409). Motif obligatoire, conservé sur la demande (dernier
+// motif, affiché sur la fiche) ; le demandeur est notifié. N'est pas une décision : date de
+// traitement inchangée (voir demandeDpaeRepository.marquerEnAttente).
+async function mettreEnAttente(entite, demandeId, traitantId, motif) {
+  if (!motif || !motif.trim()) {
+    throw new Error('Un motif de mise en attente est obligatoire.');
+  }
+
+  const bd = await db.obtenirKnex();
+  const demande = await verifierDemandeExiste(bd, entite, demandeId);
+  if (demande.statut !== STATUT_ENVOYEE) {
+    throw new ErreurDemandeDejaTraitee(
+      `Demande DPAE "${demandeId}" : mise en attente impossible depuis le statut « ${demande.statut} ».`,
+    );
+  }
+
+  await demandeDpaeRepository.marquerEnAttente(bd, demandeId, { traitantId, motif: motif.trim() });
+  await notificationService.creerNotifications(bd, [
+    {
+      entiteId: entite.id,
+      utilisateurId: demande.demandeur_id,
+      type: 'demande_dpae_en_attente',
+      tableCible: 'demandes_dpae',
+      cibleId: demandeId,
+      message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été mise en attente par la RH : ${motif.trim()}`,
+      lien: `/coordination/dpae/suivi`,
+    },
+  ]);
+}
+
 module.exports = {
   creerEtEnvoyer,
   perimetreSuivi,
@@ -192,6 +230,7 @@ module.exports = {
   obtenirDemande,
   valider,
   rejeter,
+  mettreEnAttente,
   ErreurDemandeIntrouvable,
   ErreurDemandeDejaTraitee,
   ErreurSitesAffectationInvalides,

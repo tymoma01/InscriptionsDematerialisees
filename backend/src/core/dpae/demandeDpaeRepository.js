@@ -40,6 +40,10 @@ const COLONNES_DEMANDE = [
   'demandes_dpae.verif_tous_jours_inclus',
   'demandes_dpae.verif_non_planification',
   'demandes_dpae.motif_rejet',
+  // Dernière mise en attente (migration 070) — motif affiché sur la fiche tant que la demande est
+  // 'en_attente'.
+  'demandes_dpae.motif_mise_en_attente',
+  'demandes_dpae.date_mise_en_attente',
   'demandes_dpae.date_creation',
   'demandes_dpae.date_maj',
   'demandes_dpae.date_traitement',
@@ -166,10 +170,23 @@ function marquerTraitee(trx, id, { statut, traitantId, motifRejet = null }) {
   });
 }
 
+// Mise en attente (2026-09-30) : n'est PAS une décision — date_traitement et
+// traite_par_utilisateur_id restent vides (réservés à la validation/au rejet, voir migration 070).
+function marquerEnAttente(trx, id, { traitantId, motif }) {
+  return trx('demandes_dpae').where({ id }).update({
+    statut: 'en_attente',
+    motif_mise_en_attente: motif,
+    date_mise_en_attente: trx.fn.now(),
+    mis_en_attente_par_id: traitantId,
+    date_maj: trx.fn.now(),
+  });
+}
+
 module.exports = {
   trouverDemandeParId,
   listerDemandesParDemandeur,
   listerDemandesPourRh,
   creerDemande,
   marquerTraitee,
+  marquerEnAttente,
 };
