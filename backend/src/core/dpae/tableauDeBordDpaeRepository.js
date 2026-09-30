@@ -75,19 +75,6 @@ function listerATraiterPlus24h(bd, entiteId, filtres, maintenant) {
   );
 }
 
-// Validées APRÈS leur premier jour : jour parisien de la décision RH postérieur au premier jour.
-function listerValideesEnRetard(bd, entiteId, filtres) {
-  return executerSurBase(
-    bd,
-    entiteId,
-    filtres,
-    `SELECT ${COLONNES_LISTE} FROM base
-     WHERE base.statut = 'validee' AND base.date_debut IS NOT NULL
-       AND (base.date_traitement AT TIME ZONE '${FUSEAU}')::date > base.date_debut
-     ORDER BY base.date_debut DESC`,
-  );
-}
-
 // --- 2. Activité ----------------------------------------------------------------------------------
 
 function compterParStatut(bd, entiteId, filtres) {
@@ -129,6 +116,24 @@ function calculerEvolution(bd, entiteId, filtres, granularite) {
      LEFT JOIN base ON date_trunc('${unite}', (base.date_creation AT TIME ZONE '${FUSEAU}')) = serie.debut
      GROUP BY serie.debut ORDER BY serie.debut`,
     [filtres.debut, filtres.fin],
+  );
+}
+
+// --- Déclarations tardives (2026-09-30) ----------------------------------------------------------
+// Indicateur de SUIVI, plus dans « À traiter en priorité » (la RH n'a plus rien à y faire) : demandes
+// validées APRÈS leur premier jour — jour parisien de la décision RH postérieur au premier jour.
+// retard_jours = jours calendaires entre le premier jour et le jour (Paris) de la validation (>= 1).
+function listerValideesEnRetard(bd, entiteId, filtres) {
+  return executerSurBase(
+    bd,
+    entiteId,
+    filtres,
+    `SELECT ${COLONNES_LISTE},
+            ((base.date_traitement AT TIME ZONE '${FUSEAU}')::date - base.date_debut)::int AS retard_jours
+     FROM base
+     WHERE base.statut = 'validee' AND base.date_debut IS NOT NULL
+       AND (base.date_traitement AT TIME ZONE '${FUSEAU}')::date > base.date_debut
+     ORDER BY base.date_debut DESC, base.id DESC`,
   );
 }
 

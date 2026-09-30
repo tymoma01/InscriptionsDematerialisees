@@ -68,6 +68,47 @@ test('construireTableauDeBord : sans aucune décision, taux de rejet null (jamai
   assert.deepEqual(t.repartition.contrats, { cdd: 0, cdi: 0 });
   assert.deepEqual(t.repartition.motifsCdd, { remplacement_absent: 0, surcroit_activite: 0 });
   assert.deepEqual(t.anticipation, { sous7Jours: 0, sous15Jours: 0, demandes: [] });
+  assert.equal(t.priorite.nombre, 0);
+  assert.deepEqual(t.declarationsTardives, { nombre: 0, nombreValidees: 0, part: null, demandes: [] });
+});
+
+test('À traiter en priorité : seulement les deux listes d’action RH, compteur sans doublon (une demande dans les deux listes compte une fois)', () => {
+  const t = construireTableauDeBord({
+    filtres: {},
+    granularite: 'semaine',
+    optionsSites: [],
+    liens: [],
+    bruts: {
+      ...BRUTS_VIDES,
+      premierJourProche: [{ id: 1, statut: 'envoyee' }, { id: 9, statut: 'en_attente' }],
+      aTraiterPlus24h: [{ id: 2, statut: 'envoyee' }, { id: 9, statut: 'en_attente' }],
+      valideesEnRetard: [{ id: 3, statut: 'validee', retard_jours: 1 }],
+    },
+  });
+  assert.deepEqual(Object.keys(t.priorite).sort(), ['aTraiterPlus24h', 'nombre', 'premierJourProche']);
+  assert.equal(t.priorite.nombre, 3); // 1, 2 et 9 (présente deux fois, comptée une fois)
+});
+
+test('Déclarations tardives : nombre, part parmi les validées, liste avec retard et sites', () => {
+  const t = construireTableauDeBord({
+    filtres: {},
+    granularite: 'semaine',
+    optionsSites: [],
+    liens: [{ demande_dpae_id: 3, id: 10, nom: 'AIGLON', initiales: 'AIG' }],
+    bruts: {
+      ...BRUTS_VIDES,
+      parStatut: [
+        { statut: 'envoyee', nombre: 2 },
+        { statut: 'validee', nombre: 4 },
+      ],
+      valideesEnRetard: [{ id: 3, statut: 'validee', retard_jours: 2 }],
+    },
+  });
+  assert.equal(t.declarationsTardives.nombre, 1);
+  assert.equal(t.declarationsTardives.nombreValidees, 4);
+  assert.equal(t.declarationsTardives.part, 0.25);
+  assert.equal(t.declarationsTardives.demandes[0].retard_jours, 2);
+  assert.deepEqual(t.declarationsTardives.demandes[0].sites_affectation.map((s) => s.initiales), ['AIG']);
 });
 
 test('construireTableauDeBord : taux de rejet sur les décidées, sites rattachés aux lignes, CDD sous 7 j comptés à part', () => {
@@ -156,6 +197,13 @@ test('Délai de traitement : mesuré jusqu’à la décision finale (date_traite
   assert.match(sql, /base\.date_traitement - base\.date_creation/);
   assert.match(sql, /WHERE base\.date_traitement IS NOT NULL/);
   assert.doesNotMatch(sql, /date_mise_en_attente/);
+});
+
+test('Déclarations tardives (SQL) : validées seulement, jour de validation (Paris) postérieur au premier jour, retard en jours', async (t) => {
+  const sql = await sqlEnvoye(t, tableauDeBordDpaeRepository.listerValideesEnRetard);
+  assert.match(sql, /base\.statut = 'validee'/);
+  assert.match(sql, /\(base\.date_traitement AT TIME ZONE 'Europe\/Paris'\)::date > base\.date_debut/);
+  assert.match(sql, /\(\(base\.date_traitement AT TIME ZONE 'Europe\/Paris'\)::date - base\.date_debut\)::int AS retard_jours/);
 });
 
 test('Évolution : une série « en_attente » en plus des trois autres statuts', async (t) => {

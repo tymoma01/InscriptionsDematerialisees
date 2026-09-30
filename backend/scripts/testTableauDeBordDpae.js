@@ -103,8 +103,19 @@ async function executer() {
         assert.deepEqual(idsDe(t.priorite.premierJourProche), [ids.d1, ids.d9]));
       verifier('Priorité : à traiter ou en attente depuis plus de 24 h -> D2 (à traiter) et D9 (en attente) ; D1 envoyée il y a 2 h', () =>
         assert.deepEqual(idsDe(t.priorite.aTraiterPlus24h), [ids.d2, ids.d9]));
-      verifier('Priorité : validée APRÈS son premier jour (retard) -> D3 seulement', () =>
-        assert.deepEqual(idsDe(t.priorite.valideesEnRetard), [ids.d3]));
+      verifier('Priorité : aucune demande décidée dans le bloc ; compteur 3 (D1, D2, D9 — D9 présente dans les deux listes comptée une fois)', () => {
+        const lignes = [...t.priorite.premierJourProche, ...t.priorite.aTraiterPlus24h];
+        assert.ok(lignes.every((l) => ['envoyee', 'en_attente'].includes(l.statut)));
+        assert.equal(t.priorite.valideesEnRetard, undefined);
+        assert.equal(t.priorite.nombre, 3);
+      });
+      verifier('Déclarations tardives : D3 seule (validée le 06/10 pour un 1er jour au 05/10 : retard 1 j), 1 sur 4 validées = 25 %', () => {
+        assert.deepEqual(t.declarationsTardives.demandes.map((d) => [d.id, d.retard_jours]), [[ids.d3, 1]]);
+        assert.equal(t.declarationsTardives.nombre, 1);
+        assert.equal(t.declarationsTardives.nombreValidees, 4);
+        assert.equal(t.declarationsTardives.part, 0.25);
+        assert.deepEqual(t.declarationsTardives.demandes[0].sites_affectation.map((s) => s.initiales), ['SD']);
+      });
       verifier('Priorité : les lignes portent leurs sites (D1 : SITE DEUX, SITE UN)', () =>
         assert.deepEqual(t.priorite.premierJourProche.find((l) => l.id === ids.d1).sites_affectation.map((s) => s.initiales).sort(), ['SD', 'SU']));
 
@@ -174,7 +185,9 @@ async function executer() {
       const rejetees = await calculer({ statut: 'rejetee' });
       verifier('Filtre statut (rejetée) : D4 seule, aucune priorité', () => {
         assert.equal(rejetees.activite.total, 1);
-        assert.equal(rejetees.priorite.premierJourProche.length + rejetees.priorite.aTraiterPlus24h.length, 0);
+        assert.equal(rejetees.priorite.nombre, 0);
+        assert.equal(rejetees.declarationsTardives.nombre, 0);
+        assert.equal(rejetees.declarationsTardives.part, null);
       });
       const enAttente = await calculer({ statut: 'en_attente' });
       verifier('Filtre statut (en attente) : D9 seule, présente dans les deux listes prioritaires, aucun délai', () => {

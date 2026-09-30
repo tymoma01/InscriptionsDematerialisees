@@ -85,15 +85,22 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
   const decidees = parStatut.validee + parStatut.rejetee;
   const dejaEmploye = enMap(bruts.dejaEmploye.map(({ cle, nombre }) => ({ cle: String(cle), nombre })));
   const finsDeCdd = ajouterSitesAuxLignes(bruts.finsDeCdd, liens);
+  // « À traiter en priorité » (2026-09-30) : UNIQUEMENT des demandes sur lesquelles la RH doit
+  // encore agir (À traiter ou En attente, voir le repository). Une demande présente dans les deux
+  // listes n'est comptée qu'une fois.
+  const premierJourProche = ajouterSitesAuxLignes(bruts.premierJourProche, liens);
+  const aTraiterPlus24h = ajouterSitesAuxLignes(bruts.aTraiterPlus24h, liens);
+  const nombrePriorites = new Set([...premierJourProche, ...aTraiterPlus24h].map((ligne) => ligne.id)).size;
+  const valideesEnRetard = ajouterSitesAuxLignes(bruts.valideesEnRetard, liens);
 
   return {
     filtres,
     granularite,
     optionsSites,
     priorite: {
-      premierJourProche: ajouterSitesAuxLignes(bruts.premierJourProche, liens),
-      aTraiterPlus24h: ajouterSitesAuxLignes(bruts.aTraiterPlus24h, liens),
-      valideesEnRetard: ajouterSitesAuxLignes(bruts.valideesEnRetard, liens),
+      nombre: nombrePriorites,
+      premierJourProche,
+      aTraiterPlus24h,
     },
     activite: {
       total,
@@ -103,6 +110,15 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
       delaiMoyenHeures: bruts.delais.moyen_heures,
       delaiMedianHeures: bruts.delais.median_heures,
       evolution: bruts.evolution,
+    },
+    // Déclarations tardives (2026-09-30) : validées après leur premier jour, sur la période filtrée.
+    // part = tardives / validées de la même sélection ; null s'il n'y a aucune validée (jamais un
+    // 0 % trompeur, même règle que le taux de rejet).
+    declarationsTardives: {
+      nombre: valideesEnRetard.length,
+      nombreValidees: parStatut.validee,
+      part: parStatut.validee > 0 ? valideesEnRetard.length / parStatut.validee : null,
+      demandes: valideesEnRetard,
     },
     repartition: {
       contrats: { cdd: 0, cdi: 0, ...enMap(bruts.contrats) },

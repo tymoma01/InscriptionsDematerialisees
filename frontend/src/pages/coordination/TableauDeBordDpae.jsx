@@ -55,8 +55,9 @@ function libelleSites(demande) {
   return sites.length ? sites.map((site) => `${site.nom} (${site.initiales})`).join(', ') : 'Non référencé';
 }
 
-// Liste cliquable (priorités, anticipation) : chaque ligne ouvre la fiche de la demande.
-function ListeDemandes({ demandes, colonneDate, libelleDate, vide, marquer }) {
+// Liste cliquable (priorités, déclarations tardives, anticipation) : chaque ligne ouvre la fiche de
+// la demande. `sansStatut` : badge de statut masqué quand toute la liste a le même statut.
+function ListeDemandes({ demandes, colonneDate, libelleDate, vide, marquer, sansStatut = false }) {
   const navigate = useNavigate();
   if (demandes.length === 0) return <p className="tableau-bord-dpae__liste-vide">{vide}</p>;
   return (
@@ -72,7 +73,7 @@ function ListeDemandes({ demandes, colonneDate, libelleDate, vide, marquer }) {
               {libelleDate} {formaterJour(demande[colonneDate])}
             </span>
             {marquer?.(demande)}
-            <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
+            {!sansStatut && <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />}
           </button>
         </li>
       ))}
@@ -177,7 +178,8 @@ export default function TableauDeBordDpae() {
   };
 
   const t = donnees;
-  const nombrePriorites = t ? t.priorite.premierJourProche.length + t.priorite.aTraiterPlus24h.length + t.priorite.valideesEnRetard.length : 0;
+  // Demandes distinctes (une demande dans les deux listes compte une fois), calculé côté serveur.
+  const nombrePriorites = t ? t.priorite.nombre : 0;
 
   return (
     <PageBackOffice>
@@ -241,7 +243,9 @@ export default function TableauDeBordDpae() {
 
         {t && (
           <div className={`tableau-bord-dpae__contenu${chargement ? ' tableau-bord-dpae__contenu--chargement' : ''}`}>
-            {/* 1. À traiter en priorité — en tête, encadré mis en évidence. */}
+            {/* 1. À traiter en priorité — en tête, encadré mis en évidence. UNIQUEMENT des demandes sur
+                lesquelles la RH doit encore agir (À traiter / En attente) ; les validations tardives
+                sont un indicateur de suivi, bloc « Déclarations tardives » plus bas (2026-09-30). */}
             <section className="tableau-bord-dpae__priorite" aria-labelledby="titre-priorite">
               <h2 id="titre-priorite">
                 À traiter en priorité <span className="tableau-bord-dpae__compteur">{nombrePriorites}</span>
@@ -254,10 +258,6 @@ export default function TableauDeBordDpae() {
                 <div>
                   <h3>À traiter depuis plus de 24 h ({t.priorite.aTraiterPlus24h.length})</h3>
                   <ListeDemandes demandes={t.priorite.aTraiterPlus24h} colonneDate="date_creation" libelleDate="Envoyée le" vide="Aucune demande à traiter depuis plus de 24 h." />
-                </div>
-                <div>
-                  <h3>Validées après leur premier jour ({t.priorite.valideesEnRetard.length})</h3>
-                  <ListeDemandes demandes={t.priorite.valideesEnRetard} colonneDate="date_debut" libelleDate="1er jour" vide="Aucune validation en retard." />
                 </div>
               </div>
             </section>
@@ -292,6 +292,37 @@ export default function TableauDeBordDpae() {
                   ))}
                 </BarChart>
               </ResponsiveContainer>
+            </section>
+
+            {/* Déclarations tardives (2026-09-30) — indicateur de suivi, pas une alerte : couleurs
+                neutres, seul le retard est marqué en orange clair. */}
+            <h2 className="tableau-bord-dpae__section">Déclarations tardives</h2>
+            <div className="indicateurs__tuiles">
+              <Tuile valeur={t.declarationsTardives.nombre} libelle="Validées après leur 1er jour" precision="sur la période filtrée" variante="neutre" />
+              <Tuile
+                valeur={t.declarationsTardives.part === null ? '—' : `${Math.round(t.declarationsTardives.part * 100)} %`}
+                libelle="Part des demandes validées"
+                precision={`${t.declarationsTardives.nombre} sur ${t.declarationsTardives.nombreValidees} validée(s)`}
+                variante="neutre"
+              />
+            </div>
+            <section className="indicateurs__graphique">
+              <h2>Demandes validées après leur premier jour</h2>
+              <ListeDemandes
+                demandes={t.declarationsTardives.demandes}
+                colonneDate="date_debut"
+                libelleDate="1er jour"
+                vide="Aucune déclaration tardive sur la période."
+                sansStatut
+                marquer={(demande) => (
+                  <>
+                    <span className="tableau-bord-dpae__date">Validée le {formaterJour(demande.date_traitement)}</span>
+                    <span className="tableau-bord-dpae__retard">
+                      +{demande.retard_jours} jour{demande.retard_jours > 1 ? 's' : ''}
+                    </span>
+                  </>
+                )}
+              />
             </section>
 
             {/* 3. Répartition */}
