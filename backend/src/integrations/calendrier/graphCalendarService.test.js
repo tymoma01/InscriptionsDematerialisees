@@ -399,9 +399,9 @@ test('obtenirEvenement lit un événement précis avec le header Prefer UTC et r
 // 404 = "événement supprimé" (renvoie null, jamais une erreur) — c'est le signal utilisé par
 // syncCalendrierManuelService.js pour détecter une annulation manuelle depuis Outlook, même
 // convention que supprimerEvenement ci-dessus.
-test('obtenirEvenement traite un 404 comme "événement supprimé" et renvoie null, pas une erreur', async (t) => {
+test('obtenirEvenement traite un 404 ErrorItemNotFound comme "événement supprimé" et renvoie null, pas une erreur', async (t) => {
   const client = creerClientMock({
-    'GET /users/formation@accecit.com/events/outlook-evenement-abc': { erreur: { statusCode: 404 } },
+    'GET /users/formation@accecit.com/events/outlook-evenement-abc': { erreur: { statusCode: 404, code: 'ErrorItemNotFound' } },
   });
   const service = chargerServiceAvecClient(t, client);
 
@@ -420,4 +420,30 @@ test('obtenirEvenement traduit une erreur 403 en citant la permission Calendars.
     () => service.obtenirEvenement('formation@accecit.com', 'outlook-evenement-abc'),
     /Permissions Microsoft Graph insuffisantes.*"Calendars\.ReadWrite"/s,
   );
+});
+
+// Correctif 2026-10-01 : Graph répond aussi 404 pour une BOÎTE inconnue (autre code) — ce n'est
+// jamais une preuve de suppression de l'événement. Toute réponse non concluante lève une erreur qui
+// garde le statut HTTP et le code Graph d'origine (tracés par la synchronisation).
+for (const [cas, erreur] of [
+  ['404 boîte inconnue (ErrorInvalidUser)', { statusCode: 404, code: 'ErrorInvalidUser' }],
+  ['404 sans code', { statusCode: 404 }],
+  ['403 ErrorAccessDenied', { statusCode: 403, code: 'ErrorAccessDenied' }],
+  ['401 InvalidAuthenticationToken', { statusCode: 401, code: 'InvalidAuthenticationToken' }],
+  ['503', { statusCode: 503, code: 'ServiceUnavailable' }],
+]) {
+  test(`obtenirEvenement : ${cas} -> erreur (jamais « supprimé »), statut et code Graph conservés`, async (t) => {
+    const client = creerClientMock({ 'GET /users/adeville@accecit.com/events/evt-1': { erreur } });
+    const service = chargerServiceAvecClient(t, client);
+    await assert.rejects(
+      () => service.obtenirEvenement('adeville@accecit.com', 'evt-1'),
+      (e) => e.statusCode === erreur.statusCode && e.codeGraph === (erreur.code ?? null),
+    );
+  });
+}
+
+test('obtenirEvenement : erreur réseau (aucune réponse HTTP) -> erreur, jamais « supprimé »', async (t) => {
+  const client = creerClientMock({ 'GET /users/adeville@accecit.com/events/evt-1': { erreur: new Error('getaddrinfo ENOTFOUND graph.microsoft.com') } });
+  const service = chargerServiceAvecClient(t, client);
+  await assert.rejects(() => service.obtenirEvenement('adeville@accecit.com', 'evt-1'), (e) => e.statusCode === null);
 });

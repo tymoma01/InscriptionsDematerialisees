@@ -53,6 +53,8 @@ const RDV_FACTICE = {
   dossier_id: 42,
   date_heure: '2026-09-01T10:00:00.000Z',
   outlook_event_id: 'outlook-evenement-10',
+  // Boîte de création de l'événement (migration 072) : la seule que la synchronisation lit.
+  outlook_calendrier: 'formation@accecit.com',
   formateur_role_code: 'formateur',
   formateur_id: 7,
 };
@@ -65,7 +67,7 @@ test("executerSyncCalendrierManuel n'appelle rien si aucun rendez-vous actif n'a
   const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
 
   assert.equal(obtenirEvenement.mock.callCount(), 0);
-  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, total: 0 });
+  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 0 });
 });
 
 test('executerSyncCalendrierManuel annule le rendez-vous quand son événement Outlook a été supprimé', async (t) => {
@@ -134,7 +136,7 @@ test('executerSyncCalendrierManuel annule le rendez-vous quand son événement O
   assert.equal(appelAnnulation[1].formateur_id, 7);
   assert.equal(envoyerNotificationDeplacement.mock.callCount(), 0, 'une annulation ne déclenche jamais la notification de déplacement');
 
-  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, total: 1 });
+  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 1 });
 });
 
 // Audit 2026-09-21 (angle mort constaté sur 12 dossiers PROD, ex. #29/#41) : jusqu'ici, une
@@ -178,7 +180,7 @@ test('executerSyncCalendrierManuel compose la transition dossier test_non_realis
   const actions = enregistrerAction.mock.calls.map((appelAction) => appelAction.arguments[1].action);
   assert.deepEqual(actions, ['dossier_transition_test_non_realise_annulation_sync_outlook', 'rendezvous_annule_sync_outlook']);
 
-  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, total: 1 });
+  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 1 });
 });
 
 test('executerSyncCalendrierManuel déplace le rendez-vous et notifie le candidat par email quand son horaire Outlook a changé', async (t) => {
@@ -228,7 +230,7 @@ test('executerSyncCalendrierManuel déplace le rendez-vous et notifie le candida
   assert.equal(appelEmail[1].ancienneDateHeure, '2026-09-01T10:00:00.000Z');
   assert.equal(appelEmail[1].nouvelleDateHeure, '2026-09-02T14:30:00.000Z');
 
-  assert.deepEqual(resultat, { annules: 0, deplaces: 1, inchanges: 0, ignores: 0, echecs: 0, total: 1 });
+  assert.deepEqual(resultat, { annules: 0, deplaces: 1, inchanges: 0, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 1 });
 });
 
 test("executerSyncCalendrierManuel ne fait rien quand l'événement Outlook existe toujours au même horaire", async (t) => {
@@ -256,7 +258,7 @@ test("executerSyncCalendrierManuel ne fait rien quand l'événement Outlook exis
   assert.equal(mettreAJourDateHeureRendezvous.mock.callCount(), 0);
   assert.equal(ajouterNote.mock.callCount(), 0);
   assert.equal(envoyerNotification.mock.callCount(), 0);
-  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 1, ignores: 0, echecs: 0, total: 1 });
+  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 1, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 1 });
 });
 
 test('executerSyncCalendrierManuel ignore un rendez-vous déjà traité par une action concurrente (statut changé à la relecture verrouillée)', async (t) => {
@@ -274,7 +276,7 @@ test('executerSyncCalendrierManuel ignore un rendez-vous déjà traité par une 
   const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
 
   assert.equal(changerStatutRendezvous.mock.callCount(), 0);
-  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 1, echecs: 0, total: 1 });
+  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 1, echecs: 0, annulationsBloquees: 0, total: 1 });
 });
 
 test("executerSyncCalendrierManuel ignore un rendez-vous déjà replanifié depuis l'app (outlook_event_id changé à la relecture verrouillée)", async (t) => {
@@ -291,7 +293,7 @@ test("executerSyncCalendrierManuel ignore un rendez-vous déjà replanifié depu
   const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
 
   assert.equal(changerStatutRendezvous.mock.callCount(), 0);
-  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 1, echecs: 0, total: 1 });
+  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 1, echecs: 0, annulationsBloquees: 0, total: 1 });
 });
 
 test('executerSyncCalendrierManuel continue sur les rendez-vous suivants après un échec isolé', async (t) => {
@@ -316,7 +318,7 @@ test('executerSyncCalendrierManuel continue sur les rendez-vous suivants après 
 
   const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
 
-  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 1, total: 2 });
+  assert.deepEqual(resultat, { annules: 1, deplaces: 0, inchanges: 0, ignores: 0, echecs: 1, annulationsBloquees: 0, total: 2 });
 });
 
 test('executerSyncCalendrierManuel échoue explicitement si aucun utilisateur système configuré', async (t) => {
@@ -324,4 +326,209 @@ test('executerSyncCalendrierManuel échoue explicitement si aucun utilisateur sy
   t.mock.method(dossierRepository, 'trouverUtilisateurSysteme', async () => undefined);
 
   await assert.rejects(() => executerSyncCalendrierManuel(ENTITE_FACTICE), /Utilisateur système non configuré/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Correctif 2026-10-01 (incident de production) : rendez-vous d'Anni Neacsu (calendrier personnel,
+// adeville@) annulés à tort — l'événement, créé dans SA boîte, était relu dans formation@ (404).
+// La synchronisation lit désormais la boîte de CRÉATION (rendezvous.outlook_calendrier), n'annule
+// que sur « supprimé » obtenu dans cette boîte, et jamais plus de SEUIL_ANNULATIONS_PAR_PASSAGE
+// annulations par passage.
+// ---------------------------------------------------------------------------------------------
+const { SEUIL_ANNULATIONS_PAR_PASSAGE } = require('./syncCalendrierManuelService');
+
+const RDV_CALENDRIER_PERSONNEL = {
+  ...RDV_FACTICE,
+  id: 122,
+  dossier_id: 135,
+  date_heure: '2026-10-02T07:30:00.000Z',
+  outlook_event_id: 'AAMk-evenement-anni',
+  outlook_calendrier: 'adeville@accecit.com',
+  formateur_id: 31,
+};
+
+// Outlook factice : un événement n'existe QUE dans la boîte où il a été créé.
+function mockerOutlook(t, evenementsParBoite) {
+  return t.mock.method(graphCalendarService, 'obtenirEvenement', async (boite, id) => evenementsParBoite[boite]?.[id] ?? null);
+}
+
+function mockerRelectureVerrouillee(t, rendezvousListe) {
+  t.mock.method(rendezvousRepository, 'trouverRendezvousPourBasculeVerrouillee', async (trx, id) => ({
+    ...rendezvousListe.find((r) => r.id === id),
+    statut: 'prevu',
+  }));
+}
+
+function erreurGraph(statusCode, codeGraph, message = 'refus') {
+  const erreur = new Error(message);
+  erreur.statusCode = statusCode;
+  erreur.codeGraph = codeGraph;
+  return erreur;
+}
+
+test('Formateur à calendrier personnel : événement présent dans SA boîte -> lu dans cette boîte, aucune annulation (cas Anni, dossier #135)', async (t) => {
+  mockerBase(t);
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [RDV_CALENDRIER_PERSONNEL]);
+  mockerRelectureVerrouillee(t, [RDV_CALENDRIER_PERSONNEL]);
+  const obtenirEvenement = mockerOutlook(t, {
+    'adeville@accecit.com': { 'AAMk-evenement-anni': { start: { dateTime: '2026-10-02T07:30:00.0000000' } } },
+    // Absent de formation@ : c'était la boîte (fausse) interrogée avant le correctif.
+  });
+  const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.deepEqual(obtenirEvenement.mock.calls[0].arguments, ['adeville@accecit.com', 'AAMk-evenement-anni']);
+  assert.equal(changerStatut.mock.callCount(), 0);
+  assert.equal(invitationTestService.envoyerNotificationAnnulationTest.mock.callCount(), 0, 'aucun courriel d’annulation');
+  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 1, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 1 });
+});
+
+test('Vraie suppression : « supprimé » dans la bonne boîte (calendrier personnel) -> annulation, comme avant', async (t) => {
+  mockerBase(t);
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [RDV_CALENDRIER_PERSONNEL]);
+  mockerRelectureVerrouillee(t, [RDV_CALENDRIER_PERSONNEL]);
+  const obtenirEvenement = mockerOutlook(t, { 'adeville@accecit.com': {} });
+  const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.equal(obtenirEvenement.mock.calls[0].arguments[0], 'adeville@accecit.com');
+  assert.equal(changerStatut.mock.callCount(), 1);
+  assert.equal(changerStatut.mock.calls[0].arguments[1].motifCode, 'annule_depuis_outlook');
+  assert.equal(invitationTestService.envoyerNotificationAnnulationTest.mock.callCount(), 1);
+  assert.equal(resultat.annules, 1);
+});
+
+for (const [cas, erreur] of [
+  ['403 ErrorAccessDenied', erreurGraph(403, 'ErrorAccessDenied')],
+  ['401 InvalidAuthenticationToken', erreurGraph(401, 'InvalidAuthenticationToken')],
+  ['503 (5xx)', erreurGraph(503, 'ServiceUnavailable')],
+  ['404 boîte inconnue (ErrorInvalidUser)', erreurGraph(404, 'ErrorInvalidUser')],
+  ['erreur réseau', erreurGraph(null, null, 'getaddrinfo ENOTFOUND graph.microsoft.com')],
+]) {
+  test(`Réponse non concluante (${cas}) -> aucune annulation, aucun courriel, une ligne d'erreur dans journal_audit`, async (t) => {
+    mockerBase(t);
+    t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [RDV_CALENDRIER_PERSONNEL]);
+    t.mock.method(graphCalendarService, 'obtenirEvenement', async () => {
+      throw erreur;
+    });
+    const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+    const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+    const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+    assert.equal(changerStatut.mock.callCount(), 0);
+    assert.equal(workflowEngine.appliquerTransition.mock.callCount(), 0);
+    assert.equal(notesDossierRepository.ajouterNote.mock.callCount(), 0);
+    assert.equal(invitationTestService.envoyerNotificationAnnulationTest.mock.callCount(), 0);
+    assert.equal(enregistrerAction.mock.callCount(), 1);
+    const trace = enregistrerAction.mock.calls[0].arguments[1];
+    assert.equal(trace.action, 'rendezvous_sync_outlook_erreur');
+    assert.equal(trace.cibleId, 122);
+    assert.equal(trace.donnees.statutHttp, erreur.statusCode);
+    assert.equal(trace.donnees.codeGraph, erreur.codeGraph);
+    assert.equal(trace.donnees.outlookCalendrier, 'adeville@accecit.com');
+    assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 0, ignores: 0, echecs: 1, annulationsBloquees: 0, total: 1 });
+  });
+}
+
+test('Boîte de création inconnue (outlook_calendrier vide) -> aucun appel Graph, aucune annulation, erreur tracée', async (t) => {
+  mockerBase(t);
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [{ ...RDV_FACTICE, outlook_calendrier: null }]);
+  const obtenirEvenement = mockerOutlook(t, {});
+  const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+  const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.equal(obtenirEvenement.mock.callCount(), 0);
+  assert.equal(changerStatut.mock.callCount(), 0);
+  assert.equal(enregistrerAction.mock.calls[0].arguments[1].donnees.codeGraph, 'boite_inconnue');
+  assert.equal(resultat.echecs, 1);
+});
+
+test('Après une réponse non concluante, le rendez-vous reste actif et est revérifié au passage suivant', async (t) => {
+  mockerBase(t);
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [RDV_CALENDRIER_PERSONNEL]);
+  mockerRelectureVerrouillee(t, [RDV_CALENDRIER_PERSONNEL]);
+  let passage = 0;
+  const obtenirEvenement = t.mock.method(graphCalendarService, 'obtenirEvenement', async () => {
+    passage += 1;
+    if (passage === 1) throw erreurGraph(503, 'ServiceUnavailable');
+    return { start: { dateTime: '2026-10-02T07:30:00.0000000' } };
+  });
+  const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+
+  const premier = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+  const second = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.equal(premier.echecs, 1);
+  assert.equal(second.inchanges, 1);
+  assert.equal(obtenirEvenement.mock.callCount(), 2);
+  assert.equal(changerStatut.mock.callCount(), 0);
+});
+
+function rendezvousSupprimes(nombre) {
+  return Array.from({ length: nombre }, (_, i) => ({ ...RDV_FACTICE, id: 500 + i, dossier_id: 600 + i, outlook_event_id: `evt-${i}` }));
+}
+
+test(`Garde-fou : plus de ${SEUIL_ANNULATIONS_PAR_PASSAGE} annulations dans un passage -> AUCUNE appliquée, alerte dans journal_audit`, async (t) => {
+  mockerBase(t);
+  const liste = rendezvousSupprimes(SEUIL_ANNULATIONS_PAR_PASSAGE + 1);
+  // Un rendez-vous DÉPLACÉ dans le même passage : le déplacement, lui, reste appliqué.
+  const deplace = { ...RDV_FACTICE, id: 700, dossier_id: 800, outlook_event_id: 'evt-deplace' };
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [...liste, deplace]);
+  mockerRelectureVerrouillee(t, [...liste, deplace]);
+  mockerOutlook(t, { 'formation@accecit.com': { 'evt-deplace': { start: { dateTime: '2026-09-01T12:00:00.0000000' } } } });
+  t.mock.method(rendezvousRepository, 'mettreAJourDateHeureRendezvous', async () => ({}));
+  const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+  const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.equal(changerStatut.mock.callCount(), 0, 'aucune annulation');
+  assert.equal(invitationTestService.envoyerNotificationAnnulationTest.mock.callCount(), 0, 'aucun courriel d’annulation');
+  const alerte = enregistrerAction.mock.calls.find((appel) => appel.arguments[1].action === 'alerte_sync_outlook_annulations_massives');
+  assert.ok(alerte, 'alerte consignée');
+  assert.equal(alerte.arguments[1].donnees.nombre, SEUIL_ANNULATIONS_PAR_PASSAGE + 1);
+  assert.deepEqual(alerte.arguments[1].donnees.rendezvous.map((r) => r.rendezvousId), liste.map((r) => r.id));
+  assert.equal(resultat.deplaces, 1, 'le déplacement reste appliqué');
+  assert.equal(resultat.annules, 0);
+  assert.equal(resultat.annulationsBloquees, SEUIL_ANNULATIONS_PAR_PASSAGE + 1);
+});
+
+test(`Garde-fou : exactement ${SEUIL_ANNULATIONS_PAR_PASSAGE} annulations dans un passage -> toutes appliquées, aucune alerte`, async (t) => {
+  mockerBase(t);
+  const liste = rendezvousSupprimes(SEUIL_ANNULATIONS_PAR_PASSAGE);
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => liste);
+  mockerRelectureVerrouillee(t, liste);
+  mockerOutlook(t, {});
+  const changerStatut = t.mock.method(rendezvousService, 'changerStatutRendezvous', async () => ({}));
+  const enregistrerAction = t.mock.method(journalAudit, 'enregistrerAction', async () => {});
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.equal(changerStatut.mock.callCount(), SEUIL_ANNULATIONS_PAR_PASSAGE);
+  assert.equal(enregistrerAction.mock.calls.some((appel) => appel.arguments[1].action === 'alerte_sync_outlook_annulations_massives'), false);
+  assert.equal(resultat.annules, SEUIL_ANNULATIONS_PAR_PASSAGE);
+  assert.equal(resultat.annulationsBloquees, 0);
+});
+
+test('Sans calendrier personnel : formateur lu dans formation@, inspecteur dans test-tertiaire@ (boîtes de création), comportement inchangé', async (t) => {
+  mockerBase(t);
+  const formateur = { ...RDV_FACTICE, id: 801, outlook_event_id: 'evt-f', outlook_calendrier: 'formation@accecit.com' };
+  const inspecteur = { ...RDV_FACTICE, id: 802, outlook_event_id: 'evt-i', outlook_calendrier: 'test-tertiaire@accecit.com', formateur_role_code: 'inspecteur' };
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsAvecEvenementOutlook', async () => [formateur, inspecteur]);
+  mockerRelectureVerrouillee(t, [formateur, inspecteur]);
+  const memeHoraire = { start: { dateTime: '2026-09-01T10:00:00.0000000' } };
+  const obtenirEvenement = mockerOutlook(t, {
+    'formation@accecit.com': { 'evt-f': memeHoraire },
+    'test-tertiaire@accecit.com': { 'evt-i': memeHoraire },
+  });
+
+  const resultat = await executerSyncCalendrierManuel(ENTITE_FACTICE);
+
+  assert.deepEqual(obtenirEvenement.mock.calls.map((appel) => appel.arguments[0]), ['formation@accecit.com', 'test-tertiaire@accecit.com']);
+  assert.deepEqual(resultat, { annules: 0, deplaces: 0, inchanges: 2, ignores: 0, echecs: 0, annulationsBloquees: 0, total: 2 });
 });

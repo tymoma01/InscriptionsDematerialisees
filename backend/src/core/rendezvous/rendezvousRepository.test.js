@@ -216,8 +216,8 @@ function creerBdFacticeNeutralisation(lignesSelectionnees) {
 
 test('neutraliserRendezvousActifsDossier sans motifId : comportement STRICTEMENT inchangé (seul `statut` écrit, jamais `motif_id`)', async () => {
   const lignes = [
-    { id: 10, statut: 'prevu', outlook_event_id: 'evt-1', formateur_id: 5 },
-    { id: 11, statut: 'confirme', outlook_event_id: null, formateur_id: null },
+    { id: 10, statut: 'prevu', outlook_event_id: 'evt-1', outlook_calendrier: 'adeville@accecit.com', formateur_id: 5 },
+    { id: 11, statut: 'confirme', outlook_event_id: null, outlook_calendrier: null, formateur_id: null },
   ];
   const bdFactice = creerBdFacticeNeutralisation(lignes);
 
@@ -226,9 +226,10 @@ test('neutraliserRendezvousActifsDossier sans motifId : comportement STRICTEMENT
     statutRemplace: 'remplace',
   });
 
+  // outlookCalendrier (migration 072) : boîte de création, pour supprimer l'événement au bon endroit.
   assert.deepEqual(resultat, [
-    { id: 10, statutAvant: 'prevu', statutApres: 'remplace', outlookEventId: 'evt-1', formateurId: 5 },
-    { id: 11, statutAvant: 'confirme', statutApres: 'remplace', outlookEventId: null, formateurId: null },
+    { id: 10, statutAvant: 'prevu', statutApres: 'remplace', outlookEventId: 'evt-1', outlookCalendrier: 'adeville@accecit.com', formateurId: 5 },
+    { id: 11, statutAvant: 'confirme', statutApres: 'remplace', outlookEventId: null, outlookCalendrier: null, formateurId: null },
   ]);
   assert.equal(bdFactice.appelsUpdate.length, 1);
   assert.deepEqual(bdFactice.appelsUpdate[0].donnees, { statut: 'remplace' });

@@ -12,6 +12,8 @@ const graphClient = require('../stockage/graphClient');
 const { traduireErreurGraph } = require('../stockage/erreursGraph');
 
 const PERMISSION_GRAPH_CALENDRIER = 'Calendars.ReadWrite';
+// Code Graph d'un élément absent de la boîte interrogée (constaté en production, 2026-10-01).
+const CODE_GRAPH_EVENEMENT_INTROUVABLE = 'ErrorItemNotFound';
 
 // Calendriers départementaux partagés ACCECIT (décision actée, audit 2026-08-26) : les tests
 // Inspecteur (postes bureau) et Formateur (postes hôtel) sont routés vers deux calendriers
@@ -163,10 +165,14 @@ async function creerEvenement(emailCalendrier, { sujet, corps, debutIso, finIso,
 // en dehors de l'app : c'est ce que ce sync détecte, périodiquement, en relisant chaque événement
 // par son id plutôt qu'en diffant tout le calendrier (voir obtenirDisponibilites ci-dessus, qui
 // reste, lui, un usage purement informatif/non scopé à nos propres rendez-vous).
-// 404 traité comme "événement supprimé" (renvoie null, jamais une erreur) — même convention que
-// supprimerEvenement ci-dessous : c'est justement le signal qu'utilise l'appelant pour détecter une
-// annulation manuelle. `Prefer: outlook.timezone="UTC"` : même raison qu'obtenirDisponibilites,
-// nécessaire pour comparer `start.dateTime` à rendezvous.date_heure sans ambiguïté de fuseau.
+// Renvoie null ("événement supprimé") UNIQUEMENT sur 404 ErrorItemNotFound — c'est le signal
+// qu'utilise l'appelant pour détecter une annulation manuelle. Correctif 2026-10-01 : auparavant,
+// tout 404 valait suppression ; or Graph répond aussi 404 (autre code, ex. ErrorInvalidUser) pour
+// une BOÎTE inconnue — jamais une preuve que l'événement a disparu. Toute autre réponse (autre 404,
+// 401, 403, 5xx, erreur réseau) lève une erreur, qui garde `statusCode`/`codeGraph` de la réponse
+// d'origine pour la trace (voir syncCalendrierManuelService.js). `Prefer: outlook.timezone="UTC"` :
+// même raison qu'obtenirDisponibilites, nécessaire pour comparer `start.dateTime` à
+// rendezvous.date_heure sans ambiguïté de fuseau.
 async function obtenirEvenement(emailCalendrier, outlookEventId) {
   const client = await graphClient.obtenirClientGraph();
   try {
@@ -176,10 +182,13 @@ async function obtenirEvenement(emailCalendrier, outlookEventId) {
       .select('start,end,subject')
       .get();
   } catch (erreur) {
-    if (erreur?.statusCode === 404) return null;
-    throw traduireErreurGraph(erreur, `lecture de l'événement "${outlookEventId}"`, {
+    if (erreur?.statusCode === 404 && erreur?.code === CODE_GRAPH_EVENEMENT_INTROUVABLE) return null;
+    const traduite = traduireErreurGraph(erreur, `lecture de l'événement "${outlookEventId}" dans "${emailCalendrier}"`, {
       permission: PERMISSION_GRAPH_CALENDRIER,
     });
+    traduite.statusCode = erreur?.statusCode ?? null;
+    traduite.codeGraph = erreur?.code ?? null;
+    throw traduite;
   }
 }
 

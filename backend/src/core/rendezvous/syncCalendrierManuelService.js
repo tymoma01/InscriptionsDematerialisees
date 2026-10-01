@@ -52,6 +52,12 @@ const journalAudit = require('../audit/journalAudit');
 
 const CODE_MOTIF_ANNULE_DEPUIS_OUTLOOK = 'annule_depuis_outlook';
 
+// Second garde-fou (correctif 2026-10-01) : au-delà de ce nombre d'annulations détectées dans UN
+// même passage, le job n'en applique AUCUNE et consigne une alerte — une vague d'annulations d'un
+// coup signale bien plus probablement une panne (mauvaise boîte, droits retirés…) qu'une série de
+// vraies suppressions manuelles. Les rendez-vous restent actifs et sont relus au passage suivant.
+const SEUIL_ANNULATIONS_PAR_PASSAGE = 3;
+
 const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   dateStyle: 'short',
   timeStyle: 'short',
@@ -65,11 +71,28 @@ function dateOutlookVersIso(evenement) {
   return `${evenement.start.dateTime}Z`;
 }
 
-// Un seul rendez-vous, dans SA PROPRE transaction (jamais un lot entier) — un échec sur l'un ne
-// doit jamais empêcher le traitement des autres, même patron que
+// Phase 1 — lecture de l'état Outlook d'un rendez-vous, hors transaction (correctif 2026-10-01).
+// Toujours dans la boîte où l'événement a été CRÉÉ (rendezvous.outlook_calendrier, migration 072),
+// jamais dans une boîte recalculée d'après le rôle ou l'option actuelle du formateur : c'est ce qui
+// annulait à tort les rendez-vous d'un formateur à calendrier personnel (événement dans sa boîte,
+// lu dans formation@ -> 404). « Supprimé » UNIQUEMENT sur 404 ErrorItemNotFound dans cette boîte
+// (graphCalendarService.obtenirEvenement) ; toute autre situation — boîte inconnue, autre 404, 401,
+// 403, 5xx, erreur réseau — lève une erreur : jamais d'annulation sur une réponse non concluante.
+async function lireEtatOutlook(rendezvous) {
+  if (!rendezvous.outlook_calendrier) {
+    const erreur = new Error(`Boîte de création de l'événement inconnue pour le rendez-vous ${rendezvous.id}.`);
+    erreur.codeGraph = 'boite_inconnue';
+    throw erreur;
+  }
+  const evenement = await graphCalendarService.obtenirEvenement(rendezvous.outlook_calendrier, rendezvous.outlook_event_id);
+  return evenement ? { etat: 'present', evenement } : { etat: 'supprime' };
+}
+
+// Phase 2 — un seul rendez-vous, dans SA PROPRE transaction (jamais un lot entier) — un échec sur
+// l'un ne doit jamais empêcher le traitement des autres, même patron que
 // basculeTestNonRealiseService.executerBasculeTestNonRealise.
 //
-// L'appel Graph (lecture de l'état Outlook) précède l'ouverture de la transaction, jamais l'inverse
+// L'appel Graph (lecture de l'état Outlook, phase 1) précède l'ouverture de la transaction, jamais l'inverse
 // (même principe que rendezvousService.creerRendezvous, "Outlook D'ABORD" — mais ici en lecture, pas
 // en écriture) : un appel réseau externe lent ne doit jamais garder une connexion DB ouverte.
 // Relecture verrouillée (FOR UPDATE) DANS la transaction juste avant d'écrire — même rôle que
@@ -78,10 +101,9 @@ function dateOutlookVersIso(evenement) {
 // outlook_event_id au moment précis de l'écriture, contre une action concurrente (agent qui vient
 // justement de le confirmer/annuler/replanifier depuis l'app entre la lecture Graph ci-dessus et
 // cette écriture) — sans ce garde-fou, ce job pourrait écraser une action déjà plus récente.
-async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
+async function synchroniserRendezvous(entite, rendezvous, lecture, utilisateurSysteme) {
   const bd = await db.obtenirKnex();
-  const emailCalendrier = graphCalendarService.resoudreCalendrierParRole(rendezvous.formateur_role_code);
-  const evenement = await graphCalendarService.obtenirEvenement(emailCalendrier, rendezvous.outlook_event_id);
+  const evenement = lecture.etat === 'present' ? lecture.evenement : null;
 
   const resultat = await bd.transaction(async (trx) => {
     const rendezvousActuel = await rendezvousRepository.trouverRendezvousPourBasculeVerrouillee(trx, rendezvous.id);
@@ -95,7 +117,7 @@ async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
       return { type: 'ignore' };
     }
 
-    if (!evenement) {
+    if (lecture.etat === 'supprime') {
       await rendezvousService.changerStatutRendezvous(
         entite,
         {
@@ -152,7 +174,11 @@ async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
         action: 'rendezvous_annule_sync_outlook',
         tableCible: 'rendezvous',
         cibleId: rendezvous.id,
-        donnees: { dossierId: rendezvous.dossier_id, outlookEventId: rendezvous.outlook_event_id },
+        donnees: {
+          dossierId: rendezvous.dossier_id,
+          outlookEventId: rendezvous.outlook_event_id,
+          outlookCalendrier: rendezvous.outlook_calendrier,
+        },
       });
 
       return { type: 'annule' };
@@ -221,11 +247,47 @@ async function synchroniserRendezvous(entite, rendezvous, utilisateurSysteme) {
   return resultat.type;
 }
 
+// Trace d'une lecture/application non concluante (correctif 2026-10-01) : une ligne par rendez-vous
+// dans journal_audit, avec la réponse exacte (statut HTTP, code Graph) — le rendez-vous n'est PAS
+// modifié et sera relu au passage suivant. Jamais bloquant : un échec d'écriture de cette trace ne
+// doit pas interrompre le passage.
+async function tracerErreurSync(bd, entite, utilisateurSysteme, rendezvous, erreur, phase) {
+  console.error(
+    `Échec de la synchronisation Outlook pour le rendez-vous ${rendezvous.id} (dossier ${rendezvous.dossier_id}) :`,
+    erreur.message,
+  );
+  try {
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: utilisateurSysteme.id,
+      entiteId: entite.id,
+      action: 'rendezvous_sync_outlook_erreur',
+      tableCible: 'rendezvous',
+      cibleId: rendezvous.id,
+      donnees: {
+        phase,
+        dossierId: rendezvous.dossier_id,
+        outlookEventId: rendezvous.outlook_event_id,
+        outlookCalendrier: rendezvous.outlook_calendrier ?? null,
+        statutHttp: erreur.statusCode ?? null,
+        codeGraph: erreur.codeGraph ?? null,
+        erreur: erreur.message,
+      },
+    });
+  } catch (erreurTrace) {
+    console.error(`Trace de l'échec de synchronisation impossible pour le rendez-vous ${rendezvous.id} :`, erreurTrace.message);
+  }
+}
+
 // Point d'entrée par entité — appelé pour toutes les entités actives par
 // jobs/syncCalendrierManuelJob.js, même patron que basculeTestNonRealiseService.
 // executerBasculeTestNonRealise. Une entité sans rendez-vous actif référencé sur Outlook (aucune
 // intégration calendrier configurée, ex. Adaptel aujourd'hui) obtient simplement 0 rendez-vous à
 // vérifier via listerRendezvousActifsAvecEvenementOutlook, sans cas particulier à gérer ici.
+//
+// Deux phases (correctif 2026-10-01) : lecture de TOUS les événements d'abord (lireEtatOutlook),
+// puis application — ce qui permet de compter les annulations du passage AVANT d'en appliquer une
+// seule (garde-fou SEUIL_ANNULATIONS_PAR_PASSAGE). Au-delà du seuil : aucune annulation, une alerte
+// dans journal_audit ; les déplacements, eux, restent appliqués.
 async function executerSyncCalendrierManuel(entite) {
   const bd = await db.obtenirKnex();
 
@@ -242,23 +304,58 @@ async function executerSyncCalendrierManuel(entite) {
   let ignores = 0;
   let echecs = 0;
 
+  // Phase 1 — lectures.
+  const lectures = [];
   for (const rendezvous of rendezvousActifs) {
     try {
-      const type = await synchroniserRendezvous(entite, rendezvous, utilisateurSysteme);
+      lectures.push({ rendezvous, lecture: await lireEtatOutlook(rendezvous) });
+    } catch (erreur) {
+      echecs += 1;
+      await tracerErreurSync(bd, entite, utilisateurSysteme, rendezvous, erreur, 'lecture');
+    }
+  }
+
+  // Garde-fou : trop d'annulations dans un même passage -> aucune.
+  const aAnnuler = lectures.filter(({ lecture }) => lecture.etat === 'supprime');
+  const annulationsBloquees = aAnnuler.length > SEUIL_ANNULATIONS_PAR_PASSAGE ? aAnnuler.length : 0;
+  if (annulationsBloquees > 0) {
+    console.error(
+      `Synchronisation Outlook (${entite.code}) : ${aAnnuler.length} annulations détectées dans ce passage ` +
+        `(seuil ${SEUIL_ANNULATIONS_PAR_PASSAGE}) — AUCUNE appliquée, alerte consignée.`,
+    );
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: utilisateurSysteme.id,
+      entiteId: entite.id,
+      action: 'alerte_sync_outlook_annulations_massives',
+      tableCible: 'rendezvous',
+      donnees: {
+        seuil: SEUIL_ANNULATIONS_PAR_PASSAGE,
+        nombre: aAnnuler.length,
+        rendezvous: aAnnuler.map(({ rendezvous }) => ({
+          rendezvousId: rendezvous.id,
+          dossierId: rendezvous.dossier_id,
+          outlookCalendrier: rendezvous.outlook_calendrier,
+        })),
+      },
+    });
+  }
+
+  // Phase 2 — application.
+  for (const { rendezvous, lecture } of lectures) {
+    if (lecture.etat === 'supprime' && annulationsBloquees > 0) continue;
+    try {
+      const type = await synchroniserRendezvous(entite, rendezvous, lecture, utilisateurSysteme);
       if (type === 'annule') annules += 1;
       else if (type === 'deplace') deplaces += 1;
       else if (type === 'inchange') inchanges += 1;
       else ignores += 1;
     } catch (erreur) {
-      console.error(
-        `Échec de la synchronisation Outlook pour le rendez-vous ${rendezvous.id} (dossier ${rendezvous.dossier_id}) :`,
-        erreur.message,
-      );
       echecs += 1;
+      await tracerErreurSync(bd, entite, utilisateurSysteme, rendezvous, erreur, 'application');
     }
   }
 
-  return { annules, deplaces, inchanges, ignores, echecs, total: rendezvousActifs.length };
+  return { annules, deplaces, inchanges, ignores, echecs, annulationsBloquees, total: rendezvousActifs.length };
 }
 
-module.exports = { executerSyncCalendrierManuel, CODE_MOTIF_ANNULE_DEPUIS_OUTLOOK };
+module.exports = { executerSyncCalendrierManuel, CODE_MOTIF_ANNULE_DEPUIS_OUTLOOK, SEUIL_ANNULATIONS_PAR_PASSAGE };

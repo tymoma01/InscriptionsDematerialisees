@@ -263,9 +263,14 @@ async function supprimerEvenementsOutlookRendezvousNeutralises(entite, { rendezv
   for (const rendezvous of rendezvousNeutralises) {
     if (!rendezvous.outlookEventId || !rendezvous.formateurId) continue;
     try {
-      const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvous.formateurId);
-      if (!formateur) continue;
-      const emailCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(formateur);
+      // Boîte où l'événement a été CRÉÉ (outlook_calendrier, migration 072, correctif 2026-10-01) ;
+      // repli sur l'ancienne résolution seulement pour une ligne que la migration n'aurait pas remplie.
+      let emailCalendrier = rendezvous.outlookCalendrier ?? null;
+      if (!emailCalendrier) {
+        const formateur = await utilisateurRepository.trouverUtilisateurParId(bd, entite.id, rendezvous.formateurId);
+        if (!formateur) continue;
+        emailCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(formateur);
+      }
       await graphCalendarService.supprimerEvenement(emailCalendrier, rendezvous.outlookEventId);
     } catch (erreur) {
       console.error(

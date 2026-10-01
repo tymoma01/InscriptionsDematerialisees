@@ -39,6 +39,22 @@ test("supprimerEvenementsOutlookRendezvousNeutralises supprime l'événement Out
   assert.deepEqual(supprimerEvenement.mock.calls[1].arguments, ['formation@accecit.com', 'evt-161']);
 });
 
+// Correctif 2026-10-01 : boîte de CRÉATION de l'événement (outlookCalendrier, migration 072) en
+// priorité, jamais la boîte recalculée d'après l'option actuelle du formateur.
+test("supprimerEvenementsOutlookRendezvousNeutralises supprime chaque événement dans sa boîte de création", async (t) => {
+  mockerBase(t);
+  const supprimerEvenement = t.mock.method(graphCalendarService, 'supprimerEvenement', async () => {});
+
+  await supprimerEvenementsOutlookRendezvousNeutralises(ENTITE_ACCECIT, {
+    rendezvousNeutralises: [{ id: 162, statutAvant: 'prevu', outlookEventId: 'evt-162', outlookCalendrier: 'adeville@accecit.com', formateurId: 31 }],
+    utilisateurId: 9,
+    adresseIp: '127.0.0.1',
+  });
+
+  assert.deepEqual(supprimerEvenement.mock.calls[0].arguments, ['adeville@accecit.com', 'evt-162']);
+  assert.equal(graphCalendarService.resoudreCalendrierPourUtilisateur.mock.callCount(), 0);
+});
+
 test("supprimerEvenementsOutlookRendezvousNeutralises ignore silencieusement un rendez-vous sans outlookEventId ou sans formateurId (rien à supprimer)", async (t) => {
   mockerBase(t);
   const supprimerEvenement = t.mock.method(graphCalendarService, 'supprimerEvenement', async () => {});

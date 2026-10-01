@@ -625,6 +625,9 @@ async function creerRendezvous(
   // a besoin pour construire un texte unique "initialement prévu le ... replanifié pour le ..."
   // plutôt que d'envoyer un second email distinct pour l'ancien créneau.
   let outlookEventIdCree = null;
+  // Boîte où l'événement est créé, enregistrée sur le rendez-vous (migration 072) : toute lecture ou
+  // suppression ultérieure de l'événement la réutilise telle quelle.
+  let outlookCalendrierCree = null;
   let ancienRendezVousActif = null;
   if (formateurIdValide) {
     // Voir obtenirDisponibilitesFormateur ci-dessus pour le détail (migration 063).
@@ -674,6 +677,7 @@ async function creerRendezvous(
       throw new ErreurPlanificationOutlook(erreur.message);
     }
     outlookEventIdCree = evenementCree.id;
+    outlookCalendrierCree = emailCalendrier;
 
     // Suppression de l'ancien événement APRÈS que le nouveau soit confirmé (jamais avant) : si la
     // création du nouveau avait échoué, on ne veut surtout pas avoir déjà supprimé un créneau
@@ -681,15 +685,21 @@ async function creerRendezvous(
     // planification déjà confirmée côté Outlook ET sur le point de l'être côté Neon — juste
     // journalisé, comme le reste des nettoyages secondaires de ce module (voir
     // invitationTestService.js pour le même principe côté email/SMS).
+    // Supprimé dans la boîte où il a été CRÉÉ (outlook_calendrier, migration 072, correctif
+    // 2026-10-01) — jamais une boîte recalculée d'après l'option actuelle du formateur. Repli sur
+    // l'ancienne résolution seulement pour une ligne que la migration n'aurait pas pu remplir.
     if (ancienRendezVousActif?.outlook_event_id && ancienRendezVousActif.formateur_id) {
       try {
-        const ancienFormateur = await utilisateurRepository.trouverUtilisateurParId(
-          bd,
-          entite.id,
-          ancienRendezVousActif.formateur_id,
-        );
-        if (ancienFormateur) {
-          const ancienCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(ancienFormateur);
+        let ancienCalendrier = ancienRendezVousActif.outlook_calendrier ?? null;
+        if (!ancienCalendrier) {
+          const ancienFormateur = await utilisateurRepository.trouverUtilisateurParId(
+            bd,
+            entite.id,
+            ancienRendezVousActif.formateur_id,
+          );
+          if (ancienFormateur) ancienCalendrier = graphCalendarService.resoudreCalendrierPourUtilisateur(ancienFormateur);
+        }
+        if (ancienCalendrier) {
           await graphCalendarService.supprimerEvenement(ancienCalendrier, ancienRendezVousActif.outlook_event_id);
         }
       } catch (erreur) {
@@ -729,6 +739,7 @@ async function creerRendezvous(
           postesSelectionnes,
           notePlanification,
           outlookEventId: outlookEventIdCree,
+          outlookCalendrier: outlookCalendrierCree,
         }),
       );
 

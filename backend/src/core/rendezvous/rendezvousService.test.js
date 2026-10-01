@@ -363,6 +363,9 @@ test("creerRendezvous crée l'événement Outlook AVANT d'écrire en Neon et tra
   assert.equal(creerEvenementMock.mock.calls[0].arguments[1].participantEmail, 'formateur@accecit.test');
   assert.equal(creerRendezvousMock.mock.calls[0].arguments[1].outlookEventId, 'outlook-evenement-999');
   assert.equal(resultat.outlookEventId, 'outlook-evenement-999');
+
+  // Formateur sans calendrier personnel : boîte du rôle, enregistrée telle quelle (comportement inchangé).
+  assert.equal(creerRendezvousMock.mock.calls[0].arguments[1].outlookCalendrier, 'formation@accecit.com');
 });
 
 // calendrier_personnel (migration 063, demande utilisateur 2026-09-10) : ce formateur précis a sa
@@ -399,6 +402,8 @@ test("creerRendezvous crée l'événement Outlook sur la boîte personnelle du f
   });
 
   assert.equal(creerEvenementMock.mock.calls[0].arguments[0], 'adeville@accecit.com');
+  // Boîte de création enregistrée sur le rendez-vous (migration 072, correctif 2026-10-01).
+  assert.equal(rendezvousRepository.creerRendezvous.mock.calls[0].arguments[1].outlookCalendrier, 'adeville@accecit.com');
 });
 
 // Décision utilisateur, 2026-08-26 : le subject doit désormais identifier le formateur/inspecteur
@@ -769,6 +774,34 @@ test("creerRendezvous supprime l'ancien événement Outlook lors d'une replanifi
 
   assert.equal(supprimerMock.mock.calls.length, 1);
   assert.deepEqual(supprimerMock.mock.calls[0].arguments, ['formation@accecit.com', 'outlook-ancien-evenement']);
+});
+
+// Correctif 2026-10-01 : l'ancien événement est supprimé dans la boîte où il a été CRÉÉ
+// (outlook_calendrier), même si l'option calendrier_personnel du formateur a changé depuis.
+test("creerRendezvous supprime l'ancien événement dans sa boîte de CRÉATION, pas dans celle que donnerait l'option actuelle du formateur", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({ id: 42 }));
+  // Option calendrier_personnel désactivée APRÈS la création de l'ancien événement.
+  t.mock.method(utilisateurRepository, 'trouverUtilisateurParId', async (bd, entiteId, id) =>
+    id === 31
+      ? { id: 31, role_code: 'formateur', email: 'adeville@accecit.com', prenom: 'Anni', nom: 'Neacsu', calendrier_personnel: false }
+      : { id: 8, role_code: 'formateur', email: 'formateur@accecit.test', prenom: 'Formateur', nom: 'Test' },
+  );
+  t.mock.method(rendezvousRepository, 'compterRendezvousFormateurAuCreneau', async () => 0);
+  t.mock.method(rendezvousRepository, 'trouverRendezvousTestActifDossier', async () => ({
+    id: 199,
+    formateur_id: 31,
+    outlook_event_id: 'outlook-ancien-evenement',
+    outlook_calendrier: 'adeville@accecit.com',
+  }));
+  mockerNeutralisationSansEffet(t);
+  t.mock.method(graphCalendarService, 'creerEvenement', async () => ({ id: 'outlook-nouvel-evenement' }));
+  const supprimerMock = t.mock.method(graphCalendarService, 'supprimerEvenement', async () => {});
+  t.mock.method(rendezvousRepository, 'creerRendezvous', async () => ({ id: 403 }));
+
+  await rendezvousService.creerRendezvous(ENTITE_FACTICE, { dossierId: 42, typeRdv: 'test', dateHeure: DATE_HEURE_FUTURE, formateurId: 8 });
+
+  assert.deepEqual(supprimerMock.mock.calls[0].arguments, ['adeville@accecit.com', 'outlook-ancien-evenement']);
 });
 
 test("creerRendezvous réussit malgré tout si la suppression de l'ancien événement Outlook échoue (best-effort, non bloquant)", async (t) => {

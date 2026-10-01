@@ -591,8 +591,8 @@ function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
 // rendezvousService.creerRendezvous) : même défense en profondeur que
 // listerRendezvousTestNonRealisesAutomatiquement ci-dessus. Jointures identiques à
 // listerRendezvousParLieu (coordonnées candidat + infos formateur/rôle) : évite une requête
-// supplémentaire par rendez-vous pour la note dossier / l'email candidat / la résolution du
-// calendrier départemental à interroger.
+// supplémentaire par rendez-vous pour la note dossier / l'email candidat. La boîte à interroger est
+// `outlook_calendrier` (boîte de création, migration 072), jamais recalculée d'après le rôle.
 function listerRendezvousActifsAvecEvenementOutlook(bd, entiteId) {
   return bd('rendezvous')
     .join('dossiers', 'dossiers.id', 'rendezvous.dossier_id')
@@ -608,6 +608,8 @@ function listerRendezvousActifsAvecEvenementOutlook(bd, entiteId) {
       'rendezvous.dossier_id',
       'rendezvous.date_heure',
       'rendezvous.outlook_event_id',
+      // Boîte de création de l'événement (migration 072) — la seule que la synchronisation lit.
+      'rendezvous.outlook_calendrier',
       // formateur_id (audit 2026-09-02, notification "toutes parties prenantes" sur annulation/
       // déplacement détecté via sync — voir syncCalendrierManuelService.js) : le JOIN ci-dessus sur
       // utilisateurs le garantit déjà non NULL pour chaque ligne renvoyée (whereNotNull plus haut),
@@ -677,7 +679,7 @@ async function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, stat
     .forUpdate();
   if (typeRdv) requeteSelection.andWhere({ type_rdv: typeRdv });
 
-  const avant = await requeteSelection.select('id', 'statut', 'outlook_event_id', 'formateur_id');
+  const avant = await requeteSelection.select('id', 'statut', 'outlook_event_id', 'outlook_calendrier', 'formateur_id');
   if (avant.length === 0) return [];
 
   const donneesEcrites = { statut: statutRemplace };
@@ -695,6 +697,8 @@ async function neutraliserRendezvousActifsDossier(bd, { dossierId, typeRdv, stat
     statutAvant: ligne.statut,
     statutApres: statutRemplace,
     outlookEventId: ligne.outlook_event_id,
+    // Boîte où l'événement a été créé (migration 072) — c'est là qu'il faut le supprimer.
+    outlookCalendrier: ligne.outlook_calendrier,
     formateurId: ligne.formateur_id,
   }));
 }
@@ -723,7 +727,7 @@ async function compterRendezvousFormateurAuCreneau(bd, formateurId, dateHeure) {
 // plutôt que devoir aussi distinguer une chaîne vide d'une valeur absente.
 async function creerRendezvous(
   bd,
-  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [], notePlanification, outlookEventId },
+  { dossierId, typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes = [], notePlanification, outlookEventId, outlookCalendrier },
 ) {
   const [rendezvous] = await bd('rendezvous')
     .insert({
@@ -742,6 +746,10 @@ async function creerRendezvous(
       // migration 053) — null pour un rendez-vous sans formateur/inspecteur assigné (aucun
       // calendrier départemental à cibler, ex. signature_contrat).
       outlook_event_id: outlookEventId ?? null,
+      // Boîte dans laquelle cet événement a été créé (migration 072, correctif 2026-10-01) : toute
+      // lecture/suppression ultérieure de l'événement doit viser CETTE boîte, jamais une boîte
+      // recalculée d'après l'option actuelle du formateur, qui peut changer après la création.
+      outlook_calendrier: outlookCalendrier ?? null,
     })
     .returning('*');
   return rendezvous;
