@@ -57,7 +57,10 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // représentatif d'un dossier encore test_planifie (voir rendezvousService.
   // resoudreTransitionAnnulationTest) — l'acteur réel est l'agent Accueil/Coordination qui annule,
   // jamais l'utilisateur système ici (contrairement à la bascule automatique 24h ci-dessus).
-  test_non_realise: [ROLES.FORMATEUR, ROLES.ADMIN, ROLES.SYSTEME, ROLES.ACCUEIL_COORDINATION],
+  // INSPECTEUR ajouté (audit 2026-10-01, bug de production : « NSPP » refusé à l'Inspecteur) : il
+  // évalue le Tertiaire et fait tout le parcours d'évaluation, NSPP compris — voir
+  // scripts/ajouterTransitionsInspecteurEvaluation.js pour les bases déjà amorcées.
+  test_non_realise: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN, ROLES.SYSTEME, ROLES.ACCUEIL_COORDINATION],
   // Replanification d'un nouveau créneau, depuis test_non_realise, invalide, valide_envoi_formation,
   // valide_pret_embauche, OU test_planifie lui-même (replanifier reste possible à tout moment tant
   // que le dossier est encore test_planifie, sans restriction de délai — plusieurs lignes
@@ -79,6 +82,8 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // ("Formation validée", SuiviFormation.jsx) porte désormais son propre code_action dédié,
   // marquer_formation_validee (voir plus bas), pour ne plus polluer "Délai moyen test → verdict"
   // avec des dossiers passés par la formation.
+  // Parcours d'évaluation de l'Inspecteur (Tertiaire, audit 2026-10-01) : confirmer_test_realise,
+  // test_non_realise, valider_pret_embauche, invalider_test — jamais les transitions de formation.
   valider_pret_embauche: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   invalider_test: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
   // Nouveau (audit tableau de bord 2026-08-31, point #5, corrigé le 2026-09-01) : code_action dédié
@@ -86,7 +91,11 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // distinct de valider_pret_embauche ci-dessus — même principe que marquer_embauche plus bas
   // (jamais réutilisé ailleurs). Mêmes rôles que l'ancienne ligne partagée (Formateur/Inspecteur
   // assigné, ou Admin), rôles inchangés, seul le code_action change.
-  marquer_formation_validee: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
+  // INSPECTEUR retiré (audit 2026-10-01, alignement sur les bases DEV/PROD) : aucun dossier
+  // Tertiaire ne passe en formation — retrait déjà appliqué en base par
+  // scripts/retirerInspecteurTransitionsFormation.js ; le laisser ici l'aurait réajouté à chaque
+  // relance de ce seed.
+  marquer_formation_validee: [ROLES.FORMATEUR, ROLES.ADMIN],
   // Nouveau (audit 2026-08-28, suivi de formation) : "Formation non validée"
   // (valide_envoi_formation -> formation_non_validee, SuiviFormation.jsx) — distinct
   // d'invalider_test ci-dessus (réservé à l'échec du TEST, pas de la formation) malgré le
@@ -94,19 +103,18 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // Inspecteur assigné (accès complet, voir CLAUDE.md ce jour) ou Admin — jamais Accueil/
   // Coordination (lecture seule sur cet écran, voir SuiviFormation.jsx côté front, qui ne rend
   // même pas les boutons pour ce rôle — la garde ici est la barrière réelle si jamais contournée).
-  invalider_formation: [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN],
+  // INSPECTEUR retiré (audit 2026-10-01) : même raison que marquer_formation_validee ci-dessus.
+  invalider_formation: [ROLES.FORMATEUR, ROLES.ADMIN],
   // Nouveau (audit 2026-08-31, nouveau statut terminal "Embauché") : marquer_embauche
   // (valide_pret_embauche -> embauche, onglet "Dossier" de la fiche, Validation.jsx) — Accueil/
   // Coordination (acteur qui accueille le candidat le jour de la signature de contrat, voir
   // CLAUDE.md, étape 10 "Fin de formation") ou Admin, jamais Formateur/Inspecteur (rôle sans lien
   // avec cette étape post-formation).
   marquer_embauche: [ROLES.ACCUEIL_COORDINATION, ROLES.ADMIN],
-  // Décision finale du recruteur — workflow hérité (v2), retiré du parcours actif pour toute
-  // nouvelle évaluation depuis le workflow v3 (voir evaluationEngine.js) : conservé uniquement le
-  // temps que les derniers dossiers encore en_attente_validation_recruteur soient clos par un
-  // recruteur (voir backend/scripts/migrerWorkflowAccecitV3.js), qui retirera aussi ces 2 lignes.
-  valider_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
-  rejeter_dossier: [ROLES.RECRUTEUR, ROLES.ADMIN],
+  // valider_dossier/rejeter_dossier (décision finale du recruteur, workflow hérité v2) RETIRÉS
+  // (audit 2026-10-01) : plus aucune transition de ce code pour ACCECIT, ni en DEV ni en PROD
+  // (vérifié en lecture seule), et le rôle Recruteur n'existe plus dans rbac.js (sa constante
+  // valait undefined). Adaptel garde ces transitions dans son propre workflow.config.json.
 };
 
 async function seedTransitionRoles(codeEntite) {
@@ -154,14 +162,20 @@ async function seedTransitionRoles(codeEntite) {
   }
 }
 
-const codeEntite = process.argv[2];
-if (!codeEntite) {
-  console.error('Usage : node scripts/seedTransitionRoles.js <code_entite>');
-  process.exit(1);
+// Exécution en ligne de commande seulement : importé (scripts/seedTransitionRoles.test.js), le
+// module expose sa table sans rien lancer.
+if (require.main === module) {
+  const codeEntite = process.argv[2];
+  if (!codeEntite) {
+    console.error('Usage : node scripts/seedTransitionRoles.js <code_entite>');
+    process.exit(1);
+  }
+
+  seedTransitionRoles(codeEntite).catch((erreur) => {
+    console.error('Échec du seed ✘');
+    console.error(erreur.message);
+    process.exit(1);
+  });
 }
 
-seedTransitionRoles(codeEntite).catch((erreur) => {
-  console.error('Échec du seed ✘');
-  console.error(erreur.message);
-  process.exit(1);
-});
+module.exports = { ROLES_PAR_ACTION_ACCECIT };
