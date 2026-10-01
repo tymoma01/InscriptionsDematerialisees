@@ -241,19 +241,36 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       </fieldset>
       {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
 
-      {/* Bouton bascule (pas une case à cocher, décision utilisateur 2026-10-01) : même patron
-          aria-pressed/.actif que FiltreEntite.jsx (Hôtellerie/Tertiaire) — un seul contrôle,
-          son propre libellé sert de texte de bouton, son état se lit par la couleur de fond. */}
+      {/* Paire de boutons Oui/Non (remplace le bouton bascule unique du 2026-10-01, décision
+          utilisateur : un seul bouton "Disponible immédiatement" qui s'éteint au clic ne
+          communiquait pas clairement qu'il fallait le désactiver pour répondre "Non" — deux choix
+          explicites, mutuellement exclusifs, lèvent l'ambiguïté. Même patron aria-pressed/.actif
+          que FiltreEntite.jsx, mais exclusif ici (un setValue direct sur la valeur visée, jamais
+          une bascule de l'état courant) plutôt qu'un Set indépendamment cochable. */}
       <div className="bloc-disponibilites__case-immediate">
-        <button
-          type="button"
-          id="disponibiliteImmediate"
-          className={`bloc-disponibilites__bouton-bascule${disponibleImmediatement ? ' actif' : ''}`}
-          aria-pressed={disponibleImmediatement}
-          onClick={() => setValue('disponibiliteImmediate', !disponibleImmediatement, { shouldValidate: true })}
+        <span id="disponibiliteImmediate-label">Disponible immédiatement</span>
+        <div
+          className="bloc-disponibilites__bouton-bascule-groupe"
+          role="group"
+          aria-labelledby="disponibiliteImmediate-label"
         >
-          Disponible immédiatement
-        </button>
+          <button
+            type="button"
+            className={`bloc-disponibilites__bouton-bascule${disponibleImmediatement ? ' actif' : ''}`}
+            aria-pressed={disponibleImmediatement}
+            onClick={() => setValue('disponibiliteImmediate', true, { shouldValidate: true })}
+          >
+            Oui
+          </button>
+          <button
+            type="button"
+            className={`bloc-disponibilites__bouton-bascule${!disponibleImmediatement ? ' actif' : ''}`}
+            aria-pressed={!disponibleImmediatement}
+            onClick={() => setValue('disponibiliteImmediate', false, { shouldValidate: true })}
+          >
+            Non
+          </button>
+        </div>
       </div>
 
       {!disponibleImmediatement && (

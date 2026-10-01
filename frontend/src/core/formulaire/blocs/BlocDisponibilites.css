@@ -4,10 +4,16 @@
   gap: var(--espace-petit);
 }
 
-/* Bouton bascule "Disponible immédiatement" (remplace l'ancienne case à cocher, décision
-   utilisateur 2026-10-01) : même forme pilule/mêmes états repos-actif que .filtre-entite button
-   (FiltreEntite.css), mais dans la palette bleue du formulaire candidat (--couleur-primaire*)
-   plutôt que la palette back-office — ce bouton n'apparaît que côté inscription. */
+/* Paire de boutons Oui/Non "Disponible immédiatement" (remplace le bouton bascule unique du
+   2026-10-01, voir le commentaire JSX dédié) : même forme pilule/mêmes états repos-actif que
+   .filtre-entite button (FiltreEntite.css), mais dans la palette bleue du formulaire candidat
+   (--couleur-primaire*) plutôt que la palette back-office — ce groupe n'apparaît que côté
+   inscription. */
+.bloc-disponibilites__bouton-bascule-groupe {
+  display: flex;
+  gap: var(--espace-petit);
+}
+
 .bloc-disponibilites__bouton-bascule {
   padding: 0.5rem 1rem;
   border: 1px solid var(--couleur-bordure);
