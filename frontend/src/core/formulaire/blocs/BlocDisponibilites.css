@@ -1,29 +1,38 @@
-/* Largeur de case à cocher fixée explicitement (au lieu de dépendre du rendu natif du
-   navigateur) : sert de référence commune pour aligner le texte "Disponible immédiatement"
-   et le décalage de la ligne des dates ci-dessous, sans dépendre d'un rendu approximatif. */
 .bloc-disponibilites__case-immediate {
   display: flex;
   align-items: center;
   gap: var(--espace-petit);
 }
 
-.bloc-disponibilites__case-immediate input[type='checkbox'] {
-  flex: 0 0 auto;
-  width: 1rem;
-  height: 1rem;
-  margin: 0;
+/* Bouton bascule "Disponible immédiatement" (remplace l'ancienne case à cocher, décision
+   utilisateur 2026-10-01) : même forme pilule/mêmes états repos-actif que .filtre-entite button
+   (FiltreEntite.css), mais dans la palette bleue du formulaire candidat (--couleur-primaire*)
+   plutôt que la palette back-office — ce bouton n'apparaît que côté inscription. */
+.bloc-disponibilites__bouton-bascule {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: 999px;
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bloc-disponibilites__bouton-bascule.actif {
+  background-color: var(--couleur-primaire);
+  border-color: var(--couleur-primaire);
+  color: #ffffff;
 }
 
 /* Dates de disponibilité : les deux champs côte à côte (plutôt que l'un sous l'autre),
-   avec un espacement entre chaque label et son champ de saisie associé. Décalées vers la
-   droite (largeur case à cocher + même espacement) pour démarrer à la même position
-   horizontale que le texte "Disponible immédiatement" au-dessus. Même logique de repli de
-   l'erreur sur sa propre ligne que BlocCoordonnees.css. */
+   avec un espacement entre chaque label et son champ de saisie associé. Plus d'indentation
+   solidaire d'une largeur de case à cocher (disparue avec elle, voir bouton bascule ci-dessus) :
+   démarre simplement à la même position horizontale que le bouton "Disponible immédiatement"
+   au-dessus. Même logique de repli de l'erreur sur sa propre ligne que BlocCoordonnees.css. */
 .bloc-disponibilites__dates {
   display: flex;
   flex-wrap: wrap;
   gap: var(--espace-grand);
-  margin-left: calc(1rem + var(--espace-petit));
 }
 
 .bloc-disponibilites__dates > div {

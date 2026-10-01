@@ -111,9 +111,15 @@ body.corps-back-office {
 
 /* Astérisque des champs obligatoires (voir convention "* Champs obligatoires" en tête du
    formulaire, InscriptionTablette.jsx) : couleur d'erreur pour rester visible sans dépendre
-   d'une nouvelle variable de couleur dédiée. */
+   d'une nouvelle variable de couleur dédiée.
+   vertical-align : le glyphe « * » d'Open Sans (--police-base) est dessiné haut dans sa boîte de
+   caractère (proche de la hauteur de capitale), donc en alignement baseline par défaut il paraît
+   flotter au-dessus du texte du label au lieu de s'aligner avec lui — décalage visuel signalé sur
+   la page d'inscription. On le redescend légèrement (repère pratique, pas une valeur issue d'une
+   métrique de police exposée en CSS) pour qu'il se lise au même niveau que le texte environnant. */
 .champ-obligatoire {
   color: var(--couleur-erreur);
+  vertical-align: -0.1em;
 }
 
 /* Cibles tactiles agrandies pour les cases à cocher/boutons radio natifs (audit tablette

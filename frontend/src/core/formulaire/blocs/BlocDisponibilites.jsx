@@ -241,10 +241,20 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       </fieldset>
       {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
 
-      <label htmlFor="disponibiliteImmediate" className="bloc-disponibilites__case-immediate">
-        <input id="disponibiliteImmediate" type="checkbox" {...register('disponibiliteImmediate')} />
-        Disponible immédiatement
-      </label>
+      {/* Bouton bascule (pas une case à cocher, décision utilisateur 2026-10-01) : même patron
+          aria-pressed/.actif que FiltreEntite.jsx (Hôtellerie/Tertiaire) — un seul contrôle,
+          son propre libellé sert de texte de bouton, son état se lit par la couleur de fond. */}
+      <div className="bloc-disponibilites__case-immediate">
+        <button
+          type="button"
+          id="disponibiliteImmediate"
+          className={`bloc-disponibilites__bouton-bascule${disponibleImmediatement ? ' actif' : ''}`}
+          aria-pressed={disponibleImmediatement}
+          onClick={() => setValue('disponibiliteImmediate', !disponibleImmediatement, { shouldValidate: true })}
+        >
+          Disponible immédiatement
+        </button>
+      </div>
 
       {!disponibleImmediatement && (
         <div className="bloc-disponibilites__dates">
