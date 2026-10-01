@@ -1,27 +1,42 @@
-.bloc-disponibilites__case-immediate {
-  display: flex;
+/* « Disponible immédiatement » (2026-10-01) : vraie case à cocher + son texte, réunis dans une même
+   pastille cliquable (le <label>). Largeur de son contenu, alignée à gauche comme le reste du bloc.
+   Décochée : rendu neutre (fond clair, bordure discrète, texte foncé) — mêmes valeurs que l'ancien
+   bouton bascule au repos. */
+.bloc-disponibilites .bloc-disponibilites__case-immediate {
+  display: inline-flex;
+  align-self: flex-start;
+  width: fit-content;
   align-items: center;
   gap: var(--espace-petit);
-}
-
-/* Bouton bascule "Disponible immédiatement" (remplace l'ancienne case à cocher, décision
-   utilisateur 2026-10-01) : même forme pilule/mêmes états repos-actif que .filtre-entite button
-   (FiltreEntite.css), mais dans la palette bleue du formulaire candidat (--couleur-primaire*)
-   plutôt que la palette back-office — ce bouton n'apparaît que côté inscription. */
-.bloc-disponibilites__bouton-bascule {
   padding: 0.5rem 1rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: 999px;
   background-color: var(--couleur-fond);
   color: var(--couleur-texte);
-  font: inherit;
   cursor: pointer;
 }
 
-.bloc-disponibilites__bouton-bascule.actif {
+.bloc-disponibilites .bloc-disponibilites__case-immediate input[type='checkbox'] {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Cochée (état par défaut) : surlignage bleu de l'ancien bouton (fond --couleur-primaire, texte
+   blanc) ; la case reste visible, en blanc sur ce fond bleu. */
+.bloc-disponibilites .bloc-disponibilites__case-immediate--cochee {
   background-color: var(--couleur-primaire);
   border-color: var(--couleur-primaire);
   color: #ffffff;
+}
+
+.bloc-disponibilites .bloc-disponibilites__case-immediate--cochee input[type='checkbox'] {
+  accent-color: #ffffff;
+}
+
+/* Clavier (Tab puis Espace) : contour de focus sur toute la pastille, seulement en navigation clavier. */
+.bloc-disponibilites .bloc-disponibilites__case-immediate:has(input:focus-visible) {
+  outline: 3px solid var(--couleur-primaire);
+  outline-offset: 2px;
 }
 
 /* Dates de disponibilité : les deux champs côte à côte (plutôt que l'un sous l'autre),

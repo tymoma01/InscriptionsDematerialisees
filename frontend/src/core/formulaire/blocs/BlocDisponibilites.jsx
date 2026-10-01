@@ -82,6 +82,8 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
     mode: 'onChange',
     resolver: zodResolver(blocDisponibilitesSchema),
     defaultValues: {
+      // Retour sur l'étape : booléen déjà transmis -> 'oui'/'non' ; jamais répondu -> aucun choix.
+      reponseEtudiant: valeurs?.estEtudiant === true ? 'oui' : valeurs?.estEtudiant === false ? 'non' : undefined,
       disponibiliteImmediate: valeurs?.disponibiliteImmediate ?? true,
       dateDebut: valeurs?.dateDebut ?? '',
       dateFin: valeurs?.dateFin ?? '',
@@ -103,8 +105,11 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
 
   const valeursSaisies = watch();
 
+  // `reponseEtudiant` ('oui'/'non', saisie interne) transmis au moteur sous la forme attendue par le
+  // serveur : `estEtudiant` booléen (undefined tant que rien n'est choisi).
   useEffect(() => {
-    onChange(valeursSaisies);
+    const { reponseEtudiant, ...autresValeurs } = valeursSaisies;
+    onChange({ ...autresValeurs, estEtudiant: reponseEtudiant === 'oui' ? true : reponseEtudiant === 'non' ? false : undefined });
   }, [JSON.stringify(valeursSaisies)]);
 
   useEffect(() => {
@@ -241,20 +246,46 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       </fieldset>
       {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
 
-      {/* Bouton bascule (pas une case à cocher, décision utilisateur 2026-10-01) : même patron
-          aria-pressed/.actif que FiltreEntite.jsx (Hôtellerie/Tertiaire) — un seul contrôle,
-          son propre libellé sert de texte de bouton, son état se lit par la couleur de fond. */}
-      <div className="bloc-disponibilites__case-immediate">
-        <button
-          type="button"
-          id="disponibiliteImmediate"
-          className={`bloc-disponibilites__bouton-bascule${disponibleImmediatement ? ' actif' : ''}`}
-          aria-pressed={disponibleImmediatement}
-          onClick={() => setValue('disponibiliteImmediate', !disponibleImmediatement, { shouldValidate: true })}
-        >
-          Disponible immédiatement
-        </button>
-      </div>
+      {/* « Êtes-vous étudiant ? » (2026-10-01) : même rendu que « Type de poste recherché » ci-dessus. */}
+      <fieldset>
+        <legend>
+          Êtes-vous étudiant ?&nbsp;<span className="champ-obligatoire">*</span>
+        </legend>
+        <div className="bloc-disponibilites__options">
+          <label htmlFor="reponseEtudiant-oui">
+            <input
+              id="reponseEtudiant-oui"
+              type="radio"
+              value="oui"
+              {...propsRadioAccessible({ register, setValue, champ: 'reponseEtudiant', valeur: 'oui', valeurCourante: valeursSaisies.reponseEtudiant })}
+            />
+            Oui
+          </label>
+          <label htmlFor="reponseEtudiant-non">
+            <input
+              id="reponseEtudiant-non"
+              type="radio"
+              value="non"
+              {...propsRadioAccessible({ register, setValue, champ: 'reponseEtudiant', valeur: 'non', valeurCourante: valeursSaisies.reponseEtudiant })}
+            />
+            Non
+          </label>
+        </div>
+      </fieldset>
+      {errors.reponseEtudiant && <p role="alert">{errors.reponseEtudiant.message}</p>}
+
+      {/* Vraie case à cocher (2026-10-01, rétablie après le bouton bascule du même jour) : même champ
+          `disponibiliteImmediate` enregistré par react-hook-form, cochée par défaut (defaultValues),
+          même valeur booléenne envoyée ; bleue une fois cochée (BlocDisponibilites.css). */}
+      {/* Pastille (2026-10-01) : la case ET son texte dans un même <label> cliquable (clic sur l'un ou
+          l'autre = cocher/décocher, nativement) ; surlignée en bleu quand cochée (BlocDisponibilites.css). */}
+      <label
+        htmlFor="disponibiliteImmediate"
+        className={`bloc-disponibilites__case-immediate${disponibleImmediatement ? ' bloc-disponibilites__case-immediate--cochee' : ''}`}
+      >
+        <input id="disponibiliteImmediate" type="checkbox" {...register('disponibiliteImmediate')} />
+        Disponible immédiatement
+      </label>
 
       {!disponibleImmediatement && (
         <div className="bloc-disponibilites__dates">

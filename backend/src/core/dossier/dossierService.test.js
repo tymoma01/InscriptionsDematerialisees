@@ -203,6 +203,7 @@ function payloadInscriptionValide(surcharges = {}) {
     email: 'candidat@exemple.fr',
     contactUrgenceNom: 'Martin',
     contactUrgenceTelephone: '0601020305',
+    estEtudiant: false,
     disponibiliteImmediate: true,
     creneaux: ['6h-9h'],
     joursDisponibles: ['lundi'],
@@ -254,6 +255,47 @@ test('inscrireCandidat accepte un dossier sans NIR (facultatif), et enregistre n
   assert.equal(donneesInserees.nirIv, null);
   assert.equal(donneesInserees.nirHash, null);
   assert.equal(donneesInserees.email, 'candidat@exemple.fr');
+});
+
+// « Êtes-vous étudiant ? » (2026-10-01, migration 074) : réponse obligatoire à l'inscription.
+test('inscrireCandidat : réponse « étudiant » absente (ou non booléenne) -> refus explicite, rien n’est écrit', async (t) => {
+  mockerRestantInscription(t);
+  t.mock.method(dossierRepository, 'trouverCandidatParEmail', async () => undefined);
+  const insererMock = t.mock.method(dossierRepository, 'insererCandidat', async () => 99);
+  const { estEtudiant: _ignore, ...sansReponse } = payloadInscriptionValide();
+  for (const donnees of [sansReponse, payloadInscriptionValide({ estEtudiant: null }), payloadInscriptionValide({ estEtudiant: 'oui' })]) {
+    await assert.rejects(
+      () => dossierService.inscrireCandidat(ENTITE, { ...donnees, nir: '' }),
+      (erreur) => erreur.issues?.some((i) => i.path[0] === 'estEtudiant' && i.message === 'Veuillez indiquer si vous êtes étudiant.'),
+    );
+  }
+  assert.equal(insererMock.mock.callCount(), 0);
+});
+
+test('inscrireCandidat : « Oui » et « Non » enregistrés tels quels sur le dossier (est_etudiant)', async (t) => {
+  for (const reponse of [true, false]) {
+    await t.test(String(reponse), async (st) => {
+      mockerRestantInscription(st);
+      st.mock.method(dossierRepository, 'trouverCandidatParEmail', async () => undefined);
+      st.mock.method(dossierRepository, 'insererCandidat', async () => 99);
+      await dossierService.inscrireCandidat(ENTITE, payloadInscriptionValide({ nir: '', estEtudiant: reponse }));
+      assert.equal(dossierRepository.creerDossier.mock.calls[0].arguments[1].estEtudiant, reponse);
+    });
+  }
+});
+
+test('« Disponible immédiatement » inchangé : valeur envoyée enregistrée telle quelle dans le bloc disponibilites', async (t) => {
+  for (const valeur of [true, false]) {
+    await t.test(String(valeur), async (st) => {
+      mockerRestantInscription(st);
+      st.mock.method(dossierRepository, 'trouverCandidatParEmail', async () => undefined);
+      st.mock.method(dossierRepository, 'insererCandidat', async () => 99);
+      const surcharges = valeur ? {} : { disponibiliteImmediate: false, dateDebut: '2026-10-15' };
+      await dossierService.inscrireCandidat(ENTITE, payloadInscriptionValide({ nir: '', ...surcharges }));
+      const bloc = dossierRepository.enregistrerDonneesBloc.mock.calls.find((appel) => appel.arguments[1].blocCode === 'disponibilites');
+      assert.equal(bloc.arguments[1].donnees.disponibiliteImmediate, valeur);
+    });
+  }
 });
 
 // Régression audit 2026-09-09 : NOM_REGEX (nom/ville/contactUrgenceNom) rejetait à tort les deux

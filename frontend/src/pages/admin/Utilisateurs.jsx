@@ -32,6 +32,12 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
 // de ce mapping (nouveau rôle non encore coloré ici, ou 'systeme'/'recruteur' hérités non
 // assignables) : retombe sur la variante neutre plutôt que d'échouer, même principe que
 // TableauDeBordAccueil.jsx/VARIANTE_PAR_CODE_ACCECIT.
+//
+// SOURCE UNIQUE des couleurs de rôle (2026-10-01) : badges du tableau ET pastilles du filtre « Rôle »
+// (prop `variante` de FiltresStatut, plus de règles CSS par rôle dans Utilisateurs.css). Les deux
+// définitions divergeaient (badges formateur/inspecteur verts, pastilles violet/gris) : alignées ici
+// sur la palette des pastilles, choisie pour ne jamais reprendre le vert d'« Actif ». RH et Inspecteur
+// Hôtellerie ajoutés, teintes distinctes des autres rôles (contraste texte/fond ≥ 5:1).
 const VARIANTE_PAR_ROLE = {
   accueil_coordination: 'bleu',
   // 'turquoise' (audit 2026-09-25, corrige le choix initial 'violet' — jamais appliqué au filtre
@@ -40,9 +46,11 @@ const VARIANTE_PAR_ROLE = {
   // (Utilisateurs.css, [data-statut='planning']) — les deux endroits doivent porter EXACTEMENT la
   // même couleur.
   planning: 'turquoise',
-  formateur: 'succes',
-  inspecteur: 'vert-clair',
+  formateur: 'violet',
+  inspecteur: 'neutre-fort',
   admin: 'dore',
+  rh: 'rose',
+  inspecteur_hotellerie: 'alerte',
 };
 function varianteRole(codeRole) {
   return VARIANTE_PAR_ROLE[codeRole] ?? 'neutre';
@@ -250,7 +258,7 @@ export default function Utilisateurs() {
               ariaLabel="Rechercher un compte par nom ou email"
             />
             <FiltresStatut
-              statuts={roles}
+              statuts={roles.map((role) => ({ ...role, variante: varianteRole(role.code) }))}
               statutFiltre={roleFiltre}
               onChangerStatutFiltre={setRoleFiltre}
               ariaLabel="Filtrer par rôle"

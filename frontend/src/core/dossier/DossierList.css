@@ -225,6 +225,12 @@
    adresse email est un seul "mot" sans espace, `word-break: break-word` seul ne le couperait pas
    (il ne casse qu'aux limites de mots existantes) — anywhere autorise la coupure n'importe où si
    besoin, seul moyen de faire tenir une adresse très longue dans cette largeur. */
+/* Colonne « Étudiant » (2026-10-01) : valeur courte (« ÉTUDIANT », « NON ÉTUDIANT », « — ») sur une
+   seule ligne. */
+.dossier-list__colonne-etudiant {
+  white-space: nowrap;
+}
+
 .dossier-list__colonne-email {
   /* 13rem (resserré à 11rem à l'origine) — augmenté pour profiter de la largeur libérée par
      "Candidat" ci-dessus (demande utilisateur 2026-09-10). */

@@ -701,6 +701,11 @@ export default function InformationsInscription({ dossierId }) {
                         }
                       />
                       <Ligne libelle="Type de poste recherché" valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)} />
+                      {/* « Êtes-vous étudiant ? » (2026-10-01, dossiers.est_etudiant) : « — » pour un dossier antérieur. */}
+                      <Ligne
+                        libelle="Étudiant"
+                        valeur={candidat?.estEtudiant === true ? 'Oui' : candidat?.estEtudiant === false ? 'Non' : '—'}
+                      />
                       <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
                       <Ligne libelle="Langues parlées" valeur={languesValeur} />
                       <Ligne libelle="Comment nous a connu" valeur={commentConnuValeur} />
