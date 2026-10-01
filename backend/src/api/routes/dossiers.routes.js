@@ -15,7 +15,7 @@ const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
-const { perimetreDossiersPourRole } = require('../../core/auth/perimetreDossiers');
+const { perimetreDossiersPourRequete } = require('../../core/auth/perimetreDossiers');
 
 // Monté sur '/api/dossiers' (voir app.js) — distinct du routeur pièces justificatives, monté
 // lui sur '/api/dossiers/:dossierId/pieces' (pieces.routes.js) : les deux coexistent sans
@@ -106,8 +106,9 @@ router.get('/', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => 
     const dossiers = await dossierService.listerDossiers(req.entite, {
       statutCode: req.query.statut,
       dispoDebut,
-      // null pour tous les rôles sauf ceux à périmètre restreint (Inspecteur Hôtellerie).
-      perimetre: perimetreDossiersPourRole(req.utilisateur.roleCode),
+      // null pour tous les rôles sauf ceux à périmètre restreint (Inspecteur Hôtellerie) ; `?vue=` n'est
+      // pris en compte que pour l'Admin (onglet « Vue Inspecteur Hôtellerie »).
+      perimetre: perimetreDossiersPourRequete(req.utilisateur.roleCode, req.query.vue),
     });
     res.json(dossiers);
   } catch (erreur) {
@@ -159,7 +160,7 @@ router.get('/statuts', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, ne
   try {
     const statuts = await dossierService.listerStatuts(req.entite);
     // Rôle à périmètre restreint : seulement les statuts de son périmètre (aucun autre renvoyé).
-    const perimetre = perimetreDossiersPourRole(req.utilisateur.roleCode);
+    const perimetre = perimetreDossiersPourRequete(req.utilisateur.roleCode, req.query.vue);
     res.json(perimetre ? statuts.filter((statut) => perimetre.statutsCodes.includes(statut.code)) : statuts);
   } catch (erreur) {
     next(erreur);

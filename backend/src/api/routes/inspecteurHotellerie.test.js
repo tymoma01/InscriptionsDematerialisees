@@ -251,7 +251,7 @@ test('GET /api/dossiers/statuts : seuls les 5 statuts du périmètre sont renvoy
   const tous = ['nouveau', 'test_planifie', 'test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche', 'formation_non_validee'];
   t.mock.method(dossierService, 'listerStatuts', async () => tous.map((code) => ({ code })));
   const res = reponseFactice();
-  await gestionnaire('dossiers', 'get', '/statuts')({ entite: ENTITE, utilisateur: { id: 9, roleCode: IH } }, res, assert.fail);
+  await gestionnaire('dossiers', 'get', '/statuts')({ query: {}, entite: ENTITE, utilisateur: { id: 9, roleCode: IH } }, res, assert.fail);
   assert.deepEqual(res.corps.map((s) => s.code).sort(), ['embauche', 'invalide', 'test_planifie', 'valide_envoi_formation', 'valide_pret_embauche']);
 });
 
@@ -310,4 +310,41 @@ test('Périmètre en base : dossier de l’entité, statut parmi les 5 ET typePo
   assert.match(sql, /"dossiers"\."entite_id" = 1/);
   assert.match(sql, /"statuts"\."code" in \('test_planifie', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche', 'invalide'\)/);
   assert.match(sql, /bloc_disponibilites\.donnees ->> 'typePoste' = 'hotel'/);
+});
+
+// --- Onglet Admin « Vue Inspecteur Hôtellerie » : paramètre `vue`, Admin uniquement ------------------
+test('Paramètre vue=inspecteur_hotellerie : appliqué pour l’Admin, IGNORÉ pour tout autre rôle', () => {
+  const { perimetreDossiersPourRequete, perimetreDossiersPourRole } = perimetreDossiers;
+  assert.deepEqual(perimetreDossiersPourRequete(ROLES.ADMIN, IH), perimetreDossiersPourRole(IH));
+  assert.equal(perimetreDossiersPourRequete(ROLES.ADMIN, undefined), null);
+  assert.equal(perimetreDossiersPourRequete(ROLES.ADMIN, 'inconnu'), null);
+  assert.equal(perimetreDossiersPourRequete(ROLES.ADMIN, ROLES.ADMIN), null);
+  for (const roleCode of [ROLES.ACCUEIL_COORDINATION, ROLES.PLANNING, ROLES.RH, ROLES.FORMATEUR, ROLES.INSPECTEUR]) {
+    assert.equal(perimetreDossiersPourRequete(roleCode, IH), null, roleCode);
+  }
+  // Le rôle Inspecteur Hôtellerie garde SON périmètre, quel que soit le paramètre.
+  assert.deepEqual(perimetreDossiersPourRequete(IH, undefined), perimetreDossiersPourRole(IH));
+  assert.deepEqual(perimetreDossiersPourRequete(IH, ROLES.ADMIN), perimetreDossiersPourRole(IH));
+});
+
+test('GET /api/dossiers?vue=inspecteur_hotellerie : l’Admin ne reçoit que l’Hôtellerie et les 5 statuts ; RH, Planning, Accueil : paramètre ignoré', async (t) => {
+  const lister = t.mock.method(dossierService, 'listerDossiers', async () => []);
+  for (const roleCode of [ROLES.ADMIN, ROLES.RH, ROLES.PLANNING, ROLES.ACCUEIL_COORDINATION]) {
+    await gestionnaire('dossiers', 'get', '/')({ query: { vue: IH }, entite: ENTITE, utilisateur: { id: 9, roleCode } }, reponseFactice(), assert.fail);
+  }
+  const perimetres = lister.mock.calls.map((appel) => appel.arguments[1].perimetre);
+  assert.deepEqual(perimetres[0], perimetreDossiers.perimetreDossiersPourRole(IH));
+  assert.deepEqual(perimetres.slice(1), [null, null, null]);
+});
+
+test('GET /api/dossiers/statuts?vue=inspecteur_hotellerie : 5 statuts pour l’Admin, tous pour un autre rôle', async (t) => {
+  const tous = ['nouveau', 'test_planifie', 'test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche'];
+  t.mock.method(dossierService, 'listerStatuts', async () => tous.map((code) => ({ code })));
+  const appeler = async (roleCode) => {
+    const res = reponseFactice();
+    await gestionnaire('dossiers', 'get', '/statuts')({ query: { vue: IH }, entite: ENTITE, utilisateur: { id: 9, roleCode } }, res, assert.fail);
+    return res.corps.map((s) => s.code);
+  };
+  assert.deepEqual((await appeler(ROLES.ADMIN)).sort(), ['embauche', 'invalide', 'test_planifie', 'valide_envoi_formation', 'valide_pret_embauche']);
+  assert.deepEqual(await appeler(ROLES.RH), tous);
 });

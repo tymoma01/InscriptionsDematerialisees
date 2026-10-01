@@ -10,10 +10,13 @@ import api from './api';
 // dossiers.routes.js/dossierRepository.listerDossiers) ; filtrage SERVEUR, contrairement au reste
 // des filtres de cette page (recherche/statut/expérience/entité), tous client (voir
 // TableauDeBordAccueil.jsx).
-export async function listerDossiers({ statut, dispoDebut } = {}) {
+// `vue` (2026-10-01, onglet Admin « Vue Inspecteur Hôtellerie ») : périmètre d'un rôle appliqué côté
+// serveur — pris en compte pour l'Admin uniquement, ignoré pour tout autre rôle.
+export async function listerDossiers({ statut, dispoDebut, vue } = {}) {
   const params = {};
   if (statut) params.statut = statut;
   if (dispoDebut) params.dispoDebut = dispoDebut;
+  if (vue) params.vue = vue;
   const { data } = await api.get('/dossiers', { params });
   return data;
 }
@@ -29,8 +32,8 @@ export async function corrigerDisponibiliteEmbauche(dossierId, { dateDebut, date
 // Statuts configurés pour l'entité courante, dans l'ordre du workflow — sert à construire les
 // filtres du tableau de bord sans coder de code de statut en dur côté front (voir Modularité,
 // CLAUDE.md).
-export async function listerStatuts() {
-  const { data } = await api.get('/dossiers/statuts');
+export async function listerStatuts({ vue } = {}) {
+  const { data } = await api.get('/dossiers/statuts', { params: vue ? { vue } : undefined });
   return data;
 }
 

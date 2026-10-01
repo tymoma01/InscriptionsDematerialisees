@@ -113,6 +113,15 @@ const ELEMENTS_NAVIGATION = [
     sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
   },
   {
+    // Onglet Admin (2026-10-01) : Dossiers candidats avec le périmètre de l'Inspecteur Hôtellerie
+    // (Hôtellerie, 5 statuts), appliqué côté serveur (paramètre `vue`, Admin uniquement).
+    cle: 'vue-inspecteur-hotellerie',
+    libelle: 'Vue Inspecteur Hôtellerie',
+    chemin: '/vue-inspecteur-hotellerie/dossiers',
+    estActif: (chemin) => chemin.startsWith('/vue-inspecteur-hotellerie/'),
+    roles: ['admin'],
+  },
+  {
     cle: 'rh',
     // Onglet « RH » (2026-09-30, demande utilisateur) — remplace l'onglet « Demandes DPAE », à la
     // MÊME position (avant « Comptes utilisateurs » : l'ordre de ce tableau pilote l'ordre des

@@ -131,6 +131,18 @@ export default function App() {
             </RouteProtegee>
           }
         />
+        {/* Onglet Admin « Vue Inspecteur Hôtellerie » (2026-10-01) : même écran que Dossiers candidats,
+            avec le périmètre de ce rôle appliqué côté serveur (paramètre `vue`, Admin uniquement).
+            Chemin dédié : l'onglet reste actif tant que l'Admin navigue dans cette vue ; `key`
+            remonte l'écran à neuf en passant de « Dossiers candidats » à cette vue. */}
+        <Route
+          path="/vue-inspecteur-hotellerie/dossiers"
+          element={
+            <RouteProtegee roles={['admin']}>
+              <TableauDeBordAccueil key="vue-inspecteur-hotellerie" vue={ROLE_INSPECTEUR_HOTELLERIE} />
+            </RouteProtegee>
+          }
+        />
         <Route path="/recruteur/dossiers" element={<Navigate to="/accueil/tableau-de-bord" replace />} />
         <Route
           path="/recruteur/dossiers/:dossierId/validation"

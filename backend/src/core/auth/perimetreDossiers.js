@@ -21,6 +21,16 @@ function perimetreDossiersPourRole(roleCode) {
   return PERIMETRE_PAR_ROLE[roleCode] ?? null;
 }
 
+// Périmètre d'une requête de LISTE (2026-10-01, onglet Admin « Vue Inspecteur Hôtellerie ») : le
+// périmètre propre du rôle s'il en a un (jamais contournable) ; sinon, pour l'ADMIN UNIQUEMENT, celui
+// du rôle demandé par le paramètre `vue` (ex. 'inspecteur_hotellerie') ; ignoré pour tout autre rôle.
+function perimetreDossiersPourRequete(roleCode, vueDemandee) {
+  const propre = perimetreDossiersPourRole(roleCode);
+  if (propre) return propre;
+  if (roleCode === ROLES.ADMIN && vueDemandee) return perimetreDossiersPourRole(vueDemandee);
+  return null;
+}
+
 // Requête « ce dossier est-il dans le périmètre ? » (construite à part pour être vérifiable en test).
 function requeteDossierDansPerimetre(bd, entiteId, dossierId, perimetre) {
   return bd('dossiers')
@@ -66,6 +76,7 @@ async function verifierPerimetreDossier(req, res, next) {
 module.exports = {
   PERIMETRE_PAR_ROLE,
   perimetreDossiersPourRole,
+  perimetreDossiersPourRequete,
   requeteDossierDansPerimetre,
   dossierDansPerimetre,
   verifierPerimetreDossier,
