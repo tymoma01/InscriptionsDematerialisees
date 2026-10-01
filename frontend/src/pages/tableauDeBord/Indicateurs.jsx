@@ -13,6 +13,7 @@ import {
   Cell,
 } from 'recharts';
 import { useSession } from '../../core/auth/useSession';
+import { ROLE_INSPECTEUR_HOTELLERIE } from '../../core/auth/rolesGroupes';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { obtenirIndicateursKpi, listerDossiersParIndicateurs } from '../../services/statistiqueService';
@@ -642,6 +643,12 @@ export default function Indicateurs() {
 
   const [periode, setPeriode] = useState(bornesParDefaut);
   const [typePoste, setTypePoste] = useState(''); // '' = toutes (Hôtellerie + Tertiaire)
+  // Inspecteur Hôtellerie (2026-10-01) : indicateurs limités à l'Hôtellerie — imposé côté serveur
+  // (statistiques.routes.js), reflété ici (Entité figée sur Hôtellerie, sélecteur masqué).
+  const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE;
+  useEffect(() => {
+    if (estInspecteurHotellerie) setTypePoste('hotel');
+  }, [estInspecteurHotellerie]);
   const [poste, setPoste] = useState(''); // '' = tous les postes
 
   const [indicateurs, setIndicateurs] = useState(null);
@@ -926,6 +933,7 @@ export default function Indicateurs() {
               onChange={(evenement) => setPeriode((precedent) => ({ ...precedent, dateFin: evenement.target.value }))}
             />
           </label>
+          {!estInspecteurHotellerie && (
           <label className="indicateurs__filtre">
             <span>Entité</span>
             <select value={typePoste} onChange={(evenement) => setTypePoste(evenement.target.value)}>
@@ -934,6 +942,7 @@ export default function Indicateurs() {
               <option value="bureau">Tertiaire</option>
             </select>
           </label>
+          )}
           <label className="indicateurs__filtre">
             <span>Poste</span>
             <select value={poste} onChange={(evenement) => setPoste(evenement.target.value)}>

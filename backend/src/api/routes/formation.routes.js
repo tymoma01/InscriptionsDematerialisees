@@ -14,7 +14,8 @@ const router = Router({ mergeParams: true });
 // historique de formation, en lecture seule — ces entrées sont produites automatiquement par les
 // transitions de "Suivi des formations" (SuiviFormation.jsx), jamais saisies directement ici, donc
 // aucune route d'écriture dans ce fichier.
-const ROLES_LECTURE_FORMATION = [...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+// Inspecteur Hôtellerie ajouté le 2026-10-01 (onglet Formation en lecture, dans son périmètre).
+const ROLES_LECTURE_FORMATION = [...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.INSPECTEUR_HOTELLERIE];
 
 router.use(requireAuth);
 

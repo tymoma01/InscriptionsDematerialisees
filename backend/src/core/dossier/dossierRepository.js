@@ -281,7 +281,9 @@ function mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche }) {
 // paramètre dédié plutôt qu'une réutilisation de statutCode. Filtrage EN SQL (pas client,
 // contrairement au reste des filtres de cette page, voir TableauDeBordAccueil.jsx) : demande
 // utilisateur explicite.
-function listerDossiers(bd, entiteId, { statutCode, dispoDebut } = {}) {
+// `perimetre` (2026-10-01, core/auth/perimetreDossiers.js) : { typePoste, statutsCodes } pour un rôle
+// à périmètre restreint (Inspecteur Hôtellerie) — filtre appliqué EN BASE ; null = aucun filtre.
+function listerDossiers(bd, entiteId, { statutCode, dispoDebut, perimetre = null } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -358,6 +360,10 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut } = {}) {
     )
     .orderBy('dossiers.date_maj', 'desc');
 
+  if (perimetre) {
+    requete.whereIn('statuts.code', perimetre.statutsCodes);
+    requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [perimetre.typePoste]);
+  }
   if (statutCode) {
     requete.andWhere('statuts.code', statutCode);
   }

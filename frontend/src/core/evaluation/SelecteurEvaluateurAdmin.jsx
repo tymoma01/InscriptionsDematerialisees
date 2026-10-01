@@ -5,7 +5,9 @@ import './SelecteurEvaluateurAdmin.css';
 // Rôle des comptes proposés selon la vue Admin (audit 2026-09-29) : "Vue Formateur" = secteur
 // Hôtellerie -> Formateurs, "Vue Inspecteur" = secteur Tertiaire -> Inspecteurs.
 const ROLE_PAR_SECTEUR = { hotellerie: 'formateur', tertiaire: 'inspecteur' };
-const LIBELLE_PAR_SECTEUR = { hotellerie: 'Formateur', tertiaire: 'Inspecteur' };
+// Libellés de rôle (2026-10-01) : 'formateur' = « Formateur Hôtellerie », 'inspecteur' = « Formateur
+// Tertiaire » (codes techniques inchangés).
+const LIBELLE_PAR_SECTEUR = { hotellerie: 'Formateur Hôtellerie', tertiaire: 'Formateur Tertiaire' };
 
 // Sélecteur "Tous / [nom]" des vues Admin "Vue Formateur"/"Vue Inspecteur" (audit 2026-09-29) —
 // partagé par ListeEvaluationsAFaire.jsx et HistoriqueEvaluations.jsx plutôt que dupliqué dans

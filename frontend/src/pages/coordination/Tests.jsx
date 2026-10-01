@@ -10,6 +10,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { useSession } from '../../core/auth/useSession';
+import { ROLES_NOTES_DOSSIER, ROLE_INSPECTEUR_HOTELLERIE } from '../../core/auth/rolesGroupes';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
@@ -137,6 +138,9 @@ export default function Tests() {
   const { chargement: chargementPieces, piecesObligatoiresCompletes } = usePiecesObligatoiresCompletes(
     dossierId,
     typesPiecesConfigAccecitTest,
+    // Pièces chargées seulement pour un rôle qui peut planifier (seul usage ici) — jamais pour un
+    // rôle en consultation sans accès aux pièces (Inspecteur Hôtellerie, 2026-10-01).
+    { actif: peutPlanifierTest },
   );
 
   // Panneau de planification du TOUT PREMIER test (distinct de panneauReplanificationOuvert plus
@@ -232,7 +236,8 @@ export default function Tests() {
         <section className="page-tests__rendezvous">
           <div className="page-tests__rendezvous-entete">
             <h2>Rendez-vous</h2>
-            {dossier && STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && (
+            {/* Masqué pour l'Inspecteur Hôtellerie (2026-10-01, consultation seule) — inchangé pour les autres rôles. */}
+            {dossier && STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && utilisateur?.roleCode !== ROLE_INSPECTEUR_HOTELLERIE && (
               <button className="page-tests__action" type="button" onClick={() => setPanneauReplanificationOuvert(true)}>
                 Replanifier un test
               </button>
@@ -324,7 +329,7 @@ export default function Tests() {
         )}
 
         <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
-          <NotesDossier dossierId={dossierId} />
+          <NotesDossier dossierId={dossierId} lectureSeule={!ROLES_NOTES_DOSSIER.includes(utilisateur?.roleCode)} />
         </ErrorBoundary>
       </div>
     </PageBackOffice>

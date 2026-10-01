@@ -34,11 +34,22 @@
 // (accueilCoordination/planning/admin les créent, voir ROLES_DPAE_DEMANDEUR ci-dessous) — rôle à
 // part entière, pas un alias d'un groupe existant (contrairement à Planning), avec ses propres
 // routes (api/routes/dpae.routes.js).
+//
+// Libellés affichés (2026-10-01, `roles.libelle`, migration 073) : 'formateur' s'affiche « Formateur
+// Hôtellerie » et 'inspecteur' « Formateur Tertiaire » — codes techniques INCHANGÉS.
+//
+// INSPECTEUR_HOTELLERIE ajouté (2026-10-01, migration 073) : rôle de CONSULTATION limité aux dossiers
+// du secteur Hôtellerie à certains statuts (périmètre appliqué côté serveur, voir
+// core/auth/perimetreDossiers.js), plus création/suivi des demandes DPAE comme Planning. Aucune
+// action sur un dossier, aucune transition (aucune ligne transition_roles). Code distinct de
+// 'inspecteur' : toutes les comparaisons de rôle du projet sont EXACTES (===, includes sur une
+// liste), jamais par préfixe ou sous-chaîne — les deux ne sont jamais confondus.
 const ROLES = Object.freeze({
   ACCUEIL_COORDINATION: 'accueil_coordination',
   PLANNING: 'planning',
   FORMATEUR: 'formateur',
   INSPECTEUR: 'inspecteur',
+  INSPECTEUR_HOTELLERIE: 'inspecteur_hotellerie',
   ADMIN: 'admin',
   RH: 'rh',
   SYSTEME: 'systeme',
@@ -63,16 +74,24 @@ const ROLES_FORCAGE = Object.freeze([ROLES.ADMIN, ROLES.PLANNING]);
 // les sites d'affectation (sitesAffectation.routes.js) et rechercher un candidat pour le champ
 // « Nom » du formulaire (candidats.routes.js, GET /recherche) — Planning et Admin. Accueil/
 // Coordination retiré (auparavant ...ROLES_ACCUEIL).
-const ROLES_DPAE_DEMANDEUR = Object.freeze([ROLES.PLANNING, ROLES.ADMIN]);
+// Inspecteur Hôtellerie ajouté le 2026-10-01 (création et ajout de site, comme Planning).
+const ROLES_DPAE_DEMANDEUR = Object.freeze([ROLES.PLANNING, ROLES.ADMIN, ROLES.INSPECTEUR_HOTELLERIE]);
 // ROLES_DPAE_RH : traitement RH d'une demande (file RH, valider/rejeter) — RH et Admin, inchangé.
 const ROLES_DPAE_RH = Object.freeze([ROLES.RH, ROLES.ADMIN]);
 // ROLES_DPAE_CONSULTATION : qui peut consulter des demandes DPAE (liste de suivi, fiche).
-const ROLES_DPAE_CONSULTATION = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
+// Inspecteur Hôtellerie ajouté le 2026-10-01 (suivi et fiches).
+const ROLES_DPAE_CONSULTATION = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING, ROLES.INSPECTEUR_HOTELLERIE]);
 // ROLES_DPAE_CONSULTATION_TOUTES : parmi eux, qui voit TOUTES les demandes de l'entité (filtre
 // « Mes demandes / Toutes ») — les autres ne voient que les demandes dont ils sont l'auteur.
 // Planning ajouté le 2026-09-30 (décision utilisateur confirmée) : il ne voyait jusqu'ici que ses
 // propres demandes. Miroir : frontend/src/core/auth/rolesGroupes.js.
-const ROLES_DPAE_CONSULTATION_TOUTES = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
+// Inspecteur Hôtellerie ajouté le 2026-10-01 (« Toutes » par défaut, comme Planning).
+const ROLES_DPAE_CONSULTATION_TOUTES = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING, ROLES.INSPECTEUR_HOTELLERIE]);
+// Tableau de bord DPAE et notes d'une demande (2026-10-01) : périmètre historique de
+// ROLES_DPAE_CONSULTATION, figé ici quand l'Inspecteur Hôtellerie a rejoint la consultation — il n'a
+// NI le tableau de bord DPAE NI l'ajout de notes. Miroir : frontend/src/core/auth/rolesGroupes.js.
+const ROLES_DPAE_TABLEAU_DE_BORD = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
+const ROLES_DPAE_NOTES = Object.freeze([ROLES.ADMIN, ROLES.RH, ROLES.PLANNING]);
 
 // utilisateur est le payload minimal posé en session par authService.connecter — voir
 // core/auth/session.js et api/middlewares/auth.middleware.js.
@@ -88,5 +107,7 @@ module.exports = {
   ROLES_DPAE_RH,
   ROLES_DPAE_CONSULTATION,
   ROLES_DPAE_CONSULTATION_TOUTES,
+  ROLES_DPAE_TABLEAU_DE_BORD,
+  ROLES_DPAE_NOTES,
   utilisateurARole,
 };

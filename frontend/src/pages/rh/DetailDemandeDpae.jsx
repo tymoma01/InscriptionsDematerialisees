@@ -16,7 +16,7 @@ import {
   ajouterNoteDemande,
 } from '../../services/dpaeService';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_DPAE_RH } from '../../core/auth/rolesGroupes';
+import { ROLES_DPAE_RH, ROLES_DPAE_NOTES } from '../../core/auth/rolesGroupes';
 import './DetailDemandeDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -305,6 +305,8 @@ export default function DetailDemandeDpae() {
           ajouter={ajouterNoteDemande}
           texteAucuneNote="Aucune note enregistrée pour cette demande."
           texteErreurChargement="Impossible de récupérer les notes de cette demande."
+          // Ajout réservé à ROLES_DPAE_NOTES (2026-10-01) : l'Inspecteur Hôtellerie lit seulement.
+          lectureSeule={!ROLES_DPAE_NOTES.includes(utilisateur?.roleCode)}
         />
 
         {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (

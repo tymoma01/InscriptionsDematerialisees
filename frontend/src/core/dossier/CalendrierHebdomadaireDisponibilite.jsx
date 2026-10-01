@@ -331,7 +331,7 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
         </button>
       </div>
 
-      {!formateurId && <p className="calendrier-hebdo__statut">Sélectionnez un formateur/inspecteur pour voir ses disponibilités.</p>}
+      {!formateurId && <p className="calendrier-hebdo__statut">Sélectionnez un formateur pour voir ses disponibilités.</p>}
       {chargement && <p className="calendrier-hebdo__statut">Chargement des disponibilités Outlook…</p>}
       {erreur && <p className="calendrier-hebdo__statut" role="alert">{erreur}</p>}
 

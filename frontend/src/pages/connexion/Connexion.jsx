@@ -50,6 +50,8 @@ const DESTINATION_PAR_ROLE = {
   // rh (module Demandes DPAE, 2026-09-28) — voir RouteProtegee.jsx, même valeur EXACTE à
   // maintenir en cohérence manuellement (voir commentaire d'en-tête ci-dessus).
   rh: '/rh/dpae',
+  // Inspecteur Hôtellerie (2026-10-01) : son tableau de bord.
+  inspecteur_hotellerie: '/tableau-de-bord/indicateurs',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
 

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL, ROLES_DPAE_CONSULTATION } from '../auth/rolesGroupes';
+import { ROLES_ACCUEIL, ROLES_DPAE_CONSULTATION, ROLES_DPAE_TABLEAU_DE_BORD, ROLE_INSPECTEUR_HOTELLERIE } from '../auth/rolesGroupes';
 import './BarreNavigation.css';
 
 // Catalogue des destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
@@ -43,7 +43,7 @@ const ELEMENTS_NAVIGATION = [
     estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
     // Mêmes rôles que statistiques.routes.js. RH ajouté (module Demandes DPAE, 2026-09-28, demande
     // utilisateur explicite) — lecture seule, cohérent avec le reste de ses accès.
-    roles: [...ROLES_ACCUEIL, 'admin', 'rh'],
+    roles: [...ROLES_ACCUEIL, 'admin', 'rh', ROLE_INSPECTEUR_HOTELLERIE],
   },
   {
     cle: 'dossiers',
@@ -61,7 +61,7 @@ const ELEMENTS_NAVIGATION = [
     // DPAE, 2026-09-28, demande utilisateur explicite) : consultation seule (Validation.jsx masque
     // déjà "Forcer le statut"/"Embauche" pour tout rôle hors ROLES_FORCAGE/ROLES_ACCUEIL+admin,
     // donc naturellement en lecture seule pour RH, voir son commentaire d'en-tête).
-    roles: [...ROLES_ACCUEIL, 'admin', 'rh'],
+    roles: [...ROLES_ACCUEIL, 'admin', 'rh', ROLE_INSPECTEUR_HOTELLERIE],
   },
   {
     cle: 'suivi-tests',
@@ -96,7 +96,7 @@ const ELEMENTS_NAVIGATION = [
   // aucune route ni libellé dupliqué. Onglet actif = toute route de l'espace.
   {
     cle: 'vue-formateur',
-    libelle: 'Vue Formateur',
+    libelle: 'Vue Formateur Hôtellerie',
     chemin: '/formateur/evaluations',
     estActif: (chemin) => chemin.startsWith('/formateur/'),
     roles: ['admin'],
@@ -105,7 +105,7 @@ const ELEMENTS_NAVIGATION = [
   },
   {
     cle: 'vue-inspecteur',
-    libelle: 'Vue Inspecteur',
+    libelle: 'Vue Formateur Tertiaire',
     chemin: '/inspecteur/evaluations',
     estActif: (chemin) => chemin.startsWith('/inspecteur/'),
     roles: ['admin'],
@@ -149,6 +149,8 @@ const ELEMENTS_NAVIGATION = [
     chemin: '/coordination/dpae/tableau-de-bord',
     estActif: (chemin) => chemin.startsWith('/coordination/dpae/tableau-de-bord'),
     roles: [],
+    // Sous-onglet réservé (2026-10-01) : pas pour l'Inspecteur Hôtellerie.
+    rolesSousOnglet: ROLES_DPAE_TABLEAU_DE_BORD,
   },
   {
     cle: 'comptes-utilisateurs',
@@ -189,7 +191,11 @@ export default function BarreNavigation() {
   // celui que voit un vrai Formateur/Inspecteur.
   const espaceActif = elementsVisibles.find((element) => element.sousOnglets && element.estActif(pathname));
   const sousOnglets = espaceActif
-    ? ELEMENTS_NAVIGATION.filter((element) => espaceActif.sousOnglets.includes(element.cle))
+    ? ELEMENTS_NAVIGATION.filter(
+        (element) =>
+          espaceActif.sousOnglets.includes(element.cle) &&
+          (!element.rolesSousOnglet || element.rolesSousOnglet.includes(utilisateur.roleCode)),
+      )
     : [];
 
   return (

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
+import { useSession } from '../../core/auth/useSession';
+import { ROLE_INSPECTEUR_HOTELLERIE, STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE } from '../../core/auth/rolesGroupes';
 import './TableauDossiersSelectionnes.css';
 
 // Colonnes triables (audit 2026-09-14, demande utilisateur) — même patron que DossierList.jsx/
@@ -423,6 +425,12 @@ export default function TableauDossiersSelectionnes({
   varianteDateCle,
   ordreCanoniqueIndicateurs,
 }) {
+  // Inspecteur Hôtellerie (2026-10-01) : tout est déjà Hôtellerie (pastilles de secteur masquées) ;
+  // lien vers la fiche seulement pour un dossier de son périmètre, sinon numéro sans lien.
+  const { utilisateur } = useSession();
+  const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE;
+  const ficheAccessible = (dossier) =>
+    !estInspecteurHotellerie || STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE.includes(dossier.statut_code);
   const [entitesFiltre, setEntitesFiltre] = useState(new Set());
   const basculerEntiteFiltre = (valeur) => {
     setEntitesFiltre((precedent) => {
@@ -501,6 +509,7 @@ export default function TableauDossiersSelectionnes({
           autres écrans) — ici, sans "Tous" ni boîte de statuts à côté, rien ne le contraint sans
           ce conteneur dédié ; les deux boutons s'étireraient sinon sur toute la largeur du
           tableau. */}
+      {!estInspecteurHotellerie && (
       <div className="tableau-dossiers-selectionnes__filtre-entite">
         <FiltreEntite
           entitesFiltre={entitesFiltre}
@@ -509,6 +518,7 @@ export default function TableauDossiersSelectionnes({
           compteurBureau={compteurBureau}
         />
       </div>
+      )}
       {dossiersTries.length === 0 ? (
         <p className="tableau-dossiers-selectionnes__vide">Aucun dossier ne correspond à ce filtre.</p>
       ) : (
@@ -564,7 +574,11 @@ export default function TableauDossiersSelectionnes({
                   <tr key={dossier.id}>
                     <td className="tableau-dossiers-selectionnes__colonne-numero">{index + 1}</td>
                     <td className="tableau-dossiers-selectionnes__colonne-dossier">
-                      <Link to={`/recruteur/dossiers/${dossier.id}/validation`}>#{dossier.id}</Link>
+                      {ficheAccessible(dossier) ? (
+                        <Link to={`/recruteur/dossiers/${dossier.id}/validation`}>#{dossier.id}</Link>
+                      ) : (
+                        <span>#{dossier.id}</span>
+                      )}
                     </td>
                     <td>
                       {dossier.candidat_prenom} {dossier.candidat_nom}

@@ -18,6 +18,9 @@ const router = Router({ mergeParams: true });
 // écriture entre rôles : simple journal partagé. Rôle Recruteur retiré (audit 2026-08-27) — voir
 // suppression du rôle en base.
 const ROLES_NOTES_DOSSIER = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
+// Lecture seule en plus (2026-10-01) : Inspecteur Hôtellerie, dans son périmètre de dossiers
+// (verifierPerimetreDossier, app.js) — jamais l'ajout de note (POST, ROLES_NOTES_DOSSIER).
+const ROLES_LECTURE_NOTES_DOSSIER = [...ROLES_NOTES_DOSSIER, ROLES.INSPECTEUR_HOTELLERIE];
 
 router.use(requireAuth);
 
@@ -64,7 +67,7 @@ router.post('/', requireRole(...ROLES_NOTES_DOSSIER), async (req, res, next) => 
 });
 
 // GET /api/dossiers/:dossierId/notes — journal du dossier, du plus récent au plus ancien.
-router.get('/', requireRole(...ROLES_NOTES_DOSSIER), async (req, res, next) => {
+router.get('/', requireRole(...ROLES_LECTURE_NOTES_DOSSIER), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const notes = await notesDossierService.listerNotes(req.entite, dossierId);

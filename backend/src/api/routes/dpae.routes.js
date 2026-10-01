@@ -7,7 +7,13 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH, ROLES_DPAE_CONSULTATION } = require('../../core/auth/rbac');
+const {
+  ROLES_DPAE_DEMANDEUR,
+  ROLES_DPAE_RH,
+  ROLES_DPAE_CONSULTATION,
+  ROLES_DPAE_TABLEAU_DE_BORD,
+  ROLES_DPAE_NOTES,
+} = require('../../core/auth/rbac');
 
 // Monté sur '/api/dpae' (voir app.js) — module spécifique à ACCECIT (voir Modularité, CLAUDE.md :
 // pas de moteur générique configurable par entité ici, décision actée avec l'utilisateur).
@@ -189,7 +195,9 @@ const filtresTableauDeBordSchema = z.object({
   statut: enumOptionnel(['envoyee', 'en_attente', 'validee', 'rejetee']),
 });
 
-router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+// ROLES_DPAE_TABLEAU_DE_BORD (2026-10-01) : Admin, RH, Planning — l'Inspecteur Hôtellerie, bien que
+// dans ROLES_DPAE_CONSULTATION, n'a pas le tableau de bord DPAE.
+router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_TABLEAU_DE_BORD), async (req, res, next) => {
   try {
     const filtres = filtresTableauDeBordSchema.parse(req.query);
     res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres));
@@ -348,7 +356,9 @@ router.get('/:id/notes', requireRole(...ROLES_DPAE_CONSULTATION), async (req, re
 // POST /api/dpae/:id/notes (2026-09-30) — ajoute une note (auteur pris de la session, jamais du
 // corps), mêmes rôles que la lecture. Aucune modification ni suppression (pas de route prévue).
 // Chaque ajout est tracé dans journal_audit.
-router.post('/:id/notes', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+// Ajout de note : ROLES_DPAE_NOTES (Admin, RH, Planning) — l'Inspecteur Hôtellerie lit les notes
+// (GET ci-dessus, ROLES_DPAE_CONSULTATION) mais n'en ajoute pas (2026-10-01).
+router.post('/:id/notes', requireRole(...ROLES_DPAE_NOTES), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { contenu } = noteBodySchema.parse(req.body);

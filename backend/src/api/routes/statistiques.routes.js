@@ -5,6 +5,7 @@ const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConstantes');
+const { perimetreDossiersPourRole } = require('../../core/auth/perimetreDossiers');
 
 // Monté sur '/api/statistiques' (voir app.js) — tableau de bord KPI back-office. Ouvert à
 // Accueil/Coordination (2026-08-17, refonte navigation back-office) en plus d'Admin : CLAUDE.md
@@ -18,7 +19,13 @@ const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConsta
 const router = Router();
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH));
+// Inspecteur Hôtellerie ajouté le 2026-10-01 : indicateurs TOUJOURS limités à l'Hôtellerie, imposé
+// ici côté serveur (typePosteImpose) quel que soit le filtre envoyé par le client.
+router.use(requireRole(...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH, ROLES.INSPECTEUR_HOTELLERIE));
+
+function typePosteImpose(req, typePosteDemande) {
+  return perimetreDossiersPourRole(req.utilisateur.roleCode)?.typePoste ?? typePosteDemande;
+}
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -73,7 +80,7 @@ router.get('/kpi', async (req, res, next) => {
     const indicateurs = await statistiquesService.obtenirIndicateursKpi(req.entite, {
       dateDebut,
       dateFin,
-      typePoste,
+      typePoste: typePosteImpose(req, typePoste),
       poste,
     });
     res.json(indicateurs);
@@ -100,7 +107,8 @@ router.get('/kpi', async (req, res, next) => {
 // indicateurs qu'il satisfait réellement (voir statistiquesService.listerDossiersParIndicateurs).
 router.get('/kpi/dossiers', async (req, res, next) => {
   try {
-    const { dateDebut, dateFin, typePoste, poste, indicateurs } = dossiersQuerySchema.parse(req.query);
+    const { dateDebut, dateFin, typePoste: typePosteDemande, poste, indicateurs } = dossiersQuerySchema.parse(req.query);
+    const typePoste = typePosteImpose(req, typePosteDemande);
     const dossiers = await statistiquesService.listerDossiersParIndicateurs(req.entite, {
       dateDebut,
       dateFin,

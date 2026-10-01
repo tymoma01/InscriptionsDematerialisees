@@ -536,9 +536,9 @@ function calculerDisponibiliteEffective(donneesDeclarees, correction) {
 // voir dossiers.routes.js) : optionnel, filtrage SERVEUR (voir dossierRepository.listerDossiers)
 // — sert de date ponctuelle ("qui est disponible à cette date"), pas de borne basse d'une plage
 // ouverte.
-async function listerDossiers(entite, { statutCode, dispoDebut } = {}) {
+async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null } = {}) {
   const bd = await obtenirKnex();
-  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut });
+  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut, perimetre });
   return dossiers.map(
     ({
       donnees_disponibilites,

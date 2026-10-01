@@ -5,7 +5,7 @@ import { useSession } from '../auth/useSession';
 import { useRafraichissementAuto } from './useRafraichissementAuto';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import StatutBadge from '../workflow/StatutBadge';
-import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
+import { ROLES_ACCUEIL, ROLES_CONSULTATION_PIECES } from '../auth/rolesGroupes';
 import './InformationsInscription.css';
 
 // Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
@@ -373,6 +373,9 @@ export default function InformationsInscription({ dossierId }) {
   const typePostePrecedentRef = useRef(null);
 
   const peutModifier = ROLES_MODIFICATION_INSCRIPTION.includes(utilisateur?.roleCode);
+  // Pièces (dont la photo d'identité) : jamais demandées hors ROLES_CONSULTATION_PIECES (2026-10-01,
+  // Inspecteur Hôtellerie, sans accès aux pièces) — les informations d'inscription restent affichées.
+  const peutVoirPieces = ROLES_CONSULTATION_PIECES.includes(utilisateur?.roleCode);
 
   // Révoque l'URL locale (blob) au démontage ou si elle change — même précaution que
   // CaptureTablette.jsx (PanneauApercuPiece) pour ne pas fuiter de mémoire.
@@ -385,7 +388,7 @@ export default function InformationsInscription({ dossierId }) {
   const chargerInscription = () => {
     setChargement(true);
     setErreur(null);
-    Promise.all([obtenirInscriptionComplete(dossierId), listerPiecesJustificatives(dossierId)])
+    Promise.all([obtenirInscriptionComplete(dossierId), peutVoirPieces ? listerPiecesJustificatives(dossierId) : Promise.resolve([])])
       .then(([inscriptionValeur, piecesValeur]) => {
         setInscription(inscriptionValeur);
         setPieces(piecesValeur);

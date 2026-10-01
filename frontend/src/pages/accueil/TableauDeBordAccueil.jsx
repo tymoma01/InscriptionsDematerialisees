@@ -8,7 +8,12 @@ import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_ACCUEIL, ROLES_EXPORT_ZIP_PIECES_GROUPE, ROLES_ACTIONS_GROUPEES_SUIVI } from '../../core/auth/rolesGroupes';
+import {
+  ROLES_ACCUEIL,
+  ROLES_EXPORT_ZIP_PIECES_GROUPE,
+  ROLES_ACTIONS_GROUPEES_SUIVI,
+  ROLE_INSPECTEUR_HOTELLERIE,
+} from '../../core/auth/rolesGroupes';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -330,6 +335,10 @@ export default function TableauDeBordAccueil() {
   const peutExporterPiecesGroupe = ROLES_EXPORT_ZIP_PIECES_GROUPE.includes(utilisateur?.roleCode);
   const peutActionsGroupeesSuivi = ROLES_ACTIONS_GROUPEES_SUIVI.includes(utilisateur?.roleCode);
   const selectionMultipleDisponible = peutExporterPiecesGroupe || peutActionsGroupeesSuivi;
+  // Inspecteur Hôtellerie (2026-10-01) : le serveur ne lui renvoie que les dossiers Hôtellerie de ses
+  // 5 statuts (et ces seuls statuts) — pastilles réduites à ces statuts + « Tous », sans « À
+  // planifier » ni pastilles de secteur ; aucune case à cocher (selectionMultipleDisponible faux).
+  const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE;
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState([]);
@@ -808,13 +817,14 @@ export default function TableauDeBordAccueil() {
   // `statuts` (cas limite, jamais rencontré en pratique).
   const statutsFiltres = useMemo(() => {
     const filtres = statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code));
+    if (estInspecteurHotellerie) return filtres;
     const entreeAPlanifier = { code: CODE_A_PLANIFIER, libelle: 'À planifier' };
     const indexApresEnAttentePieces = filtres.findIndex((statut) => statut.code === 'en_attente_pieces') + 1;
     if (indexApresEnAttentePieces === 0) {
       return [entreeAPlanifier, ...filtres];
     }
     return [...filtres.slice(0, indexApresEnAttentePieces), entreeAPlanifier, ...filtres.slice(indexApresEnAttentePieces)];
-  }, [statuts]);
+  }, [statuts, estInspecteurHotellerie]);
 
   // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
   // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
@@ -849,12 +859,14 @@ export default function TableauDeBordAccueil() {
           compteurTous={dossiersFiltresSansStatut.length}
           compteurs={compteursParStatut}
           filtresSupplementaires={
+            estInspecteurHotellerie ? undefined : (
             <FiltreEntite
               entitesFiltre={entitesFiltre}
               onBasculerEntite={basculerEntiteFiltre}
               compteurHotel={compteurHotel}
               compteurBureau={compteurBureau}
             />
+            )
           }
         />
 

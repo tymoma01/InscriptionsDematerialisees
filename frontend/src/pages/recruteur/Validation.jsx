@@ -17,6 +17,8 @@ import {
   ROLES_EXPORT_ZIP_PIECES,
   ROLES_LECTURE_SUIVI_DOSSIER,
   ROLES_NOTES_DOSSIER,
+  ROLES_LECTURE_NOTES_DOSSIER,
+  ROLES_CONSULTATION_PIECES,
 } from '../../core/auth/rolesGroupes';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier, listerStatuts } from '../../services/dossierService';
@@ -191,7 +193,11 @@ export default function Validation() {
   // Sections Rendez-vous, Relances et Notes (2026-09-30) : leurs données et écrans sont refusés à
   // la RH côté serveur — sections masquées plutôt que menant à un 403. Inchangé pour les autres.
   const peutSuivreDossier = ROLES_LECTURE_SUIVI_DOSSIER.includes(utilisateur?.roleCode);
-  const peutVoirNotes = ROLES_NOTES_DOSSIER.includes(utilisateur?.roleCode);
+  // Notes : lecture pour ROLES_LECTURE_NOTES_DOSSIER, ajout pour ROLES_NOTES_DOSSIER seulement (2026-10-01).
+  const peutVoirNotes = ROLES_LECTURE_NOTES_DOSSIER.includes(utilisateur?.roleCode);
+  const peutAjouterNote = ROLES_NOTES_DOSSIER.includes(utilisateur?.roleCode);
+  // Pièces : jamais chargées ni affichées hors ROLES_CONSULTATION_PIECES (Inspecteur Hôtellerie).
+  const peutVoirPieces = ROLES_CONSULTATION_PIECES.includes(utilisateur?.roleCode);
   const [exportEnCours, setExportEnCours] = useState(false);
   const [erreurExport, setErreurExport] = useState(null);
 
@@ -353,6 +359,10 @@ export default function Validation() {
 
   useEffect(() => {
     let annule = false;
+    if (!peutVoirPieces) {
+      setChargement(false);
+      return undefined;
+    }
     setChargement(true);
     setErreur(null);
     listerPiecesJustificatives(dossierId)
@@ -368,7 +378,7 @@ export default function Validation() {
     return () => {
       annule = true;
     };
-  }, [dossierId]);
+  }, [dossierId, peutVoirPieces]);
 
   // Rafraîchissement automatique (audit 2026-08-24) : les deux fetches de cette page (titre +
   // liste de pièces) sont indépendants de tout formulaire en cours de saisie — sans risque à
@@ -377,9 +387,11 @@ export default function Validation() {
     obtenirDossier(dossierId)
       .then(setDossier)
       .catch(() => {});
-    listerPiecesJustificatives(dossierId)
-      .then(setPieces)
-      .catch(() => {});
+    if (peutVoirPieces) {
+      listerPiecesJustificatives(dossierId)
+        .then(setPieces)
+        .catch(() => {});
+    }
     // Surface la section "Critères de validation du test" sans que l'agent ait besoin de
     // recharger la page si le test vient d'être évalué pendant que cette fiche reste ouverte.
     obtenirEvaluationDossier(dossierId)
@@ -510,6 +522,7 @@ export default function Validation() {
           </ErrorBoundary>
         )}
 
+        {peutVoirPieces && (
         <ErrorBoundary key={`pieces-${dossierId}`} titre="Pièces justificatives">
           <section className="page-validation__pieces">
             <div className="page-validation__pieces-entete">
@@ -577,6 +590,7 @@ export default function Validation() {
             )}
           </section>
         </ErrorBoundary>
+        )}
 
         {/* Section "Rendez-vous" (action "Replanifier") — extraite sur son propre écran
             (Tests.jsx, décision utilisateur 2026-08-21) : n'ouvre plus ModalePlanificationTest en
@@ -725,7 +739,7 @@ export default function Validation() {
 
         {peutVoirNotes && (
           <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
-            <NotesDossier dossierId={dossierId} />
+            <NotesDossier dossierId={dossierId} lectureSeule={!peutAjouterNote} />
           </ErrorBoundary>
         )}
       </div>

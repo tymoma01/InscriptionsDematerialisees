@@ -217,6 +217,9 @@ export default function GestionRendezvous({
 
   useEffect(() => {
     let annule = false;
+    // Motifs utiles aux seules actions (peutGererRendezvous) : jamais demandés pour un rôle en
+    // consultation, qui n'y a pas accès côté serveur (2026-10-01, Inspecteur Hôtellerie).
+    if (!peutGererRendezvous) return undefined;
     listerMotifsDesistement()
       .then((valeur) => {
         if (annule) return;

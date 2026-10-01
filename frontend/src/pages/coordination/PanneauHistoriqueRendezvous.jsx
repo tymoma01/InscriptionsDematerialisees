@@ -250,7 +250,7 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
                     Statut
                   </th>
                   <th scope="col" className="panneau-historique-rendezvous__colonne-formateur">
-                    Formateur / Inspecteur
+                    Formateur
                   </th>
                   <th scope="col" className="panneau-historique-rendezvous__colonne-notes">
                     Notes / Motif
