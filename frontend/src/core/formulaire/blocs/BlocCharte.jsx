@@ -125,13 +125,13 @@ export default function BlocCharte({ valeurs, onChange, onValiditeChange }) {
         )}
 
         <label htmlFor="charteMention">
-          Mention recopiée <span className="champ-obligatoire">*</span>
+          Mention recopiée&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="charteMention" type="text" disabled={!charteLue} {...register('charteMention')} />
         {errors.charteMention && <p role="alert">{errors.charteMention.message}</p>}
 
         <p className="bloc-charte__label-signature">
-          Signature <span className="champ-obligatoire">*</span>
+          Signature&nbsp;<span className="champ-obligatoire">*</span>
         </p>
         <SignatureElectronique
           valeur={valeursSaisies.charteSignatureImage}

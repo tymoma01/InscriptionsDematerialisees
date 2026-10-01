@@ -95,7 +95,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="adresse">
-          Numéro et nom de rue <span className="champ-obligatoire">*</span>
+          Numéro et nom de rue&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="adresse" type="text" autoComplete="address-line1" {...register('adresse')} />
         {errors.adresse && <p role="alert">{errors.adresse.message}</p>}
@@ -103,7 +103,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="codePostal">
-          Code postal <span className="champ-obligatoire">*</span>
+          Code postal&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="codePostal" type="text" inputMode="numeric" autoComplete="postal-code" {...register('codePostal')} />
         {errors.codePostal && <p role="alert">{errors.codePostal.message}</p>}
@@ -111,7 +111,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="ville">
-          Ville <span className="champ-obligatoire">*</span>
+          Ville&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="ville" type="text" autoComplete="address-level2" {...register('ville')} />
         {errors.ville && <p role="alert">{errors.ville.message}</p>}
@@ -119,7 +119,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="telephone">
-          Téléphone <span className="champ-obligatoire">*</span>
+          Téléphone&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="telephone" name="telephone" type="tel" autoComplete="tel" {...propsTelephone} />
         {errors.telephone && <p role="alert">{errors.telephone.message}</p>}
@@ -127,7 +127,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="email">
-          Email <span className="champ-obligatoire">*</span>
+          Email&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="email" type="email" autoComplete="email" {...champEmail} onBlur={gererBlurEmail} />
         {errors.email && <p role="alert">{errors.email.message}</p>}
@@ -136,7 +136,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="contactUrgenceNom">
-          Nom du contact d'urgence <span className="champ-obligatoire">*</span>
+          Nom du contact d'urgence&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input id="contactUrgenceNom" type="text" {...register('contactUrgenceNom')} />
         {errors.contactUrgenceNom && <p role="alert">{errors.contactUrgenceNom.message}</p>}
@@ -144,7 +144,7 @@ export default function BlocCoordonnees({ valeurs, onChange, onValiditeChange })
 
       <div className="bloc-coordonnees__champ">
         <label htmlFor="contactUrgenceTelephone">
-          Téléphone du contact d'urgence <span className="champ-obligatoire">*</span>
+          Téléphone du contact d'urgence&nbsp;<span className="champ-obligatoire">*</span>
         </label>
         <input
           id="contactUrgenceTelephone"

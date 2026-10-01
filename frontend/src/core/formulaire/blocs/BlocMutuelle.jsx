@@ -73,7 +73,7 @@ export default function BlocMutuelle({ valeurs, onChange, onValiditeChange }) {
       {CAS_DISPENSE.map((cas) => (
         <fieldset key={cas.champ}>
           <legend>
-            {cas.libelle} <span className="champ-obligatoire">*</span>
+            {cas.libelle}&nbsp;<span className="champ-obligatoire">*</span>
           </legend>
           <label htmlFor={`${cas.champ}-oui`}>
             <input

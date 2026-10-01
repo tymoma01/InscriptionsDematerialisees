@@ -24,14 +24,19 @@
   flex-direction: column;
 }
 
-.bloc-formulaire label {
+/* Règles propres au formulaire DPAE, limitées à .page-demande-dpae (correctif 2026-10-01) : posées
+   à l'origine sur .bloc-formulaire seul, elles s'appliquaient aussi au formulaire d'inscription
+   candidat (même classe partagée, styles/blocFormulaire.css ; le CSS de toutes les pages est chargé
+   globalement) — astérisques des champs obligatoires renvoyés à la ligne, cases à cocher et boutons
+   radio placés au-dessus de leur texte. */
+.page-demande-dpae .bloc-formulaire label {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   margin-bottom: var(--espace-petit);
 }
 
-.bloc-formulaire label.champ-inline {
+.page-demande-dpae .bloc-formulaire label.champ-inline {
   flex-direction: row;
   align-items: center;
   gap: 0.4rem;
@@ -39,7 +44,7 @@
   display: inline-flex;
 }
 
-.bloc-formulaire textarea {
+.page-demande-dpae .bloc-formulaire textarea {
   font-family: var(--police-base);
   color: var(--couleur-texte);
   background-color: var(--couleur-fond);
@@ -49,7 +54,7 @@
   resize: vertical;
 }
 
-.bloc-formulaire input[type='time'] {
+.page-demande-dpae .bloc-formulaire input[type='time'] {
   font-family: var(--police-base);
   color: var(--couleur-texte);
   background-color: var(--couleur-fond);
