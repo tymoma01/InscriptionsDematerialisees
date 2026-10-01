@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { blocMutuelleSchema } from './BlocMutuelle.schema';
 import { propsRadioAccessible } from '../radioAccessible';
+import './BlocMutuelle.css';
 
 const CAS_DISPENSE = [
   {

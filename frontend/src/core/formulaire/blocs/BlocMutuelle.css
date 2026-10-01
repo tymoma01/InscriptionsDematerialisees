@@ -1,0 +1,8 @@
+/* Correctif 2026-10-01 : un <fieldset> a par défaut min-width: min-content, il ne rétrécit donc pas
+   sous la largeur de ses longues questions (« Bénéficiez-vous de la CMU-C… ») — sur téléphone, le
+   bloc et ses sous-groupes débordaient de l'écran (défilement horizontal à l'étape 3).
+   min-width: 0 les laisse suivre la largeur disponible ; les questions passent à la ligne. */
+.bloc-mutuelle,
+.bloc-mutuelle fieldset {
+  min-width: 0;
+}

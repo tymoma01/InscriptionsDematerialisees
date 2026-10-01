@@ -138,6 +138,47 @@
   padding-top: 0.15rem;
 }
 
+/* Téléphone (correctif 2026-10-01) : à pleine taille, logo principal + logos Hôtellerie/Tertiaire
+   demandent environ 455 px — en dessous, les deux sous-marques sortaient de l'en-tête (rognées
+   par son overflow: hidden, jusqu'à ~439 px). Sous 480 px seulement (tablette et bureau
+   inchangés) : logo principal limité à une largeur relative (hauteur auto, donc sans déformation),
+   sous-marques réduites (icône, texte, espacements), toujours empilées à droite. */
+@media (max-width: 480px) {
+  .page-inscription-tablette__entete-contenu {
+    gap: var(--espace-petit);
+  }
+
+  .page-inscription-tablette__logo {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 52%;
+    height: auto;
+    max-height: 4.5rem;
+  }
+
+  .page-inscription-tablette__logos-marques {
+    flex-shrink: 0;
+    gap: var(--espace-petit);
+  }
+
+  .page-inscription-tablette__logo-marque {
+    gap: 0.35rem;
+  }
+
+  .page-inscription-tablette__logo-marque-icone {
+    height: 2rem;
+  }
+
+  .page-inscription-tablette__logo-marque-nom {
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+  }
+
+  .page-inscription-tablette__logo-marque-sous-nom {
+    font-size: 0.7rem;
+  }
+}
+
 /* Contenu défilant sous l'en-tête fixe : largeur maximale centrée (reprise ici, plus sur
    `.page-inscription-tablette`, voir plus haut) + décalage du haut de la hauteur de l'en-tête
    (+ une respiration supplémentaire) pour ne jamais passer dessous, quelle que soit l'étape.

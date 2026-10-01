@@ -9,9 +9,13 @@
    courant encore assez large pour deux colonnes sans ce problème. Ne dépend d'aucun code de bloc
    précis : à cette largeur, `.formulaire-inscription__bloc--moitie` (grid-column: span 1)
    occupe déjà toute la largeur de l'unique colonne, sans règle spécifique à ajouter. */
+/* minmax(0, 1fr) plutôt que 1fr (correctif 2026-10-01) : un `1fr` seul vaut minmax(auto, 1fr), la
+   colonne ne pouvait donc pas descendre sous la largeur minimale de son contenu le plus large — sur
+   téléphone, l'étape 3 (bloc Mutuelle) l'élargissait à 456 px et provoquait un défilement
+   horizontal. Même écriture que la règle deux colonnes ci-dessous. */
 .formulaire-inscription__etape {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--espace-grand);
 }
 
