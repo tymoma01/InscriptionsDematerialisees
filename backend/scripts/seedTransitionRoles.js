@@ -71,7 +71,7 @@ const ROLES_PAR_ACTION_ACCECIT = {
   // test_realise, plus jamais test_planifie, vers l'issue finale du dossier — voir
   // confirmer_test_realise ci-dessus pour l'étape intermédiaire qui y mène désormais) — pas par
   // POST /transitions directement, mais FORMATEUR/INSPECTEUR/ADMIN listés par cohérence avec
-  // evaluations.routes.js (ROLES_EVALUATION), au cas où l'action serait un jour exposée telle
+  // evaluations.routes.js (evaluation), au cas où l'action serait un jour exposée telle
   // quelle via l'API générique. valider_envoi_formation n'a pas d'équivalent bureau (INSPECTEUR non
   // listé ici) — le bureau n'a pas de notion de formation, un verdict positif y passe toujours par
   // valider_pret_embauche (voir evaluationEngine.js, codeActionFinal).

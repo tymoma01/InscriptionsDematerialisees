@@ -4,25 +4,26 @@ import ModalePlanificationTest from '../../core/dossier/ModalePlanificationTest'
 import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
 import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
-import GestionRendezvous, { ROLES_GESTION_RENDEZVOUS } from '../../core/dossier/GestionRendezvous';
+import GestionRendezvous from '../../core/dossier/GestionRendezvous';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_NOTES_DOSSIER, ROLE_INSPECTEUR_HOTELLERIE } from '../../core/auth/rolesGroupes';
+import { peut, ROLE_INSPECTEUR_HOTELLERIE } from '../../core/auth/permissions';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
-import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
 import { STATUTS_TEST_NON_PLANIFIE } from '../../core/pieceJustificative/premierePlanificationTest';
 import { usePiecesObligatoiresCompletes } from '../../core/pieceJustificative/usePiecesObligatoiresCompletes';
+import { libellePoste } from '../../core/referentiels/postes';
+import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import './Tests.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
 // Modularité CLAUDE.md) — même mapping que Validation.jsx (VARIANTE_PAR_CODE_ACCECIT), dupliqué
 // plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent de ce mapping (autre
 // entité, nouveau statut) retombe simplement sur un badge neutre plutôt que d'échouer. Badge
-// ajouté sur cette fiche (audit 2026-08-21) : le statut du dossier n'y était jusque-là visible
+// ajouté sur cette fiche : le statut du dossier n'y était jusque-là visible
 // nulle part, alors que dossier.statut_code/statut_libelle est déjà chargé ci-dessous
 // (obtenirDossier, aussi utilisé par STATUTS_REPLANIFIABLES) pour le nom du candidat dans le
 // titre.
@@ -42,10 +43,10 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   invalide: 'echec',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
-  // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
+  // Suivi de formation : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
-  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css.
+  // Statut terminal "Embauché" : 'vert-fonce', voir variables.css.
   embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
@@ -64,50 +65,14 @@ const CODE_ACTION_REPLANIFIER_TEST = 'replanifier_test';
 
 // Code de la transition qui planifie le TOUT PREMIER test d'un dossier (voir workflow.config.json
 // ACCECIT) — même constante que CaptureTablette.jsx (CODE_ACTION_PLANIFIER_TEST), onglet "Pièces
-// justificatives", seul endroit où ce bouton vivait jusque-là (audit 2026-08-25) : proposé
+// justificatives", seul endroit où ce bouton vivait jusque-là : proposé
 // désormais aussi ici, sur l'onglet "Tests", dès que STATUTS_TEST_NON_PLANIFIE +
 // piecesObligatoiresCompletes le permettent (voir plus bas), pour éviter à l'agent de repasser
 // par l'onglet Pièces justificatives une fois les pièces obligatoires déjà toutes chargées.
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
 
-// Statuts depuis lesquels l'action "Replanifier" est proposée (voir Modularité, CLAUDE.md : reste
-// propre à cette page/entité, pas au moteur générique GestionTransitions/ModalePlanificationTest).
-// Même liste que Validation.jsx avant elle (section "Rendez-vous", déplacée ici en entier —
-// décision utilisateur, 2026-08-21 : la replanification d'un test mérite son propre écran plutôt
-// que de vivre en modale sur la fiche de décision du recruteur, cohérent avec CLAUDE.md qui range
-// déjà "planifie les tests et reprogrammations" du côté Coordination).
-// valide_envoi_formation/valide_pret_embauche ajoutés (audit 2026-08-21) — voir le commentaire de
-// cette même constante dans Validation.jsx pour le détail.
-const STATUTS_REPLANIFIABLES = [
-  'test_planifie',
-  'test_non_realise',
-  'invalide',
-  'valide_envoi_formation',
-  'valide_pret_embauche',
-];
-
-// Libellés des postes (sélection de poste(s) testé(s) de ModalePlanificationTest.jsx) — même
-// mapping que Validation.jsx/TableauDeBordAccueil.jsx/VerificationPieces.jsx/Planification.jsx,
-// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent (poste
-// ajouté au formulaire mais pas encore ici) retombe simplement sur le code brut plutôt que
-// d'échouer.
-const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-function libellePoste(code) {
-  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
-}
-
 // Page coordination : rendez-vous de test d'un dossier (replanification), extraite de
-// Validation.jsx (audit 2026-08-21, décision utilisateur) — jusque-là la section "Rendez-vous" y
+// Validation.jsx — jusque-là la section "Rendez-vous" y
 // restait volontairement en place (modale, pas de navigation), un choix qui datait d'avant
 // l'introduction du bandeau NavigationFicheDossier.jsx : une fois ce bandeau en place, garder cette
 // section uniquement sur /validation revenait à la rendre invisible/inaccessible depuis /pieces et
@@ -125,11 +90,11 @@ export default function Tests() {
   // justificatives" (CaptureTablette.jsx) : là-bas, seuls Accueil/Coordination/Recruteur/Admin
   // atteignent même l'écran (pas de lien "Pièces justificatives" pour Formateur/Inspecteur, voir
   // BarreNavigation.jsx). Ici, l'onglet "Tests" est en revanche accessible à Formateur/Inspecteur
-  // aussi (Suivi des tests, même barre) : ROLES_GESTION_RENDEZVOUS (réutilisée depuis
+  // aussi (Suivi des tests, même barre) : gestionRendezvous (réutilisée depuis
   // GestionRendezvous.jsx, même liste que le back — rendezvous.routes.js) rend ce masquage
   // explicite ici, pour ne pas leur proposer un bouton dont la création de rendez-vous serait de
   // toute façon refusée côté serveur.
-  const peutPlanifierTest = ROLES_GESTION_RENDEZVOUS.includes(utilisateur?.roleCode);
+  const peutPlanifierTest = peut(utilisateur, 'gestionRendezvous');
 
   // Complétude des pièces obligatoires (voir premierePlanificationTest.js — même calcul
   // qu'utilise CaptureTablette.jsx pour ce même bouton, jamais dupliqué) : fetch indépendant de
@@ -137,7 +102,6 @@ export default function Tests() {
   // ci-dessous, déjà rechargé séparément par VerificationPieces.jsx).
   const { chargement: chargementPieces, piecesObligatoiresCompletes } = usePiecesObligatoiresCompletes(
     dossierId,
-    typesPiecesConfigAccecitTest,
     // Pièces chargées seulement pour un rôle qui peut planifier (seul usage ici) — jamais pour un
     // rôle en consultation sans accès aux pièces (Inspecteur Hôtellerie, 2026-10-01).
     { actif: peutPlanifierTest },
@@ -183,7 +147,7 @@ export default function Tests() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : réutilise rechargerDossier tel quel, même
+  // Rafraîchissement automatique : réutilise rechargerDossier tel quel, même
   // fonction que le rechargement manuel post-replanification ci-dessus.
   useRafraichissementAuto(rechargerDossier);
 
@@ -224,7 +188,7 @@ export default function Tests() {
 
         <NavigationFicheDossier dossierId={dossierId} pageActuelle="tests" />
 
-        {/* Mode dégradé du back-office (audit 2026-08-24) — chaque section garde son propre
+        {/* Mode dégradé du back-office — chaque section garde son propre
             chargement de données indépendant, ErrorBoundary ajoute le filet manquant côté RENDU :
             un plantage n'empêche plus la consultation des autres sections de cette fiche.
             key={dossierId} sur chacune pour repartir d'un état propre si l'agent change de
@@ -244,7 +208,7 @@ export default function Tests() {
             )}
             {/* Même bouton que CaptureTablette.jsx (onglet "Pièces justificatives"), même
                 condition (STATUTS_TEST_NON_PLANIFIE + piecesObligatoiresCompletes, voir
-                premierePlanificationTest.js) et même RBAC (ROLES_GESTION_RENDEZVOUS) — proposé
+                premierePlanificationTest.js) et même RBAC (gestionRendezvous) — proposé
                 ici pour que l'agent n'ait plus à repasser par l'onglet Pièces justificatives une
                 fois les pièces obligatoires déjà toutes chargées (demande utilisateur,
                 2026-08-25). */}
@@ -256,7 +220,7 @@ export default function Tests() {
           </div>
           {dossier && !STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && !dossierPeutPlanifierTest && (
             <p className="page-tests__rendezvous-indisponible">
-              {/* Explicite la raison réelle (demande utilisateur, 2026-08-25) plutôt qu'un message
+              {/* Explicite la raison réelle plutôt qu'un message
                   générique qui ne dit pas pourquoi — seul le cas "pièces obligatoires manquantes"
                   a une raison à expliciter ici : le statut lui-même (dossierTestNonPlanifie) et le
                   RBAC (peutPlanifierTest) ne concernent jamais l'agent qui les lit (un agent sans
@@ -329,7 +293,7 @@ export default function Tests() {
         )}
 
         <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
-          <NotesDossier dossierId={dossierId} lectureSeule={!ROLES_NOTES_DOSSIER.includes(utilisateur?.roleCode)} />
+          <NotesDossier dossierId={dossierId} lectureSeule={!peut(utilisateur, 'ajoutNotesDossier')} />
         </ErrorBoundary>
       </div>
     </PageBackOffice>

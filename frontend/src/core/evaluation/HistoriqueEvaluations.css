@@ -26,7 +26,7 @@
   font: inherit;
 }
 
-/* "Créneaux souhaités" (audit 2026-09-17) — même style que .planification__filtre-formateur
+/* "Créneaux souhaités" — même style que .planification__filtre-formateur
    (Planification.css, filtres "Formateur"/"Expérience") : label/select générique réutilisé partout
    où ce projet a besoin d'un filtre à choix unique. */
 .historique-evaluations__filtre-creneau {
@@ -93,7 +93,7 @@
   padding: 0.75rem var(--espace-moyen);
 }
 
-/* N° de dossier centré dans le corps du tableau aussi (audit 2026-08-20) — qualifiée par table +
+/* N° de dossier centré dans le corps du tableau aussi — qualifiée par table +
    td, même correctif de spécificité que DossierList.css/Planification.css
    (.dossier-list td.dossier-list__colonne-numero / .planification__table
    td.planification__colonne-numero) : une classe seule perdrait face à la règle groupée
@@ -134,7 +134,7 @@
   border-bottom: none;
 }
 
-/* Colonne "Créneau" (audit 2026-09-18) — un candidat peut avoir coché plusieurs créneaux
+/* Colonne "Créneau" — un candidat peut avoir coché plusieurs créneaux
    (BlocDisponibilites.jsx, case à cocher), donc potentiellement plusieurs badges dans une même
    cellule : wrap plutôt que de forcer une seule ligne, même esprit que .historique-evaluations__
    actions ci-dessous pour l'espacement. */

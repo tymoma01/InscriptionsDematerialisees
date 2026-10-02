@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const evaluationRepository = require('./evaluationRepository');
 
-// construireCreneauxDisponibles (audit 2026-09-18, correctif) — fonction pure (aucun accès DB),
+// construireCreneauxDisponibles — fonction pure (aucun accès DB),
 // couvre le bug signalé : matin/midi/soir (vocabulaire hôtel) remontaient dans le select "Créneaux
 // souhaités" de l'Inspecteur alors que ce rôle reste cantonné au secteur bureau, à cause de lignes
 // incohérentes en base (rien n'empêche un dossier bureau de contenir un code hôtel dans son

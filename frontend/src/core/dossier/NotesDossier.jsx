@@ -17,7 +17,7 @@ const LONGUEUR_MAX_CONTENU = 1000;
 // Journal de notes libres sur un dossier, indépendant des relances (voir CLAUDE.md, tâche
 // "journal de notes horodatées") — chaque note est un ajout permanent (pas de modification/
 // suppression), consultable et alimentable par tout agent back-office ayant accès au dossier
-// (voir notes.routes.js, ROLES_NOTES_DOSSIER). Composant générique, réutilisé sur les 3 écrans où
+// (voir notes.routes.js, ajoutNotesDossier). Composant générique, réutilisé sur les 3 écrans où
 // un dossier est consulté en détail (VerificationPieces.jsx, Relances.jsx, Validation.jsx) — pas
 // de layout commun entre ces trois pages pour l'y intégrer autrement (chacune duplique déjà son
 // propre <h1>Dossier #id) — voir Modularité, CLAUDE.md, même patron que HistoriqueRelances.jsx.
@@ -65,7 +65,7 @@ export default function NotesDossier({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cibleId]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : ne touche que la liste des notes déjà
+  // Rafraîchissement automatique : ne touche que la liste des notes déjà
   // reçues, jamais `contenu` (le brouillon de note en cours de saisie, état séparé ci-dessus) —
   // aucun risque de perdre une note en cours de frappe.
   useRafraichissementAuto(chargerNotes);

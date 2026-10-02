@@ -7,7 +7,7 @@
 // écritures réussissent ou échouent ensemble, jamais l'une sans l'autre.
 //
 // codeAction dédié ('marquer_embauche', jamais réutilisé ailleurs) — corrige l'erreur identifiée
-// par l'audit du tableau de bord (2026-08-31) sur "Formation validée", qui réutilisait à tort le
+// par l'audit du tableau de bord sur "Formation validée", qui réutilisait à tort le
 // codeAction 'valider_pret_embauche' déjà porté par le verdict de test initial, faussant ensuite
 // l'indicateur "Délai moyen test → verdict" (deux lignes historique_statuts pour le même
 // test_realise). Un codeAction neuf, à statut d'origine unique (valide_pret_embauche), ne peut pas

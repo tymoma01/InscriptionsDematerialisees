@@ -103,7 +103,7 @@
   outline-offset: 2px;
 }
 
-/* Une couleur distincte par tuile (décision utilisateur, 2026-08-11) — fond + bordure + texte via
+/* Une couleur distincte par tuile — fond + bordure + texte via
    les variantes `--statut-<variante>-*` DÉJÀ définies dans styles/variables.css (jamais de couleur
    codée en dur ici), pas de nouvelle palette : chaque variante reprend celle déjà attribuée au
    même code dans VARIANTE_PAR_INDICATEUR (Indicateurs.jsx) — la tuile "Inscrits" et le badge
@@ -203,7 +203,7 @@
   color: var(--statut-echec-fort-texte);
 }
 
-/* Manquante jusqu'ici (audit 2026-09-19) : nécessaire pour la tuile "Test Invalidé" de "Volumétrie
+/* Manquante jusqu'ici : nécessaire pour la tuile "Test Invalidé" de "Volumétrie
    sur la période" (variante 'echec', voir CARTES_VOLUMETRIE_ACCECIT, Indicateurs.jsx) — même token
    --statut-echec-* que le badge "Test échoué" affiché ailleurs sur cet écran pour ce même code
    (VARIANTE_PAR_INDICATEUR.verdict_invalide), même principe que --vert-clair/--echec-fort ci-dessus. */
@@ -557,7 +557,7 @@
   line-height: 1;
 }
 
-/* "Effacer la sélection" (audit 2026-08-25) — distinction visuelle d'avec le bouton
+/* "Effacer la sélection" — distinction visuelle d'avec le bouton
    d'agrandissement voisin (»/«) : une réinitialisation d'affichage (vide selectionIndicateurs,
    aucune donnée en base) plutôt qu'une action positive, teinte grise/ardoise plutôt que le survol
    brun/doré générique hérité de .indicateurs__tableau-consolide-entete button:hover ci-dessus —

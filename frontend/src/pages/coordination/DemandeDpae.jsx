@@ -49,7 +49,7 @@ const DONNEES_INITIALES = {
   salarieTelephone: '',
   salarieDejaEmploye: false,
   candidatId: null,
-  // Site(s) d'affectation (2026-09-29) : ids du référentiel `sites_affectation`, remplace l'ancien
+  // Site(s) d'affectation : ids du référentiel `sites_affectation`, remplace l'ancien
   // champ texte `hotel` (plus envoyé, voir SelecteurSitesAffectation.jsx).
   sitesAffectationIds: [],
   typeContrat: '',
@@ -145,12 +145,12 @@ export default function DemandeDpae() {
     );
 
   const estAjoutRetraitJours = donnees.typeDemande === 'ajout_retrait_jours';
-  // CDD de remplacement (audit 2026-09-29) : seul cas où "Nom du salarié remplacé" est obligatoire
+  // CDD de remplacement : seul cas où "Nom du salarié remplacé" est obligatoire
   // — même règle côté serveur (dpae.routes.js, demandeBodySchema). Dans tous les autres cas (CDI,
   // CDD de surcroît d'activité), la valeur éventuellement saisie n'est pas envoyée (voir envoyer).
   const estCddRemplacement = donnees.typeContrat === 'cdd' && donnees.motifCdd === 'remplacement_absent';
 
-  // Site(s) d'affectation traités à part (2026-09-29) : pour que l'agent puisse TENTER d'envoyer sans
+  // Site(s) d'affectation traités à part : pour que l'agent puisse TENTER d'envoyer sans
   // site et que le bloc des sites se déplie alors de lui-même (voir envoyer), le bouton « Envoyer »
   // ne dépend que des AUTRES champs obligatoires — il reste désactivé pour eux, comme avant. L'envoi
   // lui-même reste bloqué tant qu'aucun site n'est choisi (et refusé côté serveur de toute façon).
@@ -285,7 +285,7 @@ export default function DemandeDpae() {
               </label>
             </fieldset>
 
-            {/* Site(s) d'affectation (2026-09-29) : sélection d'un ou plusieurs sites du référentiel,
+            {/* Site(s) d'affectation : sélection d'un ou plusieurs sites du référentiel,
                 au moins un obligatoire (envoi bloqué sinon, voir envoyer) — contrôlé aussi côté
                 serveur (dpae.routes.js, sitesAffectationIds). Remplace le champ texte libre. Bloc
                 replié par défaut, déplié automatiquement sur une tentative d'envoi sans site. */}

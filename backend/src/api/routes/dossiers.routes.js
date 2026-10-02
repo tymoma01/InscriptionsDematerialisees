@@ -13,8 +13,7 @@ const evaluationEngine = require('../../core/evaluation/evaluationEngine');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 const { perimetreDossiersPourRequete } = require('../../core/auth/perimetreDossiers');
 
 // Monté sur '/api/dossiers' (voir app.js) — distinct du routeur pièces justificatives, monté
@@ -26,42 +25,38 @@ router.use(requireAuth);
 
 // Vue centralisée des dossiers (CLAUDE.md, besoins Accueil/Coordination : "vue centralisée des
 // dossiers en attente") — mêmes rôles que la gestion des pièces justificatives (pieces.routes.js),
-// c'est la suite du même parcours interne. Rôle Recruteur retiré (audit 2026-08-27) : plus aucune
+// c'est la suite du même parcours interne. Rôle Recruteur retiré : plus aucune
 // fonction dans le workflow v4, voir suppression du rôle en base.
 //
 // RH ajouté (module Demandes DPAE, 2026-09-28, demande utilisateur explicite) — en LECTURE
-// seulement : RH n'a jamais accès à ROLES_MODIFICATION_INSCRIPTION/ROLES_EXPORT_ZIP_PIECES_GROUPE
+// seulement : RH n'a jamais accès à modificationInscription/exportPiecesGroupe
 // plus bas, tous deux distincts de cette constante. Contrairement à Formateur/Inspecteur (ajoutés
-// uniquement à ROLES_LECTURE_INSCRIPTION, un seul dossier à la fois via leurs rendez-vous
+// uniquement à lectureInscription, un seul dossier à la fois via leurs rendez-vous
 // assignés), RH est ajouté ICI, à la racine : besoin explicite de parcourir la liste complète des
 // dossiers (écran "Dossiers candidats"), pas seulement un dossier déjà identifié par ailleurs.
-const ROLES_CONSULTATION_DOSSIERS = [...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH];
 
-// Liste des dossiers, statuts et évaluation d'un dossier (2026-10-01) : consultation + Inspecteur
+// Liste des dossiers, statuts et évaluation d'un dossier : consultation + Inspecteur
 // Hôtellerie, TOUJOURS restreint à son périmètre (core/auth/perimetreDossiers.js : liste filtrée en
 // base ici, fiche protégée par verifierPerimetreDossier dans app.js). Groupe distinct pour ne PAS
-// ouvrir à ce rôle les autres routes de ROLES_CONSULTATION_DOSSIERS (motifs, rendez-vous…).
-const ROLES_LISTE_DOSSIERS = [...ROLES_CONSULTATION_DOSSIERS, ROLES.INSPECTEUR_HOTELLERIE];
+// ouvrir à ce rôle les autres routes de consultationDossiers (motifs, rendez-vous…).
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET /rendezvous ci-dessous (audit 2026-08-20,
-// accès à "Suivi des tests") — pas à ROLES_CONSULTATION_DOSSIERS lui-même : ces deux rôles n'ont
+// accès à "Suivi des tests") — pas à consultationDossiers lui-même : ces deux rôles n'ont
 // pas à voir la liste complète des dossiers, ni les motifs/statuts/transitions des autres routes de
 // ce fichier, seulement leurs propres rendez-vous de test (voir la restriction posée dans le
 // handler de la route, jamais un simple filtrage d'affichage côté front).
-const ROLES_CONSULTATION_RENDEZVOUS_TEST = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 
 // Formateur/Inspecteur, lecture seule sur UN dossier précis (audit 2026-08-19, écrans
 // d'évaluation — étendu le 2026-08-20 au résumé GET /:dossierId, bouton "Voir le dossier" sur
-// Suivi des tests) — même patron que ROLES_CONSULTATION_PIECES (pieces.routes.js), la vraie garde
-// de modification restant ROLES_MODIFICATION_INSCRIPTION plus bas, inchangée. Distinct de
-// ROLES_CONSULTATION_DOSSIERS (pas réutilisé tel quel) : ne pas donner à Formateur/Inspecteur un
+// Suivi des tests) — même patron que consultationPieces (pieces.routes.js), la vraie garde
+// de modification restant modificationInscription plus bas, inchangée. Distinct de
+// consultationDossiers (pas réutilisé tel quel) : ne pas donner à Formateur/Inspecteur un
 // accès aux AUTRES routes de ce fichier (liste des dossiers, statuts, transitions...) — seulement
 // au résumé et aux infos d'inscription d'UN dossier précis, consulté depuis Relances.jsx
 // ("Voir le dossier") ou GrilleEvaluation.jsx (InformationsInscription). GET /rendezvous reste à
-// part (ROLES_CONSULTATION_RENDEZVOUS_TEST ci-dessus), déjà scopé différemment (tous dossiers,
+// part (consultationRendezvousTest ci-dessus), déjà scopé différemment (tous dossiers,
 // pas un seul).
 // Inspecteur Hôtellerie ajouté le 2026-10-01 (fiche en lecture, dans son périmètre seulement).
-const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.INSPECTEUR_HOTELLERIE];
 
 // GET /derniere-modification ci-dessous (rafraîchissement automatique du back-office, audit
 // 2026-08-24) — les 4 rôles humains restants (ROLES.SYSTEME exclu, jamais connecté, voir rbac.js ;
@@ -73,14 +68,6 @@ const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATE
 // RH ajoutée le 2026-09-30 (demande utilisateur) : ses pages (Dossiers candidats, fiche dossier,
 // Tableau de bord, écrans DPAE) utilisent aussi l'actualisation automatique, qui échouait en 403
 // pour ce rôle. Constante utilisée par cette seule route.
-const ROLES_TOUT_BACK_OFFICE = [
-  ...ROLES_ACCUEIL,
-  ROLES.FORMATEUR,
-  ROLES.INSPECTEUR,
-  ROLES.ADMIN,
-  ROLES.RH,
-  ROLES.INSPECTEUR_HOTELLERIE,
-];
 
 // dispoDebut (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche" ;
 // dispoFin RETIRÉ le même jour, demande utilisateur explicite — un seul paramètre d'entrée
@@ -100,7 +87,7 @@ const dispoQuerySchema = z.object({
 // filtrable par statut. Le code de statut n'est jamais figé ici : il vient de la table `statuts`,
 // configurable par entité (voir Modularité, CLAUDE.md) — un code inconnu pour l'entité renvoie
 // simplement une liste vide, pas une erreur.
-router.get('/', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => {
+router.get('/', requirePermission('listeDossiers'), async (req, res, next) => {
   try {
     const { dispoDebut } = dispoQuerySchema.parse(req.query);
     const dossiers = await dossierService.listerDossiers(req.entite, {
@@ -127,24 +114,23 @@ router.get('/', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => 
 // liste, pas un paramètre de requête ici. Rôles : Accueil/Coordination (lecture seule, pas
 // d'action, voir SuiviFormation.jsx) ET Formateur (accès complet, boutons "Formation
 // validée"/"Formation non validée") — même patron restreint que GET /rendezvous ci-dessous
-// (ROLES_CONSULTATION_RENDEZVOUS_TEST), plutôt qu'élargir ROLES_CONSULTATION_DOSSIERS à ce rôle
+// (consultationRendezvousTest), plutôt qu'élargir consultationDossiers à ce rôle
 // (ce qui lui donnerait accès à la liste COMPLÈTE des dossiers, tous statuts confondus — jamais
-// voulu, voir le commentaire de ROLES_CONSULTATION_RENDEZVOUS_TEST plus bas). Le choix des 3
+// voulu, voir le commentaire de consultationRendezvousTest plus bas). Le choix des 3
 // statuts eux-mêmes reste propre à ACCECIT (voir Modularité, CLAUDE.md), porté par
 // dossierRepository.listerSuiviFormation plutôt qu'un paramètre client.
 //
 // Inspecteur RETIRÉ (audit 2026-09-26, règle métier confirmée : aucun dossier Tertiaire — le
-// secteur de l'Inspecteur — ne passe en formation) : il garde ROLES_LECTURE_FORMATION
-// (formation.routes.js, historique de la fiche dossier, lecture seule) et ROLES_GESTION_TRANSITIONS
+// secteur de l'Inspecteur — ne passe en formation) : il garde lectureFormation
+// (formation.routes.js, historique de la fiche dossier, lecture seule) et gestionTransitions
 // (transitions.routes.js, garde générique nécessaire à ses transitions d'évaluation) — seul CE
 // rôle-ci (accès à la LISTE "Suivi des formations" elle-même) lui est retiré. Les lignes
 // transition_roles des transitions marquer_formation_validee/invalider_formation sont, elles,
 // retirées séparément en base (voir backend/scripts/retirerInspecteurTransitionsFormation.js) :
 // cette constante ne couvre que la liste, jamais les transitions elles-mêmes (déjà re-vérifiées
 // indépendamment par workflowEngine.appliquerTransition via transition_roles, voir
-// ROLES_GESTION_TRANSITIONS dans transitions.routes.js).
-const ROLES_SUIVI_FORMATION = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.ADMIN];
-router.get('/suivi-formation', requireRole(...ROLES_SUIVI_FORMATION), async (req, res, next) => {
+// gestionTransitions dans transitions.routes.js).
+router.get('/suivi-formation', requirePermission('suiviFormation'), async (req, res, next) => {
   try {
     const dossiers = await dossierService.listerSuiviFormation(req.entite);
     res.json(dossiers);
@@ -156,7 +142,7 @@ router.get('/suivi-formation', requireRole(...ROLES_SUIVI_FORMATION), async (req
 // GET /api/dossiers/statuts — statuts configurés pour l'entité courante, dans l'ordre du
 // workflow ; sert à construire les filtres du tableau de bord sans coder de code de statut en
 // dur côté front (voir core/workflow/StatutBadge.jsx, pages/accueil/TableauDeBordAccueil.jsx).
-router.get('/statuts', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => {
+router.get('/statuts', requirePermission('listeDossiers'), async (req, res, next) => {
   try {
     const statuts = await dossierService.listerStatuts(req.entite);
     // Rôle à périmètre restreint : seulement les statuts de son périmètre (aucun autre renvoyé).
@@ -175,7 +161,7 @@ router.get('/statuts', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, ne
 // (useRafraichissementAuto.js) et ne redéclenche son fetch existant que si elle a changé — cette
 // route ne renvoie donc jamais les données elles-mêmes, seulement le signal "quelque chose a
 // changé, va re-vérifier".
-router.get('/derniere-modification', requireRole(...ROLES_TOUT_BACK_OFFICE), async (req, res, next) => {
+router.get('/derniere-modification', requirePermission('toutBackOffice'), async (req, res, next) => {
   try {
     const derniereModification = await dossierService.obtenirDerniereModification(req.entite);
     res.json({ derniereModification });
@@ -185,12 +171,11 @@ router.get('/derniere-modification', requireRole(...ROLES_TOUT_BACK_OFFICE), asy
 });
 
 // Export ZIP groupé (barre d'actions groupées, "Dossiers candidats", audit 2026-08-24) — mêmes
-// rôles que l'export ZIP par dossier (ROLES_EXPORT_ZIP_PIECES, pieces.routes.js) : ce module ne
+// rôles que l'export ZIP par dossier (exportPieces, pieces.routes.js) : ce module ne
 // réexporte pas cette constante (déclarée localement là-bas), redéclarée ici à l'identique, même
 // convention que le reste du projet (voir CLAUDE.md, dupliqué plutôt que partagé pour quelques
 // lignes de données).
-// Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_EXPORT_ZIP_PIECES_GROUPE = [...ROLES_ACCUEIL, ROLES.ADMIN];
+// Rôle Recruteur retiré — voir suppression du rôle en base.
 
 // Même schéma CSV que historiqueRendezvousQuerySchema plus bas (dossierIds="12,45,67") — pas
 // partagé entre les deux : ce fichier duplique déjà ce patron pour /rendezvous/historique, une
@@ -229,7 +214,7 @@ function nettoyerSegmentChemin(valeur) {
 // stockage n'interrompt jamais l'export des AUTRES dossiers de la sélection — même philosophie de
 // résilience que l'export individuel (pièces manquantes -> manifeste texte, jamais un 404/500
 // global), étendue ici au niveau du dossier entier plutôt que de la pièce.
-router.get('/pieces/export-zip-groupe', requireRole(...ROLES_EXPORT_ZIP_PIECES_GROUPE), async (req, res, next) => {
+router.get('/pieces/export-zip-groupe', requirePermission('exportPiecesGroupe'), async (req, res, next) => {
   try {
     const { dossierIds } = exportZipGroupeQuerySchema.parse(req.query);
     const resumes = await dossierService.listerResumesParIds(req.entite, dossierIds);
@@ -329,7 +314,7 @@ router.get('/pieces/export-zip-groupe', requireRole(...ROLES_EXPORT_ZIP_PIECES_G
 // côté front (voir core/dossier/HistoriqueRelances.jsx). Vit ici plutôt que dans
 // relances.routes.js (monté sur '/api/dossiers/:dossierId/relances') car cette liste ne dépend
 // d'aucun dossierId — même logique que GET /api/dossiers/statuts ci-dessus.
-router.get('/relances/motifs-resultat', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/relances/motifs-resultat', requirePermission('consultationDossiers'), async (req, res, next) => {
   try {
     const motifs = await relanceService.listerMotifsResultatRelance(req.entite);
     res.json(motifs);
@@ -357,17 +342,17 @@ const rendezvousTestQuerySchema = z.object({
 // dossier précis — même logique "pas propre à un dossier en particulier" que les routes de
 // motifs ci-dessous.
 //
-// Formateur/Inspecteur (audit 2026-08-20) : ne voient QUE leurs propres rendez-vous assignés,
+// Formateur/Inspecteur : ne voient QUE leurs propres rendez-vous assignés,
 // jamais ceux d'un autre formateur/inspecteur — `formateurId` reçu en query est donc IGNORÉ pour
 // ces deux rôles et remplacé par req.utilisateur.id, quoi qu'envoie le client. Restriction posée
 // ici, côté serveur, pas seulement par le masquage du sélecteur "Formateur" côté front
 // (Planification.jsx) : un appel direct à cette route avec un autre formateurId doit rester sans
-// effet pour ces rôles, même principe que ROLES_MODIFICATION_INSCRIPTION plus bas dans ce fichier.
-router.get('/rendezvous', requireRole(...ROLES_CONSULTATION_RENDEZVOUS_TEST), async (req, res, next) => {
+// effet pour ces rôles, même principe que modificationInscription plus bas dans ce fichier.
+router.get('/rendezvous', requirePermission('consultationRendezvousTest'), async (req, res, next) => {
   try {
     const { aVenir, formateurId, dateDebut, dateFin } = rendezvousTestQuerySchema.parse(req.query);
     // Formateur/Inspecteur limités à leurs propres rendez-vous, Inspecteur limité en plus au
-    // secteur Tertiaire (audit 2026-09-29) — voir rendezvousService.filtresListeRendezvousTestParRole.
+    // secteur Tertiaire — voir rendezvousService.filtresListeRendezvousTestParRole.
     const filtresRole = rendezvousService.filtresListeRendezvousTestParRole({
       roleCode: req.utilisateur.roleCode,
       utilisateurId: req.utilisateur.id,
@@ -412,7 +397,7 @@ const historiqueRendezvousQuerySchema = z.object({
 // TOUT l'historique mais seulement des dossiers demandés. Déclarée avant '/rendezvous/
 // motifs-desistement' ci-dessous : simple ordre de lecture, aucune collision possible entre
 // segments littéraux distincts.
-router.get('/rendezvous/historique', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/rendezvous/historique', requirePermission('consultationDossiers'), async (req, res, next) => {
   try {
     const { dossierIds } = historiqueRendezvousQuerySchema.parse(req.query);
     const historique = await rendezvousService.listerHistoriqueRendezvousDossiers(req.entite, dossierIds);
@@ -428,7 +413,7 @@ router.get('/rendezvous/historique', requireRole(...ROLES_CONSULTATION_DOSSIERS)
 // GET /api/dossiers/rendezvous/motifs-desistement — motifs de désistement configurés pour
 // l'entité courante (table `motifs`, categorie 'desistement'), pas propre à un dossier en
 // particulier — même logique que GET /api/dossiers/relances/motifs-resultat ci-dessus.
-router.get('/rendezvous/motifs-desistement', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/rendezvous/motifs-desistement', requirePermission('consultationDossiers'), async (req, res, next) => {
   try {
     const motifs = await rendezvousService.listerMotifsDesistement(req.entite);
     res.json(motifs);
@@ -442,7 +427,7 @@ router.get('/rendezvous/motifs-desistement', requireRole(...ROLES_CONSULTATION_D
 // un dossier en particulier — même logique que les deux routes de motifs ci-dessus. Sert au
 // back-office recruteur à construire le sélecteur de motif d'une décision (ex. rejeter_dossier)
 // sans connaître les codes possibles à l'avance.
-router.get('/transitions/motifs', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/transitions/motifs', requirePermission('consultationDossiers'), async (req, res, next) => {
   try {
     const { codeAction } = z.object({ codeAction: z.string().trim().min(1) }).parse(req.query);
     const motifs = await workflowEngine.listerMotifsPourAction(req.entite, codeAction);
@@ -465,11 +450,11 @@ router.get('/transitions/motifs', requireRole(...ROLES_CONSULTATION_DOSSIERS), a
 // pas un chemin qui a un segment de plus.
 //
 // Formateur/Inspecteur ajoutés ici (audit 2026-08-20, bouton "Voir le dossier" sur Suivi des
-// tests) — même résumé de dossier (jamais le NIR, jamais les pièces) que ROLES_LECTURE_INSCRIPTION
+// tests) — même résumé de dossier (jamais le NIR, jamais les pièces) que lectureInscription
 // leur accorde déjà pour la section "Informations d'inscription complètes" ; sert ici uniquement
 // à afficher le titre "Dossier #X - NOM Prénom" de la fiche (Relances.jsx) — pas d'accès à
 // GET /api/dossiers (liste complète), resté fermé à ces deux rôles.
-router.get('/:dossierId', requireRole(...ROLES_LECTURE_INSCRIPTION), async (req, res, next) => {
+router.get('/:dossierId', requirePermission('lectureInscription'), async (req, res, next) => {
   try {
     const dossier = await dossierService.obtenirDossier(req.entite, req.params.dossierId);
     if (!dossier) {
@@ -485,9 +470,9 @@ router.get('/:dossierId', requireRole(...ROLES_LECTURE_INSCRIPTION), async (req,
 // affichage back-office générique, voir dossierRepository.trouverInscriptionCompleteParDossierId)
 // + tous les blocs de dossier_donnees_formulaire déjà enregistrés pour ce dossier, pour la
 // section repliable "Informations d'inscription complètes" (Validation.jsx/Relances.jsx, et
-// désormais GrilleEvaluation.jsx pour Formateur/Inspecteur, voir ROLES_LECTURE_INSCRIPTION
+// désormais GrilleEvaluation.jsx pour Formateur/Inspecteur, voir lectureInscription
 // déclaré plus haut avec les autres rôles).
-router.get('/:dossierId/inscription', requireRole(...ROLES_LECTURE_INSCRIPTION), async (req, res, next) => {
+router.get('/:dossierId/inscription', requirePermission('lectureInscription'), async (req, res, next) => {
   try {
     const inscription = await dossierService.obtenirInscriptionComplete(req.entite, req.params.dossierId);
     if (!inscription) {
@@ -502,16 +487,16 @@ router.get('/:dossierId/inscription', requireRole(...ROLES_LECTURE_INSCRIPTION),
 // GET /api/dossiers/:dossierId/evaluation — critères/réponses de la dernière évaluation de test
 // soumise pour ce dossier (demande utilisateur 2026-09-10 : rendre les critères de validation de
 // test visibles depuis la fiche dossier "Étudier le dossier", Validation.jsx — seulement une fois
-// un test effectué). Réservée à ROLES_CONSULTATION_DOSSIERS (Accueil/Coordination, Admin) : les
+// un test effectué). Réservée à consultationDossiers (Accueil/Coordination, Admin) : les
 // routes /api/evaluations/* elles-mêmes leur sont fermées (voir evaluations.routes.js,
-// ROLES_EVALUATION, qui n'inclut ni ACCUEIL_COORDINATION), ce module leur reste donc autrement
+// evaluation, qui n'inclut ni ACCUEIL_COORDINATION), ce module leur reste donc autrement
 // inaccessible — cette route dédiée, scopée par dossierId plutôt que par evaluationId, comble ce
 // trou sans élargir l'accès de Formateur/Inspecteur aux évaluations d'un autre.
 // `null` (200, pas 404) si aucun test n'a encore été évalué pour ce dossier — c'est l'état normal
 // tant qu'aucun test n'a eu lieu, pas une erreur (voir evaluationEngine.obtenirDetailEvaluationDossier) :
 // au front de ne simplement rien afficher dans ce cas plutôt que de traiter ça comme un échec de
 // chargement.
-router.get('/:dossierId/evaluation', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => {
+router.get('/:dossierId/evaluation', requirePermission('listeDossiers'), async (req, res, next) => {
   try {
     const detail = await evaluationEngine.obtenirDetailEvaluationDossier(req.entite, req.params.dossierId);
     res.json(detail);
@@ -527,9 +512,8 @@ router.get('/:dossierId/evaluation', requireRole(...ROLES_LISTE_DOSSIERS), async
 // rôles, mais un appel API direct doit être refusé indépendamment de ce masquage) — même principe
 // que le reste de ce fichier (chaque route pose sa propre restriction, jamais héritée d'un autre
 // contrôle supposé déjà fait ailleurs).
-const ROLES_MODIFICATION_INSCRIPTION = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
-router.patch('/:dossierId/inscription', requireRole(...ROLES_MODIFICATION_INSCRIPTION), async (req, res, next) => {
+router.patch('/:dossierId/inscription', requirePermission('modificationInscription'), async (req, res, next) => {
   try {
     const inscription = await dossierService.modifierInscription(req.entite, req.params.dossierId, req.body);
     if (!inscription) {
@@ -560,14 +544,14 @@ router.patch('/:dossierId/inscription', requireRole(...ROLES_MODIFICATION_INSCRI
 
 // POST /api/dossiers/:dossierId/disponibilite-embauche — corrige la disponibilité d'un candidat
 // "Validé - prêt à l'embauche" (audit 2026-09-28, filtre "Disponibilité des candidats prêts à
-// l'embauche") — RÉUTILISE ROLES_MODIFICATION_INSCRIPTION (demande utilisateur explicite point 4) :
+// l'embauche") — RÉUTILISE modificationInscription (demande utilisateur explicite point 4) :
 // mêmes rôles que le bouton "Modifier" de la fiche dossier, cohérent (même nature d'action :
 // corriger une donnée déclarative du candidat, jamais Formateur/Inspecteur). Toute la validation
 // métier (dates, commentaire obligatoire, dossier au bon statut) vit dans
 // disponibiliteEmbaucheService, cette route ne fait que traduire ses erreurs en codes HTTP.
 router.post(
   '/:dossierId/disponibilite-embauche',
-  requireRole(...ROLES_MODIFICATION_INSCRIPTION),
+  requirePermission('modificationInscription'),
   async (req, res, next) => {
     try {
       const correction = await disponibiliteEmbaucheService.corrigerDisponibiliteEmbauche(
@@ -604,7 +588,5 @@ module.exports = router;
 // permet au test (dossiers.routes.test.js) de vérifier directement la VRAIE liste de rôles plutôt
 // que de la deviner/dupliquer, pour ne jamais dériver silencieusement de ce qui est réellement
 // monté sur GET /suivi-formation ci-dessus.
-module.exports.ROLES_SUIVI_FORMATION = ROLES_SUIVI_FORMATION;
 // Même raison, pour le test de la nouvelle route POST /:dossierId/disponibilite-embauche
-// (audit 2026-09-28).
-module.exports.ROLES_MODIFICATION_INSCRIPTION = ROLES_MODIFICATION_INSCRIPTION;
+//.

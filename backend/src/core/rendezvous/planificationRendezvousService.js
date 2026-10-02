@@ -4,7 +4,7 @@ const rendezvousRepository = require('./rendezvousRepository');
 const workflowEngine = require('../workflow/workflowEngine');
 const invitationTestService = require('./invitationTestService');
 
-// Levée par l'invariant a posteriori ci-dessous (audit 2026-09-19) — distincte de
+// Levée par l'invariant a posteriori ci-dessous — distincte de
 // workflowEngine.ErreurTransitionInvalide (les transitions elles-mêmes se sont toutes appliquées
 // sans erreur individuelle ; c'est leur EFFET COMBINÉ sur le rendez-vous qui vient d'être créé qui
 // est incohérent). Exportée pour que l'appelant HTTP (rendezvous.routes.js) puisse la distinguer et

@@ -1,6 +1,7 @@
 const http = require('http');
 const path = require('path');
 const { creerApp } = require('./app');
+const { signalerConfigurationsManquantes } = require('./core/configuration/verificationConfiguration');
 const { obtenirKnex } = require('./db/knex');
 const { PORT, ACTIVER_CRONS_INTERNES } = require('./config/env');
 const { demarrerCronBasculeTestNonRealise } = require('./jobs/basculeTestNonRealiseCron');
@@ -50,6 +51,12 @@ async function demarrer() {
     console.log(`Migrations DB appliquées au démarrage : ${migrationsExecutees.map((m) => path.basename(m)).join(', ')}`);
   } else {
     console.log('Migrations DB : schéma déjà à jour.');
+  }
+
+  try {
+    await signalerConfigurationsManquantes(bd);
+  } catch (erreur) {
+    console.error('Vérification de la configuration des entités impossible :', erreur.message);
   }
 
   const app = await creerApp();

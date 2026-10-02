@@ -221,7 +221,7 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
       const formateurChoisi = formateurs.find((f) => String(f.id) === ligne.formateurId);
       const dateHeureIso = new Date(`${ligne.dateTest}T${ligne.heureTest}:${ligne.minuteTest}`).toISOString();
       try {
-        // eslint-disable-next-line no-await-in-loop
+         
         await creerRendezvousAvecTransitions(ligne.dossierId, {
           typeRdv: 'test',
           dateHeure: dateHeureIso,

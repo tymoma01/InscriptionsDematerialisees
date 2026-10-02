@@ -63,7 +63,7 @@ test("POST /api/dpae : le champ Entité (division) reste facultatif (inchangé)"
   assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: 'acchot' }).success, true);
 });
 
-// "Nom du salarié remplacé" obligatoire uniquement pour un CDD de remplacement (audit 2026-09-29).
+// "Nom du salarié remplacé" obligatoire uniquement pour un CDD de remplacement.
 const MESSAGE_SALARIE_REMPLACE = 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.';
 const CDD_REMPLACEMENT = { ...DEMANDE_VALIDE, typeContrat: 'cdd', motifCdd: 'remplacement_absent' };
 
@@ -96,7 +96,7 @@ test('POST /api/dpae : CDI sans nom du salarié remplacé -> accepté (même si 
 });
 
 // ---------------------------------------------------------------------------------------------
-// Périmètre des rôles DPAE (2026-09-30) — testé sur les VRAIES gardes montées sur chaque route :
+// Périmètre des rôles DPAE — testé sur les VRAIES gardes montées sur chaque route :
 // on lit la pile du routeur Express et on exécute le premier middleware de la route (requireRole),
 // jamais une copie des listes de rôles. Aucune infrastructure de test HTTP dans ce projet.
 // ---------------------------------------------------------------------------------------------
@@ -175,7 +175,7 @@ test('DPAE : traitement RH (file, validation, rejet) réservé à RH et Admin', 
 });
 
 // ---------------------------------------------------------------------------------------------
-// Tableau de bord DPAE (2026-09-30) — garde réellement montée et filtres. Les indicateurs eux-mêmes
+// Tableau de bord DPAE — garde réellement montée et filtres. Les indicateurs eux-mêmes
 // (SQL) sont vérifiés sur la base DEV par scripts/testTableauDeBordDpae.js (transaction annulée).
 // ---------------------------------------------------------------------------------------------
 test('GET /api/dpae/tableau-de-bord : Admin, RH et Planning autorisés ; Accueil/Coordination, Formateur et Inspecteur -> 403', () => {
@@ -211,7 +211,7 @@ test('Filtres du tableau de bord : valeurs invalides refusées (date, site, cont
 });
 
 // ---------------------------------------------------------------------------------------------
-// Statut « En attente » (2026-09-30) — garde, motif obligatoire, traçabilité.
+// Statut « En attente » — garde, motif obligatoire, traçabilité.
 // ---------------------------------------------------------------------------------------------
 function gestionnaireRoute(methode, chemin) {
   const couche = dpaeRouter.stack.find((c) => c.route && c.route.path === chemin && c.route.methods[methode]);
@@ -309,7 +309,7 @@ test('Filtre Statut du tableau de bord : « en_attente » accepté', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// Notes d'une demande DPAE (2026-09-30).
+// Notes d'une demande DPAE.
 // ---------------------------------------------------------------------------------------------
 test('Notes (GET et POST /:id/notes) : Admin, RH et Planning autorisés ; Accueil/Coordination, Formateur, Inspecteur -> 403', () => {
   for (const methode of ['get', 'post']) {
@@ -384,7 +384,7 @@ test('Notes d’une demande d’une autre entité : 404 en lecture comme en ajou
 });
 
 // ---------------------------------------------------------------------------------------------
-// Téléchargement PDF (2026-10-02) — GET /:id/pdf (une demande) et POST /export-pdf (ZIP). Mêmes
+// Téléchargement PDF — GET /:id/pdf (une demande) et POST /export-pdf (ZIP). Mêmes
 // règles d'accès que la fiche GET /:id ; journal_audit comme l'export ZIP des pièces.
 // ---------------------------------------------------------------------------------------------
 const { PassThrough } = require('node:stream');

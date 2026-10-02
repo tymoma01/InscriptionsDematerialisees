@@ -1,4 +1,4 @@
-// Boîte Outlook dans laquelle l'événement d'un rendez-vous a été CRÉÉ (correctif 2026-10-01).
+// Boîte Outlook dans laquelle l'événement d'un rendez-vous a été CRÉÉ.
 //
 // Incident de production : pour un formateur dont `utilisateurs.calendrier_personnel` est actif
 // (Anni Neacsu, adeville@accecit.com — migration 063), l'événement est créé dans SA boîte, mais la
@@ -53,7 +53,7 @@ exports.up = async (knex) => {
     const boite =
       ligne.calendrier_personnel && ligne.email && creeApresIntroduction ? ligne.email : CALENDRIER_PAR_ROLE[ligne.role_code] ?? null;
     if (boite) {
-      // eslint-disable-next-line no-await-in-loop -- quelques centaines de lignes au plus, une seule fois.
+       
       await knex('rendezvous').where({ id: ligne.id }).update({ outlook_calendrier: boite });
     }
   }

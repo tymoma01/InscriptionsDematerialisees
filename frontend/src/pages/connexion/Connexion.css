@@ -1,4 +1,4 @@
-/* Page de connexion habillée comme le reste du site (audit 2026-08-21, demande utilisateur) —
+/* Page de connexion habillée comme le reste du site —
    bandeau ACCECIT (EnTeteAccecit) + pied de page (PiedDePageAccecit) + fond back-office, mêmes
    composants et classes de mise en page que PageBackOffice.jsx (voir l'import de
    PageBackOffice.css et le commentaire d'en-tête de Connexion.jsx), sans BarreNavigation ni

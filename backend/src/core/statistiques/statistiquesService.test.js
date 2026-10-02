@@ -36,7 +36,7 @@ function mockerRepository(t, overrides = {}) {
     // "Effectifs par statut" (audit tableau de bord 2026-08-31, restaurée le 2026-09-02 — décision
     // affinée, deux sections distinctes) : compterParHistoriqueStatut appelée 1 fois (test_realise),
     // compterParStatut 3 fois (une par code de CODES_STATUTS_EFFECTIF_COURANT_ACCECIT).
-    // "Volumétrie sur la période" (audit dashboard 2026-09-02) : compterOccurrencesHistorique
+    // "Volumétrie sur la période" : compterOccurrencesHistorique
     // appelée 2 fois (une par code de CODES_VOLUMETRIE_HISTORIQUE_ACCECIT),
     // compterOccurrencesFormationValidee 1 fois. Valeur par défaut identique pour les appels
     // multiples tant qu'un test ne la surcharge pas explicitement (voir les tests dédiés plus bas,
@@ -333,7 +333,7 @@ test('listerDossiersParIndicateurs ne retient que les dossiers satisfaisant TOUS
   );
 });
 
-// Conséquence acceptée de l'ET strict (décision utilisateur, 2026-08-07) : deux indicateurs
+// Conséquence acceptée de l'ET strict : deux indicateurs
 // mutuellement exclusifs (un dossier n'a qu'un seul verdict par test, jamais les deux) donnent un
 // résultat vide — pas une erreur, le comportement normal attendu.
 test('listerDossiersParIndicateurs renvoie un résultat vide pour deux indicateurs mutuellement exclusifs (verdict_valide + verdict_invalide)', async (t) => {
@@ -600,7 +600,7 @@ test('listerDossiersParIndicateurs route "statut:test_realise" vers listerParHis
   assert.equal(appelStatutCourant.mock.calls.length, 0);
 });
 
-// Cartes "Volumétrie sur la période" rendues cliquables/filtrantes (audit dashboard 2026-09-02) —
+// Cartes "Volumétrie sur la période" rendues cliquables/filtrantes —
 // code 'volumetrie:<code>' (PREFIXE_VOLUMETRIE) route vers listerOccurrencesHistorique pour
 // test_realise/valide_envoi_formation (liste fermée, CODES_VOLUMETRIE_HISTORIQUE_ACCECIT), jamais
 // vers listerParStatut/listerParHistoriqueStatut (dossiers DISTINCTS, préfixe 'statut:').

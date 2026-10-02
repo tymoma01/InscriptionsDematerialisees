@@ -3,8 +3,8 @@
 // voir evaluationEngine.js/rbac.js) ne passe en formation, l'accès qu'il conservait aux transitions
 // marquer_formation_validee/invalider_formation (table transition_roles) n'a donc plus lieu d'être.
 // Périmètre volontairement limité à CES DEUX transitions précises : l'Inspecteur garde
-// ROLES_LECTURE_FORMATION (formation.routes.js, historique en lecture seule de la fiche dossier)
-// et ROLES_GESTION_TRANSITIONS (transitions.routes.js, garde générique nécessaire à ses propres
+// lectureFormation (formation.routes.js, historique en lecture seule de la fiche dossier)
+// et gestionTransitions (transitions.routes.js, garde générique nécessaire à ses propres
 // transitions d'évaluation) — ce script ne touche à AUCUN des deux, seulement aux lignes
 // transition_roles ci-dessous.
 //
@@ -83,7 +83,7 @@ async function main() {
     const nbSupprimees = await bd.transaction(async (trx) => {
       let total = 0;
       for (const ligne of lignes) {
-        // eslint-disable-next-line no-await-in-loop -- 2 lignes au plus (une par code_action), même transaction.
+         
         total += await trx('transition_roles').where({ transition_id: ligne.transition_id, role_id: ligne.role_id }).del();
       }
       return total;

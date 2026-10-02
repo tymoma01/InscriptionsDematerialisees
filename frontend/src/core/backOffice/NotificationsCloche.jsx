@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
+import { peut } from '../auth/permissions';
 import {
   listerNotifications,
   compterNotificationsNonLues,
@@ -65,10 +66,7 @@ export default function NotificationsCloche() {
   // premier appel réseau, plutôt que de tenter puis corriger.
   const { utilisateur, chargement: chargementSession } = useSession();
   const estRh = utilisateur?.roleCode === 'rh';
-  // Seuls Admin/RH voient la cloche (voir commentaire d'en-tête) — Formateur/Inspecteur exclus
-  // aussi, même si non explicitement nommés dans la demande utilisateur ("que pour les rh et les
-  // admins" est une liste fermée, pas une simple exclusion d'Accueil/Planning).
-  const visible = utilisateur?.roleCode === 'rh' || utilisateur?.roleCode === 'admin';
+  const visible = peut(utilisateur, 'cloche');
 
   const [total, setTotal] = useState(0);
   const [notifications, setNotifications] = useState([]);

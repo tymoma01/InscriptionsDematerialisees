@@ -11,12 +11,10 @@ const { limiteurVerificationDisponibilite } = require('../middlewares/rateLimite
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_RH } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 const router = Router();
 
-const ROLES_RECHERCHE_CANDIDATS = [...new Set([...ROLES_DPAE_DEMANDEUR, ...ROLES_DPAE_RH])];
 
 // GET /api/candidats/formulaire-config — blocs actifs/ordre du formulaire d'inscription pour
 // l'entité résolue par sous-domaine (req.entite, voir entiteContext). Aucune authentification
@@ -36,7 +34,7 @@ router.get('/formulaire-config', async (req, res, next) => {
 // (RechercheCandidatSalarie.jsx). Authentifiée (contrairement aux deux routes ci-dessus) : liste
 // nom/prénom de candidats existants, une donnée personnelle qu'un visiteur non connecté (le
 // candidat sur la tablette d'inscription) n'a aucune raison de pouvoir interroger.
-router.get('/recherche', requireAuth, requireRole(...ROLES_RECHERCHE_CANDIDATS), async (req, res, next) => {
+router.get('/recherche', requireAuth, requirePermission('rechercheCandidats'), async (req, res, next) => {
   try {
     const texte = typeof req.query.q === 'string' ? req.query.q : '';
     const candidats = await rechercherCandidats(req.entite, texte);

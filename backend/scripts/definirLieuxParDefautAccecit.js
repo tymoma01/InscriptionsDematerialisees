@@ -29,12 +29,12 @@ async function main() {
     }
 
     for (const { adresse, secteur } of LIEUX_PAR_DEFAUT) {
-      // eslint-disable-next-line no-await-in-loop -- deux lieux seulement, séquentiel suffisant.
+       
       const lieu = await bd('lieux').where({ entite_id: entite.id, adresse }).first();
       if (!lieu) {
         throw new Error(`Lieu introuvable pour l'adresse « ${adresse} » — arrêt sans rien modifier.`);
       }
-      // eslint-disable-next-line no-await-in-loop
+       
       await bd.transaction((trx) => lieuRepository.definirLieuParDefaut(trx, entite.id, lieu.id, secteur));
       console.log(`Lieu #${lieu.id} (« ${adresse} ») défini par défaut pour le secteur « ${secteur} » ✔`);
     }

@@ -68,7 +68,7 @@ async function main() {
     }
 
     for (const { emailFormateur, nomAttendu, prenomAttendu, extraitAdresseLieu, calendrierPersonnel } of ASSOCIATIONS) {
-      // eslint-disable-next-line no-await-in-loop -- deux formateurs seulement, séquentiel suffisant.
+       
       const utilisateur = await utilisateurRepository.trouverUtilisateurParEmailGlobal(bd, emailFormateur);
       if (!utilisateur) {
         throw new Error(`Aucun utilisateur trouvé pour l'email « ${emailFormateur} » — arrêt sans rien modifier.`);
@@ -87,7 +87,7 @@ async function main() {
         );
       }
 
-      // eslint-disable-next-line no-await-in-loop
+       
       const lieux = await bd('lieux').where({ entite_id: entite.id, secteur: 'hotel' }).whereRaw('adresse ILIKE ?', [`%${extraitAdresseLieu}%`]);
       if (lieux.length !== 1) {
         throw new Error(
@@ -97,14 +97,14 @@ async function main() {
       }
       const [lieu] = lieux;
 
-      // eslint-disable-next-line no-await-in-loop
+       
       await bd.transaction((trx) => utilisateurRepository.definirLieuParDefautUtilisateur(trx, entite.id, utilisateur.id, lieu.id));
       console.log(
         `Utilisateur #${utilisateur.id} (« ${prenomAttendu} ${nomAttendu} », ${emailFormateur}) : lieu par défaut -> ` +
           `« ${lieu.adresse} » (#${lieu.id}) ✔`,
       );
 
-      // eslint-disable-next-line no-await-in-loop
+       
       await bd.transaction((trx) => utilisateurRepository.definirCalendrierPersonnel(trx, entite.id, utilisateur.id, calendrierPersonnel));
       console.log(
         `Utilisateur #${utilisateur.id} (« ${prenomAttendu} ${nomAttendu} ») : calendrier_personnel -> ${calendrierPersonnel} ✔`,

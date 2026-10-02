@@ -9,42 +9,31 @@ import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import './Evaluation.css';
 
-// Écran formateur (CLAUDE.md, section Rôles : "Formateur ... évalue les candidats, valide/
-// invalide le test") — un seul écran à deux états, comme GestionRendezvous.jsx : la liste des
-// rendez-vous de test à évaluer, puis la grille pour celui sélectionné. Une fois l'évaluation
-// soumise, le rendez-vous disparaît de la liste (le serveur ne le renvoie plus, voir
-// backend GET /api/evaluations/a-faire) — `compteurRafraichissement` force ListeEvaluationsAFaire
-// à recharger sans dupliquer sa logique de fetch ici.
-export default function Evaluation() {
+// « Évaluations à venir » d'un secteur — même page pour le Formateur (secteur 'hotellerie',
+// /formateur/evaluations) et l'Inspecteur (secteur 'tertiaire', /inspecteur/evaluations).
+// L'Admin y accède par les onglets « Formateur Hôtellerie »/« Formateur Tertiaire » et voit tout
+// le secteur (`secteurVueAdmin`).
+//
+// Tertiaire : la liste n'est pas filtrée par évaluateur (calendrier partagé, chaque Inspecteur
+// voit et peut traiter tous les tests du secteur, voir evaluationEngine) — d'où la colonne
+// « Assigné à ». Le Formateur ne voit que ses propres tests.
+//
+// `rendezvousId` (paramètre d'URL, lien de convocation) : ouvre directement le bon rendez-vous.
+export default function Evaluation({ secteur }) {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [rendezvousSelectionne, setRendezvousSelectionne] = useState(null);
   const [compteurRafraichissement, setCompteurRafraichissement] = useState(0);
 
-  // ?rendezvousId=... (lien "Voir l'évaluation de ce candidat" de l'email formateur, voir
-  // formatageEmail.construireLienEvaluation) — même pattern que 'q' dans
-  // ListeEvaluationsAFaire.jsx, transmis tel quel pour qu'il surligne/scrolle jusqu'à la ligne
-  // correspondante (voir ListeEvaluationsAFaire.jsx, rendezvousIdCible).
   const [rendezvousIdCible] = useParametreURL('rendezvousId', '');
   const { key: cleNavigation } = useLocation();
 
-  // Reclic sur le lien de nav "Évaluations à venir" alors qu'on est déjà sur cette route :
-  // React Router ne démonte pas la page (même élément de route), donc `rendezvousSelectionne` ne
-  // se réinitialise pas tout seul. `location.key` change à chaque navigation, y compris vers
-  // l'URL déjà active — on s'en sert pour revenir à la liste.
+  // Un clic sur l'onglet courant (même URL, nouvelle clé de navigation) revient à la liste.
   useEffect(() => {
     setRendezvousSelectionne(null);
   }, [cleNavigation]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : réutilise le mécanisme déjà en place
-  // (compteurRafraichissement, voir son commentaire d'en-tête) plutôt que de dupliquer la logique
-  // de fetch — ListeEvaluationsAFaire n'est de toute façon montée que quand !rendezvousSelectionne,
-  // sans risque de perturber une évaluation en cours de saisie (GrilleEvaluation).
   useRafraichissementAuto(() => setCompteurRafraichissement((compteur) => compteur + 1));
 
-  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers
-  // /connexion?redirection=... — avec rendezvousId toujours dans l'URL — avant même de monter
-  // cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très bref instant où
-  // le useSession() PROPRE à cette page (ci-dessus) n'a pas encore résolu le sien.
   if (chargementSession || !utilisateur) {
     return (
       <PageBackOffice>
@@ -58,11 +47,7 @@ export default function Evaluation() {
     setCompteurRafraichissement((compteur) => compteur + 1);
   };
 
-  // "Vue Formateur" de l'Admin (audit 2026-09-29, onglet dédié de BarreNavigation.jsx) : même page, mêmes
-  // composants, le secteur de l'espace (hotellerie) est transmis aux composants partagés, qui
-  // demandent alors au serveur tout ce secteur et affichent le sélecteur "Tous / [nom]". Pour
-  // tout autre rôle : undefined, comportement inchangé.
-  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? 'hotellerie' : undefined;
+  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? secteur : undefined;
 
   return (
     <PageBackOffice>
@@ -80,6 +65,7 @@ export default function Evaluation() {
             rafraichir={compteurRafraichissement}
             rendezvousIdCible={rendezvousIdCible}
             secteurVueAdmin={secteurVueAdmin}
+            afficherAssigne={secteur === 'tertiaire'}
           />
         )}
 

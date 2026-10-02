@@ -32,7 +32,7 @@ async function verifierDossierAppartientEntite(bd, entite, dossierId) {
   }
 }
 
-// Même vérification, sans exception (2026-09-30) : utilisée par l'export ZIP (pieces.routes.js)
+// Même vérification, sans exception : utilisée par l'export ZIP (pieces.routes.js)
 // pour répondre 403 « Vous n'avez pas accès à cet export. » à un dossier hors de l'entité courante
 // (dossier d'une autre entité, ou inexistant — jamais distingués, pour ne rien révéler).
 async function dossierAppartientEntite(entite, dossierId) {
@@ -290,7 +290,7 @@ async function telechargerPieceJustificative(entite, pieceId) {
 // L'assemblage en ZIP est laissé à la route (pieces.routes.js) : c'est une préoccupation de
 // réponse HTTP, pas une règle métier.
 //
-// Tolérance PAR PIÈCE (correctif du 2026-08-06) : `connecteur.download` peut échouer pour une
+// Tolérance PAR PIÈCE : `connecteur.download` peut échouer pour une
 // pièce précise (référence OneDrive orpheline, ex. l'une des deux pièces d'un ancien doublon
 // écrasé — voir le correctif du 2026-07-31 sur `supprimer` ; permissions Graph ; etc.) sans que
 // les AUTRES pièces du dossier, elles parfaitement valides, aient une quelconque raison d'être

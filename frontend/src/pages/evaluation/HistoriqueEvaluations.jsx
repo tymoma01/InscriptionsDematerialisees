@@ -7,26 +7,18 @@ import DetailEvaluation from '../../core/evaluation/DetailEvaluation';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import './HistoriqueEvaluations.css';
 
-// Écran formateur : historique des évaluations déjà soumises par CE formateur (jamais tous
-// formateurs confondus, voir backend evaluationEngine.listerHistorique) — même patron "un seul
-// écran à deux états" qu'Evaluation.jsx (liste puis détail), route séparée plutôt qu'un onglet
-// dans Evaluation.jsx : ce projet n'utilise nulle part d'onglets, chaque vue a sa propre URL.
-export default function PageHistoriqueEvaluations() {
+// « Historique des évaluations » d'un secteur — même page pour le Formateur ('hotellerie') et
+// l'Inspecteur ('tertiaire'), voir Evaluation.jsx. Tertiaire : historique partagé entre
+// Inspecteurs, d'où la colonne « Inspecteur ».
+export default function PageHistoriqueEvaluations({ secteur }) {
   const { utilisateur, chargement: chargementSession } = useSession();
   const [evaluationSelectionnee, setEvaluationSelectionnee] = useState(null);
   const { key: cleNavigation } = useLocation();
 
-  // Reclic sur le lien de nav "Historique des évaluations" alors qu'on est déjà sur cette route :
-  // React Router ne démonte pas la page (même élément de route), donc `evaluationSelectionnee`
-  // ne se réinitialise pas tout seul. `location.key` change à chaque navigation, y compris vers
-  // l'URL déjà active — on s'en sert pour revenir à la liste.
   useEffect(() => {
     setEvaluationSelectionnee(null);
   }, [cleNavigation]);
 
-  // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
-  // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
-  // bref instant où le useSession() PROPRE à cette page (ci-dessus) n'a pas encore résolu le sien.
   if (chargementSession || !utilisateur) {
     return (
       <PageBackOffice>
@@ -35,11 +27,7 @@ export default function PageHistoriqueEvaluations() {
     );
   }
 
-  // "Vue Formateur" de l'Admin (audit 2026-09-29, onglet dédié de BarreNavigation.jsx) : même page, mêmes
-  // composants, le secteur de l'espace (hotellerie) est transmis aux composants partagés, qui
-  // demandent alors au serveur tout ce secteur et affichent le sélecteur "Tous / [nom]". Pour
-  // tout autre rôle : undefined, comportement inchangé.
-  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? 'hotellerie' : undefined;
+  const secteurVueAdmin = utilisateur.roleCode === 'admin' ? secteur : undefined;
 
   return (
     <PageBackOffice>
@@ -51,7 +39,13 @@ export default function PageHistoriqueEvaluations() {
           <EnTeteBackOffice />
         </header>
 
-        {!evaluationSelectionnee && <HistoriqueEvaluations onSelectionner={setEvaluationSelectionnee} secteurVueAdmin={secteurVueAdmin} />}
+        {!evaluationSelectionnee && (
+          <HistoriqueEvaluations
+            onSelectionner={setEvaluationSelectionnee}
+            secteurVueAdmin={secteurVueAdmin}
+            afficherInspecteur={secteur === 'tertiaire'}
+          />
+        )}
 
         {evaluationSelectionnee && (
           <DetailEvaluation evaluationId={evaluationSelectionnee.id} onFermer={() => setEvaluationSelectionnee(null)} />

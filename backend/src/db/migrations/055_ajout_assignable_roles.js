@@ -1,4 +1,4 @@
-// Audit du rôle Recruteur (2026-08-27), étape 4 révisée (Option C, décision utilisateur) : ne
+// Audit du rôle Recruteur, étape 4 révisée (Option C, décision utilisateur) : ne
 // supprime PAS la ligne `roles` du rôle Recruteur — la FK utilisateurs.role_id (NOT NULL, ON
 // DELETE NO ACTION) et les 8 comptes qui le portent encore rendraient une suppression physique
 // impossible sans soit réassigner leur role_id (rejeté : fausserait rétroactivement l'affichage

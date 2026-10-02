@@ -44,7 +44,7 @@ function mockerDependancesBase(t, overrides = {}) {
   return { enregistrerChangementStatutMock, trouverMotifParCodeMock, neutraliserMock };
 }
 
-// Régression dossier #127 (audit 2026-09-09) : un changement de statut forcé vers un statut dont
+// Régression dossier #127 : un changement de statut forcé vers un statut dont
 // neutralise_rendezvous_actifs=false (test_non_realise pour ACCECIT) laissait jusqu'ici le
 // rendez-vous actif intact ("prevu"), désynchronisé du nouveau statut du dossier — voir le
 // commentaire d'en-tête de forcerStatut, workflowEngine.js.
@@ -66,7 +66,7 @@ test('forcerStatut neutralise TOUJOURS le(s) rendez-vous actif(s), même quand n
   assert.equal(neutraliserMock.mock.calls.length, 1);
   const appel = neutraliserMock.mock.calls[0].arguments[1];
   assert.equal(appel.dossierId, 127);
-  // Bloc 2 (audit 2026-09-23) : 'annule' + motifId, jamais 'remplace' — réservé à une VRAIE
+  // Bloc 2 : 'annule' + motifId, jamais 'remplace' — réservé à une VRAIE
   // replanification (appliquerTransition, voir le test dédié plus bas).
   assert.equal(appel.statutRemplace, 'annule');
   assert.equal(appel.motifId, MOTIF_NEUTRALISE_PAR_FORCAGE.id);
@@ -247,7 +247,7 @@ test("appliquerTransition neutralise toujours en 'remplace' (jamais 'annule', ja
   assert.equal('motifId' in appel, false, 'appliquerTransition ne doit jamais passer motifId à neutraliserRendezvousActifsDossier');
 });
 
-// Traçabilité (audit 2026-09-26) : jusqu'ici, cette neutralisation générique n'écrivait AUCUNE
+// Traçabilité : jusqu'ici, cette neutralisation générique n'écrivait AUCUNE
 // entrée journal_audit (contrairement au chemin forcerStatut, tracé côté route) — voir le
 // commentaire d'en-tête de ce bloc dans workflowEngine.js.
 test("appliquerTransition écrit une entrée journal_audit 'rendezvous_neutralise_transition' PAR rendez-vous neutralisé, dans la même transaction", async (t) => {
@@ -338,10 +338,10 @@ test("appliquerTransition n'écrit aucune entrée journal_audit quand le statut 
   assert.equal(enregistrerActionMock.mock.calls.length, 0);
 });
 
-// ═══ Bloc 3 (audit 2026-09-25) : rôle Planning + statuts exclus du forçage ═══
+// ═══ Bloc 3 : rôle Planning + statuts exclus du forçage ═══
 
 
-test("forcerStatut accepte le rôle Planning (ROLES_FORCAGE), même comportement qu'Admin", async (t) => {
+test("forcerStatut accepte le rôle Planning (permission forcerStatut), même comportement qu'Admin", async (t) => {
   mockerKnex(t);
   mockerDependancesBase(t, { neutraliserRendezvousActifsDossier: async () => [] });
 
@@ -425,7 +425,7 @@ for (const statutExclu of [
   });
 }
 
-// ═══ Bloc 3 suite (audit 2026-09-25) : date d'embauche lors d'un forçage vers "embauche" ═══
+// ═══ Bloc 3 suite : date d'embauche lors d'un forçage vers "embauche" ═══
 
 const STATUT_EMBAUCHE = { id: 44, code: 'embauche', libelle: 'Embauché', neutralise_rendezvous_actifs: true };
 

@@ -214,7 +214,7 @@ test('creerRendezvous rejette un lieu désactivé', async (t) => {
   assert.equal(creerMock.mock.calls.length, 0);
 });
 
-// Garde-fou secteur/rôle (audit 2026-08-25) : un formateur ne peut plus être assigné à un dossier
+// Garde-fou secteur/rôle : un formateur ne peut plus être assigné à un dossier
 // bureau, ni un inspecteur à un dossier hôtel — transforme en vraie vérification serveur une
 // contrainte jusque-là seulement procédurale (voir rendezvousService.js, ModalePlanificationTest.jsx).
 test('creerRendezvous rejette un formateur assigné à un dossier bureau (secteur incompatible)', async (t) => {
@@ -319,7 +319,7 @@ test("creerRendezvous accepte n'importe quel rôle sur un dossier sans secteur d
   assert.equal(creerMock.mock.calls.length, 1);
 });
 
-// Intégration Outlook (audit 2026-08-26, décision utilisateur) : Outlook devient la seule source
+// Intégration Outlook : Outlook devient la seule source
 // de vérité pour la création d'un rendez-vous de test — creerEvenement doit réussir AVANT toute
 // écriture Neon, un échec ne doit rien laisser en base, et un rendez-vous replanifié doit libérer
 // l'ancien créneau Outlook (DELETE) sans jamais faire échouer la nouvelle planification déjà
@@ -446,7 +446,7 @@ test("creerRendezvous construit le subject Outlook « Test ACCECIT — Formateur
   );
 });
 
-// Subject Outlook — Formateur (audit 2026-08-28, décision utilisateur) : "<Position> <Prénom Nom
+// Subject Outlook — Formateur : "<Position> <Prénom Nom
 // du candidat>" en majuscules, réservé au rôle FORMATEUR (jamais l'inspecteur, qui garde l'ancien
 // format "Test ACCECIT — ..." — voir le test ci-dessus).
 test('creerRendezvous construit le subject Outlook "<Position> <Candidat>" en majuscules pour un formateur, sans position si aucun poste retenu', async (t) => {
@@ -608,7 +608,7 @@ test('creerRendezvous choisit FDC ou VDC pour "femme_valet_chambre" selon la civ
   assert.equal(creerEvenementMock.mock.calls[2].arguments[1].sujet, 'FDC/VDC ALEX MARTIN');
 });
 
-// Placeholder de dev (audit 2026-08-28, décision utilisateur) : tant que NODE_ENV n'est pas
+// Placeholder de dev : tant que NODE_ENV n'est pas
 // 'production' (le cas par défaut, config/env.js), le subject Outlook — formateur ET inspecteur —
 // commence par "TEST PLATEFORME — ", pour ne jamais confondre un événement créé en dev/recette
 // avec un vrai test candidat sur le calendrier départemental partagé. Retirer ce préfixe le jour

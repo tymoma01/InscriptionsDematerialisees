@@ -80,7 +80,7 @@ function construireMessageSms({ candidatPrenom, dateHeure, lieuAdresse, lieuMetr
   return `Bonjour ${candidatPrenom}, votre test ACCECIT est prévu le ${date}, au ${lieu}. À bientôt !`;
 }
 
-// Rappel tenue vestimentaire (demande utilisateur, 2026-09-10) — même rouge que les instructions
+// Rappel tenue vestimentaire — même rouge que les instructions
 // de lieu ci-dessous (#c0392b, formatageEmail.formaterLignesLieuHtml) pour la même raison : une
 // consigne qui conditionne l'admission au test ne doit pas se perdre au milieu du reste de l'email.
 // Statique (texte fixe, jamais issu de la base) : pas besoin d'échapperHtml ici, contrairement aux
@@ -184,7 +184,7 @@ function construireMessageEmailFormateur({
       // Après date/poste(s)/lieu (demande explicite) — réservée à cet email, voir
       // formaterLigneNoteHtml ci-dessus.
       formaterLigneNoteHtml(notePlanification) +
-      // Reformulé (audit 2026-08-26, décision utilisateur) : la pièce jointe .ics est présentée
+      // Reformulé : la pièce jointe .ics est présentée
       // comme un simple rappel du rendez-vous déjà confirmé (voir ligne ci-dessus), plus comme
       // l'action qui inscrit le formateur/inspecteur. Le rendez-vous n'ajoute plus le formateur/
       // inspecteur en `attendee` sur l'événement Graph depuis l'audit 2026-08-28 (corrige une

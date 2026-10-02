@@ -1,4 +1,4 @@
-// Correction de disponibilité "Validé - prêt à l'embauche" (audit 2026-09-28) — jamais la
+// Correction de disponibilité "Validé - prêt à l'embauche" — jamais la
 // déclaration d'origine du candidat (bloc 'disponibilites' de dossier_donnees_formulaire, JSONB),
 // qui reste inchangée : voir disponibiliteEmbaucheRepository.js/migration 065.
 const { z } = require('zod');

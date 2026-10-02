@@ -14,7 +14,7 @@ export async function obtenirQuestionnaire({ rendezvousId, posteCode }) {
 
 // Déjà filtrée selon le rôle connecté côté serveur (voir backend evaluations.routes.js).
 // secteur ('hotellerie' | 'tertiaire') / formateurId : vues Admin "Vue Formateur"/"Vue Inspecteur"
-// (audit 2026-09-29) — ignorés par le serveur pour tout autre rôle ; omis s'ils sont vides.
+// — ignorés par le serveur pour tout autre rôle ; omis s'ils sont vides.
 export async function listerRendezvousAEvaluer({ secteur, formateurId } = {}) {
   const { data } = await api.get('/evaluations/a-faire', {
     params: { secteur: secteur || undefined, formateurId: formateurId || undefined },
@@ -81,7 +81,7 @@ export async function obtenirDetailEvaluation(evaluationId) {
 // Détail en lecture seule de la DERNIÈRE évaluation soumise pour un dossier (pas par
 // evaluationId, voir obtenirDetailEvaluation ci-dessus) — Accueil/Coordination et Admin, depuis la
 // fiche dossier "Étudier le dossier" (Validation.jsx, demande utilisateur 2026-09-10) : ces deux
-// rôles n'ont pas accès à /evaluations/* (voir backend evaluations.routes.js, ROLES_EVALUATION),
+// rôles n'ont pas accès à /evaluations/* (voir backend evaluations.routes.js, evaluation),
 // cette route dédiée sous /dossiers/:id vit donc côté back dans dossiers.routes.js, pas
 // evaluations.routes.js. Renvoie `null` (jamais une erreur HTTP) si aucun test n'a encore été
 // évalué pour ce dossier — état normal, pas une exception (voir backend

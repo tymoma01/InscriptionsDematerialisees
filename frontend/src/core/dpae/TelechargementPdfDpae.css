@@ -1,4 +1,4 @@
-/* Téléchargement des demandes DPAE en PDF (2026-10-02) — même apparence que le bouton d'export ZIP
+/* Téléchargement des demandes DPAE en PDF — même apparence que le bouton d'export ZIP
    des pièces (Validation.css, .page-validation__bouton-export-zip). */
 .telechargement-pdf-dpae__bouton {
   display: inline-flex;

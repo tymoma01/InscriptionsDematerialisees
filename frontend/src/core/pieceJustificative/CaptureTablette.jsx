@@ -49,7 +49,7 @@ function fichierAccepte(fichier) {
   return PREFIXES_MIME_ACCEPTES.some((prefixe) => fichier.type.startsWith(prefixe)) && fichier.size <= TAILLE_MAX_OCTETS;
 }
 
-// Un type `multiple` (ex. "autres", typesPiecesConfig.accecit.js, migration 062 côté back) peut
+// Un type `multiple` (ex. "autres", table types_pieces, migration 062 côté back) peut
 // avoir PLUSIEURS pièces pour un même dossier — contrairement à piecesCapturees (une seule ligne,
 // la plus récente, par code) qui suffit aux types classiques. Regroupées à part plutôt que dans la
 // même Map : garder piecesCapturees à sa forme d'origine (un seul objet par code) évite de casser
@@ -77,10 +77,8 @@ function construirePiecesMultiples(pieces, typesPieces) {
 // appelant (ex. pages/accueil/VerificationPieces.jsx, encore à construire) de le lire depuis un
 // paramètre de route et de le transmettre.
 //
-// typesPieces est reçu en prop plutôt que codé en dur (même patron que FormulaireInscription /
-// configBlocs) : les 6 pièces ACCECIT vivent dans donneesTest/typesPiecesConfig.accecit.js, pas
-// ici — une autre entité peut avoir un jeu de pièces différent sans toucher ce fichier (voir
-// Modularité, CLAUDE.md).
+// typesPieces est reçu en prop : la liste vient de la table types_pieces (GET /api/types-pieces,
+// voir useTypesPieces.js), jamais codée en dur ici.
 //
 // uploadedBy n'apparaît nulle part dans ce composant : l'agent est déjà authentifié via la
 // session en place (useSession, cookie httpOnly), et c'est le back qui dérive l'auteur de
@@ -141,7 +139,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     return () => {
       annule = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- appliquerPiecesRecues capture
+     
     // typesPieces (prop stable pour la durée de vie de l'écran, voir VerificationPieces.jsx), pas
     // besoin de la lister ici : seul dossierId doit redéclencher ce chargement.
   }, [dossierId]);
@@ -160,7 +158,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   };
 
   // Complément optionnel "verso" (ex. carte_identite -> carte_identite_verso, voir
-  // typesPiecesConfig.accecit.js, propriété codeVerso) : un vrai type de pièce côté base/stockage
+  // types_pieces.code_verso) : un vrai type de pièce côté base/stockage
   // (mêmes garanties qu'un type normal), mais volontairement absent de `typesPieces` — jamais une
   // entrée de la liste principale, donc jamais compté dans nombreCapturees/piecesObligatoires
   // ci-dessous (tous deux dérivés de typesPieces, pas de ce tableau étendu). N'existe QUE pour que
@@ -785,7 +783,7 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
             Prendre une photo
           </button>
           {/* Absent pour les pièces marquées captureUniquement (ex. Photo d'identité,
-              typesPiecesConfig.accecit.js) : empêche l'upload d'une photo déjà existante — seule
+              table types_pieces) : empêche l'upload d'une photo déjà existante — seule
               une capture caméra fraîche reste possible pour cette pièce précise. Revalidé côté
               serveur (garde partielle sur le Content-Type, voir pieceJustificativeService.js) :
               ce n'est qu'un contrôle d'UX, pas une garantie contre un appel API direct. */}

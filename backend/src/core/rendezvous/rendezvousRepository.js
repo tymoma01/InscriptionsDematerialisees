@@ -37,7 +37,7 @@ function listerRendezvousARappeler(bd, entiteId, { fenetreHeures }) {
 // ici) reste portée par trouverRendezvousPourBasculeVerrouillee ci-dessous, contre une action
 // manuelle concurrente survenue entre cette lecture et l'écriture.
 //
-// Délai de grâce de dureeCreneauMinutes/delaiGraceHeures (audit 2026-09-09, demande utilisateur) :
+// Délai de grâce de dureeCreneauMinutes/delaiGraceHeures :
 // avant ce correctif, la bascule intervenait dès le prochain passage du cron une fois
 // `date_heure` seule dépassée — trop tôt (un créneau 09h00-09h30 basculait potentiellement dès
 // 09h01). dureeCreneauMinutes/delaiGraceHeures ne sont volontairement PAS des constantes figées
@@ -142,7 +142,7 @@ function listerRendezvousPresenceConfirmeeSansEvaluation(bd, entiteId, { delaiHe
 // serait-ce qu'UN rendez-vous 'test' encore 'prevu'/'confirme', quel que soit son id par rapport aux
 // autres, ne matche jamais, point final.
 //
-// Double sécurité du bloc 2 (audit 2026-09-23) : exclut en plus tout dossier dont le DERNIER
+// Double sécurité du bloc 2 : exclut en plus tout dossier dont le DERNIER
 // rendez-vous test 'annule' porte le motif 'neutralise_par_forcage' (workflowEngine.forcerStatut,
 // jamais une VRAIE annulation candidat) — ce cas ne devrait déjà plus jamais matcher (forcerStatut
 // ne pose jamais 'annule' en arrivant sur 'test_planifie' lui-même dans l'usage normal), mais reste
@@ -304,7 +304,7 @@ function listerRendezvousParDossier(bd, dossierId) {
       'formateur_assigne.prenom as formateur_prenom',
       'formateur_assigne.nom as formateur_nom',
       'role_formateur_assigne.libelle as formateur_role_libelle',
-      // Date/heure de saisie de la note de planification (audit 2026-08-19, demande explicite) —
+      // Date/heure de saisie de la note de planification —
       // même colonne journal_audit.date_action que cree_le dans
       // listerHistoriqueRendezvousParDossiers ci-dessous : l'écriture de note_planification n'a
       // lieu qu'à la création du rendez-vous (jamais modifiée après coup, voir
@@ -313,7 +313,7 @@ function listerRendezvousParDossier(bd, dossierId) {
       // planifie_par_* (rendez-vous créé hors API).
       'audit_planification.date_action as planifie_le',
     )
-    // Tri à deux niveaux (audit 2026-08-19, demande explicite) :
+    // Tri à deux niveaux :
     // 1. Le(s) rendez-vous ACTIF(S) (statut != 'remplace' — prevu/confirme/absent/annule, voir
     //    GestionRendezvous.jsx varianteStatutRendezvous) toujours en tête, quelle que soit sa date
     //    de planification par rapport aux rendez-vous 'remplace' plus récemment (re)planifiés :
@@ -373,7 +373,7 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
     .leftJoin('utilisateurs', 'utilisateurs.id', 'rendezvous.formateur_id')
-    // motif_code (bloc 2, audit 2026-09-23) : Planification.jsx (colonne "Rendez-vous") en a besoin
+    // motif_code : Planification.jsx (colonne "Rendez-vous") en a besoin
     // pour distinguer un rendez-vous annulé par un candidat d'un rendez-vous annulé par un forçage
     // de statut Admin (motif 'neutralise_par_forcage') — même libellé "Annulé" en base
     // (rendezvous.statut) mais affichage différent souhaité, voir libelleAfficheRendezvous/
@@ -765,7 +765,7 @@ async function creerRendezvous(
 // gauche vers utilisateurs (formateur_id, nullable) en plus — même patron que listerRendezvousTest
 // ci-dessus : sert à ce que le .ics regénéré pour cette notification (voir generateurIcs.js)
 // reprenne le même participant formateur que l'.ics de la convocation initiale, pas seulement le
-// candidat. Jointure gauche vers roles en plus (audit 2026-08-21) : formateur_role_code
+// candidat. Jointure gauche vers roles en plus : formateur_role_code
 // (formateur/inspecteur) nécessaire pour construireLienEvaluation (voir formatageEmail.js) —
 // distingue /formateur/evaluations de /inspecteur/evaluations dans le lien envoyé par
 // notificationChangementLieuService.js, même donnée que formateur.role_code déjà disponible côté

@@ -4,8 +4,7 @@ const lieuService = require('../../core/lieux/lieuService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/lieux' (voir app.js) — top-level, même patron que formateurs.routes.js : un
 // agent Accueil/Coordination doit pouvoir lister les lieux pour planifier un rendez-vous de test
@@ -15,11 +14,10 @@ const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 // sélecteur de lieu, ModalePlanificationTest.jsx.
 const router = Router();
 
-// Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_GESTION_LIEUX = [...ROLES_ACCUEIL, ROLES.ADMIN];
+// Rôle Recruteur retiré — voir suppression du rôle en base.
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_GESTION_LIEUX));
+router.use(requirePermission('gestionLieux'));
 
 // GET /api/lieux — lieux actifs de l'entité courante ({ id, code, adresse, metro_acces,
 // instructions, actif }).

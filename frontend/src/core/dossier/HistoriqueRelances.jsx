@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
+import { peut } from '../auth/permissions';
 import { listerRelances, enregistrerRelance, listerMotifsResultatRelance } from '../../services/relanceService';
 import './HistoriqueRelances.css';
 
@@ -40,12 +40,12 @@ export default function HistoriqueRelances({ dossierId }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
-  // dossier" sur Suivi des tests, voir relances.routes.js ROLES_LECTURE_RELANCES) : consultent
+  // dossier" sur Suivi des tests, voir relances.routes.js lectureRelances) : consultent
   // l'historique ci-dessous mais ne voient jamais le formulaire d'ajout, réservé à Accueil/
-  // Coordination/Admin (voir ROLES_GESTION_RELANCES côté back — la route POST reste fermée pour
+  // Coordination/Admin (voir gestionRelances côté back — la route POST reste fermée pour
   // ces deux rôles, ce masquage évite un formulaire visible mais non fonctionnel). Rôle Recruteur
-  // retiré (audit 2026-08-27) — voir suppression du rôle en base.
-  const peutGererRelances = [...ROLES_ACCUEIL, 'admin'].includes(utilisateur?.roleCode);
+  // retiré — voir suppression du rôle en base.
+  const peutGererRelances = peut(utilisateur, 'gestionRelances');
 
   const [relances, setRelances] = useState([]);
   const [motifs, setMotifs] = useState([]);

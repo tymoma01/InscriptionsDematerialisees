@@ -4,20 +4,18 @@ const siteAffectationService = require('../../core/dpae/siteAffectationService')
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES_DPAE_DEMANDEUR } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/sites-affectation' (voir app.js) — référentiel des sites d'affectation des
 // demandes DPAE (migration 069). Lecture ET ajout réservés aux rôles qui peuvent créer une DPAE
 // (Planning et Admin depuis le 2026-09-30 — Accueil/Coordination n'a plus aucun accès DPAE, voir
-// rbac.js ROLES_DPAE_DEMANDEUR) : ce référentiel n'est utilisé que dans ce formulaire ; la
+// rbac.js dpaeCreation) : ce référentiel n'est utilisé que dans ce formulaire ; la
 // fiche RH reçoit les sites d'une demande avec la demande elle-même (voir demandeDpaeService).
 const router = Router();
 
-const ROLES_SITES_AFFECTATION = ROLES_DPAE_DEMANDEUR;
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_SITES_AFFECTATION));
+router.use(requirePermission('dpaeCreation'));
 
 // Initiales : majuscules et chiffres uniquement, 2 à 5 caractères (demande utilisateur) — contrôle
 // strict, sans mise en majuscules automatique côté serveur (le formulaire s'en charge à la saisie).
@@ -75,4 +73,3 @@ module.exports = router;
 // Exposés pour sitesAffectation.routes.test.js (même convention que dossiers.routes.js : aucune
 // infrastructure de test HTTP, on teste le VRAI schéma et la VRAIE liste de rôles montés ici).
 module.exports.siteBodySchema = siteBodySchema;
-module.exports.ROLES_SITES_AFFECTATION = ROLES_SITES_AFFECTATION;

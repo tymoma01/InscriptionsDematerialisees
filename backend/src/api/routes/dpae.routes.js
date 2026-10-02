@@ -10,14 +10,7 @@ const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const {
-  ROLES_DPAE_DEMANDEUR,
-  ROLES_DPAE_RH,
-  ROLES_DPAE_CONSULTATION,
-  ROLES_DPAE_TABLEAU_DE_BORD,
-  ROLES_DPAE_NOTES,
-} = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/dpae' (voir app.js) — module spécifique à ACCECIT (voir Modularité, CLAUDE.md :
 // pas de moteur générique configurable par entité ici, décision actée avec l'utilisateur).
@@ -53,7 +46,7 @@ const demandeBodySchema = z.object({
   // formulaire ; toléré s'il est fourni (facultatif), la colonne restant en base pour les demandes
   // antérieures, dont l'affichage retombe dessus (voir DetailDemandeDpae.jsx).
   hotel: z.string().trim().optional(),
-  // Site(s) d'affectation (2026-09-29, demande utilisateur) : liste OBLIGATOIRE d'ids du référentiel
+  // Site(s) d'affectation : liste OBLIGATOIRE d'ids du référentiel
   // `sites_affectation`, au moins un, sans doublon. Absente -> même refus qu'une liste vide
   // (preprocess). L'existence, l'état actif et l'appartenance à l'entité de chaque id sont vérifiés
   // par demandeDpaeService.creerEtEnvoyer, dans la transaction qui enregistre la demande.
@@ -118,12 +111,12 @@ const rejetBodySchema = z.object({
   motifRejet: z.string().trim().min(1, 'Un motif de rejet est obligatoire.'),
 });
 
-// Mise en attente (2026-09-30) : motif OBLIGATOIRE — absent, vide ou fait d'espaces -> 400.
+// Mise en attente : motif OBLIGATOIRE — absent, vide ou fait d'espaces -> 400.
 const miseEnAttenteBodySchema = z.object({
   motif: z.string().trim().min(1, 'Un motif de mise en attente est obligatoire.'),
 });
 
-// Notes d'une demande DPAE (2026-09-30) : mêmes règles que les notes d'un dossier (notes.routes.js).
+// Notes d'une demande DPAE : mêmes règles que les notes d'un dossier (notes.routes.js).
 const noteBodySchema = z.object({
   contenu: z.string().trim().min(1).max(1000),
 });
@@ -135,7 +128,7 @@ function repondreErreurValidation(res, erreurZod) {
 // POST /api/dpae — crée une demande et l'envoie directement à la RH (pas de brouillon, voir
 // demandeDpaeService.creerEtEnvoyer). utilisateurId toujours pris de la session, jamais du corps
 // de la requête — même principe que relances.routes.js.
-router.post('/', requireRole(...ROLES_DPAE_DEMANDEUR), async (req, res, next) => {
+router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
     const donnees = demandeBodySchema.parse(req.body);
     const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees);
@@ -168,8 +161,8 @@ router.post('/', requireRole(...ROLES_DPAE_DEMANDEUR), async (req, res, next) =>
 // d'où la liste vide constatée pour un Admin qui n'en avait créé aucune). Tous statuts, plus
 // récentes d'abord, sites d'affectation inclus, entité courante uniquement. Périmètre résolu côté
 // serveur (demandeDpaeService.perimetreSuivi) : 'toutes' par défaut pour Admin, RH et Planning
-// (ROLES_DPAE_CONSULTATION_TOUTES), 'mes' sur demande. Accueil/Coordination : 403.
-router.get('/suivi', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+// (dpaeConsultationToutes), 'mes' sur demande. Accueil/Coordination : 403.
+router.get('/suivi', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const demandes = await demandeDpaeService.listerSuivi(req.entite, {
       utilisateurId: req.utilisateur.id,
@@ -182,9 +175,9 @@ router.get('/suivi', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, n
   }
 });
 
-// GET /api/dpae/tableau-de-bord — « Tableau de bord DPAE » (2026-09-30). Indicateurs calculés en
+// GET /api/dpae/tableau-de-bord — « Tableau de bord DPAE ». Indicateurs calculés en
 // base, entité courante uniquement (tableauDeBordDpaeService / tableauDeBordDpaeRepository). Accès
-// Admin, RH, Planning (ROLES_DPAE_CONSULTATION) ; 403 pour tout autre rôle. Déclarée AVANT
+// Admin, RH, Planning (dpaeConsultation) ; 403 pour tout autre rôle. Déclarée AVANT
 // GET /:id : sinon « tableau-de-bord » serait pris pour un identifiant de demande.
 // Filtres (tous optionnels) : debut/fin (AAAA-MM-JJ, jours parisiens de création ; défaut : les 30
 // derniers jours), siteId (id d'un site, ou 'non_reference' pour les anciennes demandes sans site
@@ -199,9 +192,9 @@ const filtresTableauDeBordSchema = z.object({
   statut: enumOptionnel(['envoyee', 'en_attente', 'validee', 'rejetee']),
 });
 
-// ROLES_DPAE_TABLEAU_DE_BORD (2026-10-01) : Admin, RH, Planning — l'Inspecteur Hôtellerie, bien que
-// dans ROLES_DPAE_CONSULTATION, n'a pas le tableau de bord DPAE.
-router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_TABLEAU_DE_BORD), async (req, res, next) => {
+// dpaeTableauDeBord : Admin, RH, Planning — l'Inspecteur Hôtellerie, bien que
+// dans dpaeConsultation, n'a pas le tableau de bord DPAE.
+router.get('/tableau-de-bord', requirePermission('dpaeTableauDeBord'), async (req, res, next) => {
   try {
     const filtres = filtresTableauDeBordSchema.parse(req.query);
     res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres));
@@ -214,7 +207,7 @@ router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_TABLEAU_DE_BORD), async
   }
 });
 
-// Téléchargement PDF groupé (2026-10-02) : 50 demandes au plus par ZIP. Miroir côté front :
+// Téléchargement PDF groupé : 50 demandes au plus par ZIP. Miroir côté front :
 // frontend/src/core/dpae/telechargementPdfDpae.js (même limite, pour prévenir avant l'envoi).
 const LIMITE_DEMANDES_PAR_ZIP = 50;
 const exportPdfBodySchema = z.object({
@@ -230,13 +223,13 @@ function dateDuJourPourNomFichier(maintenant = new Date()) {
 
 // POST /api/dpae/export-pdf { demandeIds: [..] } — ZIP contenant un PDF par demande
 // (« DPAE <n°> - <NOM> <Prénom>.pdf »), nommé « Demandes DPAE - <date du jour>.zip ». MÊMES règles
-// d'accès que la fiche (GET /:id) : même garde de rôle (ROLES_DPAE_CONSULTATION) puis, pour CHAQUE
+// d'accès que la fiche (GET /:id) : même garde de rôle (dpaeConsultation) puis, pour CHAQUE
 // demande, entité courante et peutConsulterDemande (demandeDpaeService.obtenirDemandesPourExport).
 // Une seule demande hors périmètre -> 403 pour toute la requête, aucun ZIP (même partiel). Au-delà
 // de 50 demandes -> 400 avec un message explicite. Toutes les vérifications et tous les PDF sont
 // faits AVANT l'envoi des en-têtes : une erreur à ce stade donne une réponse d'erreur propre.
 // Tracé dans journal_audit comme l'export ZIP des pièces (pieces_justificatives_export_zip).
-router.post('/export-pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+router.post('/export-pdf', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const { demandeIds: demandeIdsRecus } = exportPdfBodySchema.parse(req.body);
     // Un même identifiant envoyé deux fois ne produit qu'un fichier.
@@ -255,7 +248,7 @@ router.post('/export-pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, 
     const dateGeneration = new Date();
     const fichiers = [];
     for (const demande of demandes) {
-      // eslint-disable-next-line no-await-in-loop
+       
       const contenu = await pdfDemandeDpae.genererPdfDemande(demande, { dateGeneration });
       fichiers.push({ nom: pdfDemandeDpae.nomFichierPdf(demande), contenu });
     }
@@ -296,7 +289,7 @@ router.post('/export-pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, 
 
 // GET /api/dpae — file RH. ?statut=envoyee (défaut, file à traiter) ou ?statut=tous (historique
 // complet, traitées incluses).
-router.get('/', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
+router.get('/', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
     const statut = req.query.statut === 'tous' ? null : req.query.statut || 'envoyee';
     const demandes = await demandeDpaeService.listerPourRh(req.entite, statut);
@@ -310,7 +303,7 @@ router.get('/', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
 // le seul fait d'être l'auteur suffisait, quel que soit le rôle) : rôles de consultation seulement,
 // puis règle par demande (demandeDpaeService.peutConsulterDemande) — toutes pour Admin, RH et
 // Planning. Demande d'une autre entité : introuvable (404), jamais renvoyée.
-router.get('/:id', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+router.get('/:id', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
@@ -329,11 +322,11 @@ router.get('/:id', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, nex
   }
 });
 
-// GET /api/dpae/:id/pdf (2026-10-02) — PDF de la fiche, « DPAE <n°> - <NOM> <Prénom>.pdf ».
+// GET /api/dpae/:id/pdf — PDF de la fiche, « DPAE <n°> - <NOM> <Prénom>.pdf ».
 // EXACTEMENT les règles de GET /:id ci-dessus : même garde de rôle, demande d'une autre entité ->
 // 404, demande non consultable -> 403. Chaque téléchargement est tracé dans journal_audit (avant
 // l'envoi du fichier).
-router.get('/:id/pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
@@ -367,7 +360,7 @@ router.get('/:id/pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res,
   }
 });
 
-router.patch('/:id/valider', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
+router.patch('/:id/valider', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     await demandeDpaeService.valider(req.entite, id, req.utilisateur.id);
@@ -396,7 +389,7 @@ router.patch('/:id/valider', requireRole(...ROLES_DPAE_RH), async (req, res, nex
   }
 });
 
-router.patch('/:id/rejeter', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
+router.patch('/:id/rejeter', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { motifRejet } = rejetBodySchema.parse(req.body);
@@ -426,10 +419,10 @@ router.patch('/:id/rejeter', requireRole(...ROLES_DPAE_RH), async (req, res, nex
   }
 });
 
-// PATCH /api/dpae/:id/mettre-en-attente (2026-09-30) — « À traiter » -> « En attente », RH/Admin
-// (ROLES_DPAE_RH), motif obligatoire. Depuis tout autre statut : 409. Tracé dans journal_audit
+// PATCH /api/dpae/:id/mettre-en-attente — « À traiter » -> « En attente », RH/Admin
+// (dpaeTraitementRh), motif obligatoire. Depuis tout autre statut : 409. Tracé dans journal_audit
 // (auteur = session, motif) ; le demandeur est notifié (demandeDpaeService.mettreEnAttente).
-router.patch('/:id/mettre-en-attente', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
+router.patch('/:id/mettre-en-attente', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { motif } = miseEnAttenteBodySchema.parse(req.body);
@@ -459,10 +452,10 @@ router.patch('/:id/mettre-en-attente', requireRole(...ROLES_DPAE_RH), async (req
   }
 });
 
-// GET /api/dpae/:id/notes (2026-09-30) — notes propres à la demande, plus récentes d'abord. Lecture
-// ouverte aux mêmes rôles que la fiche (ROLES_DPAE_CONSULTATION : Admin, RH, Planning) ; demande
+// GET /api/dpae/:id/notes — notes propres à la demande, plus récentes d'abord. Lecture
+// ouverte aux mêmes rôles que la fiche (dpaeConsultation : Admin, RH, Planning) ; demande
 // d'une autre entité : 404, aucune note renvoyée.
-router.get('/:id/notes', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+router.get('/:id/notes', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     res.json(await notesDemandeDpaeService.listerNotes(req.entite, id));
@@ -475,12 +468,12 @@ router.get('/:id/notes', requireRole(...ROLES_DPAE_CONSULTATION), async (req, re
   }
 });
 
-// POST /api/dpae/:id/notes (2026-09-30) — ajoute une note (auteur pris de la session, jamais du
+// POST /api/dpae/:id/notes — ajoute une note (auteur pris de la session, jamais du
 // corps), mêmes rôles que la lecture. Aucune modification ni suppression (pas de route prévue).
 // Chaque ajout est tracé dans journal_audit.
-// Ajout de note : ROLES_DPAE_NOTES (Admin, RH, Planning) — l'Inspecteur Hôtellerie lit les notes
-// (GET ci-dessus, ROLES_DPAE_CONSULTATION) mais n'en ajoute pas (2026-10-01).
-router.post('/:id/notes', requireRole(...ROLES_DPAE_NOTES), async (req, res, next) => {
+// Ajout de note : dpaeNotes (Admin, RH, Planning) — l'Inspecteur Hôtellerie lit les notes
+// (GET ci-dessus, dpaeConsultation) mais n'en ajoute pas.
+router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { contenu } = noteBodySchema.parse(req.body);
@@ -521,6 +514,6 @@ module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
 // Motif de mise en attente et note exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.miseEnAttenteBodySchema = miseEnAttenteBodySchema;
 module.exports.noteBodySchema = noteBodySchema;
-// Export PDF (2026-10-02) : limite et nom du ZIP exposés pour dpae.routes.test.js.
+// Export PDF : limite et nom du ZIP exposés pour dpae.routes.test.js.
 module.exports.LIMITE_DEMANDES_PAR_ZIP = LIMITE_DEMANDES_PAR_ZIP;
 module.exports.dateDuJourPourNomFichier = dateDuJourPourNomFichier;

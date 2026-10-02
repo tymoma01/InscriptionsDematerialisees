@@ -32,11 +32,11 @@ const LIBELLE_PAR_TYPE = {
 // dossier, rôle/statut de compte sur Comptes utilisateurs — voir FiltresStatut.jsx). Chaque code
 // correspond exactement à un statut réel de `demandes_dpae` (dpae.routes.js accepte n'importe quel
 // `?statut=`, pas seulement 'envoyee'/'tous' — aucun changement backend nécessaire ici).
-// Libellés et couleurs : source unique core/dpae/statutsDpae.js (2026-09-30), mêmes couleurs que
+// Libellés et couleurs : source unique core/dpae/statutsDpae.js, mêmes couleurs que
 // les badges du tableau ci-dessous.
 const STATUTS_FILTRABLES = STATUTS_DPAE.map(({ code, libellePluriel, variante }) => ({ code, libelle: libellePluriel, variante }));
 
-// File RH du module Demandes DPAE (2026-09-28) — par défaut, uniquement les demandes 'envoyee'
+// File RH du module Demandes DPAE — par défaut, uniquement les demandes 'envoyee'
 // (file à traiter, voir dpae.routes.js GET / sans ?statut) ; le filtre "Tous" (statutFiltre nul)
 // revoit l'historique complet (?statut=tous).
 export default function TraitementDpae() {
@@ -44,10 +44,10 @@ export default function TraitementDpae() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [statutFiltre, setStatutFiltre] = useState('envoyee');
-  // Compteurs des pastilles (2026-09-30) : calculés sur TOUTES les demandes de l'entité (même
+  // Compteurs des pastilles : calculés sur TOUTES les demandes de l'entité (même
   // route, ?statut=tous), chargées à part — la liste affichée et son filtrage restent inchangés.
   const [toutesDemandes, setToutesDemandes] = useState(null);
-  // Téléchargement PDF (2026-10-02) : cases à cocher et action groupée (ZIP), voir
+  // Téléchargement PDF : cases à cocher et action groupée (ZIP), voir
   // core/dpae/TelechargementPdfDpae.jsx. « Tout cocher » ne porte que sur le filtre affiché.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
   const selectionDemandes = useSelectionDemandesDpae(demandes);
@@ -75,7 +75,7 @@ export default function TraitementDpae() {
   useEffect(() => {
     charger(statutFiltre);
     chargerCompteurs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [statutFiltre]);
 
   useRafraichissementAuto(() => {

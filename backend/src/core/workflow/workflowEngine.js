@@ -7,8 +7,8 @@ const motifRepository = require('../motifs/motifRepository');
 // toutes des repositories, jamais un service métier) — voir neutraliserRendezvousActifsDossier
 // ci-dessous, seul point d'usage.
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
-const { ROLES, ROLES_FORCAGE } = require('../auth/rbac');
-// journalAudit (audit 2026-09-26) : simple écriture de traçabilité (src/core/audit/journalAudit.js),
+const { aPermission } = require('../auth/permissions');
+// journalAudit : simple écriture de traçabilité (src/core/audit/journalAudit.js),
 // même catégorie que dossierRepository/motifRepository ci-dessus (aucune logique métier propre à un
 // domaine, contrairement à rendezvousService/graphCalendarService, volontairement absents de ce
 // fichier — voir forcerStatut plus bas). Seul point d'usage : la neutralisation générique ci-dessous
@@ -25,7 +25,7 @@ const journalAudit = require('../audit/journalAudit');
 // front et back sur ce projet, voir CLAUDE.md conventions).
 const STATUT_RENDEZVOUS_REMPLACE = 'remplace';
 
-// forcerStatut (bloc 2, audit 2026-09-23) : valeur/motif distincts de STATUT_RENDEZVOUS_REMPLACE
+// forcerStatut : valeur/motif distincts de STATUT_RENDEZVOUS_REMPLACE
 // ci-dessus — 'remplace' reste réservé à une VRAIE replanification (un nouveau rendez-vous
 // remplace effectivement l'ancien, voir rendezvousService.creerRendezvous/appliquerTransition
 // ci-dessus) ; un forçage de statut, lui, n'en crée jamais — 'annule' est sémantiquement correct
@@ -37,7 +37,7 @@ const STATUT_RENDEZVOUS_ANNULE = 'annule';
 const CATEGORIE_MOTIF_SYSTEME = 'systeme';
 const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
 
-// Date d'embauche (audit 2026-09-25) — forcer un dossier vers ce statut doit renseigner
+// Date d'embauche — forcer un dossier vers ce statut doit renseigner
 // dossiers.date_embauche exactement comme le parcours normal (embaucheService.marquerEmbauche,
 // core/dossier/embaucheService.js), voir son usage dans forcerStatut ci-dessous. Même regex que
 // embaucheService.REGEX_DATE_ISO (dupliquée, jamais importée : ce fichier n'a aucune dépendance
@@ -171,7 +171,7 @@ async function appliquerTransition(
       statutRemplace: STATUT_RENDEZVOUS_REMPLACE,
     });
     for (const rdv of rendezvousNeutralises) {
-      // eslint-disable-next-line no-await-in-loop -- peu de rendez-vous actifs par dossier, même
+       
       // transaction que le changement de statut ci-dessus.
       await journalAudit.enregistrerAction(bd, {
         utilisateurId,
@@ -205,7 +205,7 @@ async function listerMotifsPourAction(entite, codeAction) {
   return motifRepository.listerMotifsParCategorie(bd, entite.id, codeAction);
 }
 
-// Statuts exclus du forçage (bloc 3, audit 2026-09-25, décision utilisateur explicite) — EXCEPTION
+// Statuts exclus du forçage — EXCEPTION
 // assumée au principe de généricité de ce fichier (voir son en-tête : "aucun statut ni transition
 // nommés en dur") : ces codes sont des paliers hérités d'un ancien circuit de validation
 // (workflow v2/v3, "en_attente_verdict"/"verdict_positif"/"verdict_negatif"/
@@ -226,13 +226,13 @@ const STATUTS_EXCLUS_FORCAGE = [
   'rejete',
 ];
 
-// Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur) — contourne
+// Changement de statut manuel/forcé — contourne
 // volontairement `transitions_statut` : contrairement à appliquerTransition ci-dessus, qui ne
 // permet jamais de sauter une étape (une seule origine possible par transition, voir Modularité),
 // cette action permet à un Admin de placer un dossier sur N'IMPORTE QUEL statut existant de
 // l'entité, indépendamment du statut courant — pensée pour les cas exceptionnels (correction d'une
 // erreur de saisie, rattrapage d'un dossier bloqué par un bug) que la machine à états normale ne
-// couvre pas. `roleCode` revérifié ici (pas seulement par `requireRole(ROLES.ADMIN)` posé sur la
+// couvre pas. `roleCode` revérifié ici (pas seulement par `requirePermission(ROLES.ADMIN)` posé sur la
 // route, voir transitions.routes.js) : dernier verrou avant écriture, même principe que le
 // contournement ADMIN déjà en place dans pieceJustificativeService.js/evaluationEngine.js — cette
 // action n'a par nature AUCUNE ligne `transition_roles` pour la protéger (elle ne passe justement
@@ -275,8 +275,8 @@ const STATUTS_EXCLUS_FORCAGE = [
 // échéant — cette fonction reste un moteur générique, sans dépendance à journalAudit ni à
 // graphCalendarService (voir l'en-tête de ce fichier).
 async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEmbauche, utilisateurId, roleCode }) {
-  // Admin et Planning (ROLES_FORCAGE, rbac.js — audit 2026-09-25, rôle Planning).
-  if (!ROLES_FORCAGE.includes(roleCode)) {
+  // Admin et Planning (forcerStatut, rbac.js — audit 2026-09-25, rôle Planning).
+  if (!aPermission(roleCode, 'forcerStatut')) {
     throw new ErreurTransitionInvalide('Seuls les rôles Admin et Planning peuvent forcer le statut d’un dossier.');
   }
   if (!commentaire || !commentaire.trim()) {
@@ -296,11 +296,11 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEm
   if (statutCible.id === dossier.statut_id) {
     throw new ErreurTransitionInvalide(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
   }
-  // Bloc 3 (audit 2026-09-25, décision utilisateur) — voir STATUTS_EXCLUS_FORCAGE ci-dessus.
+  // Bloc 3 — voir STATUTS_EXCLUS_FORCAGE ci-dessus.
   if (STATUTS_EXCLUS_FORCAGE.includes(statutCible.code)) {
     throw new ErreurTransitionInvalide('Ce statut ne peut pas être choisi par forçage.');
   }
-  // Date d'embauche (audit 2026-09-25, suite du bloc 3) — EXCEPTION assumée au principe de
+  // Date d'embauche — EXCEPTION assumée au principe de
   // généricité de ce fichier, même nature que STATUTS_EXCLUS_FORCAGE ci-dessus : forcer un
   // dossier vers "embauche" doit renseigner dossiers.date_embauche exactement comme le parcours
   // normal (embaucheService.marquerEmbauche), sinon la fiche resterait "Embauché" sans date. Même

@@ -67,7 +67,7 @@ function mockerDependances(t, overrides = {}) {
   return { enregistrerMock, mettreAJourStatutRendezvousMock };
 }
 
-// Dossier Hôtellerie (audit 2026-09-29) : le parcours d'évaluation dépend désormais du SECTEUR DU
+// Dossier Hôtellerie : le parcours d'évaluation dépend désormais du SECTEUR DU
 // DOSSIER (evaluationEngine.resoudreParcoursEvaluation), plus du rôle de l'évaluateur. Le dossier
 // par défaut de mockerDependances est Tertiaire (typePoste 'bureau') : les tests du parcours
 // Formateur (orientation, SmartOF) l'utilisent explicitement pour rester dans leur vrai contexte
@@ -391,7 +391,7 @@ test('enregistrerEvaluation rejette une évaluation dont aucun bloc ne résout �
   );
 });
 
-// confirmerTestRealise en tant que fonction indépendante a été retirée (audit 2026-08-28) — voir
+// confirmerTestRealise en tant que fonction indépendante a été retirée — voir
 // les tests "enregistrerEvaluation applique/n'applique pas confirmer_test_realise" ci-dessus, qui
 // couvrent désormais la SEULE façon d'appliquer cette transition (dans le même geste que
 // l'évaluation elle-même, jamais indépendamment).
@@ -553,7 +553,7 @@ test('listerHistorique transmet le filtre creneau reçu, combiné au filtre sect
   assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau', '6h-9h']);
 });
 
-// listerCreneauxDisponibles (audit 2026-09-17) — même résolution formateurId/typePoste par rôle
+// listerCreneauxDisponibles — même résolution formateurId/typePoste par rôle
 // que listerHistorique ci-dessus, alimente le select "Créneaux souhaités".
 test('listerCreneauxDisponibles (Formateur) passe le formateurId de la session et aucun filtre secteur', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
@@ -719,7 +719,7 @@ test('obtenirDetailEvaluationDossier ne vérifie aucune appartenance à un forma
 });
 
 // ---------------------------------------------------------------------------------------------
-// Parcours selon le SECTEUR DU DOSSIER (audit 2026-09-29) — orientation, validation Tertiaire,
+// Parcours selon le SECTEUR DU DOSSIER — orientation, validation Tertiaire,
 // SmartOF ne dépendent plus du rôle de l'évaluateur.
 // ---------------------------------------------------------------------------------------------
 const POSTES_DOSSIER_TERTIAIRE = async () => ({ typePoste: 'bureau', posteBureau: [], posteHotel: [] });
@@ -820,7 +820,7 @@ test('resoudreParcoursEvaluation : secteur du dossier prioritaire, repli sur le 
 });
 
 // ---------------------------------------------------------------------------------------------
-// Vues Admin "Vue Formateur"/"Vue Inspecteur" (audit 2026-09-29) — paramètres secteur/formateurId
+// Vues Admin "Vue Formateur"/"Vue Inspecteur" — paramètres secteur/formateurId
 // pris en compte pour l'Admin seulement.
 // ---------------------------------------------------------------------------------------------
 test('filtresEvaluationsParRole : Admin + secteur -> tout le secteur demandé, filtrable par formateurId', () => {

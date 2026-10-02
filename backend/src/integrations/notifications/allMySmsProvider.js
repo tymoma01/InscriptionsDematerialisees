@@ -55,7 +55,7 @@ class AllMySmsProvider extends NotificationProvider {
       }
     } catch (erreur) {
       if (erreur.response) {
-        throw new Error(`AllMySMS a répondu une erreur HTTP ${erreur.response.status}.`);
+        throw new Error(`AllMySMS a répondu une erreur HTTP ${erreur.response.status}.`, { cause: erreur });
       }
       throw erreur;
     }

@@ -1,6 +1,16 @@
 // Accès données pour les pièces justificatives — uniquement des requêtes, aucune règle métier
 // ici (orchestrée par pieceJustificativeService.js), même découpage que dossierRepository.js.
 
+// Pièces proposées à la capture, dans l'ordre d'affichage. Un type qui n'est que le verso d'un
+// autre (code_verso) n'est pas une entrée de la liste : il est rattaché à son recto.
+function listerTypesPiecesAffiches(trx, entiteId) {
+  return trx('types_pieces')
+    .where({ entite_id: entiteId })
+    .whereNotIn('code', trx('types_pieces').where({ entite_id: entiteId }).whereNotNull('code_verso').select('code_verso'))
+    .orderBy([{ column: 'ordre' }, { column: 'id' }])
+    .select('code', 'libelle', 'obligatoire', 'capture_uniquement', 'multiple', 'code_verso');
+}
+
 function trouverTypePieceParCode(trx, entiteId, code) {
   return trx('types_pieces').where({ entite_id: entiteId, code }).first();
 }
@@ -141,6 +151,7 @@ async function toutesPiecesObligatoiresPresentes(trx, entiteId, dossierId) {
 }
 
 module.exports = {
+  listerTypesPiecesAffiches,
   trouverTypePieceParCode,
   enregistrerPieceJustificative,
   trouverPieceJustificativeParId,

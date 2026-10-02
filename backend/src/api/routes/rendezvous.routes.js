@@ -17,8 +17,7 @@ const invitationTestService = require('../../core/rendezvous/invitationTestServi
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/dossiers/:dossierId/rendezvous' (voir app.js) — `mergeParams: true`
 // indispensable pour que req.params.dossierId reste visible ici, même patron que
@@ -27,26 +26,24 @@ const router = Router({ mergeParams: true });
 
 // Reprogrammations et désistements (CLAUDE.md, besoins Accueil/Coordination : "relances et
 // reprogrammations" ; "motif de désistement enregistré systématiquement") — mêmes rôles que la
-// gestion des pièces justificatives et des relances. Rôle Recruteur retiré (audit 2026-08-27) —
+// gestion des pièces justificatives et des relances. Rôle Recruteur retiré —
 // voir suppression du rôle en base.
-const ROLES_GESTION_RENDEZVOUS = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais aux routes
-// POST/PATCH, qui restent réservées à ROLES_GESTION_RENDEZVOUS : ces deux rôles consultent la
+// POST/PATCH, qui restent réservées à gestionRendezvous : ces deux rôles consultent la
 // fiche dossier en lecture seule, sans les actions de reprogrammation/désistement (Confirmer la
 // présence/Marquer annulé restent masquées côté front pour eux, voir GestionRendezvous.jsx, et de
 // toute façon refusées ici côté serveur si contournées). "Marquer absent" n'existe plus du tout
-// sur cette route, pour aucun rôle (audit 2026-09-11) — voir statutBodySchema plus bas.
+// sur cette route, pour aucun rôle — voir statutBodySchema plus bas.
 // Inspecteur Hôtellerie ajouté le 2026-10-01 : lecture seule (onglet Tests de la fiche), dans son
-// périmètre de dossiers (verifierPerimetreDossier, app.js) — aucune écriture (ROLES_GESTION_RENDEZVOUS).
-const ROLES_LECTURE_RENDEZVOUS = [...ROLES_GESTION_RENDEZVOUS, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.INSPECTEUR_HOTELLERIE];
+// périmètre de dossiers (verifierPerimetreDossier, app.js) — aucune écriture (gestionRendezvous).
 
 router.use(requireAuth);
 
 const idPositifSchema = z.coerce.number().int().positive();
 
-// 'absent' retiré (audit 2026-09-11, décision utilisateur) : ce statut ne doit plus être
+// 'absent' retiré : ce statut ne doit plus être
 // atteignable manuellement par Accueil/Coordination/Admin via cette route — seuls NSPP
 // (ListeEvaluationsAFaire.jsx, POST /transitions avec codeAction 'test_non_realise') et la
 // bascule automatique (basculeTestNonRealiseService.js, utilisateur système) peuvent encore
@@ -78,7 +75,7 @@ const creationRendezvousSchema = z.object({
   // repli silencieux sur LIEU_TEST_ACCECIT, voir invitationTestService.js, jugé trop permissif).
   // Validation posée ICI, pas seulement côté formulaire (ModalePlanificationTest.jsx) : un appel
   // API direct doit être refusé indépendamment de ce que l'UI empêche déjà — même principe que
-  // ROLES_MODIFICATION_INSCRIPTION dans dossiers.routes.js. rendezvousService.creerRendezvous
+  // modificationInscription dans dossiers.routes.js. rendezvousService.creerRendezvous
   // garde son repli sur lieuIdValide = null pour les rendez-vous créés AVANT cette contrainte
   // (lieu_id déjà NULL en base), pas pour en créer de nouveaux.
   lieuId: idPositifSchema,
@@ -112,7 +109,7 @@ function repondreErreurValidation(res, erreurZod) {
 }
 
 // GET /api/dossiers/:dossierId/rendezvous — rendez-vous du dossier, du plus récent au plus ancien.
-router.get('/', requireRole(...ROLES_LECTURE_RENDEZVOUS), async (req, res, next) => {
+router.get('/', requirePermission('lectureRendezvous'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const rendezvous = await rendezvousService.listerRendezvous(req.entite, dossierId);
@@ -131,7 +128,7 @@ router.get('/', requireRole(...ROLES_LECTURE_RENDEZVOUS), async (req, res, next)
 // rendez-vous qui doit s'accompagner d'un changement de statut atomique (ex. planification de
 // test), voir POST /avec-transitions ci-dessous plutôt que d'enchaîner cet endpoint avec
 // POST /api/dossiers/:dossierId/transitions séparément (non atomique, voir son historique).
-router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
+router.post('/', requirePermission('gestionRendezvous'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, notePlanification } =
@@ -197,7 +194,7 @@ router.post('/', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next
 // transaction DB (voir planificationRendezvousService.js) : soit tout réussit, soit rien n'est
 // écrit — corrige l'incident du dossier 62 (rendez-vous créés sans le changement de statut
 // attendu, après plusieurs tentatives ayant chacune échoué sur la transition uniquement).
-router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
+router.post('/avec-transitions', requirePermission('gestionRendezvous'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { typeRdv, dateHeure, formateurId, lieuId, postesSelectionnes, notePlanification, transitions } =
@@ -285,7 +282,7 @@ router.post('/avec-transitions', requireRole(...ROLES_GESTION_RENDEZVOUS), async
 // passer à 'annule' sans motif valide est rejeté (voir rendezvousService.js). 'absent' n'est plus
 // un statut atteignable via cette route (voir statutBodySchema ci-dessus) — une tentative directe
 // (contournement de l'UI) échoue en 400, ZodError sur `statut`.
-router.patch('/:rendezvousId', requireRole(...ROLES_GESTION_RENDEZVOUS), async (req, res, next) => {
+router.patch('/:rendezvousId', requirePermission('gestionRendezvous'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const rendezvousId = idPositifSchema.parse(req.params.rendezvousId);

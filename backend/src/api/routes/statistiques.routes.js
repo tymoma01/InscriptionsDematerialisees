@@ -2,8 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const statistiquesService = require('../../core/statistiques/statistiquesService');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 const { POSTES_BUREAU, POSTES_HOTEL } = require('../../core/dossier/postesConstantes');
 const { perimetreDossiersPourRole } = require('../../core/auth/perimetreDossiers');
 
@@ -21,7 +20,7 @@ const router = Router();
 router.use(requireAuth);
 // Inspecteur Hôtellerie ajouté le 2026-10-01 : indicateurs TOUJOURS limités à l'Hôtellerie, imposé
 // ici côté serveur (typePosteImpose) quel que soit le filtre envoyé par le client.
-router.use(requireRole(...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH, ROLES.INSPECTEUR_HOTELLERIE));
+router.use(requirePermission('statistiques'));
 
 function typePosteImpose(req, typePosteDemande) {
   return perimetreDossiersPourRole(req.utilisateur.roleCode)?.typePoste ?? typePosteDemande;

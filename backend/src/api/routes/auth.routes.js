@@ -5,8 +5,16 @@ const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { limiteurConnexion } = require('../middlewares/rateLimiter');
 const { requireAuth } = require('../middlewares/auth.middleware');
+const { permissionsDuRole } = require('../../core/auth/permissions');
 
 const router = Router();
+
+// Utilisateur renvoyé au front : `permissions` (clés de core/auth/permissions.js) est calculé à
+// chaque réponse, jamais stocké en session — un changement de droits s'applique donc sans
+// reconnexion. Le front s'en sert uniquement pour l'affichage ; les routes revérifient tout.
+function utilisateurPourClient(utilisateur) {
+  return { ...utilisateur, permissions: permissionsDuRole(utilisateur.roleCode) };
+}
 
 const connexionSchema = z.object({
   email: z.string().trim().email(),
@@ -45,7 +53,7 @@ router.post('/connexion', limiteurConnexion, async (req, res, next) => {
       req.session.utilisateur = utilisateurSession;
       req.session.save((erreurSave) => {
         if (erreurSave) return next(erreurSave);
-        res.json({ utilisateur: utilisateurSession });
+        res.json({ utilisateur: utilisateurPourClient(utilisateurSession) });
       });
     });
   } catch (erreur) {
@@ -83,19 +91,9 @@ router.post('/deconnexion', requireAuth, (req, res, next) => {
   });
 });
 
-// GET /api/auth/moi — utilisé par le front (voir frontend/src/core/auth/useSession.js) pour
-// savoir si une session est active au chargement de l'app.
-// `entiteCode` ajouté (bloc 3, audit 2026-09-25) : ModaleForcerStatut.jsx en a besoin pour
-// appliquer localement la même exclusion de statuts "par entité" que workflowEngine.forcerStatut
-// (STATUTS_EXCLUS_FORCAGE_PAR_ENTITE) — jusqu'ici, aucune réponse API n'exposait au front le code
-// de l'entité résolue pour la requête courante. Dérivé de `req.entite` (entiteContext, résolu
-// fraîchement à CHAQUE requête depuis le sous-domaine, jamais depuis la session elle-même) plutôt
-// que d'ajouter ce champ au payload persisté en session (req.session.utilisateur,
-// authService.construireUtilisateurSession) : évite de invalider silencieusement les sessions déjà
-// ouvertes au moment de ce déploiement (qui n'auraient pas ce champ tant qu'elles ne se
-// reconnectent pas) — ici, toujours à jour, sans dépendre de quand la session a été créée.
+// GET /api/auth/moi — session active au chargement de l'app (voir frontend/src/core/auth/useSession.js).
 router.get('/moi', requireAuth, (req, res) => {
-  res.json({ utilisateur: { ...req.utilisateur, entiteCode: req.entite.code } });
+  res.json({ utilisateur: utilisateurPourClient(req.utilisateur) });
 });
 
 module.exports = router;

@@ -1,4 +1,4 @@
-// Référentiel des sites d'affectation des demandes DPAE (2026-09-29, demande utilisateur) —
+// Référentiel des sites d'affectation des demandes DPAE —
 // remplace le champ texte libre `demandes_dpae.hotel` (migration 068) par une sélection d'un ou
 // plusieurs sites dans une liste gérée, avec possibilité d'ajouter un site depuis le formulaire.
 // TOUT est dans cette seule migration (demande explicite) : table `sites_affectation`, table de

@@ -172,7 +172,7 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* Dimanche : hors horaires ouvrés (décision utilisateur, 2026-08-26) — en-tête atténué pour
+/* Dimanche : hors horaires ouvrés — en-tête atténué pour
    signaler visuellement que la colonne entière restera désactivée en dessous, avant même de
    survoler une cellule précise. */
 .calendrier-hebdo__entete-jour--dimanche {
@@ -258,7 +258,7 @@
   background: var(--couleur-back-office-clair);
 }
 
-/* Contraste renforcé (audit 2026-08-27) : --couleur-fond-secondaire (#f9fafb) combiné à opacity:0.5
+/* Contraste renforcé : --couleur-fond-secondaire (#f9fafb) combiné à opacity:0.5
    rendait un créneau désactivé (passé/dimanche) quasiment indiscernable d'un créneau libre
    (--couleur-fond, blanc pur) — un agent ne pouvait pas voir d'un coup d'œil quels créneaux
    restaient sélectionnables sur le reste de la grille. `--gris-200` en fond plein (pas de mélange

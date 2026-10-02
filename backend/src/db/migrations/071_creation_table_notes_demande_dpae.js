@@ -1,4 +1,4 @@
-// Notes libres sur une demande DPAE (2026-09-30, demande utilisateur) — table PROPRE aux demandes,
+// Notes libres sur une demande DPAE — table PROPRE aux demandes,
 // distincte de `notes_dossier` (migration 035, inchangée) : une demande DPAE n'est pas un dossier
 // candidat (elle peut concerner un salarié sans dossier). Même patron que `notes_dossier` : chaque
 // note est un ajout permanent (auteur, date), aucune modification ni suppression, donc pas de

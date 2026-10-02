@@ -1,4 +1,4 @@
-// Question « Êtes-vous étudiant ? » (2026-10-01, demande utilisateur) — réponse portée par le dossier.
+// Question « Êtes-vous étudiant ? » — réponse portée par le dossier.
 // Booléen NULLABLE : les dossiers existants ne sont PAS remplis (null = pas de réponse, affiché « — ») ;
 // toute NOUVELLE inscription doit fournir la réponse (contrôle côté serveur, dossierService
 // donneesInscriptionSchema, refus explicite si absente).

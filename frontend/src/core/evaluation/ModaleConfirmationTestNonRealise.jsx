@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './ModaleConfirmationTestNonRealise.css';
 
-// Remplace le window.confirm() natif utilisé jusqu'ici pour "Test non réalisé" (audit 2026-08-28)
+// Remplace le window.confirm() natif utilisé jusqu'ici pour "Test non réalisé"
 // — nécessaire pour mettre en couleur "#{dossierId} {candidat}" dans le message, ce qu'un
 // confirm() natif ne permet pas. Composant dédié (pas un confirm générique réutilisable ailleurs,
 // voir CLAUDE.md conventions du projet) : seul ListeEvaluationsAFaire.jsx en a besoin aujourd'hui.

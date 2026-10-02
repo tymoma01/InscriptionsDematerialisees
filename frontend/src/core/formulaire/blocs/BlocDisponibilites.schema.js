@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { POSTES_BUREAU, POSTES_HOTEL } from '../../referentiels/postes';
 
 // Deux vocabulaires de créneaux distincts selon le type de poste (hôtel : services classiques du
 // secteur ; bureau : plages horaires de nettoyage/entretien) — un seul des deux sous-blocs
@@ -12,17 +13,15 @@ const CRENEAUX = [...CRENEAUX_HOTEL, ...CRENEAUX_BUREAU];
 const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LANGUES = ['francais', 'anglais', 'autre'];
 const TYPES_POSTE = ['bureau', 'hotel'];
-const POSTES_BUREAU = ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autres'];
-const POSTES_HOTEL = ['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant'];
 const COMMENT_CONNU = ['bouche_a_oreille', 'internet', 'cooptation', 'autre'];
-// Bloc "Expérience" (ajout 2026-09-02) — choix unique, 'aucune' est la seule option qui ne
+// Bloc "Expérience" — choix unique, 'aucune' est la seule option qui ne
 // déclenche pas les deux champs de précision (Lieu/Missions), voir le .refine dédié plus bas et
 // experienceChampsVisibles côté BlocDisponibilites.jsx.
 const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 
 export const blocDisponibilitesSchema = z
   .object({
-    // « Êtes-vous étudiant ? » (2026-10-01) : obligatoire, aucun choix par défaut. Saisi en 'oui'/'non'
+    // « Êtes-vous étudiant ? » : obligatoire, aucun choix par défaut. Saisi en 'oui'/'non'
     // (boutons radio), transmis au serveur en booléen `estEtudiant` (voir BlocDisponibilites.jsx).
     reponseEtudiant: z.enum(['oui', 'non'], { required_error: 'La réponse à « Êtes-vous étudiant ? » est obligatoire' }),
     disponibiliteImmediate: z.boolean(),

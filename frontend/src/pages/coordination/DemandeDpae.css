@@ -24,7 +24,7 @@
   flex-direction: column;
 }
 
-/* Règles propres au formulaire DPAE, limitées à .page-demande-dpae (correctif 2026-10-01) : posées
+/* Règles propres au formulaire DPAE, limitées à .page-demande-dpae : posées
    à l'origine sur .bloc-formulaire seul, elles s'appliquaient aussi au formulaire d'inscription
    candidat (même classe partagée, styles/blocFormulaire.css ; le CSS de toutes les pages est chargé
    globalement) — astérisques des champs obligatoires renvoyés à la ligne, cases à cocher et boutons

@@ -254,7 +254,7 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* "(X j)" en gras + bleu ACCECIT (décision utilisateur, 2026-09-02) pour le distinguer
+/* "(X j)" en gras + bleu ACCECIT pour le distinguer
    visuellement des deux dates qui l'entourent, restées en couleur de texte standard (héritée de
    .date-ligne--delai ci-dessus, --couleur-texte-secondaire) — même graisse que .date-libelle
    ci-dessus (600), pas 700 : reste un repère visuel dans une ligne déjà en retrait (taille
@@ -275,7 +275,7 @@
   border-color: var(--statut-neutre-bordure);
 }
 
-/* "Statut actuel depuis" (audit 2026-09-02, décision utilisateur) — pendant, côté "Dates clés", du
+/* "Statut actuel depuis" — pendant, côté "Dates clés", du
    séparateur pointillé déjà utilisé pour le bloc "puces poste" de la colonne "Indicateurs"
    (.postes--indicateurs) : même `margin-top`/`padding-top`/`border-top`, pour que les deux blocs
    suppléméntaires (poste hors alignement standard) restent visuellement alignés l'un sur l'autre.
@@ -321,7 +321,7 @@
   border-color: var(--statut-vert-clair-bordure);
 }
 
-/* Manquante jusqu'ici (audit 2026-09-19) : nécessaire depuis que les lignes 'volumetrie-valeur'
+/* Manquante jusqu'ici : nécessaire depuis que les lignes 'volumetrie-valeur'
    (TableauDossiersSelectionnes.jsx) réutilisent `--${varianteDateCle(...)}` comme les lignes
    'date' — "Formations non validées" (variante 'echec-fort', voir CARTES_VOLUMETRIE_ACCECIT,
    Indicateurs.jsx) retombait sinon sur la seule classe de base, sans fond ni bordure. */

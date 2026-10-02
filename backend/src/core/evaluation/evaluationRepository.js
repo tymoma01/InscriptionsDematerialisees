@@ -165,7 +165,7 @@ const SOUS_REQUETE_POSTES_CODES = `(
 // venir") : formateurId=null, typePoste='bureau' à la place, même jointure vers
 // dossier_donnees_formulaire que listerRendezvousAEvaluer pour ce filtre.
 //
-// leftJoin utilisateurs (audit 2026-09-17) : expose formateur_prenom/formateur_nom pour la colonne
+// leftJoin utilisateurs : expose formateur_prenom/formateur_nom pour la colonne
 // "Inspecteur" de HistoriqueEvaluations.jsx (affichée seulement côté Inspecteur, voir
 // `afficherInspecteur` dans ce composant — n'a de sens qu'une fois la liste dé-filtrée par identité
 // pour ce rôle, ci-dessus), même patron que listerRendezvousAEvaluer/"Assigné à". Toujours

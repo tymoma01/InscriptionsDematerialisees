@@ -9,7 +9,7 @@ const { DUREE_TEST_MINUTES } = require('../../integrations/notifications/generat
 
 const CODE_ACTION_TEST_NON_REALISE = 'test_non_realise';
 
-// Délai de grâce avant bascule automatique (audit 2026-09-09, demande utilisateur) : la fin du
+// Délai de grâce avant bascule automatique : la fin du
 // créneau (date_heure + DUREE_TEST_MINUTES, voir rendezvousRepository.
 // listerRendezvousTestNonRealisesAutomatiquement) doit remonter à plus de 24h, pas seulement être
 // passée — laisse le temps à un agent/formateur de régulariser (Confirmer la présence, Présent(e),
