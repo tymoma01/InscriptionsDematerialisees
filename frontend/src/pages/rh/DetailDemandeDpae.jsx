@@ -7,6 +7,7 @@ import ModaleRejeterDpae from './ModaleRejeterDpae';
 import ModaleValiderDpae from './ModaleValiderDpae';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
 import {
   obtenirDemande,
   validerDemande,
@@ -185,6 +186,9 @@ export default function DetailDemandeDpae() {
                 libelle={libelleStatutDpae(demande.statut)}
                 variante={varianteStatutDpae(demande.statut)}
               />
+              {/* PDF de la fiche (2026-10-02), généré côté serveur — rôles de consultation seulement
+                  (voir core/dpae/TelechargementPdfDpae.jsx). */}
+              <BoutonTelechargerPdfDemande demandeId={demande.id} />
               {/* "En un clic accéder à la fiche du candidat" (demande utilisateur, module Demandes
                   DPAE) — dossier_id résolu côté back via candidat_id (voir demandeDpaeRepository.js,
                   requeteDemandesAvecJointures) : absent si le salarié n'est pas un candidat connu

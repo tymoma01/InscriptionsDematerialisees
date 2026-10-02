@@ -7,6 +7,13 @@ import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { listerDemandesRh } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import {
+  ActionTelechargementPdfDpae,
+  CaseDemandeDpae,
+  CaseToutCocherDpae,
+  usePeutTelechargerPdfDpae,
+  useSelectionDemandesDpae,
+} from '../../core/dpae/TelechargementPdfDpae';
 import './TraitementDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -40,6 +47,10 @@ export default function TraitementDpae() {
   // Compteurs des pastilles (2026-09-30) : calculés sur TOUTES les demandes de l'entité (même
   // route, ?statut=tous), chargées à part — la liste affichée et son filtrage restent inchangés.
   const [toutesDemandes, setToutesDemandes] = useState(null);
+  // Téléchargement PDF (2026-10-02) : cases à cocher et action groupée (ZIP), voir
+  // core/dpae/TelechargementPdfDpae.jsx. « Tout cocher » ne porte que sur le filtre affiché.
+  const peutTelechargerPdf = usePeutTelechargerPdfDpae();
+  const selectionDemandes = useSelectionDemandesDpae(demandes);
 
   const chargerCompteurs = () =>
     listerDemandesRh('tous')
@@ -95,10 +106,17 @@ export default function TraitementDpae() {
         {erreur && <p role="alert">{erreur}</p>}
         {!chargement && !erreur && demandes.length === 0 && <p>Aucune demande pour ce filtre.</p>}
 
+        {!chargement && demandes.length > 0 && peutTelechargerPdf && <ActionTelechargementPdfDpae selectionDemandes={selectionDemandes} />}
+
         {!chargement && demandes.length > 0 && (
           <table className="page-traitement-dpae__table">
             <thead>
               <tr>
+                {peutTelechargerPdf && (
+                  <th className="telechargement-pdf-dpae__colonne-case">
+                    <CaseToutCocherDpae selectionDemandes={selectionDemandes} />
+                  </th>
+                )}
                 <th>Reçue le</th>
                 <th>Type</th>
                 <th>Salarié</th>
@@ -111,6 +129,11 @@ export default function TraitementDpae() {
             <tbody>
               {demandes.map((demande) => (
                 <tr key={demande.id}>
+                  {peutTelechargerPdf && (
+                    <td className="telechargement-pdf-dpae__colonne-case">
+                      <CaseDemandeDpae selectionDemandes={selectionDemandes} demande={demande} />
+                    </td>
+                  )}
                   <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
                   <td>{LIBELLE_PAR_TYPE[demande.type_demande] ?? demande.type_demande}</td>
                   <td>

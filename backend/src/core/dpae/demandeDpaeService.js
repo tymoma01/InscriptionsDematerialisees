@@ -24,6 +24,9 @@ class ErreurDemandeDejaTraitee extends Error {}
 // Site(s) d'affectation inexistant(s), inactif(s) ou d'une autre entité (voir creerEtEnvoyer) —
 // traduit en 400 avec son message par dpae.routes.js.
 class ErreurSitesAffectationInvalides extends Error {}
+// Export PDF groupé (2026-10-02) : au moins une demande de la sélection hors périmètre — toute la
+// requête est refusée (403 dans dpae.routes.js), jamais de ZIP partiel.
+class ErreurExportDemandesRefuse extends Error {}
 
 function libelleSalarie(demande) {
   return `${demande.salarie_prenom} ${demande.salarie_nom}`;
@@ -138,6 +141,33 @@ async function obtenirDemande(entite, demandeId) {
   return { ...demande, sites_affectation: sitesAffectation };
 }
 
+// Demandes d'un export PDF groupé (ZIP, 2026-10-02) — MÊMES règles que la fiche (GET /:id) :
+// demande de l'entité courante (obtenirDemande) ET consultable par l'utilisateur
+// (peutConsulterDemande). Une seule demande hors périmètre (autre entité, inexistante ou non
+// consultable) fait échouer TOUTE la sélection : ErreurExportDemandesRefuse, rien n'est renvoyé.
+// Lectures séquentielles (50 demandes au plus, voir dpae.routes.js) plutôt qu'un Promise.all.
+// Appels via module.exports : remplaçables par les tests.
+async function obtenirDemandesPourExport(entite, demandeIds, { roleCode, utilisateurId }) {
+  const demandes = [];
+  for (const demandeId of demandeIds) {
+    let demande;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      demande = await module.exports.obtenirDemande(entite, demandeId);
+    } catch (erreur) {
+      if (erreur instanceof ErreurDemandeIntrouvable) {
+        throw new ErreurExportDemandesRefuse(`Demande DPAE n° ${demandeId} hors de votre périmètre : aucun fichier n'a été généré.`);
+      }
+      throw erreur;
+    }
+    if (!module.exports.peutConsulterDemande({ roleCode, utilisateurId, demande })) {
+      throw new ErreurExportDemandesRefuse(`Demande DPAE n° ${demandeId} hors de votre périmètre : aucun fichier n'a été généré.`);
+    }
+    demandes.push(demande);
+  }
+  return demandes;
+}
+
 async function valider(entite, demandeId, traitantId) {
   const bd = await db.obtenirKnex();
   const demande = await verifierDemandeExiste(bd, entite, demandeId);
@@ -228,10 +258,12 @@ module.exports = {
   listerSuivi,
   listerPourRh,
   obtenirDemande,
+  obtenirDemandesPourExport,
   valider,
   rejeter,
   mettreEnAttente,
   ErreurDemandeIntrouvable,
   ErreurDemandeDejaTraitee,
   ErreurSitesAffectationInvalides,
+  ErreurExportDemandesRefuse,
 };
