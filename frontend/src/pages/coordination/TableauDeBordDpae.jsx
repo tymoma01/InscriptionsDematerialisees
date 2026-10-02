@@ -366,7 +366,7 @@ export default function TableauDeBordDpae() {
             </div>
 
             {/* 4. Anticipation */}
-            <h2 className="tableau-bord-dpae__section">Anticipation — fins de CDD</h2>
+            <h2 className="tableau-bord-dpae__section">CDD arrivant à échéance</h2>
             <div className="indicateurs__tuiles">
               <Tuile valeur={t.anticipation.sous7Jours} libelle="Dans les 7 jours" variante="echec" />
               <Tuile valeur={t.anticipation.sous15Jours} libelle="Dans les 15 jours" variante="attente" />
