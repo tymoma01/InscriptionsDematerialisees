@@ -15,7 +15,6 @@ import {
   useSelectionDemandesDpae,
 } from '../../core/dpae/TelechargementPdfDpae';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
-import { STATUTS_AVEC_URGENCE, trierParEcheance } from '../../core/dpae/urgenceDpae';
 import { formaterJour, libelleTypeDemande } from '../../core/dpae/affichageDpae';
 import {
   BarreRechercheDpae,
@@ -53,15 +52,14 @@ export default function TraitementDpae() {
   // core/dpae/TelechargementPdfDpae.jsx. « Tout cocher » ne porte que sur le filtre affiché.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
 
-  // Ordre d'ouverture : « À traiter » (filtre par défaut) et « En attente » triées par échéance —
-  // premier jour (à l'heure d'arrivée) croissant, demandes en retard tout en haut
-  // (core/dpae/urgenceDpae.js, même calcul que les pastilles). « Validées », « Rejetées » et « Tous » :
-  // ordre du serveur (plus récentes d'abord). Un tri choisi depuis un titre de colonne le remplace.
-  const triParDefaut = useMemo(() => (STATUTS_AVEC_URGENCE.includes(statutFiltre) ? trierParEcheance : undefined), [statutFiltre]);
+  // Ordre d'affichage : tri par défaut commun avec le Suivi des demandes DPAE (groupes de statut ;
+  // échéance croissante et retards en tête pour « À traiter »/« En attente » ; plus récentes
+  // d'abord pour « Validée »/« Rejetée » — voir trierParDefaut, core/dpae/listeDemandesDpae.js).
+  // Une seule pastille sélectionnée : la règle de son groupe. Un tri de colonne le remplace.
   // Recherche et filtres par colonne (core/dpae/FiltresListeDpae.jsx, partagés avec le Suivi des
   // demandes DPAE), combinés aux pastilles de statut ci-dessus. Les cases à cocher et le
   // téléchargement PDF ne portent que sur les demandes visibles après filtrage.
-  const etatFiltres = useFiltresListeDpae(demandes, { triParDefaut });
+  const etatFiltres = useFiltresListeDpae(demandes);
   const demandesAffichees = etatFiltres.demandesVisibles;
   const selectionDemandes = useSelectionDemandesDpae(demandesAffichees);
 
@@ -169,14 +167,14 @@ export default function TraitementDpae() {
                     <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
                     {/* Coupure possible après « / » (« Changement horaires/ affectation ») : colonne étroite. */}
                     <td className="filtres-liste-dpae__colonne-type">{libelleTypeDemande(demande).replaceAll('/', '/\u200B')}</td>
-                    <td className="filtres-liste-dpae__une-ligne">
+                    <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--salarie">
                       {demande.salarie_prenom} {demande.salarie_nom}
                     </td>
                     <td>{formaterJour(demande.date_debut)}</td>
                     <td className="filtres-liste-dpae__colonne-sites">
                       <SitesDemandeDpae demande={demande} />
                     </td>
-                    <td className="filtres-liste-dpae__une-ligne">
+                    <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--demandeur">
                       {demande.demandeur_prenom} {demande.demandeur_nom}
                     </td>
                     <td>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import ChampRecherche from '../filtres/ChampRecherche';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { COLONNES_DPAE, appliquerRechercheFiltresTri, filtreEstActif, valeursPresentes } from './listeDemandesDpae';
-import { libellesSites } from './affichageDpae';
+import { libellesSites, sitesCondenses } from './affichageDpae';
 import './FiltresListeDpae.css';
 
 // Recherche, filtres et tri des listes de demandes DPAE — composant UNIQUE, partagé par « Suivi des
@@ -10,16 +10,16 @@ import './FiltresListeDpae.css';
 // est cherché, filtré, trié) vit dans listeDemandesDpae.js ; ce fichier ne porte que l'état et
 // l'affichage. Côté client : les deux listes ne sont pas paginées par le serveur.
 
-// État de la recherche, des filtres de colonnes et du tri d'une liste. triParDefaut : ordre de la
-// page tant qu'aucun tri de colonne n'est choisi (doit être stable entre deux rendus).
-export function useFiltresListeDpae(demandes, { triParDefaut } = {}) {
+// État de la recherche, des filtres de colonnes et du tri d'une liste. Sans tri de colonne choisi :
+// tri par défaut commun aux deux listes (trierParDefaut, listeDemandesDpae.js).
+export function useFiltresListeDpae(demandes) {
   const [recherche, setRecherche] = useState('');
   const [filtres, setFiltres] = useState({});
   const [tri, setTri] = useState(null);
 
   const demandesVisibles = useMemo(
-    () => appliquerRechercheFiltresTri(demandes, { recherche, filtres, tri, triParDefaut }),
-    [demandes, recherche, filtres, tri, triParDefaut],
+    () => appliquerRechercheFiltresTri(demandes, { recherche, filtres, tri }),
+    [demandes, recherche, filtres, tri],
   );
 
   const filtreActif = useCallback((cle) => filtreEstActif(cle, filtres[cle]), [filtres]);
@@ -286,10 +286,11 @@ function CasesValeurs({ etat, cle }) {
 }
 
 const LARGEUR_INFOBULLE = 320;
-const SITES_AFFICHES = 2;
 
-// Cellule « Site(s) d'affectation » : au plus 2 sites, puis une pastille « +N ». Info-bulle avec la
-// liste complète au survol (souris) et au toucher (tablette) ; un toucher ailleurs la referme.
+// Cellule « Site(s) d'affectation » : CODES des sites, au plus 2, puis une pastille « +N », sur une
+// seule ligne (sitesCondenses, affichageDpae.js) — « AIG, CAD +2 ». Info-bulle avec la liste complète
+// et les noms (« AIGLON (AIG) »…) au survol (souris) et au toucher (tablette) ; un toucher ailleurs
+// la referme.
 // À la souris, un clic garde le comportement de la ligne (ouverture de la fiche dans le Suivi) ; au
 // toucher, il ouvre/ferme l'info-bulle sans ouvrir la fiche.
 export function SitesDemandeDpae({ demande }) {
@@ -304,7 +305,7 @@ export function SitesDemandeDpae({ demande }) {
   useFermetureExterieure(ouvert, refs, fermer);
 
   if (libelles.length === 0) return '—';
-  const reste = libelles.length - SITES_AFFICHES;
+  const { texte, reste } = sitesCondenses(demande);
 
   return (
     <span
@@ -332,7 +333,7 @@ export function SitesDemandeDpae({ demande }) {
         setOuvert((valeur) => !valeur);
       }}
     >
-      <span className="filtres-liste-dpae__sites-texte">{libelles.slice(0, SITES_AFFICHES).join(', ')}</span>
+      <span className="filtres-liste-dpae__sites-texte">{texte}</span>
       {reste > 0 && <span className="filtres-liste-dpae__sites-plus">+{reste}</span>}
       {ouvert && position && (
         <span

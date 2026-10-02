@@ -37,9 +37,11 @@
   cursor: pointer;
 }
 
-/* Titre de colonne cliquable : garde l'apparence du titre (majuscules, couleur) du tableau. */
+/* Titre de colonne cliquable : garde l'apparence du titre (majuscules, couleur) du tableau. Toujours
+   sur UNE ligne, flèche du menu comprise : la colonne prend au moins la largeur de son titre. */
 .filtres-liste-dpae__titre {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: 0.3rem;
   padding: 0;
@@ -192,16 +194,32 @@
   accent-color: var(--couleur-back-office);
 }
 
-/* Colonne « Site(s) d'affectation » : largeur maximale fixe (au plus 2 sites puis « +N »), la place
-   libérée allant au salarié et au demandeur. */
-.filtres-liste-dpae__colonne-sites {
-  width: 14rem;
-  max-width: 14rem;
+/* Colonne « Site(s) d'affectation » : codes seulement (au plus 2 puis « +N »), sur UNE ligne. Sa
+   largeur est celle de son titre (sur une ligne, voir .filtres-liste-dpae__titre), plus long que le
+   contenu condensé. */
+td.filtres-liste-dpae__colonne-sites {
+  white-space: nowrap;
 }
 
 .filtres-liste-dpae__sites {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  white-space: nowrap;
   cursor: default;
+}
+
+.filtres-liste-dpae__sites-plus {
+  flex: 0 0 auto;
+}
+
+/* Texte tronqué si la place manque (ancien texte libre d'une demande antérieure au référentiel,
+   ou codes exceptionnellement longs) : la pastille « +N » reste visible, la liste complète est dans
+   l'info-bulle. */
+.filtres-liste-dpae__sites-texte {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .filtres-liste-dpae__sites:focus-visible {
@@ -244,9 +262,27 @@
   max-width: 9rem;
 }
 
-/* Salarié et demandeur : sur une seule ligne. */
-.filtres-liste-dpae__une-ligne {
-  white-space: nowrap;
+/* Salarié et demandeur : sur une ligne tant que la place le permet ; un nom trop long passe sur deux
+   lignes, uniquement entre deux mots ou après un trait d'union — jamais au milieu d'un mot
+   (ni coupure forcée, ni césure automatique). */
+.filtres-liste-dpae__nom {
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+/* Largeur MINIMALE des deux colonnes (min-width : elles prennent aussi la place restante) : les
+   noms courts et moyens tiennent sur une ligne, seuls les plus longs passent à la ligne.
+   Dimensionnées pour tenir à 1280 px dans le Suivi, où toutes les autres colonnes sont à la largeur
+   de leur titre : le demandeur (compte interne, ex. « Anne-Sophie Durand ») un peu plus large que
+   le salarié. */
+.filtres-liste-dpae__nom--salarie {
+  min-width: 9rem;
+}
+
+.filtres-liste-dpae__nom--demandeur {
+  min-width: 10rem;
 }
 
 /* Statut et pastille d'urgence TOUJOURS sur une même ligne, alignées à gauche sous le titre : la

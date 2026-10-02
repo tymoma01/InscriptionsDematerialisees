@@ -39,7 +39,7 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // l'utilisateur connecté : liste vide pour un Admin qui n'en avait créé aucune).
 // - Admin et RH : filtre « Mes demandes / Toutes » (par défaut Toutes, persisté dans l'URL) ;
 //   Planning aussi (depuis le 2026-09-30, voir permissions.js dpaeConsultationToutes).
-// - Plus récentes d'abord (tri serveur). Clic sur une ligne (ou Entrée) : fiche de la demande.
+// - Tri par défaut commun avec la liste RH (voir plus bas). Clic sur une ligne (ou Entrée) : fiche de la demande.
 // - « + Nouvelle demande » : seulement pour les rôles qui peuvent créer (Planning, Admin).
 // Rafraîchissement auto (useRafraichissementAuto) pour voir une validation/un rejet RH sans
 // recharger la page.
@@ -57,7 +57,8 @@ export default function SuiviDemandesDpae() {
   // core/dpae/TelechargementPdfDpae.jsx.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
   // Recherche et filtres par colonne (core/dpae/FiltresListeDpae.jsx, partagés avec la liste RH).
-  // Ordre d'ouverture : celui du serveur (plus récentes d'abord). Les cases à cocher et le
+  // Ordre d'ouverture : tri par défaut commun aux deux listes (trierParDefaut,
+  // core/dpae/listeDemandesDpae.js), quel que soit le périmètre « Toutes »/« Mes demandes ». Les cases à cocher et le
   // téléchargement PDF ne portent que sur les demandes visibles après filtrage.
   const etatFiltres = useFiltresListeDpae(demandes);
   const demandesAffichees = etatFiltres.demandesVisibles;
@@ -179,7 +180,7 @@ export default function SuiviDemandesDpae() {
                       </td>
                     )}
                     <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
-                    <td className="filtres-liste-dpae__une-ligne">
+                    <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--salarie">
                       {demande.salarie_nom} {demande.salarie_prenom}
                     </td>
                     <td className="filtres-liste-dpae__colonne-sites">
@@ -187,7 +188,7 @@ export default function SuiviDemandesDpae() {
                     </td>
                     <td>{libelleTypeContrat(demande)}</td>
                     <td>{formaterJour(demande.date_debut)}</td>
-                    <td className="filtres-liste-dpae__une-ligne">
+                    <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--demandeur">
                       {demande.demandeur_prenom} {demande.demandeur_nom}
                     </td>
                     <td>

@@ -1,6 +1,6 @@
 import { normaliserTexte } from '../filtres/normaliserTexte.js';
 import { STATUTS_DPAE, libelleStatutDpae } from './statutsDpae.js';
-import { echeanceDemande } from './urgenceDpae.js';
+import { STATUTS_AVEC_URGENCE, echeanceDemande, trierParEcheance } from './urgenceDpae.js';
 import {
   libelleDemandeur,
   libelleSalarie,
@@ -191,10 +191,35 @@ export function valeursPresentes(demandes, cle) {
   });
 }
 
-// Liste affichée : recherche, puis filtres de colonnes, puis tri. Sans tri de colonne choisi, le
-// tri par défaut de la page s'applique (liste RH : échéance croissante pour « À traiter »/« En
-// attente », retards en tête ; Suivi : ordre du serveur).
-export function appliquerRechercheFiltresTri(demandes, { recherche = '', filtres = {}, tri = null, triParDefaut = (liste) => liste } = {}) {
+// Tri par défaut des DEUX listes (Suivi des demandes DPAE et liste RH), à l'ouverture et après
+// « Effacer les filtres » ou le retrait d'un tri de colonne :
+//   1. groupes de statut dans l'ordre du cycle de vie : À traiter, En attente, Validée, Rejetée
+//      (statut inconnu : après ces quatre groupes) ;
+//   2. « À traiter » et « En attente » : échéance croissante — premier jour à l'heure d'arrivée,
+//      demandes en retard (échéance passée) en tête du groupe, sans premier jour en fin de groupe
+//      (trierParEcheance, même calcul que les pastilles d'urgence) ;
+//   3. « Validée » et « Rejetée » : date de la demande décroissante (la plus récente d'abord).
+// Une seule pastille de statut sélectionnée (liste RH) : un seul groupe, sa règle s'applique.
+// Tri stable, sans effet de bord sur la liste reçue.
+export function trierParDefaut(demandes) {
+  const parGroupe = new Map();
+  for (const demande of demandes) {
+    const rang = RANG_STATUT[demande.statut] ?? STATUTS_DPAE.length;
+    if (!parGroupe.has(rang)) parGroupe.set(rang, []);
+    parGroupe.get(rang).push(demande);
+  }
+  return [...parGroupe.keys()]
+    .sort((a, b) => a - b)
+    .flatMap((rang) => {
+      const groupe = parGroupe.get(rang);
+      if (STATUTS_AVEC_URGENCE.includes(STATUTS_DPAE[rang]?.code)) return trierParEcheance(groupe);
+      return trierDemandes(groupe, { cle: 'date_demande', sens: 'desc' });
+    });
+}
+
+// Liste affichée : recherche, puis filtres de colonnes, puis tri — le tri choisi depuis un titre de
+// colonne, sinon le tri par défaut ci-dessus.
+export function appliquerRechercheFiltresTri(demandes, { recherche = '', filtres = {}, tri = null } = {}) {
   const filtrees = filtrerParColonnes(rechercherDemandes(demandes, recherche), filtres);
-  return tri?.cle ? trierDemandes(filtrees, tri) : triParDefaut(filtrees);
+  return tri?.cle ? trierDemandes(filtrees, tri) : trierParDefaut(filtrees);
 }

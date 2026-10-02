@@ -21,6 +21,22 @@ export function libellesSites(demande) {
   return demande.hotel ? [demande.hotel] : [];
 }
 
+// Colonne « Site(s) d'affectation » des listes, condensée sur une ligne : CODES des sites (au plus
+// SITES_AFFICHES), séparés par des virgules, et le nombre de sites restants (« AIG, CAD » + 2). Une
+// demande antérieure au référentiel n'a pas de code : son ancien texte libre est repris tel quel
+// (tronqué à l'affichage). Les noms complets restent dans l'info-bulle, la recherche, le filtre de
+// colonne, la fiche et le PDF.
+export const SITES_AFFICHES = 2;
+
+export function sitesCondenses(demande) {
+  const sites = demande.sites_affectation ?? [];
+  if (sites.length === 0) return { texte: demande.hotel || '', reste: 0 };
+  return {
+    texte: sites.slice(0, SITES_AFFICHES).map((site) => site.initiales).join(', '),
+    reste: Math.max(sites.length - SITES_AFFICHES, 0),
+  };
+}
+
 // Liste complète, séparée par des virgules (info-bulle de la cellule des sites).
 export function libelleSites(demande) {
   return libellesSites(demande).join(', ') || '—';
