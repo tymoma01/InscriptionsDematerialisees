@@ -817,7 +817,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
     <PageBackOffice>
       <div className="tableau-bord-accueil">
         <header className="tableau-bord-accueil__entete">
-          <h1>{vue === ROLE_INSPECTEUR_HOTELLERIE ? 'Dossiers candidats - Vue Inspecteur Hôtellerie' : 'Dossiers candidats'}</h1>
+          <h1>{vue === ROLE_INSPECTEUR_HOTELLERIE ? 'Dossiers candidats - Inspecteur' : 'Dossiers candidats'}</h1>
           {/* Bouton "Planification des tests" retiré (refonte navigation, 2026-08-17) : couvert
               par le lien "Suivi des tests" de la barre de navigation commune, voir
               BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
