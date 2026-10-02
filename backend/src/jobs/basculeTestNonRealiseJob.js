@@ -21,7 +21,7 @@ const {
 //
 // Idempotent (voir basculeTestNonRealiseService.js), donc rejouable sans risque de double
 // transition. Générique (voir Modularité CLAUDE.md) : une entité sans statut "test_planifie" dans
-// sa configuration (ex. Adaptel) obtient simplement 0 rendez-vous éligible, sans cas particulier.
+// sa configuration obtient simplement 0 rendez-vous éligible, sans cas particulier.
 //
 // Verrou en mémoire — redevient pleinement utile avec le cron in-process (voir rappelJob.js) :
 // protège contre un chevauchement si une exécution précédente traînait encore en cours.

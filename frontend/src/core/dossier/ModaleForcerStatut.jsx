@@ -3,32 +3,25 @@ import StatutBadge from '../workflow/StatutBadge';
 import './ModaleForcerStatut.css';
 
 // Statuts exclus du forçage (bloc 3, audit 2026-09-25, décision utilisateur explicite) — MIROIR de
-// STATUTS_EXCLUS_FORCAGE_* côté serveur (backend/src/core/workflow/workflowEngine.js) : dupliqué
+// STATUTS_EXCLUS_FORCAGE côté serveur (backend/src/core/workflow/workflowEngine.js) : dupliqué
 // plutôt que partagé (convention du projet), pour ne JAMAIS proposer ces statuts dans la liste de
 // choix (pas seulement les rejeter après coup au clic sur "Forcer ce statut" — le serveur reste de
 // toute façon la seule source de vérité réelle, voir workflowEngine.forcerStatut).
 //
-// `valide`/`rejete` : hérités pour ACCECIT (ancien circuit recruteur, 0 dossier) mais restent le
-// vocabulaire ACTUEL du workflow Adaptel — exclus UNIQUEMENT pour ACCECIT (voir `entiteCode`,
-// nécessaire pour cette distinction, ajouté à la session au même audit — voir
-// backend/src/api/routes/auth.routes.js, GET /api/auth/moi).
-const STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES = [
+// `valide`/`rejete` : même cas (ancien circuit recruteur, 0 dossier).
+const STATUTS_EXCLUS_FORCAGE = [
   'en_attente_verification',
   'en_attente_verdict',
   'verdict_positif',
   'verdict_negatif',
   'en_attente_validation_recruteur',
+  'valide',
+  'rejete',
 ];
-const STATUTS_EXCLUS_FORCAGE_PAR_ENTITE = {
-  accecit: ['valide', 'rejete'],
-};
-function statutsExclusForcage(entiteCode) {
-  return [...STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES, ...(STATUTS_EXCLUS_FORCAGE_PAR_ENTITE[entiteCode] ?? [])];
-}
 
 // Regroupement des statuts sous des intertitres (bloc 3, décision utilisateur) — propre à ACCECIT
 // (Modularité, CLAUDE.md : ce composant reste générique, `statuts` vient de n'importe quelle
-// entité) : tout code absent de ces 4 groupes (ex. Adaptel, ou un futur statut ACCECIT non encore
+// entité) : tout code absent de ces 4 groupes (ex. un futur statut ACCECIT non encore
 // classé ici) atterrit sous TITRE_AUTRES_STATUTS ci-dessous plutôt que de disparaître.
 const GROUPES_STATUTS_ACCECIT = [
   { titre: 'Inscription', codes: ['nouveau', 'en_attente_pieces'] },
@@ -69,14 +62,14 @@ function varianteStatut(code) {
 }
 
 // Construit la liste des groupes à afficher (bloc 3) à partir de `statuts` (brut, GET
-// /api/dossiers/statuts) : exclut STATUTS_EXCLUS_FORCAGE_* SAUF si le code est le statut ACTUEL du
+// /api/dossiers/statuts) : exclut STATUTS_EXCLUS_FORCAGE SAUF si le code est le statut ACTUEL du
 // dossier (celui-ci doit toujours être visible, marqué "Statut actuel", même s'il s'agit d'un
 // statut hérité qu'on ne pourrait plus choisir comme CIBLE — voir estActuel ci-dessous). Un seul
 // passage : chaque statut affiché est rangé dans son groupe nommé (ordre de GROUPES_STATUTS_ACCECIT
 // respecté, jamais l'ordre brut de `statuts`) ou, à défaut, sous "Autres statuts" (ordre de
 // `statuts`, donc `ordre` en base — colonne déjà triée par dossierRepository.listerStatuts).
-function construireGroupesAffiches(statuts, dossier, entiteCode) {
-  const exclus = statutsExclusForcage(entiteCode);
+function construireGroupesAffiches(statuts, dossier) {
+  const exclus = STATUTS_EXCLUS_FORCAGE;
   const statutsAffiches = statuts
     .filter((statut) => statut.code === dossier.statut_code || !exclus.includes(statut.code))
     .map((statut) => ({ ...statut, estActuel: statut.code === dossier.statut_code }));
@@ -104,15 +97,13 @@ function construireGroupesAffiches(statuts, dossier, entiteCode) {
 // Confirmation du changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur ;
 // liste de choix mise en forme — bloc 3, audit 2026-09-25, remplace le <select> natif) — même
 // patron que ModaleResultatFormation.jsx (pages/coordination/) : commentaire OBLIGATOIRE, bouton de
-// confirmation désactivé tant que le formulaire n'est pas valide. `entiteCode` (bloc 3) : seule
-// donnée propre à ACCECIT reçue en prop plutôt que dérivée de `statuts` — nécessaire pour
-// statutsExclusForcage ci-dessus, voir son commentaire.
-export default function ModaleForcerStatut({ dossier, statuts, entiteCode, onConfirmer, onAnnuler, enCours, erreur }) {
+// confirmation désactivé tant que le formulaire n'est pas valide.
+export default function ModaleForcerStatut({ dossier, statuts, onConfirmer, onAnnuler, enCours, erreur }) {
   const [statutCode, setStatutCode] = useState('');
   const [commentaire, setCommentaire] = useState('');
   const [dateEmbauche, setDateEmbauche] = useState('');
 
-  const groupes = construireGroupesAffiches(statuts, dossier, entiteCode);
+  const groupes = construireGroupesAffiches(statuts, dossier);
   const estStatutEmbauche = statutCode === CODE_STATUT_EMBAUCHE;
 
   const confirmer = (evenement) => {

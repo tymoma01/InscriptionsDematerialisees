@@ -10,7 +10,7 @@ const { executerRattrapageAnnulationTest } = require('../core/rendezvous/rattrap
 //
 // Idempotent (voir rattrapageAnnulationTestService.js), donc rejouable sans risque de double
 // transition. Générique (voir Modularité CLAUDE.md) : une entité sans statut "test_planifie" dans
-// sa configuration (ex. Adaptel) obtient simplement 0 dossier candidat, sans cas particulier.
+// sa configuration obtient simplement 0 dossier candidat, sans cas particulier.
 //
 // Verrou en mémoire — même rôle que basculeTestNonRealiseJob.js : protège contre un chevauchement
 // si une exécution précédente traînait encore en cours.

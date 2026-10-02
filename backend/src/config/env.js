@@ -18,9 +18,7 @@ module.exports = {
     .split(',')
     .map((hote) => hote.trim())
     .filter(Boolean),
-  // Origine autorisée pour CORS (voir app.js) — le front est servi sur un sous-domaine par
-  // entité en production (accecit.xxx.fr, adaptel.xxx.fr...), à faire évoluer vers une
-  // résolution multi-origine par entité le jour où plusieurs entités sont déployées ensemble.
+  // Origine autorisée pour CORS (voir app.js).
   FRONTEND_URL: process.env.FRONTEND_URL ?? 'http://localhost:5173',
   // Compte AllMySMS déjà existant (voir CLAUDE.md, intégrations externes) — reste en variable
   // d'environnement classique comme dans .env.example, pas Azure Key Vault : ce n'est pas une

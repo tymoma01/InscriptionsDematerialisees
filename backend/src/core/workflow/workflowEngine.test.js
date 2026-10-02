@@ -340,7 +340,6 @@ test("appliquerTransition n'écrit aucune entrée journal_audit quand le statut 
 
 // ═══ Bloc 3 (audit 2026-09-25) : rôle Planning + statuts exclus du forçage ═══
 
-const ENTITE_ADAPTEL = { id: 2, code: 'adaptel' };
 
 test("forcerStatut accepte le rôle Planning (ROLES_FORCAGE), même comportement qu'Admin", async (t) => {
   mockerKnex(t);
@@ -395,15 +394,17 @@ test('forcerStatut rejette toujours Formateur et Inspecteur', async (t) => {
   }
 });
 
-// Statuts exclus du forçage (STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES) — refusés pour TOUTE entité.
+// Statuts exclus du forçage (STATUTS_EXCLUS_FORCAGE).
 for (const statutExclu of [
   'en_attente_verification',
   'en_attente_verdict',
   'verdict_positif',
   'verdict_negatif',
   'en_attente_validation_recruteur',
+  'valide',
+  'rejete',
 ]) {
-  test(`forcerStatut refuse le statut exclu '${statutExclu}' (toutes entités)`, async (t) => {
+  test(`forcerStatut refuse le statut exclu '${statutExclu}'`, async (t) => {
     mockerKnex(t);
     const { neutraliserMock } = mockerDependancesBase(t, {
       trouverStatutParCode: async () => ({ id: 99, code: statutExclu, libelle: 'Peu importe' }),
@@ -423,50 +424,6 @@ for (const statutExclu of [
     assert.equal(neutraliserMock.mock.calls.length, 0);
   });
 }
-
-// 'valide'/'rejete' : exclus UNIQUEMENT pour ACCECIT.
-for (const statutHeriteAccecit of ['valide', 'rejete']) {
-  test(`forcerStatut refuse '${statutHeriteAccecit}' pour ACCECIT`, async (t) => {
-    mockerKnex(t);
-    mockerDependancesBase(t, {
-      trouverStatutParCode: async () => ({ id: 99, code: statutHeriteAccecit, libelle: 'Peu importe' }),
-    });
-
-    await assert.rejects(
-      () =>
-        workflowEngine.forcerStatut(ENTITE_ACCECIT, {
-          dossierId: 127,
-          statutCode: statutHeriteAccecit,
-          commentaire: 'Test.',
-          utilisateurId: 9,
-          roleCode: 'admin',
-        }),
-      /Ce statut ne peut pas être choisi par forçage/,
-    );
-  });
-}
-
-// ... mais restent disponibles pour Adaptel, où ce sont les statuts réels du workflow (dossier
-// #46, voir l'audit).
-test("forcerStatut accepte 'valide' pour Adaptel (statut réel de son workflow, pas hérité)", async (t) => {
-  mockerKnex(t);
-  const { neutraliserMock } = mockerDependancesBase(t, {
-    trouverDossierAvecStatutParId: async () => ({ id: 46, statut_id: 3, statut_code: 'en_attente_pieces', statut_libelle: 'En attente de pièces' }),
-    trouverStatutParCode: async () => ({ id: 99, code: 'valide', libelle: 'Validé' }),
-    neutraliserRendezvousActifsDossier: async () => [],
-  });
-
-  await assert.doesNotReject(() =>
-    workflowEngine.forcerStatut(ENTITE_ADAPTEL, {
-      dossierId: 46,
-      statutCode: 'valide',
-      commentaire: 'Correction manuelle Adaptel.',
-      utilisateurId: 9,
-      roleCode: 'admin',
-    }),
-  );
-  assert.equal(neutraliserMock.mock.calls.length, 1);
-});
 
 // ═══ Bloc 3 suite (audit 2026-09-25) : date d'embauche lors d'un forçage vers "embauche" ═══
 

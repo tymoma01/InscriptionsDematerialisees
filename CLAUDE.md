@@ -6,7 +6,7 @@ ACCECIT est une agence de recrutement et de mise à disposition de personnel (se
 
 Ce projet consiste à développer un outil interne pour digitaliser ce processus : une web-app d'inscription utilisée sur tablette à l'accueil, et un back-office pour recruteurs/formateurs.
 
-**Contrainte structurante : l'outil doit être conçu pour être réutilisé par une autre entité avec un processus différent.** Le besoin d'inscription dématérialisée est le même, mais les étapes du parcours, les statuts, les blocs de formulaire et les critères d'évaluation varient d'une entité à l'autre. Voir section "Modularité" ci-dessous — c'est la contrainte la plus importante du projet et elle doit guider tous les choix d'architecture.
+**Périmètre : ACCECIT uniquement** (décision du 2026-10-02). Adaptel, initialement envisagée comme seconde entité, est sortie du projet : elle n'utilisera pas cette base, et son code (config `entites/adaptel`, connecteur OVH) a été supprimé. L'architecture modulaire existante (configuration par entité, connecteurs interchangeables) est conservée parce qu'elle structure bien le code, mais la réutilisation par une autre entité n'est plus un objectif : ne pas engager de travail dont la seule justification serait de rendre le moteur générique pour une entité hypothétique. Voir section "Modularité" ci-dessous.
 
 ## Besoins issus du terrain (observations)
 
@@ -22,17 +22,16 @@ Besoins identifiés :
 
 **RH (second contrôle)** : besoin de télécharger/exporter les dossiers candidats.
 
-## Modularité — contrainte d'architecture
+## Modularité — principe d'architecture conservé
 
-Ne pas coder le parcours ACCECIT en dur. Le workflow (étapes, statuts, transitions, blocs de formulaire, critères d'évaluation) doit être piloté par une configuration propre à chaque entité, pas par du code métier figé.
+Le workflow (étapes, statuts, transitions, blocs de formulaire, critères d'évaluation) reste piloté par la configuration de l'entité plutôt que par du code métier figé : c'est ce qui permet de faire évoluer le parcours ACCECIT sans toucher au moteur. En revanche, les notions propres à ACCECIT (secteurs Hôtellerie/Tertiaire, marques, logos) peuvent être utilisées dans le code sans les extraire en configuration — il n'y a plus de seconde entité à servir.
 
 Principes à respecter :
 - Une entité = une configuration (blocs de formulaire actifs, machine à états des statuts, critères d'évaluation du test, intégrations externes activées)
 - Les statuts et transitions sont définis en configuration (DB ou fichiers de config versionnés), pas en `switch/case` codé en dur
 - Les intégrations externes (SmartOF, SMS/email) sont des modules optionnels, activables par entité
 - Le formulaire d'inscription est composé de blocs réutilisables (bloc "infos perso", bloc "coordonnées", etc.) qu'une entité peut activer/désactiver/réordonner
-- Avant d'implémenter une étape spécifique à ACCECIT, se demander : "est-ce générique (va dans le moteur) ou spécifique à cette entité (va dans sa config) ?"
-- La résolution de l'entité côté back se fait par **sous-domaine** (ex: `accecit.xxx.fr`, `adaptel.xxx.fr`), portée par un middleware dédié (`entiteContext`), décision validée avec le développeur senior
+- La résolution de l'entité côté back se fait par **sous-domaine**, portée par un middleware dédié (`entiteContext`), décision validée avec le développeur senior — mécanisme conservé, une seule entité (ACCECIT) servie
 
 ## Stack technique
 
@@ -41,10 +40,7 @@ Principes à respecter :
 - **Back-end** : Node.js
 - **Base de données** : **Neon (PostgreSQL managé)**, région `eu-central-1` (Francfort), décision validée avec le développeur senior le 2026-07-16 — remplace le choix initial Azure Database for PostgreSQL. **Point ouvert : vérifier le DPA Neon** pour les catégories de données sensibles (NIR, RIB, pièces d'identité) avant mise en production, au même titre que la résidence UE (déjà confirmée : Francfort)
   - La connection string Neon est stockée dans **Azure Key Vault** (`SecretsForInscriptions`) — jamais en clair dans `.env`, pas de raccourci même en local. Récupération via `backend/src/db/config.js` (`DefaultAzureCredential` : `az login` en local, Managed Identity en prod). **Deux secrets distincts selon `NODE_ENV`** : `neon-connection-string` (prod uniquement) et `neon-connection-string-dev` (tout le reste, dont `npm run dev`) — voir `docs/architecture-technique.md` §6 pour la procédure de vérification avant toute manipulation (incident du 2026-09-04 où les deux ont été confondus : **le nom du secret et le volume de données ne suffisent pas** à distinguer laquelle est la vraie prod, toujours vérifier via la révision Container Apps active).
-- **Stockage documents** : cloud, **spécifique à chaque entité** (voir section Modularité) :
-  - ACCECIT → Azure OneDrive
-  - Adaptel → OVH
-  - Le connecteur de stockage doit être un module interchangeable (interface commune upload/download/suppression), pas un appel direct codé en dur à une API de stockage donnée. On développe et teste d'abord avec ACCECIT (Azure OneDrive), mais l'abstraction doit permettre de brancher OVH pour Adaptel sans toucher au reste du code.
+- **Stockage documents** : **Azure OneDrive/SharePoint** via Microsoft Graph, derrière l'interface commune `StorageConnector` (upload/download/suppression), sélectionnée par `storageFactory` — aucun module métier n'appelle l'API de stockage directement.
 - **Authentification** : sessions serveur (voir section dédiée)
 - **Notifications SMS** : **AllMySMS** (compte déjà existant) — à intégrer via ce prestataire. **Notifications email** : **Microsoft Graph** (`inscriptions@accecit.com`, même app registration que le stockage OneDrive/SharePoint), décision du 2026-08-05 qui corrige le choix initial AllMySMS pour l'email ci-dessus — vérification faite auprès de leur documentation officielle : AllMySMS ne propose pas d'envoi d'email réel (leur seul service proche, Mail2SMS, fait l'inverse). Détails : `docs/architecture-technique.md` §3.3.
 - **Linter** : ESLint
@@ -105,7 +101,7 @@ Nouveau
   → Sous contrat (tenue récupérée) / Refusé (motif)
 ```
 
-Cette machine à états est spécifique à ACCECIT et doit être définie en configuration, pas en dur (voir section Modularité) — une autre entité aura potentiellement moins ou plus d'étapes.
+Cette machine à états est définie en configuration, pas en dur (voir section Modularité).
 
 ## Signature électronique de la charte — décision technique (2026-07-16)
 
@@ -152,7 +148,7 @@ CREATE TABLE signatures_charte (
 ```
 
 - **`signatures_charte` et `chartes` vivent dans Neon**, pas dans OneDrive/SharePoint : ce ne sont pas des pièces justificatives scannées par un tiers, mais des données structurées générées par l'app elle-même (hash + petite image de tracé), cohérentes avec le reste des données candidat déjà en base (dont le NIR chiffré)
-- Ne pas confondre avec le flux des pièces justificatives (CNI/RIB/attestations), qui reste inchangé : celui-ci continue de passer par OneDrive (ACCECIT) / OVH (Adaptel), Neon ne gardant qu'une référence
+- Ne pas confondre avec le flux des pièces justificatives (CNI/RIB/attestations), qui reste inchangé : celui-ci continue de passer par OneDrive/SharePoint, Neon ne gardant qu'une référence
 - `charte_id` en FK plutôt qu'un simple hash stocké : jointure directe, plus robuste qu'un hash seul si l'algo de hash ou la normalisation du texte change un jour
 
 **Points ouverts restants (à trancher avant implémentation) :**
@@ -166,7 +162,7 @@ CREATE TABLE signatures_charte (
 
 - **API SmartOF** : appelée à la validation du test pour créer le profil candidat côté formation. SmartOF reste le SI de référence pour la gestion des formations ; ce projet ne le remplace pas, il s'y articule. Module à isoler proprement (pas de dépendance dure dans le cœur du moteur de workflow, pour rester compatible avec une entité qui n'utiliserait pas SmartOF).
 - **SMS : AllMySMS** — compte déjà existant, à réutiliser plutôt que d'ouvrir un nouveau prestataire. **Email : Microsoft Graph** (`inscriptions@accecit.com`, décision du 2026-08-05 — AllMySMS ne propose pas d'envoi d'email réel, voir plus haut). Cas d'usage (les deux canaux, sélectionnés par `notificationFactory()`) : convocation, relance, confirmation de créneau, notification formateur, invitation signature de contrat.
-- **Stockage documents** : module de connecteur par entité (Azure OneDrive pour ACCECIT, OVH pour Adaptel). Interface commune à définir (upload/download/suppression/liste), implémentations séparées par prestataire, sélection du connecteur pilotée par la configuration de l'entité.
+- **Stockage documents** : Azure OneDrive/SharePoint, derrière l'interface commune `StorageConnector` (upload/download/suppression/liste), connecteur sélectionné par la configuration de l'entité (`storageFactory`).
 
 ## Contraintes RGPD (structurantes)
 
@@ -176,11 +172,11 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 - Consentement explicite du candidat à chaque étape sensible
 - Droit de modification et de suppression des données
 - Conservation limitée à 1 an pour les candidats non retenus
-- Base de données hébergée sur **Neon (PostgreSQL managé, région eu-central-1 Francfort)** ; documents stockés en **cloud dédié à l'entité** (Azure OneDrive pour ACCECIT, OVH pour Adaptel) — DPA Neon **à vérifier avant mise en production** (résidence UE déjà confirmée), de même que le DPA de chaque prestataire de stockage documentaire, pour ces catégories de données sensibles (NIR, pièce d'identité, RIB)
+- Base de données hébergée sur **Neon (PostgreSQL managé, région eu-central-1 Francfort)** ; documents stockés sur **Azure OneDrive/SharePoint** — DPA Neon **à vérifier avant mise en production** (résidence UE déjà confirmée), pour ces catégories de données sensibles (NIR, pièce d'identité, RIB)
 - **Architecture de stockage des données sensibles — figée le 2026-07-16** (détails techniques : `docs/architecture-technique.md` §1.7) :
   - **NIR** : reste dans Neon, mais jamais en clair — chiffrement applicatif **AES-256-GCM** avant écriture en base, clé dans **Azure Key Vault** (jamais dans le code ni en variable d'environnement en clair), déchiffrement à la volée côté serveur uniquement (jamais côté client), implémenté en couche réutilisable (`nirCipher.js`), pas ad hoc à chaque usage.
   - **Pièces justificatives** (scan CNI, RIB, attestations) : jamais dans Neon — stockées sur **OneDrive/SharePoint via Microsoft Graph API**, Neon ne garde qu'une référence (id/URL/métadonnée). Raison : le DPA Microsoft 365 est déjà en place et vérifié pour ACCECIT, contrairement au DPA Neon dont le statut (entité contractante Neon vs Databricks, plan payant requis) est encore en cours de clarification — pas de nouveau sous-traitant non stabilisé pour des fichiers qui ont déjà une voie conforme.
-  - **Signature électronique de la charte** (hash + image de tracé) : reste dans Neon également — voir section dédiée ci-dessus. Ce n'est pas une pièce justificative externe, donc pas soumise à la même logique de routage vers OneDrive/OVH.
+  - **Signature électronique de la charte** (hash + image de tracé) : reste dans Neon également — voir section dédiée ci-dessus. Ce n'est pas une pièce justificative externe, donc pas soumise à la même logique de routage vers OneDrive.
 - Accès différencié par rôle (accueil/coordination, recruteur, formateur, admin)
 - Traçabilité complète des actions effectuées sur un dossier (qui, quoi, quand)
 - HTTPS recommandé même sur réseau local, vu la nature des données transitant (NIR, RIB, pièces d'identité)
@@ -190,4 +186,4 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 - Code et commentaires en français (noms de variables métier : `candidat`, `dossier`, `pieceJustificative`, `entite`, `workflow`...)
 - Commits en français, messages descriptifs
 - Respect des règles ESLint du projet
-- Toute logique spécifique à ACCECIT doit être isolée de la logique générique du moteur (voir Modularité)
+- Le parcours (statuts, transitions, blocs) reste en configuration plutôt qu'en dur (voir Modularité)

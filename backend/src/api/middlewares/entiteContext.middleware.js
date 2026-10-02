@@ -1,7 +1,7 @@
 const { obtenirKnex } = require('../../db/knex');
 const { ENTITE_PAR_DEFAUT, HOTES_ENTITE_PAR_DEFAUT } = require('../../config/env');
 
-// Résout l'entité courante à partir du sous-domaine (accecit.xxx.fr, adaptel.xxx.fr) et
+// Résout l'entité courante à partir du sous-domaine (ex. accecit.xxx.fr) et
 // l'attache à req.entite — point d'entrée unique de cette résolution, exécuté avant toute
 // route métier, de sorte qu'aucun contrôleur n'a besoin de reconnaître une entité en dur
 // (voir docs/architecture-technique.md §1.2). En local (hostname sans sous-domaine), on
