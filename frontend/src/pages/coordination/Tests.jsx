@@ -10,7 +10,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { useSession } from '../../core/auth/useSession';
-import { peut, ROLE_INSPECTEUR_HOTELLERIE } from '../../core/auth/permissions';
+import { peut } from '../../core/auth/permissions';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { STATUTS_TEST_NON_PLANIFIE } from '../../core/pieceJustificative/premierePlanificationTest';
@@ -200,8 +200,8 @@ export default function Tests() {
         <section className="page-tests__rendezvous">
           <div className="page-tests__rendezvous-entete">
             <h2>Rendez-vous</h2>
-            {/* Masqué pour l'Inspecteur Hôtellerie (2026-10-01, consultation seule) — inchangé pour les autres rôles. */}
-            {dossier && STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && utilisateur?.roleCode !== ROLE_INSPECTEUR_HOTELLERIE && (
+            {/* Réservé aux rôles qui peuvent créer un rendez-vous (gestionRendezvous), comme côté serveur. */}
+            {dossier && STATUTS_REPLANIFIABLES.includes(dossier.statut_code) && peutPlanifierTest && (
               <button className="page-tests__action" type="button" onClick={() => setPanneauReplanificationOuvert(true)}>
                 Replanifier un test
               </button>
