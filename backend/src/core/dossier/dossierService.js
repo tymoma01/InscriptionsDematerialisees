@@ -419,8 +419,7 @@ async function inscrireCandidat(entite, donneesBrutes) {
     // premiere_piece_chargee). Recherche générique via workflowRepository — CE fichier ne doit
     // connaître ni "en_attente_pieces" ni aucun autre code de statut en dur (Modularité, CLAUDE.md) :
     // le comportement varie déjà par entité PUREMENT via la présence ou l'absence de cette ligne de
-    // configuration (voir workflow.config.json d'Adaptel, qui la garde telle quelle — comportement
-    // inchangé pour cette entité). Aucun agent n'est connecté à cette étape (le candidat saisit
+    // configuration. Aucun agent n'est connecté à cette étape (le candidat saisit
     // lui-même, voir candidats.routes.js) : l'acteur tracé dans historique_statuts, quand la
     // transition existe, est l'utilisateur système de l'entité, pas un choix arbitraire, pour que
     // la traçabilité RGPD reste exacte.

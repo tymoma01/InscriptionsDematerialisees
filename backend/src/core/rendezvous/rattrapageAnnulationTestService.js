@@ -24,7 +24,7 @@ const { ROLES } = require('../auth/rbac');
 // au run suivant.
 //
 // Générique (voir Modularité, CLAUDE.md) : une entité sans statut "test_planifie" dans sa
-// configuration (ex. Adaptel) obtient simplement 0 dossier candidat, sans cas particulier —
+// configuration obtient simplement 0 dossier candidat, sans cas particulier —
 // resoudreTransitionAnnulationTest (ACCECIT-flavored) n'est même jamais appelée dans ce cas.
 const ACTION_JOURNAL_TRANSITION = 'dossier_transition_test_non_realise_annulation_rattrapage';
 

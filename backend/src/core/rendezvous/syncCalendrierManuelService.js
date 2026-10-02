@@ -281,7 +281,7 @@ async function tracerErreurSync(bd, entite, utilisateurSysteme, rendezvous, erre
 // Point d'entrée par entité — appelé pour toutes les entités actives par
 // jobs/syncCalendrierManuelJob.js, même patron que basculeTestNonRealiseService.
 // executerBasculeTestNonRealise. Une entité sans rendez-vous actif référencé sur Outlook (aucune
-// intégration calendrier configurée, ex. Adaptel aujourd'hui) obtient simplement 0 rendez-vous à
+// intégration calendrier configurée) obtient simplement 0 rendez-vous à
 // vérifier via listerRendezvousActifsAvecEvenementOutlook, sans cas particulier à gérer ici.
 //
 // Deux phases (correctif 2026-10-01) : lecture de TOUS les événements d'abord (lireEtatOutlook),

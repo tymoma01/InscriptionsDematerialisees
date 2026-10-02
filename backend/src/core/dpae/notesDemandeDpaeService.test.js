@@ -10,7 +10,7 @@ const { ErreurDemandeIntrouvable } = require('./demandeDpaeService');
 // Notes d'une demande DPAE (2026-09-30) : jamais lues ni écrites sans confirmer que la demande
 // appartient à l'entité de la requête.
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
-const ENTITE_ADAPTEL = { id: 2, code: 'adaptel' };
+const ENTITE_AUTRE = { id: 2, code: 'autre_entite' };
 const DEMANDES_EN_BASE = [
   { id: 7, entite_id: 1 },
   { id: 8, entite_id: 2 },
@@ -48,7 +48,7 @@ test('Demande d’une autre entité : introuvable, aucune note lue ni écrite', 
     () => notesDemandeDpaeService.ajouterNote(ENTITE_ACCECIT, { demandeId: 8, contenu: 'x', auteurId: 42 }),
     ErreurDemandeIntrouvable,
   );
-  await assert.rejects(() => notesDemandeDpaeService.listerNotes(ENTITE_ADAPTEL, 7), ErreurDemandeIntrouvable);
+  await assert.rejects(() => notesDemandeDpaeService.listerNotes(ENTITE_AUTRE, 7), ErreurDemandeIntrouvable);
   assert.equal(ajouterMock.mock.calls.length, 0);
   assert.equal(listerMock.mock.calls.length, 0);
 });

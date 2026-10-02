@@ -13,8 +13,7 @@ const DUREE_TEST_MINUTES = 30;
 
 // Adresse ACCECIT déjà affichée en pied de page du back-office (voir PageBackOffice.jsx) —
 // aucune donnée "lieu" dédiée n'existe aujourd'hui (ni sur `rendezvous`, ni sur `entites`, voir
-// docs/architecture-technique.md) : à faire évoluer vers un champ de config par entité si
-// Adaptel a un jour besoin d'une adresse différente pour ses propres tests.
+// docs/architecture-technique.md).
 const LIEU_TEST_ACCECIT = '47 avenue Paul Vaillant Couturier, 94250 Gentilly';
 
 // Compose "adresse (metroAcces)" quand l'accès est renseigné, l'adresse seule sinon — réutilisée

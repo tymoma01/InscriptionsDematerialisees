@@ -215,24 +215,16 @@ async function listerMotifsPourAction(entite, codeAction) {
 // change — un miroir de cette même liste existe côté frontend (ModaleForcerStatut.jsx), pour ne
 // jamais proposer ces statuts dans la liste de choix (décision produit, pas seulement une
 // validation serveur après coup).
-//
-// `valide`/`rejete` : hérités pour ACCECIT (ancien circuit recruteur, 0 dossier aujourd'hui) mais
-// restent le vocabulaire ACTUEL du workflow Adaptel (dossier #46, entite adaptel, toujours à ce
-// statut) — exclus donc UNIQUEMENT pour ACCECIT, jamais pour Adaptel ni pour une entité non listée
-// ici (Modularité, CLAUDE.md : un code de statut n'a de sens que dans le workflow de son entité).
-const STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES = [
+// `valide`/`rejete` : même cas (ancien circuit recruteur, 0 dossier aujourd'hui).
+const STATUTS_EXCLUS_FORCAGE = [
   'en_attente_verification',
   'en_attente_verdict',
   'verdict_positif',
   'verdict_negatif',
   'en_attente_validation_recruteur',
+  'valide',
+  'rejete',
 ];
-const STATUTS_EXCLUS_FORCAGE_PAR_ENTITE = {
-  accecit: ['valide', 'rejete'],
-};
-function statutsExclusForcage(codeEntite) {
-  return [...STATUTS_EXCLUS_FORCAGE_TOUTES_ENTITES, ...(STATUTS_EXCLUS_FORCAGE_PAR_ENTITE[codeEntite] ?? [])];
-}
 
 // Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur) — contourne
 // volontairement `transitions_statut` : contrairement à appliquerTransition ci-dessus, qui ne
@@ -304,12 +296,12 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEm
   if (statutCible.id === dossier.statut_id) {
     throw new ErreurTransitionInvalide(`Le dossier "${dossierId}" est déjà au statut "${statutCode}".`);
   }
-  // Bloc 3 (audit 2026-09-25, décision utilisateur) — voir STATUTS_EXCLUS_FORCAGE_* ci-dessus.
-  if (statutsExclusForcage(entite.code).includes(statutCible.code)) {
+  // Bloc 3 (audit 2026-09-25, décision utilisateur) — voir STATUTS_EXCLUS_FORCAGE ci-dessus.
+  if (STATUTS_EXCLUS_FORCAGE.includes(statutCible.code)) {
     throw new ErreurTransitionInvalide('Ce statut ne peut pas être choisi par forçage.');
   }
   // Date d'embauche (audit 2026-09-25, suite du bloc 3) — EXCEPTION assumée au principe de
-  // généricité de ce fichier, même nature que STATUTS_EXCLUS_FORCAGE_* ci-dessus : forcer un
+  // généricité de ce fichier, même nature que STATUTS_EXCLUS_FORCAGE ci-dessus : forcer un
   // dossier vers "embauche" doit renseigner dossiers.date_embauche exactement comme le parcours
   // normal (embaucheService.marquerEmbauche), sinon la fiche resterait "Embauché" sans date. Même
   // regex que marquerEmbaucheBodySchema/embaucheService (AAAA-MM-JJ, aucune borne min/max — voir

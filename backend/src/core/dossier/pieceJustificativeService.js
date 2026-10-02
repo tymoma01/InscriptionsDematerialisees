@@ -153,7 +153,7 @@ async function uploaderPieceJustificative(entite, { dossierId, typePieceCode, no
   // jamais recalculée si le dossier reste ouvert à cheval sur deux mois, cf.
   // dossierRepository.trouverDossierAvecStatutParId. Le connecteur reste seul responsable de la
   // construction du chemin final (normalisation incluse) : ce service ne connaît pas les
-  // contraintes de nommage propres à SharePoint/OVH.
+  // contraintes de nommage propres à SharePoint.
   const connecteur = storageFactory(entite.connecteur_stockage);
   const dossierInfo = {
     id: dossierId,

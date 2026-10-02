@@ -726,7 +726,6 @@ export default function Validation() {
           <ModaleForcerStatut
             dossier={dossier}
             statuts={statuts}
-            entiteCode={utilisateur?.entiteCode}
             enCours={forcageEnCours}
             erreur={erreurForcage}
             onAnnuler={() => {

@@ -43,19 +43,8 @@ Le salarié doit adopter un comportement courtois envers la clientèle. Il est i
 
 En cas d'urgence, un numéro est joignable au 01.56.56.69.56, du lundi au vendredi de 8h à 12h et de 14h à 18h, et le samedi et le dimanche de 8h à 15h. En dehors de ces horaires, un message peut être laissé.`;
 
-// PLACEHOLDER — pas le vrai texte Adaptel (jamais fourni à ce stade du projet), uniquement pour
-// vérifier que le mécanisme (scroll-gate, hash, FK charte_id) fonctionne pour une seconde entité
-// indépendamment d'ACCECIT (voir Modularité, CLAUDE.md). À remplacer avant toute mise en
-// production d'Adaptel.
-const TEXTE_CHARTE_ADAPTEL = `Charte Adaptel — Règlement intérieur (texte provisoire)
-
-Ce texte est un espace réservé en attente du règlement intérieur réel d'Adaptel. Il sert
-uniquement à vérifier que la signature électronique de la charte fonctionne correctement pour
-cette entité, indépendamment de la configuration d'ACCECIT.`;
-
 const TEXTES_CHARTE = {
   accecit: TEXTE_CHARTE_ACCECIT,
-  adaptel: TEXTE_CHARTE_ADAPTEL,
 };
 
 async function seedCharte(codeEntite) {

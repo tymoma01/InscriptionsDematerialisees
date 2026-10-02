@@ -193,7 +193,7 @@ test('rejeter marque la demande rejetée avec le motif et notifie le demandeur',
 // ---------------------------------------------------------------------------------------------
 // Consultation (périmètre révisé le 2026-09-30) — liste de suivi et fiche.
 // ---------------------------------------------------------------------------------------------
-const ENTITE_ADAPTEL = { id: 2, code: 'adaptel' };
+const ENTITE_AUTRE = { id: 2, code: 'autre_entite' };
 
 // Base factice : demandes de DEUX entités ; le repository filtre sur entite_id (comme la requête
 // SQL, voir demandeDpaeRepository) — c'est ce filtre qui garantit l'isolement entre entités.
@@ -277,10 +277,10 @@ test("peutConsulterDemande : Admin, RH et Planning toutes les fiches ; Accueil/C
 
 test("obtenirDemande : une demande d'une autre entité est introuvable, quel que soit le rôle", async (t) => {
   mockerBaseConsultation(t);
-  // Demande 3 = entité Adaptel : demandée depuis ACCECIT -> introuvable.
+  // Demande 3 = autre entité : demandée depuis ACCECIT -> introuvable.
   await assert.rejects(() => demandeDpaeService.obtenirDemande(ENTITE_ACCECIT, 3), demandeDpaeService.ErreurDemandeIntrouvable);
-  // Et inversement, depuis Adaptel, la demande 1 d'ACCECIT est introuvable.
-  await assert.rejects(() => demandeDpaeService.obtenirDemande(ENTITE_ADAPTEL, 1), demandeDpaeService.ErreurDemandeIntrouvable);
+  // Et inversement, depuis l'autre entité, la demande 1 d'ACCECIT est introuvable.
+  await assert.rejects(() => demandeDpaeService.obtenirDemande(ENTITE_AUTRE, 1), demandeDpaeService.ErreurDemandeIntrouvable);
 });
 
 // ---------------------------------------------------------------------------------------------

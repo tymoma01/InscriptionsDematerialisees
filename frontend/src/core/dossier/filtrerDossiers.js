@@ -24,7 +24,7 @@ function normaliserTelephone(valeur) {
 // `entitesFiltre` optionnel (Set de 'hotel'/'bureau') : même détermination de l'entité d'un
 // dossier que le filtre "Entité" (typePoste) du tableau de bord Indicateurs — via les postes
 // déclarés sur le dossier (dossier.postesHotel/postesBureau), pas un champ entité_id distinct (un
-// dossier n'a qu'une seule entité_id, celle de l'agence ACCECIT/Adaptel qui l'a créé — voir
+// dossier n'a qu'une seule entité_id, celle de l'agence qui l'a créé — voir
 // CLAUDE.md, section Modularité — sans rapport avec Hôtellerie/Tertiaire, qui distingue deux
 // FAMILLES DE POSTES au sein d'une même entité).
 //

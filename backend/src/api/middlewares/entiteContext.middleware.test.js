@@ -65,11 +65,11 @@ function creerReponseMock() {
 }
 
 test('entiteContext résout l\'entité par sous-domaine (cas nominal, aucun repli)', async (t) => {
-  const { bd, appels } = creerFakeBd({ id: 'uuid-adaptel', code: 'adaptel', actif: true });
+  const { bd, appels } = creerFakeBd({ id: 'uuid-autre', code: 'autre', actif: true });
   t.mock.method(db, 'obtenirKnex', async () => bd);
   const entiteContext = chargerEntiteContext({ ENTITE_PAR_DEFAUT: 'accecit' });
 
-  const req = { hostname: 'adaptel.exemple.fr' };
+  const req = { hostname: 'autre.exemple.fr' };
   const res = creerReponseMock();
   let suivantAppele = false;
 
@@ -78,8 +78,8 @@ test('entiteContext résout l\'entité par sous-domaine (cas nominal, aucun repl
   });
 
   assert.equal(suivantAppele, true);
-  assert.deepEqual(req.entite, { id: 'uuid-adaptel', code: 'adaptel', actif: true });
-  assert.deepEqual(appels[0].criteres, { code: 'adaptel', actif: true });
+  assert.deepEqual(req.entite, { id: 'uuid-autre', code: 'autre', actif: true });
+  assert.deepEqual(appels[0].criteres, { code: 'autre', actif: true });
 });
 
 test('entiteContext : hostname listé dans HOTES_ENTITE_PAR_DEFAUT utilise ENTITE_PAR_DEFAUT (domaine perso de prod)', async (t) => {
