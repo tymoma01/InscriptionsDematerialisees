@@ -176,6 +176,16 @@
   --statut-echec-fort-texte: #7c2415;
   --statut-echec-fort-bordure: #e3a89f;
 
+  /* Urgence des demandes DPAE (2026-10-02, core/dpae/urgenceDpae.js) : pastilles PLEINES, texte
+     blanc, pour se distinguer d'un coup d'œil des pastilles de statut pastel posées juste à côté —
+     les variantes 'alerte' et 'echec' existantes ont des fonds presque identiques (orange et rouge
+     indiscernables). Même palette flat-UI que --couleur-erreur/--couleur-succes ; teintes choisies
+     pour un contraste du texte blanc d'au moins 4,5:1 (vert 5,1 ; orange 4,8 ; rouge 5,4). */
+  --urgence-vert-fond: #1e7e34;
+  --urgence-orange-fond: #c05000;
+  --urgence-rouge-fond: var(--couleur-erreur);
+  --urgence-texte: #ffffff;
+
   /* Rose/magenta (audit 2026-08-25, "Test non planifié") — teinte encore inutilisée par les
      autres variantes ci-dessus : 'neutre-fort' (gris), essayé avant celle-ci pour ce même statut,
      restait perçu comme un simple niveau de gris plutôt qu'une couleur à part entière à côté des

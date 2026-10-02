@@ -13,7 +13,7 @@ const { formaterHeure, formaterHeuresParMois } = require('./formatsDpae');
 // Module spécifique à ACCECIT, comme tout le module Demandes DPAE (voir dpae.routes.js).
 //
 // Mise en page (révisée le 2026-10-02) : sur CHAQUE page, bandeau aux couleurs de l'en-tête de
-// l'application (dégradé marron, logo ACCECIT blanc à gauche) et pied de page (filet, coordonnées
+// l'application (dégradé marron, logo ACCECIT blanc à gauche, logos Hôtellerie et Tertiaire à droite) et pied de page (filet, coordonnées
 // ACCECIT, « Document confidentiel | usage interne », date de génération, « Page X/Y »). Les marges
 // de page réservent la place des deux : le contenu ne les chevauche jamais. Aucun tiret long dans
 // le document (séparateur : barre verticale).
@@ -210,23 +210,17 @@ function sectionsDemande(demande) {
   return sections;
 }
 
-// Sous-marque ACCECIT du bandeau (Hôtellerie/Tertiaire), à droite comme dans l'application. Une
-// demande n'a aucun champ « secteur » : seul le champ « Entité » (colonne `division`) l'indique, et
-// seulement pour ACCHOT (ACCECIT Hôtellerie). Toute autre valeur (RM, Autre, non renseignée) : logo
-// ACCECIT seul, sans sous-marque — jamais une sous-marque devinée. Compléter cette table si une
-// valeur doit afficher « Tertiaire ».
-const SOUS_MARQUE_PAR_DIVISION = { acchot: 'hotellerie' };
-const SOUS_MARQUES = {
-  hotellerie: { nom: 'Hôtellerie', icone: path.join(__dirname, 'assets', 'icone-accecit-hotellerie.png') },
-  tertiaire: { nom: 'Tertiaire', icone: path.join(__dirname, 'assets', 'icone-accecit-tertiaire.png') },
-};
+// Sous-marques ACCECIT du bandeau (2026-10-02) : « ACCECIT Hôtellerie » et « ACCECIT Tertiaire »,
+// l'une sous l'autre à droite, comme dans le bandeau de l'application (EnTeteAccecit.jsx) — sur
+// TOUTES les demandes, quelle que soit l'entité (plus aucune règle selon le champ « Entité »).
+// Icônes copiées de frontend/src/assets (le backend est construit sans le frontend).
+const SOUS_MARQUES = [
+  { nom: 'Hôtellerie', icone: path.join(__dirname, 'assets', 'icone-accecit-hotellerie.png') },
+  { nom: 'Tertiaire', icone: path.join(__dirname, 'assets', 'icone-accecit-tertiaire.png') },
+];
 // Logo blanc de l'en-tête de l'application (frontend/src/assets/logo-accecit-blanc.png, copié ici :
 // le backend est construit sans le frontend).
 const LOGO_ACCECIT_BLANC = path.join(__dirname, 'assets', 'logo-accecit-blanc.png');
-
-function sousMarqueDemande(demande) {
-  return SOUS_MARQUE_PAR_DIVISION[demande.division] ?? null;
-}
 
 // Remplace les caractères qui casseraient un chemin (un "/" dans un nom créerait un sous-dossier
 // dans le ZIP) — même règle que l'export ZIP des pièces (pieces.routes.js, dossiers.routes.js),
@@ -275,7 +269,7 @@ const PIED_HAUTEUR = 64;
 const MARGE_HAUT_CONTENU = HAUTEUR_BANDEAU + 26;
 const MARGE_BAS_CONTENU = PIED_HAUTEUR + 14;
 
-function dessinerBandeau(doc, demande) {
+function dessinerBandeau(doc) {
   const largeur = doc.page.width;
   const degrade = doc.linearGradient(0, 0, largeur, 0);
   degrade.stop(0, COULEURS.bandeauDebut).stop(1, COULEURS.bandeauFin);
@@ -283,20 +277,20 @@ function dessinerBandeau(doc, demande) {
 
   doc.image(LOGO_ACCECIT_BLANC, MARGE - 6, (HAUTEUR_BANDEAU - 44) / 2, { height: 44 });
 
-  const sousMarque = SOUS_MARQUES[sousMarqueDemande(demande)];
-  if (sousMarque) {
-    // Même disposition que le logo des sous-marques de l'en-tête (EnTeteAccecit.jsx) : icône,
-    // « ACCECIT » en lettres espacées, filet fin, sous-nom — en blanc sur le bandeau.
-    const largeurTexte = 92;
-    const xIcone = largeur - MARGE - largeurTexte - 40;
-    const yHaut = (HAUTEUR_BANDEAU - 34) / 2;
-    doc.image(sousMarque.icone, xIcone, yHaut, { height: 34 });
-    const xTexte = xIcone + 40;
-    doc.font('Helvetica').fontSize(12).fillColor('#ffffff')
-      .text('ACCECIT', xTexte, yHaut + 2, { characterSpacing: 3, lineBreak: false });
-    doc.moveTo(xTexte, yHaut + 18).lineTo(xTexte + largeurTexte, yHaut + 18).lineWidth(0.6).strokeColor('#ffffff').stroke();
-    doc.fontSize(8.5).text(sousMarque.nom, xTexte, yHaut + 22, { lineBreak: false });
-  }
+  // Même disposition que les logos des sous-marques de l'en-tête (EnTeteAccecit.jsx) : icône,
+  // « ACCECIT » en lettres espacées, filet fin, sous-nom — en blanc, l'une sous l'autre.
+  const largeurTexte = 78;
+  const hauteurBloc = 29;
+  const xIcone = largeur - MARGE - largeurTexte - 32;
+  const xTexte = xIcone + 32;
+  SOUS_MARQUES.forEach((sousMarque, index) => {
+    const yHaut = 6 + index * (hauteurBloc + 3);
+    doc.image(sousMarque.icone, xIcone, yHaut + 1, { height: 26 });
+    doc.font('Helvetica').fontSize(10).fillColor('#ffffff')
+      .text('ACCECIT', xTexte, yHaut + 2, { characterSpacing: 2.5, lineBreak: false });
+    doc.moveTo(xTexte, yHaut + 14).lineTo(xTexte + largeurTexte, yHaut + 14).lineWidth(0.5).strokeColor('#ffffff').stroke();
+    doc.fontSize(7.5).text(sousMarque.nom, xTexte, yHaut + 17, { lineBreak: false });
+  });
 }
 
 function dessinerPiedDePage(doc, textes) {
@@ -313,13 +307,13 @@ function dessinerPiedDePage(doc, textes) {
 // Bandeau et pied de page sur chaque page, dessinés une fois le contenu placé (nombre total de
 // pages connu). Écrits dans les marges : marges neutralisées le temps de l'écriture, sinon pdfkit
 // ajouterait une page vide.
-function dessinerHabillage(doc, demande, dateGeneration) {
+function dessinerHabillage(doc, dateGeneration) {
   const pages = doc.bufferedPageRange();
   for (let i = 0; i < pages.count; i += 1) {
     doc.switchToPage(pages.start + i);
     const marges = { ...doc.page.margins };
     doc.page.margins = { top: 0, bottom: 0, left: 0, right: 0 };
-    dessinerBandeau(doc, demande);
+    dessinerBandeau(doc);
     dessinerPiedDePage(doc, textesPiedDePage(dateGeneration, i + 1, pages.count));
     doc.page.margins = marges;
   }
@@ -402,7 +396,7 @@ function genererPdfDemande(demande, { dateGeneration = new Date() } = {}) {
 
       for (const section of sectionsDemande(demande)) dessinerSection(doc, section);
 
-      dessinerHabillage(doc, demande, dateGeneration);
+      dessinerHabillage(doc, dateGeneration);
       doc.end();
     } catch (erreur) {
       rejeter(erreur);
@@ -416,7 +410,6 @@ module.exports = {
   statutEtDate,
   texteStatut,
   textesPiedDePage,
-  sousMarqueDemande,
   nomFichierPdf,
   nettoyerSegmentChemin,
   // Zones réservées (points) : exposées pour vérifier l'absence de chevauchement.

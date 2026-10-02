@@ -16,27 +16,16 @@ import {
   usePeutTelechargerPdfDpae,
   useSelectionDemandesDpae,
 } from '../../core/dpae/TelechargementPdfDpae';
+import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
+import { formaterJour, libelleSites } from '../../core/dpae/affichageDpae';
 import './SuiviDemandesDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 // Libellé et couleur des statuts : source unique core/dpae/statutsDpae.js (2026-09-30).
 
-// Colonne `date` (premier jour) : le pilote PostgreSQL la renvoie comme l'instant de minuit HEURE
-// LOCALE du serveur, sérialisé en UTC (ex. « 2026-09-27T22:00:00.000Z » pour le 28/09) — même
-// conversion que la fiche (DetailDemandeDpae.jsx) : new Date(...) relu dans le fuseau du poste,
-// jamais un découpage de la chaîne, qui afficherait la veille.
-function formaterJour(valeur) {
-  return valeur ? FORMAT_DATE.format(new Date(valeur)) : '—';
-}
-
-// Sites liés (référentiel, NOM (INITIALES)) ; à défaut, ancien texte libre d'une demande
-// antérieure au référentiel (colonne `hotel`) — jamais une demande masquée faute de site lié.
-function libelleSites(demande) {
-  const sites = demande.sites_affectation ?? [];
-  if (sites.length > 0) return sites.map((site) => `${site.nom} (${site.initiales})`).join(', ');
-  return demande.hotel || '—';
-}
+// « Premier jour » et « Site(s) d'affectation » : core/dpae/affichageDpae.js (source unique,
+// partagée avec la liste RH depuis le 2026-10-02).
 
 // Page « Suivi des demandes DPAE » (révisée le 2026-09-30, demande utilisateur) — alimentée par
 // GET /api/dpae/suivi (remplace GET /mes-demandes, qui ne renvoyait que les demandes de
@@ -172,10 +161,15 @@ export default function SuiviDemandesDpae() {
                     {demande.demandeur_prenom} {demande.demandeur_nom}
                   </td>
                   <td>
-                    <StatutBadge
-                      libelle={libelleStatutDpae(demande.statut)}
-                      variante={varianteStatutDpae(demande.statut)}
-                    />
+                    {/* Pastille d'urgence (2026-10-02) à côté du statut — « À traiter »/« En attente »
+                        seulement (core/dpae/PastilleUrgenceDpae.jsx). */}
+                    <div className="page-suivi-dpae__statut">
+                      <StatutBadge
+                        libelle={libelleStatutDpae(demande.statut)}
+                        variante={varianteStatutDpae(demande.statut)}
+                      />
+                      <PastilleUrgenceDpae demande={demande} />
+                    </div>
                   </td>
                 </tr>
               ))}

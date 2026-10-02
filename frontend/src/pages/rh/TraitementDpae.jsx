@@ -14,6 +14,9 @@ import {
   usePeutTelechargerPdfDpae,
   useSelectionDemandesDpae,
 } from '../../core/dpae/TelechargementPdfDpae';
+import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
+import { STATUTS_AVEC_URGENCE, trierParEcheance } from '../../core/dpae/urgenceDpae';
+import { formaterJour, libelleSites } from '../../core/dpae/affichageDpae';
 import './TraitementDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -50,7 +53,16 @@ export default function TraitementDpae() {
   // Téléchargement PDF (2026-10-02) : cases à cocher et action groupée (ZIP), voir
   // core/dpae/TelechargementPdfDpae.jsx. « Tout cocher » ne porte que sur le filtre affiché.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
-  const selectionDemandes = useSelectionDemandesDpae(demandes);
+
+  // Ordre d'affichage (2026-10-02) : « À traiter » (filtre par défaut à l'ouverture) et « En
+  // attente » triées par échéance — premier jour (à l'heure d'arrivée) croissant, demandes en retard
+  // tout en haut (core/dpae/urgenceDpae.js, même calcul que les pastilles). « Validées »,
+  // « Rejetées » et « Tous » : ordre du serveur inchangé (plus récentes d'abord).
+  const demandesAffichees = useMemo(
+    () => (STATUTS_AVEC_URGENCE.includes(statutFiltre) ? trierParEcheance(demandes) : demandes),
+    [demandes, statutFiltre],
+  );
+  const selectionDemandes = useSelectionDemandesDpae(demandesAffichees);
 
   const chargerCompteurs = () =>
     listerDemandesRh('tous')
@@ -120,6 +132,10 @@ export default function TraitementDpae() {
                 <th>Reçue le</th>
                 <th>Type</th>
                 <th>Salarié</th>
+                {/* Premier jour et sites (2026-10-02) : même affichage que Suivi des demandes DPAE
+                    (core/dpae/affichageDpae.js). */}
+                <th>Premier jour</th>
+                <th>Site(s) d&rsquo;affectation</th>
                 <th>Demandeur</th>
                 <th>Statut</th>
                 <th></th>
@@ -127,7 +143,7 @@ export default function TraitementDpae() {
               </tr>
             </thead>
             <tbody>
-              {demandes.map((demande) => (
+              {demandesAffichees.map((demande) => (
                 <tr key={demande.id}>
                   {peutTelechargerPdf && (
                     <td className="telechargement-pdf-dpae__colonne-case">
@@ -139,11 +155,18 @@ export default function TraitementDpae() {
                   <td>
                     {demande.salarie_prenom} {demande.salarie_nom}
                   </td>
+                  <td>{formaterJour(demande.date_debut)}</td>
+                  <td className="page-traitement-dpae__sites">{libelleSites(demande)}</td>
                   <td>
                     {demande.demandeur_prenom} {demande.demandeur_nom}
                   </td>
                   <td>
-                    <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
+                    {/* Pastille d'urgence (2026-10-02) à côté du statut — « À traiter »/« En attente »
+                        seulement (core/dpae/PastilleUrgenceDpae.jsx). */}
+                    <div className="page-traitement-dpae__statut">
+                      <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
+                      <PastilleUrgenceDpae demande={demande} />
+                    </div>
                   </td>
                   <td>
                     <Link to={`/rh/dpae/${demande.id}`}>Voir la demande</Link>

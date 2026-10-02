@@ -126,9 +126,12 @@ async function listerSuivi(entite, { utilisateurId, roleCode, perimetreDemande }
 
 // statut par défaut 'envoyee' (file à traiter) — un appelant qui veut l'historique complet
 // (traitées incluses) passe explicitement statut=null (voir dpae.routes.js, ?statut=tous).
+// Sites d'affectation inclus (2026-10-02 : colonne « Site(s) d'affectation » de la liste RH), même
+// forme que listerSuivi.
 async function listerPourRh(entite, statut = STATUT_ENVOYEE) {
   const bd = await db.obtenirKnex();
-  return demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut);
+  const demandes = await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut);
+  return ajouterSites(bd, demandes);
 }
 
 // sites_affectation (2026-09-29) : sites liés à la demande, [{ id, nom, initiales }] — vide pour

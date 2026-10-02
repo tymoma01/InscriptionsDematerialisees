@@ -57,3 +57,11 @@
 .page-traitement-dpae [role='alert'] {
   color: var(--couleur-erreur);
 }
+
+/* Statut et pastille d'urgence côte à côte (2026-10-02), l'une sous l'autre si la place manque. */
+.page-traitement-dpae__statut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}

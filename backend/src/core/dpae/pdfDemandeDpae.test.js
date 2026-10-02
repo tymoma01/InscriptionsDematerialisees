@@ -7,7 +7,6 @@ const {
   statutEtDate,
   texteStatut,
   textesPiedDePage,
-  sousMarqueDemande,
   nomFichierPdf,
 } = require('./pdfDemandeDpae');
 
@@ -157,18 +156,13 @@ test('Statut et sa date : réception, mise en attente, traitement', () => {
   assert.deepEqual(statutEtDate(demande({ statut: 'rejetee' })), { libelle: 'Rejetée', date: '30/09/2026 17:48' });
 });
 
-test("Logo : ACCHOT -> sous-marque Hôtellerie ; RM, Autre ou non renseigné -> logo ACCECIT seul, sans sous-marque (jamais devinée)", () => {
-  assert.equal(sousMarqueDemande(demande({ division: 'acchot' })), 'hotellerie');
-  for (const division of ['rm', 'autre', null, undefined]) assert.equal(sousMarqueDemande(demande({ division })), null);
-});
-
 test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ » remplacés comme dans l’export ZIP des pièces', () => {
   assert.equal(nomFichierPdf(demande()), 'DPAE 37 - MARTIN Léa.pdf');
   assert.equal(nomFichierPdf(demande({ salarie_nom: 'AB/CD', salarie_prenom: 'E\\F' })), 'DPAE 37 - AB-CD E-F.pdf');
 });
 
-test('PDF généré : document PDF A4, avec ou sans sous-marque, 4 sites et toutes les sections', async () => {
-  for (const division of ['acchot', null]) {
+test('PDF généré : document PDF A4, quelle que soit l’entité (même bandeau), 4 sites et toutes les sections', async () => {
+  for (const division of ['acchot', 'rm', null]) {
     const pdf = await genererPdfDemande(
       demande({ division, sites_affectation: QUATRE_SITES, modifications_demandees: true, autre_chose_signaler: 'x'.repeat(2000) }),
       { dateGeneration: new Date('2026-10-02T08:45:00Z') },

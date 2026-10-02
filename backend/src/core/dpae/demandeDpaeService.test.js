@@ -365,3 +365,13 @@ test('Validation ou rejet d’une demande déjà décidée (validée ou rejetée
     });
   }
 });
+
+test("listerPourRh (liste RH, 2026-10-02) : chaque demande porte ses sites (colonne « Site(s) d'affectation »), ordre et filtre inchangés", async (t) => {
+  const { toutesMock } = mockerBaseConsultation(t);
+  const demandes = await demandeDpaeService.listerPourRh(ENTITE_ACCECIT, null);
+  assert.deepEqual(demandes.map((d) => d.id), [2, 1]);
+  assert.deepEqual(demandes[0].sites_affectation, [{ id: 10, nom: 'AIGLON', initiales: 'AIG' }, { id: 11, nom: 'ALBE', initiales: 'AL' }]);
+  assert.deepEqual(demandes[1].sites_affectation, []);
+  assert.equal(demandes[1].hotel, 'Ancien texte');
+  assert.deepEqual(toutesMock.mock.calls[0].arguments.slice(1), [1, null]);
+});

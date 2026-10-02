@@ -127,3 +127,25 @@
   color: var(--experience-5ans-texte);
   border-color: var(--experience-5ans-bordure);
 }
+
+/* Urgence des demandes DPAE (2026-10-02) — pastilles pleines, voir --urgence-* dans variables.css. */
+.statut-badge--urgence-vert,
+.statut-badge--urgence-orange,
+.statut-badge--urgence-rouge {
+  color: var(--urgence-texte);
+}
+
+.statut-badge--urgence-vert {
+  background-color: var(--urgence-vert-fond);
+  border-color: var(--urgence-vert-fond);
+}
+
+.statut-badge--urgence-orange {
+  background-color: var(--urgence-orange-fond);
+  border-color: var(--urgence-orange-fond);
+}
+
+.statut-badge--urgence-rouge {
+  background-color: var(--urgence-rouge-fond);
+  border-color: var(--urgence-rouge-fond);
+}

@@ -111,3 +111,11 @@
   outline: 2px solid var(--couleur-back-office);
   outline-offset: -2px;
 }
+
+/* Statut et pastille d'urgence côte à côte (2026-10-02), l'une sous l'autre si la place manque. */
+.page-suivi-dpae__statut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}

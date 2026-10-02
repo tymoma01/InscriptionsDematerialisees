@@ -9,6 +9,7 @@ import NotesDossier from '../../core/dossier/NotesDossier';
 import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
 import { formaterHeure, formaterHeuresParMois } from '../../core/dpae/formatsDpae';
+import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
 import {
   obtenirDemande,
   validerDemande,
@@ -187,6 +188,9 @@ export default function DetailDemandeDpae() {
                 libelle={libelleStatutDpae(demande.statut)}
                 variante={varianteStatutDpae(demande.statut)}
               />
+              {/* Pastille d'urgence (2026-10-02), à côté du statut — « À traiter »/« En attente »
+                  seulement (core/dpae/PastilleUrgenceDpae.jsx). */}
+              <PastilleUrgenceDpae demande={demande} />
               {/* PDF de la fiche (2026-10-02), généré côté serveur — rôles de consultation seulement
                   (voir core/dpae/TelechargementPdfDpae.jsx). */}
               <BoutonTelechargerPdfDemande demandeId={demande.id} />
