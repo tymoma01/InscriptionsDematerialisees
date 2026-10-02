@@ -116,7 +116,7 @@ const ELEMENTS_NAVIGATION = [
     // Onglet Admin (2026-10-01) : Dossiers candidats avec le périmètre de l'Inspecteur Hôtellerie
     // (Hôtellerie, 5 statuts), appliqué côté serveur (paramètre `vue`, Admin uniquement).
     cle: 'vue-inspecteur-hotellerie',
-    libelle: 'Inspecteur Hôtellerie',
+    libelle: 'Inspecteur',
     chemin: '/vue-inspecteur-hotellerie/dossiers',
     estActif: (chemin) => chemin.startsWith('/vue-inspecteur-hotellerie/'),
     roles: ['admin'],
@@ -126,21 +126,37 @@ const ELEMENTS_NAVIGATION = [
     // Onglet « RH » (2026-09-30, demande utilisateur) — remplace l'onglet « Demandes DPAE », à la
     // MÊME position (avant « Comptes utilisateurs » : l'ordre de ce tableau pilote l'ordre des
     // onglets). Espace à sous-onglets, même mécanisme que « Vue Formateur »/« Vue Inspecteur »
-    // ci-dessus : « Demandes DPAE » puis « Tableau de bord DPAE ». Pas de `roleEspace` : les
-    // sous-onglets calculent leur chemin avec le rôle CONNECTÉ (la RH garde sa file comme
-    // destination). Un clic sur « RH » ouvre « Demandes DPAE ». Actif sur TOUTES les pages DPAE
+    // ci-dessus : « Tableau de bord DPAE » puis « Demandes DPAE » (ordre inversé le 2026-10-02,
+    // demande utilisateur). Pas de `roleEspace` : les sous-onglets calculent leur chemin avec le
+    // rôle CONNECTÉ (la RH garde sa file comme destination). Un clic sur « RH » ouvre « Tableau de
+    // bord DPAE », ou « Demandes DPAE » pour un rôle qui n'y a pas accès (Inspecteur Hôtellerie,
+    // ROLES_DPAE_TABLEAU_DE_BORD). Actif sur TOUTES les pages DPAE
     // (suivi, nouvelle demande, tableau de bord sous /coordination/dpae/ ; file RH et fiche sous
     // /rh/dpae) — aucune adresse existante modifiée.
     libelle: 'RH',
-    chemin: (roleCode) => (roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi'),
+    chemin: (roleCode) => {
+      if (ROLES_DPAE_TABLEAU_DE_BORD.includes(roleCode)) {
+        return '/coordination/dpae/tableau-de-bord';
+      }
+      return roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
+    },
     estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
     // Rôles qui peuvent consulter des demandes (Admin, RH, Planning — ROLES_DPAE_CONSULTATION) :
     // Accueil/Coordination n'a pas l'onglet. Voir core/auth/rolesGroupes.js.
     roles: ROLES_DPAE_CONSULTATION,
-    sousOnglets: ['dpae-demandes', 'dpae-tableau-de-bord'],
+    sousOnglets: ['dpae-tableau-de-bord', 'dpae-demandes'],
   },
   // Sous-onglets de l'espace « RH » — `roles: []` : jamais affichés dans la barre principale, seulement
   // dans la barre de sous-onglets de leur espace (voir `sousOnglets` ci-dessus).
+  {
+    cle: 'dpae-tableau-de-bord',
+    libelle: 'Tableau de bord DPAE',
+    chemin: '/coordination/dpae/tableau-de-bord',
+    estActif: (chemin) => chemin.startsWith('/coordination/dpae/tableau-de-bord'),
+    roles: [],
+    // Sous-onglet réservé (2026-10-01) : pas pour l'Inspecteur Hôtellerie.
+    rolesSousOnglet: ROLES_DPAE_TABLEAU_DE_BORD,
+  },
   {
     cle: 'dpae-demandes',
     libelle: 'Demandes DPAE',
@@ -151,15 +167,6 @@ const ELEMENTS_NAVIGATION = [
       chemin.startsWith('/rh/dpae') ||
       (chemin.startsWith('/coordination/dpae/') && !chemin.startsWith('/coordination/dpae/tableau-de-bord')),
     roles: [],
-  },
-  {
-    cle: 'dpae-tableau-de-bord',
-    libelle: 'Tableau de bord DPAE',
-    chemin: '/coordination/dpae/tableau-de-bord',
-    estActif: (chemin) => chemin.startsWith('/coordination/dpae/tableau-de-bord'),
-    roles: [],
-    // Sous-onglet réservé (2026-10-01) : pas pour l'Inspecteur Hôtellerie.
-    rolesSousOnglet: ROLES_DPAE_TABLEAU_DE_BORD,
   },
   {
     cle: 'comptes-utilisateurs',
