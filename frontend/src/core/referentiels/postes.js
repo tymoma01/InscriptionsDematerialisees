@@ -19,3 +19,21 @@ export const LIBELLES_POSTE = {
 export function libellePoste(code) {
   return LIBELLES_POSTE[code] ?? code;
 }
+
+// Abréviations hôtellerie — les mêmes que dans le titre des événements Outlook des formateurs
+// (backend/src/core/rendezvous/rendezvousService.js). Femme/valet de chambre selon la civilité du
+// candidat. Les postes bureau n'ont pas d'abréviation : leur libellé reste affiché.
+const ABREVIATIONS_POSTE = {
+  cafetier: 'CAF',
+  equipier: 'EQP',
+  gouvernant: 'GOV',
+};
+
+export function abreviationPoste(code, civilite) {
+  if (code === 'femme_valet_chambre') {
+    if (civilite === 'madame') return 'FDC';
+    if (civilite === 'monsieur') return 'VDC';
+    return 'FDC/VDC';
+  }
+  return ABREVIATIONS_POSTE[code] ?? libellePoste(code);
+}

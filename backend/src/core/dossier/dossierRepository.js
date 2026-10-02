@@ -339,6 +339,8 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut, perimetre = null
       'dossiers.date_maj',
       'candidats.nom as candidat_nom',
       'candidats.prenom as candidat_prenom',
+      // Abréviation FDC/VDC du poste femme/valet de chambre dans la liste « Dossiers candidats ».
+      'candidats.civilite as candidat_civilite',
       'statuts.code as statut_code',
       'statuts.libelle as statut_libelle',
       'statuts.est_final as statut_est_final',

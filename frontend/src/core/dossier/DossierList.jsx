@@ -110,7 +110,9 @@ const COLONNES = [
 // `libellePoste` : même principe que `varianteStatut`, pour la colonne "Poste" — les codes bruts
 // (dossier.postesBureau/postesHotel, voir dossierService.listerDossiers) sont un vocabulaire
 // propre à ACCECIT (voir BlocDisponibilites.jsx), ce composant générique ne les traduit pas
-// lui-même. Sans `libellePoste` fourni, affiche le code brut plutôt que d'échouer.
+// lui-même. Sans `libellePoste` fourni, affiche le code brut plutôt que d'échouer. Reçoit
+// (code, dossier), pour un affichage qui dépend du candidat (ex. FDC/VDC selon la civilité).
+// `libelleCompletPoste` (optionnel) : texte de l'infobulle de chaque puce.
 //
 // `libelleExperience` : même principe pour la colonne "Expérience"
 // (dossier.experience, un seul code — pas un tableau comme postesBureau/postesHotel).
@@ -154,6 +156,7 @@ export default function DossierList({
   dossiers,
   varianteStatut,
   libellePoste,
+  libelleCompletPoste,
   libelleExperience,
   varianteExperience,
   infoBulleStatut,
@@ -309,8 +312,12 @@ export default function DossierList({
                     bureau ET hôtel (voir BlocDisponibilites.jsx, cases indépendantes). */}
                 <div className="dossier-list__postes">
                   {[...(dossier.postesBureau ?? []), ...(dossier.postesHotel ?? [])].map((code) => (
-                    <span key={code} className="dossier-list__badge-poste">
-                      {libellePoste ? libellePoste(code) : code}
+                    <span
+                      key={code}
+                      className="dossier-list__badge-poste"
+                      title={libelleCompletPoste ? libelleCompletPoste(code) : undefined}
+                    >
+                      {libellePoste ? libellePoste(code, dossier) : code}
                     </span>
                   ))}
                 </div>

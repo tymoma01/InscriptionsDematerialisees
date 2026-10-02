@@ -19,7 +19,7 @@ import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificati
 import ModaleDisponibiliteEmbauche from './ModaleDisponibiliteEmbauche';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import api from '../../services/api';
-import { libellePoste } from '../../core/referentiels/postes';
+import { abreviationPoste, libellePoste } from '../../core/referentiels/postes';
 import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import {
   SEUIL_SELECTION_ACTIONS_GROUPEES,
@@ -814,7 +814,8 @@ export default function TableauDeBordAccueil({ vue = null }) {
           <DossierList
             dossiers={dossiersFiltres}
             varianteStatut={varianteStatut}
-            libellePoste={libellePoste}
+            libellePoste={(code, dossier) => abreviationPoste(code, dossier.candidat_civilite)}
+            libelleCompletPoste={libellePoste}
             libelleExperience={libelleExperience}
             varianteExperience={varianteExperience}
             infoBulleStatut={infoBulleStatut}
