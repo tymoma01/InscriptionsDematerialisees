@@ -149,3 +149,21 @@
   background-color: var(--urgence-rouge-fond);
   border-color: var(--urgence-rouge-fond);
 }
+
+/* Colonne « Étudiant » (Dossiers candidats) et ligne « Étudiant » des informations d'inscription
+   (core/dossier/BadgeEtudiant.jsx) — aucune couleur nouvelle : jetons existants de variables.css.
+   Étudiant : bleu-gris doux (--statut-bleu-gris-*, seulement utilisé par le statut DPAE « En
+   attente », jamais affiché sur Dossiers candidats), distinct des statuts de dossier et des
+   pastilles d'expérience de la même ligne. Non étudiant : même gris neutre que « Pas
+   d'expérience » (--experience-aucune-*). */
+.statut-badge--etudiant {
+  background-color: var(--statut-bleu-gris-fond);
+  color: var(--statut-bleu-gris-texte);
+  border-color: var(--statut-bleu-gris-bordure);
+}
+
+.statut-badge--non-etudiant {
+  background-color: var(--experience-aucune-fond);
+  color: var(--experience-aucune-texte);
+  border-color: var(--experience-aucune-bordure);
+}

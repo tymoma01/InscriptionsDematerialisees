@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
+import BadgeEtudiant from './BadgeEtudiant';
 import IndicateurDefilementHorizontal from '../backOffice/IndicateurDefilementHorizontal';
 import './DossierList.css';
 
@@ -53,8 +54,9 @@ const COLONNES_MASQUEES = new Set(['date_maj']);
 // stable ne doit pas dépendre d'un prop optionnel qui pourrait être absent.
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
-  // Colonne « Étudiant » (2026-10-01, dossiers.est_etudiant) juste après « Candidat » : « ÉTUDIANT »,
-  // « NON ÉTUDIANT », ou « — » pour un dossier sans réponse (antérieur à la question).
+  // Colonne « Étudiant » (2026-10-01, dossiers.est_etudiant) juste après « Candidat » : pastille
+  // « Étudiant » / « Non étudiant » (BadgeEtudiant.jsx, même forme que la colonne « Expérience »),
+  // ou « — » en texte simple pour un dossier sans réponse (antérieur à la question).
   {
     cle: 'est_etudiant',
     libelle: 'Étudiant',
@@ -298,7 +300,7 @@ export default function DossierList({
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
               <td className="dossier-list__colonne-etudiant">
-                {dossier.est_etudiant === true ? 'ÉTUDIANT' : dossier.est_etudiant === false ? 'NON ÉTUDIANT' : '—'}
+                <BadgeEtudiant estEtudiant={dossier.est_etudiant} />
               </td>
               <td>{dossier.candidat_code_postal || '-'}</td>
               <td>{dossier.candidat_telephone}</td>

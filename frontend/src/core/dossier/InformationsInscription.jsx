@@ -5,6 +5,7 @@ import { useSession } from '../auth/useSession';
 import { useRafraichissementAuto } from './useRafraichissementAuto';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import StatutBadge from '../workflow/StatutBadge';
+import BadgeEtudiant from './BadgeEtudiant';
 import { peut } from '../auth/permissions';
 import { LIBELLES_POSTE, POSTES_BUREAU, POSTES_HOTEL } from '../referentiels/postes';
 import {
@@ -457,11 +458,10 @@ export default function InformationsInscription({ dossierId }) {
                         }
                       />
                       <Ligne libelle="Type de poste recherché" valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)} />
-                      {/* « Êtes-vous étudiant ? » (2026-10-01, dossiers.est_etudiant) : « — » pour un dossier antérieur. */}
-                      <Ligne
-                        libelle="Étudiant"
-                        valeur={candidat?.estEtudiant === true ? 'Oui' : candidat?.estEtudiant === false ? 'Non' : '—'}
-                      />
+                      {/* « Êtes-vous étudiant ? » (dossiers.est_etudiant) : même pastille que la colonne
+                          « Étudiant » de Dossiers candidats (BadgeEtudiant.jsx), libellée « Oui »/« Non »
+                          à côté de l'intitulé ; « — » pour un dossier antérieur à la question. */}
+                      <Ligne libelle="Étudiant" valeur={<BadgeEtudiant estEtudiant={candidat?.estEtudiant} libelleOui="Oui" libelleNon="Non" />} />
                       <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
                       <Ligne libelle="Langues parlées" valeur={languesValeur} />
                       <Ligne libelle="Comment nous a connu" valeur={commentConnuValeur} />
