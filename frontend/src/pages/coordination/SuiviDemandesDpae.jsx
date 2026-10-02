@@ -9,6 +9,13 @@ import { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_CONSULTATION_TOUTES } from '../../core
 import { listerSuiviDemandes } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import {
+  ActionTelechargementPdfDpae,
+  CaseDemandeDpae,
+  CaseToutCocherDpae,
+  usePeutTelechargerPdfDpae,
+  useSelectionDemandesDpae,
+} from '../../core/dpae/TelechargementPdfDpae';
 import './SuiviDemandesDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -50,6 +57,10 @@ export default function SuiviDemandesDpae() {
 
   const peutFiltrer = ROLES_DPAE_CONSULTATION_TOUTES.includes(utilisateur?.roleCode);
   const peutCreer = ROLES_DPAE_DEMANDEUR.includes(utilisateur?.roleCode);
+  // Téléchargement PDF (2026-10-02) : cases à cocher et action groupée (ZIP), voir
+  // core/dpae/TelechargementPdfDpae.jsx.
+  const peutTelechargerPdf = usePeutTelechargerPdfDpae();
+  const selectionDemandes = useSelectionDemandesDpae(demandes);
 
   useEffect(() => {
     let annule = false;
@@ -113,10 +124,17 @@ export default function SuiviDemandesDpae() {
         {erreur && <p role="alert">{erreur}</p>}
         {!chargement && !erreur && demandes.length === 0 && <p>Aucune demande DPAE pour le moment.</p>}
 
+        {!chargement && demandes.length > 0 && peutTelechargerPdf && <ActionTelechargementPdfDpae selectionDemandes={selectionDemandes} />}
+
         {!chargement && demandes.length > 0 && (
           <table className="page-suivi-dpae__table">
             <thead>
               <tr>
+                {peutTelechargerPdf && (
+                  <th className="telechargement-pdf-dpae__colonne-case">
+                    <CaseToutCocherDpae selectionDemandes={selectionDemandes} />
+                  </th>
+                )}
                 <th>Date de la demande</th>
                 <th>Salarié</th>
                 <th>Site(s) d&rsquo;affectation</th>
@@ -138,6 +156,11 @@ export default function SuiviDemandesDpae() {
                   }}
                   aria-label={`Ouvrir la demande de ${demande.salarie_nom} ${demande.salarie_prenom}`}
                 >
+                  {peutTelechargerPdf && (
+                    <td className="telechargement-pdf-dpae__colonne-case">
+                      <CaseDemandeDpae selectionDemandes={selectionDemandes} demande={demande} />
+                    </td>
+                  )}
                   <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
                   <td>
                     {demande.salarie_nom} {demande.salarie_prenom}

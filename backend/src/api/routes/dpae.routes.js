@@ -1,8 +1,12 @@
 const { Router } = require('express');
 const { z } = require('zod');
+// archiver@8 : ESM pur, constructeur ZipArchive — même import que l'export ZIP des pièces
+// (pieces.routes.js, voir son commentaire).
+const { ZipArchive } = require('archiver');
 const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
 const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
 const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
+const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -210,6 +214,86 @@ router.get('/tableau-de-bord', requireRole(...ROLES_DPAE_TABLEAU_DE_BORD), async
   }
 });
 
+// Téléchargement PDF groupé (2026-10-02) : 50 demandes au plus par ZIP. Miroir côté front :
+// frontend/src/core/dpae/telechargementPdfDpae.js (même limite, pour prévenir avant l'envoi).
+const LIMITE_DEMANDES_PAR_ZIP = 50;
+const exportPdfBodySchema = z.object({
+  demandeIds: z.array(idPositifSchema).min(1, 'Sélectionnez au moins une demande.'),
+});
+
+// Date du jour (Paris) pour le nom du ZIP, sans "/" (interdit dans un nom de fichier) : JJ-MM-AAAA.
+function dateDuJourPourNomFichier(maintenant = new Date()) {
+  return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' })
+    .format(maintenant)
+    .replace(/\//g, '-');
+}
+
+// POST /api/dpae/export-pdf { demandeIds: [..] } — ZIP contenant un PDF par demande
+// (« DPAE <n°> - <NOM> <Prénom>.pdf »), nommé « Demandes DPAE - <date du jour>.zip ». MÊMES règles
+// d'accès que la fiche (GET /:id) : même garde de rôle (ROLES_DPAE_CONSULTATION) puis, pour CHAQUE
+// demande, entité courante et peutConsulterDemande (demandeDpaeService.obtenirDemandesPourExport).
+// Une seule demande hors périmètre -> 403 pour toute la requête, aucun ZIP (même partiel). Au-delà
+// de 50 demandes -> 400 avec un message explicite. Toutes les vérifications et tous les PDF sont
+// faits AVANT l'envoi des en-têtes : une erreur à ce stade donne une réponse d'erreur propre.
+// Tracé dans journal_audit comme l'export ZIP des pièces (pieces_justificatives_export_zip).
+router.post('/export-pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+  try {
+    const { demandeIds: demandeIdsRecus } = exportPdfBodySchema.parse(req.body);
+    // Un même identifiant envoyé deux fois ne produit qu'un fichier.
+    const demandeIds = [...new Set(demandeIdsRecus)];
+    if (demandeIds.length > LIMITE_DEMANDES_PAR_ZIP) {
+      return res.status(400).json({
+        erreur: `${demandeIds.length} demandes sélectionnées : le téléchargement est limité à ${LIMITE_DEMANDES_PAR_ZIP} demandes par fichier ZIP. Réduisez la sélection.`,
+      });
+    }
+
+    const demandes = await demandeDpaeService.obtenirDemandesPourExport(req.entite, demandeIds, {
+      roleCode: req.utilisateur.roleCode,
+      utilisateurId: req.utilisateur.id,
+    });
+
+    const dateGeneration = new Date();
+    const fichiers = [];
+    for (const demande of demandes) {
+      // eslint-disable-next-line no-await-in-loop
+      const contenu = await pdfDemandeDpae.genererPdfDemande(demande, { dateGeneration });
+      fichiers.push({ nom: pdfDemandeDpae.nomFichierPdf(demande), contenu });
+    }
+
+    res.attachment(`Demandes DPAE - ${dateDuJourPourNomFichier(dateGeneration)}.zip`);
+    res.type('application/zip');
+
+    const archive = new ZipArchive({ zlib: { level: 9 } });
+    // Même limite que l'export ZIP des pièces : une erreur de flux survient après l'envoi des
+    // en-têtes, on ne peut plus que couper la réponse.
+    archive.on('error', (erreur) => {
+      console.error('Échec de génération du ZIP des demandes DPAE :', erreur.message);
+      res.destroy();
+    });
+    archive.pipe(res);
+    for (const fichier of fichiers) archive.append(fichier.contenu, { name: fichier.nom });
+    await archive.finalize();
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'demandes_dpae_export_pdf_zip',
+      tableCible: 'demandes_dpae',
+      // 0 = sentinel « aucune cible unique » (plusieurs demandes), comme l'export ZIP des pièces.
+      cibleId: 0,
+      donnees: { demandeIds, nombreDemandes: demandeIds.length },
+      adresseIp: req.ip,
+    });
+  } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof demandeDpaeService.ErreurExportDemandesRefuse) {
+      return res.status(403).json({ erreur: erreur.message });
+    }
+    next(erreur);
+  }
+});
+
 // GET /api/dpae — file RH. ?statut=envoyee (défaut, file à traiter) ou ?statut=tous (historique
 // complet, traitées incluses).
 router.get('/', requireRole(...ROLES_DPAE_RH), async (req, res, next) => {
@@ -236,6 +320,44 @@ router.get('/:id', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, nex
     }
 
     res.json(demande);
+  } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+      return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// GET /api/dpae/:id/pdf (2026-10-02) — PDF de la fiche, « DPAE <n°> - <NOM> <Prénom>.pdf ».
+// EXACTEMENT les règles de GET /:id ci-dessus : même garde de rôle, demande d'une autre entité ->
+// 404, demande non consultable -> 403. Chaque téléchargement est tracé dans journal_audit (avant
+// l'envoi du fichier).
+router.get('/:id/pdf', requireRole(...ROLES_DPAE_CONSULTATION), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
+
+    if (!demandeDpaeService.peutConsulterDemande({ roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id, demande })) {
+      return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
+    }
+
+    const contenu = await pdfDemandeDpae.genererPdfDemande(demande);
+
+    const bd = await obtenirKnex();
+    await journalAudit.enregistrerAction(bd, {
+      utilisateurId: req.utilisateur.id,
+      entiteId: req.entite.id,
+      action: 'demande_dpae_export_pdf',
+      tableCible: 'demandes_dpae',
+      cibleId: id,
+      donnees: {},
+      adresseIp: req.ip,
+    });
+
+    res.attachment(pdfDemandeDpae.nomFichierPdf(demande));
+    res.type('application/pdf');
+    res.send(contenu);
   } catch (erreur) {
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
@@ -399,3 +521,6 @@ module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
 // Motif de mise en attente et note exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.miseEnAttenteBodySchema = miseEnAttenteBodySchema;
 module.exports.noteBodySchema = noteBodySchema;
+// Export PDF (2026-10-02) : limite et nom du ZIP exposés pour dpae.routes.test.js.
+module.exports.LIMITE_DEMANDES_PAR_ZIP = LIMITE_DEMANDES_PAR_ZIP;
+module.exports.dateDuJourPourNomFichier = dateDuJourPourNomFichier;

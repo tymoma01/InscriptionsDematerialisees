@@ -32,6 +32,18 @@ export async function obtenirDemande(demandeId) {
   return data;
 }
 
+// Téléchargement PDF (2026-10-02) — PDF généré côté serveur. Réponse axios complète (pas seulement
+// data) : le nom du fichier vient de l'en-tête Content-Disposition. Enregistrement et messages
+// d'erreur : core/dpae/TelechargementPdfDpae.jsx.
+export function telechargerPdfDemande(demandeId) {
+  return api.get(`/dpae/${demandeId}/pdf`, { responseType: 'blob' });
+}
+
+// ZIP d'un PDF par demande — 50 demandes au plus (refusé au-delà par le serveur, 400).
+export function telechargerPdfDemandes(demandeIds) {
+  return api.post('/dpae/export-pdf', { demandeIds }, { responseType: 'blob' });
+}
+
 export async function validerDemande(demandeId) {
   await api.patch(`/dpae/${demandeId}/valider`);
 }

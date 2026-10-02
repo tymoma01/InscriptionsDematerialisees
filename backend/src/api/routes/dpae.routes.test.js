@@ -382,3 +382,226 @@ test('Notes d’une demande d’une autre entité : 404 en lecture comme en ajou
   assert.equal(ajout.res.statut, 404);
   assert.equal(auditMock.mock.calls.length, 0);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Téléchargement PDF (2026-10-02) — GET /:id/pdf (une demande) et POST /export-pdf (ZIP). Mêmes
+// règles d'accès que la fiche GET /:id ; journal_audit comme l'export ZIP des pièces.
+// ---------------------------------------------------------------------------------------------
+const { PassThrough } = require('node:stream');
+const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
+
+const ROLES_CONSULTATION_DPAE = ['admin', 'rh', 'planning', 'inspecteur_hotellerie'];
+const ROLES_SANS_DPAE = ['accueil_coordination', 'formateur', 'inspecteur'];
+
+function demandeFiche(id, surcharges = {}) {
+  return {
+    id,
+    statut: 'envoyee',
+    type_demande: 'nouvelle_embauche',
+    salarie_nom: `NOM${id}`,
+    salarie_prenom: 'Léa',
+    salarie_deja_employe: false,
+    date_creation: new Date('2026-09-30T12:34:07Z'),
+    demandeur_id: 9,
+    demandeur_nom: 'Durand',
+    demandeur_prenom: 'Paul',
+    sites_affectation: [{ id: 51, nom: 'MONGE', initiales: 'MG' }],
+    ...surcharges,
+  };
+}
+
+// Réponse factice qui est aussi un flux (le ZIP y est « pipé ») : en-têtes et corps enregistrés.
+function reponseTelechargement() {
+  const res = new PassThrough();
+  const morceaux = [];
+  res.on('data', (morceau) => morceaux.push(morceau));
+  res.termine = new Promise((resoudre) => res.on('end', resoudre));
+  Object.assign(res, { statut: 200, corps: null, nomFichier: null, typeContenu: null });
+  res.status = (code) => {
+    res.statut = code;
+    return res;
+  };
+  res.json = (corps) => {
+    res.corps = corps;
+    return res;
+  };
+  res.attachment = (nom) => {
+    res.nomFichier = nom;
+    return res;
+  };
+  res.type = (type) => {
+    res.typeContenu = type;
+    return res;
+  };
+  res.send = (contenu) => {
+    res.end(contenu);
+    return res;
+  };
+  res.contenu = () => Buffer.concat(morceaux);
+  return res;
+}
+
+async function telecharger(methode, chemin, { params = {}, body, roleCode = 'rh', utilisateurId = 9 }) {
+  const res = reponseTelechargement();
+  let erreurTransmise = null;
+  await gestionnaireRoute(methode, chemin)(
+    { params, body, entite: { id: 1, code: 'accecit' }, utilisateur: { id: utilisateurId, roleCode }, ip: '127.0.0.1' },
+    res,
+    (erreur) => {
+      erreurTransmise = erreur;
+    },
+  );
+  return { res, erreurTransmise };
+}
+
+// Noms des fichiers d'une archive ZIP, lus dans son répertoire central (aucune dépendance de
+// décompression dans ce projet).
+function nomsEntreesZip(zip) {
+  const finRepertoire = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const nombre = zip.readUInt16LE(finRepertoire + 10);
+  let position = zip.readUInt32LE(finRepertoire + 16);
+  const noms = [];
+  for (let i = 0; i < nombre; i += 1) {
+    const longueurNom = zip.readUInt16LE(position + 28);
+    noms.push(zip.subarray(position + 46, position + 46 + longueurNom).toString('utf8'));
+    position += 46 + longueurNom + zip.readUInt16LE(position + 30) + zip.readUInt16LE(position + 32);
+  }
+  return noms;
+}
+
+test('Téléchargement PDF (fiche et ZIP) : Admin, RH, Planning, Inspecteur Hôtellerie autorisés ; tout autre rôle -> 403', () => {
+  for (const [methode, chemin] of [['get', '/:id/pdf'], ['post', '/export-pdf']]) {
+    for (const roleCode of ROLES_CONSULTATION_DPAE) {
+      assert.equal(executerGarde(gardeRoute(methode, chemin), roleCode).autorise, true, `${roleCode} ${chemin}`);
+    }
+    for (const roleCode of ROLES_SANS_DPAE) {
+      assert.deepEqual(executerGarde(gardeRoute(methode, chemin), roleCode), { autorise: false, statut: 403 }, `${roleCode} ${chemin}`);
+    }
+  }
+});
+
+test('Téléchargement PDF : mêmes rôles que la fiche GET /:id (garde identique)', () => {
+  for (const roleCode of [...ROLES_CONSULTATION_DPAE, ...ROLES_SANS_DPAE]) {
+    const fiche = executerGarde(gardeRoute('get', '/:id'), roleCode).autorise;
+    assert.equal(executerGarde(gardeRoute('get', '/:id/pdf'), roleCode).autorise, fiche, roleCode);
+    assert.equal(executerGarde(gardeRoute('post', '/export-pdf'), roleCode).autorise, fiche, roleCode);
+  }
+});
+
+test('GET /:id/pdf autorisé : PDF « DPAE <n°> - <NOM> <Prénom>.pdf », téléchargement tracé dans journal_audit', async (t) => {
+  const audit = mockerAudit(t);
+  t.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) => demandeFiche(id));
+  for (const roleCode of ROLES_CONSULTATION_DPAE) {
+    audit.mock.resetCalls();
+    const { res, erreurTransmise } = await telecharger('get', '/:id/pdf', { params: { id: '36' }, roleCode, utilisateurId: 4 });
+    assert.equal(erreurTransmise, null);
+    assert.equal(res.statut, 200, roleCode);
+    assert.equal(res.typeContenu, 'application/pdf');
+    assert.equal(res.nomFichier, 'DPAE 36 - NOM36 Léa.pdf');
+    await res.termine;
+    assert.equal(res.contenu().subarray(0, 5).toString(), '%PDF-');
+    assert.equal(audit.mock.callCount(), 1);
+    assert.deepEqual(audit.mock.calls[0].arguments[1], {
+      utilisateurId: 4,
+      entiteId: 1,
+      action: 'demande_dpae_export_pdf',
+      tableCible: 'demandes_dpae',
+      cibleId: 36,
+      donnees: {},
+      adresseIp: '127.0.0.1',
+    });
+  }
+});
+
+test('GET /:id/pdf hors périmètre : demande non consultable -> 403, demande d’une autre entité -> 404 (comme la fiche) ; aucun PDF, rien de tracé', async (t) => {
+  const audit = mockerAudit(t);
+  const generation = t.mock.method(pdfDemandeDpae, 'genererPdfDemande');
+  t.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) => demandeFiche(id));
+  t.mock.method(demandeDpaeService, 'peutConsulterDemande', () => false);
+  const refuse = await telecharger('get', '/:id/pdf', { params: { id: '36' } });
+  assert.equal(refuse.res.statut, 403);
+  assert.equal(refuse.res.nomFichier, null);
+
+  demandeDpaeService.obtenirDemande.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurDemandeIntrouvable('Demande DPAE "36" introuvable.');
+  });
+  const autreEntite = await telecharger('get', '/:id/pdf', { params: { id: '36' } });
+  assert.equal(autreEntite.res.statut, 404);
+  assert.equal(autreEntite.res.nomFichier, null);
+
+  assert.equal(generation.mock.callCount(), 0);
+  assert.equal(audit.mock.callCount(), 0);
+});
+
+test('POST /export-pdf : ZIP « Demandes DPAE - <date du jour>.zip », un PDF par demande, téléchargement tracé', async (t) => {
+  const audit = mockerAudit(t);
+  t.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) =>
+    demandeFiche(id, id === 40 ? { salarie_nom: 'AB/CD', salarie_prenom: 'Éva' } : {}),
+  );
+  const { res, erreurTransmise } = await telecharger('post', '/export-pdf', { body: { demandeIds: [36, 40, 36, 41] }, roleCode: 'planning' });
+  await res.termine;
+  assert.equal(erreurTransmise, null);
+  assert.equal(res.statut, 200);
+  assert.equal(res.typeContenu, 'application/zip');
+  assert.equal(res.nomFichier, `Demandes DPAE - ${dpaeRouter.dateDuJourPourNomFichier(new Date())}.zip`);
+  assert.match(res.nomFichier, /^Demandes DPAE - \d{2}-\d{2}-\d{4}\.zip$/);
+  // Doublon (36) ignoré ; « / » d'un nom remplacé comme dans l'export ZIP des pièces.
+  assert.deepEqual(nomsEntreesZip(res.contenu()), ['DPAE 36 - NOM36 Léa.pdf', 'DPAE 40 - AB-CD Éva.pdf', 'DPAE 41 - NOM41 Léa.pdf']);
+  assert.equal(audit.mock.callCount(), 1);
+  assert.deepEqual(audit.mock.calls[0].arguments[1], {
+    utilisateurId: 9,
+    entiteId: 1,
+    action: 'demandes_dpae_export_pdf_zip',
+    tableCible: 'demandes_dpae',
+    cibleId: 0,
+    donnees: { demandeIds: [36, 40, 41], nombreDemandes: 3 },
+    adresseIp: '127.0.0.1',
+  });
+});
+
+test('POST /export-pdf : une seule demande hors périmètre (autre entité, ou non consultable) -> 403 pour toute la requête, aucun ZIP, rien de tracé', async (t) => {
+  const audit = mockerAudit(t);
+  const generation = t.mock.method(pdfDemandeDpae, 'genererPdfDemande');
+  t.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) => {
+    if (id === 99) throw new demandeDpaeService.ErreurDemandeIntrouvable(`Demande DPAE "${id}" introuvable.`);
+    return demandeFiche(id);
+  });
+  const autreEntite = await telecharger('post', '/export-pdf', { body: { demandeIds: [36, 99, 41] } });
+  assert.equal(autreEntite.res.statut, 403);
+  assert.match(autreEntite.res.corps.erreur, /n° 99 hors de votre périmètre/);
+  assert.equal(autreEntite.res.nomFichier, null);
+  assert.equal(autreEntite.res.contenu().length, 0);
+
+  t.mock.method(demandeDpaeService, 'peutConsulterDemande', ({ demande }) => demande.id !== 41);
+  const nonConsultable = await telecharger('post', '/export-pdf', { body: { demandeIds: [36, 41] } });
+  assert.equal(nonConsultable.res.statut, 403);
+  assert.equal(nonConsultable.res.nomFichier, null);
+
+  assert.equal(generation.mock.callCount(), 0);
+  assert.equal(audit.mock.callCount(), 0);
+});
+
+test('POST /export-pdf : au-delà de 50 demandes -> 400 avec un message clair ; 50 acceptées ; liste vide refusée', async (t) => {
+  const audit = mockerAudit(t);
+  const service = t.mock.method(demandeDpaeService, 'obtenirDemandesPourExport', async (_entite, ids) => ids.map((id) => demandeFiche(id)));
+  t.mock.method(pdfDemandeDpae, 'genererPdfDemande', async () => Buffer.from('%PDF-1.3'));
+  assert.equal(dpaeRouter.LIMITE_DEMANDES_PAR_ZIP, 50);
+  const ids = (n) => Array.from({ length: n }, (_, i) => i + 1);
+
+  const tropNombreuses = await telecharger('post', '/export-pdf', { body: { demandeIds: ids(51) } });
+  assert.equal(tropNombreuses.res.statut, 400);
+  assert.equal(
+    tropNombreuses.res.corps.erreur,
+    '51 demandes sélectionnées : le téléchargement est limité à 50 demandes par fichier ZIP. Réduisez la sélection.',
+  );
+  assert.equal(service.mock.callCount(), 0);
+  assert.equal(tropNombreuses.res.nomFichier, null);
+
+  const cinquante = await telecharger('post', '/export-pdf', { body: { demandeIds: ids(50) } });
+  await cinquante.res.termine;
+  assert.equal(nomsEntreesZip(cinquante.res.contenu()).length, 50);
+
+  const vide = await telecharger('post', '/export-pdf', { body: { demandeIds: [] } });
+  assert.equal(vide.res.statut, 400);
+  assert.equal(audit.mock.callCount(), 1);
+});
