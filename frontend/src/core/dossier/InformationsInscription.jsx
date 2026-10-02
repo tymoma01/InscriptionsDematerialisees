@@ -6,6 +6,8 @@ import { useRafraichissementAuto } from './useRafraichissementAuto';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import StatutBadge from '../workflow/StatutBadge';
 import { ROLES_ACCUEIL, ROLES_CONSULTATION_PIECES } from '../auth/rolesGroupes';
+import { typesPiecesConfigAccecitTest } from '../pieceJustificative/donneesTest/typesPiecesConfig.accecit';
+import { ordonnerPiecesRecues } from '../pieceJustificative/ordrePiecesRecues';
 import './InformationsInscription.css';
 
 // Code de type de pièce (voir typesPiecesConfig.accecit.js, backend/scripts/seedTypesPieces.js)
@@ -327,7 +329,11 @@ function BadgePositifNeutre({ positif, libellePositif, libelleNeutre }) {
 //
 // dossierId reçu en prop, pas de useParams() ici : ce composant ne connaît rien du routage, même
 // patron que HistoriqueRelances.jsx — à l'appelant de le lire depuis le paramètre de route.
-export default function InformationsInscription({ dossierId }) {
+//
+// typesPieces (2026-10-02) : ordre et libellés du bloc « Pièces jointes », MÊME configuration que le
+// bloc « Pièces justificatives » (CaptureTablette.jsx via VerificationPieces.jsx) ; par défaut celle
+// d'ACCECIT, une autre entité peut passer la sienne.
+export default function InformationsInscription({ dossierId, typesPieces = typesPiecesConfigAccecitTest }) {
   const { utilisateur } = useSession();
   const [inscription, setInscription] = useState(null);
   const [pieces, setPieces] = useState([]);
@@ -1118,13 +1124,21 @@ export default function InformationsInscription({ dossierId }) {
                   // des cellules indépendantes par ligne — c'est ce qui garantit que
                   // statut/date/Voir tombent exactement à la même position horizontale sur TOUTES
                   // les lignes, y compris quand un nom de pièce est plus long que les autres.
+                  // Ordre et libellés du bloc « Pièces justificatives » (2026-10-02, voir
+                  // core/pieceJustificative/ordrePiecesRecues.js) : verso en retrait juste sous sa
+                  // pièce, « Autres documents » à la fin dans leur ordre de réception. Toujours une
+                  // ligne par pièce reçue (compteur ci-dessus inchangé).
                   <ul className="informations-inscription__pieces">
-                    {pieces.map((piece) => (
+                    {ordonnerPiecesRecues(pieces, typesPieces).map(({ piece, libelle, libelleApercu, verso }) => (
                       <li key={piece.id} className="informations-inscription__piece">
                         {/* Pas de troncature : un nom long (ex. "Carte d'identité ou Carte de
                             séjour") passe à la ligne plutôt que d'être coupé (white-space:
                             normal côté .css, voir son commentaire). */}
-                        <span className="informations-inscription__piece-nom">{piece.type_piece_libelle}</span>
+                        <span
+                          className={`informations-inscription__piece-nom${verso ? ' informations-inscription__piece-nom--verso' : ''}`}
+                        >
+                          {libelle}
+                        </span>
                         <span className="informations-inscription__piece-date">{formaterDate(piece.date_upload)}</span>
                         <span className="informations-inscription__piece-statut">
                           <StatutBadge
@@ -1140,7 +1154,7 @@ export default function InformationsInscription({ dossierId }) {
                         <button
                           type="button"
                           className="informations-inscription__piece-action"
-                          onClick={() => setPieceEnApercu(piece)}
+                          onClick={() => setPieceEnApercu({ ...piece, libelleApercu })}
                         >
                           Voir
                         </button>
@@ -1152,7 +1166,7 @@ export default function InformationsInscription({ dossierId }) {
                 {pieceEnApercu && (
                   <PanneauApercuPiece
                     dossierId={dossierId}
-                    libelle={pieceEnApercu.type_piece_libelle}
+                    libelle={pieceEnApercu.libelleApercu ?? pieceEnApercu.type_piece_libelle}
                     piece={pieceEnApercu}
                     onFermer={() => setPieceEnApercu(null)}
                   />

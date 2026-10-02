@@ -518,3 +518,10 @@
   font-size: 0.85rem;
   text-align: right;
 }
+
+/* Verso (2026-10-02) : affiché juste sous sa pièce (carte d'identité), en retrait, comme dans le
+   bloc « Pièces justificatives ». */
+.informations-inscription__piece-nom--verso {
+  padding-left: 1.25rem;
+  color: var(--couleur-texte-secondaire);
+}
