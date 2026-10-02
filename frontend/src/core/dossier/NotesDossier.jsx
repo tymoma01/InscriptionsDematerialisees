@@ -37,6 +37,9 @@ export default function NotesDossier({
   ajouter = ajouterNoteDossier,
   texteAucuneNote = 'Aucune note enregistrée pour ce dossier.',
   texteErreurChargement = 'Impossible de récupérer les notes de ce dossier.',
+  // Lecture seule (2026-10-01, rôle Inspecteur Hôtellerie) : notes affichées, formulaire d'ajout masqué
+  // (l'ajout lui est de toute façon refusé côté serveur).
+  lectureSeule = false,
 }) {
   const { utilisateur, chargement: chargementSession } = useSession();
 
@@ -125,6 +128,7 @@ export default function NotesDossier({
         </ul>
       )}
 
+      {!lectureSeule && (
       <form className="notes-dossier__formulaire" onSubmit={gererEnvoi}>
         <label>
           <span>Ajouter une note</span>
@@ -142,6 +146,7 @@ export default function NotesDossier({
           {envoiEnCours ? 'Enregistrement...' : 'Ajouter une note'}
         </button>
       </form>
+      )}
     </section>
   );
 }

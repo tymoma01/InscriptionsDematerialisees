@@ -325,7 +325,7 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
                     <div className="modale-replanification-groupee__champs">
                       <label>
                         <span>
-                          Formateur / Inspecteur <span className="champ-obligatoire">*</span>
+                          Formateur <span className="champ-obligatoire">*</span>
                         </span>
                         <select
                           value={ligne.formateurId}
@@ -349,7 +349,7 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
                           <option value="">-</option>
                           {formateurs.map((formateur) => (
                             <option key={formateur.id} value={formateur.id}>
-                              {formateur.prenom} {formateur.nom} ({formateur.role_code === 'inspecteur' ? 'Inspecteur' : 'Formateur'})
+                              {formateur.prenom} {formateur.nom} ({formateur.role_code === 'inspecteur' ? 'Formateur Tertiaire' : 'Formateur Hôtellerie'})
                             </option>
                           ))}
                         </select>
@@ -444,7 +444,7 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
                     )}
 
                     <label className="modale-replanification-groupee__note">
-                      <span>Note pour le formateur/inspecteur (optionnel)</span>
+                      <span>Note pour le formateur (optionnel)</span>
                       <textarea
                         value={ligne.notePlanification}
                         onChange={(evenement) => modifierLigne(ligne.dossierId, { notePlanification: evenement.target.value })}
@@ -459,7 +459,7 @@ export default function ModaleReplanificationGroupee({ dossiers, dossiersExclus 
             </ul>
 
             {lieux.length === 0 && <p role="alert">Aucun lieu configuré pour cette entité — impossible de replanifier.</p>}
-            {formateurs.length === 0 && <p role="alert">Aucun formateur ni inspecteur disponible pour cette entité.</p>}
+            {formateurs.length === 0 && <p role="alert">Aucun formateur disponible pour cette entité.</p>}
 
             {soumissionTerminee && (
               <p role="status" className={toutReussi ? 'modale-replanification-groupee__resume-succes' : 'modale-replanification-groupee__resume-echec'}>

@@ -105,6 +105,9 @@ const donneesInscriptionSchema = z
     email: z.string().trim().email(),
     contactUrgenceNom: z.string().trim().min(1).regex(NOM_REGEX),
     contactUrgenceTelephone: z.string().trim().regex(TELEPHONE_REGEX),
+    // « Êtes-vous étudiant ? » (2026-10-01) : OBLIGATOIRE pour toute nouvelle inscription — absente ou
+    // non booléenne -> refus explicite (400, message ci-dessous). Stockée sur dossiers.est_etudiant.
+    estEtudiant: z.boolean({ error: 'Veuillez indiquer si vous êtes étudiant.' }),
     disponibiliteImmediate: z.boolean(),
     dateDebut: z.string().trim().optional().default(''),
     dateFin: z.string().trim().optional().default(''),
@@ -323,6 +326,7 @@ async function inscrireCandidat(entite, donneesBrutes) {
       candidatId,
       entiteId: entite.id,
       statutId: statutInitial.id,
+      estEtudiant: donnees.estEtudiant,
     });
 
     await dossierRepository.enregistrerDonneesBloc(trx, {
@@ -536,9 +540,9 @@ function calculerDisponibiliteEffective(donneesDeclarees, correction) {
 // voir dossiers.routes.js) : optionnel, filtrage SERVEUR (voir dossierRepository.listerDossiers)
 // — sert de date ponctuelle ("qui est disponible à cette date"), pas de borne basse d'une plage
 // ouverte.
-async function listerDossiers(entite, { statutCode, dispoDebut } = {}) {
+async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null } = {}) {
   const bd = await obtenirKnex();
-  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut });
+  const dossiers = await dossierRepository.listerDossiers(bd, entite.id, { statutCode, dispoDebut, perimetre });
   return dossiers.map(
     ({
       donnees_disponibilites,

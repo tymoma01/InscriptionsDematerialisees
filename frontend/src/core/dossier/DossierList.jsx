@@ -53,6 +53,13 @@ const COLONNES_MASQUEES = new Set(['date_maj']);
 // stable ne doit pas dépendre d'un prop optionnel qui pourrait être absent.
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
+  // Colonne « Étudiant » (2026-10-01, dossiers.est_etudiant) juste après « Candidat » : « ÉTUDIANT »,
+  // « NON ÉTUDIANT », ou « — » pour un dossier sans réponse (antérieur à la question).
+  {
+    cle: 'est_etudiant',
+    libelle: 'Étudiant',
+    extraire: (dossier) => (dossier.est_etudiant === true ? 2 : dossier.est_etudiant === false ? 1 : 0),
+  },
   // Colonne "Code postal" (audit 2026-09-09) — même patron que "Téléphone"/"Email" juste
   // au-dessous (extrait du bloc 'coordonnees', voir dossierService.listerDossiers), positionnée
   // juste après "Candidat" (avant "Téléphone", décision utilisateur).
@@ -236,6 +243,7 @@ export default function DossierList({
               // qu'un enchaînement de ternaires.
               const classeColonne = {
                 candidat_nom: 'dossier-list__colonne-figee',
+                est_etudiant: 'dossier-list__colonne-etudiant',
                 candidat_email: 'dossier-list__colonne-email',
                 postes: 'dossier-list__colonne-poste',
                 statut_libelle: 'dossier-list__colonne-statut',
@@ -288,6 +296,9 @@ export default function DossierList({
               <td className="dossier-list__colonne-numero">{dossier.id}</td>
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
+              </td>
+              <td className="dossier-list__colonne-etudiant">
+                {dossier.est_etudiant === true ? 'ÉTUDIANT' : dossier.est_etudiant === false ? 'NON ÉTUDIANT' : '—'}
               </td>
               <td>{dossier.candidat_code_postal || '-'}</td>
               <td>{dossier.candidat_telephone}</td>

@@ -18,6 +18,7 @@ const evaluationsRoutes = require('./api/routes/evaluations.routes');
 const utilisateursRoutes = require('./api/routes/utilisateurs.routes');
 const moiRoutes = require('./api/routes/moi.routes');
 const formateursRoutes = require('./api/routes/formateurs.routes');
+const { verifierPerimetreDossier } = require('./core/auth/perimetreDossiers');
 const lieuxRoutes = require('./api/routes/lieux.routes');
 const statistiquesRoutes = require('./api/routes/statistiques.routes');
 const dpaeRoutes = require('./api/routes/dpae.routes');
@@ -105,6 +106,10 @@ async function creerApp() {
   app.use('/api', await creerMiddlewareSession());
 
   app.use('/api/auth', authRoutes);
+  // Périmètre de dossiers par rôle (2026-10-01, rôle Inspecteur Hôtellerie, voir
+  // core/auth/perimetreDossiers.js) : monté AVANT tous les routeurs /api/dossiers/:dossierId/…
+  // pour couvrir chaque route d'un dossier précis, y compris les futures — hors périmètre : 404.
+  app.use('/api/dossiers/:dossierId', verifierPerimetreDossier);
   app.use('/api/candidats', candidatsRoutes);
   // Vue centralisée des dossiers (liste + statuts, voir dossiers.routes.js) — monté avant le
   // routeur pièces justificatives ci-dessous, qui vit sur un sous-chemin plus spécifique.

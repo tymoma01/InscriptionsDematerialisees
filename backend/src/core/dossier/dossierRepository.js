@@ -68,9 +68,11 @@ function trouverStatutInitial(trx, entiteId) {
   return trx('statuts').where({ entite_id: entiteId, est_initial: true }).first();
 }
 
-async function creerDossier(trx, { candidatId, entiteId, statutId }) {
+// estEtudiant (2026-10-01, migration 074) : réponse à « Êtes-vous étudiant ? » ; null si non fournie
+// (appelants hors inscription, ex. scripts de données de test).
+async function creerDossier(trx, { candidatId, entiteId, statutId, estEtudiant = null }) {
   const [dossier] = await trx('dossiers')
-    .insert({ candidat_id: candidatId, entite_id: entiteId, statut_id: statutId })
+    .insert({ candidat_id: candidatId, entite_id: entiteId, statut_id: statutId, est_etudiant: estEtudiant })
     .returning('id');
   return dossier.id;
 }
@@ -281,7 +283,9 @@ function mettreAJourDateEmbauche(trx, { dossierId, dateEmbauche }) {
 // paramètre dédié plutôt qu'une réutilisation de statutCode. Filtrage EN SQL (pas client,
 // contrairement au reste des filtres de cette page, voir TableauDeBordAccueil.jsx) : demande
 // utilisateur explicite.
-function listerDossiers(bd, entiteId, { statutCode, dispoDebut } = {}) {
+// `perimetre` (2026-10-01, core/auth/perimetreDossiers.js) : { typePoste, statutsCodes } pour un rôle
+// à périmètre restreint (Inspecteur Hôtellerie) — filtre appliqué EN BASE ; null = aucun filtre.
+function listerDossiers(bd, entiteId, { statutCode, dispoDebut, perimetre = null } = {}) {
   const requete = bd('dossiers')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
     .join('statuts', 'statuts.id', 'dossiers.statut_id')
@@ -338,6 +342,8 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut } = {}) {
       'statuts.code as statut_code',
       'statuts.libelle as statut_libelle',
       'statuts.est_final as statut_est_final',
+      // « Êtes-vous étudiant ? » (2026-10-01, migration 074) : null si non renseigné.
+      'dossiers.est_etudiant',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'bloc_coordonnees.donnees as donnees_coordonnees',
       'rendezvous_actif.date_heure as rendezvous_test_date_heure',
@@ -358,6 +364,10 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut } = {}) {
     )
     .orderBy('dossiers.date_maj', 'desc');
 
+  if (perimetre) {
+    requete.whereIn('statuts.code', perimetre.statutsCodes);
+    requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [perimetre.typePoste]);
+  }
   if (statutCode) {
     requete.andWhere('statuts.code', statutCode);
   }
@@ -831,6 +841,8 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'statuts.code as statut_code',
       'statuts.libelle as statut_libelle',
       'statuts.est_final as statut_est_final',
+      // « Êtes-vous étudiant ? » (2026-10-01, migration 074) : null si non renseigné.
+      'dossiers.est_etudiant',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'dates_test_planifie.date_test_planifie',
       // Source de la ligne "Test planifié" affichée (voir le commentaire du LEFT JOIN ci-dessus) —
@@ -898,6 +910,8 @@ async function trouverInscriptionCompleteParDossierId(bd, entiteId, dossierId) {
       'candidats.situation_familiale as situationFamiliale',
       'candidats.email',
       'candidats.date_creation as dateInscription',
+      // « Êtes-vous étudiant ? » (migration 074) : true/false, ou null pour un dossier antérieur.
+      'dossiers.est_etudiant as estEtudiant',
     )
     .first();
   if (!candidat) return undefined;

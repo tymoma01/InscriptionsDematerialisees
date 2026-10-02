@@ -211,7 +211,7 @@ async function verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCo
   if (roleCode === ROLES.INSPECTEUR) {
     const { typePoste } = await evaluationRepository.trouverPostesDossier(bd, rendezvous.dossier_id);
     if (typePoste === 'hotel') {
-      throw new Error('Ce rendez-vous concerne le secteur Hôtel, réservé aux Formateurs.');
+      throw new Error('Ce rendez-vous concerne le secteur Hôtel, réservé aux Formateurs Hôtellerie.');
     }
   }
 }
@@ -644,7 +644,7 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
   if (!estProprietaire && roleCode === ROLES.INSPECTEUR) {
     const { typePoste } = await evaluationRepository.trouverPostesDossier(bd, evaluation.dossier_id);
     if (typePoste === 'hotel') {
-      throw new Error('Cette évaluation concerne le secteur Hôtel, réservé aux Formateurs.');
+      throw new Error('Cette évaluation concerne le secteur Hôtel, réservé aux Formateurs Hôtellerie.');
     }
   }
 

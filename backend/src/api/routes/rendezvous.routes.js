@@ -38,7 +38,9 @@ const ROLES_GESTION_RENDEZVOUS = [...ROLES_ACCUEIL, ROLES.ADMIN];
 // présence/Marquer annulé restent masquées côté front pour eux, voir GestionRendezvous.jsx, et de
 // toute façon refusées ici côté serveur si contournées). "Marquer absent" n'existe plus du tout
 // sur cette route, pour aucun rôle (audit 2026-09-11) — voir statutBodySchema plus bas.
-const ROLES_LECTURE_RENDEZVOUS = [...ROLES_GESTION_RENDEZVOUS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+// Inspecteur Hôtellerie ajouté le 2026-10-01 : lecture seule (onglet Tests de la fiche), dans son
+// périmètre de dossiers (verifierPerimetreDossier, app.js) — aucune écriture (ROLES_GESTION_RENDEZVOUS).
+const ROLES_LECTURE_RENDEZVOUS = [...ROLES_GESTION_RENDEZVOUS, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.INSPECTEUR_HOTELLERIE];
 
 router.use(requireAuth);
 

@@ -10,13 +10,19 @@ import { construirePiecesCapturees, calculerPiecesObligatoiresCompletes } from '
 // jamais d'afficher la liste des pièces elle-même sur cet onglet, hors périmètre de la demande.
 // Fetch indépendant de celui de CaptureTablette.jsx (même patron que le reste de ce back-office,
 // voir CLAUDE.md conventions du projet : chaque écran recharge ses propres données).
-export function usePiecesObligatoiresCompletes(dossierId, typesPieces) {
+// `actif` (2026-10-01) : false -> aucune requête (rôle sans accès aux pièces, ex. Inspecteur
+// Hôtellerie) ; pièces considérées comme non chargées. Par défaut true : comportement inchangé.
+export function usePiecesObligatoiresCompletes(dossierId, typesPieces, { actif = true } = {}) {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [piecesCapturees, setPiecesCapturees] = useState(() => new Map());
 
   useEffect(() => {
     let annule = false;
+    if (!actif) {
+      setChargement(false);
+      return undefined;
+    }
     setChargement(true);
     setErreur(null);
     listerPiecesJustificatives(dossierId)
@@ -36,7 +42,7 @@ export function usePiecesObligatoiresCompletes(dossierId, typesPieces) {
     return () => {
       annule = true;
     };
-  }, [dossierId]);
+  }, [dossierId, actif]);
 
   const { nombrePiecesObligatoires, piecesObligatoiresCompletes } = calculerPiecesObligatoiresCompletes(
     piecesCapturees,

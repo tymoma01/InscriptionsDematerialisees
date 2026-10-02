@@ -567,12 +567,12 @@ async function creerRendezvous(
     const secteurDossier = posteBureauDossier.length > 0 ? 'bureau' : posteHotelDossier.length > 0 ? 'hotel' : null;
     if (secteurDossier === 'bureau' && formateur.role_code === ROLES.FORMATEUR) {
       throw new ErreurFormateurInvalide(
-        `Le dossier "${dossierId}" recherche un poste bureau — seul un inspecteur peut y être assigné, pas un formateur.`,
+        `Le dossier "${dossierId}" recherche un poste bureau — seul un Formateur Tertiaire peut y être assigné, pas un Formateur Hôtellerie.`,
       );
     }
     if (secteurDossier === 'hotel' && formateur.role_code === ROLES.INSPECTEUR) {
       throw new ErreurFormateurInvalide(
-        `Le dossier "${dossierId}" recherche un poste hôtel — seul un formateur peut y être assigné, pas un inspecteur.`,
+        `Le dossier "${dossierId}" recherche un poste hôtel — seul un Formateur Hôtellerie peut y être assigné, pas un Formateur Tertiaire.`,
       );
     }
 

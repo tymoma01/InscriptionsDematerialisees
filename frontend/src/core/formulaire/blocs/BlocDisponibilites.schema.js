@@ -22,6 +22,9 @@ const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 
 export const blocDisponibilitesSchema = z
   .object({
+    // « Êtes-vous étudiant ? » (2026-10-01) : obligatoire, aucun choix par défaut. Saisi en 'oui'/'non'
+    // (boutons radio), transmis au serveur en booléen `estEtudiant` (voir BlocDisponibilites.jsx).
+    reponseEtudiant: z.enum(['oui', 'non'], { required_error: 'La réponse à « Êtes-vous étudiant ? » est obligatoire' }),
     disponibiliteImmediate: z.boolean(),
     dateDebut: z.string().trim().optional().default(''),
     dateFin: z.string().trim().optional().default(''),

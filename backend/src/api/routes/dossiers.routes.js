@@ -15,6 +15,7 @@ const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { perimetreDossiersPourRequete } = require('../../core/auth/perimetreDossiers');
 
 // Monté sur '/api/dossiers' (voir app.js) — distinct du routeur pièces justificatives, monté
 // lui sur '/api/dossiers/:dossierId/pieces' (pieces.routes.js) : les deux coexistent sans
@@ -36,6 +37,12 @@ router.use(requireAuth);
 // dossiers (écran "Dossiers candidats"), pas seulement un dossier déjà identifié par ailleurs.
 const ROLES_CONSULTATION_DOSSIERS = [...ROLES_ACCUEIL, ROLES.ADMIN, ROLES.RH];
 
+// Liste des dossiers, statuts et évaluation d'un dossier (2026-10-01) : consultation + Inspecteur
+// Hôtellerie, TOUJOURS restreint à son périmètre (core/auth/perimetreDossiers.js : liste filtrée en
+// base ici, fiche protégée par verifierPerimetreDossier dans app.js). Groupe distinct pour ne PAS
+// ouvrir à ce rôle les autres routes de ROLES_CONSULTATION_DOSSIERS (motifs, rendez-vous…).
+const ROLES_LISTE_DOSSIERS = [...ROLES_CONSULTATION_DOSSIERS, ROLES.INSPECTEUR_HOTELLERIE];
+
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET /rendezvous ci-dessous (audit 2026-08-20,
 // accès à "Suivi des tests") — pas à ROLES_CONSULTATION_DOSSIERS lui-même : ces deux rôles n'ont
 // pas à voir la liste complète des dossiers, ni les motifs/statuts/transitions des autres routes de
@@ -53,7 +60,8 @@ const ROLES_CONSULTATION_RENDEZVOUS_TEST = [...ROLES_CONSULTATION_DOSSIERS, ROLE
 // ("Voir le dossier") ou GrilleEvaluation.jsx (InformationsInscription). GET /rendezvous reste à
 // part (ROLES_CONSULTATION_RENDEZVOUS_TEST ci-dessus), déjà scopé différemment (tous dossiers,
 // pas un seul).
-const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR];
+// Inspecteur Hôtellerie ajouté le 2026-10-01 (fiche en lecture, dans son périmètre seulement).
+const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.INSPECTEUR_HOTELLERIE];
 
 // GET /derniere-modification ci-dessous (rafraîchissement automatique du back-office, audit
 // 2026-08-24) — les 4 rôles humains restants (ROLES.SYSTEME exclu, jamais connecté, voir rbac.js ;
@@ -65,7 +73,14 @@ const ROLES_LECTURE_INSCRIPTION = [...ROLES_CONSULTATION_DOSSIERS, ROLES.FORMATE
 // RH ajoutée le 2026-09-30 (demande utilisateur) : ses pages (Dossiers candidats, fiche dossier,
 // Tableau de bord, écrans DPAE) utilisent aussi l'actualisation automatique, qui échouait en 403
 // pour ce rôle. Constante utilisée par cette seule route.
-const ROLES_TOUT_BACK_OFFICE = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN, ROLES.RH];
+const ROLES_TOUT_BACK_OFFICE = [
+  ...ROLES_ACCUEIL,
+  ROLES.FORMATEUR,
+  ROLES.INSPECTEUR,
+  ROLES.ADMIN,
+  ROLES.RH,
+  ROLES.INSPECTEUR_HOTELLERIE,
+];
 
 // dispoDebut (audit 2026-09-28, filtre "Disponibilité des candidats prêts à l'embauche" ;
 // dispoFin RETIRÉ le même jour, demande utilisateur explicite — un seul paramètre d'entrée
@@ -85,10 +100,16 @@ const dispoQuerySchema = z.object({
 // filtrable par statut. Le code de statut n'est jamais figé ici : il vient de la table `statuts`,
 // configurable par entité (voir Modularité, CLAUDE.md) — un code inconnu pour l'entité renvoie
 // simplement une liste vide, pas une erreur.
-router.get('/', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => {
   try {
     const { dispoDebut } = dispoQuerySchema.parse(req.query);
-    const dossiers = await dossierService.listerDossiers(req.entite, { statutCode: req.query.statut, dispoDebut });
+    const dossiers = await dossierService.listerDossiers(req.entite, {
+      statutCode: req.query.statut,
+      dispoDebut,
+      // null pour tous les rôles sauf ceux à périmètre restreint (Inspecteur Hôtellerie) ; `?vue=` n'est
+      // pris en compte que pour l'Admin (onglet « Vue Inspecteur Hôtellerie »).
+      perimetre: perimetreDossiersPourRequete(req.utilisateur.roleCode, req.query.vue),
+    });
     res.json(dossiers);
   } catch (erreur) {
     if (erreur instanceof z.ZodError) {
@@ -135,10 +156,12 @@ router.get('/suivi-formation', requireRole(...ROLES_SUIVI_FORMATION), async (req
 // GET /api/dossiers/statuts — statuts configurés pour l'entité courante, dans l'ordre du
 // workflow ; sert à construire les filtres du tableau de bord sans coder de code de statut en
 // dur côté front (voir core/workflow/StatutBadge.jsx, pages/accueil/TableauDeBordAccueil.jsx).
-router.get('/statuts', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/statuts', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => {
   try {
     const statuts = await dossierService.listerStatuts(req.entite);
-    res.json(statuts);
+    // Rôle à périmètre restreint : seulement les statuts de son périmètre (aucun autre renvoyé).
+    const perimetre = perimetreDossiersPourRequete(req.utilisateur.roleCode, req.query.vue);
+    res.json(perimetre ? statuts.filter((statut) => perimetre.statutsCodes.includes(statut.code)) : statuts);
   } catch (erreur) {
     next(erreur);
   }
@@ -488,7 +511,7 @@ router.get('/:dossierId/inscription', requireRole(...ROLES_LECTURE_INSCRIPTION),
 // tant qu'aucun test n'a eu lieu, pas une erreur (voir evaluationEngine.obtenirDetailEvaluationDossier) :
 // au front de ne simplement rien afficher dans ce cas plutôt que de traiter ça comme un échec de
 // chargement.
-router.get('/:dossierId/evaluation', requireRole(...ROLES_CONSULTATION_DOSSIERS), async (req, res, next) => {
+router.get('/:dossierId/evaluation', requireRole(...ROLES_LISTE_DOSSIERS), async (req, res, next) => {
   try {
     const detail = await evaluationEngine.obtenirDetailEvaluationDossier(req.entite, req.params.dossierId);
     res.json(detail);

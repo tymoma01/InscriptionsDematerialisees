@@ -28,7 +28,14 @@ import {
   ROLES_DPAE_CONSULTATION,
   ROLES_GESTION_PIECES,
   ROLES_LECTURE_SUIVI_DOSSIER,
+  ROLES_LECTURE_TESTS_FORMATION,
+  ROLES_DPAE_TABLEAU_DE_BORD,
+  ROLE_INSPECTEUR_HOTELLERIE,
 } from './core/auth/rolesGroupes';
+
+// Écrans ouverts à tous les rôles authentifiés (sans liste `roles`) mais interdits à l'Inspecteur
+// Hôtellerie (2026-10-01) : accès direct par adresse -> renvoi vers son tableau de bord.
+const EXCLUS_INSPECTEUR_HOTELLERIE = [ROLE_INSPECTEUR_HOTELLERIE];
 
 // Rôles autorisés sur "Suivi des formations" (audit 2026-09-26, retrait de l'Inspecteur — règle
 // métier confirmée : aucun dossier Tertiaire ne passe en formation) — même liste que
@@ -93,7 +100,7 @@ export default function App() {
           element={
             // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
             // qui tape l'adresse est renvoyée vers sa page d'accueil.
-            <RouteProtegee roles={ROLES_LECTURE_SUIVI_DOSSIER}>
+            <RouteProtegee roles={ROLES_LECTURE_TESTS_FORMATION}>
               <Formation />
             </RouteProtegee>
           }
@@ -103,7 +110,7 @@ export default function App() {
           element={
             // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
             // qui tape l'adresse est renvoyée vers sa page d'accueil.
-            <RouteProtegee roles={ROLES_LECTURE_SUIVI_DOSSIER}>
+            <RouteProtegee roles={ROLES_LECTURE_TESTS_FORMATION}>
               <Tests />
             </RouteProtegee>
           }
@@ -111,7 +118,7 @@ export default function App() {
         <Route
           path="/coordination/planification"
           element={
-            <RouteProtegee>
+            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
               <Planification />
             </RouteProtegee>
           }
@@ -121,6 +128,18 @@ export default function App() {
           element={
             <RouteProtegee roles={ROLES_SUIVI_FORMATION}>
               <SuiviFormation />
+            </RouteProtegee>
+          }
+        />
+        {/* Onglet Admin « Vue Inspecteur Hôtellerie » (2026-10-01) : même écran que Dossiers candidats,
+            avec le périmètre de ce rôle appliqué côté serveur (paramètre `vue`, Admin uniquement).
+            Chemin dédié : l'onglet reste actif tant que l'Admin navigue dans cette vue ; `key`
+            remonte l'écran à neuf en passant de « Dossiers candidats » à cette vue. */}
+        <Route
+          path="/vue-inspecteur-hotellerie/dossiers"
+          element={
+            <RouteProtegee roles={['admin']}>
+              <TableauDeBordAccueil key="vue-inspecteur-hotellerie" vue={ROLE_INSPECTEUR_HOTELLERIE} />
             </RouteProtegee>
           }
         />
@@ -136,7 +155,7 @@ export default function App() {
         <Route
           path="/formateur/evaluations"
           element={
-            <RouteProtegee>
+            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
               <Evaluation />
             </RouteProtegee>
           }
@@ -144,7 +163,7 @@ export default function App() {
         <Route
           path="/formateur/historique"
           element={
-            <RouteProtegee>
+            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
               <HistoriqueEvaluations />
             </RouteProtegee>
           }
@@ -152,7 +171,7 @@ export default function App() {
         <Route
           path="/inspecteur/evaluations"
           element={
-            <RouteProtegee>
+            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
               <EvaluationInspecteur />
             </RouteProtegee>
           }
@@ -160,7 +179,7 @@ export default function App() {
         <Route
           path="/inspecteur/historique"
           element={
-            <RouteProtegee>
+            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
               <HistoriqueEvaluationsInspecteur />
             </RouteProtegee>
           }
@@ -168,7 +187,7 @@ export default function App() {
         <Route
           path="/admin/utilisateurs"
           element={
-            <RouteProtegee>
+            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
               <Utilisateurs />
             </RouteProtegee>
           }
@@ -208,7 +227,7 @@ export default function App() {
         <Route
           path="/coordination/dpae/tableau-de-bord"
           element={
-            <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
+            <RouteProtegee roles={ROLES_DPAE_TABLEAU_DE_BORD}>
               <TableauDeBordDpae />
             </RouteProtegee>
           }

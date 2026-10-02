@@ -173,7 +173,7 @@ const COLONNE_CRENEAU = {
 // évalué(s)" et "Date du test" au global (voir point d'insertion dans `colonnes` ci-dessous).
 const COLONNE_INSPECTEUR = {
   cle: 'inspecteur',
-  libelle: 'Inspecteur',
+  libelle: 'Formateur Tertiaire',
   extraire: (e) => `${e.formateur_prenom ?? ''} ${e.formateur_nom ?? ''}`.trim().toLowerCase(),
 };
 
@@ -195,7 +195,7 @@ const COLONNE_INSPECTEUR = {
 // inchangé, même raisonnement que `afficherAssigne` (ListeEvaluationsAFaire.jsx).
 // Colonne "Formateur" de la vue Admin "Vue Formateur" (audit 2026-09-29) — même contenu que la
 // colonne "Inspecteur" (evaluations.formateur_id = l'évaluateur), seul le libellé change.
-const COLONNE_FORMATEUR = { ...COLONNE_INSPECTEUR, cle: 'formateur', libelle: 'Formateur' };
+const COLONNE_FORMATEUR = { ...COLONNE_INSPECTEUR, cle: 'formateur', libelle: 'Formateur Hôtellerie' };
 
 // secteurVueAdmin ('hotellerie' | 'tertiaire', audit 2026-09-29) : fourni UNIQUEMENT par les pages
 // Formateur/Inspecteur quand l'utilisateur connecté est Admin ("Vue Formateur"/"Vue Inspecteur").

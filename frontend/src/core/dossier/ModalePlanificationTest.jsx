@@ -40,8 +40,9 @@ const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
 // aujourd'hui aucun équivalent front de ROLES, même choix déjà fait par Connexion.jsx/
 // BoutonNouvelleInscription.jsx pour leurs propres comparaisons de rôle).
 const GROUPES_ROLE = [
-  { code: 'formateur', libelle: 'Formateurs' },
-  { code: 'inspecteur', libelle: 'Inspecteurs' },
+  // Libellés de rôle (2026-10-01) : codes techniques inchangés.
+  { code: 'formateur', libelle: 'Formateurs Hôtellerie' },
+  { code: 'inspecteur', libelle: 'Formateurs Tertiaire' },
 ];
 
 // Panneau de planification d'un test : choix de la date/heure et du formateur, puis (1) création
@@ -642,7 +643,7 @@ export default function ModalePlanificationTest({
       {erreurFormateurs && <p role="alert">{erreurFormateurs}</p>}
 
       {!chargementFormateurs && !erreurFormateurs && formateurs.length === 0 && (
-        <p role="alert">Aucun formateur ni inspecteur disponible pour cette entité - impossible de planifier un test.</p>
+        <p role="alert">Aucun formateur disponible pour cette entité - impossible de planifier un test.</p>
       )}
 
       {!chargementFormateurs && formateurs.length > 0 && (
@@ -682,11 +683,11 @@ export default function ModalePlanificationTest({
               doit être connu avant d'afficher ses disponibilités. */}
           <label>
             <span>
-              {groupeRole === 'inspecteur' ? 'Inspecteur' : 'Formateur'} <span className="champ-obligatoire">*</span>
+              {groupeRole === 'inspecteur' ? 'Formateur Tertiaire' : 'Formateur Hôtellerie'} <span className="champ-obligatoire">*</span>
             </span>
             {formateursDuGroupe.length === 0 ? (
               <p role="alert" className="modale-planification-test__groupe-vide">
-                Aucun{groupeRole === 'inspecteur' ? ' inspecteur' : ' formateur'} disponible pour cette entité.
+                Aucun{groupeRole === 'inspecteur' ? ' formateur Tertiaire' : ' formateur Hôtellerie'} disponible pour cette entité.
               </p>
             ) : (
               <select
@@ -1059,7 +1060,7 @@ export default function ModalePlanificationTest({
               modifiable après coup en dehors d'une replanification (même principe que
               Poste(s) testé(s) ci-dessus). */}
           <label className="modale-planification-test__champ-note">
-            <span>Note pour le formateur/inspecteur (optionnel)</span>
+            <span>Note pour le formateur (optionnel)</span>
             <textarea
               value={notePlanification}
               onChange={(evenement) => setNotePlanification(evenement.target.value)}

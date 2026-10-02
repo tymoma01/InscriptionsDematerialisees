@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { ROLES_GESTION_PIECES, ROLES_LECTURE_SUIVI_DOSSIER } from '../auth/rolesGroupes';
+import { ROLES_GESTION_PIECES, ROLES_LECTURE_SUIVI_DOSSIER, ROLES_LECTURE_TESTS_FORMATION } from '../auth/rolesGroupes';
 import './NavigationFicheDossier.css';
 
 // Bandeau d'accès rapide entre les écrans d'un même dossier — patch léger (décision utilisateur,
@@ -23,12 +23,12 @@ const ONGLETS = [
   { cle: 'pieces', libelle: 'Pièces justificatives', vers: (dossierId) => `/accueil/dossiers/${dossierId}/pieces`, roles: ROLES_GESTION_PIECES },
   // Tests, Relances, Formation : leurs données sont refusées à la RH côté serveur (2026-09-30) —
   // onglets affichés seulement aux rôles qui peuvent les lire (ROLES_LECTURE_SUIVI_DOSSIER).
-  { cle: 'tests', libelle: 'Tests', vers: (dossierId) => `/coordination/dossiers/${dossierId}/tests`, roles: ROLES_LECTURE_SUIVI_DOSSIER },
+  { cle: 'tests', libelle: 'Tests', vers: (dossierId) => `/coordination/dossiers/${dossierId}/tests`, roles: ROLES_LECTURE_TESTS_FORMATION },
   { cle: 'relances', libelle: 'Relances', vers: (dossierId) => `/coordination/dossiers/${dossierId}/relances`, roles: ROLES_LECTURE_SUIVI_DOSSIER },
   // Historique de formation (audit 2026-08-28, révise une décision antérieure — voir CLAUDE.md) :
   // même patron que les trois onglets ci-dessus, toujours affiché (voir commentaire d'en-tête de
   // ce fichier — pas de règle de disponibilité propre à une entité ici).
-  { cle: 'formation', libelle: 'Formation', vers: (dossierId) => `/coordination/dossiers/${dossierId}/formation`, roles: ROLES_LECTURE_SUIVI_DOSSIER },
+  { cle: 'formation', libelle: 'Formation', vers: (dossierId) => `/coordination/dossiers/${dossierId}/formation`, roles: ROLES_LECTURE_TESTS_FORMATION },
 ];
 
 export default function NavigationFicheDossier({ dossierId, pageActuelle }) {

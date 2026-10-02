@@ -82,6 +82,8 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
     mode: 'onChange',
     resolver: zodResolver(blocDisponibilitesSchema),
     defaultValues: {
+      // Retour sur l'étape : booléen déjà transmis -> 'oui'/'non' ; jamais répondu -> aucun choix.
+      reponseEtudiant: valeurs?.estEtudiant === true ? 'oui' : valeurs?.estEtudiant === false ? 'non' : undefined,
       disponibiliteImmediate: valeurs?.disponibiliteImmediate ?? true,
       dateDebut: valeurs?.dateDebut ?? '',
       dateFin: valeurs?.dateFin ?? '',
@@ -101,10 +103,19 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
     },
   });
 
+  // `reponseEtudiant` n'a pas de champ <input> (pastilles Oui/Non, valeur posée par setValue) :
+  // enregistré explicitement pour être validé par le schéma comme les autres champs.
+  useEffect(() => {
+    register('reponseEtudiant');
+  }, [register]);
+
   const valeursSaisies = watch();
 
+  // `reponseEtudiant` ('oui'/'non', saisie interne) transmis au moteur sous la forme attendue par le
+  // serveur : `estEtudiant` booléen (undefined tant que rien n'est choisi).
   useEffect(() => {
-    onChange(valeursSaisies);
+    const { reponseEtudiant, ...autresValeurs } = valeursSaisies;
+    onChange({ ...autresValeurs, estEtudiant: reponseEtudiant === 'oui' ? true : reponseEtudiant === 'non' ? false : undefined });
   }, [JSON.stringify(valeursSaisies)]);
 
   useEffect(() => {
@@ -240,6 +251,38 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
         </div>
       </fieldset>
       {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
+
+      {/* « Êtes-vous étudiant ? » (2026-10-01) : EXACTEMENT le même rendu que « Disponible immédiatement »
+          ci-dessous (pastilles Oui/Non, commit 42910db), mais AUCUNE réponse sélectionnée par défaut —
+          réponse obligatoire (blocDisponibilitesSchema). Chaque bouton pose sa propre valeur : un choix
+          désélectionne l'autre. Transmis au serveur en booléen `estEtudiant` (voir onChange plus haut). */}
+      <div className="bloc-disponibilites__case-immediate">
+        <span id="reponseEtudiant-label">
+          {/* Espace insécable avant « ? » : « étudiant ? * » jamais coupé (sinon « ? * » seul à la ligne sur téléphone). */}
+          Êtes-vous étudiant&nbsp;?&nbsp;<span className="champ-obligatoire">*</span>
+        </span>
+        <div className="bloc-disponibilites__bouton-bascule-groupe" role="group" aria-labelledby="reponseEtudiant-label">
+          <button
+            type="button"
+            id="reponseEtudiant-oui"
+            className={`bloc-disponibilites__bouton-bascule${valeursSaisies.reponseEtudiant === 'oui' ? ' actif' : ''}`}
+            aria-pressed={valeursSaisies.reponseEtudiant === 'oui'}
+            onClick={() => setValue('reponseEtudiant', 'oui', { shouldValidate: true, shouldTouch: true })}
+          >
+            Oui
+          </button>
+          <button
+            type="button"
+            id="reponseEtudiant-non"
+            className={`bloc-disponibilites__bouton-bascule${valeursSaisies.reponseEtudiant === 'non' ? ' actif' : ''}`}
+            aria-pressed={valeursSaisies.reponseEtudiant === 'non'}
+            onClick={() => setValue('reponseEtudiant', 'non', { shouldValidate: true, shouldTouch: true })}
+          >
+            Non
+          </button>
+        </div>
+      </div>
+      {errors.reponseEtudiant && <p role="alert">{errors.reponseEtudiant.message}</p>}
 
       {/* Paire de boutons Oui/Non (remplace le bouton bascule unique du 2026-10-01, décision
           utilisateur : un seul bouton "Disponible immédiatement" qui s'éteint au clic ne

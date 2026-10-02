@@ -89,8 +89,10 @@ function composantsDateUtc(date) {
 // pour un ancien rendez-vous assigné avant que formateur_role_code ne soit résolu par l'appelant)
 // retombe sur "Formateur" — même convention de repli que construireLienEvaluation
 // (formatageEmail.js), jamais de CN vide ou de plantage faute de rôle connu.
+// Libellés de rôle (2026-10-01) : 'inspecteur' = « Formateur Tertiaire », sinon « Formateur Hôtellerie »
+// (codes techniques inchangés).
 function libelleRoleFormateur(formateurRoleCode) {
-  return formateurRoleCode === 'inspecteur' ? 'Inspecteur' : 'Formateur';
+  return formateurRoleCode === 'inspecteur' ? 'Formateur Tertiaire' : 'Formateur Hôtellerie';
 }
 
 function genererIcsInvitationTest({

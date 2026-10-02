@@ -41,10 +41,14 @@ const DESTINATION_PAR_ROLE = {
   // rh (module Demandes DPAE, 2026-09-28) : aucun accès à /accueil/tableau-de-bord (dossiers
   // candidats, hors périmètre RH) — son propre "chez soi" est la file de demandes à traiter.
   rh: '/rh/dpae',
+  // Inspecteur Hôtellerie (2026-10-01) : son tableau de bord.
+  inspecteur_hotellerie: '/tableau-de-bord/indicateurs',
 };
 const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
 
-export default function RouteProtegee({ children, roles }) {
+// `rolesExclus` (2026-10-01) : rôles renvoyés vers leur page d'accueil sur une route ouverte à tous les
+// autres (sans liste `roles`) — ne change rien pour les rôles non listés.
+export default function RouteProtegee({ children, roles, rolesExclus }) {
   const { utilisateur, chargement } = useSession();
   const location = useLocation();
 
@@ -61,7 +65,7 @@ export default function RouteProtegee({ children, roles }) {
     return <Navigate to={`/connexion?redirection=${encodeURIComponent(cible)}`} replace />;
   }
 
-  if (roles && !roles.includes(utilisateur.roleCode)) {
+  if ((roles && !roles.includes(utilisateur.roleCode)) || rolesExclus?.includes(utilisateur.roleCode)) {
     return <Navigate to={DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT} replace />;
   }
 

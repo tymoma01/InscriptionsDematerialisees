@@ -234,3 +234,23 @@ test('listerDossiers caste les dates de correction en texte dans le SELECT (jama
   assert.match(sql, /disponibilite_corrigee\.date_debut::text as disponibilite_corrigee_date_debut/);
   assert.match(sql, /disponibilite_corrigee\.date_fin::text as disponibilite_corrigee_date_fin/);
 });
+
+// « Êtes-vous étudiant ? » (2026-10-01, migration 074).
+test('listerDossiers renvoie la colonne est_etudiant (colonne « ÉTUDIANT » de Dossiers candidats)', () => {
+  const sql = dossierRepository.listerDossiers(bd, 1, {}).toString();
+  assert.match(sql, /"dossiers"\."est_etudiant"/);
+});
+
+test('creerDossier : est_etudiant écrit tel quel (true/false), null par défaut — un dossier sans réponse reste valide', async () => {
+  const inserts = [];
+  const trx = (table) => ({
+    insert: (valeurs) => {
+      inserts.push({ table, valeurs });
+      return { returning: async () => [{ id: 1 }] };
+    },
+  });
+  await dossierRepository.creerDossier(trx, { candidatId: 1, entiteId: 1, statutId: 1, estEtudiant: true });
+  await dossierRepository.creerDossier(trx, { candidatId: 1, entiteId: 1, statutId: 1, estEtudiant: false });
+  await dossierRepository.creerDossier(trx, { candidatId: 1, entiteId: 1, statutId: 1 });
+  assert.deepEqual(inserts.map((i) => i.valeurs.est_etudiant), [true, false, null]);
+});

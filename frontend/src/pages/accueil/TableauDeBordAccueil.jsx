@@ -8,7 +8,12 @@ import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_ACCUEIL, ROLES_EXPORT_ZIP_PIECES_GROUPE, ROLES_ACTIONS_GROUPEES_SUIVI } from '../../core/auth/rolesGroupes';
+import {
+  ROLES_ACCUEIL,
+  ROLES_EXPORT_ZIP_PIECES_GROUPE,
+  ROLES_ACTIONS_GROUPEES_SUIVI,
+  ROLE_INSPECTEUR_HOTELLERIE,
+} from '../../core/auth/rolesGroupes';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -322,7 +327,10 @@ function codesPourFiltreStatut(code) {
 // sur tablette — jusqu'à 4 boutons par ligne) : voir Validation.jsx, qui reste le seul et même
 // écran de destination, pour ne pas éclater la fiche dossier en plusieurs pages divergentes selon
 // l'entrée utilisée.
-export default function TableauDeBordAccueil() {
+// `vue` (2026-10-01) : 'inspecteur_hotellerie' pour l'onglet Admin « Vue Inspecteur Hôtellerie » (voir
+// App.jsx) — mêmes dossiers (périmètre appliqué côté serveur, Admin seulement), mêmes pastilles et
+// filtres que ce rôle ; l'Admin garde ses actions et sa fiche complète.
+export default function TableauDeBordAccueil({ vue = null }) {
   const { utilisateur, chargement: chargementSession } = useSession();
   // Actions groupées (2026-09-30) : chacune affichée seulement aux rôles que le serveur accepte
   // (aucun bouton menant à un 403) ; si aucune ne l'est (RH), la sélection multiple elle-même
@@ -330,6 +338,10 @@ export default function TableauDeBordAccueil() {
   const peutExporterPiecesGroupe = ROLES_EXPORT_ZIP_PIECES_GROUPE.includes(utilisateur?.roleCode);
   const peutActionsGroupeesSuivi = ROLES_ACTIONS_GROUPEES_SUIVI.includes(utilisateur?.roleCode);
   const selectionMultipleDisponible = peutExporterPiecesGroupe || peutActionsGroupeesSuivi;
+  // Inspecteur Hôtellerie (2026-10-01) : le serveur ne lui renvoie que les dossiers Hôtellerie de ses
+  // 5 statuts (et ces seuls statuts) — pastilles réduites à ces statuts + « Tous », sans « À
+  // planifier » ni pastilles de secteur ; aucune case à cocher (selectionMultipleDisponible faux).
+  const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE || vue === ROLE_INSPECTEUR_HOTELLERIE;
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState([]);
@@ -422,7 +434,7 @@ export default function TableauDeBordAccueil() {
       // que la liste actuellement affichée, sinon le dossier corrigé disparaîtrait à tort si sa
       // nouvelle période ne chevauche plus plus la période filtrée (comportement attendu, mais
       // recalculé ici avec les VRAIES valeurs déjà appliquées, pas un simple retrait local).
-      listerDossiers({ dispoDebut })
+      listerDossiers({ dispoDebut, vue })
         .then(setDossiers)
         .catch(() => {});
     } catch (erreur) {
@@ -475,7 +487,7 @@ export default function TableauDeBordAccueil() {
   }
 
   useEffect(() => {
-    listerStatuts()
+    listerStatuts({ vue })
       .then(setStatuts)
       .catch(() => {
         // Filtres non critiques : la liste des dossiers ci-dessous reste consultable même si
@@ -498,7 +510,7 @@ export default function TableauDeBordAccueil() {
     let annule = false;
     setChargementDossiers(true);
     setErreur(null);
-    listerDossiers({ dispoDebut })
+    listerDossiers({ dispoDebut, vue })
       .then((valeur) => {
         if (!annule) setDossiers(valeur);
       })
@@ -520,7 +532,7 @@ export default function TableauDeBordAccueil() {
   // silencieux écraserait la liste déjà filtrée côté serveur par la liste COMPLÈTE dès le
   // prochain tick, quelques secondes après avoir appliqué le filtre.
   useRafraichissementAuto(() => {
-    listerDossiers({ dispoDebut })
+    listerDossiers({ dispoDebut, vue })
       .then(setDossiers)
       .catch(() => {});
   });
@@ -808,13 +820,14 @@ export default function TableauDeBordAccueil() {
   // `statuts` (cas limite, jamais rencontré en pratique).
   const statutsFiltres = useMemo(() => {
     const filtres = statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code));
+    if (estInspecteurHotellerie) return filtres;
     const entreeAPlanifier = { code: CODE_A_PLANIFIER, libelle: 'À planifier' };
     const indexApresEnAttentePieces = filtres.findIndex((statut) => statut.code === 'en_attente_pieces') + 1;
     if (indexApresEnAttentePieces === 0) {
       return [entreeAPlanifier, ...filtres];
     }
     return [...filtres.slice(0, indexApresEnAttentePieces), entreeAPlanifier, ...filtres.slice(indexApresEnAttentePieces)];
-  }, [statuts]);
+  }, [statuts, estInspecteurHotellerie]);
 
   // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
   // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
@@ -831,7 +844,7 @@ export default function TableauDeBordAccueil() {
     <PageBackOffice>
       <div className="tableau-bord-accueil">
         <header className="tableau-bord-accueil__entete">
-          <h1>Dossiers candidats</h1>
+          <h1>{vue === ROLE_INSPECTEUR_HOTELLERIE ? 'Dossiers candidats - Vue Inspecteur Hôtellerie' : 'Dossiers candidats'}</h1>
           {/* Bouton "Planification des tests" retiré (refonte navigation, 2026-08-17) : couvert
               par le lien "Suivi des tests" de la barre de navigation commune, voir
               BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
@@ -849,12 +862,14 @@ export default function TableauDeBordAccueil() {
           compteurTous={dossiersFiltresSansStatut.length}
           compteurs={compteursParStatut}
           filtresSupplementaires={
+            estInspecteurHotellerie ? undefined : (
             <FiltreEntite
               entitesFiltre={entitesFiltre}
               onBasculerEntite={basculerEntiteFiltre}
               compteurHotel={compteurHotel}
               compteurBureau={compteurBureau}
             />
+            )
           }
         />
 
