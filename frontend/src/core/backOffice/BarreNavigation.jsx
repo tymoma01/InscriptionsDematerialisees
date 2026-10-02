@@ -96,7 +96,7 @@ const ELEMENTS_NAVIGATION = [
   // aucune route ni libellé dupliqué. Onglet actif = toute route de l'espace.
   {
     cle: 'vue-formateur',
-    libelle: 'Vue Formateur Hôtellerie',
+    libelle: 'Formateur Hôtellerie',
     chemin: '/formateur/evaluations',
     estActif: (chemin) => chemin.startsWith('/formateur/'),
     roles: ['admin'],
@@ -105,7 +105,7 @@ const ELEMENTS_NAVIGATION = [
   },
   {
     cle: 'vue-inspecteur',
-    libelle: 'Vue Formateur Tertiaire',
+    libelle: 'Formateur Tertiaire',
     chemin: '/inspecteur/evaluations',
     estActif: (chemin) => chemin.startsWith('/inspecteur/'),
     roles: ['admin'],
@@ -116,7 +116,7 @@ const ELEMENTS_NAVIGATION = [
     // Onglet Admin (2026-10-01) : Dossiers candidats avec le périmètre de l'Inspecteur Hôtellerie
     // (Hôtellerie, 5 statuts), appliqué côté serveur (paramètre `vue`, Admin uniquement).
     cle: 'vue-inspecteur-hotellerie',
-    libelle: 'Vue Inspecteur Hôtellerie',
+    libelle: 'Inspecteur Hôtellerie',
     chemin: '/vue-inspecteur-hotellerie/dossiers',
     estActif: (chemin) => chemin.startsWith('/vue-inspecteur-hotellerie/'),
     roles: ['admin'],
