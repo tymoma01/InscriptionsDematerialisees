@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
+import { CODES_EXPERIENCE_ACCECIT, libelleExperience, varianteExperience } from '../../core/dossier/BadgeExperience';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
@@ -190,36 +191,8 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Libellés/options du filtre "Expérience" (colonne DossierList.jsx, audit 2026-09-02) — mêmes
-// codes que BlocDisponibilites.jsx (formulaire d'inscription), dupliqués plutôt que partagés
-// (même convention que LIBELLES_POSTE_PAR_CODE_ACCECIT ci-dessus, voir CLAUDE.md conventions du
-// projet).
-const LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT = {
-  aucune: "Pas d'expérience",
-  plus_6_mois: 'Plus de 6 mois',
-  plus_2_ans: 'Plus de 2 ans',
-  plus_5_ans: 'Plus de 5 ans',
-};
-const CODES_EXPERIENCE_ACCECIT = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
-function libelleExperience(code) {
-  if (!code) return '-';
-  return LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? code;
-}
-
-// Variante StatutBadge par code d'expérience (audit 2026-09-02, badge coloré colonne
-// "Expérience") — même principe que varianteStatut ci-dessous : DossierList.jsx reste générique,
-// c'est cette page (qui connaît le vocabulaire ACCECIT) qui fournit la traduction code -> variante.
-// Noms de variante alignés sur les codes eux-mêmes (StatutBadge.css, `--experience-*`), pas de
-// mapping arbitraire à retenir séparément.
-const VARIANTE_EXPERIENCE_PAR_CODE_ACCECIT = {
-  aucune: 'experience-aucune',
-  plus_6_mois: 'experience-6mois',
-  plus_2_ans: 'experience-2ans',
-  plus_5_ans: 'experience-5ans',
-};
-function varianteExperience(code) {
-  return VARIANTE_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? 'neutre';
-}
+// Expérience (libellés, codes, couleurs, pastille) : module partagé core/dossier/BadgeExperience.jsx
+// (2026-10-02), commun à Dossiers candidats et Suivi des tests.
 
 // Tous les statuts réellement atteignables aujourd'hui dans le workflow actif — propre à cette
 // page, pas au moteur générique FiltresStatut.jsx qui reste piloté entièrement par la prop

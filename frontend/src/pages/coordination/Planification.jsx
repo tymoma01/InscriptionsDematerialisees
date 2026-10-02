@@ -8,6 +8,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
+import BadgeExperience, { CODES_EXPERIENCE_ACCECIT, libelleExperience } from '../../core/dossier/BadgeExperience';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import ModaleRelanceGroupee from '../../core/dossier/ModaleRelanceGroupee';
 import ModaleReplanificationGroupee from '../../core/dossier/ModaleReplanificationGroupee';
@@ -419,20 +420,8 @@ function libellePoste(code) {
   return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
 }
 
-// Libellés/options du filtre + colonne "Expérience" (audit 2026-09-02) — mêmes codes que
-// BlocDisponibilites.jsx (formulaire d'inscription), dupliqués plutôt que partagés (même
-// convention que LIBELLES_POSTE_PAR_CODE_ACCECIT ci-dessus).
-const LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT = {
-  aucune: "Pas d'expérience",
-  plus_6_mois: 'Plus de 6 mois',
-  plus_2_ans: 'Plus de 2 ans',
-  plus_5_ans: 'Plus de 5 ans',
-};
-const CODES_EXPERIENCE_ACCECIT = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
-function libelleExperience(code) {
-  if (!code) return '-';
-  return LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? code;
-}
+// Expérience (libellés, codes, couleurs, pastille) : module partagé core/dossier/BadgeExperience.jsx
+// (2026-10-02), commun à Dossiers candidats et Suivi des tests.
 
 // Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) visé(s), nom du formateur,
 // libellé du statut) — toutes les colonnes visibles du tableau (audit 2026-08-20, généralisation
@@ -1438,7 +1427,9 @@ export default function Planification() {
                         ))}
                       </div>
                     </td>
-                    <td>{libelleExperience(rdv.experience)}</td>
+                    <td>
+                      <BadgeExperience code={rdv.experience} />
+                    </td>
                     <td>{rdv.formateur_nom ? `${rdv.formateur_prenom} ${rdv.formateur_nom}` : '-'}</td>
                     {/* "Statut" (statut du DOSSIER regroupé en 4 valeurs, audit 2026-09-13) — voir
                         le commentaire d'en-tête de GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT.
