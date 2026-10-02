@@ -6,12 +6,12 @@ const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const notificationService = require('../notifications/notificationService');
 const siteAffectationRepository = require('./siteAffectationRepository');
-const { ROLES_DPAE_CONSULTATION, ROLES_DPAE_CONSULTATION_TOUTES } = require('../auth/rbac');
+const { aPermission } = require('../auth/permissions');
 
 const STATUT_ENVOYEE = 'envoyee';
 const STATUT_VALIDEE = 'validee';
 const STATUT_REJETEE = 'rejetee';
-// « En attente » (2026-09-30) : la RH suspend une demande « À traiter » (motif obligatoire) avant
+// « En attente » : la RH suspend une demande « À traiter » (motif obligatoire) avant
 // de décider. Transitions autorisées (aucune autre) :
 //   envoyee (« À traiter ») -> en_attente | validee | rejetee
 //   en_attente              -> validee | rejetee
@@ -24,7 +24,7 @@ class ErreurDemandeDejaTraitee extends Error {}
 // Site(s) d'affectation inexistant(s), inactif(s) ou d'une autre entité (voir creerEtEnvoyer) —
 // traduit en 400 avec son message par dpae.routes.js.
 class ErreurSitesAffectationInvalides extends Error {}
-// Export PDF groupé (2026-10-02) : au moins une demande de la sélection hors périmètre — toute la
+// Export PDF groupé : au moins une demande de la sélection hors périmètre — toute la
 // requête est refusée (403 dans dpae.routes.js), jamais de ZIP partiel.
 class ErreurExportDemandesRefuse extends Error {}
 
@@ -80,11 +80,11 @@ async function creerEtEnvoyer(entite, demandeurId, donnees) {
 // ---------------------------------------------------------------------------------------------
 
 // Périmètre effectif de la liste de suivi : 'toutes' (toutes les demandes de l'entité) ou 'mes'
-// (celles dont l'utilisateur est l'auteur). Seuls les rôles de ROLES_DPAE_CONSULTATION_TOUTES
+// (celles dont l'utilisateur est l'auteur). Seuls les rôles de dpaeConsultationToutes
 // peuvent obtenir 'toutes' (défaut pour eux) ; pour les autres rôles autorisés à consulter, c'est
 // TOUJOURS 'mes', quoi que demande le client. Fonction pure, testable sans base.
 function perimetreSuivi({ roleCode, perimetreDemande }) {
-  if (!ROLES_DPAE_CONSULTATION_TOUTES.includes(roleCode)) return 'mes';
+  if (!aPermission(roleCode, 'dpaeConsultationToutes')) return 'mes';
   return perimetreDemande === 'mes' ? 'mes' : 'toutes';
 }
 
@@ -92,8 +92,8 @@ function perimetreSuivi({ roleCode, perimetreDemande }) {
 // rôle de consultation. Accueil/Coordination et tout autre rôle : jamais (même auteur d'une demande
 // ancienne). L'entité est déjà garantie par la recherche de la demande elle-même (entite_id).
 function peutConsulterDemande({ roleCode, utilisateurId, demande }) {
-  if (ROLES_DPAE_CONSULTATION_TOUTES.includes(roleCode)) return true;
-  return ROLES_DPAE_CONSULTATION.includes(roleCode) && demande.demandeur_id === utilisateurId;
+  if (aPermission(roleCode, 'dpaeConsultationToutes')) return true;
+  return aPermission(roleCode, 'dpaeConsultation') && demande.demandeur_id === utilisateurId;
 }
 
 // Ajoute à chaque demande ses sites liés ([{ id, nom, initiales }], triés par nom) — tableau vide
@@ -131,7 +131,7 @@ async function listerPourRh(entite, statut = STATUT_ENVOYEE) {
   return demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut);
 }
 
-// sites_affectation (2026-09-29) : sites liés à la demande, [{ id, nom, initiales }] — vide pour
+// sites_affectation : sites liés à la demande, [{ id, nom, initiales }] — vide pour
 // une demande antérieure au référentiel, dont l'affichage retombe alors sur l'ancien texte `hotel`
 // (voir DetailDemandeDpae.jsx).
 async function obtenirDemande(entite, demandeId) {
@@ -152,7 +152,7 @@ async function obtenirDemandesPourExport(entite, demandeIds, { roleCode, utilisa
   for (const demandeId of demandeIds) {
     let demande;
     try {
-      // eslint-disable-next-line no-await-in-loop
+       
       demande = await module.exports.obtenirDemande(entite, demandeId);
     } catch (erreur) {
       if (erreur instanceof ErreurDemandeIntrouvable) {
@@ -220,7 +220,7 @@ async function rejeter(entite, demandeId, traitantId, motifRejet) {
   ]);
 }
 
-// Mise en attente (2026-09-30) : uniquement depuis « À traiter » ('envoyee') — une demande déjà en
+// Mise en attente : uniquement depuis « À traiter » ('envoyee') — une demande déjà en
 // attente ou déjà décidée est refusée (409). Motif obligatoire, conservé sur la demande (dernier
 // motif, affiché sur la fiche) ; le demandeur est notifié. N'est pas une décision : date de
 // traitement inchangée (voir demandeDpaeRepository.marquerEnAttente).

@@ -52,7 +52,7 @@
   color: var(--couleur-texte);
 }
 
-/* "Poste" (audit 2026-09-15) — même traitement visuel que .liste-evaluations__date ci-dessous
+/* "Poste" — même traitement visuel que .liste-evaluations__date ci-dessous
    (couleur secondaire, même police héritée), placée juste avant dans le flex-wrap de la ligne.
    Largeur fixe (audit 2026-09-15, corrige le décalage de Date/Assigné/Inspecteur d'une ligne à
    l'autre selon le nombre de postes déclarés — ex. "Nettoyage, Vitrerie, Chef d'équipe" vs
@@ -69,7 +69,7 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* Largeur fixe (audit 2026-09-15) — même raison que .liste-evaluations__poste ci-dessus. Le
+/* Largeur fixe — même raison que .liste-evaluations__poste ci-dessus. Le
    format FORMAT_DATE (JJ/MM/AAAA HH:MM) ne dépasse jamais cette largeur, mais white-space: nowrap
    est gardé par cohérence avec les deux autres colonnes à largeur fixe. */
 .liste-evaluations__date {
@@ -78,7 +78,7 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* "Assigné à" (audit 2026-09-10) — même traitement visuel que .liste-evaluations__date, colonne
+/* "Assigné à" — même traitement visuel que .liste-evaluations__date, colonne
    secondaire plutôt que mise en avant comme le nom du candidat. Largeur fixe + ellipsis (audit
    2026-09-15) — même raison que .liste-evaluations__poste ci-dessus : un nom d'inspecteur plus
    long ne doit pas décaler le badge de statut ni les boutons qui suivent. */
@@ -100,7 +100,7 @@
   cursor: pointer;
 }
 
-/* "Présent(e)"/"Test non réalisé" (audit 2026-09-09) : couleurs sobres dédiées (voir
+/* "Présent(e)"/"Test non réalisé" : couleurs sobres dédiées (voir
    variables.css, --bouton-succes-* et --bouton-echec-*) plutôt que le contour neutre générique
    utilisé avant elles (fond blanc/bordure grise, ex. GestionTransitions.css "Annuler") — ces deux
    boutons portent un sens (confirmation positive / désistement) que le neutre ne rendait pas.

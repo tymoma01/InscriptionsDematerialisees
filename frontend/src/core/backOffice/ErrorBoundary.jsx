@@ -3,7 +3,7 @@ import './ErrorBoundary.css';
 
 // Seul composant classe de ce projet (React n'expose getDerivedStateFromError/componentDidCatch
 // qu'aux composants classe, aucun hook équivalent n'existe à ce jour) — mode dégradé du
-// back-office (audit 2026-08-24) : sans lui, un plantage de RENDU dans n'importe quelle section
+// back-office : sans lui, un plantage de RENDU dans n'importe quelle section
 // (InformationsInscription/GestionRendezvous/HistoriqueRelances/NotesDossier/CaptureTablette...)
 // remonte jusqu'à la racine React et blanchit toute la page, y compris les sections qui n'ont
 // rien à voir avec le bug. Distinct des erreurs d'appel réseau (timeout, 500...), déjà gérées

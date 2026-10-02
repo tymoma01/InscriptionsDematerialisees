@@ -27,7 +27,7 @@ function construireMessageEmailFormationValidee(candidatPrenom) {
   };
 }
 
-// Best-effort STRICT (audit 2026-08-31, décision utilisateur explicite) : ne lève JAMAIS — un
+// Best-effort STRICT : ne lève JAMAIS — un
 // échec (pas d'email renseigné, notifications désactivées pour l'entité, panne du prestataire...)
 // reste seulement loggé, la transition qui a déclenché cet envoi (déjà appliquée par l'appelant
 // AVANT ce call, voir transitions.routes.js) ne doit jamais en dépendre. Expéditeur/prestataire :

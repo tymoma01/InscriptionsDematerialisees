@@ -172,7 +172,7 @@ test("envoyerNotificationChangementLieu inclut le formateur déjà assigné comm
   assert.ok(appelFormateur.arguments[2].includes('Bonjour Marc'));
   assert.ok(appelFormateur.arguments[2].includes('Salle Annexe - 3 rue des Tests, 75001 Paris'));
 
-  // Régression (audit 2026-08-20) : l'email formateur n'attachait jusqu'ici jamais l'.ics de mise
+  // Régression : l'email formateur n'attachait jusqu'ici jamais l'.ics de mise
   // à jour de lieu — même fichier que l'email candidat ci-dessus.
   const piecesJointesFormateur = appelFormateur.arguments[3].piecesJointes;
   assert.equal(piecesJointesFormateur[0].nom, 'convocation-test-accecit.ics');

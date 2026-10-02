@@ -24,7 +24,7 @@ function aujourdHuiISO() {
   return `${annee}-${mois}-${jour}`;
 }
 
-// Correction de la disponibilité d'un candidat "Validé - prêt à l'embauche" (audit 2026-09-28) —
+// Correction de la disponibilité d'un candidat "Validé - prêt à l'embauche" —
 // même patron de modale que ModaleResultatFormation.jsx (SuiviFormation.jsx) : fond sous
 // l'en-tête/la nav, carte centrée, commentaire obligatoire, bouton désactivé tant que le
 // formulaire n'est pas valide plutôt qu'un message d'erreur au clic.

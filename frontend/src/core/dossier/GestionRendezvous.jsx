@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
+import { peut } from '../auth/permissions';
 import StatutBadge from '../workflow/StatutBadge';
 import {
   listerRendezvous,
@@ -32,7 +32,7 @@ const FORMAT_DATE_SEULE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', mon
 // 'neutre-fort' (pas le simple 'neutre', jugé trop discret — audit 2026-08-20) : gris moyen/texte
 // foncé, neutre mais bien lisible ; même variante reprise sur Planification.jsx (Suivi des tests)
 // pour rester cohérent entre les deux endroits où ce badge apparaît. 'annule' reprend la même
-// variante (audit 2026-08-20) : les libellés distincts ("Annulé" vs "Remplacé", voir
+// variante : les libellés distincts ("Annulé" vs "Remplacé", voir
 // LIBELLES_STATUT plus bas) suffisent à les distinguer, pas besoin d'une troisième teinte neutre.
 //
 // 'honore' (audit 2026-08-20, dossiers #89/#91/#85/#74/#69, posé par evaluationEngine.
@@ -130,12 +130,11 @@ const STATUTS_DOSSIER_RENDEZVOUS_CLOS = [
 ];
 
 // Rôles autorisés à gérer un rendez-vous (reprogrammation/désistement ici, planification côté back
-// — voir ROLES_GESTION_RENDEZVOUS, rendezvous.routes.js) — exportée (audit 2026-08-25) pour que
+// — voir gestionRendezvous, rendezvous.routes.js) — exportée pour que
 // Tests.jsx réutilise EXACTEMENT la même liste plutôt que de la dupliquer, pour son propre bouton
 // "Valider et planifier un test" (première planification d'un test, voir son commentaire d'en-tête) :
 // jamais deux listes de rôles à faire évoluer séparément pour une même action. Rôle Recruteur
-// retiré (audit 2026-08-27) — voir suppression du rôle en base.
-export const ROLES_GESTION_RENDEZVOUS = [...ROLES_ACCUEIL, 'admin'];
+// retiré — voir suppression du rôle en base.
 
 // Rendez-vous d'un dossier (CLAUDE.md, besoin Accueil/Coordination : "relances et
 // reprogrammations" + "motif de désistement enregistré systématiquement, pour objectiver le
@@ -181,12 +180,12 @@ export default function GestionRendezvous({
   const { utilisateur, chargement: chargementSession } = useSession();
 
   // Formateur/Inspecteur (audit 2026-08-20, accès en lecture accordé à cette fiche via "Voir le
-  // dossier" sur Suivi des tests, voir rendezvous.routes.js ROLES_LECTURE_RENDEZVOUS) : consultent
+  // dossier" sur Suivi des tests, voir rendezvous.routes.js lectureRendezvous) : consultent
   // la liste ci-dessous mais ne voient jamais les actions de reprogrammation/désistement,
-  // réservées à Accueil/Coordination/Admin (voir ROLES_GESTION_RENDEZVOUS côté back — ces routes
+  // réservées à Accueil/Coordination/Admin (voir gestionRendezvous côté back — ces routes
   // PATCH restent fermées pour ces deux rôles, ce masquage d'affichage évite un bouton visible
   // mais non fonctionnel).
-  const peutGererRendezvous = ROLES_GESTION_RENDEZVOUS.includes(utilisateur?.roleCode);
+  const peutGererRendezvous = peut(utilisateur, 'gestionRendezvous');
 
   const [rendezvous, setRendezvous] = useState([]);
   const [motifs, setMotifs] = useState([]);
@@ -236,7 +235,7 @@ export default function GestionRendezvous({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : ne recharge que la liste des rendez-vous,
+  // Rafraîchissement automatique : ne recharge que la liste des rendez-vous,
   // jamais les motifs (config statique, sans intérêt à repoller) ni `desistementEnCours`/
   // `motifChoisi` (le mini-formulaire de désistement en cours, état séparé ci-dessus).
   useRafraichissementAuto(chargerRendezvous);
@@ -425,7 +424,7 @@ export default function GestionRendezvous({
                           Confirmer la présence
                         </button>
                       )}
-                      {/* "Marquer absent" retiré (audit 2026-09-11, décision utilisateur) : ce
+                      {/* "Marquer absent" retiré : ce
                           statut de rendez-vous (badge "NSPP", ex-"Manqué") ne doit plus être
                           atteignable manuellement par Accueil/Coordination/Admin — seuls NSPP
                           (Formateur/Inspecteur, ListeEvaluationsAFaire.jsx) et la bascule

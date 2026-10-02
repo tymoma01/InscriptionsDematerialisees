@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Insensible aux accents en plus de la casse (décision utilisateur, 2026-09-04) : un candidat qui
+// Insensible aux accents en plus de la casse : un candidat qui
 // recopie "lu et approuve" sans accent doit être accepté au même titre que "Lu et Approuvé".
 // `.normalize('NFD')` décompose chaque lettre accentuée en lettre de base + diacritique
 // combinant, que `\p{Diacritic}` retire ensuite — plus robuste qu'énumérer les variantes

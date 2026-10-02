@@ -1,4 +1,4 @@
-// Rôle Inspecteur Hôtellerie (2026-10-01) — droits testés sur les VRAIES gardes montées (convention du
+// Rôle Inspecteur Hôtellerie — droits testés sur les VRAIES gardes montées (convention du
 // projet : aucune infrastructure de test HTTP, on exécute les middlewares de la pile du routeur), plus
 // le périmètre de dossiers (core/auth/perimetreDossiers.js) et le filtrage côté serveur.
 const test = require('node:test');

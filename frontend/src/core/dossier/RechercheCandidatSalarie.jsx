@@ -51,7 +51,7 @@ export default function RechercheCandidatSalarie({ valeur, onChanger, onSelectio
     }, DELAI_DEBOUNCE_MS);
 
     return () => clearTimeout(minuteurRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [valeur, candidatId]);
 
   useEffect(() => {

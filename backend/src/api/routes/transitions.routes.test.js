@@ -71,7 +71,7 @@ test("supprimerEvenementsOutlookRendezvousNeutralises ignore silencieusement un 
   assert.equal(supprimerEvenement.mock.calls.length, 0);
 });
 
-// B9 (bloc 2, audit 2026-09-23) : un échec Outlook sur un rendez-vous n'empêche pas la suppression
+// B9 : un échec Outlook sur un rendez-vous n'empêche pas la suppression
 // des suivants — try/catch PAR rendez-vous, jamais un seul englobant.
 test("supprimerEvenementsOutlookRendezvousNeutralises continue sur les rendez-vous suivants après un échec Graph isolé, et journalise l'échec sans le propager", async (t) => {
   mockerBase(t);

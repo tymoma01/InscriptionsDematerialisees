@@ -3,7 +3,7 @@ const dossierRepository = require('../core/dossier/dossierRepository');
 const journalAudit = require('../core/audit/journalAudit');
 const { executerRattrapageAnnulationTest } = require('../core/rendezvous/rattrapageAnnulationTestService');
 
-// Logique métier du job "Filet de sécurité — rattrapage annulation test" (audit 2026-09-21), même
+// Logique métier du job "Filet de sécurité — rattrapage annulation test", même
 // patron que basculeTestNonRealiseJob.js — séparée de son déclenchement, voir
 // rattrapageAnnulationTestCron.js pour le wrapper node-cron, chargé en dev ET en prod (voir
 // server.js).

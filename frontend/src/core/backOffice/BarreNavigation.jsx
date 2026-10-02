@@ -1,13 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL, ROLES_DPAE_CONSULTATION, ROLES_DPAE_TABLEAU_DE_BORD, ROLE_INSPECTEUR_HOTELLERIE } from '../auth/rolesGroupes';
+import { peut } from '../auth/permissions';
 import './BarreNavigation.css';
 
 // Catalogue des destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
 // office recruteur" dans "Dossiers candidats", voir App.jsx ; étendu au parcours Formateur/
 // Inspecteur le 2026-08-20) — chaque entrée recopie le sous-
 // ensemble de rôles réellement autorisé côté back (voir commentaire de chacune) : cette barre ne
-// fait qu'AFFICHER un accès déjà décidé par requireRole(...), jamais l'inverse — la page cible
+// fait qu'AFFICHER un accès déjà décidé par requirePermission(...), jamais l'inverse — la page cible
 // refait de toute façon son propre appel réseau protégé (voir App.jsx, en-tête).
 // `chemin` est soit une chaîne fixe (même destination quel que soit le rôle qui la voit), soit une
 // fonction (roleCode) => chemin — seul cas d'usage actuel : Formateur et Inspecteur ont chacun
@@ -20,7 +20,7 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Historique des évaluations',
     chemin: (roleCode) => (roleCode === 'inspecteur' ? '/inspecteur/historique' : '/formateur/historique'),
     estActif: (chemin) => chemin.startsWith('/formateur/historique') || chemin.startsWith('/inspecteur/historique'),
-    // Mêmes rôles que evaluations.routes.js (route /historique), ROLES_EVALUATION restreint à
+    // Mêmes rôles que evaluations.routes.js (route /historique), evaluation restreint à
     // Formateur/Inspecteur/Admin — Admin exclu ici volontairement : cette barre ne sert que le
     // parcours Formateur/Inspecteur (voir commentaire d'en-tête plus bas), Admin gère les comptes
     // via "Comptes utilisateurs", pas d'évaluations en son nom propre.
@@ -43,7 +43,7 @@ const ELEMENTS_NAVIGATION = [
     estActif: (chemin) => chemin.startsWith('/tableau-de-bord/'),
     // Mêmes rôles que statistiques.routes.js. RH ajouté (module Demandes DPAE, 2026-09-28, demande
     // utilisateur explicite) — lecture seule, cohérent avec le reste de ses accès.
-    roles: [...ROLES_ACCUEIL, 'admin', 'rh', ROLE_INSPECTEUR_HOTELLERIE],
+    permission: 'statistiques',
   },
   {
     cle: 'dossiers',
@@ -57,40 +57,40 @@ const ELEMENTS_NAVIGATION = [
       chemin.startsWith('/accueil/') ||
       chemin.startsWith('/coordination/dossiers/') ||
       chemin.startsWith('/recruteur/'),
-    // Mêmes rôles que dossiers.routes.js, ROLES_CONSULTATION_DOSSIERS — RH ajouté (module Demandes
+    // Mêmes rôles que dossiers.routes.js, consultationDossiers — RH ajouté (module Demandes
     // DPAE, 2026-09-28, demande utilisateur explicite) : consultation seule (Validation.jsx masque
-    // déjà "Forcer le statut"/"Embauche" pour tout rôle hors ROLES_FORCAGE/ROLES_ACCUEIL+admin,
+    // déjà "Forcer le statut"/"Embauche" pour tout rôle hors forcerStatut/Accueil/Coordination et Planning+admin,
     // donc naturellement en lecture seule pour RH, voir son commentaire d'en-tête).
-    roles: [...ROLES_ACCUEIL, 'admin', 'rh', ROLE_INSPECTEUR_HOTELLERIE],
+    permission: 'listeDossiers',
   },
   {
     cle: 'suivi-tests',
     libelle: 'Suivi des tests',
     chemin: '/coordination/planification',
     estActif: (chemin) => chemin.startsWith('/coordination/planification'),
-    // Formateur/Inspecteur ajoutés ici (audit 2026-08-20) : voient uniquement leurs propres
+    // Formateur/Inspecteur ajoutés ici : voient uniquement leurs propres
     // rendez-vous assignés sur cette page (restriction posée côté serveur, voir
     // dossiers.routes.js — jamais une simple restriction d'affichage). Mêmes rôles que
     // dossiers.routes.js (route /rendezvous) et formateurs.routes.js pour Accueil/Coordination/
     // Admin.
-    roles: [...ROLES_ACCUEIL, 'admin', 'formateur', 'inspecteur'],
+    permission: 'suiviTests',
   },
   {
     cle: 'suivi-formation',
     libelle: 'Suivi des formations',
     chemin: '/coordination/suivi-formation',
     estActif: (chemin) => chemin.startsWith('/coordination/suivi-formation'),
-    // Suivi de formation (audit 2026-08-28) — mêmes rôles que 'suivi-tests' ci-dessus à l'origine
+    // Suivi de formation — mêmes rôles que 'suivi-tests' ci-dessus à l'origine
     // (Accueil/Coordination lecture seule, Formateur/Inspecteur/Admin accès complet, différencié
     // DANS la page — voir SuiviFormation.jsx — pas par un second onglet), Inspecteur RETIRÉ depuis
     // (audit 2026-09-26, règle métier confirmée : aucun dossier Tertiaire — le secteur de
     // l'Inspecteur — ne passe en formation). Mêmes rôles que dossiers.routes.js, route
-    // /suivi-formation (ROLES_SUIVI_FORMATION), et App.jsx (garde de route équivalente).
-    roles: [...ROLES_ACCUEIL, 'admin', 'formateur'],
+    // /suivi-formation (suiviFormation), et App.jsx (garde de route équivalente).
+    permission: 'suiviFormation',
   },
-  // Vues Formateur / Inspecteur de l'Admin (audit 2026-09-29, demande utilisateur) — ouvrent
+  // Vues Formateur / Inspecteur de l'Admin — ouvrent
   // l'espace EXISTANT du rôle (mêmes routes, mêmes pages, mêmes composants), l'Admin y voyant tout
-  // le secteur (voir secteurVueAdmin dans pages/formateur et pages/inspecteur). `sousOnglets` : clés
+  // le secteur (voir secteurVueAdmin dans pages/evaluation). `sousOnglets` : clés
   // des entrées de CETTE liste à reprendre comme sous-onglets de l'espace, résolues avec
   // `roleEspace` (même fonction `chemin(roleCode)` que pour un vrai Formateur/Inspecteur) —
   // aucune route ni libellé dupliqué. Onglet actif = toute route de l'espace.
@@ -99,7 +99,7 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Formateur Hôtellerie',
     chemin: '/formateur/evaluations',
     estActif: (chemin) => chemin.startsWith('/formateur/'),
-    roles: ['admin'],
+    permission: 'administration',
     roleEspace: 'formateur',
     sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
   },
@@ -108,54 +108,51 @@ const ELEMENTS_NAVIGATION = [
     libelle: 'Formateur Tertiaire',
     chemin: '/inspecteur/evaluations',
     estActif: (chemin) => chemin.startsWith('/inspecteur/'),
-    roles: ['admin'],
+    permission: 'administration',
     roleEspace: 'inspecteur',
     sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
   },
   {
-    // Onglet Admin (2026-10-01) : Dossiers candidats avec le périmètre de l'Inspecteur Hôtellerie
+    // Onglet Admin : Dossiers candidats avec le périmètre de l'Inspecteur Hôtellerie
     // (Hôtellerie, 5 statuts), appliqué côté serveur (paramètre `vue`, Admin uniquement).
     cle: 'vue-inspecteur-hotellerie',
     libelle: 'Inspecteur',
     chemin: '/vue-inspecteur-hotellerie/dossiers',
     estActif: (chemin) => chemin.startsWith('/vue-inspecteur-hotellerie/'),
-    roles: ['admin'],
+    permission: 'administration',
   },
   {
     cle: 'rh',
-    // Onglet « RH » (2026-09-30, demande utilisateur) — remplace l'onglet « Demandes DPAE », à la
+    // Onglet « RH » — remplace l'onglet « Demandes DPAE », à la
     // MÊME position (avant « Comptes utilisateurs » : l'ordre de ce tableau pilote l'ordre des
     // onglets). Espace à sous-onglets, même mécanisme que « Vue Formateur »/« Vue Inspecteur »
     // ci-dessus : « Tableau de bord DPAE » puis « Demandes DPAE » (ordre inversé le 2026-10-02,
     // demande utilisateur). Pas de `roleEspace` : les sous-onglets calculent leur chemin avec le
     // rôle CONNECTÉ (la RH garde sa file comme destination). Un clic sur « RH » ouvre « Tableau de
-    // bord DPAE », ou « Demandes DPAE » pour un rôle qui n'y a pas accès (Inspecteur Hôtellerie,
-    // ROLES_DPAE_TABLEAU_DE_BORD). Actif sur TOUTES les pages DPAE
+    // bord DPAE », ou « Demandes DPAE » pour un rôle qui n'y a pas accès (Inspecteur). Actif sur TOUTES les pages DPAE
     // (suivi, nouvelle demande, tableau de bord sous /coordination/dpae/ ; file RH et fiche sous
     // /rh/dpae) — aucune adresse existante modifiée.
     libelle: 'RH',
-    chemin: (roleCode) => {
-      if (ROLES_DPAE_TABLEAU_DE_BORD.includes(roleCode)) {
+    chemin: (roleCode, utilisateur) => {
+      if (peut(utilisateur, 'dpaeTableauDeBord')) {
         return '/coordination/dpae/tableau-de-bord';
       }
       return roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
     },
     estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
-    // Rôles qui peuvent consulter des demandes (Admin, RH, Planning — ROLES_DPAE_CONSULTATION) :
-    // Accueil/Coordination n'a pas l'onglet. Voir core/auth/rolesGroupes.js.
-    roles: ROLES_DPAE_CONSULTATION,
+    permission: 'dpaeConsultation',
     sousOnglets: ['dpae-tableau-de-bord', 'dpae-demandes'],
   },
-  // Sous-onglets de l'espace « RH » — `roles: []` : jamais affichés dans la barre principale, seulement
-  // dans la barre de sous-onglets de leur espace (voir `sousOnglets` ci-dessus).
+  // Sous-onglets de l'espace « RH » — `sousOngletSeulement` : jamais affichés dans la barre
+  // principale, seulement dans la barre de sous-onglets de leur espace.
   {
     cle: 'dpae-tableau-de-bord',
     libelle: 'Tableau de bord DPAE',
     chemin: '/coordination/dpae/tableau-de-bord',
     estActif: (chemin) => chemin.startsWith('/coordination/dpae/tableau-de-bord'),
-    roles: [],
-    // Sous-onglet réservé (2026-10-01) : pas pour l'Inspecteur Hôtellerie.
-    rolesSousOnglet: ROLES_DPAE_TABLEAU_DE_BORD,
+    sousOngletSeulement: true,
+    // Sous-onglet réservé : pas pour l'Inspecteur Hôtellerie.
+    permissionSousOnglet: 'dpaeTableauDeBord',
   },
   {
     cle: 'dpae-demandes',
@@ -166,7 +163,7 @@ const ELEMENTS_NAVIGATION = [
     estActif: (chemin) =>
       chemin.startsWith('/rh/dpae') ||
       (chemin.startsWith('/coordination/dpae/') && !chemin.startsWith('/coordination/dpae/tableau-de-bord')),
-    roles: [],
+    sousOngletSeulement: true,
   },
   {
     cle: 'comptes-utilisateurs',
@@ -174,7 +171,7 @@ const ELEMENTS_NAVIGATION = [
     chemin: '/admin/utilisateurs',
     estActif: (chemin) => chemin.startsWith('/admin/'),
     // Mêmes rôles que utilisateurs.routes.js — réservée à Admin.
-    roles: ['admin'],
+    permission: 'administration',
   },
 ];
 
@@ -195,7 +192,12 @@ export default function BarreNavigation() {
     return null;
   }
 
-  const elementsVisibles = ELEMENTS_NAVIGATION.filter((element) => element.roles.includes(utilisateur.roleCode));
+  // `permission` : droit (core/auth/permissions.js). `roles` : réservé aux onglets qui désignent
+  // l'espace PROPRE d'un rôle (Formateur/Inspecteur), pas un droit.
+  const estVisible = (element) =>
+    !element.sousOngletSeulement &&
+    (element.permission ? peut(utilisateur, element.permission) : element.roles.includes(utilisateur.roleCode));
+  const elementsVisibles = ELEMENTS_NAVIGATION.filter(estVisible);
   if (elementsVisibles.length === 0) {
     return null;
   }
@@ -210,13 +212,13 @@ export default function BarreNavigation() {
     ? ELEMENTS_NAVIGATION.filter(
         (element) =>
           espaceActif.sousOnglets.includes(element.cle) &&
-          (!element.rolesSousOnglet || element.rolesSousOnglet.includes(utilisateur.roleCode)),
+          (!element.permissionSousOnglet || peut(utilisateur, element.permissionSousOnglet)),
       )
     : [];
 
   return (
     <>
-      {/* --dense (audit 2026-09-29) : au-delà de 6 onglets (aujourd'hui l'Admin seul, avec "Vue
+      {/* --dense : au-delà de 6 onglets (aujourd'hui l'Admin seul, avec "Vue
           Formateur"/"Vue Inspecteur"), liens légèrement resserrés pour que la barre sticky tienne
           sur une ligne en largeur bureau — sa hauteur sur une ligne sert de référence aux autres
           éléments collants (--hauteur-barre-navigation). Aucun changement pour les autres rôles. */}
@@ -226,7 +228,7 @@ export default function BarreNavigation() {
       >
         {elementsVisibles.map((element) => {
           const actif = element.estActif(pathname);
-          const chemin = typeof element.chemin === 'function' ? element.chemin(utilisateur.roleCode) : element.chemin;
+          const chemin = typeof element.chemin === 'function' ? element.chemin(utilisateur.roleCode, utilisateur) : element.chemin;
           return (
             <Link
               key={element.cle}
@@ -246,7 +248,7 @@ export default function BarreNavigation() {
             // (espace « RH », 2026-09-30). Actif : règle propre du sous-onglet (plusieurs pages pour
             // « Demandes DPAE »), identique pour les sous-onglets Formateur/Inspecteur.
             const roleChemin = espaceActif.roleEspace ?? utilisateur.roleCode;
-            const chemin = typeof element.chemin === 'function' ? element.chemin(roleChemin) : element.chemin;
+            const chemin = typeof element.chemin === 'function' ? element.chemin(roleChemin, utilisateur) : element.chemin;
             const actif = element.estActif(pathname);
             return (
               <Link

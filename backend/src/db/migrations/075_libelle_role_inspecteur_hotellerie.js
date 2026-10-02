@@ -1,4 +1,4 @@
-// Libellé AFFICHÉ du rôle 'inspecteur_hotellerie' (2026-10-02, demande utilisateur) :
+// Libellé AFFICHÉ du rôle 'inspecteur_hotellerie' :
 // « Inspecteur Hôtellerie » -> « Inspecteur » (Comptes utilisateurs, rôle de l'auteur d'une note…).
 // Le CODE ne change pas (utilisateurs, routes, groupes de rôles intacts). Pas de collision : le rôle
 // 'inspecteur' est affiché « Formateur Tertiaire » depuis la migration 073.

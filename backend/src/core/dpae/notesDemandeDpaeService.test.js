@@ -7,7 +7,7 @@ const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const notesDemandeDpaeService = require('./notesDemandeDpaeService');
 const { ErreurDemandeIntrouvable } = require('./demandeDpaeService');
 
-// Notes d'une demande DPAE (2026-09-30) : jamais lues ni écrites sans confirmer que la demande
+// Notes d'une demande DPAE : jamais lues ni écrites sans confirmer que la demande
 // appartient à l'entité de la requête.
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
 const ENTITE_AUTRE = { id: 2, code: 'autre_entite' };

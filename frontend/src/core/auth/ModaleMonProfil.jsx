@@ -3,7 +3,7 @@ import { obtenirMonProfil, mettreAJourMonProfil } from '../../services/moiServic
 import './ModaleMonProfil.css';
 
 // Self-service "Mon profil" (audit 2026-08-28, formateur/inspecteur en premier usage, voir
-// pages/formateur/Evaluation.jsx et pages/inspecteur/Evaluation.jsx) — Nom/Prénom/Email/Rôle en
+// pages/evaluation/Evaluation.jsx et pages/evaluation/Evaluation.jsx) — Nom/Prénom/Email/Rôle en
 // lecture seule (résolus côté serveur, jamais modifiables ici), même patron libellé/valeur que
 // InformationsInscription.css (.informations-inscription__ligne) pour rester cohérent avec le
 // reste de l'app. Téléphone et la préférence email planification partagent désormais UN SEUL
@@ -47,7 +47,7 @@ export default function ModaleMonProfil({ onFermer }) {
     };
   }, []);
 
-  // Un seul appel, un seul bouton (audit 2026-08-28) : envoie systématiquement les DEUX champs
+  // Un seul appel, un seul bouton : envoie systématiquement les DEUX champs
   // ensemble, quel que soit celui réellement modifié — plus simple qu'un diff côté client, et le
   // backend accepte les deux valeurs même inchangées (moi.routes.js).
   const enregistrer = async (evenement) => {
@@ -111,7 +111,7 @@ export default function ModaleMonProfil({ onFermer }) {
                 <input type="tel" value={telephone} onChange={(evenement) => setTelephone(evenement.target.value)} />
               </div>
 
-              {/* Uniquement Formateur/Inspecteur (audit 2026-08-28) : seuls ces deux rôles
+              {/* Uniquement Formateur/Inspecteur : seuls ces deux rôles
                   reçoivent l'email personnalisé de planification (voir invitationTestService.js,
                   construireMessageEmailFormateur) — la case n'a pas de sens pour Accueil/
                   Coordination, Admin, ou tout futur rôle (ex. Suivi Formation), qui ne le reçoivent

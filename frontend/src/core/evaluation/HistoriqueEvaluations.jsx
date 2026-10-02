@@ -5,6 +5,7 @@ import { useParametreURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerHistoriqueEvaluations, listerCreneauxDisponibles } from '../../services/evaluationService';
 import SelecteurEvaluateurAdmin from './SelecteurEvaluateurAdmin';
+import { libellePoste } from '../referentiels/postes';
 import './HistoriqueEvaluations.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -15,24 +16,6 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Libellés des postes hôtel — mêmes codes/libellés que BlocDisponibilites.jsx (POSTES_HOTEL) et
-// GrilleEvaluation.jsx (POSTE_HOTEL_LIBELLES), dupliqués ici plutôt que partagés : quelques
-// lignes de données, même choix déjà fait ailleurs dans le projet (voir VARIANTE_PAR_CODE_ACCECIT,
-// TableauDeBordAccueil.jsx/Backoffice.jsx).
-const POSTE_HOTEL_LIBELLES = {
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-const POSTE_BUREAU_LIBELLES = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-};
-
 // postes_codes : plusieurs postes peuvent avoir été évalués dans une même évaluation (blocs
 // empilés, voir GrilleEvaluation.jsx / backend evaluationEngine.enregistrerEvaluation) — tableau
 // vide/absent = repli sur le questionnaire générique (poste hôtel/bureau sans questionnaire dédié,
@@ -42,7 +25,7 @@ const POSTE_BUREAU_LIBELLES = {
 // "Générique" ne concerne donc plus que ce vrai cas de repli, pas systématiquement le bureau.
 function libellePostes(postesCodes) {
   if (!postesCodes || postesCodes.length === 0) return 'Générique';
-  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode).join(', ');
+  return postesCodes.map((posteCode) => libellePoste(posteCode)).join(', ');
 }
 
 // Ordre chronologique du vocabulaire bureau — même liste que CRENEAUX_PAR_TYPE_POSTE.bureau côté
@@ -77,7 +60,7 @@ function trierCreneaux(creneaux) {
   });
 }
 
-// Palette "Créneau" (audit 2026-09-18, demande utilisateur) — 3 variantes StatutBadge déjà
+// Palette "Créneau" — 3 variantes StatutBadge déjà
 // utilisées ailleurs dans l'app pour des besoins catégoriels (pas un jugement positif/négatif,
 // contrairement à 'echec'/'succes'/'vert-clair' déjà pris par la colonne "Résultat" de CE même
 // tableau, à ne pas réutiliser ici pour éviter toute confusion visuelle) : 'bleu'/'violet' déjà
@@ -92,14 +75,14 @@ const CRENEAU_EMOJI = { '6h-9h': '🔵', '9h-18h': '🟤', '18h-21h': '🟣' };
 
 // Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) évalué(s), résultat) — même
 // principe que Dossiers candidats/Suivi des tests (filtrerDossiers.js/Planification.jsx) : toutes
-// les colonnes visibles du tableau (audit 2026-08-20), jamais seulement un sous-ensemble. Nom/
+// les colonnes visibles du tableau, jamais seulement un sous-ensemble. Nom/
 // prénom comparés mot par mot, insensible à l'ordre de saisie ; poste/résultat comparés par simple
 // inclusion sur le libellé AFFICHÉ (libelleResultat, défini plus bas — function déclarée, donc
 // disponible ici malgré l'ordre du fichier), jamais resultat_global/orientation bruts : un agent
 // tape "invalidé" ou "prêt à l'embauche", pas les codes internes 'invalide'/'pret_embauche'.
 // Dupliqué plutôt que partagé : `evaluation` n'a pas la même forme qu'un `dossier`/`rdv`, et cette
 // page n'a ni téléphone ni email à chercher. Une saisie numérique courte ("91") ne vise QUE le n°
-// de dossier, en égalité stricte — même correctif qu'ailleurs (audit 2026-08-19) : une simple
+// de dossier, en égalité stricte — même correctif qu'ailleurs : une simple
 // inclusion remonterait aussi "191"/"912"/etc. Pas de cas "saisie numérique longue" à gérer ici
 // (contrairement à filtrerDossiers.js/Planification.jsx) : cette page n'a aucun champ téléphone,
 // une telle saisie ne matche donc simplement rien (repli naturel sur nom/poste/résultat ci-dessous,
@@ -145,7 +128,7 @@ const COLONNES_BASE = [
   { cle: 'resultat_global', libelle: 'Résultat', extraire: (e) => libelleResultat(e).toLowerCase() },
 ];
 
-// Colonne "Créneau" (audit 2026-09-18, demande utilisateur) — creneaux (tableau JSONB, voir
+// Colonne "Créneau" — creneaux (tableau JSONB, voir
 // evaluationRepository.listerEvaluationsParFormateur, même donnée que le filtre "Créneaux
 // souhaités" ci-dessous, aucune nouvelle source). Tri sur le créneau le plus TÔT de l'évaluation
 // (voir ORDRE_CRENEAUX_BUREAU) plutôt qu'un tri alphabétique des codes joints — même piège que le
@@ -165,7 +148,7 @@ const COLONNE_CRENEAU = {
   },
 };
 
-// Colonne "Inspecteur" (audit 2026-09-17, demande utilisateur) — formateur_prenom/formateur_nom,
+// Colonne "Inspecteur" — formateur_prenom/formateur_nom,
 // voir evaluationRepository.listerEvaluationsParFormateur, même donnée que la colonne "Assigné à"
 // de ListeEvaluationsAFaire.jsx ("Évaluations à venir"). N'a de sens que si la liste peut contenir
 // des évaluations soumises par un autre utilisateur que celui connecté (voir `afficherInspecteur`
@@ -186,14 +169,11 @@ const COLONNE_INSPECTEUR = {
 // `onSelectionner` laisse à l'appelant la décision d'ouvrir le détail — ce composant ne connaît pas
 // DetailEvaluation.jsx, même patron que ListeEvaluationsAFaire.jsx.
 //
-// `afficherInspecteur` (audit 2026-09-17, demande utilisateur) : n'affiche la colonne "Inspecteur"
-// que si explicitement demandé — seul pages/inspecteur/HistoriqueEvaluations.jsx la passe à true,
-// depuis que la liste y montre les évaluations de TOUS les Inspecteurs (voir backend
-// evaluationEngine.listerHistorique, qui ignore formateurId pour ce rôle). pages/formateur/
-// HistoriqueEvaluations.jsx ne la passe pas : la liste y reste filtrée à l'utilisateur connecté, la
-// colonne n'aurait donc rien d'utile à montrer (toujours son propre nom) — comportement Formateur
-// inchangé, même raisonnement que `afficherAssigne` (ListeEvaluationsAFaire.jsx).
-// Colonne "Formateur" de la vue Admin "Vue Formateur" (audit 2026-09-29) — même contenu que la
+// `afficherInspecteur` : colonne "Inspecteur", passée à true pour le secteur tertiaire seulement
+// (pages/evaluation/HistoriqueEvaluations.jsx), où la liste montre les évaluations de TOUS les
+// Inspecteurs (evaluationEngine.listerHistorique ignore formateurId pour ce rôle). Côté
+// Formateur, la liste est filtrée à l'utilisateur connecté : la colonne n'apporterait rien.
+// Colonne "Formateur" de la vue Admin "Vue Formateur" — même contenu que la
 // colonne "Inspecteur" (evaluations.formateur_id = l'évaluateur), seul le libellé change.
 const COLONNE_FORMATEUR = { ...COLONNE_INSPECTEUR, cle: 'formateur', libelle: 'Formateur Hôtellerie' };
 
@@ -216,7 +196,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   const [recherche, setRecherche] = useParametreURL('q', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
-  // "Créneaux souhaités" (audit 2026-09-17, demande utilisateur) : contrairement aux trois
+  // "Créneaux souhaités" : contrairement aux trois
   // filtres ci-dessus, filtré EN BASE (voir listerHistoriqueEvaluations({ creneau }) dans l'effet
   // de chargement plus bas), pas sur `evaluations` déjà reçu — même useParametreURL pour rester
   // cohérent (persisté dans l'URL, comme les autres), mais son changement redéclenche un appel
@@ -288,7 +268,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // le select à sa seule option "Tous", ce n'est pas une erreur bloquante pour la page comme
   // l'échec du chargement de l'historique lui-même ci-dessus.
   //
-  // Réinitialisation d'une valeur périmée (audit 2026-09-18, correctif) : creneauFiltre est
+  // Réinitialisation d'une valeur périmée : creneauFiltre est
   // persisté dans l'URL (useParametreURL), donc un lien déjà partagé/en favori avec ?creneau=matin
   // — valeur du vocabulaire hôtel, plus jamais proposée par le select depuis le correctif du filtre
   // secteur ci-dessus — resterait sinon actif indéfiniment (0 résultat permanent, aucun moyen de le
@@ -307,10 +287,10 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     return () => {
       annule = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- creneauFiltre volontairement absent
+     
     // des dépendances : ne doit tourner qu'au montage (voir commentaire ci-dessus), pas à chaque
     // changement de filtre — seulement lire sa valeur courante au moment où les options arrivent.
-    // filtresAdmin (audit 2026-09-29) : en vue Admin, les options suivent le formateur/inspecteur
+    // filtresAdmin : en vue Admin, les options suivent le formateur/inspecteur
     // sélectionné (mêmes évaluations que la liste) ; constant ({}) hors vue Admin.
   }, [afficherInspecteur, filtresAdmin]);
 
@@ -368,7 +348,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     });
   };
 
-  // Sélecteur Admin (audit 2026-09-29) — rendu aussi pendant le chargement et quand la liste est
+  // Sélecteur Admin — rendu aussi pendant le chargement et quand la liste est
   // vide, pour toujours pouvoir revenir à "Tous".
   const selecteurAdmin = secteurVueAdmin ? (
     <SelecteurEvaluateurAdmin secteur={secteurVueAdmin} valeur={evaluateurFiltre} onChanger={setEvaluateurFiltre} />
@@ -385,12 +365,12 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   if (erreur) {
     return <p role="alert">{erreur}</p>;
   }
-  // !creneauFiltre (audit 2026-09-17) : sans cette condition, un filtre "Créneaux souhaités" qui
+  // !creneauFiltre : sans cette condition, un filtre "Créneaux souhaités" qui
   // renvoie zéro évaluation (côté serveur, voir l'effet de chargement plus haut) afficherait à tort
   // "Aucune évaluation soumise pour l'instant" — message réservé au cas où l'utilisateur n'a
   // vraiment aucune évaluation, pas à un résultat vide dû à un filtre actif (voir le message dédié
   // "Aucune évaluation ne correspond aux critères actuels" plus bas, evaluationsTriees.length === 0).
-  // !evaluateurFiltre (audit 2026-09-29) : même raison que !creneauFiltre pour le filtre Admin.
+  // !evaluateurFiltre : même raison que !creneauFiltre pour le filtre Admin.
   if (evaluations.length === 0 && !creneauFiltre && !evaluateurFiltre) {
     return (
       <>
@@ -414,7 +394,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
           />
         </label>
 
-        {/* "Créneaux souhaités" (audit 2026-09-17, demande utilisateur) — uniquement côté
+        {/* "Créneaux souhaités" — uniquement côté
             Inspecteur (voir `afficherInspecteur`), filtré EN BASE contrairement à Rechercher/Du/Au
             (voir l'effet de chargement plus haut) : options = optionsCreneaux, jamais une liste
             codée en dur. Indicateur emoji (audit 2026-09-18, demande utilisateur — même palette

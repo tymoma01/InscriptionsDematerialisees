@@ -1,4 +1,4 @@
-// Statut « En attente » des demandes DPAE (2026-09-30, demande utilisateur). La colonne `statut`
+// Statut « En attente » des demandes DPAE. La colonne `statut`
 // est une simple chaîne sans contrainte en base (migration 066) : la valeur 'en_attente' ne
 // demande AUCUNE modification de schéma en elle-même. Cette migration n'ajoute que de quoi
 // conserver la DERNIÈRE mise en attente (motif obligatoire, date, auteur), affichée sur la fiche

@@ -13,6 +13,7 @@ import { listerSuiviFormation } from '../../services/dossierService';
 import { appliquerTransition } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import ModaleResultatFormation from './ModaleResultatFormation';
+import { libellePoste } from '../../core/referentiels/postes';
 import './SuiviFormation.css';
 
 // Suivi de formation (audit 2026-08-28, révise une décision antérieure — "Validé - envoyé en
@@ -80,24 +81,7 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 const CODE_ACTION_FORMATION_VALIDEE = 'marquer_formation_validee';
 const CODE_ACTION_FORMATION_NON_VALIDEE = 'invalider_formation';
 
-// Libellés des postes — même mapping que Planification.jsx (Suivi des tests)/TableauDeBordAccueil.jsx,
-// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
-const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-function libellePoste(code) {
-  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
-}
-
-// Libellés/options du filtre + colonne "Expérience" (audit 2026-09-02) — mêmes codes que
+// Libellés/options du filtre + colonne "Expérience" — mêmes codes que
 // BlocDisponibilites.jsx (formulaire d'inscription)/Planification.jsx (Suivi des tests), dupliqués
 // plutôt que partagés (voir CLAUDE.md conventions du projet). Cette page n'affichait jusqu'ici
 // aucune colonne "Poste" (contrairement à Dossiers candidats/Suivi des tests) : "Expérience" est
@@ -120,7 +104,7 @@ function libelleExperience(code) {
 // (voir CLAUDE.md conventions du projet, et son commentaire d'en-tête : la forme d'un dossier
 // diffère de celle d'un rendez-vous). rechercheEstNumeroDossier/rechercheEstNumerique : une saisie
 // numérique courte ("108") vise UNIQUEMENT le n° de dossier en égalité stricte, jamais une simple
-// inclusion — même correctif que filtrerDossiers.js/Planification.jsx (audit 2026-08-19).
+// inclusion — même correctif que filtrerDossiers.js/Planification.jsx.
 function rechercheCorrespond(
   dossier,
   { motsRechercheNom, rechercheNormaliseeTexte, rechercheChiffresSeuls, rechercheEstNumerique, rechercheEstNumeroDossier },
@@ -156,7 +140,7 @@ export default function SuiviFormation() {
   const [enCoursId, setEnCoursId] = useState(null);
   const [erreurAction, setErreurAction] = useState(null);
   const [rafraichir, setRafraichir] = useState(0);
-  // Action en attente de confirmation via ModaleResultatFormation (audit 2026-08-28) — { dossier,
+  // Action en attente de confirmation via ModaleResultatFormation — { dossier,
   // codeAction, titre } ou null tant qu'aucune modale n'est ouverte.
   const [actionAConfirmer, setActionAConfirmer] = useState(null);
 
@@ -184,7 +168,7 @@ export default function SuiviFormation() {
   const [codePostalFiltre, setCodePostalFiltre] = useParametreURL('codePostal', '');
   const [dateDebutFiltre, setDateDebutFiltre] = useParametreURL('date_debut', '');
   const [dateFinFiltre, setDateFinFiltre] = useParametreURL('date_fin', '');
-  // Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que Planification.jsx (Suivi
+  // Filtre "Expérience" — même mécanisme <select> que Planification.jsx (Suivi
   // des tests), filtrage entièrement client. '' = toutes les tranches confondues.
   const [experienceFiltre, setExperienceFiltre] = useParametreURL('experience', '');
   // Filtre "Entité" (Hôtellerie/Tertiaire, demande utilisateur) — même composant/mécanisme que
@@ -374,7 +358,7 @@ export default function SuiviFormation() {
                 boutons, puis la liste. Plus de bouton "Plus de filtres" pour les masquer (retiré le
                 2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx supprimé,
                 ce bloc reste désormais visible en permanence). */}
-            {/* Filtre "Expérience" (audit 2026-09-02) — même mécanisme <select> que
+            {/* Filtre "Expérience" — même mécanisme <select> que
                 Planification.jsx (Suivi des tests), filtrage entièrement client. */}
             <div className="page-suivi-formation__filtres-avances">
               <label className="page-suivi-formation__filtre-experience">

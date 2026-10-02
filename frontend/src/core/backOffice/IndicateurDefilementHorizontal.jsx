@@ -47,7 +47,7 @@ export default function IndicateurDefilementHorizontal({ className, children }) 
     if (noeud.firstElementChild) observateur.observe(noeud.firstElementChild);
 
     return () => observateur.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [recalculer, children]);
 
   return (

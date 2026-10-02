@@ -29,7 +29,7 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  /* Ancien font-weight: 700 sur tout le bouton retiré (2026-08-17) : mettait "Tous" entier en
+  /* Ancien font-weight: 700 sur tout le bouton retiré : mettait "Tous" entier en
      gras pour le distinguer, mais entre en conflit avec le nouveau compteur — seul le chiffre
      entre parenthèses doit être en gras (voir <strong> dans FiltresStatut.jsx), pour un
      traitement visuel identique à "Tous"/aux boutons de statut/Hôtellerie/Tertiaire. */

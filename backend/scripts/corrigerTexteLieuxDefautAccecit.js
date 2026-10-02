@@ -79,7 +79,7 @@ async function main() {
     }
 
     for (const { secteur, avant, apres } of CORRECTIFS) {
-      // eslint-disable-next-line no-await-in-loop -- deux lieux seulement, séquentiel suffisant.
+       
       const lieu = await bd('lieux').where({ entite_id: entite.id, secteur, par_defaut: true }).first();
       if (!lieu) {
         throw new Error(`Aucun lieu par défaut trouvé pour le secteur « ${secteur} » — arrêt sans rien modifier.`);
@@ -90,7 +90,7 @@ async function main() {
         lieu.adresse === cibleAdresse && lieu.metro_acces === apres.metroAcces && lieu.instructions === apres.instructions;
       if (dejaCorrige) {
         console.log(`Lieu #${lieu.id} (secteur « ${secteur} ») déjà corrigé — rien à faire.`);
-        continue; // eslint-disable-line no-continue
+        continue;  
       }
 
       const adresseAttendue = avant.adresse ?? lieu.adresse;
@@ -109,7 +109,7 @@ async function main() {
       console.log(`  metro_acces  : ${lieu.metro_acces}`);
       console.log(`  instructions : ${lieu.instructions}`);
 
-      // eslint-disable-next-line no-await-in-loop
+       
       await lieuService.modifierLieu(entite, lieu.id, {
         adresse: cibleAdresse,
         metroAcces: apres.metroAcces,

@@ -32,7 +32,7 @@ export async function obtenirDemande(demandeId) {
   return data;
 }
 
-// Téléchargement PDF (2026-10-02) — PDF généré côté serveur. Réponse axios complète (pas seulement
+// Téléchargement PDF — PDF généré côté serveur. Réponse axios complète (pas seulement
 // data) : le nom du fichier vient de l'en-tête Content-Disposition. Enregistrement et messages
 // d'erreur : core/dpae/TelechargementPdfDpae.jsx.
 export function telechargerPdfDemande(demandeId) {
@@ -52,12 +52,12 @@ export async function rejeterDemande(demandeId, motifRejet) {
   await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet });
 }
 
-// « À traiter » -> « En attente » (2026-09-30), motif obligatoire (refusé sinon côté serveur).
+// « À traiter » -> « En attente », motif obligatoire (refusé sinon côté serveur).
 export async function mettreEnAttenteDemande(demandeId, motif) {
   await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { motif });
 }
 
-// Notes propres à une demande (2026-09-30) — même forme de réponse que les notes d'un dossier
+// Notes propres à une demande — même forme de réponse que les notes d'un dossier
 // (noteDossierService.js), affichées par le même composant NotesDossier.jsx. auteurId jamais
 // envoyé : le back le prend de la session.
 export async function listerNotesDemande(demandeId) {
@@ -77,7 +77,7 @@ export async function rechercherCandidats(texte) {
   return data;
 }
 
-// « Tableau de bord DPAE » (2026-09-30) — indicateurs calculés côté serveur (dpae.routes.js,
+// « Tableau de bord DPAE » — indicateurs calculés côté serveur (dpae.routes.js,
 // GET /tableau-de-bord), entité courante. filtres : { debut, fin, siteId, typeContrat, statut },
 // tous optionnels (valeur vide = tous ; période par défaut : les 30 derniers jours).
 export async function obtenirTableauDeBordDpae(filtres = {}) {

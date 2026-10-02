@@ -1,4 +1,4 @@
-// Synchronisation "modification manuelle Outlook" (décision utilisateur, 2026-08-28) : un
+// Synchronisation "modification manuelle Outlook" : un
 // formateur/inspecteur assigné, ou un agent Accueil/Coordination, peut déplacer ou supprimer
 // directement dans Outlook un événement que l'app avait créé pour un rendez-vous de test — sans
 // jamais repasser par l'app elle-même. Ce module détecte ces changements, périodiquement (voir
@@ -52,7 +52,7 @@ const journalAudit = require('../audit/journalAudit');
 
 const CODE_MOTIF_ANNULE_DEPUIS_OUTLOOK = 'annule_depuis_outlook';
 
-// Second garde-fou (correctif 2026-10-01) : au-delà de ce nombre d'annulations détectées dans UN
+// Second garde-fou : au-delà de ce nombre d'annulations détectées dans UN
 // même passage, le job n'en applique AUCUNE et consigne une alerte — une vague d'annulations d'un
 // coup signale bien plus probablement une panne (mauvaise boîte, droits retirés…) qu'une série de
 // vraies suppressions manuelles. Les rendez-vous restent actifs et sont relus au passage suivant.
@@ -71,7 +71,7 @@ function dateOutlookVersIso(evenement) {
   return `${evenement.start.dateTime}Z`;
 }
 
-// Phase 1 — lecture de l'état Outlook d'un rendez-vous, hors transaction (correctif 2026-10-01).
+// Phase 1 — lecture de l'état Outlook d'un rendez-vous, hors transaction.
 // Toujours dans la boîte où l'événement a été CRÉÉ (rendezvous.outlook_calendrier, migration 072),
 // jamais dans une boîte recalculée d'après le rôle ou l'option actuelle du formateur : c'est ce qui
 // annulait à tort les rendez-vous d'un formateur à calendrier personnel (événement dans sa boîte,
@@ -247,7 +247,7 @@ async function synchroniserRendezvous(entite, rendezvous, lecture, utilisateurSy
   return resultat.type;
 }
 
-// Trace d'une lecture/application non concluante (correctif 2026-10-01) : une ligne par rendez-vous
+// Trace d'une lecture/application non concluante : une ligne par rendez-vous
 // dans journal_audit, avec la réponse exacte (statut HTTP, code Graph) — le rendez-vous n'est PAS
 // modifié et sera relu au passage suivant. Jamais bloquant : un échec d'écriture de cette trace ne
 // doit pas interrompre le passage.
@@ -284,7 +284,7 @@ async function tracerErreurSync(bd, entite, utilisateurSysteme, rendezvous, erre
 // intégration calendrier configurée) obtient simplement 0 rendez-vous à
 // vérifier via listerRendezvousActifsAvecEvenementOutlook, sans cas particulier à gérer ici.
 //
-// Deux phases (correctif 2026-10-01) : lecture de TOUS les événements d'abord (lireEtatOutlook),
+// Deux phases : lecture de TOUS les événements d'abord (lireEtatOutlook),
 // puis application — ce qui permet de compter les annulations du passage AVANT d'en appliquer une
 // seule (garde-fou SEUIL_ANNULATIONS_PAR_PASSAGE). Au-delà du seuil : aucune annulation, une alerte
 // dans journal_audit ; les déplacements, eux, restent appliqués.

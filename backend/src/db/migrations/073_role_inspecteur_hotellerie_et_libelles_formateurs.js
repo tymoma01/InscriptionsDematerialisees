@@ -1,4 +1,4 @@
-// Rôles (2026-10-01, demande utilisateur) — par migration pour exister en production dès le déploiement.
+// Rôles — par migration pour exister en production dès le déploiement.
 //
 // 1. Libellés AFFICHÉS seulement (roles.libelle : Comptes utilisateurs, rôle de l'auteur d'une note…) :
 //    'formateur' -> « Formateur Hôtellerie », 'inspecteur' -> « Formateur Tertiaire ». Les CODES ne
@@ -16,7 +16,7 @@ const NOUVEAU_ROLE = { code: 'inspecteur_hotellerie', libelle: 'Inspecteur Hôte
 
 exports.up = async (knex) => {
   for (const [code, { nouveau }] of Object.entries(LIBELLES)) {
-    // eslint-disable-next-line no-await-in-loop
+     
     await knex('roles').where({ code }).update({ libelle: nouveau });
   }
   const existant = await knex('roles').where({ code: NOUVEAU_ROLE.code }).first('id');
@@ -25,7 +25,7 @@ exports.up = async (knex) => {
 
 exports.down = async (knex) => {
   for (const [code, { ancien }] of Object.entries(LIBELLES)) {
-    // eslint-disable-next-line no-await-in-loop
+     
     await knex('roles').where({ code }).update({ libelle: ancien });
   }
   // Retrait du rôle seulement s'il n'est porté par aucun compte (sinon : clé étrangère utilisateurs).

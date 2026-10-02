@@ -6,7 +6,7 @@
    sinon complètement (constaté après l'agrandissement à 46rem, audit 2026-08-28). --hauteur-entete
    et --hauteur-barre-navigation sont posées sur .page-back-office (PageBackOffice.css) et héritées
    ici via la cascade des custom properties, indépendamment du position: fixed de cet élément — ce
-   composant n'est monté que dans un <PageBackOffice> (pages/formateur|inspecteur/Evaluation.jsx).
+   composant n'est monté que dans un <PageBackOffice> (pages/evaluation/Evaluation.jsx).
    Centrage par `margin: auto` sur la carte ci-dessous (plutôt qu'align-items/justify-content ici)
    : centre réellement la carte quand il y a de la place, ET reste scrollable proprement quand son
    contenu dépasse la hauteur disponible — align-items: center sur ce conteneur couperait le haut

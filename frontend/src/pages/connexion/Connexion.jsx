@@ -2,59 +2,23 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoginForm from '../../core/auth/LoginForm';
 import { useSession } from '../../core/auth/useSession';
+import { destinationDuRole } from '../../core/auth/permissions';
 import { seDeconnecter } from '../../services/authService';
 import EnTeteAccecit from '../../core/backOffice/EnTeteAccecit';
 import PiedDePageAccecit from '../../core/backOffice/PiedDePageAccecit';
 // .page-back-office/.page-back-office__contenu (bandeau fixe + pied de page collé en bas, mêmes
 // variables --hauteur-entete/--largeur-max-formulaire) réutilisées telles quelles depuis
-// PageBackOffice.css (audit 2026-08-21) plutôt que redéfinies ici — cet écran n'utilise PAS
+// PageBackOffice.css plutôt que redéfinies ici — cet écran n'utilise PAS
 // PageBackOffice.jsx lui-même (BarreNavigation/BoutonNouvelleInscription dépendent d'une session
 // active, sans objet avant connexion), seulement ses classes de mise en page communes avec
 // EnTeteAccecit/PiedDePageAccecit ci-dessus.
 import '../../core/backOffice/PageBackOffice.css';
 import './Connexion.css';
 
-// Redirection après connexion, propre à chaque rôle — le formateur atterrit sur ses évaluations à
-// faire (hôtel), l'inspecteur sur les siennes (bureau, section distincte du formateur — voir
-// GrilleEvaluation.jsx, roleCode), le reste (accueil/coordination ET recruteur, depuis la fusion
-// de "Back-office recruteur" dans "Dossiers candidats", voir App.jsx — ET DÉSORMAIS admin, voir
-// ci-dessous) sur le tableau de bord Accueil, via la destination par défaut ci-dessous.
+// Après connexion : `?redirection=` s'il est fourni (ex. session expirée pendant la navigation),
+// sinon l'écran du rôle (destinationDuRole, core/auth/permissions.js — même valeur que celle
+// utilisée par RouteProtegee quand une page est refusée).
 //
-// admin -> DESTINATION_PAR_DEFAUT, pas '/admin/utilisateurs' (retiré, audit 2026-09-14, demande
-// utilisateur) : l'atterrissage automatique après connexion doit être le même tableau de bord que
-// celui d'Accueil/Coordination, "Comptes utilisateurs" restant sans changement accessible depuis
-// la navigation (BarreNavigation.jsx) — seul l'ATTERRISSAGE PAR DÉFAUT change, jamais
-// l'accessibilité de la page elle-même.
-//
-// Chemin le plus courant — SESSION EXPIRÉE pendant la navigation, cas visé par la demande
-// utilisateur (RouteProtegee.jsx redirige alors un visiteur SANS session vers
-// /connexion?redirection=<page visée>, quelle qu'elle soit, y compris une page admin) : passe par
-// le formulaire ci-dessous (onConnexionReussie), dont `cibleRedirection ||` reste TOUJOURS
-// prioritaire sur ce tableau — inchangé par ce correctif, vérifié en conditions réelles (connexion
-// avec ?redirection=/admin/utilisateurs : atterrit bien sur /admin/utilisateurs, jamais sur le
-// nouveau défaut).
-//
-// Valeur dupliquée ici (pas simplement retirée) pour un second cas plus rare, `roleCorrespondACible`
-// plus bas (session DÉJÀ active, visite directe de /connexion?redirection=..., ex. lien email/
-// onglet resté ouvert) : ce test vérifie que la cible commence par LA destination de ce rôle — reste
-// donc vrai pour toute cible sous /accueil/tableau-de-bord (désormais le "chez soi" de l'admin
-// aussi), mais PAS pour une cible encore sous /admin/... (vérifié en conditions réelles : ne
-// contourne plus le formulaire dans ce cas précis, contrairement à avant ce correctif) — consé-
-// quence logique et attendue du changement de destination lui-même, pas une régression : le
-// formulaire reste malgré tout un aller-retour normal (pas un blocage), qui retombe de toute façon
-// sur cibleRedirection via le chemin ci-dessus dès qu'on le soumet.
-const DESTINATION_PAR_ROLE = {
-  formateur: '/formateur/evaluations',
-  inspecteur: '/inspecteur/evaluations',
-  admin: '/accueil/tableau-de-bord',
-  // rh (module Demandes DPAE, 2026-09-28) — voir RouteProtegee.jsx, même valeur EXACTE à
-  // maintenir en cohérence manuellement (voir commentaire d'en-tête ci-dessus).
-  rh: '/rh/dpae',
-  // Inspecteur Hôtellerie (2026-10-01) : son tableau de bord.
-  inspecteur_hotellerie: '/tableau-de-bord/indicateurs',
-};
-const DESTINATION_PAR_DEFAUT = '/accueil/tableau-de-bord';
-
 // Page de connexion : fait le lien entre le formulaire générique (LoginForm.jsx, qui ne connaît
 // pas le routage — même patron que CaptureTablette.jsx) et la destination après connexion.
 //
@@ -95,8 +59,7 @@ export default function Connexion() {
   const roleCorrespondACible =
     utilisateurActuel &&
     cibleRedirection &&
-    Boolean(DESTINATION_PAR_ROLE[utilisateurActuel.roleCode]) &&
-    cibleRedirection.split('?')[0].startsWith(DESTINATION_PAR_ROLE[utilisateurActuel.roleCode]);
+    cibleRedirection.split('?')[0].startsWith(destinationDuRole(utilisateurActuel.roleCode));
 
   // Redirection immédiate SEULEMENT si le rôle de la session active correspond bien à la
   // destination ciblée : si c'est déjà le bon compte, passer par cet écran ne doit ni bloquer ni
@@ -151,7 +114,7 @@ export default function Connexion() {
 
         <LoginForm
           onConnexionReussie={(utilisateur) =>
-            navigate(cibleRedirection || (DESTINATION_PAR_ROLE[utilisateur.roleCode] ?? DESTINATION_PAR_DEFAUT))
+            navigate(cibleRedirection || destinationDuRole(utilisateur.roleCode))
           }
         />
       </div>

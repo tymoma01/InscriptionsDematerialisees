@@ -21,7 +21,7 @@ const FORMAT_JOUR_COURT = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', mon
 const FORMAT_MOIS = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' });
 
 // Libellé, couleur de badge/tuile et couleur de graphique des statuts : source unique
-// core/dpae/statutsDpae.js (2026-09-30).
+// core/dpae/statutsDpae.js.
 // Libellés de poste : mêmes que la fiche (dupliqués, convention du projet).
 const LIBELLE_PAR_POSTE = {
   femme_valet_chambre: 'Femme/Valet de chambre',
@@ -294,7 +294,7 @@ export default function TableauDeBordDpae() {
               </ResponsiveContainer>
             </section>
 
-            {/* Déclarations tardives (2026-09-30) — indicateur de suivi, pas une alerte : couleurs
+            {/* Déclarations tardives — indicateur de suivi, pas une alerte : couleurs
                 neutres, seul le retard est marqué en orange clair. */}
             <h2 className="tableau-bord-dpae__section">Déclarations tardives</h2>
             <div className="indicateurs__tuiles">

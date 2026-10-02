@@ -8,6 +8,7 @@ import { appliquerTransition } from '../../services/transitionService';
 import ModaleConfirmationTestNonRealise from './ModaleConfirmationTestNonRealise';
 import ModaleConfirmationPresence from './ModaleConfirmationPresence';
 import SelecteurEvaluateurAdmin from './SelecteurEvaluateurAdmin';
+import { libellePoste } from '../referentiels/postes';
 import './ListeEvaluationsAFaire.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -32,27 +33,6 @@ function varianteStatutRendezvous(statut) {
   return statut === 'confirme' ? 'succes' : 'attente';
 }
 
-// Colonne "Poste" (audit 2026-09-15) — même mapping que Planification.jsx/TableauDeBordAccueil.jsx/
-// Backoffice.jsx (dupliqué plutôt que partagé, voir CLAUDE.md conventions du projet). Postes
-// DÉCLARÉS à l'inscription (rdv.postesHotel/postesBureau, bloc 'disponibilites' — voir
-// evaluationEngine.listerRendezvousAEvaluer), pas postes_selectionnes (retenus pour ce test précis,
-// utilisé ailleurs pour pré-cocher GrilleEvaluation.jsx) : c'est ce même champ que "Suivi des
-// tests" affiche déjà sous ce libellé "Poste" (Planification.jsx), donc le plus proche de "poste
-// souhaité/visé" au sens où l'utilisateur l'entend pour cette liste.
-const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-function libellePoste(code) {
-  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
-}
 // '–' si aucun poste déclaré (dossier bureau/hôtel sans bloc disponibilites renseigné) — jamais une
 // chaîne vide ni une erreur, même convention que libelleExperience (Planification.jsx).
 function libellePostesRendezvous(rdv) {
@@ -78,17 +58,17 @@ function rechercheCorrespond(rdv, { motsRechercheNom, rechercheNormaliseeTexte }
 // filtrée côté serveur par "pas déjà évalué", rien à refiltrer ici sur ce point). `rafraichir` :
 // changer sa valeur force un rechargement (utilisé par Evaluation.jsx après une évaluation
 // soumise). `onSelectionner` laisse à l'appelant la décision d'ouvrir la grille — ce composant ne
-// connaît pas GrilleEvaluation.jsx. `rendezvousIdCible` : lu par Evaluation.jsx/pages/inspecteur/
+// connaît pas GrilleEvaluation.jsx. `rendezvousIdCible` : lu par pages/evaluation/
 // Evaluation.jsx (paramètre d'URL ?rendezvousId=..., voir le lien "Voir l'évaluation de ce
 // candidat" de l'email formateur/inspecteur, formatageEmail.construireLienEvaluation) — surligne
 // et scrolle jusqu'à la ligne correspondante ci-dessous. Reste géré ici (pas dans Evaluation.jsx)
 // car c'est ce composant qui possède le DOM des lignes.
 //
-// `afficherAssigne` (audit 2026-09-10, demande utilisateur) : n'affiche la colonne "Assigné à"
+// `afficherAssigne` : n'affiche la colonne "Assigné à"
 // (formateur_prenom/formateur_nom, voir evaluationRepository.listerRendezvousAEvaluer) que si
-// explicitement demandé — seul pages/inspecteur/Evaluation.jsx la passe à true, depuis que la liste
+// explicitement demandé — seul pages/evaluation/Evaluation.jsx la passe à true, depuis que la liste
 // y montre les évaluations de TOUS les Inspecteurs (evaluationEngine.listerRendezvousAEvaluer
-// ignore formateurId pour ce rôle). pages/formateur/Evaluation.jsx ne la passe pas : la liste y
+// ignore formateurId pour ce rôle). pages/evaluation/Evaluation.jsx ne la passe pas : la liste y
 // reste filtrée à l'utilisateur connecté, la colonne n'aurait donc rien d'utile à montrer (toujours
 // son propre nom) — comportement Formateur inchangé.
 // secteurVueAdmin ('hotellerie' | 'tertiaire', audit 2026-09-29) : fourni UNIQUEMENT par les pages
@@ -183,7 +163,7 @@ export default function ListeEvaluationsAFaire({
     ligneCibleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [rendezvousIdCible, rendezvousFiltres]);
 
-  // Bouton "Présent(e)" (audit 2026-09-09) — marque la présence constatée du candidat, LE JOUR
+  // Bouton "Présent(e)" — marque la présence constatée du candidat, LE JOUR
   // MÊME, avant même l'évaluation elle-même (voir backend evaluationEngine.
   // marquerPresenceConfirmee). N'a AUCUN effet visible ici : ni retrait de la liste, ni
   // changement de badge (rdv.statut n'est pas modifié, voir StatutBadge plus bas) — seul effet
@@ -191,7 +171,7 @@ export default function ListeEvaluationsAFaire({
   // (basculeTestNonRealiseService.js) même passé le délai de grâce de 24h. Idempotent côté serveur
   // (COALESCE, voir rendezvousRepository.marquerPresenceConfirmee) : un second clic ne fait rien
   // de plus, pas besoin de désactiver définitivement ce bouton après succès.
-  // Confirmation avant appel (audit 2026-09-10, demande utilisateur) — modale simple
+  // Confirmation avant appel — modale simple
   // (ModaleConfirmationPresence, voir plus bas), pas de commentaire à saisir contrairement à NSPP
   // ci-dessous : marquerPresenceConfirmee n'en prend aucun. Le clic sur le bouton lui-même n'ouvre
   // que la confirmation (voir setRdvPresenceAConfirmer plus bas) ; cette fonction, elle, reste
@@ -218,7 +198,7 @@ export default function ListeEvaluationsAFaire({
   // GET /evaluations/a-faire filtre déjà par dossier au statut test_planifie (voir
   // evaluationRepository.listerRendezvousAEvaluer), donc ce rendez-vous ne réapparaîtrait de toute
   // façon plus après un rechargement complet.
-  // Confirmation avant action réelle (audit 2026-08-28) — modale custom
+  // Confirmation avant action réelle — modale custom
   // (ModaleConfirmationTestNonRealise, voir plus bas) plutôt que window.confirm() (choix initial) :
   // nécessaire pour mettre en couleur "#{dossierId} {candidat}" dans le message, ce qu'un confirm()
   // natif ne permet pas. Numéro de dossier + nom du candidat (audit 2026-08-28, ex. "#88 Ibrahima
@@ -261,7 +241,7 @@ export default function ListeEvaluationsAFaire({
     }
   };
 
-  // Sélecteur Admin (audit 2026-09-29) — rendu aussi pendant le chargement et quand la liste est
+  // Sélecteur Admin — rendu aussi pendant le chargement et quand la liste est
   // vide : sinon choisir un formateur sans rendez-vous le ferait disparaître, sans moyen de revenir
   // à "Tous".
   const selecteurAdmin = secteurVueAdmin ? (
@@ -329,14 +309,14 @@ export default function ListeEvaluationsAFaire({
               <span className="liste-evaluations__candidat">
                 {rdv.candidat_prenom} {rdv.candidat_nom}
               </span>
-              {/* title (audit 2026-09-15) : tooltip natif au survol si le texte dépasse la largeur
+              {/* title : tooltip natif au survol si le texte dépasse la largeur
                   fixe de la colonne (ellipsis, voir ListeEvaluationsAFaire.css) — sans ça, un
                   poste tronqué ("Nettoyage, Vitrerie, Ch…") resterait illisible en entier. */}
               <span className="liste-evaluations__poste" title={libellePostesRendezvous(rdv)}>
                 {libellePostesRendezvous(rdv)}
               </span>
               <span className="liste-evaluations__date">{FORMAT_DATE.format(new Date(rdv.date_heure))}</span>
-              {/* "Assigné à" (audit 2026-09-10) : formateur_prenom/formateur_nom, voir
+              {/* "Assigné à" : formateur_prenom/formateur_nom, voir
                   evaluationRepository.listerRendezvousAEvaluer — n'a de sens que si la liste peut
                   contenir des rendez-vous d'un autre utilisateur que celui connecté (voir
                   `afficherAssigne` en en-tête de fichier). title (audit 2026-09-15) : même tooltip
@@ -347,7 +327,7 @@ export default function ListeEvaluationsAFaire({
                 </span>
               )}
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
-              {/* "Présent(e)" (audit 2026-09-09) — premier bouton de la ligne (ordre demandé :
+              {/* "Présent(e)" — premier bouton de la ligne (ordre demandé :
                   Présent(e), Évaluer, NSPP) : constate la présence du candidat sans toucher au
                   badge ci-dessus ni retirer la ligne de la liste, voir marquerPresent. Le clic
                   ouvre d'abord une confirmation (audit 2026-09-10, voir ModaleConfirmationPresence

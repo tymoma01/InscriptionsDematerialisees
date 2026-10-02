@@ -14,8 +14,7 @@ const journalAudit = require('../../core/audit/journalAudit');
 // Objet du module (plutôt que { obtenirKnex } déstructuré) : remplaçable en test (pieces.routes.test.js).
 const db = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/dossiers/:dossierId/pieces' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici (portée normalement limitée au routeur parent).
@@ -30,21 +29,18 @@ router.use(requireAuth);
 // section Parcours fonctionnel : "Prise de pièces justificatives par l'accueil" ; commentaire plus
 // bas : "pas une décision qu'un recruteur/accueil choisit" — recruteur historique, rôle retiré,
 // audit 2026-08-27). L'admin est inclus par cohérence avec son rôle de gestion globale.
-const ROLES_GESTION_PIECES = [...ROLES_ACCUEIL, ROLES.ADMIN];
 // Consultation (liste, téléchargement) ouverte à tous les rôles internes — RH ajouté (module
 // Demandes DPAE, 2026-09-28, demande utilisateur explicite) au même titre que Formateur/
-// Inspecteur : consultation seule, jamais ROLES_GESTION_PIECES/ROLES_EXPORT_ZIP_PIECES ci-dessous.
-const ROLES_CONSULTATION_PIECES = [...ROLES_GESTION_PIECES, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.RH];
+// Inspecteur : consultation seule, jamais gestionPieces/exportPieces ci-dessous.
 // Export groupé (ZIP) : Recruteur (CLAUDE.md, section Rôles, décision du 2026-07-31 — besoin RH
 // "second contrôle"), étendu à Accueil/Coordination et Admin le 2026-08-17. Volontairement plus
-// restreint que ROLES_CONSULTATION_PIECES (exclut Formateur/Inspecteur) : télécharger le contenu
+// restreint que consultationPieces (exclut Formateur/Inspecteur) : télécharger le contenu
 // réel de toutes les pièces d'un coup est un geste plus sensible que consulter une pièce à la
 // fois — Formateur/Inspecteur, qui n'en ont qu'une consultation en lecture seule, restent hors de
 // ce périmètre.
 // RH ajoutée le 2026-09-30 (demande utilisateur, bug constaté en production : le bouton « Télécharger
 // toutes les pièces (ZIP) » échouait en 403 pour ce rôle) — besoin RH « second contrôle » d'origine.
-// Export seulement : RH n'a AUCUN droit d'écriture (ROLES_GESTION_PIECES inchangé).
-const ROLES_EXPORT_ZIP_PIECES = [...ROLES_GESTION_PIECES, ROLES.RH];
+// Export seulement : RH n'a AUCUN droit d'écriture (gestionPieces inchangé).
 
 // Message renvoyé (403) quand l'export porte sur un dossier hors de l'entité courante.
 const MESSAGE_ACCES_EXPORT_REFUSE = "Vous n'avez pas accès à cet export.";
@@ -111,7 +107,7 @@ function deviserContentType(nomFichier) {
 // POST /api/dossiers/:dossierId/pieces — upload d'une pièce justificative (multipart/form-data,
 // champ fichier "piece") vers le connecteur de stockage de l'entité, puis enregistrement de la
 // référence en base.
-router.post('/', requireRole(...ROLES_GESTION_PIECES), upload.single('piece'), async (req, res, next) => {
+router.post('/', requirePermission('gestionPieces'), upload.single('piece'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     if (!req.file) {
@@ -155,7 +151,7 @@ router.post('/', requireRole(...ROLES_GESTION_PIECES), upload.single('piece'), a
 });
 
 // GET /api/dossiers/:dossierId/pieces — liste des pièces justificatives d'un dossier.
-router.get('/', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next) => {
+router.get('/', requirePermission('consultationPieces'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const pieces = await pieceJustificativeService.listerPiecesJustificatives(req.entite, dossierId);
@@ -187,10 +183,10 @@ function nettoyerSegmentChemin(valeur) {
 // fusionné sans collision avec celui d'un ZIP groupé (même sous-dossier "Dossier N° - NOM Prénom/"
 // à l'intérieur des deux). dossierService.listerResumesParIds réutilisé tel quel (même fonction
 // que l'export groupé) plutôt qu'une requête dédiée à un seul dossier.
-router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, res, next) => {
+router.get('/export-zip', requirePermission('exportPieces'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
-    // Dossier d'une autre entité (ou inexistant) : 403 explicite (2026-09-30), plutôt que le 400
+    // Dossier d'une autre entité (ou inexistant) : 403 explicite, plutôt que le 400
     // « introuvable » générique renvoyé ensuite par le service — jamais aucune pièce exportée.
     if (!(await pieceJustificativeService.dossierAppartientEntite(req.entite, dossierId))) {
       return res.status(403).json({ erreur: MESSAGE_ACCES_EXPORT_REFUSE });
@@ -277,7 +273,7 @@ router.get('/export-zip', requireRole(...ROLES_EXPORT_ZIP_PIECES), async (req, r
 // GET /api/dossiers/:dossierId/pieces/:pieceId — redirige (302) vers une URL de téléchargement
 // temporaire et pré-authentifiée chez le prestataire de stockage ; jamais d'accès public direct
 // et permanent au fichier. Fonctionne aussi bien comme cible de <a href> que de <img src>.
-router.get('/:pieceId', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next) => {
+router.get('/:pieceId', requirePermission('consultationPieces'), async (req, res, next) => {
   try {
     const pieceId = idPositifSchema.parse(req.params.pieceId);
     const url = await pieceJustificativeService.obtenirUrlTemporairePieceJustificative(req.entite, pieceId);
@@ -297,7 +293,7 @@ router.get('/:pieceId', requireRole(...ROLES_CONSULTATION_PIECES), async (req, r
 // au CORS, sans garantie que l'URL Graph l'autorise. Le fichier est donc rapatrié côté serveur
 // (telechargerPieceJustificative, déjà écrite mais jusqu'ici jamais appelée) puis renvoyé depuis
 // notre propre origine, avec un Content-Type déduit de l'extension et Content-Disposition: inline.
-router.get('/:pieceId/apercu', requireRole(...ROLES_CONSULTATION_PIECES), async (req, res, next) => {
+router.get('/:pieceId/apercu', requirePermission('consultationPieces'), async (req, res, next) => {
   try {
     const pieceId = idPositifSchema.parse(req.params.pieceId);
     const { nomFichier, contenu } = await pieceJustificativeService.telechargerPieceJustificative(req.entite, pieceId);
@@ -316,7 +312,7 @@ router.get('/:pieceId/apercu', requireRole(...ROLES_CONSULTATION_PIECES), async 
 // principe que les autres horodatages de preuve du projet, voir dossierService.js), SOIT le nom
 // affiché du document (renommage, demande utilisateur 2026-09-10) — jamais les deux à la fois, le
 // corps de la requête distingue les deux formes (patchBodySchema, union exclusive ci-dessus).
-router.patch('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res, next) => {
+router.patch('/:pieceId', requirePermission('gestionPieces'), async (req, res, next) => {
   try {
     const pieceId = idPositifSchema.parse(req.params.pieceId);
     const corps = patchBodySchema.parse(req.body);
@@ -357,7 +353,7 @@ router.patch('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res,
 // chez le prestataire de stockage + ligne en base), tant que le dossier est encore au statut
 // en_attente_pieces (voir pieceJustificativeService.js, STATUTS_SUPPRESSION_AUTORISES) — une fois
 // le test planifié, les pièces déjà prises pour cette étape ne sont plus modifiables.
-router.delete('/:pieceId', requireRole(...ROLES_GESTION_PIECES), async (req, res, next) => {
+router.delete('/:pieceId', requirePermission('gestionPieces'), async (req, res, next) => {
   try {
     const pieceId = idPositifSchema.parse(req.params.pieceId);
 

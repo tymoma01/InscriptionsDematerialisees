@@ -150,7 +150,7 @@ async function main() {
 
     const decisions = [];
     for (const rendezvousId of ciblesActuelles) {
-      // eslint-disable-next-line no-await-in-loop -- une poignée d'identifiants fixes, séquentiel suffisant.
+       
       const contexte = await chargerContexte(bd, rendezvousId);
       const decision = determinerStatutTraitement(contexte);
       decisions.push({ rendezvousId, contexte, decision });
@@ -189,7 +189,7 @@ async function main() {
     const entitesConcernees = [...new Set(eligibles.map((d) => d.contexte.rendezvous.entite_id))];
     let resolutionEnEchec = false;
     for (const entiteId of entitesConcernees) {
-      // eslint-disable-next-line no-await-in-loop -- peu d'entités distinctes, séquentiel suffisant.
+       
       const utilisateurSystemeId = await resoudreUtilisateurSysteme(bd, entiteId, cacheUtilisateurSysteme);
       if (utilisateurSystemeId === null) {
         console.error(`Compte système introuvable pour l'entité #${entiteId} (rôle "systeme") — aucune écriture ne sera faite pour cette entité.`);
@@ -232,9 +232,9 @@ async function main() {
         // faite plus haut, hors transaction) : entre la simulation et l'écriture, un autre
         // processus a pu déjà traiter ce rendez-vous — évite une double requalification, jamais
         // une simple hypothèse d'état figé.
-        // eslint-disable-next-line no-await-in-loop
+         
         const rendezvousVerrouille = await trx('rendezvous').where({ id: rendezvousId }).forUpdate().first();
-        // eslint-disable-next-line no-await-in-loop
+         
         const contexteActuel = await chargerContexte(trx, rendezvousId);
         const decisionActuelle = determinerStatutTraitement({
           rendezvous: rendezvousVerrouille,
@@ -243,7 +243,7 @@ async function main() {
         });
         if (decisionActuelle.code !== 'ELIGIBLE') {
           console.log(`Rendez-vous #${rendezvousId} : état changé depuis la simulation — ignoré au moment d'écrire.`);
-          // eslint-disable-next-line no-continue
+           
           continue;
         }
 
@@ -252,13 +252,13 @@ async function main() {
         // colonne — voir plus haut). Lecture de cache uniquement : déjà résolu avant l'ouverture
         // de cette transaction, pour CETTE entité précisément (sinon resolutionEnEchec aurait
         // arrêté le script avant d'arriver ici).
-        // eslint-disable-next-line no-await-in-loop
+         
         const utilisateurSystemeId = await resoudreUtilisateurSysteme(trx, contexteActuel.rendezvous.entite_id, cacheUtilisateurSysteme);
 
-        // eslint-disable-next-line no-await-in-loop
+         
         await trx('rendezvous').where({ id: rendezvousId }).update({ statut: 'honore', motif_id: null });
 
-        // eslint-disable-next-line no-await-in-loop
+         
         await journalAudit.enregistrerAction(trx, {
           utilisateurId: utilisateurSystemeId,
           entiteId: contexteActuel.rendezvous.entite_id,

@@ -11,7 +11,7 @@ import './FiltresRechercheDossiers.css';
 // le fait déjà pour le statut. Champs "Du"/"Au" portés par FiltrePlageDate (core/filtres/), déjà
 // réutilisé tel quel par plusieurs pages — voir son commentaire d'en-tête.
 //
-// `placeholder`/`ariaLabel` (audit 2026-09-11) : chaque page cherche sur un vocabulaire différent
+// `placeholder`/`ariaLabel` : chaque page cherche sur un vocabulaire différent
 // (Dossiers candidats a un téléphone/email à chercher, contrairement à Suivi des tests/Suivi des
 // formations, voir leur propre rechercheCorrespond) — valeur par défaut = comportement historique
 // de Dossiers candidats, premier et seul appelant avant cet audit, pour ne rien changer là où

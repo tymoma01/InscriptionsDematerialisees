@@ -85,7 +85,7 @@
   cursor: default;
 }
 
-/* Bloc des 4 badges (audit 2026-09-02) — prend le reste de la largeur du cadre (flex: 1) une fois
+/* Bloc des 4 badges — prend le reste de la largeur du cadre (flex: 1) une fois
    le titre casé à gauche (largeur naturelle, premier item), et centre les badges EN SON SEIN
    (justify-content: center) plutôt que de les laisser collés au titre comme le ferait le
    justify-content: flex-start hérité de .filtres-statut__statuts sur le cadre entier — le titre
@@ -358,7 +358,7 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* Bloc de gauche (refonte 2026-08-23) : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire côte
+/* Bloc de gauche : "Tous" en pleine largeur, puis Hôtellerie/Tertiaire côte
    à côte juste en dessous — colonne de largeur fixe, distincte de la boîte de statuts à droite
    (.filtres-statut__statuts ci-dessous). Surcharge .filtres-statut__gauche (générique, en rangée
    par défaut, voir FiltresStatut.css) : scopé à ce conteneur, pas dans le fichier générique,
@@ -390,7 +390,7 @@
    layout ni couleurs) : uniquement la disposition en colonne du bloc de gauche qui l'accueille,
    propre à cette page. */
 
-/* Grille à 3 colonnes (repeat(3, minmax(0, 1fr))) retirée (audit 2026-08-31, décision utilisateur)
+/* Grille à 3 colonnes (repeat(3, minmax(0, 1fr))) retirée
    — pensée à l'origine (2026-08-23) pour 9 filtres tombant pile sur 3 lignes pleinement remplies,
    elle ne tient plus depuis l'ajout de "Formation non validée" (audit 2026-08-28, 10 filtres) :
    3 colonnes à largeur 1fr occupent TOUJOURS toute la largeur du conteneur, donc le 10e bouton
@@ -487,7 +487,7 @@
    distinctif à côté des 8 autres teintes toutes chromatiques du filtre — voir
    VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx) pour le détail du choix final de
    --statut-rose-*. */
-/* "À planifier" (audit 2026-09-27, demande utilisateur) : PAS un statut réel de dossier (voir
+/* "À planifier" : PAS un statut réel de dossier (voir
    CODE_A_PLANIFIER, TableauDeBordAccueil.jsx — somme de 3 statuts), donc aucune entrée dans
    VARIANTE_PAR_CODE_ACCECIT/StatutBadge à reprendre ici comme pour les autres filtres de ce bloc —
    teinte choisie explicitement : --statut-turquoise-* (sarcelle), la MÊME que le badge du rôle
@@ -555,7 +555,7 @@
   color: var(--statut-vert-clair-texte);
 }
 
-/* Suivi de formation (audit 2026-08-28) : --statut-echec-fort-*, même teinte que le badge
+/* Suivi de formation : --statut-echec-fort-*, même teinte que le badge
    "Formation non validée" (VARIANTE_PAR_CODE_ACCECIT, TableauDeBordAccueil.jsx) — distincte de
    --statut-echec-* déjà utilisée par 'invalide' juste au-dessus. */
 .tableau-bord-accueil .filtres-statut__statuts button[data-statut='formation_non_validee']:not(.actif) {
@@ -564,7 +564,7 @@
   color: var(--statut-echec-fort-texte);
 }
 
-/* Statut terminal "Embauché" (audit 2026-08-31) : --statut-vert-fonce-*, troisième teinte verte
+/* Statut terminal "Embauché" : --statut-vert-fonce-*, troisième teinte verte
    distincte de --statut-succes-* ('valide_envoi_formation' ci-dessus) et --statut-vert-clair-*
    ('valide_pret_embauche' ci-dessus) — voir variables.css. */
 .tableau-bord-accueil .filtres-statut__statuts button[data-statut='embauche']:not(.actif) {
@@ -583,7 +583,7 @@
   filter: brightness(0.94);
 }
 
-/* Palier "2 colonnes" (audit 2026-08-23) retiré avec la grille elle-même (voir le commentaire
+/* Palier "2 colonnes" retiré avec la grille elle-même (voir le commentaire
    d'en-tête de .tableau-bord-accueil .filtres-statut__statuts plus haut) : flex-wrap recalcule déjà
    le nombre de boutons par ligne selon la largeur réellement disponible, sans palier fixe à
    maintenir manuellement à chaque évolution de la liste de statuts.
@@ -674,7 +674,7 @@
   opacity: 0.7;
 }
 
-/* "Effacer la sélection" (audit 2026-08-25) — distinction visuelle d'avec les 3 actions
+/* "Effacer la sélection" — distinction visuelle d'avec les 3 actions
    positives voisines (Export des pièces/Relances/Replanifier des tests), toutes en pastille
    blanche pleine : cette action-ci RÉINITIALISE la sélection à l'écran (aucune donnée en base,
    voir onClick sur ce bouton, TableauDeBordAccueil.jsx), un traitement "fantôme" (fond

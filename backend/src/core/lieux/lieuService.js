@@ -73,7 +73,7 @@ async function obtenirCodeUnique(bd, entiteId, adresse) {
   const base = slugifier(adresse) || 'lieu';
   for (let tentative = 1; tentative <= TENTATIVES_MAX_CODE_UNIQUE; tentative += 1) {
     const code = tentative === 1 ? base : `${base}_${tentative}`;
-    // eslint-disable-next-line no-await-in-loop -- tentatives séquentielles nécessaires : chaque
+     
     // essai dépend du résultat (encore pris ?) du précédent, pas parallélisable.
     const existant = await lieuRepository.trouverLieuParCode(bd, entiteId, code);
     if (!existant) return code;

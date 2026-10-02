@@ -1,8 +1,7 @@
 const { Router } = require('express');
 const utilisateurService = require('../../core/auth/utilisateurService');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/formateurs' (voir app.js) — top-level, distinct de '/api/utilisateurs' (gestion
 // des comptes, admin uniquement) : un agent Accueil/Coordination doit pouvoir lister les
@@ -10,11 +9,10 @@ const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
 // les droits d'administration des comptes.
 const router = Router();
 
-// Rôle Recruteur retiré (audit 2026-08-27) — voir suppression du rôle en base.
-const ROLES_LECTURE_FORMATEURS = [...ROLES_ACCUEIL, ROLES.ADMIN];
+// Rôle Recruteur retiré — voir suppression du rôle en base.
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_LECTURE_FORMATEURS));
+router.use(requirePermission('lectureFormateurs'));
 
 // GET /api/formateurs — formateurs ET inspecteurs actifs de l'entité courante ({ id, nom, prenom,
 // role_code } — role_code en plus de la restriction habituelle de serialiserUtilisateur dans

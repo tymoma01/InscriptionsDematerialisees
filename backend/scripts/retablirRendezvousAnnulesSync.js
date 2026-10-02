@@ -208,11 +208,11 @@ async function executerRetablissement({ acces, lireEvenement, appliquer, cibles,
 
   const eligibles = [];
   for (const rendezvousId of cibles) {
-    // eslint-disable-next-line no-await-in-loop -- 3 identifiants fixes.
+     
     const contexte = await acces.chargerContexte(rendezvousId);
     let decision = verifierPrealables(contexte);
     if (decision.code === 'A_VERIFIER_DANS_OUTLOOK') {
-      // eslint-disable-next-line no-await-in-loop
+       
       const lecture = await lireEvenement(contexte.rendezvous.outlook_calendrier, contexte.rendezvous.outlook_event_id);
       decision = verifierOutlook(contexte.rendezvous, lecture);
     }
@@ -232,9 +232,9 @@ async function executerRetablissement({ acces, lireEvenement, appliquer, cibles,
   // Compte système et statut cible résolus AVANT toute transaction, en simulation comme en application.
   const parEntite = new Map();
   for (const entiteId of new Set(eligibles.map((c) => c.rendezvous.entite_id))) {
-    // eslint-disable-next-line no-await-in-loop
+     
     const utilisateurSystemeId = await acces.resoudreUtilisateurSysteme(entiteId);
-    // eslint-disable-next-line no-await-in-loop
+     
     const statutTestPlanifieId = await acces.resoudreStatutId(entiteId, 'test_planifie');
     parEntite.set(entiteId, { utilisateurSystemeId, statutTestPlanifieId });
     if (!utilisateurSystemeId || !statutTestPlanifieId) sortie.error(`Entité #${entiteId} : compte système ou statut « test_planifie » introuvable.`);
@@ -257,14 +257,14 @@ async function executerRetablissement({ acces, lireEvenement, appliquer, cibles,
   let appliques = 0;
   await acces.enTransaction(async (ecriture) => {
     for (const { rendezvous } of eligibles) {
-      // eslint-disable-next-line no-await-in-loop -- relu sous verrou : un autre processus a pu agir depuis.
+       
       const contexteActuel = await ecriture.chargerContexte(rendezvous.id);
       if (verifierPrealables(contexteActuel).code !== 'A_VERIFIER_DANS_OUTLOOK') {
         sortie.log(`Rendez-vous #${rendezvous.id} : état changé depuis la vérification — ignoré au moment d'écrire.`);
-        // eslint-disable-next-line no-continue
+         
         continue;
       }
-      // eslint-disable-next-line no-await-in-loop
+       
       await ecriture.retablir({ contexte: contexteActuel, ...parEntite.get(contexteActuel.rendezvous.entite_id) });
       sortie.log(`Rendez-vous #${rendezvous.id} (dossier #${rendezvous.dossier_id}) : rétabli ✔`);
       appliques += 1;

@@ -1,4 +1,4 @@
-// Accès données pour les notes libres d'une demande DPAE (2026-09-30) — uniquement des requêtes,
+// Accès données pour les notes libres d'une demande DPAE — uniquement des requêtes,
 // aucune règle métier ici (orchestrée par notesDemandeDpaeService.js), même découpage et même forme
 // de résultat que core/dossier/notesDossierRepository.js (réutilisée telle quelle par le composant
 // NotesDossier.jsx côté front : auteur_prenom, auteur_nom, auteur_role_libelle, date_creation).

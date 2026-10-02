@@ -1,15 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
-import { ROLES_ACCUEIL } from '../auth/rolesGroupes';
+import { peut } from '../auth/permissions';
 import './BoutonNouvelleInscription.css';
 
 // Admin ajouté (audit 2026-09-02, capture utilisateur : bouton absent pour ce rôle) — même
-// périmètre que ROLES_GESTION_RENDEZVOUS/BarreNavigation.jsx (entrée "Dossiers candidats") :
+// périmètre que gestionRendezvous/BarreNavigation.jsx (entrée "Dossiers candidats") :
 // Admin voit et peut utiliser toutes les actions d'Accueil/Coordination (donc de Planning aussi,
-// voir ROLES_ACCUEIL) sur cette page, jamais une exception isolée. POST /api/candidats (route
+// voir Accueil/Coordination et Planning) sur cette page, jamais une exception isolée. POST /api/candidats (route
 // liée, voir Link ci-dessous) reste public côté API — aucune vérification de rôle à assouplir
 // là-bas, ce bouton n'ouvre qu'une porte déjà ouverte à quiconque connaît l'URL "/".
-const ROLES_AUTORISES = [...ROLES_ACCUEIL, 'admin'];
 
 // SVG dessiné à la main (silhouette + badge "+"), dans le même esprit épuré qu'une icône
 // lucide-react — le projet n'a aucune bibliothèque d'icônes installée (voir package.json), pas de
@@ -45,7 +44,7 @@ function IconePersonnePlus() {
 export default function BoutonNouvelleInscription() {
   const { utilisateur, chargement } = useSession();
 
-  if (chargement || !ROLES_AUTORISES.includes(utilisateur?.roleCode)) {
+  if (chargement || !peut(utilisateur, 'nouvelleInscription')) {
     return null;
   }
 

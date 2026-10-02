@@ -12,7 +12,7 @@ export async function listerRendezvous(dossierId) {
 // motifCode obligatoire côté serveur pour statut 'annule' (voir
 // backend/src/core/rendezvous/rendezvousService.js) — pas revérifié ici, seulement dans le
 // formulaire (voir GestionRendezvous.jsx) : la validation front est un confort, jamais la seule
-// garde-fou. 'absent' n'est plus un statut atteignable via cette route (audit 2026-09-11) — voir
+// garde-fou. 'absent' n'est plus un statut atteignable via cette route — voir
 // backend/src/api/routes/rendezvous.routes.js, statutBodySchema.
 export async function changerStatutRendezvous(dossierId, rendezvousId, { statut, motifCode }) {
   const { data } = await api.patch(`/dossiers/${dossierId}/rendezvous/${rendezvousId}`, { statut, motifCode });
@@ -71,7 +71,7 @@ export async function listerRendezvousTest({ aVenir, formateurId, dateDebut, dat
 
 // Créneaux réellement occupés (calendrier Outlook, formation@/tertiaire2@ selon le rôle) d'un
 // formateur/inspecteur précis, sur une plage debut/fin (ISO avec fuseau) — alimente
-// CalendrierHebdomadaireDisponibilite.jsx (audit 2026-08-26). formateurId envoyé, jamais l'email
+// CalendrierHebdomadaireDisponibilite.jsx. formateurId envoyé, jamais l'email
 // individuel de la personne (résolu côté serveur, voir rendezvousService.obtenirDisponibilitesFormateur) :
 // [{ debut, fin }] en retour, jamais autre chose sur cette personne.
 //

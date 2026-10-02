@@ -4,8 +4,7 @@ const relanceService = require('../../core/dossier/relanceService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/dossiers/:dossierId/relances' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici, même patron que pieces.routes.js.
@@ -16,14 +15,12 @@ const router = Router({ mergeParams: true });
 // justificatives : accueil et coordination sont un seul rôle (ROLES.ACCUEIL_COORDINATION, voir
 // core/auth/rbac.js), l'admin consulte/agit aussi sur le dossier. Rôle Recruteur retiré (audit
 // 2026-08-27) — voir suppression du rôle en base.
-const ROLES_GESTION_RELANCES = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 // Formateur/Inspecteur ajoutés ici UNIQUEMENT pour GET / ci-dessous (audit 2026-08-20, bouton
 // "Voir le dossier" sur Suivi des tests, vue Formateur/Inspecteur) — jamais à POST, qui reste
-// réservé à ROLES_GESTION_RELANCES : ces deux rôles consultent l'historique en lecture seule,
+// réservé à gestionRelances : ces deux rôles consultent l'historique en lecture seule,
 // sans pouvoir enregistrer de relance (formulaire masqué côté front, voir
 // HistoriqueRelances.jsx, et de toute façon refusé ici côté serveur si contourné).
-const ROLES_LECTURE_RELANCES = [...ROLES_GESTION_RELANCES, ROLES.FORMATEUR, ROLES.INSPECTEUR];
 
 router.use(requireAuth);
 
@@ -54,7 +51,7 @@ function repondreErreurValidation(res, erreurZod) {
 }
 
 // POST /api/dossiers/:dossierId/relances — enregistre une relance effectuée sur ce dossier.
-router.post('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) => {
+router.post('/', requirePermission('gestionRelances'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { canal, resultat, commentaire } = relanceBodySchema.parse(req.body);
@@ -90,7 +87,7 @@ router.post('/', requireRole(...ROLES_GESTION_RELANCES), async (req, res, next) 
 
 // GET /api/dossiers/:dossierId/relances — historique des relances du dossier, du plus récent au
 // plus ancien : c'est cet historique qui doit être consulté avant de relancer à nouveau.
-router.get('/', requireRole(...ROLES_LECTURE_RELANCES), async (req, res, next) => {
+router.get('/', requirePermission('lectureRelances'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const relances = await relanceService.listerRelances(req.entite, dossierId);

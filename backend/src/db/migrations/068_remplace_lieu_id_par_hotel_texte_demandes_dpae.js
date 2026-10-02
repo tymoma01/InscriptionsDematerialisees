@@ -1,4 +1,4 @@
-// Correctif (2026-09-28) : la migration 066 a été appliquée en dev AVANT d'être révisée (demande
+// Correctif : la migration 066 a été appliquée en dev AVANT d'être révisée (demande
 // utilisateur : le champ "Hôtel" doit être un texte libre, pas une liste tirée de `lieux` — cette
 // table liste les lieux de TEST candidat, une notion distincte de l'hôtel concerné par une demande
 // de staffing ; "Entité" > "Autre" doit aussi pouvoir être précisée). Éditer 066 directement

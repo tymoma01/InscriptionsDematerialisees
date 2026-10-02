@@ -60,7 +60,7 @@ const COLONNES = [
     libelle: 'Étudiant',
     extraire: (dossier) => (dossier.est_etudiant === true ? 2 : dossier.est_etudiant === false ? 1 : 0),
   },
-  // Colonne "Code postal" (audit 2026-09-09) — même patron que "Téléphone"/"Email" juste
+  // Colonne "Code postal" — même patron que "Téléphone"/"Email" juste
   // au-dessous (extrait du bloc 'coordonnees', voir dossierService.listerDossiers), positionnée
   // juste après "Candidat" (avant "Téléphone", décision utilisateur).
   {
@@ -83,7 +83,7 @@ const COLONNES = [
     libelle: 'Poste',
     extraire: (dossier) => [...(dossier.postesBureau ?? []), ...(dossier.postesHotel ?? [])].join(', '),
   },
-  // Colonne "Expérience" (audit 2026-09-02) — même patron que "Poste" juste au-dessus : trie sur
+  // Colonne "Expérience" — même patron que "Poste" juste au-dessus : trie sur
   // le code brut (dossier.experience), pas le libellé traduit par `libelleExperience` (prop
   // optionnelle, voir plus bas), pour un tri stable indépendant de ce traducteur.
   { cle: 'experience', libelle: 'Expérience', extraire: (dossier) => dossier.experience ?? '' },
@@ -112,13 +112,13 @@ const COLONNES = [
 // propre à ACCECIT (voir BlocDisponibilites.jsx), ce composant générique ne les traduit pas
 // lui-même. Sans `libellePoste` fourni, affiche le code brut plutôt que d'échouer.
 //
-// `libelleExperience` (audit 2026-09-02) : même principe pour la colonne "Expérience"
+// `libelleExperience` : même principe pour la colonne "Expérience"
 // (dossier.experience, un seul code — pas un tableau comme postesBureau/postesHotel).
 // `varianteExperience` (audit 2026-09-02, badge coloré) : même principe que `varianteStatut`
 // ci-dessus, appliqué à cette même colonne — sans lui, retombe sur la variante 'neutre' de
 // StatutBadge plutôt que d'échouer.
 //
-// `infoBulleStatut(dossier)` (audit 2026-09-14) : fonction optionnelle renvoyant le contenu d'une
+// `infoBulleStatut(dossier)` : fonction optionnelle renvoyant le contenu d'une
 // infobulle à afficher au survol/focus du badge "Statut" (tableau de lignes de texte), ou une
 // valeur falsy pour n'en afficher AUCUNE — ce composant générique ne sait PAS ce qui justifie une
 // infobulle (aujourd'hui : rendez-vous de test planifié, propre à ACCECIT, voir
@@ -127,7 +127,7 @@ const COLONNES = [
 // fourni (undefined), la colonne "Statut" se rend à l'identique d'avant, aucune régression pour un
 // futur appelant qui n'en aurait pas besoin.
 //
-// `sousBadgeStatut(dossier)` (audit 2026-09-28) : même principe d'externalisation, mais un
+// `sousBadgeStatut(dossier)` : même principe d'externalisation, mais un
 // ReactNode CLIQUABLE affiché SOUS le badge (pas une infobulle au survol) — aujourd'hui, le bouton
 // "Dispo : ..." du filtre "Disponibilité des candidats prêts à l'embauche"
 // (TableauDeBordAccueil.jsx), propre à ACCECIT, ce composant générique ne sait pas non plus ce

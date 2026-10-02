@@ -17,7 +17,7 @@ import './Relances.css';
 // Modularité CLAUDE.md) — même mapping que Validation.jsx (VARIANTE_PAR_CODE_ACCECIT), dupliqué
 // plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent de ce mapping (autre
 // entité, nouveau statut) retombe simplement sur un badge neutre plutôt que d'échouer. Badge
-// ajouté sur cette fiche (audit 2026-08-21) : le statut du dossier n'y était jusque-là visible
+// ajouté sur cette fiche : le statut du dossier n'y était jusque-là visible
 // nulle part, contrairement à Validation.jsx, alors que dossier.statut_code/statut_libelle est
 // déjà chargé ci-dessous (obtenirDossier) pour le nom du candidat dans le titre.
 const VARIANTE_PAR_CODE_ACCECIT = {
@@ -36,10 +36,10 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   invalide: 'echec',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
-  // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
+  // Suivi de formation : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
-  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css.
+  // Statut terminal "Embauché" : 'vert-fonce', voir variables.css.
   embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
@@ -73,7 +73,7 @@ export default function Relances() {
     };
   }, [dossierId]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : ce badge de titre uniquement — l'historique
+  // Rafraîchissement automatique : ce badge de titre uniquement — l'historique
   // des relances (HistoriqueRelances.jsx) et les rendez-vous (GestionRendezvous.jsx) gèrent leur
   // propre rafraîchissement indépendamment (voir leurs fichiers respectifs).
   useRafraichissementAuto(() => {
@@ -119,7 +119,7 @@ export default function Relances() {
             accéder sinon revenir au tableau de bord. */}
         <NavigationFicheDossier dossierId={dossierId} pageActuelle="relances" />
 
-        {/* Repositionnée juste sous le titre (audit 2026-08-20, décision utilisateur) —
+        {/* Repositionnée juste sous le titre —
             auparavant tout en bas de la fiche, après Rendez-vous/Relances/Notes : composant
             partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
             Validation.jsx/VerificationPieces.jsx/GrilleEvaluation.jsx pour rester cohérent

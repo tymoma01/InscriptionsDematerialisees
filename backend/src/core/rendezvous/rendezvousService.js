@@ -106,7 +106,7 @@ function abreviationPosteFormateur(code, civiliteCandidat) {
 }
 
 // Plusieurs postes sélectionnés pour un même rendez-vous (ModalePlanificationTest.jsx, sélection
-// multiple) : toutes les abréviations concaténées par '/' (décision utilisateur, 2026-08-28) —
+// multiple) : toutes les abréviations concaténées par '/' —
 // aucun poste sélectionné : nom du candidat seul, sans préfixe de position.
 function sujetEvenementFormateur(dossier, postesSelectionnes) {
   const nomCandidat = `${dossier.candidat_prenom} ${dossier.candidat_nom}`.toUpperCase();
@@ -117,7 +117,7 @@ function sujetEvenementFormateur(dossier, postesSelectionnes) {
   return `${position} ${nomCandidat}`;
 }
 
-// Placeholder de dev (audit 2026-08-28, décision utilisateur) : tant que NODE_ENV n'est pas
+// Placeholder de dev : tant que NODE_ENV n'est pas
 // 'production' (voir config/env.js — vaut 'development' par défaut, y compris en local et sur un
 // environnement de recette/staging non explicitement marqué prod), tout événement Outlook créé
 // par ce module est préfixé "TEST PLATEFORME" pour qu'il ne soit jamais confondu avec un vrai test
@@ -307,7 +307,7 @@ async function listerMotifsDesistement(entite) {
 // la route (dossiers.routes.js) en fonction pure pour être testables sans infrastructure HTTP ni
 // base (voir rendezvousService.test.js). Formateur/Inspecteur : ne voient que LEURS rendez-vous,
 // quoi qu'envoie le client (formateurId forcé à leur propre id, comportement historique inchangé).
-// Inspecteur EN PLUS (audit 2026-09-29, demande utilisateur) : secteur Tertiaire uniquement
+// Inspecteur EN PLUS : secteur Tertiaire uniquement
 // (typePoste 'bureau'), même règle que evaluationEngine.listerRendezvousAEvaluer — la garde
 // d'assignation (creerRendezvous plus bas) n'empêche pas à elle seule qu'un rendez-vous déjà
 // assigné devienne Hôtellerie (postes modifiés après coup via "Modifier", dossier sans poste au
@@ -340,10 +340,10 @@ async function listerRendezvousTest(entite, { aVenirSeulement, formateurId, date
     ...reste,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
-    // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
+    // Colonne "Expérience", même patron que postesBureau/postesHotel
     // ci-dessus.
     experience: donnees_disponibilites?.experience ?? null,
-    // Colonne "Code postal" (audit 2026-09-09), extrait du bloc 'coordonnees' — même patron que
+    // Colonne "Code postal", extrait du bloc 'coordonnees' — même patron que
     // dossierService.listerDossiers (candidat_telephone/candidat_email).
     candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
     // Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54) — `statut_force` brut
@@ -386,7 +386,7 @@ const CATEGORIES_STATUT_HISTORIQUE = Object.freeze({
   // demandées mais nécessaire pour ne pas mentir sur une date passée en l'affichant "à venir".
   A_TRAITER: 'a_traiter',
   // Rendez-vous actif ('prevu'/'confirme', sans évaluation) dont le DOSSIER a pourtant déjà quitté
-  // 'test_planifie' (audit 2026-09-23) — distinct de A_TRAITER ci-dessus : ici il n'y a plus rien à
+  // 'test_planifie' — distinct de A_TRAITER ci-dessus : ici il n'y a plus rien à
   // traiter, le dossier a déjà été refermé par ailleurs (typiquement le filet de sécurité 72h
   // "présence confirmée sans évaluation", basculeTestNonRealiseService.
   // executerBasculePresenceConfirmeeSansEvaluation, qui transitionne le DOSSIER sans jamais toucher
@@ -603,7 +603,7 @@ async function creerRendezvous(
     lieuIdValide = lieu.id;
   }
 
-  // Outlook D'ABORD, Neon ENSUITE (décision utilisateur, 2026-08-26) : Outlook devient la seule
+  // Outlook D'ABORD, Neon ENSUITE : Outlook devient la seule
   // source de vérité pour la disponibilité réelle d'un formateur/inspecteur — si cet appel échoue
   // (token expiré, créneau pris entre-temps côté Outlook, erreur réseau...), RIEN n'est écrit en
   // Neon non plus (l'exécution s'arrête ici, avant l'ouverture de la transaction plus bas). Hors
@@ -645,7 +645,7 @@ async function creerRendezvous(
     // FORMATEUR : "<Position> <Prénom Nom du candidat>" en majuscules (voir
     // sujetEvenementFormateur ci-dessus pour le détail, décision utilisateur 2026-08-28).
     // INSPECTEUR (calendrier bureau, jamais concerné par cette demande) : garde l'ancien format
-    // "Test ACCECIT — {Inspecteur} / {Candidat} — {Poste(s)}" (décision utilisateur, 2026-08-26) —
+    // "Test ACCECIT — {Inspecteur} / {Candidat} — {Poste(s)}" —
     // Segment "— {Poste(s)}" omis si aucun poste retenu pour CE rendez-vous précis
     // (postesSelectionnes, jamais les postes déclarés à l'inscription — voir
     // formaterLignePostesHtml, invitationTestService.js, même choix). Ne s'applique qu'aux
@@ -751,7 +751,7 @@ async function creerRendezvous(
   // "avec-transitions".
   const nouveauRendezvous = await (bdExistante ? executerCreation(bdExistante) : bd.transaction(executerCreation));
 
-  // `ancienRendezVous` ajouté au résultat (audit 2026-08-28) — jamais retiré des champs existants
+  // `ancienRendezVous` ajouté au résultat — jamais retiré des champs existants
   // du rendez-vous créé, qui restent directement accessibles (rendezvous.id, .date_heure, ...) pour
   // les deux appelants existants (POST / et planifierRendezvousAvecTransitions) : seule une
   // propriété EN PLUS est ajoutée. `null` pour une planification initiale (aucun rendez-vous actif

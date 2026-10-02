@@ -1,4 +1,4 @@
-// Notes libres d'une demande DPAE (2026-09-30, demande utilisateur) — mêmes règles que les notes
+// Notes libres d'une demande DPAE — mêmes règles que les notes
 // d'un dossier (core/dossier/notesDossierService.js) : auteur pris de la session, date posée par la
 // base, aucune modification ni suppression. Module DPAE spécifique à ACCECIT (voir
 // demandeDpaeService.js), notes stockées dans leur propre table (migration 071).

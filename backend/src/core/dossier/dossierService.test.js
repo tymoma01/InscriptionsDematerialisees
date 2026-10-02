@@ -21,7 +21,7 @@ test.after(async () => {
   }
 });
 
-// Onglet "Formation" de la fiche dossier (audit 2026-08-28) — construireHistoriqueFormation n'est
+// Onglet "Formation" de la fiche dossier — construireHistoriqueFormation n'est
 // pas exportée (détail d'implémentation de listerHistoriqueFormation) : ces tests passent par la
 // fonction publique, avec dossierRepository mockée, même patron que le reste des tests de service
 // de ce projet (ex. utilisateurService.test.js).

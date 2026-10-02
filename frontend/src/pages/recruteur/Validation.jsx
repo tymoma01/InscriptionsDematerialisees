@@ -10,16 +10,7 @@ import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import ModaleForcerStatut from '../../core/dossier/ModaleForcerStatut';
 import ModaleMarquerEmbauche from '../../core/dossier/ModaleMarquerEmbauche';
 import { useSession } from '../../core/auth/useSession';
-import {
-  ROLES_ACCUEIL,
-  ROLES_FORCAGE,
-  ROLES_GESTION_PIECES,
-  ROLES_EXPORT_ZIP_PIECES,
-  ROLES_LECTURE_SUIVI_DOSSIER,
-  ROLES_NOTES_DOSSIER,
-  ROLES_LECTURE_NOTES_DOSSIER,
-  ROLES_CONSULTATION_PIECES,
-} from '../../core/auth/rolesGroupes';
+import { peut } from '../../core/auth/permissions';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import { obtenirDossier, listerStatuts } from '../../services/dossierService';
 import { obtenirEvaluationDossier } from '../../services/evaluationService';
@@ -27,33 +18,15 @@ import ContenuDetailEvaluation from '../../core/evaluation/ContenuDetailEvaluati
 import { forcerStatut, marquerEmbauche } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import api from '../../services/api';
+import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import './Validation.css';
 
 // Rôles autorisés pour le changement de statut manuel/forcé (audit RBAC 2026-08-31 ; étendu au
-// rôle Planning le 2026-09-25, voir ROLES_FORCAGE) — miroir de ROLES_FORCAGE côté backend
+// rôle Planning le 2026-09-25, voir forcerStatut) — miroir de forcerStatut côté backend
 // (transitions.routes.js). La vraie garde reste côté serveur — ce test ne fait que masquer le
 // bouton pour les autres rôles.
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-// Statuts depuis lesquels l'action "Replanifier" a un sens concret — affichage du lien "Rendez-vous"
-// uniquement, la vraie garde reste côté Tests.jsx (voir Modularité, CLAUDE.md : reste propre à
-// cette page/entité, pas au moteur générique GestionTransitions/ModalePlanificationTest). Même
-// liste que Tests.jsx (dupliquée, pas partagée, voir CLAUDE.md conventions du projet) — section
-// "Rendez-vous" extraite sur son propre écran (décision utilisateur, 2026-08-21), cette page-ci
-// n'ouvre plus ModalePlanificationTest elle-même, juste un lien vers /tests.
-// valide_envoi_formation/valide_pret_embauche ajoutés (audit 2026-08-21) : workflow.config.json
-// porte désormais une transition replanifier_test depuis ces deux statuts (un candidat déjà
-// validé peut avoir besoin d'un nouveau test, ex. changement de poste) — même liste que
-// workflowEngine.appliquerTransition, qui neutralise déjà (jamais ne supprime) l'ancien rendez-vous
-// actif du dossier via neutralise_rendezvous_actifs.
-const STATUTS_REPLANIFIABLES = [
-  'test_planifie',
-  'test_non_realise',
-  'invalide',
-  'valide_envoi_formation',
-  'valide_pret_embauche',
-];
 
 // Statuts pour lesquels l'accès aux relances a un sens concret — au-delà (dossier transmis au
 // recruteur, verdict rendu, décision finale prise), la relance sort du périmètre d'action, même
@@ -67,7 +40,7 @@ const STATUTS_RELANCES_AUTORISEES = ['en_attente_pieces', 'test_planifie', 'test
 // Modularité CLAUDE.md) — même mapping que TableauDeBordAccueil.jsx (VARIANTE_PAR_CODE_ACCECIT),
 // dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent de ce
 // mapping (autre entité, nouveau statut) retombe simplement sur un badge neutre plutôt que
-// d'échouer. Badge ajouté sur cette fiche (audit 2026-08-19) pour que le statut du dossier reste
+// d'échouer. Badge ajouté sur cette fiche pour que le statut du dossier reste
 // visible sans revenir au tableau "Dossiers candidats".
 const VARIANTE_PAR_CODE_ACCECIT = {
   // nouveau/test_non_planifie/test_realise ajoutés (workflow v5, audit 2026-08-21) — même mapping
@@ -85,10 +58,10 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   invalide: 'echec',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
-  // Suivi de formation (audit 2026-08-28) : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
+  // Suivi de formation : 'echec-fort', distinct de 'echec' ("Invalidé") — voir
   // VerificationPieces.jsx pour le détail du choix de couleur.
   formation_non_validee: 'echec-fort',
-  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', troisième teinte verte de ce
+  // Statut terminal "Embauché" : 'vert-fonce', troisième teinte verte de ce
   // funnel après 'succes' (valide_envoi_formation) et 'vert-clair' (valide_pret_embauche) — voir
   // variables.css pour le détail du choix.
   embauche: 'vert-fonce',
@@ -139,7 +112,7 @@ function positionnerInfobulleStatutForce(evenement) {
   conteneur.classList.toggle('page-validation__statut-conteneur--infobulle-en-dessous', basculerEnDessous);
 }
 
-// Badge "En attente"/"Validée"/"Rejetée" retiré (audit 2026-08-19) : ces trois valeurs de
+// Badge "En attente"/"Validée"/"Rejetée" retiré : ces trois valeurs de
 // pieces_justificatives.statut_verification ne sont modifiables que par PATCH
 // /api/dossiers/:dossierId/pieces/:pieceId (pieceJustificativeService.mettreAJourStatutVerificationPieceJustificative),
 // jamais appelée par aucun écran — aucun bouton "Valider"/"Rejeter" n'existe nulle part dans
@@ -166,7 +139,7 @@ const LIBELLE_PIECE_ORPHELINE = 'À recapturer (fichier perdu)';
 // est prise directement par le formateur à l'issue du test (voir evaluationEngine.js) : cette
 // page n'est donc plus un écran de décision, mais une vue de consultation + actions dédiées
 // (pièces, rendez-vous, relances, notes). Le bloc générique GestionTransitions ("Décision",
-// boutons "Passer à « … »") a été retiré du rendu (audit 2026-08-19) : il appliquait des
+// boutons "Passer à « … »") a été retiré du rendu : il appliquait des
 // transitions sans les effets de bord que les flux dédiés écrivent en plus (rendez-vous créé par
 // ModalePlanificationTest, évaluation enregistrée par evaluationEngine) — même risque que le
 // bouton planifier_test déjà exclu plus tôt. Le composant lui-même reste inchangé et réutilisable
@@ -180,24 +153,24 @@ const LIBELLE_PIECE_ORPHELINE = 'À recapturer (fichier perdu)';
 export default function Validation() {
   const { dossierId } = useParams();
   const { utilisateur } = useSession();
-  const peutForcerStatut = ROLES_FORCAGE.includes(utilisateur?.roleCode);
-  // "Marquer comme embauché" (audit 2026-08-31) : Accueil/Coordination (donc Planning aussi, voir
-  // ROLES_ACCUEIL) OU Admin.
-  const peutMarquerEmbauche = [...ROLES_ACCUEIL, 'admin'].includes(utilisateur?.roleCode);
-  // Actions sur les pièces (2026-09-30) : affichées seulement aux rôles que le serveur accepte
-  // (pieces.routes.js, miroir core/auth/rolesGroupes.js) — plus aucun bouton menant à un 403.
+  const peutForcerStatut = peut(utilisateur, 'forcerStatut');
+  // "Marquer comme embauché" : Accueil/Coordination (donc Planning aussi, voir
+  // Accueil/Coordination et Planning) OU Admin.
+  const peutMarquerEmbauche = peut(utilisateur, 'marquerEmbauche');
+  // Actions sur les pièces : affichées seulement aux rôles que le serveur accepte
+  // (pieces.routes.js, miroir core/auth/permissions.js) — plus aucun bouton menant à un 403.
   // « Gérer les pièces justificatives » (écriture) : Accueil/Coordination, Planning, Admin.
   // Export ZIP : les mêmes, plus la RH. Formateur/Inspecteur : consultation seule (liste ci-dessous).
-  const peutGererPieces = ROLES_GESTION_PIECES.includes(utilisateur?.roleCode);
-  const peutExporterPieces = ROLES_EXPORT_ZIP_PIECES.includes(utilisateur?.roleCode);
-  // Sections Rendez-vous, Relances et Notes (2026-09-30) : leurs données et écrans sont refusés à
+  const peutGererPieces = peut(utilisateur, 'gestionPieces');
+  const peutExporterPieces = peut(utilisateur, 'exportPieces');
+  // Sections Rendez-vous, Relances et Notes : leurs données et écrans sont refusés à
   // la RH côté serveur — sections masquées plutôt que menant à un 403. Inchangé pour les autres.
-  const peutSuivreDossier = ROLES_LECTURE_SUIVI_DOSSIER.includes(utilisateur?.roleCode);
-  // Notes : lecture pour ROLES_LECTURE_NOTES_DOSSIER, ajout pour ROLES_NOTES_DOSSIER seulement (2026-10-01).
-  const peutVoirNotes = ROLES_LECTURE_NOTES_DOSSIER.includes(utilisateur?.roleCode);
-  const peutAjouterNote = ROLES_NOTES_DOSSIER.includes(utilisateur?.roleCode);
-  // Pièces : jamais chargées ni affichées hors ROLES_CONSULTATION_PIECES (Inspecteur Hôtellerie).
-  const peutVoirPieces = ROLES_CONSULTATION_PIECES.includes(utilisateur?.roleCode);
+  const peutSuivreDossier = peut(utilisateur, 'lectureRelances');
+  // Notes : lecture pour lectureNotesDossier, ajout pour ajoutNotesDossier seulement.
+  const peutVoirNotes = peut(utilisateur, 'lectureNotesDossier');
+  const peutAjouterNote = peut(utilisateur, 'ajoutNotesDossier');
+  // Pièces : jamais chargées ni affichées hors consultationPieces (Inspecteur Hôtellerie).
+  const peutVoirPieces = peut(utilisateur, 'consultationPieces');
   const [exportEnCours, setExportEnCours] = useState(false);
   const [erreurExport, setErreurExport] = useState(null);
 
@@ -205,7 +178,7 @@ export default function Validation() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
-  // Export ZIP (2026-09-30) : téléchargé via l'API (plutôt qu'un simple lien <a download>) pour
+  // Export ZIP : téléchargé via l'API (plutôt qu'un simple lien <a download>) pour
   // pouvoir afficher un message clair en cas d'échec — un lien laissait le navigateur télécharger
   // la réponse d'erreur JSON, ou afficher un échec de téléchargement sans explication.
   const telechargerToutesLesPieces = async () => {
@@ -226,7 +199,7 @@ export default function Validation() {
     } catch (erreurRequete) {
       const statut = erreurRequete.response?.status;
       // Corps d'erreur reçu sous forme de Blob (responseType: 'blob') : relu en JSON pour le message.
-      let messageServeur = null;
+      let messageServeur;
       try {
         messageServeur = JSON.parse(await erreurRequete.response.data.text()).erreur;
       } catch {
@@ -247,7 +220,7 @@ export default function Validation() {
   // (catch silencieux, comme là-bas).
   const [dossier, setDossier] = useState(null);
 
-  // Critères de validation du test (demande utilisateur 2026-09-10) — `null` tant qu'aucun test
+  // Critères de validation du test — `null` tant qu'aucun test
   // n'a encore été évalué pour ce dossier (voir backend evaluationEngine.obtenirDetailEvaluationDossier,
   // qui renvoie `null` plutôt qu'une erreur dans ce cas normal/fréquent) : la section entière reste
   // simplement absente du rendu ci-dessous, jamais un message "aucun test" ni une erreur affichée.
@@ -256,17 +229,17 @@ export default function Validation() {
   const [evaluationDossier, setEvaluationDossier] = useState(null);
   const [erreurEvaluation, setErreurEvaluation] = useState(null);
 
-  // Changement de statut manuel/forcé (audit RBAC 2026-08-31) — statuts de l'entité et état de la
+  // Changement de statut manuel/forcé — statuts de l'entité et état de la
   // modale, seulement utiles pour Admin (voir peutForcerStatut plus bas) : jamais chargés pour les autres
   // rôles, GET /dossiers/statuts leur étant de toute façon fermé côté serveur
-  // (ROLES_CONSULTATION_DOSSIERS, dossiers.routes.js) — un fetch inutile échouerait en 403 pour
+  // (consultationDossiers, dossiers.routes.js) — un fetch inutile échouerait en 403 pour
   // rien.
   const [statuts, setStatuts] = useState([]);
   const [modaleForcerStatutOuverte, setModaleForcerStatutOuverte] = useState(false);
   const [forcageEnCours, setForcageEnCours] = useState(false);
   const [erreurForcage, setErreurForcage] = useState(null);
 
-  // "Marquer comme embauché" (audit 2026-08-31) — même patron que le changement de statut forcé
+  // "Marquer comme embauché" — même patron que le changement de statut forcé
   // ci-dessus (modale de confirmation + état en cours/erreur dédiés).
   const [modaleEmbaucheOuverte, setModaleEmbaucheOuverte] = useState(false);
   const [embaucheEnCours, setEmbaucheEnCours] = useState(false);
@@ -380,7 +353,7 @@ export default function Validation() {
     };
   }, [dossierId, peutVoirPieces]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : les deux fetches de cette page (titre +
+  // Rafraîchissement automatique : les deux fetches de cette page (titre +
   // liste de pièces) sont indépendants de tout formulaire en cours de saisie — sans risque à
   // recharger silencieusement les deux.
   useRafraichissementAuto(() => {
@@ -477,12 +450,12 @@ export default function Validation() {
             à l'autre écran sans repasser par le tableau de bord. */}
         <NavigationFicheDossier dossierId={dossierId} pageActuelle="validation" />
 
-        {/* Repositionnée juste sous le titre/statut (audit 2026-08-20, décision utilisateur) —
+        {/* Repositionnée juste sous le titre/statut —
             auparavant tout en bas de la fiche, après Pièces/Rendez-vous/Relances/Notes : composant
             partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
             VerificationPieces.jsx/Relances.jsx/GrilleEvaluation.jsx pour rester cohérent partout
             où cette section apparaît. */}
-        {/* Mode dégradé du back-office (audit 2026-08-24) — chaque section garde son propre
+        {/* Mode dégradé du back-office — chaque section garde son propre
             chargement de données indépendant, ErrorBoundary ajoute le filet manquant côté RENDU :
             un plantage n'empêche plus la consultation des autres sections de cette fiche.
             key={dossierId} pour repartir d'un état propre si l'agent change de dossier. Pas posée
@@ -622,7 +595,7 @@ export default function Validation() {
         </section>
         )}
 
-        {/* Section "Critères de validation du test" (demande utilisateur 2026-09-10) — visible
+        {/* Section "Critères de validation du test" — visible
             SEULEMENT une fois un test réellement effectué pour ce dossier (evaluationDossier
             non `null`, voir l'effet de chargement plus haut) : pas de placeholder "aucun test"
             pour les dossiers qui n'en sont pas encore là, c'est l'état normal de la grande

@@ -24,7 +24,7 @@ const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute:
 // décision utilisateur — même renommage que Planification.jsx/GestionRendezvous.jsx/
 // ListeEvaluationsAFaire.jsx) : ce statut n'a désormais plus qu'une seule origine possible — NSPP
 // ou la bascule automatique, "Marquer absent" ayant été retiré côté Accueil/Coordination/Admin.
-// 'clos_sans_action' (audit 2026-09-23) : rendez-vous 'prevu'/'confirme' encore actif mais dont le
+// 'clos_sans_action' : rendez-vous 'prevu'/'confirme' encore actif mais dont le
 // DOSSIER a déjà quitté test_planifie (typiquement le filet de sécurité 72h "présence confirmée
 // sans évaluation", voir le commentaire de CATEGORIES_STATUT_HISTORIQUE.CLOS_SANS_ACTION côté back)
 // — distinct de 'a_traiter' : ici il n'y a plus rien à traiter, le dossier est déjà refermé.
@@ -50,7 +50,7 @@ const VARIANTES_STATUT_HISTORIQUE = {
   clos_sans_action: 'neutre-fort',
 };
 
-// Bloc 2 (audit 2026-09-23) : un rendez-vous catégorisé 'annule' dont le motif est
+// Bloc 2 : un rendez-vous catégorisé 'annule' dont le motif est
 // 'neutralise_par_forcage' (workflowEngine.forcerStatut, Admin — jamais choisi par un agent) porte
 // un libellé/badge distincts d'une VRAIE annulation candidat, même categorie 'annule' en base — pas
 // de nouvelle catégorie ni de second filtre "Annulé" (décision utilisateur explicite) : uniquement
@@ -170,7 +170,7 @@ export default function PanneauHistoriqueRendezvous({ dossierIds, onFermer }) {
     return () => {
       annule = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dossierIds figé à l'ouverture (voir
+     
     // commentaire d'en-tête) : un tableau reçu en prop change de référence à chaque rendu du
     // parent même à contenu identique, le suivre déclencherait un refetch à chaque frappe/clic
     // sans rapport avec la sélection.

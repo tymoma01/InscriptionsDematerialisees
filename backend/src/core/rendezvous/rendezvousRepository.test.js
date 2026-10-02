@@ -9,7 +9,7 @@ const rendezvousRepository = require('./rendezvousRepository');
 // principe que dossierRepository.test.js/statistiquesRepository.test.js.
 const bd = knex({ client: 'pg' });
 
-// Délai de grâce de 24h avant bascule automatique "Test non réalisé" (audit 2026-09-09) — la
+// Délai de grâce de 24h avant bascule automatique "Test non réalisé" — la
 // requête doit comparer la FIN du créneau (date_heure + dureeCreneauMinutes), pas date_heure seule,
 // à (maintenant - delaiGraceHeures). Vérifié sur le SQL généré plutôt qu'en exécutant contre une
 // vraie base : cette requête n'a pas de dépendance métier testable autrement qu'en lisant le SQL
@@ -61,7 +61,7 @@ test("listerRendezvousTestNonRealisesAutomatiquement inclut 'prevu' ET 'confirme
 // Vérifie la forme du SQL généré (LATERAL, pas un simple LEFT JOIN, pour garantir AU PLUS UNE
 // ligne par dossier même si un dossier accumulait plusieurs événements le même jour) plutôt que
 // d'exécuter contre une vraie base, même patron que les tests ci-dessus.
-// Filtre secteur de l'Inspecteur (audit 2026-09-29) — même clause que
+// Filtre secteur de l'Inspecteur — même clause que
 // evaluationRepository.listerRendezvousAEvaluer : un dossier Hôtellerie (typePoste 'hotel') ou sans
 // bloc 'disponibilites' (typePoste NULL) ne satisfait pas `= 'bureau'` et n'est donc pas renvoyé.
 test("listerRendezvousTest avec typePoste='bureau' ne garde que les dossiers dont bloc_disponibilites.typePoste vaut 'bureau'", () => {
@@ -158,7 +158,7 @@ test("listerDossiersAnnulesNonSynchronises exclut tout dossier portant un rendez
   assert.match(sql, /"r2"\."statut" in \('prevu', 'confirme'\)/i);
 });
 
-// listerDossiersAnnulesNonSynchronises — double sécurité du bloc 2 (audit 2026-09-23) : exclut en
+// listerDossiersAnnulesNonSynchronises — double sécurité du bloc 2 : exclut en
 // plus tout dossier dont le dernier rendez-vous 'annule' porte le motif 'neutralise_par_forcage'
 // (workflowEngine.forcerStatut), jamais une vraie annulation candidat.
 test("listerDossiersAnnulesNonSynchronises exclut le dernier rendez-vous 'annule' si son motif est 'neutralise_par_forcage' (LEFT JOIN motifs, un rendez-vous sans motif reste inclus)", () => {

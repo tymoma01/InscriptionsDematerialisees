@@ -50,7 +50,7 @@
   gap: var(--espace-petit);
 }
 
-/* Sous-bloc "Verso" (voir typesPiecesConfig.accecit.js, codeVerso) : en retrait sous la pièce
+/* Sous-bloc "Verso" (types_pieces.code_verso) : en retrait sous la pièce
    principale, séparé par une fine ligne, jamais une ligne de même poids visuel que
    .capture-tablette__item-principale — c'est un complément optionnel rattaché, pas une pièce à
    part de la liste (voir CaptureTablette.jsx). */

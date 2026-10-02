@@ -1,4 +1,4 @@
-// Indicateurs du « Tableau de bord DPAE » (2026-09-30) — TOUS calculés en base (agrégats SQL), sur
+// Indicateurs du « Tableau de bord DPAE » — TOUS calculés en base (agrégats SQL), sur
 // une même sélection filtrée (voir requeteBase). Toutes les fonctions prennent `bd` (knex ou
 // transaction), l'entité, les filtres résolus (voir tableauDeBordDpaeService.resoudreFiltres) et,
 // pour celles qui dépendent du jour, l'instant `maintenant` (paramètre plutôt que now() : même
@@ -44,7 +44,7 @@ const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.sta
 
 // --- 1. À traiter en priorité ---------------------------------------------------------------------
 
-// Demandes encore sans décision (2026-09-30) : « À traiter » ('envoyee') ET « En attente »
+// Demandes encore sans décision : « À traiter » ('envoyee') ET « En attente »
 // ('en_attente') — une mise en attente n'est pas une décision, la demande reste prioritaire.
 const SANS_DECISION = "base.statut IN ('envoyee', 'en_attente')";
 
@@ -119,7 +119,7 @@ function calculerEvolution(bd, entiteId, filtres, granularite) {
   );
 }
 
-// --- Déclarations tardives (2026-09-30) ----------------------------------------------------------
+// --- Déclarations tardives ----------------------------------------------------------
 // Indicateur de SUIVI, plus dans « À traiter en priorité » (la RH n'a plus rien à y faire) : demandes
 // validées APRÈS leur premier jour — jour parisien de la décision RH postérieur au premier jour.
 // retard_jours = jours calendaires entre le premier jour et le jour (Paris) de la validation (>= 1).

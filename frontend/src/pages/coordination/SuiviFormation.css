@@ -1,4 +1,4 @@
-/* Même patron que pages/formateur/Evaluation.css (en-tête flex, EnTeteBackOffice poussé à
+/* Même patron que pages/evaluation/Evaluation.css (en-tête flex, EnTeteBackOffice poussé à
    droite). */
 .page-suivi-formation__entete {
   display: flex;
@@ -252,7 +252,7 @@
   margin-bottom: var(--espace-petit);
 }
 
-/* Filtre "Expérience" (audit 2026-09-02) — même patron que .planification__filtre-formateur
+/* Filtre "Expérience" — même patron que .planification__filtre-formateur
    (Planification.jsx, Suivi des tests). */
 .page-suivi-formation__filtre-experience {
   display: flex;
@@ -271,7 +271,7 @@
   color: var(--couleur-texte-secondaire);
 }
 
-/* Colonne "Expérience" (audit 2026-09-02) — même style discret que .formateur ci-dessus, cette
+/* Colonne "Expérience" — même style discret que .formateur ci-dessus, cette
    page n'ayant pas de colonne "Poste" existante à ses côtés (voir commentaire de
    LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT, SuiviFormation.jsx). */
 .page-suivi-formation__experience {

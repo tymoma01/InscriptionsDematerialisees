@@ -44,7 +44,7 @@ function mockerBase(t) {
   }));
 }
 
-// formateur_id (audit 2026-09-02) : listerRendezvousActifsAvecEvenementOutlook le sélectionne
+// formateur_id : listerRendezvousActifsAvecEvenementOutlook le sélectionne
 // désormais (voir rendezvousRepository.js), requis par invitationTestService.
 // envoyerNotificationAnnulationTest/notificationDeplacementManuelService.
 // envoyerNotificationDeplacementManuel pour résoudre l'email du formateur/inspecteur.

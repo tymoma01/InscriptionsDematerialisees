@@ -67,7 +67,9 @@ async function authentifier() {
   } catch (erreur) {
     if (erreur.response) {
       const detail = erreur.response.data?.error?.message ?? JSON.stringify(erreur.response.data);
-      throw new Error(`Authentification SmartOF (Identity Platform) refusée, HTTP ${erreur.response.status} : ${detail}`);
+      throw new Error(`Authentification SmartOF (Identity Platform) refusée, HTTP ${erreur.response.status} : ${detail}`, {
+        cause: erreur,
+      });
     }
     throw erreur;
   }
@@ -122,7 +124,7 @@ async function appelerApi(chemin, corps) {
   } catch (erreur) {
     if (erreur.response) {
       const detail = erreur.response.data?.message ?? JSON.stringify(erreur.response.data);
-      throw new Error(`SmartOF a répondu une erreur HTTP ${erreur.response.status} sur ${chemin} : ${detail}`);
+      throw new Error(`SmartOF a répondu une erreur HTTP ${erreur.response.status} sur ${chemin} : ${detail}`, { cause: erreur });
     }
     throw erreur;
   }

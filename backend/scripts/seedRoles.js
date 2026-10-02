@@ -20,7 +20,7 @@ const ROLES_A_AMORCER = [
   { code: ROLES.INSPECTEUR, libelle: 'Inspecteur' },
   { code: ROLES.ADMIN, libelle: 'Admin' },
   // RH (module Demandes DPAE, 2026-09-28) : traite/valide/rejette les demandes DPAE — voir
-  // core/auth/rbac.js, ROLES_DPAE_RH.
+  // core/auth/rbac.js, dpaeTraitementRh.
   { code: ROLES.RH, libelle: 'RH' },
   { code: ROLES.SYSTEME, libelle: 'Système (automatisation)' },
 ];

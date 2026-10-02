@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '../auth/useSession';
-import { ROLES_DPAE_CONSULTATION } from '../auth/rolesGroupes';
+import { peut } from '../auth/permissions';
 import { telechargerPdfDemande, telechargerPdfDemandes } from '../../services/dpaeService';
 import './TelechargementPdfDpae.css';
 
-// Téléchargement des demandes DPAE en PDF (2026-10-02) — PDF générés côté serveur
+// Téléchargement des demandes DPAE en PDF — PDF générés côté serveur
 // (backend/src/core/dpae/pdfDemandeDpae.js). Source unique côté front, partagée par la fiche
 // (DetailDemandeDpae.jsx) et les deux listes « Demandes DPAE » (SuiviDemandesDpae.jsx pour Admin,
 // Planning et Inspecteur Hôtellerie ; TraitementDpae.jsx, file RH) : bouton de la fiche, cases à
 // cocher, action groupée (ZIP).
 //
-// Visible pour les rôles qui consultent les demandes DPAE (ROLES_DPAE_CONSULTATION : Admin, RH,
+// Visible pour les rôles qui consultent les demandes DPAE (dpaeConsultation : Admin, RH,
 // Planning, Inspecteur Hôtellerie), pour aucun autre — mêmes règles que le serveur, seul juge
 // (dpae.routes.js, GET /:id/pdf et POST /export-pdf).
 
@@ -20,7 +20,7 @@ export const LIMITE_DEMANDES_PAR_ZIP = 50;
 
 export function usePeutTelechargerPdfDpae() {
   const { utilisateur } = useSession();
-  return ROLES_DPAE_CONSULTATION.includes(utilisateur?.roleCode);
+  return peut(utilisateur, 'dpaeConsultation');
 }
 
 // Nom du fichier fixé par le serveur : filename* (UTF-8, accents conservés) en priorité, sinon
@@ -53,7 +53,7 @@ function enregistrerFichier(reponse, nomParDefaut) {
 // message du serveur (hors périmètre, limite de 50…).
 async function messageErreur(erreurRequete) {
   if (!erreurRequete.response) return 'Connexion au serveur impossible. Vérifiez le réseau et réessayez.';
-  let messageServeur = null;
+  let messageServeur;
   try {
     messageServeur = JSON.parse(await erreurRequete.response.data.text()).erreur;
   } catch {
