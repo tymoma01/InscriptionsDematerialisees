@@ -55,7 +55,7 @@ test('construirePayloadApprenant traduit un dossier ACCECIT réel (#69) vers le 
   assert.equal(payload.meta.adresse.ville, 'PARIS');
   assert.equal(payload.meta.adresse.complementAdresse, '');
 
-  // custom_field_1 = NIR (décision utilisateur, 2026-08-21) ; les 19 autres restent vides.
+  // custom_field_1 = NIR ; les 19 autres restent vides.
   assert.equal(payload.custom_fields.custom_field_1, '1850578006048');
   for (let i = 2; i <= 20; i += 1) {
     assert.equal(payload.custom_fields[`custom_field_${i}`], '');

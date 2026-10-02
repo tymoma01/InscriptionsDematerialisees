@@ -1,4 +1,4 @@
-// Module « Demandes DPAE » (2026-09-28) : demande de staffing hôtel adressée à la RH (nouvelle
+// Module « Demandes DPAE » : demande de staffing hôtel adressée à la RH (nouvelle
 // embauche, prolongation, ajout/retrait de jours, passage CDI, changement horaires/affectation) —
 // spécifique à ACCECIT pour l'instant (voir CLAUDE.md, Modularité : pas de moteur générique
 // configurable par entité ici, décision actée avec l'utilisateur), mais `entite_id` conservé pour

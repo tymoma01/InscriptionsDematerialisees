@@ -52,7 +52,7 @@ async function executerRappels(entite) {
   let ignores = 0;
 
   for (const rendezvous of rendezvousARappeler) {
-    // Déplacée dans dossierRepository.js (2026-07-30) : cette donnée est propre au dossier, pas
+    // Déplacée dans dossierRepository.js : cette donnée est propre au dossier, pas
     // au rendez-vous — voir son commentaire pour le détail.
     const coordonnees = await dossierRepository.trouverCoordonneesCandidat(bd, rendezvous.dossier_id);
     const destinataire = canal === 'email' ? coordonnees?.email : coordonnees?.telephone;

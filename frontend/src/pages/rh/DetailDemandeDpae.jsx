@@ -19,7 +19,7 @@ import {
   ajouterNoteDemande,
 } from '../../services/dpaeService';
 import { useSession } from '../../core/auth/useSession';
-import { ROLES_DPAE_RH, ROLES_DPAE_NOTES } from '../../core/auth/rolesGroupes';
+import { peut } from '../../core/auth/permissions';
 import './DetailDemandeDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -31,7 +31,7 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Statuts sans décision finale (2026-09-30) : Valider/Rejeter restent possibles ; « Mettre en
+// Statuts sans décision finale : Valider/Rejeter restent possibles ; « Mettre en
 // attente » seulement depuis « À traiter » (voir demandeDpaeService.js, transitions autorisées).
 const STATUTS_A_DECIDER = ['envoyee', 'en_attente'];
 const LIBELLE_PAR_TYPE = {
@@ -69,17 +69,17 @@ function ligne(libelle, valeur) {
 }
 
 // Détail d'une demande DPAE (module Demandes DPAE, 2026-09-28). Depuis le 2026-09-30, fiche commune
-// à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, ROLES_DPAE_CONSULTATION),
+// à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, dpaeConsultation),
 // ouverte d'un clic depuis « Suivi des demandes DPAE » ; le serveur décide quelles fiches chacun
 // peut ouvrir (dpae.routes.js, GET /:id). Les actions Valider/Rejeter ne sont affichées qu'aux
-// rôles de traitement RH (RH, Admin), comme côté serveur. « Mettre en attente » (2026-09-30) : même
+// rôles de traitement RH (RH, Admin), comme côté serveur. « Mettre en attente » : même
 // rôles, motif obligatoire, uniquement sur une demande « À traiter ». Notes propres à la demande
-// (2026-09-30) en bas de fiche, juste avant les actions : lecture et ajout pour tous les rôles de
+// en bas de fiche, juste avant les actions : lecture et ajout pour tous les rôles de
 // consultation (Admin, RH, Planning), même composant et mêmes règles que les notes d'un dossier.
 export default function DetailDemandeDpae() {
   const { demandeId } = useParams();
   const { utilisateur } = useSession();
-  const peutTraiter = ROLES_DPAE_RH.includes(utilisateur?.roleCode);
+  const peutTraiter = peut(utilisateur, 'dpaeTraitementRh');
   // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
   const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
@@ -188,10 +188,10 @@ export default function DetailDemandeDpae() {
                 libelle={libelleStatutDpae(demande.statut)}
                 variante={varianteStatutDpae(demande.statut)}
               />
-              {/* Pastille d'urgence (2026-10-02), à côté du statut — « À traiter »/« En attente »
-                  seulement (core/dpae/PastilleUrgenceDpae.jsx). */}
+              {/* Pastille d'urgence, à côté du statut — « À traiter »/« En attente » seulement
+                  (core/dpae/PastilleUrgenceDpae.jsx). */}
               <PastilleUrgenceDpae demande={demande} />
-              {/* PDF de la fiche (2026-10-02), généré côté serveur — rôles de consultation seulement
+              {/* PDF de la fiche, généré côté serveur — rôles de consultation seulement
                   (voir core/dpae/TelechargementPdfDpae.jsx). */}
               <BoutonTelechargerPdfDemande demandeId={demande.id} />
               {/* "En un clic accéder à la fiche du candidat" (demande utilisateur, module Demandes
@@ -200,7 +200,7 @@ export default function DetailDemandeDpae() {
                   du système (saisie libre, voir RechercheCandidatSalarie.jsx), auquel cas ce lien
                   n'a simplement rien à cibler. Même destination que "Étudier le dossier"
                   (TableauDeBordAccueil.jsx) — Validation.jsx reste en lecture seule pour RH (masque
-                  déjà "Forcer le statut"/"Embauche" hors ROLES_FORCAGE/ROLES_ACCUEIL+admin, voir son
+                  déjà "Forcer le statut"/"Embauche" hors forcerStatut/Accueil/Coordination et Planning+admin, voir son
                   commentaire d'en-tête), donc pas de risque d'action involontaire depuis ce lien. */}
               {demande.dossier_id && (
                 <Link to={`/recruteur/dossiers/${demande.dossier_id}/validation`} className="page-detail-dpae__lien-candidat">
@@ -315,8 +315,8 @@ export default function DetailDemandeDpae() {
           ajouter={ajouterNoteDemande}
           texteAucuneNote="Aucune note enregistrée pour cette demande."
           texteErreurChargement="Impossible de récupérer les notes de cette demande."
-          // Ajout réservé à ROLES_DPAE_NOTES (2026-10-01) : l'Inspecteur Hôtellerie lit seulement.
-          lectureSeule={!ROLES_DPAE_NOTES.includes(utilisateur?.roleCode)}
+          // Ajout réservé à dpaeNotes : l'Inspecteur Hôtellerie lit seulement.
+          lectureSeule={!peut(utilisateur, 'dpaeNotes')}
         />
 
         {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (
@@ -341,7 +341,7 @@ export default function DetailDemandeDpae() {
           </section>
         )}
 
-        {/* Confirmation avant validation (2026-09-30) — même comportement que la demande soit « À
+        {/* Confirmation avant validation — même comportement que la demande soit « À
             traiter » ou « En attente ». Rappel formaté comme les sections de la fiche ci-dessus. */}
         {modaleOuverte === 'validation' && (
           <ModaleValiderDpae

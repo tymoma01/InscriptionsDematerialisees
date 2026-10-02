@@ -56,7 +56,7 @@ const CODE_ACTION_VALIDE_BUREAU = 'valider_pret_embauche';
 // utilisé par evaluationRepository et le filtre Inspecteur). Clés = valeurs publiques de l'API.
 const TYPE_POSTE_PAR_SECTEUR = Object.freeze({ hotellerie: 'hotel', tertiaire: 'bureau' });
 
-// Refus métier d'une évaluation incompatible avec le secteur du dossier (audit 2026-09-29) — classe
+// Refus métier d'une évaluation incompatible avec le secteur du dossier — classe
 // dédiée pour que la route la traduise en 400 avec son message, au lieu du 500 générique réservé
 // aux erreurs inattendues (voir evaluations.routes.js).
 class ErreurParcoursEvaluation extends Error {
@@ -195,7 +195,7 @@ function resoudreEtValiderReponses(questions, reponsesRecues) {
 // listerRendezvousAEvaluer ci-dessous). N'affecte PAS obtenirDetailEvaluation (Historique des
 // évaluations, écran distinct, volontairement non touché ici) ni listerHistorique.
 //
-// Garde secteur (audit 2026-09-10, demande utilisateur) : l'exemption d'assignation ci-dessus
+// Garde secteur : l'exemption d'assignation ci-dessus
 // dispense l'Inspecteur de la vérif formateur_id, mais pas de secteur — sans ce second contrôle, un
 // Inspecteur qui connaît (ou devine) l'ID d'un rendez-vous Hôtel assigné à un Formateur pourrait
 // agir dessus malgré le filtre déjà posé côté liste (listerRendezvousAEvaluer, typePoste='bureau') :
@@ -268,7 +268,7 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
 // ci-dessous, qui autorise déjà un Admin à soumettre une évaluation sur un rendez-vous qui ne lui
 // est pas assigné.
 //
-// Inspecteur (audit 2026-09-10, demande utilisateur) : même repli formateurId=null qu'Admin — un
+// Inspecteur : même repli formateurId=null qu'Admin — un
 // seul groupe d'Inspecteurs par entité dans ce moteur (contrairement aux Formateurs, potentiellement
 // plusieurs), l'écran "Évaluations à venir" doit donc leur montrer TOUTES les évaluations à venir du
 // secteur bureau, tous Inspecteurs confondus, pas seulement les leurs — la colonne formateur_nom/
@@ -290,8 +290,8 @@ async function listerQuestionnaire(entite, { rendezvousId, formateurId, roleCode
 // toujours agir sur n'importe quel rendez-vous bureau assigné à un autre Inspecteur, comportement
 // inchangé.
 //
-// Admin avec `secteur` (audit 2026-09-29) : voir filtresEvaluationsParRole ci-dessus. typePoste
-// exposé (audit 2026-09-29) : GrilleEvaluation.jsx choisit le parcours (orientation, échelle,
+// Admin avec `secteur` : voir filtresEvaluationsParRole ci-dessus. typePoste
+// exposé : GrilleEvaluation.jsx choisit le parcours (orientation, échelle,
 // aide-mémoire) selon le secteur du dossier, même règle que resoudreParcoursEvaluation.
 async function listerRendezvousAEvaluer(entite, formateurId, roleCode, { secteur, formateurIdDemande } = {}) {
   const bd = await db.obtenirKnex();
@@ -351,7 +351,7 @@ async function enregistrerEvaluation(
   // strict). Secteur Bureau (Inspecteur) : calendrier partagé, exemption volontaire.
   await verifierAssignationRendezvous(bd, rendezvous, formateurId, roleCode);
 
-  // Parcours selon le SECTEUR DU DOSSIER (audit 2026-09-29), plus selon le rôle — voir
+  // Parcours selon le SECTEUR DU DOSSIER, plus selon le rôle — voir
   // resoudreParcoursEvaluation. Vérifié AVANT toute écriture : un refus ne laisse aucune trace
   // partielle. Tertiaire : aucune orientation possible, et "envoi en formation" refusé
   // explicitement quel que soit l'évaluateur (Admin compris) — règle métier "aucun dossier
@@ -560,7 +560,7 @@ async function enregistrerEvaluation(
 // ci-dessus par listerEvaluationsParFormateur — jamais de confiance dans une valeur non fournie,
 // `null` signifie "aucun filtre" (même convention que formateurId/typePoste, voir commentaire
 // d'en-tête d'evaluationRepository.js).
-// Admin avec `secteur` (audit 2026-09-29) : tout le secteur, filtrable par évaluateur
+// Admin avec `secteur` : tout le secteur, filtrable par évaluateur
 // (evaluations.formateur_id) — voir filtresEvaluationsParRole.
 async function listerHistorique(entite, formateurId, roleCode, creneau = null, { secteur, formateurIdDemande } = {}) {
   const bd = await db.obtenirKnex();
@@ -593,7 +593,7 @@ async function listerCreneauxDisponibles(entite, formateurId, roleCode, { secteu
 // Assemble la réponse { evaluation, questions } commune à obtenirDetailEvaluation (formateur/
 // inspecteur, sa propre évaluation) et obtenirDetailEvaluationDossier (accueil/coordination/admin,
 // n'importe quel dossier de l'entité) ci-dessous — extrait pour ne pas dupliquer la reconstruction
-// question/items depuis les lignes plates de evaluation_reponses (demande utilisateur 2026-09-10).
+// question/items depuis les lignes plates de evaluation_reponses.
 function construireDetailEvaluation(evaluation, lignes) {
   const questionsParCode = new Map();
   for (const ligne of lignes) {
@@ -657,7 +657,7 @@ async function obtenirDetailEvaluation(entite, { evaluationId, formateurId, role
 // validation de test ... seulement quand un test a été effectué") — aucune vérification
 // d'appartenance à un formateur ici, contrairement à obtenirDetailEvaluation ci-dessus : ces deux
 // rôles consultent n'importe quel dossier de leur entité, pas seulement leurs propres évaluations
-// soumises (voir ROLES_CONSULTATION_DOSSIERS, dossiers.routes.js). `null` (pas une erreur) si
+// soumises (voir consultationDossiers, dossiers.routes.js). `null` (pas une erreur) si
 // aucun test n'a encore été évalué pour ce dossier — c'est un état normal et fréquent (la plupart
 // des dossiers n'ont pas encore de test réalisé), pas une exception à traiter comme un échec côté
 // front (voir dossiers.routes.js, GET /:dossierId/evaluation).

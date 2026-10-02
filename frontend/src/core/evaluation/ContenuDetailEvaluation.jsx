@@ -1,4 +1,5 @@
 import StatutBadge from '../workflow/StatutBadge';
+import { libellePoste } from '../referentiels/postes';
 import './DetailEvaluation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -8,22 +9,6 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-// Mêmes codes/libellés que BlocDisponibilites.jsx/GrilleEvaluation.jsx/HistoriqueEvaluations.jsx
-// (dupliqué plutôt que partagé, voir leurs commentaires respectifs).
-const POSTE_HOTEL_LIBELLES = {
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-const POSTE_BUREAU_LIBELLES = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-};
 
 // Échelles de réponse — mêmes valeurs que backend evaluationEngine.js (ACQUIS_AUTORISEES /
 // CHOIX_MULTIPLE_VALEURS) et GrilleEvaluation.jsx (ACQUIS / NIVEAUX_BUREAU), traduites en libellés
@@ -53,7 +38,7 @@ function libelleValeur(typeQuestion, valeur) {
 // vide = repli générique (dossier bureau, ou poste hôtel sans questionnaire dédié).
 function libellePostes(postesCodes) {
   if (!postesCodes || postesCodes.length === 0) return 'Générique';
-  return postesCodes.map((posteCode) => POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode).join(', ');
+  return postesCodes.map((posteCode) => libellePoste(posteCode)).join(', ');
 }
 
 // Voir HistoriqueEvaluations.jsx pour le même repli sur "prêt à l'embauche" quand orientation est
@@ -73,7 +58,7 @@ function varianteResultat(evaluation) {
 }
 
 // Rendu pur (aucun fetch, aucun état) du détail d'une évaluation déjà soumise — extrait de
-// DetailEvaluation.jsx (demande utilisateur 2026-09-10) pour être réutilisé tel quel par
+// DetailEvaluation.jsx pour être réutilisé tel quel par
 // Validation.jsx (section "Critères de validation du test" de la fiche dossier, visible
 // uniquement une fois un test effectué) sans dupliquer ni la construction des libellés, ni le
 // balisage. DetailEvaluation.jsx (historique du formateur, fetch par evaluationId) reste le seul

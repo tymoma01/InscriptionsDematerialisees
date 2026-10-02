@@ -67,7 +67,7 @@
   color: var(--couleur-erreur);
 }
 
-/* Filtre « Mes demandes / Toutes » + bouton « Nouvelle demande » sur une même ligne (2026-09-30) —
+/* Filtre « Mes demandes / Toutes » + bouton « Nouvelle demande » sur une même ligne —
    le filtre à gauche, le bouton calé à droite. */
 .page-suivi-dpae__actions {
   display: flex;

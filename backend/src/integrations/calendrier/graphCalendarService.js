@@ -3,7 +3,7 @@
 // graph-tenant-id) — dupliquer la récupération des secrets/le ClientSecretCredential ici referait
 // exactement ce que graphClient.js fait déjà (voir aussi graphMailProvider.js, même pattern).
 // Nécessite d'ajouter la permission d'application "Calendars.ReadWrite" (consentement admin) à
-// cette app registration — déjà accordée et testée côté Microsoft 365 (audit 2026-08-26), un 403
+// cette app registration — déjà accordée et testée côté Microsoft 365, un 403
 // éventuel ici est donc un bug d'appel, pas un défaut de permission.
 // Non déstructuré exprès, même raison que graphMailProvider.js : les tests mockent
 // `graphClient.obtenirClientGraph` via `t.mock.method`, qui ne fonctionne que si l'appel passe
@@ -15,11 +15,11 @@ const PERMISSION_GRAPH_CALENDRIER = 'Calendars.ReadWrite';
 // Code Graph d'un élément absent de la boîte interrogée (constaté en production, 2026-10-01).
 const CODE_GRAPH_EVENEMENT_INTROUVABLE = 'ErrorItemNotFound';
 
-// Calendriers départementaux partagés ACCECIT (décision actée, audit 2026-08-26) : les tests
+// Calendriers départementaux partagés ACCECIT : les tests
 // Inspecteur (postes bureau) et Formateur (postes hôtel) sont routés vers deux calendriers
 // distincts par défaut, jamais la boîte personnelle de chaque formateur/inspecteur — sauf exception
 // explicite (voir resoudreCalendrierPourUtilisateur/calendrier_personnel, migration 063, plus bas).
-// CORRECTIF (2026-09-10) : formation@accecit.com, présenté ici comme une boîte "départementale
+// CORRECTIF : formation@accecit.com, présenté ici comme une boîte "départementale
 // partagée" neutre, s'est avéré être EN RÉALITÉ la boîte Microsoft 365 personnelle de Tiana (voir
 // scripts/definirLieuxCalendrierFormateursAccecit.js) — gardé tel quel comme repli par rôle pour
 // tout AUTRE formateur qui n'aurait pas sa propre exception, mais ne plus supposer qu'il s'agit
@@ -30,7 +30,7 @@ const CODE_GRAPH_EVENEMENT_INTROUVABLE = 'ErrorItemNotFound';
 // rendezvousService.js qui l'appelle, volontairement "ACCECIT-flavored").
 const CALENDRIER_PAR_ROLE = {
   formateur: 'formation@accecit.com',
-  // test-tertiaire@accecit.com remplace tertiaire2@accecit.com (audit 2026-08-28) — permissions
+  // test-tertiaire@accecit.com remplace tertiaire2@accecit.com — permissions
   // Calendars.ReadWrite déjà accordées et testées sur cette nouvelle boîte (voir
   // checklist-mise-en-prod.md), même app registration que ci-dessus.
   inspecteur: 'test-tertiaire@accecit.com',

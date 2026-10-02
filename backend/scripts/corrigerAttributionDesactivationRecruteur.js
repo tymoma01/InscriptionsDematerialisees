@@ -40,11 +40,11 @@ async function main() {
     }
 
     for (const { id, cibleId } of ENTREES_A_CORRIGER) {
-      // eslint-disable-next-line no-await-in-loop -- 3 entrées seulement, séquentiel suffisant.
+       
       const entree = await bd('journal_audit').where({ id }).first();
       if (!entree) {
         console.log(`Entrée #${id} introuvable — ignorée.`);
-        // eslint-disable-next-line no-continue
+         
         continue;
       }
       if (entree.action !== 'utilisateur_desactivation' || entree.cible_id !== cibleId || entree.entite_id !== 1) {
@@ -54,7 +54,7 @@ async function main() {
       }
       if (entree.utilisateur_id === UTILISATEUR_ID_CORRECT) {
         console.log(`Entrée #${id} déjà corrigée — rien à faire.`);
-        // eslint-disable-next-line no-continue
+         
         continue;
       }
       if (entree.utilisateur_id !== UTILISATEUR_ID_ERRONE) {
@@ -66,7 +66,7 @@ async function main() {
         `utilisateur_id corrigé le ${new Date().toISOString().slice(0, 10)} (${UTILISATEUR_ID_ERRONE} -> ${UTILISATEUR_ID_CORRECT}) — ` +
         "bug de jointure SQL (roles.id écrasait utilisateurs.id dans scripts/desactiverComptesRoleRecruteur.js) : le compte système Adaptel avait été attribué par erreur à une action ACCECIT.";
 
-      // eslint-disable-next-line no-await-in-loop
+       
       await bd('journal_audit').where({ id }).update({
         utilisateur_id: UTILISATEUR_ID_CORRECT,
         donnees: JSON.stringify(donnees),

@@ -7,7 +7,7 @@
   gap: var(--espace-petit);
 }
 
-/* Bandeau distinct de la grille en dessous (décision produit, 2026-08-10) : fond crème
+/* Bandeau distinct de la grille en dessous : fond crème
    --couleur-back-office-clair (identité back-office déjà en place ailleurs, libéré ici de son
    ancien usage sur la case sélectionnée — voir .calendrier-disponibilite__case--selectionne plus
    bas, qui passe à un fond bleu ACCECIT plein) + coins arrondis uniquement en haut. Marge négative

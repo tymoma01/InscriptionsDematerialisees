@@ -52,7 +52,7 @@ export default function EnTeteBackOffice() {
       <button type="button" className="en-tete-back-office__action" onClick={() => setProfilOuvert(true)}>
         Mon profil
       </button>
-      {/* Préfixe "Agent connecté : " retiré (audit 2026-08-20, décision utilisateur) : le nom seul
+      {/* Préfixe "Agent connecté : " retiré : le nom seul
           suffit, cet en-tête n'apparaissant que sur les écrans internes déjà authentifiés. */}
       <p className="en-tete-back-office__agent">
         {utilisateur.prenom} {utilisateur.nom}

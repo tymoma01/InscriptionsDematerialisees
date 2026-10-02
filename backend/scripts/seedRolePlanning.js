@@ -1,6 +1,6 @@
 // Amorce le rôle 'planning' (table `roles`, globale — pas de entite_id, voir seedRoles.js) —
 // audit 2026-09-25 : exactement les droits d'Accueil/Coordination + le droit de forcer un statut
-// (ROLES_ACCUEIL/ROLES_FORCAGE, backend/src/core/auth/rbac.js). Script dédié plutôt qu'un ajout
+// (Accueil/Coordination et Planning/forcerStatut, backend/src/core/auth/rbac.js). Script dédié plutôt qu'un ajout
 // dans scripts/seedRoles.js : ce dernier référence encore `ROLES.RECRUTEUR`, retiré de l'objet
 // `ROLES` (rbac.js) depuis l'audit du 2026-08-27 — le réexécuter planterait sur cette ligne
 // obsolète, pas dans le périmètre de ce chantier.

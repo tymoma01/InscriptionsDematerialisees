@@ -15,7 +15,7 @@ const CATEGORIE_MOTIF_RESULTAT_RELANCE = 'resultat_relance';
 // jamais nommer de prestataire concret (voir docs/architecture-technique.md §3.4).
 const CANAUX_AUTORISES = ['sms', 'email', 'telephone'];
 
-// sms/email déclenchent désormais un envoi réel (décision 2026-07-30) — 'telephone' reste un
+// sms/email déclenchent désormais un envoi réel — 'telephone' reste un
 // appel passé par l'agent hors de l'application, rien à envoyer ici.
 const CANAUX_ENVOI_REEL = ['sms', 'email'];
 

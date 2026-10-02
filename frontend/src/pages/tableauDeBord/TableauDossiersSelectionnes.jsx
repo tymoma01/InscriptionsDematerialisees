@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import { useSession } from '../../core/auth/useSession';
-import { ROLE_INSPECTEUR_HOTELLERIE, STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE } from '../../core/auth/rolesGroupes';
+import { ROLE_INSPECTEUR_HOTELLERIE, STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE } from '../../core/auth/permissions';
 import './TableauDossiersSelectionnes.css';
 
-// Colonnes triables (audit 2026-09-14, demande utilisateur) — même patron que DossierList.jsx/
+// Colonnes triables — même patron que DossierList.jsx/
 // Planification.jsx (`cle`/`libelle`/`extraire`, bouton d'en-tête + flèche ▲/▼, voir `trierPar`
 // plus bas) : pas de composant/utilitaire commun, dupliqué comme les autres exemples de ce même
 // patron dans l'app (voir CLAUDE.md, conventions du projet).
@@ -84,7 +84,7 @@ const CODE_BADGE_PAR_CODE_DATE = {
 
 // Construit, pour UN dossier, les deux colonnes ("Indicateurs" hors postes / "Dates clés") déjà
 // alignées ligne à ligne — structure de données commune lue par les DEUX colonnes au même index
-// (décision utilisateur, 2026-08-11), pour ne plus dépendre d'un calcul indépendant de chaque
+//, pour ne plus dépendre d'un calcul indépendant de chaque
 // côté : "Indicateurs" est construite dans un ordre canonique (voir le correctif du 2026-08-13
 // plus bas — plus l'ordre de clic des tuiles, imprévisible, source du bug corrigé), alors que
 // "Dates clés" a un ordre chronologique fixe (inscription → test planifié → orientation) — les
@@ -171,10 +171,10 @@ function construireColonnesAlignees(dossier, estIndicateurPoste, ordreCanoniqueI
   });
 
   // Ancre "Délai Inscription → Envoi en test" : insérée juste après "Test planifié" (comme avant).
-  // dateDebut/dateFin (audit 2026-09-01) : les deux dates brutes du segment, affichées EN PLUS du
+  // dateDebut/dateFin : les deux dates brutes du segment, affichées EN PLUS du
   // nombre de jours dans "Dates clés" (voir le rendu de 'delai-valeur' plus bas) — jusqu'ici seul
   // le delta était visible ("8 J"), sans les dates elles-mêmes.
-  // dateFin = dossier.dateTestPlanifie (audit 2026-09-18), PAS dates[indexTestPlanifie].date : ces
+  // dateFin = dossier.dateTestPlanifie, PAS dates[indexTestPlanifie].date : ces
   // deux dates ont divergé depuis ce correctif — la ligne "Test planifié" affiche désormais la
   // date/heure RÉELLEMENT prévue pour le test (rendez-vous), alors que ce délai continue
   // volontairement de mesurer jusqu'au basculement de statut (demande utilisateur, voir
@@ -425,7 +425,7 @@ export default function TableauDossiersSelectionnes({
   varianteDateCle,
   ordreCanoniqueIndicateurs,
 }) {
-  // Inspecteur Hôtellerie (2026-10-01) : tout est déjà Hôtellerie (pastilles de secteur masquées) ;
+  // Inspecteur Hôtellerie : tout est déjà Hôtellerie (pastilles de secteur masquées) ;
   // lien vers la fiche seulement pour un dossier de son périmètre, sinon numéro sans lien.
   const { utilisateur } = useSession();
   const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE;
@@ -441,7 +441,7 @@ export default function TableauDossiersSelectionnes({
     });
   };
 
-  // Tri des colonnes (audit 2026-09-14, demande utilisateur) — voir COLONNES_TRIABLES ci-dessus.
+  // Tri des colonnes — voir COLONNES_TRIABLES ci-dessus.
   // colonne: null par défaut (pas de tri actif, ordre de réception tel quel) plutôt qu'une colonne
   // par défaut arbitraire : contrairement à "Dernière mise à jour" (DossierList.jsx) ou "Date et
   // heure du test" (Planification.jsx), aucune colonne de ce tableau n'a de repère chronologique

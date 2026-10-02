@@ -6,17 +6,12 @@
 
 const { obtenirKnex } = require('../src/db/knex');
 
-// obligatoire : true sur photo_identite/carte_identite/carte_vitale/rib/justificatif_domicile
-// (décision produit, 2026-08-10 puis 2026-08-17, puis 2026-09-11 qui revient sur ce dernier
-// changement — rib et justificatif_domicile redeviennent obligatoires) — même valeurs que
-// frontend/src/core/pieceJustificative/donneesTest/typesPiecesConfig.accecit.js, répercutées ici
-// pour rester cohérent : cette colonne EST bien lue par une validation backend (audit 2026-09-11,
-// corrige ce commentaire — voir pieceJustificativeRepository.toutesPiecesObligatoiresPresentes,
-// qui déclenche la transition automatique 'pieces_completes'). Ce script est idempotent sur
-// l'existence d'une ligne (voir seedTypesPieces ci-dessous), donc sans effet sur une ligne déjà
-// insérée en base avec l'ancienne valeur : à corriger manuellement (UPDATE) sur un environnement
-// déjà seedé, pas quelque chose que ré-exécuter ce script fera pour vous — voir cette même mise à
-// jour du 2026-09-11, appliquée manuellement sur l'environnement de dev pour cette raison.
+// Source de vérité : la table types_pieces (lue par GET /api/types-pieces). Ce script ne fait
+// qu'amorcer une base vide ; il est idempotent sur l'existence d'une ligne et ne modifie donc
+// jamais une ligne existante — tout changement de valeur passe par une migration (ex. 076).
+//
+// obligatoire : conditionne le bouton « Valider et planifier un test » ET la transition
+// automatique 'pieces_completes' (pieceJustificativeRepository.toutesPiecesObligatoiresPresentes).
 //
 // capture_uniquement : true seulement sur photo_identite (migration 048) — seul "Prendre une
 // photo" doit être proposé pour cette pièce (voir CaptureTablette.jsx et la garde associée dans
@@ -25,25 +20,22 @@ const { obtenirKnex } = require('../src/db/knex');
 // carte_identite_verso : type de pièce à part entière côté base/stockage (mêmes garanties
 // d'unicité/traçabilité par dossier qu'un type normal, voir pieceJustificativeRepository.js),
 // mais délibérément absent de la liste principale de pièces côté front
-// (typesPiecesConfig.accecit.js n'en fait qu'une référence via `codeVerso` sur l'entrée
-// carte_identite, jamais un élément de la liste elle-même) : obligatoire=false, jamais compté
+// (référencé par `code_verso` sur l'entrée carte_identite, jamais un élément de la liste
+// renvoyée par GET /api/types-pieces) : obligatoire=false, jamais compté
 // dans "X / Y pièces capturées" ni dans les pièces obligatoires (2026-08-17, revient sur une
 // scission recto/verso en deux pièces DISTINCTES tentée puis annulée le même jour — carte_identite
 // reste la seule pièce "recto", le verso n'étant qu'un complément optionnel qui lui est rattaché).
 const TYPES_PIECES_ACCECIT = [
-  { code: 'photo_identite', libelle: "Photo d'identité", obligatoire: true, capture_uniquement: true },
-  { code: 'carte_identite', libelle: "Carte d'identité ou Carte de Séjour", obligatoire: true },
-  { code: 'carte_identite_verso', libelle: 'Carte d’identité ou Carte de Séjour - Verso (optionnel)', obligatoire: false },
-  { code: 'carte_vitale', libelle: 'Carte vitale', obligatoire: true },
-  { code: 'rib', libelle: 'RIB', obligatoire: true },
-  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: true },
-  { code: 'justificatif_experience', libelle: "Justificatif d'expérience", obligatoire: false },
-  { code: 'attestation_mutuelle', libelle: 'Attestation mutuelle', obligatoire: false },
-  // multiple : true (migration 062, demande utilisateur 2026-09-10) — seul type qui accepte
-  // plusieurs documents pour un même dossier, sans slot unique remplacé via "Reprendre" (voir
-  // pieceJustificativeService.uploaderPieceJustificative). Pas de codeVerso/capture_uniquement :
-  // aucun des deux n'a de sens pour une liste à taille libre.
-  { code: 'autres', libelle: 'Autres documents', obligatoire: false, multiple: true },
+  { code: 'photo_identite', ordre: 1, libelle: "Photo d'identité", obligatoire: true, capture_uniquement: true },
+  { code: 'carte_identite', ordre: 2, libelle: "Carte d'identité ou Carte de Séjour", obligatoire: true, code_verso: 'carte_identite_verso' },
+  { code: 'carte_identite_verso', ordre: 2, libelle: 'Carte d’identité ou Carte de Séjour - Verso (optionnel)', obligatoire: false },
+  { code: 'carte_vitale', ordre: 3, libelle: 'Carte Vitale ou Attestation de Sécurité Sociale', obligatoire: true },
+  { code: 'rib', ordre: 4, libelle: "Relevé d'identité bancaire (RIB)", obligatoire: true },
+  { code: 'justificatif_domicile', ordre: 5, libelle: 'Justificatif de domicile', obligatoire: true },
+  { code: 'justificatif_experience', ordre: 6, libelle: "Justificatif d'expériences", obligatoire: false },
+  { code: 'attestation_mutuelle', ordre: 7, libelle: 'Attestation Mutuelle', obligatoire: false },
+  // Seul type qui accepte plusieurs documents pour un même dossier.
+  { code: 'autres', ordre: 8, libelle: 'Autres documents', obligatoire: false, multiple: true },
 ];
 
 async function seedTypesPieces(codeEntite) {

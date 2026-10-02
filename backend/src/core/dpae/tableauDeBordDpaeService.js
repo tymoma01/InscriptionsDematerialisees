@@ -1,4 +1,4 @@
-// « Tableau de bord DPAE » (2026-09-30, demande utilisateur) — orchestration : résout les filtres
+// « Tableau de bord DPAE » — orchestration : résout les filtres
 // (période par défaut en heure de Paris), lance les agrégats SQL (tableauDeBordDpaeRepository.js,
 // tous calculés en base) et assemble la réponse. Accès : Admin, RH, Planning (dpae.routes.js).
 
@@ -85,7 +85,7 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
   const decidees = parStatut.validee + parStatut.rejetee;
   const dejaEmploye = enMap(bruts.dejaEmploye.map(({ cle, nombre }) => ({ cle: String(cle), nombre })));
   const finsDeCdd = ajouterSitesAuxLignes(bruts.finsDeCdd, liens);
-  // « À traiter en priorité » (2026-09-30) : UNIQUEMENT des demandes sur lesquelles la RH doit
+  // « À traiter en priorité » : UNIQUEMENT des demandes sur lesquelles la RH doit
   // encore agir (À traiter ou En attente, voir le repository). Une demande présente dans les deux
   // listes n'est comptée qu'une fois.
   const premierJourProche = ajouterSitesAuxLignes(bruts.premierJourProche, liens);
@@ -111,7 +111,7 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
       delaiMedianHeures: bruts.delais.median_heures,
       evolution: bruts.evolution,
     },
-    // Déclarations tardives (2026-09-30) : validées après leur premier jour, sur la période filtrée.
+    // Déclarations tardives : validées après leur premier jour, sur la période filtrée.
     // part = tardives / validées de la même sélection ; null s'il n'y a aucune validée (jamais un
     // 0 % trompeur, même règle que le taux de rejet).
     declarationsTardives: {

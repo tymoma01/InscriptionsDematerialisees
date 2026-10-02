@@ -528,7 +528,7 @@
   opacity: 0.7;
 }
 
-/* "Effacer la sélection" (audit 2026-08-25) — même distinction visuelle et même raisonnement que
+/* "Effacer la sélection" — même distinction visuelle et même raisonnement que
    .tableau-bord-accueil__bouton-action-groupee--effacer (TableauDeBordAccueil.css, Dossiers
    candidats) : traitement "fantôme" plutôt qu'une pastille blanche pleine identique à "Voir
    l'historique...", pour se lire comme une réinitialisation d'affichage plutôt qu'une action
@@ -850,7 +850,7 @@
   word-break: break-word;
 }
 
-/* Cellule Statut (audit 2026-08-20) : centre le badge dans la cellule, contrairement au reste du
+/* Cellule Statut : centre le badge dans la cellule, contrairement au reste du
    tableau resté aligné à gauche (.planification__table th, .planification__table td) — même
    intention que .planification__actions ci-dessous pour la cellule Actions. StatutBadge lui-même
    (core/workflow/StatutBadge.jsx) est déjà un composant générique partagé par tout le back-office

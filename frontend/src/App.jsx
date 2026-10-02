@@ -8,10 +8,8 @@ import Tests from './pages/coordination/Tests';
 import Planification from './pages/coordination/Planification';
 import SuiviFormation from './pages/coordination/SuiviFormation';
 import Validation from './pages/recruteur/Validation';
-import Evaluation from './pages/formateur/Evaluation';
-import HistoriqueEvaluations from './pages/formateur/HistoriqueEvaluations';
-import EvaluationInspecteur from './pages/inspecteur/Evaluation';
-import HistoriqueEvaluationsInspecteur from './pages/inspecteur/HistoriqueEvaluations';
+import Evaluation from './pages/evaluation/Evaluation';
+import HistoriqueEvaluations from './pages/evaluation/HistoriqueEvaluations';
 import Utilisateurs from './pages/admin/Utilisateurs';
 import Indicateurs from './pages/tableauDeBord/Indicateurs';
 import Connexion from './pages/connexion/Connexion';
@@ -21,37 +19,15 @@ import TableauDeBordDpae from './pages/coordination/TableauDeBordDpae';
 import TraitementDpae from './pages/rh/TraitementDpae';
 import DetailDemandeDpae from './pages/rh/DetailDemandeDpae';
 import RouteProtegee from './core/auth/RouteProtegee';
-import {
-  ROLES_ACCUEIL,
-  ROLES_DPAE_DEMANDEUR,
-  ROLES_DPAE_RH,
-  ROLES_DPAE_CONSULTATION,
-  ROLES_GESTION_PIECES,
-  ROLES_LECTURE_SUIVI_DOSSIER,
-  ROLES_LECTURE_TESTS_FORMATION,
-  ROLES_DPAE_TABLEAU_DE_BORD,
-  ROLE_INSPECTEUR_HOTELLERIE,
-} from './core/auth/rolesGroupes';
-
-// Écrans ouverts à tous les rôles authentifiés (sans liste `roles`) mais interdits à l'Inspecteur
-// Hôtellerie (2026-10-01) : accès direct par adresse -> renvoi vers son tableau de bord.
-const EXCLUS_INSPECTEUR_HOTELLERIE = [ROLE_INSPECTEUR_HOTELLERIE];
-
-// Rôles autorisés sur "Suivi des formations" (audit 2026-09-26, retrait de l'Inspecteur — règle
-// métier confirmée : aucun dossier Tertiaire ne passe en formation) — même liste que
-// ROLES_SUIVI_FORMATION (backend/src/api/routes/dossiers.routes.js) et l'entrée correspondante de
-// BarreNavigation.jsx, dupliquée plutôt que partagée (CLAUDE.md, conventions du projet) : les trois
-// doivent rester en phase manuellement si cette liste change à nouveau.
-const ROLES_SUIVI_FORMATION = [...ROLES_ACCUEIL, 'admin', 'formateur'];
+import { ROLE_INSPECTEUR_HOTELLERIE } from './core/auth/permissions';
 
 // Table de routes minimale : inscription (candidat, sans authentification), connexion (agent) et
 // les écrans internes — tableau de bord, vérification des pièces justificatives, relances,
 // évaluation formateur, évaluation inspecteur (postes bureau, section distincte du formateur —
 // hôtel), gestion des comptes admin et indicateurs KPI — tous protégés côté serveur (requireAuth +
-// requireRole, voir backend/src/api/routes) ET côté client par RouteProtegee (audit 2026-08-25,
-// voir son commentaire d'en-tête) : la garde côté serveur reste la seule autorité sur le RÔLE
-// autorisé, RouteProtegee ne fait que renvoyer vers /connexion?redirection=... un visiteur sans
-// session du tout, avant même de monter la page et son premier aller-retour réseau voué à échouer.
+// requirePermission, voir backend/src/api/routes). RouteProtegee (`permission`, clé de
+// backend/src/core/auth/permissions.js) ne fait qu'éviter d'afficher une page que le serveur
+// refuserait : redirection vers /connexion sans session, vers l'écran du rôle sans la permission.
 //
 // Ancienne page "Back-office recruteur" (/recruteur/dossiers, Backoffice.jsx) supprimée : son
 // unique action propre à la liste ("Étudier le dossier") a été fusionnée dans "Dossiers candidats"
@@ -69,7 +45,7 @@ export default function App() {
         <Route
           path="/accueil/tableau-de-bord"
           element={
-            <RouteProtegee>
+            <RouteProtegee permission="listeDossiers">
               <TableauDeBordAccueil />
             </RouteProtegee>
           }
@@ -77,10 +53,10 @@ export default function App() {
         <Route
           path="/accueil/dossiers/:dossierId/pieces"
           element={
-            // Écran de GESTION des pièces (2026-09-30) : réservé aux rôles qui peuvent écrire
-            // (ROLES_GESTION_PIECES, miroir de pieces.routes.js) — les autres consultent les pièces
+            // Écran de GESTION des pièces : réservé aux rôles qui peuvent écrire
+            // (permission gestionPieces) — les autres consultent les pièces
             // depuis la fiche dossier, jamais cet écran dont toutes les actions leur sont refusées.
-            <RouteProtegee roles={ROLES_GESTION_PIECES}>
+            <RouteProtegee permission="gestionPieces">
               <VerificationPieces />
             </RouteProtegee>
           }
@@ -88,9 +64,9 @@ export default function App() {
         <Route
           path="/coordination/dossiers/:dossierId/relances"
           element={
-            // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
+            // Réservé aux rôles qui peuvent lire ces données côté serveur : la RH
             // qui tape l'adresse est renvoyée vers sa page d'accueil.
-            <RouteProtegee roles={ROLES_LECTURE_SUIVI_DOSSIER}>
+            <RouteProtegee permission="lectureRelances">
               <Relances />
             </RouteProtegee>
           }
@@ -98,9 +74,9 @@ export default function App() {
         <Route
           path="/coordination/dossiers/:dossierId/formation"
           element={
-            // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
+            // Réservé aux rôles qui peuvent lire ces données côté serveur : la RH
             // qui tape l'adresse est renvoyée vers sa page d'accueil.
-            <RouteProtegee roles={ROLES_LECTURE_TESTS_FORMATION}>
+            <RouteProtegee permission="lectureFormation">
               <Formation />
             </RouteProtegee>
           }
@@ -108,9 +84,9 @@ export default function App() {
         <Route
           path="/coordination/dossiers/:dossierId/tests"
           element={
-            // Réservé aux rôles qui peuvent lire ces données côté serveur (2026-09-30) : la RH
+            // Réservé aux rôles qui peuvent lire ces données côté serveur : la RH
             // qui tape l'adresse est renvoyée vers sa page d'accueil.
-            <RouteProtegee roles={ROLES_LECTURE_TESTS_FORMATION}>
+            <RouteProtegee permission="lectureRendezvous">
               <Tests />
             </RouteProtegee>
           }
@@ -118,7 +94,7 @@ export default function App() {
         <Route
           path="/coordination/planification"
           element={
-            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
+            <RouteProtegee permission="suiviTests">
               <Planification />
             </RouteProtegee>
           }
@@ -126,19 +102,19 @@ export default function App() {
         <Route
           path="/coordination/suivi-formation"
           element={
-            <RouteProtegee roles={ROLES_SUIVI_FORMATION}>
+            <RouteProtegee permission="suiviFormation">
               <SuiviFormation />
             </RouteProtegee>
           }
         />
-        {/* Onglet Admin « Vue Inspecteur Hôtellerie » (2026-10-01) : même écran que Dossiers candidats,
+        {/* Onglet Admin « Vue Inspecteur Hôtellerie » : même écran que Dossiers candidats,
             avec le périmètre de ce rôle appliqué côté serveur (paramètre `vue`, Admin uniquement).
             Chemin dédié : l'onglet reste actif tant que l'Admin navigue dans cette vue ; `key`
             remonte l'écran à neuf en passant de « Dossiers candidats » à cette vue. */}
         <Route
           path="/vue-inspecteur-hotellerie/dossiers"
           element={
-            <RouteProtegee roles={['admin']}>
+            <RouteProtegee permission="administration">
               <TableauDeBordAccueil key="vue-inspecteur-hotellerie" vue={ROLE_INSPECTEUR_HOTELLERIE} />
             </RouteProtegee>
           }
@@ -155,39 +131,39 @@ export default function App() {
         <Route
           path="/formateur/evaluations"
           element={
-            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
-              <Evaluation />
+            <RouteProtegee permission="evaluation">
+              <Evaluation key="hotellerie" secteur="hotellerie" />
             </RouteProtegee>
           }
         />
         <Route
           path="/formateur/historique"
           element={
-            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
-              <HistoriqueEvaluations />
+            <RouteProtegee permission="evaluation">
+              <HistoriqueEvaluations key="hotellerie" secteur="hotellerie" />
             </RouteProtegee>
           }
         />
         <Route
           path="/inspecteur/evaluations"
           element={
-            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
-              <EvaluationInspecteur />
+            <RouteProtegee permission="evaluation">
+              <Evaluation key="tertiaire" secteur="tertiaire" />
             </RouteProtegee>
           }
         />
         <Route
           path="/inspecteur/historique"
           element={
-            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
-              <HistoriqueEvaluationsInspecteur />
+            <RouteProtegee permission="evaluation">
+              <HistoriqueEvaluations key="tertiaire" secteur="tertiaire" />
             </RouteProtegee>
           }
         />
         <Route
           path="/admin/utilisateurs"
           element={
-            <RouteProtegee rolesExclus={EXCLUS_INSPECTEUR_HOTELLERIE}>
+            <RouteProtegee permission="administration">
               <Utilisateurs />
             </RouteProtegee>
           }
@@ -195,21 +171,21 @@ export default function App() {
         <Route
           path="/tableau-de-bord/indicateurs"
           element={
-            <RouteProtegee>
+            <RouteProtegee permission="statistiques">
               <Indicateurs />
             </RouteProtegee>
           }
         />
         {/* Module Demandes DPAE (2026-09-28, spécifique à ACCECIT — voir Modularité, CLAUDE.md).
             Périmètre révisé le 2026-09-30 : créer une demande : Planning/Admin
-            (ROLES_DPAE_DEMANDEUR) ; suivre les demandes et ouvrir une fiche : Admin/RH/Planning
-            (ROLES_DPAE_CONSULTATION) ; file de traitement RH : RH/Admin (ROLES_DPAE_RH).
-            Accueil/Coordination : aucun accès. Voir core/auth/rolesGroupes.js, miroir de
+            (dpaeCreation) ; suivre les demandes et ouvrir une fiche : Admin/RH/Planning
+            (dpaeConsultation) ; file de traitement RH : RH/Admin (dpaeTraitementRh).
+            Accueil/Coordination : aucun accès. Voir core/auth/permissions.js, miroir de
             backend/src/core/auth/rbac.js. */}
         <Route
           path="/coordination/dpae/nouvelle"
           element={
-            <RouteProtegee roles={ROLES_DPAE_DEMANDEUR}>
+            <RouteProtegee permission="dpaeCreation">
               <DemandeDpae />
             </RouteProtegee>
           }
@@ -217,7 +193,7 @@ export default function App() {
         <Route
           path="/coordination/dpae/suivi"
           element={
-            <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
+            <RouteProtegee permission="dpaeConsultation">
               <SuiviDemandesDpae />
             </RouteProtegee>
           }
@@ -227,7 +203,7 @@ export default function App() {
         <Route
           path="/coordination/dpae/tableau-de-bord"
           element={
-            <RouteProtegee roles={ROLES_DPAE_TABLEAU_DE_BORD}>
+            <RouteProtegee permission="dpaeTableauDeBord">
               <TableauDeBordDpae />
             </RouteProtegee>
           }
@@ -235,7 +211,7 @@ export default function App() {
         <Route
           path="/rh/dpae"
           element={
-            <RouteProtegee roles={ROLES_DPAE_RH}>
+            <RouteProtegee permission="dpaeTraitementRh">
               <TraitementDpae />
             </RouteProtegee>
           }
@@ -243,7 +219,7 @@ export default function App() {
         <Route
           path="/rh/dpae/:demandeId"
           element={
-            <RouteProtegee roles={ROLES_DPAE_CONSULTATION}>
+            <RouteProtegee permission="dpaeConsultation">
               <DetailDemandeDpae />
             </RouteProtegee>
           }

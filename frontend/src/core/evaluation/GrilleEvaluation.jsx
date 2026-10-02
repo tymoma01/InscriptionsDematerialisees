@@ -3,6 +3,7 @@ import { obtenirQuestionnaire, enregistrerEvaluation } from '../../services/eval
 import NotesDossier from '../dossier/NotesDossier';
 import InformationsInscription from '../dossier/InformationsInscription';
 import ChecklistInspection from './ChecklistInspection';
+import { libellePoste } from '../referentiels/postes';
 import './GrilleEvaluation.css';
 
 // Échelle de notation d'une question 'grille_qcu' (voir backend evaluationEngine.js,
@@ -25,7 +26,7 @@ const NIVEAUX_BUREAU = [
   { code: 'excellent', libelle: 'Excellent' },
 ];
 
-// Code couleur cohérent avec le reste de l'app (audit 2026-08-26) — mêmes variantes que
+// Code couleur cohérent avec le reste de l'app — mêmes variantes que
 // StatutBadge.jsx (var(--statut-*), palette ACCECIT existante), pas de couleur vive inventée ici :
 // 'succes' (vert) pour un jugement positif, 'echec' (rouge) pour un jugement négatif, 'attente'
 // (ambre — déjà utilisé pour les statuts "en attente"/à mi-chemin ailleurs dans l'app) pour "A
@@ -67,29 +68,6 @@ const VARIANTE_PAR_CODE_OUI_NON = { oui: 'succes', non: 'echec' };
 // malgré leur positionnement différent dans le formulaire — étendu le 2026-09-19 (initialement
 // limité à 'debutant' seul, cafetier ajouté sur demande explicite).
 const CODES_QUESTION_DEBUTANT = ['debutant', 'debutante'];
-
-// Libellés des postes hôtel/bureau pour le sélecteur affiché quand un dossier a coché plusieurs
-// postes (voir postesAmbigus plus bas) — mêmes codes/libellés que BlocDisponibilites.jsx
-// (POSTES_HOTEL/POSTES_BUREAU), dupliqués ici plutôt que partagés : quelques lignes de données,
-// même choix déjà fait pour VARIANTE_PAR_CODE_ACCECIT (TableauDeBordAccueil.jsx/Backoffice.jsx).
-const POSTE_HOTEL_LIBELLES = {
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-const POSTE_BUREAU_LIBELLES = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-};
-
-function libellePoste(posteCode) {
-  if (!posteCode) return 'Générique';
-  return POSTE_HOTEL_LIBELLES[posteCode] ?? POSTE_BUREAU_LIBELLES[posteCode] ?? posteCode;
-}
 
 // Orientation du candidat en cas de verdict positif (workflow v3, voir backend evaluationEngine.js,
 // ORIENTATIONS_AUTORISEES) — sans objet si le résultat global est "Invalidé", jamais affichée
@@ -366,7 +344,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     };
   }, [rendezvous.id, postesAmbigus, aucunPosteDeclare, posteResolutionAutomatique]);
 
-  // estQuestionDebutant (audit 2026-09-19, demande utilisateur) : réservé aux questions
+  // estQuestionDebutant : réservé aux questions
   // "debutant"/"debutante" (voir CODES_QUESTION_DEBUTANT ci-dessus, résolu à `true` uniquement à
   // ces deux points d'appel plus bas) — tous les autres champs du formulaire, y compris les
   // checkboxes "Connaissance du vocabulaire hôtelier" et les autres champs texte/grille, appellent
@@ -484,7 +462,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
         {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
             fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
             Inspecteur (audit 2026-08-19), strictement en lecture seule : le bouton "Modifier" reste
-            masqué de lui-même (InformationsInscription.jsx, ROLES_MODIFICATION_INSCRIPTION ne
+            masqué de lui-même (InformationsInscription.jsx, modificationInscription ne
             contient pas ces deux rôles), pas de garde dupliquée ici. Repositionnée juste sous le
             titre (audit 2026-08-20, décision utilisateur) — auparavant tout en bas de l'écran,
             après Notes. */}
@@ -558,7 +536,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
         {/* Notes de l'accueil/coordination sur ce dossier (ex. "à tester sur les postes de FDC et
             cafetier") — utiles au formateur dès ce choix de poste, pas seulement une fois la
             grille chargée. Composant générique réutilisé tel quel (lecture + ajout, voir son
-            en-tête de fichier) : le formateur fait déjà partie de ROLES_NOTES_DOSSIER côté back
+            en-tête de fichier) : le formateur fait déjà partie de ajoutNotesDossier côté back
             (notes.routes.js), aucune variante lecture-seule à part. */}
         <NotesDossier dossierId={rendezvous.dossier_id} />
       </>
@@ -679,7 +657,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                 </legend>
 
                 {question.type_question === 'grille_qcu' && (
-                  // Grille de mini-cartes compactes (audit 2026-08-26) — plusieurs critères côte à
+                  // Grille de mini-cartes compactes — plusieurs critères côte à
                   // côte plutôt qu'un seul par ligne pleine largeur (voir
                   // .grille-evaluation__criteres-grille, GrilleEvaluation.css) : réduit fortement la
                   // hauteur totale pour un questionnaire à de nombreux critères (ex. 11 pour
@@ -767,7 +745,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
                 )}
 
                 {question.type_question === 'choix_multiple' && (
-                  // grille-evaluation__choix--vocabulaire (audit 2026-09-15) : modificateur dédié à
+                  // grille-evaluation__choix--vocabulaire : modificateur dédié à
                   // CE bloc uniquement (12 cases "Connaissance du vocabulaire hôtelier") — .choix de
                   // base reste en flex-wrap tel quel pour les autres usages (Résultat du test,
                   // Orientation, options grille_qcu, voir GrilleEvaluation.css), volontairement pas
@@ -807,7 +785,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
         ))}
 
         <fieldset
-          // Même logique de couleur que les critères grille_qcu ci-dessus (audit 2026-08-26) :
+          // Même logique de couleur que les critères grille_qcu ci-dessus :
           // vert une fois Validé coché, rouge une fois Invalidé — neutre tant qu'aucun des deux
           // n'est encore choisi (resultatGlobal vaut '', voir son état plus haut).
           className={`grille-evaluation__resultat-global${

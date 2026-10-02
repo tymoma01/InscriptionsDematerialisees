@@ -55,7 +55,7 @@ function construirePayloadApprenant({ dossierId, inscription, entrepriseUid, nir
   const coordonnees = blocs?.coordonnees ?? {};
 
   return {
-    // "APPX-<id dossier>" (décision utilisateur, 2026-08-21) : customId est réellement obligatoire
+    // "APPX-<id dossier>" : customId est réellement obligatoire
     // côté SmartOF (testé le même jour : omis -> 400 "customId Required", pas d'auto-incrément
     // façon APP-00XX pour une création via l'API, ce préfixe n'a donc pas à suivre LEUR séquence)
     // — sert seulement de référence pour nous, à retrouver le dossier ACCECIT d'origine depuis

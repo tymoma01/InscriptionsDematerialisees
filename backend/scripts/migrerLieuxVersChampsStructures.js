@@ -67,7 +67,7 @@ async function main() {
       if (aRisque) nbARisque += 1;
 
       if (!DRY_RUN) {
-        // eslint-disable-next-line no-await-in-loop -- petit volume (quelques lieux), log
+         
         // séquentiel lisible plutôt qu'un Promise.all qui entrelacerait la sortie console.
         await bd('lieux').where({ id: lieu.id }).update({ adresse, metro_acces: metroAcces, instructions });
       }

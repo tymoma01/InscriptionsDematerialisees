@@ -5,7 +5,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { useSession } from '../../core/auth/useSession';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
-import { ROLES_DPAE_DEMANDEUR, ROLES_DPAE_CONSULTATION_TOUTES } from '../../core/auth/rolesGroupes';
+import { peut } from '../../core/auth/permissions';
 import { listerSuiviDemandes } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
@@ -22,16 +22,16 @@ import './SuiviDemandesDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-// Libellé et couleur des statuts : source unique core/dpae/statutsDpae.js (2026-09-30).
+// Libellé et couleur des statuts : source unique core/dpae/statutsDpae.js.
 
 // « Premier jour » et « Site(s) d'affectation » : core/dpae/affichageDpae.js (source unique,
 // partagée avec la liste RH depuis le 2026-10-02).
 
-// Page « Suivi des demandes DPAE » (révisée le 2026-09-30, demande utilisateur) — alimentée par
+// Page « Suivi des demandes DPAE » — alimentée par
 // GET /api/dpae/suivi (remplace GET /mes-demandes, qui ne renvoyait que les demandes de
 // l'utilisateur connecté : liste vide pour un Admin qui n'en avait créé aucune).
 // - Admin et RH : filtre « Mes demandes / Toutes » (par défaut Toutes, persisté dans l'URL) ;
-//   Planning aussi (depuis le 2026-09-30, voir rolesGroupes.js ROLES_DPAE_CONSULTATION_TOUTES).
+//   Planning aussi (depuis le 2026-09-30, voir permissions.js dpaeConsultationToutes).
 // - Plus récentes d'abord (tri serveur). Clic sur une ligne (ou Entrée) : fiche de la demande.
 // - « + Nouvelle demande » : seulement pour les rôles qui peuvent créer (Planning, Admin).
 // Rafraîchissement auto (useRafraichissementAuto) pour voir une validation/un rejet RH sans
@@ -44,9 +44,9 @@ export default function SuiviDemandesDpae() {
   const [erreur, setErreur] = useState(null);
   const [perimetre, setPerimetre] = useParametreURL('perimetre', 'toutes');
 
-  const peutFiltrer = ROLES_DPAE_CONSULTATION_TOUTES.includes(utilisateur?.roleCode);
-  const peutCreer = ROLES_DPAE_DEMANDEUR.includes(utilisateur?.roleCode);
-  // Téléchargement PDF (2026-10-02) : cases à cocher et action groupée (ZIP), voir
+  const peutFiltrer = peut(utilisateur, 'dpaeConsultationToutes');
+  const peutCreer = peut(utilisateur, 'dpaeCreation');
+  // Téléchargement PDF : cases à cocher et action groupée (ZIP), voir
   // core/dpae/TelechargementPdfDpae.jsx.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
   const selectionDemandes = useSelectionDemandesDpae(demandes);

@@ -178,7 +178,7 @@
   cursor: pointer;
 }
 
-/* Rond du radio coloré une fois coché (audit 2026-08-26) — `accent-color` ne teinte le contrôle
+/* Rond du radio coloré une fois coché — `accent-color` ne teinte le contrôle
    natif que dans son état coché, jamais au repos (voir les captures faites lors de l'implémentation :
    les options non cochées restent grises par défaut) : exactement le comportement demandé, sans
    avoir à coder cette distinction nous-mêmes. Même palette que les fonds de carte ci-dessus

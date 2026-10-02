@@ -21,7 +21,7 @@ export async function listerDossiers({ statut, dispoDebut, vue } = {}) {
   return data;
 }
 
-// Corrige la disponibilité d'un candidat "Validé - prêt à l'embauche" (audit 2026-09-28) — SANS
+// Corrige la disponibilité d'un candidat "Validé - prêt à l'embauche" — SANS
 // écraser la déclaration d'origine du candidat, voir ModaleDisponibiliteEmbauche.jsx/
 // backend/disponibiliteEmbaucheService.js.
 export async function corrigerDisponibiliteEmbauche(dossierId, { dateDebut, dateFin, commentaire }) {

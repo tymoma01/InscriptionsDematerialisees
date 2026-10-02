@@ -103,7 +103,7 @@
   color: var(--couleur-erreur);
 }
 
-/* « Mettre en attente » (2026-09-30) : couleur du badge « En attente » (variante bleu-gris,
+/* « Mettre en attente » : couleur du badge « En attente » (variante bleu-gris,
    core/dpae/statutsDpae.js). */
 .page-detail-dpae__mettre-en-attente {
   border: 1px solid var(--statut-bleu-gris-texte);

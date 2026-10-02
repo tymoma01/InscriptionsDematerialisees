@@ -1,7 +1,8 @@
 // Ordre d'affichage des pièces REÇUES d'un dossier (2026-10-02) — bloc « Pièces jointes » de
 // InformationsInscription.jsx, aligné sur le bloc « Pièces justificatives » (CaptureTablette.jsx).
 // L'ordre et les libellés ne sont pas recopiés ici : ils viennent de la même configuration que
-// CaptureTablette (typesPieces, donneesTest/typesPiecesConfig.accecit.js), passée en paramètre.
+// CaptureTablette (typesPieces de l'entité, table types_pieces, voir useTypesPieces.js), passée
+// en paramètre.
 // Module pur (aucune dépendance React), testé par ordrePiecesRecues.test.js (npm test).
 //
 // Règles :

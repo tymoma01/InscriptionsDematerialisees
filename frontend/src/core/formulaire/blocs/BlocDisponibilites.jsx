@@ -3,7 +3,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useRef } from 'react';
 import { blocDisponibilitesSchema } from './BlocDisponibilites.schema';
 import { propsRadioAccessible } from '../radioAccessible';
+import { LIBELLES_POSTE, POSTES_BUREAU, POSTES_HOTEL } from '../../referentiels/postes';
 import './BlocDisponibilites.css';
+
+const OPTIONS_POSTES_BUREAU = POSTES_BUREAU.map((code) => ({ code, libelle: LIBELLES_POSTE[code] }));
+const OPTIONS_POSTES_HOTEL = POSTES_HOTEL.map((code) => ({ code, libelle: LIBELLES_POSTE[code] }));
 
 // Deux sous-blocs "Créneaux souhaités" distincts selon le type de poste (voir
 // BlocDisponibilites.schema.js pour le vocabulaire de codes correspondant, CRENEAUX_HOTEL/
@@ -39,21 +43,6 @@ const LANGUES = [
   { code: 'francais', libelle: 'Français' },
   { code: 'anglais', libelle: 'Anglais' },
   { code: 'autre', libelle: 'Autre' },
-];
-
-const POSTES_BUREAU = [
-  { code: 'nettoyage', libelle: 'Nettoyage' },
-  { code: 'vitrerie', libelle: 'Vitrerie' },
-  { code: 'machiniste', libelle: 'Machiniste' },
-  { code: 'chef_equipe', libelle: "Chef d'équipe" },
-  { code: 'autres', libelle: 'Autres' },
-];
-
-const POSTES_HOTEL = [
-  { code: 'femme_valet_chambre', libelle: 'Femme/Valet de chambre' },
-  { code: 'cafetier', libelle: 'Cafétier(ère)' },
-  { code: 'equipier', libelle: 'Équipier(ère)' },
-  { code: 'gouvernant', libelle: 'Gouvernant(e)' },
 ];
 
 const COMMENT_CONNU = [
@@ -252,7 +241,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
       </fieldset>
       {errors.typePoste && <p role="alert">{errors.typePoste.message}</p>}
 
-      {/* « Êtes-vous étudiant ? » (2026-10-01) : EXACTEMENT le même rendu que « Disponible immédiatement »
+      {/* « Êtes-vous étudiant ? » : EXACTEMENT le même rendu que « Disponible immédiatement »
           ci-dessous (pastilles Oui/Non, commit 42910db), mais AUCUNE réponse sélectionnée par défaut —
           réponse obligatoire (blocDisponibilitesSchema). Chaque bouton pose sa propre valeur : un choix
           désélectionne l'autre. Transmis au serveur en booléen `estEtudiant` (voir onChange plus haut). */}
@@ -443,7 +432,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
               Poste recherché (bureau)&nbsp;<span className="champ-obligatoire">*</span>
             </legend>
             <div className="bloc-disponibilites__options">
-              {POSTES_BUREAU.map((poste) => (
+              {OPTIONS_POSTES_BUREAU.map((poste) => (
                 <label key={poste.code} htmlFor={`posteBureau-${poste.code}`}>
                   <input
                     id={`posteBureau-${poste.code}`}
@@ -476,7 +465,7 @@ export default function BlocDisponibilites({ valeurs, onChange, onValiditeChange
               Poste recherché (hôtel)&nbsp;<span className="champ-obligatoire">*</span>
             </legend>
             <div className="bloc-disponibilites__options">
-              {POSTES_HOTEL.map((poste) => (
+              {OPTIONS_POSTES_HOTEL.map((poste) => (
                 <label key={poste.code} htmlFor={`posteHotel-${poste.code}`}>
                   <input
                     id={`posteHotel-${poste.code}`}

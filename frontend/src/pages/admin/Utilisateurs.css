@@ -98,7 +98,7 @@
   color: #ffffff;
 }
 
-/* Couleur des pastilles du filtre « Rôle » (2026-10-01) : définie UNE seule fois, dans
+/* Couleur des pastilles du filtre « Rôle » : définie UNE seule fois, dans
    Utilisateurs.jsx (VARIANTE_PAR_ROLE, partagée avec les badges du tableau) et transmise via la prop
    `variante` de FiltresStatut (couleurs au repos : FiltresStatut.css). Propre à cet écran : la
    pastille sélectionnée se remplit de la couleur du rôle (comportement inchangé), au lieu du
@@ -120,7 +120,7 @@
 
 .table-utilisateurs {
   width: 100%;
-  /* table-layout: fixed (audit 2026-08-31, décision utilisateur) : sans lui, les largeurs de
+  /* table-layout: fixed : sans lui, les largeurs de
      colonnes ci-dessous (.table-utilisateurs__colonne-*) ne sont que des SUGGESTIONS que le
      navigateur peut librement dépasser pour accueillir un contenu plus large (un email long,
      "Accueil / Coordination"...) — exactement le débordement qu'on cherche à éliminer. En layout
@@ -169,7 +169,7 @@
   overflow-wrap: break-word;
 }
 
-/* Largeurs explicites par colonne (audit 2026-08-31, décision utilisateur) — somme volontairement
+/* Largeurs explicites par colonne — somme volontairement
    inférieure à --largeur-max-formulaire (1300px, PageBackOffice.css, moins son padding latéral :
    ~1268px de contenu réel à cette largeur ou plus) pour que le tableau tienne sans défilement
    horizontal sur une largeur d'écran standard, marge de sécurité comprise pour l'arrondi des

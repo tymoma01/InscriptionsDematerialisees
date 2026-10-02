@@ -5,19 +5,20 @@ import NotesDossier from '../../core/dossier/NotesDossier';
 import InformationsInscription from '../../core/dossier/InformationsInscription';
 import NavigationFicheDossier from '../../core/dossier/NavigationFicheDossier';
 import StatutBadge from '../../core/workflow/StatutBadge';
-import { typesPiecesConfigAccecitTest } from '../../core/pieceJustificative/donneesTest/typesPiecesConfig.accecit';
+import { useTypesPieces } from '../../core/pieceJustificative/useTypesPieces';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import ErrorBoundary from '../../core/backOffice/ErrorBoundary';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
+import { libellePoste } from '../../core/referentiels/postes';
 import './VerificationPieces.css';
 
 // Mapping purement visuel, propre à cette page (pas au moteur générique StatutBadge, voir
 // Modularité CLAUDE.md) — même mapping que Validation.jsx (VARIANTE_PAR_CODE_ACCECIT), dupliqué
 // plutôt que partagé (voir CLAUDE.md conventions du projet) : un code absent de ce mapping (autre
 // entité, nouveau statut) retombe simplement sur un badge neutre plutôt que d'échouer. Badge
-// ajouté sur cette fiche (audit 2026-08-21) : le statut du dossier n'y était jusque-là visible
+// ajouté sur cette fiche : le statut du dossier n'y était jusque-là visible
 // nulle part, alors que dossier.statut_code/statut_libelle est déjà chargé ci-dessous
 // (obtenirDossier) pour le nom du candidat dans le titre.
 const VARIANTE_PAR_CODE_ACCECIT = {
@@ -36,41 +37,21 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   invalide: 'echec',
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
-  // Suivi de formation (audit 2026-08-28) : 'echec-fort' plutôt que 'echec' (déjà pris par
+  // Suivi de formation : 'echec-fort' plutôt que 'echec' (déjà pris par
   // "Invalidé", échec du TEST) — même famille "issue négative" mais teinte distincte
   // (fond/texte/bordure différents, voir styles/variables.css), demande explicite de couleur
   // distincte de "Invalidé".
   formation_non_validee: 'echec-fort',
-  // Statut terminal "Embauché" (audit 2026-08-31) : 'vert-fonce', voir variables.css.
+  // Statut terminal "Embauché" : 'vert-fonce', voir variables.css.
   embauche: 'vert-fonce',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
 }
 
-// Libellés des postes (sélection de poste(s) testé(s), voir ModalePlanificationTest.jsx via
-// CaptureTablette.jsx) — même mapping que TableauDeBordAccueil.jsx/Backoffice.jsx/Planification.jsx,
-// dupliqué plutôt que partagé (voir CLAUDE.md conventions du projet).
-const LIBELLES_POSTE_PAR_CODE_ACCECIT = {
-  nettoyage: 'Nettoyage',
-  vitrerie: 'Vitrerie',
-  machiniste: 'Machiniste',
-  chef_equipe: "Chef d'équipe",
-  autres: 'Autres',
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafétier(ère)',
-  equipier: 'Équipier(ère)',
-  gouvernant: 'Gouvernant(e)',
-};
-function libellePoste(code) {
-  return LIBELLES_POSTE_PAR_CODE_ACCECIT[code] ?? code;
-}
-
 // Page accueil : prise des pièces justificatives (CLAUDE.md, étape 3 du parcours), une fois le
 // candidat inscrit. Lit dossierId depuis le paramètre de route et transmet la config des types
-// de pièces de l'entité — donnée de test locale tant que le backend n'expose pas cette
-// configuration (voir typesPiecesConfig.accecit.js), même patron que InscriptionTablette.jsx
-// pour formulaireConfig.accecit.js. CaptureTablette.jsx lui-même ne connaît pas le routage
+// de pièces de l'entité (table types_pieces, voir useTypesPieces.js). CaptureTablette.jsx lui-même ne connaît pas le routage
 // (voir son commentaire d'en-tête) : c'est cette page qui fait le lien. PageBackOffice fournit
 // l'habillage commun aux pages back-office (en-tête/pied de page/filigrane, voir son commentaire
 // d'en-tête) — première page à l'utiliser, voir aussi pages/admin/Utilisateurs.jsx.
@@ -84,6 +65,7 @@ export default function VerificationPieces() {
   // page appelante (voir son commentaire d'en-tête), d'où ce second appel, purement informatif
   // et à l'échec silencieux (comme là-bas).
   const [dossier, setDossier] = useState(null);
+  const { typesPieces, erreur: erreurTypesPieces } = useTypesPieces();
 
   useEffect(() => {
     let annule = false;
@@ -97,7 +79,7 @@ export default function VerificationPieces() {
     };
   }, [dossierId]);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : ne rafraîchit que ce badge de titre — la
+  // Rafraîchissement automatique : ne rafraîchit que ce badge de titre — la
   // capture de pièces (CaptureTablette.jsx) garde volontairement son propre état, jamais re-fetché
   // automatiquement pendant une capture en cours (voir l'audit, composants exclus).
   useRafraichissementAuto(() => {
@@ -144,12 +126,12 @@ export default function VerificationPieces() {
             accéder sinon revenir au tableau de bord. */}
         <NavigationFicheDossier dossierId={dossierId} pageActuelle="pieces" />
 
-        {/* Repositionnée juste sous le titre (audit 2026-08-20, décision utilisateur) —
+        {/* Repositionnée juste sous le titre —
             auparavant tout en bas de la fiche, après Pièces/Notes : composant partagé
             (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
             Validation.jsx/Relances.jsx/GrilleEvaluation.jsx pour rester cohérent partout où
             cette section apparaît. */}
-        {/* Mode dégradé du back-office (audit 2026-08-24) — chaque section garde son propre
+        {/* Mode dégradé du back-office — chaque section garde son propre
             chargement de données indépendant, ErrorBoundary ajoute le filet manquant côté RENDU :
             un plantage n'empêche plus la consultation des autres sections de cette fiche.
             key={dossierId} pour repartir d'un état propre si l'agent change de dossier. */}
@@ -158,14 +140,18 @@ export default function VerificationPieces() {
         </ErrorBoundary>
 
         <ErrorBoundary key={`capture-${dossierId}`} titre="Pièces justificatives">
-          <CaptureTablette
-            dossierId={dossierId}
-            typesPieces={typesPiecesConfigAccecitTest}
-            statutCode={dossier?.statut_code}
-            postesBureau={dossier?.postesBureau}
-            postesHotel={dossier?.postesHotel}
-            libellePoste={libellePoste}
-          />
+          {erreurTypesPieces && <p role="alert">{erreurTypesPieces}</p>}
+          {!typesPieces && !erreurTypesPieces && <p>Chargement des pièces justificatives…</p>}
+          {typesPieces && (
+            <CaptureTablette
+              dossierId={dossierId}
+              typesPieces={typesPieces}
+              statutCode={dossier?.statut_code}
+              postesBureau={dossier?.postesBureau}
+              postesHotel={dossier?.postesHotel}
+              libellePoste={libellePoste}
+            />
+          )}
         </ErrorBoundary>
         <ErrorBoundary key={`notes-${dossierId}`} titre="Notes">
           <NotesDossier dossierId={dossierId} />

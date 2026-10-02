@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import './ModaleRejeterDpae.css';
 
-// Confirmation de la validation d'une demande DPAE (2026-09-30, demande utilisateur) — même
+// Confirmation de la validation d'une demande DPAE — même
 // fenêtre et même style que ModaleRejeterDpae.jsx (feuille de style partagée), sans champ de saisie :
 // un rappel des informations clés, la mention du caractère définitif, puis « Annuler » /
 // « Confirmer la validation ». Jamais window.confirm.

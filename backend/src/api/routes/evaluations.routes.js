@@ -4,8 +4,8 @@ const evaluationEngine = require('../../core/evaluation/evaluationEngine');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
 const { ROLES } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/evaluations' (voir app.js) — top-level, pas nichée sous '/api/dossiers/:id'
 // comme pieces/relances/rendezvous : le point d'entrée du formateur est sa propre liste de
@@ -17,10 +17,9 @@ const router = Router();
 // invalide le test") — admin inclus par cohérence avec son rôle de gestion globale, comme
 // partout ailleurs dans le projet. INSPECTEUR : même accès que FORMATEUR, mais pour les postes
 // bureau (voir evaluationEngine.js, scope procédural — rbac.js pour le détail de cette décision).
-const ROLES_EVALUATION = [ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 router.use(requireAuth);
-router.use(requireRole(...ROLES_EVALUATION));
+router.use(requirePermission('evaluation'));
 
 const idPositifSchema = z.coerce.number().int().positive();
 
@@ -62,7 +61,7 @@ const evaluationBodySchema = z.object({
   blocs: z.array(blocReponsesSchema).min(1),
 });
 
-// Filtres des vues Admin "Vue Formateur"/"Vue Inspecteur" (audit 2026-09-29) — `secteur`
+// Filtres des vues Admin "Vue Formateur"/"Vue Inspecteur" — `secteur`
 // (hotellerie | tertiaire) et `formateurId`, lus et validés UNIQUEMENT pour l'Admin : pour tout
 // autre rôle ils ne sont même pas parsés (ignorés, jamais de 400 sur une valeur qu'on n'utiliserait
 // de toute façon pas), et evaluationEngine.filtresEvaluationsParRole les ignore une seconde fois.
@@ -107,7 +106,7 @@ router.get('/questionnaire', async (req, res, next) => {
 // GET /api/evaluations/a-faire — rendez-vous de test à évaluer. formateurId vient toujours de la
 // session (req.utilisateur.id), jamais d'un paramètre de requête. Formateur : ne voit que ses
 // propres évaluations à faire. Admin (audit RBAC 2026-08-31, corrige le comportement précédent où
-// cet écran restait vide pour ce rôle) et Inspecteur (audit 2026-09-10) : voient TOUTES les
+// cet écran restait vide pour ce rôle) et Inspecteur : voient TOUTES les
 // évaluations à faire, tous formateurs/inspecteurs confondus — voir
 // evaluationEngine.listerRendezvousAEvaluer, qui ignore formateurId quand roleCode === 'admin' ou
 // 'inspecteur'.

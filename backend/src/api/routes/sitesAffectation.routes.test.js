@@ -1,17 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { requireRole } = require('../middlewares/rbac.middleware');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 const sitesAffectationRouter = require('./sitesAffectation.routes');
 
-const { siteBodySchema, ROLES_SITES_AFFECTATION } = sitesAffectationRouter;
+const { siteBodySchema } = sitesAffectationRouter;
 
-// POST /api/sites-affectation (2026-09-29) — aucune infrastructure de test HTTP dans ce projet
+// POST /api/sites-affectation — aucune infrastructure de test HTTP dans ce projet
 // (voir dossiers.routes.test.js) : on teste le VRAI schéma et la VRAIE liste de rôles montés sur la
-// route, exportés par sitesAffectation.routes.js. Les doublons sont testés côté service
+// route (permission dpaeCreation). Les doublons sont testés côté service
 // (siteAffectationService.test.js), qui porte cette règle.
-// Garde réellement montée sur le routeur (router.use(requireRole(...)), 2e couche après
-// requireAuth) — en plus de la liste de rôles exportée, pour ne jamais tester une copie.
+// Garde réellement montée sur le routeur (router.use(requirePermission(...)), 2e couche après
+// requireAuth), comparée au verdict de la permission.
 function gardeMontee() {
   const couches = sitesAffectationRouter.stack.filter((couche) => !couche.route);
   return couches[1].handle;
@@ -25,7 +25,7 @@ function appelerGardeRole(roleCode) {
   };
   res.json = () => res;
   let nextAppele = false;
-  requireRole(...ROLES_SITES_AFFECTATION)({ utilisateur: { roleCode } }, res, () => {
+  requirePermission('dpaeCreation')({ utilisateur: { roleCode } }, res, () => {
     nextAppele = true;
   });
   // Même verdict attendu de la garde réellement montée.

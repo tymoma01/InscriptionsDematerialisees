@@ -154,7 +154,7 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
 // Coordonnées saisies au bloc 'coordonnees' du formulaire d'inscription (JSONB, voir
 // dossier_donnees_formulaire, migration 013) — pas de colonne dédiée telephone/email sur
 // `candidats` (voir Modularité, CLAUDE.md : les champs d'un bloc restent dans le JSONB
-// générique). Déplacée ici depuis rendezvousRepository.js (2026-07-30) : cette donnée est propre
+// générique). Déplacée ici depuis rendezvousRepository.js : cette donnée est propre
 // au dossier, pas au rendez-vous — utilisée aussi bien par rappelService.js (rappel de créneau)
 // que par relanceService.js/invitationTestService.js (envoi réel email/SMS).
 async function trouverCoordonneesCandidat(bd, dossierId) {
@@ -583,7 +583,7 @@ function listerResumesParIds(bd, entiteId, dossierIds) {
     .select('dossiers.id', 'candidats.nom as candidat_nom', 'candidats.prenom as candidat_prenom');
 }
 
-// Rafraîchissement automatique du back-office par polling (audit 2026-08-24) : `journal_audit`
+// Rafraîchissement automatique du back-office par polling : `journal_audit`
 // est déjà écrit par la quasi-totalité des points de mutation du parcours dossier (transitions,
 // rendez-vous, pièces, notes, et désormais la création — voir candidats.routes.js), MAX(date_action)
 // scopé à l'entité sert donc de signal unique "quelque chose a changé" sans avoir à interroger
@@ -735,7 +735,7 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       'dossiers.id',
     );
 
-  // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — une jointure par statut suivi,
+  // 4 nouvelles cartes "Effectifs par statut" — une jointure par statut suivi,
   // voir joindreDateEntreeStatut ci-dessus.
   joindreDateEntreeStatut(requete, bd, 'test_realise');
   joindreDateEntreeStatut(requete, bd, 'valide_pret_embauche');
@@ -850,7 +850,7 @@ function listerDossiersParIds(bd, entiteId, dossierIds) {
       // "Inscription → Envoi en test".
       'dates_rendezvous_test_planifie.date_rendezvous_test_planifie',
       'entree_statut_courant.date_entree_statut_courant',
-      // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31) — voir joindreDateEntreeStatut
+      // 4 nouvelles cartes "Effectifs par statut" — voir joindreDateEntreeStatut
       // plus haut (sous-requête `dates_<code>`, colonne `date_entree_<code>`).
       'dates_test_realise.date_entree_test_realise',
       'dates_valide_pret_embauche.date_entree_valide_pret_embauche',

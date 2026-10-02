@@ -96,7 +96,7 @@ const CODE_STATUT_EFFECTIF_HISTORIQUE_ACCECIT = 'test_realise';
 // historique_statuts (compterOccurrencesHistorique, GÉNÉRIQUE) ; "Formations validées" seule sur
 // historique_statuts avec distinction par occurrence suivante (compterOccurrencesFormationValidee,
 // seul cas où valide_pret_embauche a deux origines possibles — voir son commentaire). Vérifié dans
-// workflow.config.json (audit 2026-09-14) avant d'ajouter 'formation_non_validee' ici plutôt que
+// workflow.config.json avant d'ajouter 'formation_non_validee' ici plutôt que
 // via une fonction dédiée façon compterOccurrencesFormationValidee : une SEULE transition y mène
 // (codeAction 'invalider_formation', origine unique valide_envoi_formation) — aucune ambiguïté
 // d'origine à lever, exactement le même cas que test_realise/valide_envoi_formation déjà traités
@@ -162,7 +162,7 @@ async function obtenirIndicateursKpi(entite, { dateDebut, dateFin, typePoste, po
     effectifsParStatut[statutCode] = versNombre(effectifsParStatutCourantBruts[index].total);
   });
 
-  // "Volumétrie sur la période" (audit dashboard 2026-09-02) — 4 cartes, décomptes d'OCCURRENCES,
+  // "Volumétrie sur la période" — 4 cartes, décomptes d'OCCURRENCES,
   // jamais de dossiers distincts (voir CODES_VOLUMETRIE_HISTORIQUE_ACCECIT plus haut).
   const volumetrieParStatut = {};
   CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.forEach((statutCode, index) => {
@@ -349,7 +349,7 @@ function resoudreListeIndicateur(bd, entiteId, filtres, code) {
       // 'volumetrie:<code>' (voir PREFIXE_VOLUMETRIE plus haut) — liste fermée aux 4 cartes
       // réellement affichées (contrairement à 'statut:<code>' ci-dessus, générique) : un code
       // inconnu lève une erreur plutôt qu'une liste vide silencieuse, même choix que 'poste:<code>'.
-      // 'formation_non_validee' (ajouté le 2026-09-14) rejoint CODES_VOLUMETRIE_HISTORIQUE_ACCECIT
+      // 'formation_non_validee' rejoint CODES_VOLUMETRIE_HISTORIQUE_ACCECIT
       // ci-dessus plutôt que le cas 'formation_validee' juste en dessous (compterOccurrencesFormationValidee
       // dédiée) : aucune ambiguïté d'origine à lever pour ce statut, voir le commentaire de
       // CODES_VOLUMETRIE_HISTORIQUE_ACCECIT.
@@ -487,7 +487,7 @@ async function listerDossiersParIndicateurs(entite, { dateDebut, dateFin, typePo
             ? { code: verdict_resultat_global === 'invalide' ? 'verdict_invalide' : 'verdict_valide', date: date_verdict }
             : null,
           date_verdict && verdict_orientation ? { code: `orientation_${verdict_orientation}`, date: date_verdict } : null,
-          // 4 nouvelles cartes "Effectifs par statut" (audit 2026-08-31, décision utilisateur) —
+          // 4 nouvelles cartes "Effectifs par statut" —
           // code 'statut:<code>' (préfixe PREFIXE_STATUT ci-dessus), date = date d'ENTRÉE dans ce
           // statut (dossierRepository.joindreDateEntreeStatut), pas la cohorte date_creation
           // utilisée pour le comptage/la sélection (voir listerParStatut) : cette colonne affiche

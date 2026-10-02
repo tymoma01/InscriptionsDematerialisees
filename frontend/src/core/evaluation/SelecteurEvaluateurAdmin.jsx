@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { listerFormateurs } from '../../services/formateurService';
 import './SelecteurEvaluateurAdmin.css';
 
-// Rôle des comptes proposés selon la vue Admin (audit 2026-09-29) : "Vue Formateur" = secteur
+// Rôle des comptes proposés selon la vue Admin : "Vue Formateur" = secteur
 // Hôtellerie -> Formateurs, "Vue Inspecteur" = secteur Tertiaire -> Inspecteurs.
 const ROLE_PAR_SECTEUR = { hotellerie: 'formateur', tertiaire: 'inspecteur' };
-// Libellés de rôle (2026-10-01) : 'formateur' = « Formateur Hôtellerie », 'inspecteur' = « Formateur
+// Libellés de rôle : 'formateur' = « Formateur Hôtellerie », 'inspecteur' = « Formateur
 // Tertiaire » (codes techniques inchangés).
 const LIBELLE_PAR_SECTEUR = { hotellerie: 'Formateur Hôtellerie', tertiaire: 'Formateur Tertiaire' };
 
-// Sélecteur "Tous / [nom]" des vues Admin "Vue Formateur"/"Vue Inspecteur" (audit 2026-09-29) —
+// Sélecteur "Tous / [nom]" des vues Admin "Vue Formateur"/"Vue Inspecteur" —
 // partagé par ListeEvaluationsAFaire.jsx et HistoriqueEvaluations.jsx plutôt que dupliqué dans
 // chacun. Alimenté par GET /api/formateurs (Formateurs ET Inspecteurs actifs de l'entité, voir
 // utilisateurService.listerFormateursEtInspecteurs), filtré ici sur le rôle correspondant au

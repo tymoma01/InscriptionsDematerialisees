@@ -3,7 +3,7 @@ const PDFDocument = require('pdfkit');
 const { COORDONNEES_ACCECIT } = require('../../config/coordonneesAccecit');
 const { formaterHeure, formaterHeuresParMois } = require('./formatsDpae');
 
-// PDF d'une demande DPAE (2026-10-02, demande utilisateur) — généré CÔTÉ SERVEUR (pdfkit, pur
+// PDF d'une demande DPAE — généré CÔTÉ SERVEUR (pdfkit, pur
 // JavaScript, aucun navigateur embarqué). Contenu : EXACTEMENT les sections et champs de la fiche
 // (frontend/src/pages/rh/DetailDemandeDpae.jsx), dans le même ordre et avec les mêmes règles
 // d'affichage (une ligne vide n'est pas affichée), plus le statut et sa date. Rien de plus : aucune

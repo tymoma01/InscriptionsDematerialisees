@@ -229,7 +229,7 @@ test('perimetreSuivi : Admin, RH et Planning voient toutes les demandes par déf
     assert.equal(perimetreSuivi({ roleCode, perimetreDemande: 'toutes' }), 'toutes', roleCode);
     assert.equal(perimetreSuivi({ roleCode, perimetreDemande: 'mes' }), 'mes', roleCode);
   }
-  // Rôle hors ROLES_DPAE_CONSULTATION_TOUTES (la route le refuse de toute façon en amont) : jamais
+  // Rôle hors dpaeConsultationToutes (la route le refuse de toute façon en amont) : jamais
   // plus que ses propres demandes, quoi qu'il demande.
   assert.equal(perimetreSuivi({ roleCode: 'accueil_coordination', perimetreDemande: 'toutes' }), 'mes');
 });
@@ -284,7 +284,7 @@ test("obtenirDemande : une demande d'une autre entité est introuvable, quel que
 });
 
 // ---------------------------------------------------------------------------------------------
-// Statut « En attente » (2026-09-30) — transitions autorisées : À traiter -> En attente (motif
+// Statut « En attente » — transitions autorisées : À traiter -> En attente (motif
 // obligatoire) ; En attente -> Validée | Rejetée. Aucune autre.
 // ---------------------------------------------------------------------------------------------
 function mockerDemandeAuStatut(t, statut) {

@@ -40,7 +40,7 @@ const CAPACITE_MAX_FORMATEUR_PAR_CRENEAU = 2;
 // aujourd'hui aucun équivalent front de ROLES, même choix déjà fait par Connexion.jsx/
 // BoutonNouvelleInscription.jsx pour leurs propres comparaisons de rôle).
 const GROUPES_ROLE = [
-  // Libellés de rôle (2026-10-01) : codes techniques inchangés.
+  // Libellés de rôle : codes techniques inchangés.
   { code: 'formateur', libelle: 'Formateurs Hôtellerie' },
   { code: 'inspecteur', libelle: 'Formateurs Tertiaire' },
 ];
@@ -259,7 +259,7 @@ export default function ModalePlanificationTest({
   // aussi le garde-fou correspondant côté back, rendezvousService.creerRendezvous). `null` si le
   // dossier n'a déclaré aucun poste (cas déjà rencontré, dossiers sans poste) : les deux onglets
   // restent alors visibles, comportement inchangé plutôt que de bloquer la planification.
-  // Extrait dans planificationParDefaut.js (audit 2026-09-07) pour être partagé avec
+  // Extrait dans planificationParDefaut.js pour être partagé avec
   // ModaleReplanificationGroupee.jsx — voir son en-tête.
   const secteurDossier = resoudreSecteurDossier(postesBureau, postesHotel);
   // Seul groupe pertinent quand le secteur est déterminé — jamais recalculé indépendamment de
@@ -317,7 +317,7 @@ export default function ModalePlanificationTest({
   // de la valeur utilisée par le filtrage des onglets plus bas.
   useEffect(() => {
     setGroupeRole(groupeImposeParSecteur ?? 'formateur');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dossierId, groupeImposeParSecteur]);
 
   // Présélection du lieu par défaut du secteur (migration 054, audit 2026-08-27) — même raison de
@@ -338,7 +338,7 @@ export default function ModalePlanificationTest({
   useEffect(() => {
     const lieuParDefaut = trouverLieuParDefautFormateur(formateurs, formateurId, lieux) ?? trouverLieuParDefaut(lieux, secteurDossier);
     if (lieuParDefaut) setLieuId(String(lieuParDefaut.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dossierId, secteurDossier, lieux, formateurId, formateurs]);
 
   // Vide d'abord la note (même raison que les deux effets ci-dessus : une note tapée pour un
@@ -368,7 +368,7 @@ export default function ModalePlanificationTest({
       })
       .catch(() => {
         // Non bloquant : le champ reste simplement vide si cette recherche échoue (ex. rôle
-        // Formateur/Inspecteur sans accès à GET /rendezvous, voir ROLES_GESTION_RENDEZVOUS côté
+        // Formateur/Inspecteur sans accès à GET /rendezvous, voir gestionRendezvous côté
         // back — ce panneau n'est aujourd'hui ouvert que par Accueil/Coordination/Admin, mais
         // rien ne doit bloquer la saisie manuelle d'une nouvelle note si cet appel échouait).
       });
@@ -569,7 +569,7 @@ export default function ModalePlanificationTest({
     : creneauxJourSelectionne.filter((rendezvous) => new Date(rendezvous.date_heure).toISOString() === dateHeureChoisieIso).length;
   const creneauDejaPris = nombreDejaPresentsSurCreneau >= CAPACITE_MAX_FORMATEUR_PAR_CRENEAU;
 
-  // Lieu désormais obligatoire (audit 2026-08-19, décision produit) — '' (option "-") ou aucun
+  // Lieu désormais obligatoire — '' (option "-") ou aucun
   // lieu choisi bloque la confirmation, même garde-fou frontend que dateTest/formateurId
   // ci-dessous. Le back revalide indépendamment (voir creationRendezvousSchema, rendezvous.routes.js) :
   // ce composant ne fait ici que donner un retour immédiat à l'agent avant l'appel réseau.

@@ -4,8 +4,7 @@ const utilisateurService = require('../../core/auth/utilisateurService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/utilisateurs' (voir app.js) — top-level, pas nichée sous un dossier : la
 // gestion des comptes n'est scopée par rien d'autre que l'entité courante (voir entiteContext).
@@ -14,7 +13,7 @@ const router = Router();
 // Gestion des comptes (CLAUDE.md, section Rôles : "Admin : gestion globale") — admin uniquement,
 // contrairement aux autres routeurs de ce projet qui listent plusieurs rôles.
 router.use(requireAuth);
-router.use(requireRole(ROLES.ADMIN));
+router.use(requirePermission('administration'));
 
 const idPositifSchema = z.coerce.number().int().positive();
 

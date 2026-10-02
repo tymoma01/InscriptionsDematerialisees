@@ -166,7 +166,7 @@ test("envoyerInvitationTest ajoute le formateur/inspecteur assigné en participa
   assert.ok(appelFormateur.arguments[2].includes("prévu le"));
   assert.ok(appelFormateur.arguments[2].includes("- L'évènement est présent sur votre calendrier outlook."));
 
-  // Régression (audit 2026-08-20) : l'email formateur n'attachait jusqu'ici jamais l'.ics
+  // Régression : l'email formateur n'attachait jusqu'ici jamais l'.ics
   // (contenuIcs était scopé au seul bloc candidat) — même fichier que l'email candidat ci-dessus.
   const piecesJointesFormateur = appelFormateur.arguments[3].piecesJointes;
   assert.equal(piecesJointesFormateur[0].nom, 'convocation-test-accecit.ics');

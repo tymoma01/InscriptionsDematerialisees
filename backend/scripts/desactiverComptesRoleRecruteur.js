@@ -36,16 +36,16 @@ async function main() {
   try {
     console.log('--- Désactivation des comptes ---');
     for (const compte of COMPTES_A_DESACTIVER) {
-      // eslint-disable-next-line no-await-in-loop -- 4 comptes seulement, séquentiel suffisant.
+       
       const utilisateur = await bd('utilisateurs').where({ id: compte.id }).first();
       if (!utilisateur) {
         console.log(`Compte #${compte.id} (${compte.label}) introuvable — ignoré.`);
-        // eslint-disable-next-line no-continue
+         
         continue;
       }
       if (!utilisateur.actif) {
         console.log(`Compte #${compte.id} (${compte.label}) déjà désactivé — rien à faire.`);
-        // eslint-disable-next-line no-continue
+         
         continue;
       }
 
@@ -55,14 +55,14 @@ async function main() {
       // silencieusement `utilisateurs.id` dans l'objet résultat — bug constaté ici même (corrigé
       // avant la première exécution correcte de ce script, voir le correctif appliqué en base
       // après coup pour les 3 entrées déjà écrites avec le mauvais id).
-      // eslint-disable-next-line no-await-in-loop
+       
       const utilisateurSysteme = await bd('utilisateurs')
         .join('roles', 'roles.id', 'utilisateurs.role_id')
         .where({ 'utilisateurs.entite_id': compte.entiteId, 'roles.code': 'systeme' })
         .select('utilisateurs.id')
         .first();
 
-      // eslint-disable-next-line no-await-in-loop
+       
       await bd.transaction(async (trx) => {
         await trx('utilisateurs').where({ id: compte.id }).update({ actif: false });
         await journalAudit.enregistrerAction(trx, {
@@ -86,7 +86,7 @@ async function main() {
     const ids = COMPTES_A_DESACTIVER.map((c) => c.id);
     let totalPurge = 0;
     for (const id of ids) {
-      // eslint-disable-next-line no-await-in-loop
+       
       const nbSupprimees = await bd('session').whereRaw("sess->'utilisateur'->>'id' = ?", [String(id)]).del();
       if (nbSupprimees > 0) {
         console.log(`Compte #${id} : ${nbSupprimees} session(s) active(s) purgée(s) ✔`);

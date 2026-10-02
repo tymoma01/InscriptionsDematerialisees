@@ -6,6 +6,7 @@ const { entiteContext } = require('./api/middlewares/entiteContext.middleware');
 const { creerMiddlewareSession } = require('./core/auth/session');
 const authRoutes = require('./api/routes/auth.routes');
 const candidatsRoutes = require('./api/routes/candidats.routes');
+const typesPiecesRoutes = require('./api/routes/typesPieces.routes');
 const dossiersRoutes = require('./api/routes/dossiers.routes');
 const piecesRoutes = require('./api/routes/pieces.routes');
 const relancesRoutes = require('./api/routes/relances.routes');
@@ -61,7 +62,7 @@ async function creerApp() {
   // (200, contenu valide — vérifié : bytes JPEG/PDF corrects renvoyés par le back), mais le
   // navigateur refuse ensuite de charger cette URL blob: sans qu'aucune erreur ne remonte au
   // composant (pas d'exception JS, juste un <img>/<iframe> qui ne charge rien) — d'où l'icône
-  // d'image cassée sans message d'erreur constatée en prod (2026-09-04). blob: est local à cette
+  // d'image cassée sans message d'erreur constatée en prod. blob: est local à cette
   // origine (créé à partir d'une réponse same-origin), pas un risque équivalent à autoriser un
   // domaine externe.
   app.use(
@@ -114,7 +115,7 @@ async function creerApp() {
   // Vue centralisée des dossiers (liste + statuts, voir dossiers.routes.js) — monté avant le
   // routeur pièces justificatives ci-dessous, qui vit sur un sous-chemin plus spécifique.
   app.use('/api/dossiers', dossiersRoutes);
-  // Protégée par requireAuth + requireRole (voir pieces.routes.js) — non protégée jusqu'à ce
+  // Protégée par requireAuth + requirePermission (voir pieces.routes.js) — non protégée jusqu'à ce
   // correctif, voir CLAUDE.auth-rbac.md pour le détail de l'état précédent.
   app.use('/api/dossiers/:dossierId/pieces', piecesRoutes);
   // Historique des relances par dossier (CLAUDE.md, besoin Accueil/Coordination : "ne pas
@@ -168,6 +169,8 @@ async function creerApp() {
   // volontairement distinctes de notificationFactory.js (SMS/email candidat), voir
   // notifications.routes.js.
   app.use('/api/notifications', notificationsRoutes);
+  // Liste des pièces justificatives de l'entité (table types_pieces).
+  app.use('/api/types-pieces', typesPiecesRoutes);
 
   // Une requête /api/* qui n'a matché aucune route ci-dessus est une vraie 404 d'API — à
   // renvoyer en JSON, jamais laisser tomber jusqu'à la route de repli SPA ci-dessous (qui,
@@ -187,7 +190,7 @@ async function creerApp() {
   });
 
   // Gestionnaire d'erreurs générique : ne jamais renvoyer la stack ni le détail interne au client.
-  // eslint-disable-next-line no-unused-vars
+   
   app.use((erreur, req, res, next) => {
     console.error(erreur);
     res.status(500).json({ erreur: 'Une erreur est survenue. Merci de réessayer.' });

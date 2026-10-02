@@ -80,7 +80,7 @@
   color: #ffffff;
 }
 
-/* Mise en attente (2026-09-30) : même teinte que le badge « En attente » (variante bleu-gris). */
+/* Mise en attente : même teinte que le badge « En attente » (variante bleu-gris). */
 .modale-rejeter-dpae--attente .modale-rejeter-dpae__actions button[type='submit'] {
   border-color: var(--statut-bleu-gris-texte);
   background-color: var(--statut-bleu-gris-texte);

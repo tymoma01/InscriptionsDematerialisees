@@ -4,23 +4,20 @@ const notesDossierService = require('../../core/dossier/notesDossierService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Monté sur '/api/dossiers/:dossierId/notes' (voir app.js) — `mergeParams: true` indispensable
 // pour que req.params.dossierId reste visible ici, même patron que relances.routes.js.
 const router = Router({ mergeParams: true });
 
 // Journal de notes libres, indépendant des relances — ouvert à tous les rôles back-office ayant
-// un accès direct à un dossier (mêmes rôles que ROLES_GESTION_TRANSITIONS, transitions.routes.js :
+// un accès direct à un dossier (mêmes rôles que gestionTransitions, transitions.routes.js :
 // le formateur agit sur un dossier au moment de l'évaluation, il doit pouvoir y laisser une note
 // comme les autres — même chose pour l'inspecteur, côté bureau). Pas de distinction lecture/
-// écriture entre rôles : simple journal partagé. Rôle Recruteur retiré (audit 2026-08-27) — voir
+// écriture entre rôles : simple journal partagé. Rôle Recruteur retiré — voir
 // suppression du rôle en base.
-const ROLES_NOTES_DOSSIER = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
-// Lecture seule en plus (2026-10-01) : Inspecteur Hôtellerie, dans son périmètre de dossiers
-// (verifierPerimetreDossier, app.js) — jamais l'ajout de note (POST, ROLES_NOTES_DOSSIER).
-const ROLES_LECTURE_NOTES_DOSSIER = [...ROLES_NOTES_DOSSIER, ROLES.INSPECTEUR_HOTELLERIE];
+// Lecture seule en plus : Inspecteur Hôtellerie, dans son périmètre de dossiers
+// (verifierPerimetreDossier, app.js) — jamais l'ajout de note (POST, ajoutNotesDossier).
 
 router.use(requireAuth);
 
@@ -37,7 +34,7 @@ function repondreErreurValidation(res, erreurZod) {
 }
 
 // POST /api/dossiers/:dossierId/notes — ajoute une note au journal du dossier.
-router.post('/', requireRole(...ROLES_NOTES_DOSSIER), async (req, res, next) => {
+router.post('/', requirePermission('ajoutNotesDossier'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { contenu } = noteBodySchema.parse(req.body);
@@ -67,7 +64,7 @@ router.post('/', requireRole(...ROLES_NOTES_DOSSIER), async (req, res, next) => 
 });
 
 // GET /api/dossiers/:dossierId/notes — journal du dossier, du plus récent au plus ancien.
-router.get('/', requireRole(...ROLES_LECTURE_NOTES_DOSSIER), async (req, res, next) => {
+router.get('/', requirePermission('lectureNotesDossier'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const notes = await notesDossierService.listerNotes(req.entite, dossierId);

@@ -95,7 +95,7 @@ function listerDemandesParDemandeur(trx, entiteId, demandeurId) {
     .where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.demandeur_id': demandeurId })
     .orderBy([
       { column: 'demandes_dpae.date_creation', order: 'desc' },
-      // Départage stable de deux demandes créées au même instant (2026-09-30).
+      // Départage stable de deux demandes créées au même instant.
       { column: 'demandes_dpae.id', order: 'desc' },
     ]);
 }
@@ -107,7 +107,7 @@ function listerDemandesPourRh(trx, entiteId, statut) {
   if (statut) requete.andWhere({ 'demandes_dpae.statut': statut });
   return requete.orderBy([
     { column: 'demandes_dpae.date_creation', order: 'desc' },
-    // Départage stable de deux demandes créées au même instant (2026-09-30).
+    // Départage stable de deux demandes créées au même instant.
     { column: 'demandes_dpae.id', order: 'desc' },
   ]);
 }
@@ -170,7 +170,7 @@ function marquerTraitee(trx, id, { statut, traitantId, motifRejet = null }) {
   });
 }
 
-// Mise en attente (2026-09-30) : n'est PAS une décision — date_traitement et
+// Mise en attente : n'est PAS une décision — date_traitement et
 // traite_par_utilisateur_id restent vides (réservés à la validation/au rejet, voir migration 070).
 function marquerEnAttente(trx, id, { traitantId, motif }) {
   return trx('demandes_dpae').where({ id }).update({

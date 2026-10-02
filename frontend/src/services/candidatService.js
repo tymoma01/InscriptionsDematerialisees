@@ -8,8 +8,7 @@ export async function creerCandidat(candidat) {
 }
 
 // Blocs actifs/ordre du formulaire d'inscription, résolus côté serveur pour l'entité du
-// sous-domaine courant (voir backend candidats.routes.js) — remplace l'ancien import statique
-// formulaireConfig.accecit.js (voir InscriptionTablette.jsx).
+// sous-domaine courant (table entite_blocs_formulaire, voir backend candidats.routes.js).
 export async function obtenirConfigurationFormulaire() {
   const { data } = await api.get('/candidats/formulaire-config');
   return data;

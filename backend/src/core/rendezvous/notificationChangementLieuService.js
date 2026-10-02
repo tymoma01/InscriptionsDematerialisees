@@ -119,7 +119,7 @@ async function envoyerNotificationChangementLieu(entite, rendezvous, nouveauLieu
   // canal, et surtout jamais la migration/suppression déjà actée en base à ce stade : log
   // seulement, jamais de throw qui remonterait à l'appelant.
   // Généré une seule fois, réutilisé par l'email candidat ET l'email formateur/inspecteur
-  // ci-dessous — même correctif que invitationTestService.js (audit 2026-08-20) : cette variable
+  // ci-dessous — même correctif que invitationTestService.js : cette variable
   // était jusqu'ici scopée au seul bloc candidat, l'email formateur ne recevait donc jamais
   // l'.ics de mise à jour de lieu. Même générateur que la convocation initiale
   // (invitationTestService.js) — date/heure et participants (candidat + formateur/inspecteur

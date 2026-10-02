@@ -11,8 +11,7 @@ const graphCalendarService = require('../../integrations/calendrier/graphCalenda
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
-const { requireRole } = require('../middlewares/rbac.middleware');
-const { ROLES, ROLES_ACCUEIL, ROLES_FORCAGE } = require('../../core/auth/rbac');
+const { requirePermission } = require('../middlewares/rbac.middleware');
 
 // Email candidat "Formation validée" (audit 2026-08-31, décision utilisateur, texte définitif) —
 // déclenché quand codeAction === CODE_ACTION_FORMATION_VALIDEE. Ce codeAction est dédié
@@ -32,7 +31,7 @@ const { ROLES, ROLES_ACCUEIL, ROLES_FORCAGE } = require('../../core/auth/rbac');
 const CODE_ACTION_FORMATION_VALIDEE = 'marquer_formation_validee';
 const STATUT_ORIGINE_FORMATION_VALIDEE = 'valide_envoi_formation';
 
-// Garde-fou (audit 2026-09-11, décision utilisateur) : statutRendezvous/rendezvousId
+// Garde-fou : statutRendezvous/rendezvousId
 // (transitionBodySchema ci-dessous) restent volontairement génériques côté
 // cloturerRendezvousAvecTransitionService.js (aucun codeAction/statut en dur, voir Modularité,
 // CLAUDE.md) — sans ce garde-fou ICI, cette route générique permettrait de faire passer un
@@ -61,24 +60,22 @@ const router = Router({ mergeParams: true });
 // est fait par workflowEngine via `transition_roles` (migration 006), pas ici : un formateur/
 // inspecteur reste incapable de déclencher valider_dossier/pieces_completes/etc., faute de ligne
 // transition_roles pour ces couples-là. Défense en profondeur : les deux niveaux sont
-// complémentaires, ni redondants ni contradictoires. Rôle Recruteur retiré (audit 2026-08-27) —
+// complémentaires, ni redondants ni contradictoires. Rôle Recruteur retiré —
 // voir suppression du rôle en base.
-const ROLES_GESTION_TRANSITIONS = [...ROLES_ACCUEIL, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.ADMIN];
 
 // Changement de statut manuel/forcé (audit RBAC 2026-08-31, décision utilisateur ; étendu au rôle
-// Planning le 2026-09-25, voir ROLES_FORCAGE dans rbac.js) — contrairement à
-// ROLES_GESTION_TRANSITIONS ci-dessus, cette action contourne délibérément
+// Planning le 2026-09-25, voir forcerStatut dans rbac.js) — contrairement à
+// gestionTransitions ci-dessus, cette action contourne délibérément
 // `transitions_statut`/`transition_roles` (voir workflowEngine.forcerStatut), donc aucune des deux
 // couches de contrôle habituelles ne s'applique ici — ce gate de route est le SEUL verrou avant
 // l'écriture (avec la revérification défensive dans workflowEngine.forcerStatut). Plus de constante
-// locale : `ROLES_FORCAGE` est désormais LE groupe centralisé (rbac.js), utilisé tel quel.
+// locale : `forcerStatut` est désormais LE groupe centralisé (rbac.js), utilisé tel quel.
 
 // Marquer un dossier comme embauché (audit 2026-08-31, nouveau statut terminal "Embauché", après
 // "Validé - prêt à l'embauche") — Accueil/Coordination (acteur qui accueille le candidat le jour
 // de la signature de contrat, CLAUDE.md étape 10) ou Admin, jamais Formateur/Inspecteur. Même
 // gate que scripts/seedTransitionRoles.js (marquer_embauche), posé ici en plus pour ne jamais
 // dépendre uniquement de `transition_roles`.
-const ROLES_MARQUER_EMBAUCHE = [...ROLES_ACCUEIL, ROLES.ADMIN];
 
 router.use(requireAuth);
 
@@ -135,7 +132,7 @@ function repondreErreurValidation(res, erreurZod) {
 
 // GET /api/dossiers/:dossierId/transitions — actions possibles depuis le statut courant du
 // dossier, pour que le front sache quels boutons proposer.
-router.get('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, next) => {
+router.get('/', requirePermission('gestionTransitions'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const transitions = await workflowEngine.listerTransitionsDisponibles(req.entite, dossierId, req.utilisateur.roleCode);
@@ -149,7 +146,7 @@ router.get('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, next
 // POST /api/dossiers/:dossierId/transitions — applique une transition (codeAction) sur le
 // dossier ; refusée si l'action n'est pas permise depuis le statut courant, ou si un motif est
 // requis et absent/invalide (voir workflowEngine.appliquerTransition).
-router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, next) => {
+router.post('/', requirePermission('gestionTransitions'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { codeAction, motifCode, commentaire, rendezvousId, statutRendezvous, motifCodeRendezvous } =
@@ -245,7 +242,7 @@ router.post('/', requireRole(...ROLES_GESTION_TRANSITIONS), async (req, res, nex
   }
 });
 
-// Bloc 2 (audit 2026-09-23) : supprime l'événement Outlook de chaque rendez-vous neutralisé par
+// Bloc 2 : supprime l'événement Outlook de chaque rendez-vous neutralisé par
 // forcerStatut qui en possédait un — APRÈS la validation de la transaction forcerStatut (jamais dans
 // la même transaction Neon qu'un appel réseau externe, même principe que rendezvousService.
 // creerRendezvous plus haut dans ce projet). Exportée en plus de `router` (voir en bas de fichier) :
@@ -297,9 +294,9 @@ async function supprimerEvenementsOutlookRendezvousNeutralises(entite, { rendezv
 // POST /api/dossiers/:dossierId/transitions/forcer-statut — place le dossier sur N'IMPORTE QUEL
 // statut existant de l'entité, indépendamment du statut courant et sans passer par
 // `transitions_statut` (voir workflowEngine.forcerStatut) — réservé à Admin et Planning
-// (ROLES_FORCAGE, rbac.js). Distinct de POST / ci-dessus : jamais de codeAction ici, seulement le
+// (forcerStatut, rbac.js). Distinct de POST / ci-dessus : jamais de codeAction ici, seulement le
 // code du statut cible choisi librement (onglet "Dossier" de la fiche, voir Validation.jsx).
-router.post('/forcer-statut', requireRole(...ROLES_FORCAGE), async (req, res, next) => {
+router.post('/forcer-statut', requirePermission('forcerStatut'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { statutCode, commentaire, dateEmbauche } = forcerStatutBodySchema.parse(req.body);
@@ -317,7 +314,7 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCAGE), async (req, res, ne
     // Action dédiée 'changement_statut_force', distincte de 'dossier_transition_<codeAction>'
     // ci-dessus (demande explicite, pour repérer ces changements sans repasser par le parcours
     // normal dans le journal d'audit) — ancien/nouveau statut + commentaire + admin auteur
-    // (utilisateurId ci-dessous) systématiquement tracés. `dateEmbauche` ajoutée (audit 2026-09-25)
+    // (utilisateurId ci-dessous) systématiquement tracés. `dateEmbauche` ajoutée
     // — toujours `undefined` pour un forçage vers un autre statut qu'"embauche" (Zod l'accepte
     // absente), jamais une valeur devinée.
     await journalAudit.enregistrerAction(bd, {
@@ -344,7 +341,7 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCAGE), async (req, res, ne
     // ressource). Vide (aucune écriture) si le dossier n'avait aucun rendez-vous actif — comportement
     // silencieux déjà en place côté neutraliserRendezvousActifsDossier.
     //
-    // `donnees` enrichi (bloc 2, audit 2026-09-23) : statutRendezvousAvant/statutRendezvousApres +
+    // `donnees` enrichi : statutRendezvousAvant/statutRendezvousApres +
     // motifCode s'ajoutent à statutAvant/statutApres du DOSSIER déjà présents — le rendez-vous passe
     // désormais à 'annule' (plus 'remplace', voir workflowEngine.forcerStatut) avec un motif
     // exploitable. Entrées EXISTANTES jamais réécrites : uniquement les nouvelles, à partir de ce
@@ -392,7 +389,7 @@ router.post('/forcer-statut', requireRole(...ROLES_FORCAGE), async (req, res, ne
 // de dossiers.date_embauche. Distincte de POST / ci-dessus : dateEmbauche n'a de sens que pour
 // cette action précise, pas pour toute transition générique (onglet "Dossier" de la fiche,
 // Validation.jsx).
-router.post('/marquer-embauche', requireRole(...ROLES_MARQUER_EMBAUCHE), async (req, res, next) => {
+router.post('/marquer-embauche', requirePermission('marquerEmbauche'), async (req, res, next) => {
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const { commentaire, dateEmbauche } = marquerEmbaucheBodySchema.parse(req.body);
@@ -438,4 +435,3 @@ module.exports.supprimerEvenementsOutlookRendezvousNeutralises = supprimerEvenem
 // générique (audit 2026-09-26, retrait de son accès à "Suivi des formations" — cette garde-ci,
 // commune à TOUTES les transitions, n'est PAS concernée : la restriction fine se joue en base,
 // table transition_roles, voir backend/scripts/retirerInspecteurTransitionsFormation.js).
-module.exports.ROLES_GESTION_TRANSITIONS = ROLES_GESTION_TRANSITIONS;

@@ -1,8 +1,19 @@
-// Tests de l'ordre du bloc « Pièces jointes » (ordrePiecesRecues.js) — lancés par `npm test`.
-import test from 'node:test';
-import assert from 'node:assert/strict';
+// Tests de l'ordre du bloc « Pièces jointes » (ordrePiecesRecues.js) — lancés par `npm test` (Vitest).
+import { expect, test } from 'vitest';
 import { ordonnerPiecesRecues } from './ordrePiecesRecues.js';
-import { typesPiecesConfigAccecitTest } from './donneesTest/typesPiecesConfig.accecit.js';
+
+// Configuration des pièces telle que GET /api/types-pieces la renvoie pour ACCECIT (ordre et libellés
+// de la migration 076 côté backend ; le verso n'est pas un type affiché, seulement un codeVerso).
+const typesPiecesConfigAccecitTest = [
+  { code: 'photo_identite', libelle: "Photo d'identité", obligatoire: true, captureUniquement: true, multiple: false },
+  { code: 'carte_identite', libelle: "Carte d'identité ou Carte de Séjour", obligatoire: true, captureUniquement: false, multiple: false, codeVerso: 'carte_identite_verso' },
+  { code: 'carte_vitale', libelle: 'Carte Vitale ou Attestation de Sécurité Sociale', obligatoire: true, captureUniquement: false, multiple: false },
+  { code: 'rib', libelle: "Relevé d'identité bancaire (RIB)", obligatoire: true, captureUniquement: false, multiple: false },
+  { code: 'justificatif_domicile', libelle: 'Justificatif de domicile', obligatoire: true, captureUniquement: false, multiple: false },
+  { code: 'justificatif_experience', libelle: "Justificatif d'expériences", obligatoire: false, captureUniquement: false, multiple: false },
+  { code: 'attestation_mutuelle', libelle: 'Attestation Mutuelle', obligatoire: false, captureUniquement: false, multiple: false },
+  { code: 'autres', libelle: 'Autres documents', obligatoire: false, captureUniquement: false, multiple: true },
+];
 
 let prochainId = 1;
 const piece = (code, dateUpload, libelleServeur = `libellé serveur ${code}`) => ({
@@ -28,9 +39,7 @@ const DOSSIER_COMPLET = [
 
 test('Ordre et libellés du bloc « Pièces justificatives » ; verso juste sous la carte d’identité ; autres documents à la fin, ordre de réception', () => {
   const lignes = ordonnerPiecesRecues(DOSSIER_COMPLET, typesPiecesConfigAccecitTest);
-  assert.deepEqual(
-    lignes.map((l) => [l.libelle, l.verso, l.piece.date_upload.slice(11, 16)]),
-    [
+  expect(lignes.map((l) => [l.libelle, l.verso, l.piece.date_upload.slice(11, 16)])).toStrictEqual([
       ["Photo d'identité", false, '08:30'],
       ["Carte d'identité ou Carte de Séjour", false, '08:40'],
       ['Verso (optionnel)', true, '09:40'],
@@ -41,17 +50,16 @@ test('Ordre et libellés du bloc « Pièces justificatives » ; verso juste sous
       ['Attestation Mutuelle', false, '09:50'],
       ['Autres documents', false, '09:20'],
       ['Autres documents', false, '10:00'],
-    ],
-  );
-  assert.equal(lignes[2].libelleApercu, "Verso - Carte d'identité ou Carte de Séjour");
+    ]);
+  expect(lignes[2].libelleApercu).toBe("Verso - Carte d'identité ou Carte de Séjour");
 });
 
 test('Seules les pièces reçues : même nombre de lignes que de pièces, aucune ligne pour un type absent', () => {
   const partiel = [piece('rib', '2026-10-02T09:00:00Z'), piece('photo_identite', '2026-10-02T08:00:00Z')];
   const lignes = ordonnerPiecesRecues(partiel, typesPiecesConfigAccecitTest);
-  assert.deepEqual(lignes.map((l) => l.libelle), ["Photo d'identité", "Relevé d'identité bancaire (RIB)"]);
-  assert.equal(ordonnerPiecesRecues(DOSSIER_COMPLET, typesPiecesConfigAccecitTest).length, DOSSIER_COMPLET.length);
-  assert.deepEqual(ordonnerPiecesRecues([], typesPiecesConfigAccecitTest), []);
+  expect(lignes.map((l) => l.libelle)).toStrictEqual(["Photo d'identité", "Relevé d'identité bancaire (RIB)"]);
+  expect(ordonnerPiecesRecues(DOSSIER_COMPLET, typesPiecesConfigAccecitTest).length).toBe(DOSSIER_COMPLET.length);
+  expect(ordonnerPiecesRecues([], typesPiecesConfigAccecitTest)).toStrictEqual([]);
 });
 
 test('Type inconnu de la configuration : jamais masqué, libellé du serveur, avant les autres documents', () => {
@@ -59,5 +67,5 @@ test('Type inconnu de la configuration : jamais masqué, libellé du serveur, av
     [piece('autres', '2026-10-02T08:00:00Z'), piece('type_futur', '2026-10-02T09:00:00Z', 'Permis de conduire'), piece('rib', '2026-10-02T10:00:00Z')],
     typesPiecesConfigAccecitTest,
   );
-  assert.deepEqual(lignes.map((l) => l.libelle), ["Relevé d'identité bancaire (RIB)", 'Permis de conduire', 'Autres documents']);
+  expect(lignes.map((l) => l.libelle)).toStrictEqual(["Relevé d'identité bancaire (RIB)", 'Permis de conduire', 'Autres documents']);
 });

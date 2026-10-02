@@ -24,16 +24,16 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Badge de rôle (bloc 3, audit 2026-09-25, rôle Planning) — le rôle était jusqu'ici affiché en
+// Badge de rôle — le rôle était jusqu'ici affiché en
 // texte brut (`u.role_libelle`) dans le tableau, seule la colonne "Statut de compte" (Actif/
 // Désactivé) portait un StatutBadge coloré. Une variante par rôle : Planning distinct
-// d'Accueil/Coordination bien qu'il en hérite tous les droits (voir ROLES_ACCUEIL,
-// rolesGroupes.js) — visuellement, ce reste deux rôles différents dans ce tableau. Rôle absent
+// d'Accueil/Coordination bien qu'il en hérite tous les droits (voir Accueil/Coordination et Planning,
+// permissions.js) — visuellement, ce reste deux rôles différents dans ce tableau. Rôle absent
 // de ce mapping (nouveau rôle non encore coloré ici, ou 'systeme'/'recruteur' hérités non
 // assignables) : retombe sur la variante neutre plutôt que d'échouer, même principe que
 // TableauDeBordAccueil.jsx/VARIANTE_PAR_CODE_ACCECIT.
 //
-// SOURCE UNIQUE des couleurs de rôle (2026-10-01) : badges du tableau ET pastilles du filtre « Rôle »
+// SOURCE UNIQUE des couleurs de rôle : badges du tableau ET pastilles du filtre « Rôle »
 // (prop `variante` de FiltresStatut, plus de règles CSS par rôle dans Utilisateurs.css). Les deux
 // définitions divergeaient (badges formateur/inspecteur verts, pastilles violet/gris) : alignées ici
 // sur la palette des pastilles, choisie pour ne jamais reprendre le vert d'« Actif ». RH et Inspecteur
@@ -131,7 +131,7 @@ export default function Utilisateurs() {
       });
   }, []);
 
-  // Rafraîchissement automatique (audit 2026-08-24) : réutilise chargerUtilisateurs tel quel —
+  // Rafraîchissement automatique : réutilise chargerUtilisateurs tel quel —
   // rôles non rejoués (config quasi-statique, sans intérêt à repoller toutes les 45s).
   useRafraichissementAuto(chargerUtilisateurs);
 

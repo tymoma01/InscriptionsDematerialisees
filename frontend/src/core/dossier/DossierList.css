@@ -125,7 +125,7 @@
      du contenu qui défile en dessous, même principe qu'un tableau à colonne figée classique. */
   border-right: 1px solid var(--couleur-bordure-legere);
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
-  /* Resserrée (demande utilisateur 2026-09-10) pour libérer de la largeur pour Email/Poste
+  /* Resserrée pour libérer de la largeur pour Email/Poste
      ci-dessous — un "Prénom Nom" un peu long repasse simplement à la ligne (déjà deux mots
      séparés par un espace dans la plupart des cas, word-break en filet de sécurité pour un nom de
      famille composé très long) plutôt que d'élargir cette colonne figée. */
@@ -225,7 +225,7 @@
    adresse email est un seul "mot" sans espace, `word-break: break-word` seul ne le couperait pas
    (il ne casse qu'aux limites de mots existantes) — anywhere autorise la coupure n'importe où si
    besoin, seul moyen de faire tenir une adresse très longue dans cette largeur. */
-/* Colonne « Étudiant » (2026-10-01) : valeur courte (« ÉTUDIANT », « NON ÉTUDIANT », « — ») sur une
+/* Colonne « Étudiant » : valeur courte (« ÉTUDIANT », « NON ÉTUDIANT », « — ») sur une
    seule ligne. */
 .dossier-list__colonne-etudiant {
   white-space: nowrap;
@@ -243,7 +243,7 @@
   max-width: 10.5rem;
 }
 
-/* Resserrée un peu (demande utilisateur 2026-09-10) pour rendre un peu de largeur à "Candidat"
+/* Resserrée un peu pour rendre un peu de largeur à "Candidat"
    ci-dessus — le badge de statut (StatutBadge.jsx, .statut-badge) est en white-space: nowrap par
    défaut (voir StatutBadge.css) : un libellé un peu long ("Validé - envoyé en formation") doit
    pouvoir se replier sur plusieurs lignes DANS cette colonne plutôt que déborder de la largeur
@@ -269,7 +269,7 @@
   display: inline-flex;
 }
 
-/* `sousBadgeStatut` (audit 2026-09-28) — bloc générique SOUS le badge, contenu fourni par
+/* `sousBadgeStatut` — bloc générique SOUS le badge, contenu fourni par
    l'appelant (voir DossierList.jsx, même principe d'externalisation que infoBulleStatut) :
    aujourd'hui le bouton "Dispo : ..." du filtre "Disponibilité des candidats prêts à l'embauche"
    (TableauDeBordAccueil.jsx). `display: block` (contrairement à .statut-conteneur ci-dessus,

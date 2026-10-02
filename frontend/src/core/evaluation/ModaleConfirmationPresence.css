@@ -1,7 +1,7 @@
 /* Même patron que ModaleConfirmationTestNonRealise.css (fond sous l'en-tête ACCECIT/
    BarreNavigation plutôt qu'inset: 0, carte centrée via margin: auto plutôt qu'align-items — voir
    son commentaire pour le détail des deux raisons) : ce composant est lui aussi monté à
-   l'intérieur d'un <PageBackOffice> (pages/formateur|inspecteur/Evaluation.jsx, via
+   l'intérieur d'un <PageBackOffice> (pages/evaluation/Evaluation.jsx, via
    ListeEvaluationsAFaire.jsx). */
 .modale-confirmation-presence__fond {
   position: fixed;

@@ -16,7 +16,7 @@ const JOURS_SEMAINE = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 // CalendrierDisponibiliteFormateur.jsx).
 const INDEX_DIMANCHE = 6;
 
-// Horaires ouvrés (décision utilisateur, 2026-08-26) : 8h-19h, lundi-samedi — 19h est une borne
+// Horaires ouvrés : 8h-19h, lundi-samedi — 19h est une borne
 // EXCLUSIVE (dernier créneau sélectionnable 18h45, même convention que dateFin exclusive ailleurs
 // dans ce projet). Dimanche reste affiché (voir JOURS_SEMAINE) mais entièrement désactivé : les
 // quelques rendez-vous du dimanche déjà présents dans les données réelles restent valides tels
@@ -47,7 +47,7 @@ const MESSAGE_ERREUR_DISPONIBILITES =
 // confiance aveuglément à son contenu : si un jour une erreur technique brute (trace Node,
 // `AggregateError` non traduite) devait malgré tout remonter jusqu'ici plutôt que d'être
 // interceptée côté serveur, ce garde-fou l'écarte au profit de MESSAGE_ERREUR_DISPONIBILITES
-// plutôt que de l'afficher telle quelle à l'agent (audit 2026-08-27).
+// plutôt que de l'afficher telle quelle à l'agent.
 function estMessageErreurAffichable(message) {
   return typeof message === 'string' && message.length > 0 && message.length <= 300 && !/\bat\s+\S+[:(]/.test(message);
 }
@@ -273,7 +273,7 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
       parJour.set(jourIso, blocs);
     });
     return parJour;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- evenementsHoraires est déjà une
+     
     // dépendance stable via son propre useMemo([evenements]) ci-dessus.
   }, [joursAffiches, evenementsHoraires]);
 
@@ -290,7 +290,7 @@ export default function CalendrierHebdomadaireDisponibilite({ formateurId, dateS
       );
     });
     return parJour;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- même remarque que blocsParJour ci-dessus.
+     
   }, [joursAffiches, evenementsJourneeEntiere]);
 
   // Index du créneau actuellement sélectionné dans CRENEAUX_HORAIRES — sert uniquement à faire

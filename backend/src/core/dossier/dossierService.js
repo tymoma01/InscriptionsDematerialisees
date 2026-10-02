@@ -28,7 +28,7 @@ class ErreurInscriptionConflit extends Error {
 const TELEPHONE_REGEX = /^0[1-9](\s?\d{2}){4}$/;
 const NIR_REGEX = /^\d{13}\s?\d{2}$/;
 const NOM_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/;
-// Nationalité uniquement (audit 2026-09-09) : NOM_REGEX ci-dessus rejetait "Congolaise
+// Nationalité uniquement : NOM_REGEX ci-dessus rejetait "Congolaise
 // (Congo-Brazzaville)"/"Congolaise (RDC)" (nationalites.js, frontend) — les seules deux
 // nationalités de la liste de référence à désambiguïser deux pays distincts partageant le même
 // gentilé, parenthèses légitimes, pas une valeur mal formée. Regex DÉDIÉ plutôt qu'un
@@ -52,7 +52,7 @@ const EXPERIENCE = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
 const OUI_NON = ['oui', 'non'];
 const CHOIX_DIFFUSION = ['autorise', 'refuse'];
 
-// Insensible aux accents en plus de la casse (décision utilisateur, 2026-09-04) : un candidat qui
+// Insensible aux accents en plus de la casse : un candidat qui
 // recopie "lu et approuve" au clavier tactile, sans accent, doit être accepté au même titre que
 // "Lu et Approuvé" — `.normalize('NFD')` décompose chaque lettre accentuée en lettre de base +
 // diacritique combinant, que `\p{Diacritic}` retire ensuite (voir normaliserMentionCharte
@@ -86,7 +86,7 @@ const donneesInscriptionSchema = z
     nationalite: z.string().trim().min(1).regex(NATIONALITE_REGEX),
     prenom: z.string().trim().min(1),
     dateNaissance: z.string().min(1),
-    // Facultatif (décision utilisateur, 2026-09-04) : vide/absent accepté, mais format NIR
+    // Facultatif : vide/absent accepté, mais format NIR
     // (15 chiffres) respecté si renseigné. Un dossier sans NIR ne peut simplement pas être
     // chiffré ni vérifié en doublon (voir inscrireCandidat plus bas) — décision métier assumée.
     nir: z
@@ -105,7 +105,7 @@ const donneesInscriptionSchema = z
     email: z.string().trim().email(),
     contactUrgenceNom: z.string().trim().min(1).regex(NOM_REGEX),
     contactUrgenceTelephone: z.string().trim().regex(TELEPHONE_REGEX),
-    // « Êtes-vous étudiant ? » (2026-10-01) : OBLIGATOIRE pour toute nouvelle inscription — absente ou
+    // « Êtes-vous étudiant ? » : OBLIGATOIRE pour toute nouvelle inscription — absente ou
     // non booléenne -> refus explicite (400, message ci-dessous). Stockée sur dossiers.est_etudiant.
     estEtudiant: z.boolean({ error: 'Veuillez indiquer si vous êtes étudiant.' }),
     disponibiliteImmediate: z.boolean(),
@@ -248,7 +248,7 @@ const donneesInscriptionSchema = z
 // sans dossier en cas d'échec à mi-parcours).
 async function inscrireCandidat(entite, donneesBrutes) {
   const donnees = donneesInscriptionSchema.parse(donneesBrutes);
-  // NIR facultatif (décision utilisateur, 2026-09-04) : rien à chiffrer ni à hasher quand absent
+  // NIR facultatif : rien à chiffrer ni à hasher quand absent
   // — nirChiffre/iv/nirHash restent tous les trois `null` (colonnes nullable depuis la migration
   // 058), et la vérification de doublon ci-dessous est simplement sautée pour ce dossier, faute
   // de valeur à comparer (décision métier assumée : deux dossiers sans NIR ne sont jamais détectés
@@ -532,7 +532,7 @@ function calculerDisponibiliteEffective(donneesDeclarees, correction) {
 // candidat_telephone/candidat_email extraits du bloc 'coordonnees' au même titre, pour les
 // colonnes "Téléphone"/"Email" du tableau de bord (voir DossierList.jsx) — null si le bloc n'a
 // pas encore été rempli (dossier tout juste créé).
-// candidat_code_postal (audit 2026-09-09) : même bloc 'coordonnees' déjà joint, même patron que
+// candidat_code_postal : même bloc 'coordonnees' déjà joint, même patron que
 // candidat_telephone/candidat_email juste au-dessus — colonne "Code postal" de DossierList.jsx.
 //
 // dispoDebut (audit 2026-09-28, dispoFin retiré le même jour — demande utilisateur explicite,
@@ -560,7 +560,7 @@ async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null
       ...reste,
       postesBureau: donnees_disponibilites?.posteBureau ?? [],
       postesHotel: donnees_disponibilites?.posteHotel ?? [],
-      // Colonne "Expérience" (audit 2026-09-02), même patron que postesBureau/postesHotel
+      // Colonne "Expérience", même patron que postesBureau/postesHotel
       // ci-dessus : extrait du même bloc JSONB déjà joint, aucune requête supplémentaire.
       experience: donnees_disponibilites?.experience ?? null,
       candidat_telephone: donnees_coordonnees?.telephone ?? null,
@@ -578,10 +578,10 @@ async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null
             formateurNom: rendezvous_test_formateur_nom,
           }
         : null,
-      // Déclaration d'origine (audit 2026-09-28) — affichée en lecture seule dans la fenêtre de
+      // Déclaration d'origine — affichée en lecture seule dans la fenêtre de
       // correction (ModaleDisponibiliteEmbauche.jsx) : jamais modifiée par ce module, voir
       // disponibiliteEmbaucheService.js.
-      // nonRenseignee (audit 2026-09-28) : même raison que calculerDisponibiliteEffective
+      // nonRenseignee : même raison que calculerDisponibiliteEffective
       // ci-dessus — sans ce champ, disponibiliteImmediate retombait sur `true` par défaut
       // (`?? true`) même en l'ABSENCE totale de bloc 'disponibilites', affichant à tort
       // "Immédiate" dans la fenêtre de correction pour un dossier n'ayant jamais rien déclaré.
@@ -603,7 +603,7 @@ async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null
   );
 }
 
-// "Suivi des formations" (audit 2026-08-28) — postesBureau/postesHotel extraits ici, même patron
+// "Suivi des formations" — postesBureau/postesHotel extraits ici, même patron
 // que listerDossiers ci-dessus.
 async function listerSuiviFormation(entite) {
   const bd = await obtenirKnex();
@@ -665,7 +665,7 @@ function construireHistoriqueFormation(lignes) {
   return entrees.reverse();
 }
 
-// Onglet "Formation" de la fiche dossier (audit 2026-08-28) — lecture seule, ces entrées sont
+// Onglet "Formation" de la fiche dossier — lecture seule, ces entrées sont
 // produites automatiquement par les transitions de "Suivi des formations" (SuiviFormation.jsx),
 // jamais saisies directement ici.
 async function listerHistoriqueFormation(entite, dossierId) {
@@ -709,14 +709,14 @@ async function listerStatuts(entite) {
   return dossierRepository.listerStatuts(bd, entite.id);
 }
 
-// Actions groupées "Dossiers candidats" (audit 2026-08-24) — voir dossierRepository.
+// Actions groupées "Dossiers candidats" — voir dossierRepository.
 // listerResumesParIds pour le choix de cette requête légère plutôt que listerDossiersParIds.
 async function listerResumesParIds(entite, dossierIds) {
   const bd = await obtenirKnex();
   return dossierRepository.listerResumesParIds(bd, entite.id, dossierIds);
 }
 
-// Rafraîchissement automatique du back-office par polling (audit 2026-08-24) — voir le
+// Rafraîchissement automatique du back-office par polling — voir le
 // commentaire de dossierRepository.obtenirDerniereModification pour le choix de journal_audit
 // comme signal unique. null (aucune ligne journal_audit pour cette entité, cas théorique — une
 // entité active a normalement déjà au moins une création de dossier) plutôt qu'une date arbitraire

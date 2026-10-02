@@ -1,4 +1,4 @@
-// Rafraîchissement automatique du back-office par polling (audit 2026-08-24) : l'endpoint
+// Rafraîchissement automatique du back-office par polling : l'endpoint
 // GET /api/dossiers/derniere-modification (dossiers.routes.js) interroge
 // MAX(date_action) WHERE entite_id = ? sur journal_audit à chaque appel client (toutes les
 // 30-60s, par onglet actif) — sans index, ce scope entité scanne toute la table. Même patron que

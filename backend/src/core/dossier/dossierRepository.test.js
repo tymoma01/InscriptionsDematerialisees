@@ -156,7 +156,7 @@ test('listerSuiviFormation résout le formateur via une LATERAL JOIN sur evaluat
   assert.doesNotMatch(sql, /rendezvous/);
 });
 
-// Onglet "Formation" (audit 2026-08-28) — scopé au dossier ET à l'entité (garde IDOR), filtré sur
+// Onglet "Formation" — scopé au dossier ET à l'entité (garde IDOR), filtré sur
 // les 3 statuts formation, trié du plus ANCIEN au plus récent (c'est dossierService qui inverse
 // pour l'affichage, voir construireHistoriqueFormation) — l'inverse de listerSuiviFormation
 // ci-dessus (desc), nécessaire ici pour que l'algorithme d'association envoi/résultat parcoure

@@ -28,7 +28,7 @@ export function construirePiecesCapturees(pieces) {
 
 // Seules les pièces obligatoires conditionnent le bouton de planification — les pièces
 // optionnelles (RIB, justificatif de domicile, justificatif d'expérience, attestation mutuelle,
-// voir typesPiecesConfig.accecit.js) n'ont jamais besoin d'être capturées pour avancer le
+// voir table types_pieces) n'ont jamais besoin d'être capturées pour avancer le
 // dossier.
 export function calculerPiecesObligatoiresCompletes(piecesCapturees, typesPieces) {
   const piecesObligatoires = typesPieces.filter((type) => type.obligatoire);

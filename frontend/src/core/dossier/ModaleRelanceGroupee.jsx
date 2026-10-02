@@ -72,7 +72,7 @@ export default function ModaleRelanceGroupee({ dossiers, onFermer, onTermine }) 
       if (statutsParDossier[dossier.id] === 'succes') continue;
       setStatutsParDossier((precedent) => ({ ...precedent, [dossier.id]: 'en_cours' }));
       try {
-        // eslint-disable-next-line no-await-in-loop
+         
         await enregistrerRelance(dossier.id, {
           canal,
           resultat: canal === 'telephone' ? resultat : undefined,

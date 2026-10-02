@@ -43,7 +43,7 @@ export const blocInfosPersoSchema = z.object({
     }),
   prenom: z.string().trim().min(1, 'Le prénom est obligatoire'),
   dateNaissance: z.string().min(1, 'La date de naissance est obligatoire'),
-  // Facultatif (décision utilisateur, 2026-09-04) : vide accepté, mais format NIR (15 chiffres)
+  // Facultatif : vide accepté, mais format NIR (15 chiffres)
   // respecté si renseigné — revalidé côté serveur (voir dossierService.js).
   nir: z
     .string()

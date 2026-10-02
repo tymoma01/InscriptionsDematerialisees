@@ -185,5 +185,19 @@ Le dossier contient des données sensibles : numéro de sécurité sociale (NIR)
 
 - Code et commentaires en français (noms de variables métier : `candidat`, `dossier`, `pieceJustificative`, `entite`, `workflow`...)
 - Commits en français, messages descriptifs
-- Respect des règles ESLint du projet
+- Respect des règles ESLint du projet (`npm run lint` dans `backend/` et `frontend/`) ; tests : `npm test` dans les deux (node:test au back, Vitest au front)
 - Le parcours (statuts, transitions, blocs) reste en configuration plutôt qu'en dur (voir Modularité)
+
+**Droits par rôle — source unique : `backend/src/core/auth/permissions.js`**
+- Matrice « permission → rôles ». Les routes la vérifient avec `requirePermission('cle')` ; le front reçoit avec la session la liste des clés accordées (`utilisateur.permissions`) et teste `peut(utilisateur, 'cle')` (`frontend/src/core/auth/permissions.js`)
+- Ajouter un rôle ou modifier un droit = modifier ce seul fichier (+ la ligne de la table `roles`). Ne jamais réintroduire de liste de rôles dans une route ou un composant
+- Comparer un `roleCode` directement n'est admis que pour désigner l'espace propre d'un rôle (ex. pages Formateur/Inspecteur), jamais pour décider d'un droit
+
+**Configuration en base**
+- La base est la source de vérité de la configuration (statuts, transitions, blocs du formulaire, types de pièces, questionnaires, chartes, motifs, lieux). Le front la lit via l'API, jamais via une copie statique
+- Toute modification d'une valeur de configuration passe par une **migration** (appliquée automatiquement au démarrage), jamais par un script de seed : les seeds ne servent qu'à amorcer une base vide et ne sont pas rejoués au déploiement
+- Au démarrage, le serveur signale dans les logs toute table de configuration vide pour une entité active (`core/configuration/verificationConfiguration.js`)
+
+**Référentiels partagés (front)** : libellés et listes réutilisés par plusieurs écrans (postes, statuts…) vivent dans `frontend/src/core/referentiels/`, jamais recopiés dans chaque page.
+
+**Commentaires** : expliquer le *pourquoi* actuel, pas l'historique. Pas de date, de « audit du … » ni de « demande utilisateur » dans le code : l'historique va dans le message de commit. Un commentaire qui décrit un ancien comportement est à supprimer.

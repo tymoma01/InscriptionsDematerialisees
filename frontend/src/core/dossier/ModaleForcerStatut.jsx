@@ -2,7 +2,7 @@ import { useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
 import './ModaleForcerStatut.css';
 
-// Statuts exclus du forçage (bloc 3, audit 2026-09-25, décision utilisateur explicite) — MIROIR de
+// Statuts exclus du forçage — MIROIR de
 // STATUTS_EXCLUS_FORCAGE côté serveur (backend/src/core/workflow/workflowEngine.js) : dupliqué
 // plutôt que partagé (convention du projet), pour ne JAMAIS proposer ces statuts dans la liste de
 // choix (pas seulement les rejeter après coup au clic sur "Forcer ce statut" — le serveur reste de
@@ -31,7 +31,7 @@ const GROUPES_STATUTS_ACCECIT = [
 ];
 const TITRE_AUTRES_STATUTS = 'Autres statuts';
 
-// Date d'embauche (audit 2026-09-25) — même statut/même champ que ModaleMarquerEmbauche.jsx
+// Date d'embauche — même statut/même champ que ModaleMarquerEmbauche.jsx
 // (parcours normal) : un forçage vers "embauche" doit renseigner dossiers.date_embauche
 // exactement comme le bouton "Marquer comme embauché", voir workflowEngine.forcerStatut côté
 // serveur. Code en dur, comme GROUPES_STATUTS_ACCECIT/VARIANTE_PAR_CODE_ACCECIT ci-dessus (ce
@@ -187,7 +187,7 @@ export default function ModaleForcerStatut({ dossier, statuts, onConfirmer, onAn
             })}
           </div>
 
-          {/* Date d'embauche (audit 2026-09-25) — UNIQUEMENT quand le statut choisi est
+          {/* Date d'embauche — UNIQUEMENT quand le statut choisi est
               "embauche", même présentation que ModaleMarquerEmbauche.jsx (parcours normal) : pas
               de `min`/`max` (une date future reste un cas d'usage légitime, voir son commentaire
               d'en-tête). Placée AU-DESSUS du motif, comme demandé. */}
