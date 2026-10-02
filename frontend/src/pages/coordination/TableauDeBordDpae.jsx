@@ -1,11 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import { useParametreURL } from '../../core/filtres/useParametreURL';
-import { obtenirTableauDeBordDpae } from '../../services/dpaeService';
+import { listerSuiviDemandes, obtenirTableauDeBordDpae } from '../../services/dpaeService';
+import { useFiltresListeDpae } from '../../core/dpae/FiltresListeDpae';
+import TableauDemandesDpae from '../../core/dpae/TableauDemandesDpae';
+import {
+  demandesDeLIndicateur,
+  indicateursCliquables,
+  libellePeriode,
+  libellePoste,
+  listeComplete,
+} from '../../core/dpae/indicateursTableauDeBordDpae';
 import '../tableauDeBord/Indicateurs.css';
 import './TableauDeBordDpae.css';
 import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
@@ -17,19 +26,12 @@ import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/
 // Filtres persistés dans l'URL (useParametreURL), appliqués à tout le tableau par le serveur.
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-const FORMAT_JOUR_COURT = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' });
-const FORMAT_MOIS = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' });
 
 // Libellé, couleur de badge/tuile et couleur de graphique des statuts : source unique
-// core/dpae/statutsDpae.js.
-// Libellés de poste : mêmes que la fiche (dupliqués, convention du projet).
-const LIBELLE_PAR_POSTE = {
-  femme_valet_chambre: 'Femme/Valet de chambre',
-  cafetier: 'Cafetier',
-  equipier: 'Équipier',
-  gouvernant: 'Gouvernant(e)',
-  autre: 'Autre',
-};
+// core/dpae/statutsDpae.js. Libellés de poste et de période, indicateurs cliquables (clic -> liste
+// des demandes concernées) : core/dpae/indicateursTableauDeBordDpae.js.
+const COULEUR_BARRE = '#2e2013';
+const COULEUR_BARRE_ACTIVE = '#c98a0b';
 const COULEURS_REPARTITION = ['#2e2013', '#c98a0b', '#4a3aa7', '#0ca30c', '#9ca3af'];
 
 // Colonnes `date` (premier/dernier jour) : même conversion que la fiche (instant ISO relu dans le
@@ -45,9 +47,17 @@ function formaterDelai(heures) {
   return reste > 0 ? `${jours} j ${reste} h` : `${jours} j`;
 }
 
-function libellePeriode(periode, granularite) {
-  const date = new Date(`${periode}T12:00:00`);
-  return granularite === 'mois' ? FORMAT_MOIS.format(date) : `sem. du ${FORMAT_JOUR_COURT.format(date)}`;
+// Défilement jusqu'au titre d'une liste, visible en haut de l'écran SOUS la barre de navigation
+// (collante, sous l'en-tête fixe ; sa hauteur varie avec le nombre d'onglets, d'où une mesure à
+// chaque appel plutôt qu'une constante). Immédiat si l'utilisateur a demandé à réduire les
+// animations (prefers-reduced-motion), en douceur sinon.
+function defilerJusquA(element) {
+  if (!element) return;
+  const barre = document.querySelector('.barre-navigation');
+  const basBarre = barre ? (parseFloat(getComputedStyle(barre).top) || 0) + barre.offsetHeight : 0;
+  const haut = element.getBoundingClientRect().top + window.scrollY - basBarre - 12;
+  const animationsReduites = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  window.scrollTo({ top: Math.max(haut, 0), behavior: animationsReduites ? 'auto' : 'smooth' });
 }
 
 function libelleSites(demande) {
@@ -81,17 +91,45 @@ function ListeDemandes({ demandes, colonneDate, libelleDate, vide, marquer, sans
   );
 }
 
-function Tuile({ valeur, libelle, precision, variante = 'neutre' }) {
-  return (
-    <div className={`indicateurs__tuile indicateurs__tuile--${variante} tableau-bord-dpae__tuile`}>
+// Tuile d'indicateur. Avec onClick : bouton (main au survol, info-bulle « Voir les demandes »,
+// état actif tant que sa liste est affichée). Sans : simple affichage (taux, délais, part).
+function Tuile({ valeur, libelle, precision, variante = 'neutre', onClick, actif = false }) {
+  const classes = `indicateurs__tuile indicateurs__tuile--${variante} tableau-bord-dpae__tuile${
+    onClick ? ' tableau-bord-dpae__tuile--cliquable' : ''
+  }${actif ? ' indicateurs__tuile--active' : ''}`;
+  const contenu = (
+    <>
       <span className="indicateurs__tuile-valeur">{valeur}</span>
       <span className="indicateurs__tuile-libelle">{libelle}</span>
       {precision && <span className="indicateurs__tuile-precision">{precision}</span>}
+    </>
+  );
+  if (!onClick) return <div className={classes}>{contenu}</div>;
+  return (
+    <button type="button" className={classes} onClick={onClick} title="Voir les demandes" aria-pressed={actif}>
+      {contenu}
+    </button>
+  );
+}
+
+// Info-bulle des graphiques : valeur(s) survolée(s) et rappel que l'élément est cliquable.
+function InfoBulleGraphique({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="tableau-bord-dpae__infobulle">
+      {label && <strong>{label}</strong>}
+      {payload.map((entree) => (
+        <span key={entree.dataKey ?? entree.name}>
+          {entree.name} : {entree.value}
+        </span>
+      ))}
+      <em>Voir les demandes</em>
     </div>
   );
 }
 
-function Camembert({ titre, donnees }) {
+// donnees : [{ cle, libelle, valeur }] — cle : indicateur cliquable (indicateursTableauDeBordDpae.js).
+function Camembert({ titre, donnees, cleActive, onChoisir }) {
   const nonVides = donnees.filter((d) => d.valeur > 0);
   return (
     <section className="indicateurs__graphique indicateurs__graphique--camembert">
@@ -103,12 +141,25 @@ function Camembert({ titre, donnees }) {
           {/* Marge haute : l'étiquette de la plus grande part (placée au-dessus du disque) n'est plus
               rognée. */}
           <PieChart margin={{ top: 18, bottom: 4 }}>
-            <Pie data={nonVides} dataKey="valeur" nameKey="libelle" outerRadius={70} label={({ value }) => value}>
+            <Pie
+              data={nonVides}
+              dataKey="valeur"
+              nameKey="libelle"
+              outerRadius={70}
+              label={({ value }) => value}
+              onClick={(_, index) => onChoisir(nonVides[index].cle)}
+            >
               {nonVides.map((d, index) => (
-                <Cell key={d.libelle} fill={COULEURS_REPARTITION[index % COULEURS_REPARTITION.length]} />
+                <Cell
+                  key={d.libelle}
+                  fill={COULEURS_REPARTITION[index % COULEURS_REPARTITION.length]}
+                  cursor="pointer"
+                  stroke={d.cle === cleActive ? COULEUR_BARRE_ACTIVE : '#ffffff'}
+                  strokeWidth={d.cle === cleActive ? 4 : 1}
+                />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip content={<InfoBulleGraphique />} />
             <Legend />
           </PieChart>
         </ResponsiveContainer>
@@ -117,8 +168,9 @@ function Camembert({ titre, donnees }) {
   );
 }
 
-// Barres horizontales (sites, postes, demandeurs) : libellés longs lisibles en tablette.
-function Barres({ titre, donnees }) {
+// Barres horizontales (sites, postes, demandeurs) : libellés longs lisibles en tablette. Chaque barre
+// est cliquable (donnees : [{ cle, libelle, valeur }]).
+function Barres({ titre, donnees, cleActive, onChoisir }) {
   return (
     <section className="indicateurs__graphique">
       <h2>{titre}</h2>
@@ -130,8 +182,12 @@ function Barres({ titre, donnees }) {
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
             <XAxis type="number" allowDecimals={false} />
             <YAxis type="category" dataKey="libelle" width={170} tick={{ fontSize: 12 }} />
-            <Tooltip />
-            <Bar dataKey="valeur" name="Demandes" fill="#2e2013" />
+            <Tooltip content={<InfoBulleGraphique />} cursor={{ fill: 'rgba(122, 90, 52, 0.08)' }} />
+            <Bar dataKey="valeur" name="Demandes" fill={COULEUR_BARRE} cursor="pointer" onClick={(_, index) => onChoisir(donnees[index].cle)}>
+              {donnees.map((d) => (
+                <Cell key={d.cle} fill={d.cle === cleActive ? COULEUR_BARRE_ACTIVE : COULEUR_BARRE} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -180,6 +236,72 @@ export default function TableauDeBordDpae() {
   const t = donnees;
   // Demandes distinctes (une demande dans les deux listes compte une fois), calculé côté serveur.
   const nombrePriorites = t ? t.priorite.nombre : 0;
+
+  // --- Clic sur un indicateur -> « Demandes concernées » (2026-10-02) --------------------------------
+  // `selection` : CLÉ de l'indicateur (indicateursTableauDeBordDpae.js), pas sa liste : quand les
+  // filtres changent, la liste est relue dans les nouvelles données (filtres de période compris).
+  const [selection, setSelection] = useState(null);
+  // Cartes « Dans les 7 jours » / « Dans les 15 jours » : filtrent la liste des fins de CDD.
+  const [filtreFinsCdd, setFiltreFinsCdd] = useState(null);
+  // Liste complète des demandes de l'entité (GET /dpae/suivi, « toutes »), rechargée une fois par
+  // chargement du tableau de bord : les demandes d'un indicateur y sont prises par identifiant.
+  const [suivi, setSuivi] = useState({ demandes: null, pour: null, erreur: null });
+  // Défilement demandé après un clic : { cible, jeton } (jeton : relance même sur la même cible).
+  const [defilement, setDefilement] = useState(null);
+  const refTitreSelection = useRef(null);
+  const refTitreFinsCdd = useRef(null);
+
+  const indicateurs = useMemo(() => indicateursCliquables(t), [t]);
+  const indicateurActif = selection ? (indicateurs.get(selection) ?? null) : null;
+  const demandesSelection = useMemo(
+    () => (indicateurActif && suivi.demandes ? demandesDeLIndicateur(indicateurActif, suivi.demandes) : []),
+    [indicateurActif, suivi.demandes],
+  );
+  // Même tableau que les listes DPAE (TableauDemandesDpae.jsx) : colonnes, pastilles, tri par défaut.
+  const etatSelection = useFiltresListeDpae(demandesSelection);
+
+  useEffect(() => {
+    if (!indicateurActif || suivi.pour === t) return undefined;
+    let annule = false;
+    listerSuiviDemandes('toutes')
+      .then((demandes) => {
+        if (!annule) setSuivi({ demandes, pour: t, erreur: null });
+      })
+      .catch(() => {
+        if (!annule) setSuivi({ demandes: null, pour: t, erreur: 'Impossible de récupérer les demandes.' });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [indicateurActif, t, suivi.pour]);
+
+  useEffect(() => {
+    if (!defilement) return;
+    defilerJusquA(defilement.cible === 'finsCdd' ? refTitreFinsCdd.current : refTitreSelection.current);
+  }, [defilement]);
+
+  // Recliquer sur l'indicateur affiché le masque ; sinon, sa liste remplace la précédente (recherche,
+  // filtres et tri de colonne remis à zéro) et la page défile jusqu'à elle.
+  const choisirIndicateur = (cle) => {
+    if (!indicateurs.has(cle)) return;
+    if (cle === selection) {
+      setSelection(null);
+      return;
+    }
+    setSelection(cle);
+    etatSelection.effacer();
+    setDefilement({ cible: 'selection', jeton: Date.now() });
+  };
+  const choisirFinsCdd = (filtre) => {
+    setFiltreFinsCdd((actuel) => (actuel === filtre ? null : filtre));
+    setDefilement({ cible: 'finsCdd', jeton: Date.now() });
+  };
+  const proprietesTuile = (cle) => ({ onClick: () => choisirIndicateur(cle), actif: selection === cle });
+  const finsCddAffichees = t
+    ? filtreFinsCdd === '7'
+      ? t.anticipation.demandes.filter((demande) => demande.sous_7_jours)
+      : t.anticipation.demandes
+    : [];
 
   return (
     <PageBackOffice>
@@ -265,9 +387,15 @@ export default function TableauDeBordDpae() {
             {/* 2. Activité */}
             <h2 className="tableau-bord-dpae__section">Activité</h2>
             <div className="indicateurs__tuiles">
-              <Tuile valeur={t.activite.total} libelle="Demandes" variante="neutre" />
+              <Tuile valeur={t.activite.total} libelle="Demandes" variante="neutre" {...proprietesTuile('total')} />
               {STATUTS_DPAE.map((s) => (
-                <Tuile key={s.code} valeur={t.activite.parStatut[s.code] ?? 0} libelle={s.libellePluriel} variante={s.variante} />
+                <Tuile
+                  key={s.code}
+                  valeur={t.activite.parStatut[s.code] ?? 0}
+                  libelle={s.libellePluriel}
+                  variante={s.variante}
+                  {...proprietesTuile(`statut:${s.code}`)}
+                />
               ))}
               <Tuile
                 valeur={t.activite.tauxRejet === null ? '—' : `${Math.round(t.activite.tauxRejet * 100)} %`}
@@ -285,10 +413,24 @@ export default function TableauDeBordDpae() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="libelle" tick={{ fontSize: 12 }} />
                   <YAxis allowDecimals={false} />
-                  <Tooltip />
+                  <Tooltip content={<InfoBulleGraphique />} cursor={{ fill: 'rgba(122, 90, 52, 0.08)' }} />
                   <Legend />
+                  {/* Chaque segment (période x statut) est cliquable. */}
                   {STATUTS_DPAE.map((s) => (
-                    <Bar key={s.code} dataKey={s.code} name={s.libelle} stackId="statut" fill={s.couleurGraphique} />
+                    <Bar
+                      key={s.code}
+                      dataKey={s.code}
+                      name={s.libelle}
+                      stackId="statut"
+                      fill={s.couleurGraphique}
+                      cursor="pointer"
+                      onClick={(_, index) => choisirIndicateur(`evolution:${t.activite.evolution[index].periode}:${s.code}`)}
+                    >
+                      {t.activite.evolution.map((periode) => {
+                        const actif = selection === `evolution:${periode.periode}:${s.code}`;
+                        return <Cell key={periode.periode} stroke={actif ? COULEUR_BARRE : undefined} strokeWidth={actif ? 3 : 0} />;
+                      })}
+                    </Bar>
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -298,7 +440,13 @@ export default function TableauDeBordDpae() {
                 neutres, seul le retard est marqué en orange clair. */}
             <h2 className="tableau-bord-dpae__section">Déclarations tardives</h2>
             <div className="indicateurs__tuiles">
-              <Tuile valeur={t.declarationsTardives.nombre} libelle="Validées après leur 1er jour" precision="sur la période filtrée" variante="neutre" />
+              <Tuile
+                valeur={t.declarationsTardives.nombre}
+                libelle="Validées après leur 1er jour"
+                precision="sur la période filtrée"
+                variante="neutre"
+                {...proprietesTuile('tardives')}
+              />
               <Tuile
                 valeur={t.declarationsTardives.part === null ? '—' : `${Math.round(t.declarationsTardives.part * 100)} %`}
                 libelle="Part des demandes validées"
@@ -330,57 +478,118 @@ export default function TableauDeBordDpae() {
             <div className="tableau-bord-dpae__grille">
               <Camembert
                 titre="CDD / CDI"
+                cleActive={selection}
+                onChoisir={choisirIndicateur}
                 donnees={[
-                  { libelle: 'CDD', valeur: t.repartition.contrats.cdd },
-                  { libelle: 'CDI', valeur: t.repartition.contrats.cdi },
-                  { libelle: 'Non renseigné', valeur: t.repartition.contrats.non_renseigne ?? 0 },
+                  { cle: 'contrat:cdd', libelle: 'CDD', valeur: t.repartition.contrats.cdd },
+                  { cle: 'contrat:cdi', libelle: 'CDI', valeur: t.repartition.contrats.cdi },
+                  { cle: 'contrat:non_renseigne', libelle: 'Non renseigné', valeur: t.repartition.contrats.non_renseigne ?? 0 },
                 ]}
               />
               <Camembert
                 titre="Raison des CDD"
+                cleActive={selection}
+                onChoisir={choisirIndicateur}
                 donnees={[
-                  { libelle: 'Remplacement', valeur: t.repartition.motifsCdd.remplacement_absent },
-                  { libelle: 'Surcroît d’activité', valeur: t.repartition.motifsCdd.surcroit_activite },
-                  { libelle: 'Non renseignée', valeur: t.repartition.motifsCdd.non_renseigne ?? 0 },
+                  { cle: 'motif:remplacement_absent', libelle: 'Remplacement', valeur: t.repartition.motifsCdd.remplacement_absent },
+                  { cle: 'motif:surcroit_activite', libelle: 'Surcroît d’activité', valeur: t.repartition.motifsCdd.surcroit_activite },
+                  { cle: 'motif:non_renseigne', libelle: 'Non renseignée', valeur: t.repartition.motifsCdd.non_renseigne ?? 0 },
                 ]}
               />
               <Camembert
                 titre="Nouveaux salariés / déjà venus"
+                cleActive={selection}
+                onChoisir={choisirIndicateur}
                 donnees={[
-                  { libelle: 'Nouveaux salariés', valeur: t.repartition.nouveauxSalaries },
-                  { libelle: 'Déjà travaillé chez nous', valeur: t.repartition.dejaTravailleChezNous },
+                  { cle: 'emploi:nouveaux', libelle: 'Nouveaux salariés', valeur: t.repartition.nouveauxSalaries },
+                  { cle: 'emploi:deja', libelle: 'Déjà travaillé chez nous', valeur: t.repartition.dejaTravailleChezNous },
                 ]}
               />
               <Barres
                 titre="Top 10 des sites d’affectation"
+                cleActive={selection}
+                onChoisir={choisirIndicateur}
                 donnees={[
-                  ...t.repartition.sites.map((site) => ({ libelle: `${site.nom} (${site.initiales})`, valeur: site.nombre })),
-                  ...(t.repartition.nonReferencees > 0 ? [{ libelle: 'Non référencé', valeur: t.repartition.nonReferencees }] : []),
+                  ...t.repartition.sites.map((site) => ({ cle: `site:${site.id}`, libelle: `${site.nom} (${site.initiales})`, valeur: site.nombre })),
+                  ...(t.repartition.nonReferencees > 0
+                    ? [{ cle: 'site:non_reference', libelle: 'Non référencé', valeur: t.repartition.nonReferencees }]
+                    : []),
                 ]}
               />
               <Barres
                 titre="Par poste"
-                donnees={t.repartition.postes.map((p) => ({ libelle: p.poste ? (LIBELLE_PAR_POSTE[p.poste] ?? p.poste) : 'Non renseigné', valeur: p.nombre }))}
+                cleActive={selection}
+                onChoisir={choisirIndicateur}
+                donnees={t.repartition.postes.map((p) => ({ cle: `poste:${p.poste ?? 'non_renseigne'}`, libelle: libellePoste(p.poste), valeur: p.nombre }))}
               />
-              <Barres titre="Par demandeur" donnees={t.repartition.demandeurs.map((d) => ({ libelle: `${d.prenom} ${d.nom}`, valeur: d.nombre }))} />
+              <Barres
+                titre="Par demandeur"
+                cleActive={selection}
+                onChoisir={choisirIndicateur}
+                donnees={t.repartition.demandeurs.map((d) => ({ cle: `demandeur:${d.id}`, libelle: `${d.prenom} ${d.nom}`, valeur: d.nombre }))}
+              />
             </div>
 
             {/* 4. Anticipation */}
             <h2 className="tableau-bord-dpae__section">CDD arrivant à échéance</h2>
+            {/* Les deux cartes filtrent la liste ci-dessous (pas de section « Demandes concernées »). */}
             <div className="indicateurs__tuiles">
-              <Tuile valeur={t.anticipation.sous7Jours} libelle="Dans les 7 jours" variante="echec" />
-              <Tuile valeur={t.anticipation.sous15Jours} libelle="Dans les 15 jours" variante="attente" />
+              <Tuile
+                valeur={t.anticipation.sous7Jours}
+                libelle="Dans les 7 jours"
+                variante="echec"
+                onClick={() => choisirFinsCdd('7')}
+                actif={filtreFinsCdd === '7'}
+              />
+              <Tuile
+                valeur={t.anticipation.sous15Jours}
+                libelle="Dans les 15 jours"
+                variante="attente"
+                onClick={() => choisirFinsCdd('15')}
+                actif={filtreFinsCdd === '15'}
+              />
             </div>
             <section className="indicateurs__graphique">
-              <h2>CDD dont le dernier jour tombe dans les 15 prochains jours</h2>
+              <h2 ref={refTitreFinsCdd} className="tableau-bord-dpae__titre-liste">
+                CDD dont le dernier jour tombe dans les {filtreFinsCdd === '7' ? 7 : 15} prochains jours ({finsCddAffichees.length})
+              </h2>
               <ListeDemandes
-                demandes={t.anticipation.demandes}
+                demandes={finsCddAffichees}
                 colonneDate="date_fin"
                 libelleDate="Dernier jour"
-                vide="Aucun CDD ne se termine dans les 15 prochains jours."
+                vide={`Aucun CDD ne se termine dans les ${filtreFinsCdd === '7' ? 7 : 15} prochains jours.`}
                 marquer={(demande) => (demande.sous_7_jours ? <span className="tableau-bord-dpae__alerte">≤ 7 jours</span> : null)}
               />
             </section>
+
+            {/* « Demandes concernées » — n'apparaît qu'après un clic sur un indicateur. Tableau des listes
+                DPAE (TableauDemandesDpae.jsx), demandes prises par identifiant : exactement celles
+                comptées par l'indicateur, filtres du tableau de bord compris. */}
+            {indicateurActif && (
+              <section className="indicateurs__graphique tableau-bord-dpae__selection" aria-labelledby="titre-demandes-concernees">
+                <div className="tableau-bord-dpae__selection-entete">
+                  <h2 id="titre-demandes-concernees" ref={refTitreSelection} className="tableau-bord-dpae__titre-liste">
+                    Demandes concernées : {indicateurActif.libelle} ({indicateurActif.nombre})
+                  </h2>
+                  <button type="button" className="tableau-bord-dpae__effacer" onClick={() => setSelection(null)}>
+                    Effacer
+                  </button>
+                </div>
+                {suivi.erreur && <p role="alert">{suivi.erreur}</p>}
+                {!suivi.erreur && suivi.pour !== t && <p>Chargement…</p>}
+                {!suivi.erreur && suivi.pour === t && indicateurActif.nombre === 0 && (
+                  <p className="tableau-bord-dpae__liste-vide">Aucune demande.</p>
+                )}
+                {!suivi.erreur && suivi.pour === t && indicateurActif.nombre > 0 && (
+                  <>
+                    {!listeComplete(indicateurActif, suivi.demandes) && (
+                      <p role="alert">Certaines demandes n’ont pas pu être affichées : rechargez la page.</p>
+                    )}
+                    <TableauDemandesDpae etatFiltres={etatSelection} />
+                  </>
+                )}
+              </section>
+            )}
           </div>
         )}
       </div>

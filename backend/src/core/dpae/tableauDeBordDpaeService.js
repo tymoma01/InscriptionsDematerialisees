@@ -59,6 +59,8 @@ function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maint
 }
 
 const enMap = (lignes) => Object.fromEntries(lignes.map((ligne) => [ligne.cle ?? 'non_renseigne', ligne.nombre]));
+// Même clés que enMap, valeurs = identifiants des demandes comptées (même ligne SQL que le nombre).
+const enMapIds = (lignes) => Object.fromEntries(lignes.map((ligne) => [ligne.cle ?? 'non_renseigne', ligne.ids ?? []]));
 
 // Sites liés, [{ id, nom, initiales }], ajoutés à chaque ligne des listes cliquables ; [] pour une
 // ancienne demande sans site lié (qui garde son texte `hotel`, non renvoyé ici : « Non référencé »).
@@ -84,6 +86,14 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
   const total = parStatut.envoyee + parStatut.en_attente + parStatut.validee + parStatut.rejetee;
   const decidees = parStatut.validee + parStatut.rejetee;
   const dejaEmploye = enMap(bruts.dejaEmploye.map(({ cle, nombre }) => ({ cle: String(cle), nombre })));
+  const idsDejaEmploye = enMapIds(bruts.dejaEmploye.map(({ cle, ids }) => ({ cle: String(cle), ids })));
+  const idsParStatut = {
+    envoyee: [],
+    en_attente: [],
+    validee: [],
+    rejetee: [],
+    ...enMapIds(bruts.parStatut.map(({ statut, ids }) => ({ cle: statut, ids }))),
+  };
   const finsDeCdd = ajouterSitesAuxLignes(bruts.finsDeCdd, liens);
   // « À traiter en priorité » : UNIQUEMENT des demandes sur lesquelles la RH doit
   // encore agir (À traiter ou En attente, voir le repository). Une demande présente dans les deux
@@ -102,9 +112,14 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
       premierJourProche,
       aTraiterPlus24h,
     },
+    // Champs `ids*` (2026-10-02) : identifiants des demandes comptées par chaque indicateur, calculés
+    // dans la même requête que le nombre (tableauDeBordDpaeRepository.js) — liste des demandes au
+    // clic sur un indicateur. Indicateurs sans liste (taux, délais) : aucun identifiant.
     activite: {
       total,
+      ids: ['envoyee', 'en_attente', 'validee', 'rejetee'].flatMap((code) => idsParStatut[code]),
       parStatut,
+      idsParStatut,
       tauxRejet: decidees > 0 ? parStatut.rejetee / decidees : null,
       nombreTraitees: bruts.delais.nombre_traitees,
       delaiMoyenHeures: bruts.delais.moyen_heures,
@@ -122,13 +137,18 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
     },
     repartition: {
       contrats: { cdd: 0, cdi: 0, ...enMap(bruts.contrats) },
+      idsContrats: { cdd: [], cdi: [], ...enMapIds(bruts.contrats) },
       motifsCdd: { remplacement_absent: 0, surcroit_activite: 0, ...enMap(bruts.motifsCdd) },
+      idsMotifsCdd: { remplacement_absent: [], surcroit_activite: [], ...enMapIds(bruts.motifsCdd) },
       sites: bruts.topSites,
-      nonReferencees: bruts.nonReferencees,
-      postes: bruts.postes.map(({ cle, nombre }) => ({ poste: cle, nombre })),
+      nonReferencees: bruts.nonReferencees.nombre,
+      idsNonReferencees: bruts.nonReferencees.ids ?? [],
+      postes: bruts.postes.map(({ cle, nombre, ids }) => ({ poste: cle, nombre, ids: ids ?? [] })),
       demandeurs: bruts.demandeurs,
       nouveauxSalaries: dejaEmploye.false ?? 0,
+      idsNouveauxSalaries: idsDejaEmploye.false ?? [],
       dejaTravailleChezNous: dejaEmploye.true ?? 0,
+      idsDejaTravailleChezNous: idsDejaEmploye.true ?? [],
     },
     anticipation: {
       sous7Jours: finsDeCdd.filter((ligne) => ligne.sous_7_jours).length,
