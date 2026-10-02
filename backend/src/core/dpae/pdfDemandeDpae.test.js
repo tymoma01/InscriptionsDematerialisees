@@ -5,6 +5,8 @@ const {
   genererPdfDemande,
   sectionsDemande,
   statutEtDate,
+  texteStatut,
+  textesPiedDePage,
   sousMarqueDemande,
   nomFichierPdf,
 } = require('./pdfDemandeDpae');
@@ -81,8 +83,8 @@ test('Sections : mêmes sections et mêmes champs que la fiche, dans le même or
     ['Raison du surcroît', 'Salon'],
     ['Poste', 'Équipier'],
     ['Premier jour', '10/10/2026'],
-    ['Heure d’arrivée jour 1', '08:00:00'],
-    ['Heures/mois', '151.67'],
+    ['Heure d’arrivée jour 1', '08h00'],
+    ['Heures/mois', '151,67 h'],
   ]);
   assert.deepEqual(section(sections, 'Semaine type'), { titre: 'Semaine type', lignes: [], texte: 'Aucun jour de travail renseigné.' });
 });
@@ -141,7 +143,7 @@ test('Sections conditionnelles : mêmes conditions que la fiche (rejet, attente,
   ]);
   assert.deepEqual(section(complete, 'Modifications demandées').lignes, [['Horaires', 'Oui']]);
   assert.deepEqual(section(complete, 'Gestion des jours').lignes, [['Type', 'Retirer des jours'], ['Jours concernés', '12/10/2026']]);
-  assert.deepEqual(section(complete, 'Semaine type').liste, ['Lundi : 08:00 – 15:00', 'Samedi']);
+  assert.deepEqual(section(complete, 'Semaine type').liste, ['Lundi : 08h00 – 15h00', 'Samedi']);
   assert.equal(section(complete, 'Autre chose à signaler').texte, 'Badge à prévoir');
 });
 
@@ -155,7 +157,7 @@ test('Statut et sa date : réception, mise en attente, traitement', () => {
   assert.deepEqual(statutEtDate(demande({ statut: 'rejetee' })), { libelle: 'Rejetée', date: '30/09/2026 17:48' });
 });
 
-test("Logo : ACCHOT -> sous-marque Hôtellerie ; RM, Autre ou non renseigné -> logo ACCECIT général (jamais deviné)", () => {
+test("Logo : ACCHOT -> sous-marque Hôtellerie ; RM, Autre ou non renseigné -> logo ACCECIT seul, sans sous-marque (jamais devinée)", () => {
   assert.equal(sousMarqueDemande(demande({ division: 'acchot' })), 'hotellerie');
   for (const division of ['rm', 'autre', null, undefined]) assert.equal(sousMarqueDemande(demande({ division })), null);
 });
@@ -174,4 +176,34 @@ test('PDF généré : document PDF A4, avec ou sans sous-marque, 4 sites et tout
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
     assert.match(pdf.toString('latin1'), /\/MediaBox \[0 0 595\.28 841\.89\]/);
   }
+});
+
+test('Ligne du statut : barre verticale, jamais de tiret long — « À traiter | le 30/09/2026 14:34 »', () => {
+  assert.equal(texteStatut(demande({ statut: 'envoyee', date_traitement: null })), 'À traiter | le 30/09/2026 14:34');
+  assert.equal(texteStatut(demande()), 'Validée | le 30/09/2026 17:48');
+});
+
+test('Pied de page : coordonnées ACCECIT, confidentialité, date de génération (heure de Paris) et pagination', () => {
+  assert.deepEqual(textesPiedDePage(new Date('2026-10-02T08:45:00Z'), 2, 3), {
+    coordonnees: 'ACCECIT | 47 avenue Paul Vaillant Couturier, 94250 Gentilly | 01 56 56 69 56 | www.accecit.com',
+    confidentialite: 'Document confidentiel | usage interne',
+    generation: 'PDF généré le 02/10/2026 à 10:45',
+    pagination: 'Page 2/3',
+  });
+});
+
+test('Aucun tiret long (—) dans les textes du PDF (sections, statut, pied de page)', () => {
+  const complete = demande({
+    statut: 'en_attente',
+    date_mise_en_attente: new Date('2026-10-01T14:20:00Z'),
+    motif_mise_en_attente: 'Client',
+    type_demande: 'ajout_retrait_jours',
+    modifications_demandees: true,
+    modification_horaires: true,
+    semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00' }],
+    autre_chose_signaler: 'Badge',
+    sites_affectation: QUATRE_SITES,
+  });
+  const textes = JSON.stringify([sectionsDemande(complete), texteStatut(complete), textesPiedDePage(new Date(), 1, 2)]);
+  assert.ok(!textes.includes('—'), textes);
 });
