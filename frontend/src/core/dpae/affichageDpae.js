@@ -1,6 +1,7 @@
-// Affichage des colonnes « Premier jour » et « Site(s) d'affectation » des listes de demandes DPAE
-// — source unique (2026-10-02, extrait de SuiviDemandesDpae.jsx), partagée par « Suivi des demandes
-// DPAE » et la liste RH (TraitementDpae.jsx).
+// Affichage des colonnes des listes de demandes DPAE — source unique, partagée par « Suivi des
+// demandes DPAE » (SuiviDemandesDpae.jsx), la liste RH (TraitementDpae.jsx) et la recherche/les
+// filtres de ces deux listes (listeDemandesDpae.js) : ce qui est cherché ou filtré est exactement
+// ce qui est affiché.
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -12,11 +13,40 @@ export function formaterJour(valeur) {
   return valeur ? FORMAT_DATE.format(new Date(valeur)) : '—';
 }
 
-// Sites liés (référentiel, NOM (INITIALES)), séparés par des virgules ; à défaut, ancien texte
-// libre d'une demande antérieure au référentiel (colonne `hotel`) — jamais une demande masquée
-// faute de site lié.
-export function libelleSites(demande) {
+// Sites liés (référentiel, « NOM (INITIALES) »), un libellé par site ; à défaut, ancien texte libre
+// d'une demande antérieure au référentiel (colonne `hotel`). Tableau vide : aucun site renseigné.
+export function libellesSites(demande) {
   const sites = demande.sites_affectation ?? [];
-  if (sites.length > 0) return sites.map((site) => `${site.nom} (${site.initiales})`).join(', ');
-  return demande.hotel || '—';
+  if (sites.length > 0) return sites.map((site) => `${site.nom} (${site.initiales})`);
+  return demande.hotel ? [demande.hotel] : [];
+}
+
+// Liste complète, séparée par des virgules (info-bulle de la cellule des sites).
+export function libelleSites(demande) {
+  return libellesSites(demande).join(', ') || '—';
+}
+
+// Type de demande (colonne « Type » de la liste RH).
+const LIBELLE_PAR_TYPE_DEMANDE = {
+  nouvelle_embauche: 'Nouvelle embauche',
+  prolongation: 'Prolongation',
+  ajout_retrait_jours: 'Ajout/retrait de jours',
+  passage_cdi: 'Passage CDI',
+  changement_horaires_affectation: 'Changement horaires/affectation',
+};
+
+export function libelleTypeDemande(demande) {
+  return LIBELLE_PAR_TYPE_DEMANDE[demande.type_demande] ?? demande.type_demande ?? '—';
+}
+
+export function libelleTypeContrat(demande) {
+  return demande.type_contrat ? demande.type_contrat.toUpperCase() : '—';
+}
+
+export function libelleSalarie(demande) {
+  return `${demande.salarie_prenom ?? ''} ${demande.salarie_nom ?? ''}`.trim();
+}
+
+export function libelleDemandeur(demande) {
+  return `${demande.demandeur_prenom ?? ''} ${demande.demandeur_nom ?? ''}`.trim();
 }

@@ -16,18 +16,17 @@ import {
 } from '../../core/dpae/TelechargementPdfDpae';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
 import { STATUTS_AVEC_URGENCE, trierParEcheance } from '../../core/dpae/urgenceDpae';
-import { formaterJour, libelleSites } from '../../core/dpae/affichageDpae';
+import { formaterJour, libelleTypeDemande } from '../../core/dpae/affichageDpae';
+import {
+  BarreRechercheDpae,
+  EnTeteColonneDpae,
+  SitesDemandeDpae,
+  useFiltresListeDpae,
+} from '../../core/dpae/FiltresListeDpae';
+import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import './TraitementDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-
-const LIBELLE_PAR_TYPE = {
-  nouvelle_embauche: 'Nouvelle embauche',
-  prolongation: 'Prolongation',
-  ajout_retrait_jours: 'Ajout/retrait de jours',
-  passage_cdi: 'Passage CDI',
-  changement_horaires_affectation: 'Changement horaires/affectation',
-};
 
 // Filtre statut (demande utilisateur : "un filtre entre les demandes à traiter et celles qui le
 // sont") — remplace l'ancien bouton unique bascule "file à traiter"/"historique complet" par le
@@ -54,14 +53,16 @@ export default function TraitementDpae() {
   // core/dpae/TelechargementPdfDpae.jsx. « Tout cocher » ne porte que sur le filtre affiché.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
 
-  // Ordre d'affichage (2026-10-02) : « À traiter » (filtre par défaut à l'ouverture) et « En
-  // attente » triées par échéance — premier jour (à l'heure d'arrivée) croissant, demandes en retard
-  // tout en haut (core/dpae/urgenceDpae.js, même calcul que les pastilles). « Validées »,
-  // « Rejetées » et « Tous » : ordre du serveur inchangé (plus récentes d'abord).
-  const demandesAffichees = useMemo(
-    () => (STATUTS_AVEC_URGENCE.includes(statutFiltre) ? trierParEcheance(demandes) : demandes),
-    [demandes, statutFiltre],
-  );
+  // Ordre d'ouverture : « À traiter » (filtre par défaut) et « En attente » triées par échéance —
+  // premier jour (à l'heure d'arrivée) croissant, demandes en retard tout en haut
+  // (core/dpae/urgenceDpae.js, même calcul que les pastilles). « Validées », « Rejetées » et « Tous » :
+  // ordre du serveur (plus récentes d'abord). Un tri choisi depuis un titre de colonne le remplace.
+  const triParDefaut = useMemo(() => (STATUTS_AVEC_URGENCE.includes(statutFiltre) ? trierParEcheance : undefined), [statutFiltre]);
+  // Recherche et filtres par colonne (core/dpae/FiltresListeDpae.jsx, partagés avec le Suivi des
+  // demandes DPAE), combinés aux pastilles de statut ci-dessus. Les cases à cocher et le
+  // téléchargement PDF ne portent que sur les demandes visibles après filtrage.
+  const etatFiltres = useFiltresListeDpae(demandes, { triParDefaut });
+  const demandesAffichees = etatFiltres.demandesVisibles;
   const selectionDemandes = useSelectionDemandesDpae(demandesAffichees);
 
   const chargerCompteurs = () =>
@@ -118,69 +119,88 @@ export default function TraitementDpae() {
         {erreur && <p role="alert">{erreur}</p>}
         {!chargement && !erreur && demandes.length === 0 && <p>Aucune demande pour ce filtre.</p>}
 
+        {!chargement && demandes.length > 0 && <BarreRechercheDpae etat={etatFiltres} />}
+
         {!chargement && demandes.length > 0 && peutTelechargerPdf && <ActionTelechargementPdfDpae selectionDemandes={selectionDemandes} />}
 
         {!chargement && demandes.length > 0 && (
-          <table className="page-traitement-dpae__table">
-            <thead>
-              <tr>
-                {peutTelechargerPdf && (
-                  <th className="telechargement-pdf-dpae__colonne-case">
-                    <CaseToutCocherDpae selectionDemandes={selectionDemandes} />
-                  </th>
-                )}
-                <th>Reçue le</th>
-                <th>Type</th>
-                <th>Salarié</th>
-                {/* Premier jour et sites (2026-10-02) : même affichage que Suivi des demandes DPAE
-                    (core/dpae/affichageDpae.js). */}
-                <th>Premier jour</th>
-                <th>Site(s) d&rsquo;affectation</th>
-                <th>Demandeur</th>
-                <th>Statut</th>
-                <th></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {demandesAffichees.map((demande) => (
-                <tr key={demande.id}>
+          <IndicateurDefilementHorizontal className="filtres-liste-dpae__defilement">
+            <table className="page-traitement-dpae__table">
+              <thead>
+                <tr>
                   {peutTelechargerPdf && (
-                    <td className="telechargement-pdf-dpae__colonne-case">
-                      <CaseDemandeDpae selectionDemandes={selectionDemandes} demande={demande} />
-                    </td>
+                    <th className="telechargement-pdf-dpae__colonne-case">
+                      <CaseToutCocherDpae selectionDemandes={selectionDemandes} />
+                    </th>
                   )}
-                  <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
-                  <td>{LIBELLE_PAR_TYPE[demande.type_demande] ?? demande.type_demande}</td>
-                  <td>
-                    {demande.salarie_prenom} {demande.salarie_nom}
-                  </td>
-                  <td>{formaterJour(demande.date_debut)}</td>
-                  <td className="page-traitement-dpae__sites">{libelleSites(demande)}</td>
-                  <td>
-                    {demande.demandeur_prenom} {demande.demandeur_nom}
-                  </td>
-                  <td>
-                    {/* Pastille d'urgence (2026-10-02) à côté du statut — « À traiter »/« En attente »
-                        seulement (core/dpae/PastilleUrgenceDpae.jsx). */}
-                    <div className="page-traitement-dpae__statut">
-                      <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
-                      <PastilleUrgenceDpae demande={demande} />
-                    </div>
-                  </td>
-                  <td>
-                    <Link to={`/rh/dpae/${demande.id}`}>Voir la demande</Link>
-                  </td>
-                  <td>
-                    {/* "En un clic accéder à la fiche du candidat" (demande utilisateur) — voir le
-                        commentaire équivalent de DetailDemandeDpae.jsx pour le détail de
-                        dossier_id (absent si le salarié n'est pas un candidat connu du système). */}
-                    {demande.dossier_id && <Link to={`/recruteur/dossiers/${demande.dossier_id}/validation`}>Fiche candidat</Link>}
-                  </td>
+                  {/* Titres cliquables : tri et filtre de la colonne (core/dpae/FiltresListeDpae.jsx). */}
+                  <EnTeteColonneDpae etat={etatFiltres} cle="date_demande" libelle="Reçue le" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="type_demande" libelle="Type" className="filtres-liste-dpae__colonne-type" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="salarie" libelle="Salarié" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="premier_jour" libelle="Premier jour" />
+                  <EnTeteColonneDpae
+                    etat={etatFiltres}
+                    cle="sites"
+                    libelle="Site(s) d’affectation"
+                    className="filtres-liste-dpae__colonne-sites"
+                  />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="demandeur" libelle="Demandeur" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="statut" libelle="Statut" />
+                  {/* Liens « Voir la demande » et « Fiche candidat » réunis dans une seule cellule,
+                      l'un sous l'autre : la place libérée va au salarié et au demandeur. */}
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {demandesAffichees.length === 0 && (
+                  <tr>
+                    <td colSpan={peutTelechargerPdf ? 9 : 8} className="filtres-liste-dpae__aucune">
+                      Aucune demande ne correspond à la recherche ou aux filtres.
+                    </td>
+                  </tr>
+                )}
+                {demandesAffichees.map((demande) => (
+                  <tr key={demande.id}>
+                    {peutTelechargerPdf && (
+                      <td className="telechargement-pdf-dpae__colonne-case">
+                        <CaseDemandeDpae selectionDemandes={selectionDemandes} demande={demande} />
+                      </td>
+                    )}
+                    <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
+                    {/* Coupure possible après « / » (« Changement horaires/ affectation ») : colonne étroite. */}
+                    <td className="filtres-liste-dpae__colonne-type">{libelleTypeDemande(demande).replaceAll('/', '/\u200B')}</td>
+                    <td className="filtres-liste-dpae__une-ligne">
+                      {demande.salarie_prenom} {demande.salarie_nom}
+                    </td>
+                    <td>{formaterJour(demande.date_debut)}</td>
+                    <td className="filtres-liste-dpae__colonne-sites">
+                      <SitesDemandeDpae demande={demande} />
+                    </td>
+                    <td className="filtres-liste-dpae__une-ligne">
+                      {demande.demandeur_prenom} {demande.demandeur_nom}
+                    </td>
+                    <td>
+                      {/* Statut et pastille d'urgence (« À traiter »/« En attente » seulement) toujours
+                          côte à côte (core/dpae/PastilleUrgenceDpae.jsx). */}
+                      <div className="filtres-liste-dpae__statut">
+                        <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
+                        <PastilleUrgenceDpae demande={demande} />
+                      </div>
+                    </td>
+                    <td>
+                      <div className="page-traitement-dpae__liens">
+                        <Link to={`/rh/dpae/${demande.id}`}>Voir la demande</Link>
+                        {/* "En un clic accéder à la fiche du candidat" (demande utilisateur) — voir le
+                            commentaire équivalent de DetailDemandeDpae.jsx pour le détail de
+                            dossier_id (absent si le salarié n'est pas un candidat connu du système). */}
+                        {demande.dossier_id && <Link to={`/recruteur/dossiers/${demande.dossier_id}/validation`}>Fiche candidat</Link>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </IndicateurDefilementHorizontal>
         )}
       </div>
     </PageBackOffice>

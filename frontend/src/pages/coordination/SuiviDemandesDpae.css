@@ -46,7 +46,9 @@
 
 .page-suivi-dpae__table th,
 .page-suivi-dpae__table td {
-  padding: 0.6rem 0.75rem;
+  /* Marges latérales réduites (0.75rem -> 0.5rem) : place rendue au salarié et au demandeur, sur
+     une ligne (voir core/dpae/FiltresListeDpae.css). */
+  padding: 0.6rem 0.5rem;
   border-bottom: 1px solid var(--couleur-bordure-legere);
   text-align: left;
 }
@@ -110,12 +112,4 @@
 .page-suivi-dpae__ligne:focus-visible {
   outline: 2px solid var(--couleur-back-office);
   outline-offset: -2px;
-}
-
-/* Statut et pastille d'urgence côte à côte (2026-10-02), l'une sous l'autre si la place manque. */
-.page-suivi-dpae__statut {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
 }

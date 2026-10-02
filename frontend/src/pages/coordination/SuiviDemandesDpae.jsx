@@ -17,7 +17,14 @@ import {
   useSelectionDemandesDpae,
 } from '../../core/dpae/TelechargementPdfDpae';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
-import { formaterJour, libelleSites } from '../../core/dpae/affichageDpae';
+import { formaterJour, libelleTypeContrat } from '../../core/dpae/affichageDpae';
+import {
+  BarreRechercheDpae,
+  EnTeteColonneDpae,
+  SitesDemandeDpae,
+  useFiltresListeDpae,
+} from '../../core/dpae/FiltresListeDpae';
+import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import './SuiviDemandesDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -49,7 +56,12 @@ export default function SuiviDemandesDpae() {
   // Téléchargement PDF : cases à cocher et action groupée (ZIP), voir
   // core/dpae/TelechargementPdfDpae.jsx.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
-  const selectionDemandes = useSelectionDemandesDpae(demandes);
+  // Recherche et filtres par colonne (core/dpae/FiltresListeDpae.jsx, partagés avec la liste RH).
+  // Ordre d'ouverture : celui du serveur (plus récentes d'abord). Les cases à cocher et le
+  // téléchargement PDF ne portent que sur les demandes visibles après filtrage.
+  const etatFiltres = useFiltresListeDpae(demandes);
+  const demandesAffichees = etatFiltres.demandesVisibles;
+  const selectionDemandes = useSelectionDemandesDpae(demandesAffichees);
 
   useEffect(() => {
     let annule = false;
@@ -113,68 +125,87 @@ export default function SuiviDemandesDpae() {
         {erreur && <p role="alert">{erreur}</p>}
         {!chargement && !erreur && demandes.length === 0 && <p>Aucune demande DPAE pour le moment.</p>}
 
+        {!chargement && demandes.length > 0 && <BarreRechercheDpae etat={etatFiltres} />}
+
         {!chargement && demandes.length > 0 && peutTelechargerPdf && <ActionTelechargementPdfDpae selectionDemandes={selectionDemandes} />}
 
         {!chargement && demandes.length > 0 && (
-          <table className="page-suivi-dpae__table">
-            <thead>
-              <tr>
-                {peutTelechargerPdf && (
-                  <th className="telechargement-pdf-dpae__colonne-case">
-                    <CaseToutCocherDpae selectionDemandes={selectionDemandes} />
-                  </th>
-                )}
-                <th>Date de la demande</th>
-                <th>Salarié</th>
-                <th>Site(s) d&rsquo;affectation</th>
-                <th>Type de contrat</th>
-                <th>Premier jour</th>
-                <th>Demandeur</th>
-                <th>Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {demandes.map((demande) => (
-                <tr
-                  key={demande.id}
-                  className="page-suivi-dpae__ligne"
-                  tabIndex={0}
-                  onClick={() => ouvrirFiche(demande.id)}
-                  onKeyDown={(evenement) => {
-                    if (evenement.key === 'Enter') ouvrirFiche(demande.id);
-                  }}
-                  aria-label={`Ouvrir la demande de ${demande.salarie_nom} ${demande.salarie_prenom}`}
-                >
+          <IndicateurDefilementHorizontal className="filtres-liste-dpae__defilement">
+            <table className="page-suivi-dpae__table">
+              <thead>
+                <tr>
                   {peutTelechargerPdf && (
-                    <td className="telechargement-pdf-dpae__colonne-case">
-                      <CaseDemandeDpae selectionDemandes={selectionDemandes} demande={demande} />
-                    </td>
+                    <th className="telechargement-pdf-dpae__colonne-case">
+                      <CaseToutCocherDpae selectionDemandes={selectionDemandes} />
+                    </th>
                   )}
-                  <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
-                  <td>
-                    {demande.salarie_nom} {demande.salarie_prenom}
-                  </td>
-                  <td>{libelleSites(demande)}</td>
-                  <td>{demande.type_contrat ? demande.type_contrat.toUpperCase() : '—'}</td>
-                  <td>{formaterJour(demande.date_debut)}</td>
-                  <td>
-                    {demande.demandeur_prenom} {demande.demandeur_nom}
-                  </td>
-                  <td>
-                    {/* Pastille d'urgence (2026-10-02) à côté du statut — « À traiter »/« En attente »
-                        seulement (core/dpae/PastilleUrgenceDpae.jsx). */}
-                    <div className="page-suivi-dpae__statut">
-                      <StatutBadge
-                        libelle={libelleStatutDpae(demande.statut)}
-                        variante={varianteStatutDpae(demande.statut)}
-                      />
-                      <PastilleUrgenceDpae demande={demande} />
-                    </div>
-                  </td>
+                  {/* Titres cliquables : tri et filtre de la colonne (core/dpae/FiltresListeDpae.jsx). */}
+                  <EnTeteColonneDpae etat={etatFiltres} cle="date_demande" libelle="Date de la demande" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="salarie" libelle="Salarié" />
+                  <EnTeteColonneDpae
+                    etat={etatFiltres}
+                    cle="sites"
+                    libelle="Site(s) d’affectation"
+                    className="filtres-liste-dpae__colonne-sites"
+                  />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="type_contrat" libelle="Type de contrat" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="premier_jour" libelle="Premier jour" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="demandeur" libelle="Demandeur" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="statut" libelle="Statut" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {demandesAffichees.length === 0 && (
+                  <tr>
+                    <td colSpan={peutTelechargerPdf ? 8 : 7} className="filtres-liste-dpae__aucune">
+                      Aucune demande ne correspond à la recherche ou aux filtres.
+                    </td>
+                  </tr>
+                )}
+                {demandesAffichees.map((demande) => (
+                  <tr
+                    key={demande.id}
+                    className="page-suivi-dpae__ligne"
+                    tabIndex={0}
+                    onClick={() => ouvrirFiche(demande.id)}
+                    onKeyDown={(evenement) => {
+                      if (evenement.key === 'Enter' && evenement.target === evenement.currentTarget) ouvrirFiche(demande.id);
+                    }}
+                    aria-label={`Ouvrir la demande de ${demande.salarie_nom} ${demande.salarie_prenom}`}
+                  >
+                    {peutTelechargerPdf && (
+                      <td className="telechargement-pdf-dpae__colonne-case">
+                        <CaseDemandeDpae selectionDemandes={selectionDemandes} demande={demande} />
+                      </td>
+                    )}
+                    <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
+                    <td className="filtres-liste-dpae__une-ligne">
+                      {demande.salarie_nom} {demande.salarie_prenom}
+                    </td>
+                    <td className="filtres-liste-dpae__colonne-sites">
+                      <SitesDemandeDpae demande={demande} />
+                    </td>
+                    <td>{libelleTypeContrat(demande)}</td>
+                    <td>{formaterJour(demande.date_debut)}</td>
+                    <td className="filtres-liste-dpae__une-ligne">
+                      {demande.demandeur_prenom} {demande.demandeur_nom}
+                    </td>
+                    <td>
+                      {/* Statut et pastille d'urgence (« À traiter »/« En attente » seulement) toujours
+                          côte à côte (core/dpae/PastilleUrgenceDpae.jsx). */}
+                      <div className="filtres-liste-dpae__statut">
+                        <StatutBadge
+                          libelle={libelleStatutDpae(demande.statut)}
+                          variante={varianteStatutDpae(demande.statut)}
+                        />
+                        <PastilleUrgenceDpae demande={demande} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </IndicateurDefilementHorizontal>
         )}
       </div>
     </PageBackOffice>

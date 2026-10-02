@@ -1,0 +1,274 @@
+/* Recherche, filtres et tri des listes de demandes DPAE (FiltresListeDpae.jsx), partagés par le
+   Suivi des demandes DPAE et la liste RH — y compris les règles de colonnes communes aux deux
+   tableaux (sites, une ligne, statut). */
+
+/* Barre : recherche (même composant que Dossiers candidats) puis compteur et « Effacer ». */
+.filtres-liste-dpae__barre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit) var(--espace-moyen);
+  margin-bottom: var(--espace-petit);
+}
+
+.filtres-liste-dpae__recherche {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.filtres-liste-dpae__recherche .champ-recherche {
+  margin-bottom: 0;
+}
+
+.filtres-liste-dpae__compteur {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.9rem;
+}
+
+.filtres-liste-dpae__effacer {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: 999px;
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Titre de colonne cliquable : garde l'apparence du titre (majuscules, couleur) du tableau. */
+.filtres-liste-dpae__titre {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filtres-liste-dpae__titre:hover .filtres-liste-dpae__chevron,
+.filtres-liste-dpae__titre[aria-expanded='true'] .filtres-liste-dpae__chevron {
+  opacity: 1;
+}
+
+.filtres-liste-dpae__chevron {
+  opacity: 0.55;
+  font-size: 0.75rem;
+}
+
+/* Colonne filtrée : couleur d'accent et icône d'entonnoir. */
+.filtres-liste-dpae__titre--filtre {
+  color: var(--couleur-primaire);
+}
+
+.filtres-liste-dpae__icone-filtre {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+}
+
+/* Menu de colonne (position fixe, calculée sous le titre). */
+.filtres-liste-dpae__menu {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+  padding: var(--espace-petit);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 6px 18px rgba(46, 32, 19, 0.18);
+  color: var(--couleur-texte);
+  font-size: 0.9rem;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.filtres-liste-dpae__menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filtres-liste-dpae__menu-section + .filtres-liste-dpae__menu-section {
+  padding-top: var(--espace-petit);
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+.filtres-liste-dpae__menu-titre {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.filtres-liste-dpae__tri {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--rayon-bordure);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filtres-liste-dpae__tri:hover {
+  background-color: var(--couleur-back-office-clair);
+}
+
+.filtres-liste-dpae__tri--actif {
+  border-color: var(--couleur-back-office-dore);
+  background-color: var(--couleur-back-office-clair);
+  font-weight: 600;
+}
+
+.filtres-liste-dpae__periode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filtres-liste-dpae__texte {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  font: inherit;
+}
+
+.filtres-liste-dpae__tout {
+  display: flex;
+  gap: var(--espace-moyen);
+}
+
+.filtres-liste-dpae__tout button,
+.filtres-liste-dpae__effacer-colonne {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--couleur-primaire);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.filtres-liste-dpae__effacer-colonne {
+  align-self: flex-start;
+}
+
+.filtres-liste-dpae__valeurs {
+  max-height: 14rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Lignes assez hautes pour le toucher sur tablette. */
+.filtres-liste-dpae__valeurs label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  cursor: pointer;
+}
+
+.filtres-liste-dpae__valeurs input {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  accent-color: var(--couleur-back-office);
+}
+
+/* Colonne « Site(s) d'affectation » : largeur maximale fixe (au plus 2 sites puis « +N »), la place
+   libérée allant au salarié et au demandeur. */
+.filtres-liste-dpae__colonne-sites {
+  width: 14rem;
+  max-width: 14rem;
+}
+
+.filtres-liste-dpae__sites {
+  display: inline;
+  cursor: default;
+}
+
+.filtres-liste-dpae__sites:focus-visible {
+  outline: 2px solid var(--couleur-back-office);
+  outline-offset: 2px;
+}
+
+.filtres-liste-dpae__sites-plus {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background-color: var(--couleur-back-office-clair);
+  border: 1px solid var(--couleur-back-office-dore);
+  color: var(--couleur-back-office);
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.filtres-liste-dpae__infobulle {
+  position: fixed;
+  z-index: 50;
+  box-sizing: border-box;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-size: 0.85rem;
+  box-shadow: 0 6px 18px rgba(46, 32, 19, 0.25);
+  pointer-events: none;
+}
+
+/* Colonne « Type » (type de demande, liste RH) : largeur plafonnée, le libellé passe à la ligne. */
+.filtres-liste-dpae__colonne-type {
+  max-width: 9rem;
+}
+
+/* Salarié et demandeur : sur une seule ligne. */
+.filtres-liste-dpae__une-ligne {
+  white-space: nowrap;
+}
+
+/* Statut et pastille d'urgence TOUJOURS sur une même ligne, alignées à gauche sous le titre : la
+   colonne prend la largeur de la combinaison la plus longue (« À traiter » + « En retard »). */
+.filtres-liste-dpae__statut {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+/* Ligne « aucune demande » quand la recherche ou les filtres ne laissent rien. */
+.filtres-liste-dpae__aucune {
+  color: var(--couleur-texte-secondaire);
+  text-align: center;
+}
+
+/* Conteneur défilant du tableau (IndicateurDefilementHorizontal) : sur une tablette en portrait, le
+   tableau défile horizontalement dans son cadre, jamais la page. */
+.filtres-liste-dpae__defilement {
+  overflow-x: auto;
+  border-radius: var(--rayon-bordure);
+}
