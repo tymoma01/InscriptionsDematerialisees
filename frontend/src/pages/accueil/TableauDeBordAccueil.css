@@ -368,7 +368,7 @@
   flex-direction: column;
   align-items: stretch;
   width: 260px;
-  /* Espacement vertical "Tous" / Hôtellerie-Tertiaire (point 1, audit 2026-08-25) — remplace le
+  /* [Historique] Espacement vertical "Tous" / Hôtellerie-Tertiaire (point 1, audit 2026-08-25) — remplace le
      gap: var(--espace-petit) hérité de .filtres-statut__gauche (FiltresStatut.css, pensé pour une
      disposition en RANGÉE, où ce même gap sépare des éléments côte à côte plutôt que deux lignes
      empilées) : une fois passé en colonne ci-dessus, ce même petit espacement rapprochait trop les
@@ -376,11 +376,31 @@
      avec le gap interne "Hôtellerie"/"Tertiaire" (--espace-petit, .filtre-entite, voir
      core/dossier/FiltreEntite.css) doit rester nette, pour que ces deux boutons continuent de se
      lire comme un groupe, distinct de "Tous" au-dessus. */
-  gap: var(--espace-grand);
+  /* 2026-10-02 : trois lignes (« Tous », secteur, « Étudiant ») réparties sur la hauteur de la grille
+     des statuts (voir .tableau-bord-accueil .filtres-statut plus bas) — écart MINIMAL ramené à
+     --espace-petit pour que la colonne ne dépasse jamais la grille, space-between répartissant le
+     reste à parts égales entre les trois lignes. */
+  gap: var(--espace-petit);
+  justify-content: space-between;
 }
 
 .tableau-bord-accueil .filtres-statut__tous button {
   width: 100%;
+}
+
+/* Bloc de gauche, trois lignes (2026-10-02) : « Tous », Hôtellerie/Tertiaire, « Étudiant ». Le
+   conteneur des deux dernières est transparent (display: contents) : les trois lignes sont des
+   éléments de la même colonne .filtres-statut__gauche, donc même espacement entre elles. */
+.tableau-bord-accueil__filtres-pastilles {
+  display: contents;
+}
+
+/* Bloc de gauche et grille des statuts de même hauteur, alignés en haut ET en bas (2026-10-02) :
+   la ligne étire ses deux blocs (stretch, au lieu du flex-start générique de FiltresStatut.css) et
+   la colonne de gauche répartit ses trois lignes sur toute cette hauteur (space-between) — écart
+   identique entre elles, sans vide en bas ni débordement. */
+.tableau-bord-accueil .filtres-statut {
+  align-items: stretch;
 }
 
 /* Filtre "Entité" (Hôtellerie/Tertiaire) — composant partagé (core/dossier/FiltreEntite.jsx/.css,

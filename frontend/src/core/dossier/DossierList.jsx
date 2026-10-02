@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
-import BadgeEtudiant from './BadgeEtudiant';
 import IndicateurDefilementHorizontal from '../backOffice/IndicateurDefilementHorizontal';
 import './DossierList.css';
 
@@ -52,16 +51,17 @@ const COLONNES_MASQUEES = new Set(['date_maj']);
 // "Poste" trie sur la liste brute des codes (postesBureau + postesHotel concaténés, voir
 // dossierService.listerDossiers) plutôt que sur les libellés traduits par libellePoste : un tri
 // stable ne doit pas dépendre d'un prop optionnel qui pourrait être absent.
+// Adresse e-mail avec des points de coupure (<wbr>) après « @ » et avant chaque « . » : une adresse
+// trop longue pour la colonne passe à la ligne entre ses parties, jamais au milieu d'un mot (2026-10-02).
+function emailCoupable(email) {
+  if (!email) return email;
+  return email.split(/(?=\.)|(?<=@)/).flatMap((partie, index) => (index === 0 ? [partie] : [<wbr key={index} />, partie]));
+}
+
 const COLONNES = [
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
-  // Colonne « Étudiant » (2026-10-01, dossiers.est_etudiant) juste après « Candidat » : pastille
-  // « Étudiant » / « Non étudiant » (BadgeEtudiant.jsx, même forme que la colonne « Expérience »),
-  // ou « — » en texte simple pour un dossier sans réponse (antérieur à la question).
-  {
-    cle: 'est_etudiant',
-    libelle: 'Étudiant',
-    extraire: (dossier) => (dossier.est_etudiant === true ? 2 : dossier.est_etudiant === false ? 1 : 0),
-  },
+  // Colonne « Étudiant » RETIRÉE le 2026-10-02 (décision de Florence) : remplacée par le filtre
+  // « Étudiant » / « Non étudiant » sous Hôtellerie/Tertiaire (FiltreEtudiant.jsx).
   // Colonne "Code postal" — même patron que "Téléphone"/"Email" juste
   // au-dessous (extrait du bloc 'coordonnees', voir dossierService.listerDossiers), positionnée
   // juste après "Candidat" (avant "Téléphone", décision utilisateur).
@@ -245,7 +245,6 @@ export default function DossierList({
               // qu'un enchaînement de ternaires.
               const classeColonne = {
                 candidat_nom: 'dossier-list__colonne-figee',
-                est_etudiant: 'dossier-list__colonne-etudiant',
                 candidat_email: 'dossier-list__colonne-email',
                 postes: 'dossier-list__colonne-poste',
                 statut_libelle: 'dossier-list__colonne-statut',
@@ -299,12 +298,9 @@ export default function DossierList({
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
-              <td className="dossier-list__colonne-etudiant">
-                <BadgeEtudiant estEtudiant={dossier.est_etudiant} />
-              </td>
               <td>{dossier.candidat_code_postal || '-'}</td>
               <td>{dossier.candidat_telephone}</td>
-              <td className="dossier-list__colonne-email">{dossier.candidat_email}</td>
+              <td className="dossier-list__colonne-email">{emailCoupable(dossier.candidat_email)}</td>
               <td className="dossier-list__colonne-poste">
                 {/* Une puce par poste, empilées verticalement plutôt qu'une seule chaîne
                     "poste1, poste2" : reste lisible même quand un candidat coche plusieurs postes

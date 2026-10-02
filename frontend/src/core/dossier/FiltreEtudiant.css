@@ -1,0 +1,20 @@
+/* Pastille « Étudiant » (FiltreEtudiant.jsx) — sur toute la largeur du bloc de gauche, comme
+   « Tous ». Forme, hauteur et remplissage « actif » : ceux de .filtres-statut button
+   (FiltresStatut.css), comme Hôtellerie/Tertiaire. Couleurs au repos : celles de BadgeEtudiant
+   (variables --etudiant-*, variables.css) ; sélectionnée, le remplissage plein .actif l'emporte
+   (:not(.actif)), même marquage que les pastilles de secteur. */
+.filtre-etudiant {
+  display: flex;
+  width: 100%;
+}
+
+.filtre-etudiant button {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.filtre-etudiant button:not(.actif) {
+  background-color: var(--etudiant-fond);
+  border-color: var(--etudiant-bordure);
+  color: var(--etudiant-texte);
+}

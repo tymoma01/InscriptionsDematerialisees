@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
+import FiltreEtudiant from '../../core/dossier/FiltreEtudiant';
 import { CODES_EXPERIENCE_ACCECIT, libelleExperience, varianteExperience } from '../../core/dossier/BadgeExperience';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
-import { filtrerDossiers } from '../../core/dossier/filtrerDossiers';
+import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
@@ -89,6 +90,15 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // dossier renvoyé par GET /api/dossiers, voir filtrerDossiers.js), même mécanisme que
   // recherche/dateDebutFiltre/dateFinFiltre ci-dessus.
   const [entitesFiltre, basculerEntiteFiltre] = useEnsembleURL('entites');
+
+  // Filtre « Étudiant » (2026-10-02, remplace la colonne « Étudiant » du tableau, décision de
+  // Florence) — une pastille sous Hôtellerie/Tertiaire : un clic n'affiche que les étudiants, un
+  // second revient à la liste complète. Persisté dans l'URL comme les autres filtres, filtrage client
+  // par filtrerDossiers (dossier.est_etudiant déjà présent sur chaque dossier renvoyé par
+  // GET /api/dossiers). Valeur d'URL inconnue : ignorée.
+  const [etudiantFiltreBrut, setEtudiantFiltre] = useParametreURL('etudiant', '');
+  const etudiantFiltre = etudiantFiltreBrut === FILTRE_ETUDIANT ? FILTRE_ETUDIANT : '';
+  const basculerEtudiantFiltre = () => setEtudiantFiltre(basculerChoixUnique(etudiantFiltre, FILTRE_ETUDIANT));
 
   // Filtre "Expérience" — même mécanisme que le sélecteur "Poste" du tableau
   // de bord Indicateurs (Indicateurs.jsx) : un <select> simple, persistant dans l'URL comme les
@@ -260,6 +270,9 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // "Hôtellerie"/"Tertiaire" ci-dessous, qui doivent chacun ignorer l'état courant du filtre
   // entité (Set) pour répondre à la question "combien de dossiers dans CETTE entité si je clique
   // ce bouton", indépendamment de l'autre bouton entité déjà actif ou non.
+  // Le filtre « Étudiant » s'y applique (2026-10-02) : chaque compteur ignore SON propre filtre mais
+  // tient compte des autres, Hôtellerie/Tertiaire comptent donc les étudiants seuls si « Étudiant »
+  // est sélectionné.
   const dossiersRechercheDate = useMemo(
     () =>
       filtrerDossiers(dossiers, {
@@ -269,8 +282,24 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateFinFiltre,
         libellePoste,
         entitesFiltre: new Set(),
+        etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre],
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, etudiantFiltre],
+  );
+
+  // Recherche/dates/entité, SANS le filtre « Étudiant » : base du compteur Étudiant,
+  // symétrique de dossiersRechercheDate (base de Hôtellerie/Tertiaire) ci-dessus.
+  const dossiersSansFiltreEtudiant = useMemo(
+    () =>
+      filtrerDossiers(dossiers, {
+        recherche,
+        codePostalFiltre,
+        dateDebutFiltre,
+        dateFinFiltre,
+        libellePoste,
+        entitesFiltre,
+      }),
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
   // Recherche/dates/entité (ni statut ni expérience) : base commune aux DEUX familles de
@@ -287,8 +316,9 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateFinFiltre,
         libellePoste,
         entitesFiltre,
+        etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre],
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre],
   );
 
   // Recherche/dates/entité/expérience (pas encore le statut) : c'est cette liste, group par
@@ -506,25 +536,27 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // agrégé (voir plus haut), ces deux compteurs doivent eux aussi compter les 4 statuts agrégés
   // quand ce bouton est actif, sous peine de rester bloqués sur le seul sous-ensemble test_realise
   // pendant que le tableau/compteur "Test réalisé" affichent déjà l'ensemble élargi.
+  // Statut et expérience sélectionnés : même condition pour les compteurs Hôtellerie/Tertiaire et
+  // Étudiant (2026-10-02, factorisée plutôt que dupliquée).
+  const correspondStatutEtExperience = useCallback(
+    (dossier) =>
+      (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
+      (!experienceFiltre || dossier.experience === experienceFiltre),
+    [statutFiltre, experienceFiltre],
+  );
   const compteurHotel = useMemo(
-    () =>
-      dossiersRechercheDate.filter(
-        (dossier) =>
-          (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
-          (!experienceFiltre || dossier.experience === experienceFiltre) &&
-          (dossier.postesHotel ?? []).length > 0,
-      ).length,
-    [dossiersRechercheDate, statutFiltre, experienceFiltre],
+    () => dossiersRechercheDate.filter((dossier) => correspondStatutEtExperience(dossier) && (dossier.postesHotel ?? []).length > 0).length,
+    [dossiersRechercheDate, correspondStatutEtExperience],
   );
   const compteurBureau = useMemo(
-    () =>
-      dossiersRechercheDate.filter(
-        (dossier) =>
-          (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
-          (!experienceFiltre || dossier.experience === experienceFiltre) &&
-          (dossier.postesBureau ?? []).length > 0,
-      ).length,
-    [dossiersRechercheDate, statutFiltre, experienceFiltre],
+    () => dossiersRechercheDate.filter((dossier) => correspondStatutEtExperience(dossier) && (dossier.postesBureau ?? []).length > 0).length,
+    [dossiersRechercheDate, correspondStatutEtExperience],
+  );
+  // Étudiant : même calcul que Hôtellerie/Tertiaire ci-dessus (recherche, code postal, dates, statut,
+  // expérience, disponibilité via la liste serveur), plus l'entité sélectionnée.
+  const compteurEtudiant = useMemo(
+    () => compterEtudiants(dossiersSansFiltreEtudiant.filter(correspondStatutEtExperience)),
+    [dossiersSansFiltreEtudiant, correspondStatutEtExperience],
   );
 
   // "À planifier" inséré juste après "En attente de pièces" (audit 2026-09-27, demande
@@ -581,14 +613,21 @@ export default function TableauDeBordAccueil({ vue = null }) {
           compteurTous={dossiersFiltresSansStatut.length}
           compteurs={compteursParStatut}
           filtresSupplementaires={
-            estInspecteurHotellerie ? undefined : (
-            <FiltreEntite
-              entitesFiltre={entitesFiltre}
-              onBasculerEntite={basculerEntiteFiltre}
-              compteurHotel={compteurHotel}
-              compteurBureau={compteurBureau}
-            />
-            )
+            // « Étudiant » juste sous Hôtellerie/Tertiaire (seule pastille de ce bloc avec « Tous » pour
+            // l'Inspecteur Hôtellerie, qui n'a pas le filtre de secteur). Conteneur transparent à la mise
+            // en page (display: contents) : « Tous », la rangée de secteur et « Étudiant » sont les trois
+            // lignes d'une même colonne, régulièrement espacées.
+            <div className="tableau-bord-accueil__filtres-pastilles">
+              {!estInspecteurHotellerie && (
+                <FiltreEntite
+                  entitesFiltre={entitesFiltre}
+                  onBasculerEntite={basculerEntiteFiltre}
+                  compteurHotel={compteurHotel}
+                  compteurBureau={compteurBureau}
+                />
+              )}
+              <FiltreEtudiant actif={etudiantFiltre === FILTRE_ETUDIANT} onBasculer={basculerEtudiantFiltre} compteur={compteurEtudiant} />
+            </div>
           }
         />
 

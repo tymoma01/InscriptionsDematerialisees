@@ -53,9 +53,31 @@ function normaliserTelephone(valeur) {
 // dans ce cas car calculé ici comme une liste de dossiers DISTINCTS (union), jamais comme la somme
 // Hôtellerie + Tertiaire : Tous < Hôtellerie + Tertiaire est donc un résultat attendu si un tel
 // dossier existe un jour, pas un bug (voir commentaire de compteurHotel/compteurBureau).
+// Filtre « Étudiant » (2026-10-02, remplace la colonne « Étudiant » de Dossiers candidats, décision
+// de Florence) : '' (aucune restriction) ou 'etudiant' (dossiers.est_etudiant = true seulement). Pas
+// de filtre « Non étudiant » (retiré le même jour). Source unique, utilisée par filtrerDossiers
+// ci-dessous et par le compteur de la pastille (compterEtudiants).
+export const FILTRE_ETUDIANT = 'etudiant';
+
+export function correspondFiltreEtudiant(dossier, etudiantFiltre) {
+  if (etudiantFiltre !== FILTRE_ETUDIANT) return true;
+  return dossier.est_etudiant === true;
+}
+
+// Compteur de la pastille « Étudiant » sur une liste déjà filtrée par tout le reste (mêmes filtres
+// que les compteurs Hôtellerie/Tertiaire, voir TableauDeBordAccueil.jsx).
+export function compterEtudiants(dossiers) {
+  return dossiers.filter((dossier) => correspondFiltreEtudiant(dossier, FILTRE_ETUDIANT)).length;
+}
+
+// Pastille à bascule : un clic sélectionne, un second clic revient à la liste complète.
+export function basculerChoixUnique(actuel, choix) {
+  return actuel === choix ? '' : choix;
+}
+
 export function filtrerDossiers(
   dossiers,
-  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre },
+  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre, etudiantFiltre = '' },
 ) {
   // Code postal : champ de filtre séparé (comme Du/Au), plus intégré à `recherche` (voir
   // FiltresRechercheDossiers.jsx) — même comportement "commence par", null-safe, que l'ancien
@@ -143,6 +165,7 @@ export function filtrerDossiers(
       const correspondEntite = (entitesFiltre.has('hotel') && aPosteHotel) || (entitesFiltre.has('bureau') && aPosteBureau);
       if (!correspondEntite) return false;
     }
+    if (!correspondFiltreEtudiant(dossier, etudiantFiltre)) return false;
     return true;
   });
 }
