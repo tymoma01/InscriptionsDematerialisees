@@ -422,38 +422,28 @@ export default function SuiviFormation() {
         )}
 
         {!chargement && !erreur && dossiersFiltres.length > 0 && (
-          <div className="page-suivi-formation__liste" role="table" aria-label="Suivi des formations">
-            {/* Même gabarit de colonnes (grille CSS partagée, voir SuiviFormation.css) que chaque ligne :
-                les colonnes restent alignées d'une ligne à l'autre, quelle que soit la longueur du nom. */}
-            <div className="page-suivi-formation__entete-colonnes" role="row">
-              <span role="columnheader">Candidat</span>
-              <span role="columnheader">Date</span>
-              <span role="columnheader">Formateur</span>
-              <span role="columnheader">Expérience</span>
-              <span role="columnheader">Statut</span>
-              <span role="columnheader">Actions</span>
-            </div>
+          <ul className="page-suivi-formation__liste">
             {dossiersFiltres.map((dossier) => (
-              <div key={dossier.id} className="page-suivi-formation__item" role="row">
-                <span className="page-suivi-formation__candidat" role="cell">
+              <li key={dossier.id} className="page-suivi-formation__item">
+                <span className="page-suivi-formation__candidat">
                   #{dossier.id} {dossier.candidat_prenom} {dossier.candidat_nom}
                 </span>
-                <span className="page-suivi-formation__date" role="cell" data-libelle="Date">
+                <span className="page-suivi-formation__date">
                   {dossier.date_entree_statut ? FORMAT_DATE.format(new Date(dossier.date_entree_statut)) : '—'}
                 </span>
-                <span className="page-suivi-formation__formateur" role="cell" data-libelle="Formateur">
+                <span className="page-suivi-formation__formateur">
                   {dossier.formateur_prenom || dossier.formateur_nom
                     ? `${dossier.formateur_prenom ?? ''} ${dossier.formateur_nom ?? ''}`.trim()
                     : '—'}
                 </span>
-                <span className="page-suivi-formation__experience" role="cell" data-libelle="Expérience">
+                <span className="page-suivi-formation__experience">
                   <BadgeExperience code={dossier.experience} />
                 </span>
-                <span className="page-suivi-formation__statut" role="cell" data-libelle="Statut">
+                <span className="page-suivi-formation__statut">
                   <StatutBadge libelle={libelleBadgeStatut(dossier)} variante={varianteStatut(dossier.statut_code)} />
                 </span>
 
-                <div className="page-suivi-formation__cellule-actions" role="cell">
+                <div className="page-suivi-formation__cellule-actions">
                   {accesComplet && dossier.statut_code === 'valide_envoi_formation' && (
                     <div className="page-suivi-formation__actions">
                       <button
@@ -482,13 +472,16 @@ export default function SuiviFormation() {
                     </div>
                   )}
 
-                  {/* "Voir le dossier" — en dernier sur la ligne, même bouton (style/couleur/cadre/route
-                      fiche dossier) que sur "Suivi des tests" (Planification.jsx,
-                      .planification__action-voir) : consultation de la fiche dossier complète (onglet
-                      "Formation", historique complet — voir Formation.jsx), sans restriction de rôle,
-                      contrairement aux deux boutons ci-dessus (accesComplet). Accueil/Coordination, qui
-                      n'a ici qu'un accès lecture seule (voir commentaire d'en-tête de ce fichier), doit
-                      tout de même pouvoir consulter le dossier depuis cette page. */}
+                  {/* "Voir le dossier" — placé en dernier sur la ligne (audit 2026-08-31, décision
+                      utilisateur : ordre nom/date/formateur/statut/"Formation validée"/"Formation non
+                      validée"/"Voir le dossier"), déplacé depuis sa position d'origine juste après le
+                      badge de statut. Même bouton (style/couleur/cadre/route fiche dossier) que sur
+                      "Suivi des tests" (Planification.jsx, .planification__action-voir) : consultation
+                      de la fiche dossier complète (onglet "Formation", historique complet — voir
+                      Formation.jsx), sans restriction de rôle, contrairement aux deux boutons "Formation
+                      validée"/"Formation non validée" ci-dessus (accesComplet). Accueil/Coordination,
+                      qui n'a ici qu'un accès lecture seule (voir commentaire d'en-tête de ce fichier),
+                      doit tout de même pouvoir consulter le dossier depuis cette page. */}
                   <button
                     type="button"
                     className="page-suivi-formation__action-voir"
@@ -497,9 +490,9 @@ export default function SuiviFormation() {
                     Voir le dossier
                   </button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
 
         {actionAConfirmer && (

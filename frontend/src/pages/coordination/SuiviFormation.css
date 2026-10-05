@@ -267,42 +267,34 @@
   font: inherit;
 }
 
-/* Liste en grille : l'en-tête de colonnes et CHAQUE ligne partagent le même gabarit
-   (--gabarit-colonnes) — Candidat en largeur souple, les autres colonnes en largeur fixe — donc
-   date, formateur, expérience et statut sont alignés d'une ligne à l'autre quelle que soit la
-   longueur du nom. */
+.page-suivi-formation__formateur {
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Carte compacte par candidat, sur UNE ligne. Toutes les cartes partagent la même grille : date,
+   formateur, expérience, statut et boutons occupent des colonnes de largeur FIXE, donc alignées d'une
+   carte à l'autre ; « Candidat » prend l'espace restant. */
 .page-suivi-formation__liste {
-  --gabarit-colonnes: minmax(10rem, 1fr) 6rem 9rem 8.5rem 11rem 22rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--espace-petit);
 }
 
-.page-suivi-formation__entete-colonnes,
 .page-suivi-formation__item {
   display: grid;
-  grid-template-columns: var(--gabarit-colonnes);
+  grid-template-columns: minmax(8rem, 1fr) 5.5rem 9rem 8.5rem 10rem 27rem;
   align-items: center;
-  column-gap: var(--espace-moyen);
-}
-
-.page-suivi-formation__entete-colonnes {
-  padding: 0 var(--espace-moyen);
-  color: var(--couleur-texte-secondaire);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.page-suivi-formation__item {
+  column-gap: 0.75rem;
   padding: var(--espace-moyen);
   background-color: var(--couleur-fond);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
 }
 
-/* Un nom long passe à la ligne entre deux mots, jamais au milieu d'un mot. */
+/* Le nom passe à la ligne entre deux mots (ou après un trait d'union), jamais au milieu d'un mot. */
 .page-suivi-formation__candidat {
   min-width: 0;
   font-weight: 600;
@@ -318,11 +310,17 @@
   overflow-wrap: normal;
 }
 
+/* Les trois boutons sur une seule ligne ; « Voir le dossier » toujours au bout de sa colonne, qu'il
+   soit seul ou précédé de « Formation validée » / « Formation non validée ». */
 .page-suivi-formation__cellule-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 4.5rem;
   align-items: center;
-  gap: var(--espace-petit);
+  column-gap: var(--espace-petit);
+}
+
+.page-suivi-formation__cellule-actions .page-suivi-formation__action-voir {
+  grid-column: 2;
 }
 
 .page-suivi-formation__actions {
@@ -330,35 +328,55 @@
   gap: var(--espace-petit);
 }
 
-/* Tablette (environ 1024 px) : colonnes plus étroites, les boutons de la dernière colonne passent
-   à la ligne. */
-@media (max-width: 1100px) {
-  .page-suivi-formation__liste {
-    --gabarit-colonnes: minmax(8rem, 1fr) 6rem 7.5rem 8.5rem 10.5rem 12rem;
-  }
-}
-
-/* Tablette en portrait (environ 768 px) : l'en-tête disparaît et chaque ligne passe sur deux
-   rangées (candidat, date, formateur / expérience, statut, actions), chaque valeur précédée de son
-   libellé. */
-@media (max-width: 860px) {
-  .page-suivi-formation__entete-colonnes {
-    display: none;
-  }
-
+/* Sous 1280 px (tablette en paysage) : colonnes plus étroites et boutons empilés (trois boutons sur
+   une ligne ne tiennent plus), alignés à gauche, sans que leur libellé soit coupé. */
+@media (max-width: 1279px) {
   .page-suivi-formation__item {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr);
-    row-gap: var(--espace-petit);
+    grid-template-columns: minmax(8rem, 1fr) 5.5rem 7.5rem 8rem 10rem 12rem;
+    column-gap: 1rem;
   }
 
   .page-suivi-formation__cellule-actions {
-    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
   }
 
-  [data-libelle]::before {
-    content: attr(data-libelle) ' : ';
-    color: var(--couleur-texte-secondaire);
-    font-size: 0.75rem;
+  .page-suivi-formation__actions {
+    flex-direction: column;
+  }
+
+  .page-suivi-formation__actions button {
+    white-space: nowrap;
+  }
+
+  /* En colonne, flex: 0 0 4.5rem de « Voir le dossier » deviendrait sa HAUTEUR : on garde sa largeur. */
+  .page-suivi-formation__cellule-actions .page-suivi-formation__action-voir {
+    flex: none;
+    width: 4.5rem;
+  }
+}
+
+/* Tablette en portrait : retour au retour à la ligne libre de la carte d'origine. */
+@media (max-width: 860px) {
+  .page-suivi-formation__item {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--espace-moyen);
+  }
+
+  .page-suivi-formation__candidat {
+    flex: 1 1 auto;
+  }
+
+  .page-suivi-formation__cellule-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .page-suivi-formation__actions {
+    flex-direction: row;
   }
 }
 
