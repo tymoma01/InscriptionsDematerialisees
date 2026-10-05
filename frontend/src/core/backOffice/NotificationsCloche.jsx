@@ -9,6 +9,7 @@ import {
   marquerToutesNotificationsLues,
 } from '../../services/notificationService';
 import { listerDemandesRh } from '../../services/dpaeService';
+import { STATUT_INITIAL } from '../dpae/statutsDpae';
 import './NotificationsCloche.css';
 
 // Même intervalle que useRafraichissementAuto.js (core/dossier/) — pas ce hook lui-même,
@@ -49,7 +50,7 @@ function demandeVersNotification(demande) {
 // coup : trop compliqué, et un compte RH créé après une demande ne recevait quand même rien tant
 // que le rattrapage n'était pas déclenché) : pour ce rôle, la cloche n'interroge PAS
 // /api/notifications — elle affiche directement "toutes les demandes en cours" (GET /api/dpae,
-// statut 'envoyee' par défaut, la même file que la page "Demandes DPAE"), toujours exact quel que
+// STATUT_INITIAL, la même file que la page "Demandes DPAE"), toujours exact quel que
 // soit le moment où le compte a obtenu ce rôle, sans aucune notification à stocker ni à
 // synchroniser. Pas de "lue"/"tout marquer comme lu" dans ce mode : une demande disparaît d'elle-
 // même de la liste dès qu'elle est traitée (validée/rejetée), ce qui sert déjà de signal de
@@ -76,7 +77,7 @@ export default function NotificationsCloche() {
   const navigate = useNavigate();
 
   const rafraichirCompteur = () => {
-    (estRh ? listerDemandesRh().then((demandes) => demandes.length) : compterNotificationsNonLues())
+    (estRh ? listerDemandesRh(STATUT_INITIAL).then((demandes) => demandes.length) : compterNotificationsNonLues())
       .then(setTotal)
       .catch(() => {});
   };
@@ -116,7 +117,7 @@ export default function NotificationsCloche() {
     setOuvert((valeurPrecedente) => !valeurPrecedente);
     if (!ouvert) {
       setChargement(true);
-      (estRh ? listerDemandesRh().then((demandes) => demandes.map(demandeVersNotification)) : listerNotifications())
+      (estRh ? listerDemandesRh(STATUT_INITIAL).then((demandes) => demandes.map(demandeVersNotification)) : listerNotifications())
         .then(setNotifications)
         .catch(() => setNotifications([]))
         .finally(() => setChargement(false));

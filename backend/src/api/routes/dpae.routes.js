@@ -7,6 +7,7 @@ const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
 const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
 const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
+const statutsDpae = require('../../core/dpae/statutsDpae');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -110,14 +111,41 @@ const demandeBodySchema = z.object({
     }
   });
 
+// Chaque décision porte la version de la demande lue par le client (verrouillage optimiste, voir
+// demandeDpaeService.appliquerTransition) : absente ou invalide -> 400.
+const versionSchema = z.coerce.number().int().positive();
+
+const validationBodySchema = z.object({ version: versionSchema });
+
 const rejetBodySchema = z.object({
   motifRejet: z.string().trim().min(1, 'Un motif de rejet est obligatoire.'),
+  version: versionSchema,
 });
 
 // Mise en attente : motif OBLIGATOIRE — absent, vide ou fait d'espaces -> 400.
 const miseEnAttenteBodySchema = z.object({
   motif: z.string().trim().min(1, 'Un motif de mise en attente est obligatoire.'),
+  version: versionSchema,
 });
+
+// Réponses d'erreur communes aux trois décisions : demande d'une autre entité ou inexistante 404,
+// transition non autorisée depuis le statut courant ou demande modifiée entre-temps 409, corps
+// invalide 400. Renvoie true si l'erreur a été traitée.
+function repondreErreurDecision(res, erreur) {
+  if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+    res.status(404).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee || erreur instanceof demandeDpaeService.ErreurDemandeModifiee) {
+    res.status(409).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof z.ZodError) {
+    repondreErreurValidation(res, erreur);
+    return true;
+  }
+  return false;
+}
 
 // Notes d'une demande DPAE : mêmes règles que les notes d'un dossier (notes.routes.js).
 const noteBodySchema = z.object({
@@ -184,7 +212,7 @@ router.get('/suivi', requirePermission('dpaeConsultation'), async (req, res, nex
 // GET /:id : sinon « tableau-de-bord » serait pris pour un identifiant de demande.
 // Filtres (tous optionnels) : debut/fin (AAAA-MM-JJ, jours parisiens de création ; défaut : les 30
 // derniers jours), siteId (id d'un site, ou 'non_reference' pour les anciennes demandes sans site
-// lié), typeContrat (cdd|cdi), statut (envoyee|en_attente|validee|rejetee). Une valeur vide vaut
+// lié), typeContrat (cdd|cdi), statut (un des statuts de statutsDpae.js). Une valeur vide vaut
 // « tous ».
 const videVersIndefini = (valeur) => (valeur === '' ? undefined : valeur);
 const filtresTableauDeBordSchema = z.object({
@@ -192,7 +220,7 @@ const filtresTableauDeBordSchema = z.object({
   fin: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
   siteId: z.preprocess(videVersIndefini, z.union([z.literal('non_reference'), idPositifSchema]).optional()),
   typeContrat: enumOptionnel(['cdd', 'cdi']),
-  statut: enumOptionnel(['envoyee', 'en_attente', 'validee', 'rejetee']),
+  statut: enumOptionnel(statutsDpae.CODES_STATUTS_DPAE),
 });
 
 // dpaeTableauDeBord : Admin, RH, Planning — l'Inspecteur Hôtellerie, bien que
@@ -290,11 +318,11 @@ router.post('/export-pdf', requirePermission('dpaeConsultation'), async (req, re
   }
 });
 
-// GET /api/dpae — file RH. ?statut=envoyee (défaut, file à traiter) ou ?statut=tous (historique
-// complet, traitées incluses).
+// GET /api/dpae — file RH. ?statut=<statut initial> (défaut, file à traiter) ou ?statut=tous
+// (historique complet, traitées incluses).
 router.get('/', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
-    const statut = req.query.statut === 'tous' ? null : req.query.statut || 'envoyee';
+    const statut = req.query.statut === 'tous' ? null : req.query.statut || statutsDpae.STATUT_INITIAL;
     const demandes = await demandeDpaeService.listerPourRh(req.entite, statut);
     res.json(demandes);
   } catch (erreur) {
@@ -363,97 +391,49 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
   }
 });
 
-router.patch('/:id/valider', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
+// PATCH /api/dpae/:id/valider { version } — « À traiter » ou « En attente » -> « Validée ». La garde
+// de rôle, les statuts de départ et la traçabilité (journal_audit, notification du demandeur, dans
+// la même transaction que la décision) viennent de statutsDpae.js / demandeDpaeService.js.
+router.patch('/:id/valider', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_VALIDER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    await demandeDpaeService.valider(req.entite, id, req.utilisateur.id);
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
-      utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'demande_dpae_validation',
-      tableCible: 'demandes_dpae',
-      cibleId: id,
-      donnees: {},
-      adresseIp: req.ip,
-    });
-
+    const { version } = validationBodySchema.parse(req.body);
+    await demandeDpaeService.valider(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip });
     res.status(204).end();
   } catch (erreur) {
-    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
-      return res.status(404).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
-      return res.status(409).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });
 
-router.patch('/:id/rejeter', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
+// PATCH /api/dpae/:id/rejeter { motifRejet, version } — « À traiter » ou « En attente » -> « Rejetée ».
+router.patch('/:id/rejeter', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_REJETER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    const { motifRejet } = rejetBodySchema.parse(req.body);
-    await demandeDpaeService.rejeter(req.entite, id, req.utilisateur.id, motifRejet);
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
-      utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'demande_dpae_rejet',
-      tableCible: 'demandes_dpae',
-      cibleId: id,
-      donnees: { motifRejet },
-      adresseIp: req.ip,
-    });
-
+    const { motifRejet, version } = rejetBodySchema.parse(req.body);
+    await demandeDpaeService.rejeter(req.entite, id, req.utilisateur.id, motifRejet, { version, adresseIp: req.ip });
     res.status(204).end();
   } catch (erreur) {
-    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
-      return res.status(404).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
-      return res.status(409).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });
 
-// PATCH /api/dpae/:id/mettre-en-attente — « À traiter » -> « En attente », RH/Admin
-// (dpaeTraitementRh), motif obligatoire. Depuis tout autre statut : 409. Tracé dans journal_audit
-// (auteur = session, motif) ; le demandeur est notifié (demandeDpaeService.mettreEnAttente).
-router.patch('/:id/mettre-en-attente', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
-  try {
-    const id = idPositifSchema.parse(req.params.id);
-    const { motif } = miseEnAttenteBodySchema.parse(req.body);
-    await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, motif);
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
-      utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'demande_dpae_mise_en_attente',
-      tableCible: 'demandes_dpae',
-      cibleId: id,
-      donnees: { motif },
-      adresseIp: req.ip,
-    });
-
-    res.status(204).end();
-  } catch (erreur) {
-    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
-      return res.status(404).json({ erreur: erreur.message });
+// PATCH /api/dpae/:id/mettre-en-attente { motif, version } — « À traiter » -> « En attente », motif
+// obligatoire. Depuis tout autre statut : 409. Tracé dans journal_audit (auteur = session, motif) ;
+// le demandeur est notifié (demandeDpaeService.mettreEnAttente).
+router.patch(
+  '/:id/mettre-en-attente',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_METTRE_EN_ATTENTE)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { motif, version } = miseEnAttenteBodySchema.parse(req.body);
+      await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, motif, { version, adresseIp: req.ip });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
     }
-    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
-      return res.status(409).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
-  }
-});
+  },
+);
 
 // GET /api/dpae/:id/notes — notes propres à la demande, plus récentes d'abord. Lecture
 // ouverte aux mêmes rôles que la fiche (dpaeConsultation : Admin, RH, Planning) ; demande
@@ -516,6 +496,8 @@ module.exports.demandeBodySchema = demandeBodySchema;
 module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
 // Motif de mise en attente et note exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.miseEnAttenteBodySchema = miseEnAttenteBodySchema;
+module.exports.validationBodySchema = validationBodySchema;
+module.exports.rejetBodySchema = rejetBodySchema;
 module.exports.noteBodySchema = noteBodySchema;
 // Export PDF : limite et nom du ZIP exposés pour dpae.routes.test.js.
 module.exports.LIMITE_DEMANDES_PAR_ZIP = LIMITE_DEMANDES_PAR_ZIP;

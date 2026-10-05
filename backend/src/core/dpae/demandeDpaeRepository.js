@@ -1,9 +1,13 @@
 // Accès données pour les demandes DPAE — uniquement des requêtes, aucune règle métier ici
 // (orchestrée par demandeDpaeService.js), même découpage que relanceRepository.js.
 
+const { STATUT_INITIAL, STATUT_EN_ATTENTE } = require('./statutsDpae');
+
 const COLONNES_DEMANDE = [
   'demandes_dpae.id',
   'demandes_dpae.statut',
+  // Verrouillage optimiste (migration 078) : le client renvoie la version lue avec chaque décision.
+  'demandes_dpae.version',
   'demandes_dpae.type_demande',
   'demandes_dpae.salarie_nom',
   'demandes_dpae.salarie_prenom',
@@ -117,7 +121,7 @@ async function creerDemande(trx, donnees) {
     .insert({
       entite_id: donnees.entiteId,
       demandeur_id: donnees.demandeurId,
-      statut: 'envoyee',
+      statut: STATUT_INITIAL,
       type_demande: donnees.typeDemande,
       salarie_nom: donnees.salarieNom,
       salarie_prenom: donnees.salariePrenom,
@@ -160,26 +164,35 @@ async function creerDemande(trx, donnees) {
   return demande.id;
 }
 
-function marquerTraitee(trx, id, { statut, traitantId, motifRejet = null }) {
-  return trx('demandes_dpae').where({ id }).update({
-    statut,
-    traite_par_utilisateur_id: traitantId,
-    motif_rejet: motifRejet,
-    date_traitement: trx.fn.now(),
-    date_maj: trx.fn.now(),
-  });
+// Les deux écritures ci-dessous sont des compare-and-set : UPDATE ... WHERE id AND statut AND
+// version, version incrémentée. Elles renvoient le nombre de lignes modifiées — 0 signifie que la
+// demande a changé (statut ou version) depuis la lecture de l'appelant, qui doit alors refuser.
+function marquerTraitee(trx, id, { statutDepart, version, statut, traitantId, motifRejet = null }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({
+      statut,
+      traite_par_utilisateur_id: traitantId,
+      motif_rejet: motifRejet,
+      date_traitement: trx.fn.now(),
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
 }
 
 // Mise en attente : n'est PAS une décision — date_traitement et
 // traite_par_utilisateur_id restent vides (réservés à la validation/au rejet, voir migration 070).
-function marquerEnAttente(trx, id, { traitantId, motif }) {
-  return trx('demandes_dpae').where({ id }).update({
-    statut: 'en_attente',
-    motif_mise_en_attente: motif,
-    date_mise_en_attente: trx.fn.now(),
-    mis_en_attente_par_id: traitantId,
-    date_maj: trx.fn.now(),
-  });
+function marquerEnAttente(trx, id, { statutDepart, version, traitantId, motif }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({
+      statut: STATUT_EN_ATTENTE,
+      motif_mise_en_attente: motif,
+      date_mise_en_attente: trx.fn.now(),
+      mis_en_attente_par_id: traitantId,
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
 }
 
 module.exports = {

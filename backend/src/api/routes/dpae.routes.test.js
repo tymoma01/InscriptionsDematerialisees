@@ -286,10 +286,10 @@ test('PATCH /:id/mettre-en-attente : RH et Admin autorisés ; Planning, Accueil/
   }
 });
 
-test('PATCH /:id/mettre-en-attente : motif absent, vide ou fait d’espaces -> 400, rien n’est fait ni tracé', async (t) => {
+test('PATCH /:id/mettre-en-attente : motif ou version absents ou invalides -> 400, rien n’est fait', async (t) => {
   const auditMock = mockerAudit(t);
   const serviceMock = t.mock.method(demandeDpaeService, 'mettreEnAttente', async () => {});
-  for (const body of [{}, { motif: '' }, { motif: '   ' }]) {
+  for (const body of [{}, { version: 1 }, { motif: 'x' }, { motif: '', version: 1 }, { motif: '   ', version: 1 }, { motif: 'x', version: 0 }, { motif: 'x', version: 'abc' }]) {
     const { res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', { params: { id: '7' }, body });
     assert.equal(res.statut, 400, JSON.stringify(body));
   }
@@ -297,42 +297,80 @@ test('PATCH /:id/mettre-en-attente : motif absent, vide ou fait d’espaces -> 4
   assert.equal(auditMock.mock.calls.length, 0);
 });
 
-test('PATCH /:id/mettre-en-attente avec motif : 204, changement tracé dans journal_audit (auteur de la session, motif)', async (t) => {
+// La trace journal_audit et la notification sont écrites par le service, dans la même transaction
+// que la décision (voir demandeDpaeService.test.js et demandeDpaeTransitions.test.js) : la route
+// ne les écrit plus elle-même, elle transmet l'auteur (session), la version lue et l'adresse IP.
+test('PATCH /:id/mettre-en-attente avec motif et version : 204, service appelé avec l’auteur de la session, la version et l’IP', async (t) => {
   const auditMock = mockerAudit(t);
   const serviceMock = t.mock.method(demandeDpaeService, 'mettreEnAttente', async () => {});
   const { res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', {
     params: { id: '7' },
-    body: { motif: ' Attente du planning client ' },
+    body: { motif: ' Attente du planning client ', version: 4 },
     utilisateurId: 9,
   });
   assert.equal(res.statut, 204);
-  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 9, 'Attente du planning client']);
-  const entree = auditMock.mock.calls[0].arguments[1];
-  assert.equal(entree.utilisateurId, 9);
-  assert.equal(entree.action, 'demande_dpae_mise_en_attente');
-  assert.equal(entree.cibleId, 7);
-  assert.deepEqual(entree.donnees, { motif: 'Attente du planning client' });
-});
-
-test('PATCH /:id/mettre-en-attente : transition refusée par le service -> 409 ; demande introuvable -> 404 ; rien de tracé', async (t) => {
-  const auditMock = mockerAudit(t);
-  const serviceMock = t.mock.method(demandeDpaeService, 'mettreEnAttente', async () => {
-    throw new demandeDpaeService.ErreurDemandeDejaTraitee('déjà en attente');
-  });
-  let { res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', { params: { id: '7' }, body: { motif: 'x' } });
-  assert.equal(res.statut, 409);
-  serviceMock.mock.mockImplementation(async () => {
-    throw new demandeDpaeService.ErreurDemandeIntrouvable('introuvable');
-  });
-  ({ res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', { params: { id: '7' }, body: { motif: 'x' } }));
-  assert.equal(res.statut, 404);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 9, 'Attente du planning client', { version: 4, adresseIp: '127.0.0.1' }]);
   assert.equal(auditMock.mock.calls.length, 0);
 });
 
-test('Schéma du motif de mise en attente : exporté, nettoyé, obligatoire', () => {
+test('Décisions (valider, rejeter, mettre en attente) : transition refusée -> 409 ; demande modifiée entre-temps -> 409 avec son message ; introuvable -> 404', async (t) => {
+  mockerAudit(t);
+  const appels = [
+    ['patch', '/:id/valider', 'valider', { version: 2 }],
+    ['patch', '/:id/rejeter', 'rejeter', { motifRejet: 'x', version: 2 }],
+    ['patch', '/:id/mettre-en-attente', 'mettreEnAttente', { motif: 'x', version: 2 }],
+  ];
+  for (const [methode, chemin, methodeService, body] of appels) {
+    const serviceMock = t.mock.method(demandeDpaeService, methodeService, async () => {
+      throw new demandeDpaeService.ErreurDemandeDejaTraitee('déjà traitée');
+    });
+    let { res } = await appelerGestionnaire(methode, chemin, { params: { id: '7' }, body });
+    assert.equal(res.statut, 409, `${chemin} transition refusée`);
+
+    serviceMock.mock.mockImplementation(async () => {
+      throw new demandeDpaeService.ErreurDemandeModifiee();
+    });
+    ({ res } = await appelerGestionnaire(methode, chemin, { params: { id: '7' }, body }));
+    assert.equal(res.statut, 409, `${chemin} version obsolète`);
+    assert.deepEqual(res.corps, { erreur: 'Cette demande a été modifiée entre-temps. Rechargez-la.' });
+
+    serviceMock.mock.mockImplementation(async () => {
+      throw new demandeDpaeService.ErreurDemandeIntrouvable('introuvable');
+    });
+    ({ res } = await appelerGestionnaire(methode, chemin, { params: { id: '7' }, body }));
+    assert.equal(res.statut, 404, `${chemin} introuvable`);
+  }
+});
+
+test('PATCH /:id/valider et /:id/rejeter : version obligatoire (400 sinon), transmise au service avec l’auteur et l’IP', async (t) => {
+  mockerAudit(t);
+  const validerMock = t.mock.method(demandeDpaeService, 'valider', async () => {});
+  const rejeterMock = t.mock.method(demandeDpaeService, 'rejeter', async () => {});
+
+  for (const body of [{}, { version: 0 }, { version: 'x' }]) {
+    const { res } = await appelerGestionnaire('patch', '/:id/valider', { params: { id: '7' }, body });
+    assert.equal(res.statut, 400, JSON.stringify(body));
+  }
+  for (const body of [{ motifRejet: 'x' }, { version: 1 }, { motifRejet: '  ', version: 1 }]) {
+    const { res } = await appelerGestionnaire('patch', '/:id/rejeter', { params: { id: '7' }, body });
+    assert.equal(res.statut, 400, JSON.stringify(body));
+  }
+  assert.equal(validerMock.mock.calls.length + rejeterMock.mock.calls.length, 0);
+
+  let { res } = await appelerGestionnaire('patch', '/:id/valider', { params: { id: '7' }, body: { version: '3' }, utilisateurId: 9 });
+  assert.equal(res.statut, 204);
+  assert.deepEqual(validerMock.mock.calls[0].arguments.slice(1), [7, 9, { version: 3, adresseIp: '127.0.0.1' }]);
+
+  ({ res } = await appelerGestionnaire('patch', '/:id/rejeter', { params: { id: '7' }, body: { motifRejet: ' Doublon ', version: 3 }, utilisateurId: 9 }));
+  assert.equal(res.statut, 204);
+  assert.deepEqual(rejeterMock.mock.calls[0].arguments.slice(1), [7, 9, 'Doublon', { version: 3, adresseIp: '127.0.0.1' }]);
+});
+
+test('Schéma de la mise en attente : exporté, motif nettoyé et obligatoire, version obligatoire', () => {
   const { miseEnAttenteBodySchema } = dpaeRouter;
-  assert.deepEqual(miseEnAttenteBodySchema.parse({ motif: '  Pièce manquante ' }), { motif: 'Pièce manquante' });
-  assert.equal(miseEnAttenteBodySchema.safeParse({ motif: '  ' }).success, false);
+  assert.deepEqual(miseEnAttenteBodySchema.parse({ motif: '  Pièce manquante ', version: '2' }), { motif: 'Pièce manquante', version: 2 });
+  assert.equal(miseEnAttenteBodySchema.safeParse({ motif: '  ', version: 1 }).success, false);
+  assert.equal(miseEnAttenteBodySchema.safeParse({ motif: 'x' }).success, false);
 });
 
 test('Filtre Statut du tableau de bord : « en_attente » accepté', () => {

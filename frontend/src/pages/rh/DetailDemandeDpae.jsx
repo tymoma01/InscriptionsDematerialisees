@@ -6,7 +6,13 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import ModaleRejeterDpae from './ModaleRejeterDpae';
 import ModaleValiderDpae from './ModaleValiderDpae';
 import NotesDossier from '../../core/dossier/NotesDossier';
-import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import {
+  ACTION_METTRE_EN_ATTENTE,
+  STATUTS_A_DECIDER,
+  libelleStatutDpae,
+  transitionPossible,
+  varianteStatutDpae,
+} from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
 import { formaterHeure, formaterHeuresParMois } from '../../core/dpae/formatsDpae';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
@@ -31,9 +37,6 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Statuts sans décision finale : Valider/Rejeter restent possibles ; « Mettre en
-// attente » seulement depuis « À traiter » (voir demandeDpaeService.js, transitions autorisées).
-const STATUTS_A_DECIDER = ['envoyee', 'en_attente'];
 const LIBELLE_PAR_TYPE = {
   nouvelle_embauche: 'Nouvelle embauche',
   prolongation: 'Prolongation',
@@ -89,6 +92,8 @@ export default function DetailDemandeDpae() {
   const [erreur, setErreur] = useState(null);
   const [actionEnCours, setActionEnCours] = useState(false);
   const [erreurAction, setErreurAction] = useState(null);
+  // Vrai quand le serveur a refusé la décision (409) : la demande a changé depuis son chargement.
+  const [conflit, setConflit] = useState(false);
   // null | 'validation' | 'rejet' | 'attente' — une fenêtre de confirmation par décision ; rejet et
   // mise en attente partagent la même modale à motif obligatoire.
   const [modaleOuverte, setModaleOuverte] = useState(null);
@@ -106,46 +111,40 @@ export default function DetailDemandeDpae() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandeId]);
 
-  const valider = async () => {
+  // Décision (valider, rejeter, mettre en attente) envoyée avec la version de la demande lue : si
+  // quelqu'un l'a modifiée entre-temps, le serveur répond 409 et n'enregistre rien — le message est
+  // alors affiché avec un bouton pour recharger la demande.
+  const decider = async (appel, messageParDefaut) => {
     setActionEnCours(true);
     setErreurAction(null);
+    setConflit(false);
     try {
-      await validerDemande(demandeId);
+      await appel();
       setModaleOuverte(null);
       await charger();
     } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de valider cette demande.');
+      if (erreurRequete.response?.status === 409) {
+        setModaleOuverte(null);
+        setConflit(true);
+      }
+      setErreurAction(erreurRequete.response?.data?.erreur ?? messageParDefaut);
     } finally {
       setActionEnCours(false);
     }
   };
 
-  const rejeter = async (motifRejet) => {
-    setActionEnCours(true);
-    setErreurAction(null);
-    try {
-      await rejeterDemande(demandeId, motifRejet);
-      setModaleOuverte(null);
-      await charger();
-    } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de rejeter cette demande.');
-    } finally {
-      setActionEnCours(false);
-    }
-  };
+  const valider = () => decider(() => validerDemande(demandeId, demande.version), 'Impossible de valider cette demande.');
 
-  const mettreEnAttente = async (motif) => {
-    setActionEnCours(true);
+  const rejeter = (motifRejet) =>
+    decider(() => rejeterDemande(demandeId, motifRejet, demande.version), 'Impossible de rejeter cette demande.');
+
+  const mettreEnAttente = (motif) =>
+    decider(() => mettreEnAttenteDemande(demandeId, motif, demande.version), 'Impossible de mettre cette demande en attente.');
+
+  const recharger = () => {
     setErreurAction(null);
-    try {
-      await mettreEnAttenteDemande(demandeId, motif);
-      setModaleOuverte(null);
-      await charger();
-    } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de mettre cette demande en attente.');
-    } finally {
-      setActionEnCours(false);
-    }
+    setConflit(false);
+    charger();
   };
 
   const fermerModale = () => {
@@ -322,10 +321,15 @@ export default function DetailDemandeDpae() {
         {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (
           <section className="page-detail-dpae__actions">
             {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
+            {conflit && (
+              <button type="button" onClick={recharger}>
+                Recharger la demande
+              </button>
+            )}
             <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleOuverte('rejet')} disabled={actionEnCours}>
               Rejeter
             </button>
-            {demande.statut === 'envoyee' && (
+            {transitionPossible(ACTION_METTRE_EN_ATTENTE, demande.statut) && (
               <button
                 type="button"
                 className="page-detail-dpae__mettre-en-attente"

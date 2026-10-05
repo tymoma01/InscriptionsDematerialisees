@@ -1,4 +1,5 @@
 import { formaterHeure } from './formatsDpae.js';
+import { STATUTS_A_DECIDER } from './statutsDpae.js';
 
 // Urgence d'une demande DPAE (2026-10-02) — SOURCE UNIQUE du calcul, partagée par la liste RH
 // (TraitementDpae.jsx), « Suivi des demandes DPAE » (SuiviDemandesDpae.jsx) et la fiche
@@ -14,7 +15,8 @@ import { formaterHeure } from './formatsDpae.js';
 //   < 0             -> rouge « En retard » (premier jour dépassé)
 // Seulement pour les demandes « À traiter » et « En attente » ; aucune pastille sans premier jour.
 
-export const STATUTS_AVEC_URGENCE = ['envoyee', 'en_attente'];
+// Statuts avec pastille : ceux d'une demande encore sans décision (statutsDpae.js).
+export const STATUTS_AVEC_URGENCE = STATUTS_A_DECIDER;
 
 const MINUTE_MS = 60 * 1000;
 const HEURE_MS = 60 * MINUTE_MS;
