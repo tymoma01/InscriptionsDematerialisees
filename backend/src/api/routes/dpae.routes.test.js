@@ -17,6 +17,7 @@ const DEMANDE_VALIDE = {
   salariePrenom: 'Léa',
   salarieDejaEmploye: false,
   sitesAffectationIds: [10],
+  dateDebut: '2026-10-12',
   verifBesoinHotel: true,
   verifTousJoursInclus: true,
   verifNonPlanification: true,
@@ -50,6 +51,36 @@ test('POST /api/dpae : un même site deux fois dans la liste -> refus', () => {
   assert.deepEqual(resultat.error.flatten().fieldErrors.sitesAffectationIds, [
     "Un même site d'affectation ne peut pas être sélectionné deux fois.",
   ]);
+});
+
+// Premier jour : obligatoire pour TOUS les types de demande (le formulaire l'affiche sans
+// distinction de typeDemande).
+const MESSAGE_DATE_DEBUT_OBLIGATOIRE = 'Le premier jour est obligatoire.';
+
+test('POST /api/dpae : premier jour absent ou vide -> refus « Le premier jour est obligatoire. », quel que soit le type de demande', () => {
+  const { dateDebut: _date, ...sansDateDebut } = DEMANDE_VALIDE;
+  for (const typeDemande of [
+    'nouvelle_embauche',
+    'prolongation',
+    'ajout_retrait_jours',
+    'passage_cdi',
+    'changement_horaires_affectation',
+  ]) {
+    for (const [cas, donnees] of [
+      ['absent', { ...sansDateDebut, typeDemande }],
+      ['vide', { ...DEMANDE_VALIDE, typeDemande, dateDebut: '' }],
+    ]) {
+      const resultat = demandeBodySchema.safeParse(donnees);
+      assert.equal(resultat.success, false, `${typeDemande} / ${cas}`);
+      assert.deepEqual(resultat.error.flatten().fieldErrors.dateDebut, [MESSAGE_DATE_DEBUT_OBLIGATOIRE], `${typeDemande} / ${cas}`);
+    }
+  }
+});
+
+test('POST /api/dpae : premier jour renseigné -> accepté', () => {
+  const resultat = demandeBodySchema.safeParse(DEMANDE_VALIDE);
+  assert.equal(resultat.success, true);
+  assert.equal(resultat.data.dateDebut, '2026-10-12');
 });
 
 test("POST /api/dpae : l'ancien champ texte hotel n'est plus exigé (toléré s'il est fourni)", () => {

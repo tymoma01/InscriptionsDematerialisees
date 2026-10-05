@@ -104,6 +104,11 @@ export default function DemandeDpae() {
   const [sitesOuverts, setSitesOuverts] = useState(false);
   const [erreurSites, setErreurSites] = useState(null);
   const blocSitesRef = useRef(null);
+  // Premier jour : même traitement que le bloc Sites ci-dessus (champ obligatoire, mais message
+  // et défilement affichés seulement à la tentative d'envoi, voir envoyer) plutôt qu'un simple
+  // `required` HTML, pour afficher le message dédié sous le champ.
+  const [erreurDateDebut, setErreurDateDebut] = useState(null);
+  const blocDateDebutRef = useRef(null);
 
   const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
 
@@ -150,10 +155,11 @@ export default function DemandeDpae() {
   // CDD de surcroît d'activité), la valeur éventuellement saisie n'est pas envoyée (voir envoyer).
   const estCddRemplacement = donnees.typeContrat === 'cdd' && donnees.motifCdd === 'remplacement_absent';
 
-  // Site(s) d'affectation traités à part : pour que l'agent puisse TENTER d'envoyer sans
-  // site et que le bloc des sites se déplie alors de lui-même (voir envoyer), le bouton « Envoyer »
-  // ne dépend que des AUTRES champs obligatoires — il reste désactivé pour eux, comme avant. L'envoi
-  // lui-même reste bloqué tant qu'aucun site n'est choisi (et refusé côté serveur de toute façon).
+  // Site(s) d'affectation et Premier jour traités à part : pour que l'agent puisse TENTER
+  // d'envoyer sans les avoir renseignés et voir le message dédié (voir envoyer), le bouton
+  // « Envoyer » ne dépend que des AUTRES champs obligatoires — il reste désactivé pour eux, comme
+  // avant. L'envoi lui-même reste bloqué tant que l'un des deux manque (et refusé côté serveur de
+  // toute façon).
   const sitesManquants = donnees.sitesAffectationIds.length === 0;
   const formulaireCompletHorsSites =
     donnees.typeDemande &&
@@ -173,6 +179,11 @@ export default function DemandeDpae() {
       setSitesOuverts(true);
       setErreurSites("Sélectionnez au moins un site d'affectation avant d'envoyer la demande.");
       blocSitesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (!donnees.dateDebut.trim()) {
+      setErreurDateDebut('Le premier jour est obligatoire.');
+      blocDateDebutRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -300,7 +311,7 @@ export default function DemandeDpae() {
                 onChangerOuvert={setSitesOuverts}
               />
               {erreurSites && (
-                <p role="alert" className="page-demande-dpae__erreur-sites">
+                <p role="alert" className="page-demande-dpae__erreur-champ">
                   {erreurSites}
                 </p>
               )}
@@ -428,10 +439,26 @@ export default function DemandeDpae() {
               </label>
             )}
 
-            <label>
-              <span>Premier jour</span>
-              <input type="date" value={donnees.dateDebut} onChange={(e) => definir('dateDebut', e.target.value)} />
-            </label>
+            <div ref={blocDateDebutRef}>
+              <label>
+                <span>
+                  Premier jour <span className="champ-obligatoire">*</span>
+                </span>
+                <input
+                  type="date"
+                  value={donnees.dateDebut}
+                  onChange={(e) => {
+                    definir('dateDebut', e.target.value);
+                    if (e.target.value) setErreurDateDebut(null);
+                  }}
+                />
+              </label>
+              {erreurDateDebut && (
+                <p role="alert" className="page-demande-dpae__erreur-champ">
+                  {erreurDateDebut}
+                </p>
+              )}
+            </div>
             <label>
               <span>Dernier jour</span>
               <input type="date" value={donnees.dateFin} onChange={(e) => definir('dateFin', e.target.value)} />

@@ -68,7 +68,10 @@ const demandeBodySchema = z.object({
   divisionAutre: z.string().trim().optional(),
   poste: z.string().trim().optional(),
   posteAutre: z.string().trim().optional(),
-  dateDebut: z.string().trim().optional(),
+  // Premier jour : obligatoire pour tous les types de demande (le formulaire l'affiche sans
+  // distinction de typeDemande, voir DemandeDpae.jsx) — absent ou vide refusé avec le même
+  // message que côté front.
+  dateDebut: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le premier jour est obligatoire.')),
   dateFin: z.string().trim().optional(),
   heureArriveeJ1: z.string().trim().optional(),
   heuresParMois: z.number().nonnegative().optional(),

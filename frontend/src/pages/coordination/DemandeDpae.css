@@ -180,9 +180,10 @@
   color: var(--couleur-erreur);
 }
 
-/* Message affiché sous le bloc « Site(s) d'affectation » quand l'agent tente d'envoyer sans site
-   (2026-09-29, voir DemandeDpae.jsx, envoyer) — même couleur d'erreur que le reste de l'outil. */
-.page-demande-dpae__erreur-sites {
+/* Message affiché sous un champ obligatoire (Site(s) d'affectation, Premier jour…) quand l'agent
+   tente d'envoyer sans l'avoir renseigné (voir DemandeDpae.jsx, envoyer) — même couleur d'erreur
+   que le reste de l'outil. */
+.page-demande-dpae__erreur-champ {
   margin: 0 0 var(--espace-petit);
   color: var(--couleur-erreur);
 }
