@@ -4,6 +4,11 @@
 // pour celles qui dépendent du jour, l'instant `maintenant` (paramètre plutôt que now() : même
 // calcul reproductible en test, voir scripts/testTableauDeBordDpae.js).
 //
+// Demandes de chaque indicateur (2026-10-02, clic sur un indicateur -> liste des demandes) : chaque
+// agrégat renvoie, À CÔTÉ de son compte et DANS LA MÊME REQUÊTE, la liste des identifiants comptés
+// (array_agg sur les mêmes lignes que count) — le nombre affiché et la liste affichée ne peuvent
+// donc jamais diverger. IDS ci-dessous : tableau trié, vide plutôt que NULL.
+//
 // Heure de Paris partout : une date de création est ramenée à son jour parisien par
 // (date_creation AT TIME ZONE 'Europe/Paris')::date, « aujourd'hui » par
 // (maintenant AT TIME ZONE 'Europe/Paris')::date. date_debut/date_fin sont des colonnes `date`
@@ -38,6 +43,8 @@ async function executerSurBase(bd, entiteId, filtres, selectSql, parametres = []
   const resultat = await bd.raw(`WITH base AS (${base.sql}) ${selectSql}`, [...base.bindings, ...parametres]);
   return resultat.rows;
 }
+
+const IDS = 'array_agg(base.id ORDER BY base.id)';
 
 const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.statut, base.type_contrat,
   base.date_creation, base.date_traitement, base.date_debut, base.date_fin`;
@@ -78,7 +85,7 @@ function listerATraiterPlus24h(bd, entiteId, filtres, maintenant) {
 // --- 2. Activité ----------------------------------------------------------------------------------
 
 function compterParStatut(bd, entiteId, filtres) {
-  return executerSurBase(bd, entiteId, filtres, 'SELECT base.statut, count(*)::int AS nombre FROM base GROUP BY base.statut');
+  return executerSurBase(bd, entiteId, filtres, `SELECT base.statut, count(*)::int AS nombre, ${IDS} AS ids FROM base GROUP BY base.statut`);
 }
 
 // Délai de traitement RH (envoi -> décision FINALE), en heures, sur les demandes décidées de la
@@ -111,7 +118,11 @@ function calculerEvolution(bd, entiteId, filtres, granularite) {
             count(base.id) FILTER (WHERE base.statut = 'envoyee')::int AS envoyee,
             count(base.id) FILTER (WHERE base.statut = 'en_attente')::int AS en_attente,
             count(base.id) FILTER (WHERE base.statut = 'validee')::int AS validee,
-            count(base.id) FILTER (WHERE base.statut = 'rejetee')::int AS rejetee
+            count(base.id) FILTER (WHERE base.statut = 'rejetee')::int AS rejetee,
+            coalesce(${IDS} FILTER (WHERE base.statut = 'envoyee'), '{}') AS ids_envoyee,
+            coalesce(${IDS} FILTER (WHERE base.statut = 'en_attente'), '{}') AS ids_en_attente,
+            coalesce(${IDS} FILTER (WHERE base.statut = 'validee'), '{}') AS ids_validee,
+            coalesce(${IDS} FILTER (WHERE base.statut = 'rejetee'), '{}') AS ids_rejetee
      FROM generate_series(date_trunc('${unite}', ?::date::timestamp), date_trunc('${unite}', ?::date::timestamp), interval '1 ${unite}') AS serie(debut)
      LEFT JOIN base ON date_trunc('${unite}', (base.date_creation AT TIME ZONE '${FUSEAU}')) = serie.debut
      GROUP BY serie.debut ORDER BY serie.debut`,
@@ -140,7 +151,12 @@ function listerValideesEnRetard(bd, entiteId, filtres) {
 // --- 3. Répartition -------------------------------------------------------------------------------
 
 function repartirParContrat(bd, entiteId, filtres) {
-  return executerSurBase(bd, entiteId, filtres, 'SELECT base.type_contrat AS cle, count(*)::int AS nombre FROM base GROUP BY base.type_contrat');
+  return executerSurBase(
+    bd,
+    entiteId,
+    filtres,
+    `SELECT base.type_contrat AS cle, count(*)::int AS nombre, ${IDS} AS ids FROM base GROUP BY base.type_contrat`,
+  );
 }
 
 // Raison du CDD, pour les CDD SEULEMENT : une raison restée d'une saisie précédente sur un CDI
@@ -150,7 +166,7 @@ function repartirMotifsCdd(bd, entiteId, filtres) {
     bd,
     entiteId,
     filtres,
-    "SELECT base.motif_cdd AS cle, count(*)::int AS nombre FROM base WHERE base.type_contrat = 'cdd' GROUP BY base.motif_cdd",
+    `SELECT base.motif_cdd AS cle, count(*)::int AS nombre, ${IDS} AS ids FROM base WHERE base.type_contrat = 'cdd' GROUP BY base.motif_cdd`,
   );
 }
 
@@ -160,7 +176,7 @@ function listerTopSites(bd, entiteId, filtres) {
     bd,
     entiteId,
     filtres,
-    `SELECT s.id, s.nom, s.initiales, count(DISTINCT base.id)::int AS nombre
+    `SELECT s.id, s.nom, s.initiales, count(DISTINCT base.id)::int AS nombre, array_agg(DISTINCT base.id ORDER BY base.id) AS ids
      FROM base
      JOIN demandes_dpae_sites l ON l.demande_dpae_id = base.id
      JOIN sites_affectation s ON s.id = l.site_affectation_id
@@ -171,14 +187,16 @@ function listerTopSites(bd, entiteId, filtres) {
 }
 
 // Anciennes demandes sans site lié (texte libre `hotel` seulement) : regroupées sous « Non référencé ».
+// Renvoie { nombre, ids }.
 async function compterNonReferencees(bd, entiteId, filtres) {
   const [ligne] = await executerSurBase(
     bd,
     entiteId,
     filtres,
-    'SELECT count(*)::int AS nombre FROM base WHERE NOT EXISTS (SELECT 1 FROM demandes_dpae_sites l WHERE l.demande_dpae_id = base.id)',
+    `SELECT count(*)::int AS nombre, coalesce(${IDS}, '{}') AS ids FROM base
+     WHERE NOT EXISTS (SELECT 1 FROM demandes_dpae_sites l WHERE l.demande_dpae_id = base.id)`,
   );
-  return ligne.nombre;
+  return ligne;
 }
 
 function repartirParPoste(bd, entiteId, filtres) {
@@ -186,7 +204,7 @@ function repartirParPoste(bd, entiteId, filtres) {
     bd,
     entiteId,
     filtres,
-    'SELECT base.poste AS cle, count(*)::int AS nombre FROM base GROUP BY base.poste ORDER BY nombre DESC',
+    `SELECT base.poste AS cle, count(*)::int AS nombre, ${IDS} AS ids FROM base GROUP BY base.poste ORDER BY nombre DESC`,
   );
 }
 
@@ -195,7 +213,7 @@ function repartirParDemandeur(bd, entiteId, filtres) {
     bd,
     entiteId,
     filtres,
-    `SELECT u.id, u.prenom, u.nom, count(*)::int AS nombre
+    `SELECT u.id, u.prenom, u.nom, count(*)::int AS nombre, ${IDS} AS ids
      FROM base JOIN utilisateurs u ON u.id = base.demandeur_id
      GROUP BY u.id, u.prenom, u.nom ORDER BY nombre DESC, lower(u.nom) ASC`,
   );
@@ -206,7 +224,7 @@ function repartirDejaEmploye(bd, entiteId, filtres) {
     bd,
     entiteId,
     filtres,
-    'SELECT base.salarie_deja_employe AS cle, count(*)::int AS nombre FROM base GROUP BY base.salarie_deja_employe',
+    `SELECT base.salarie_deja_employe AS cle, count(*)::int AS nombre, ${IDS} AS ids FROM base GROUP BY base.salarie_deja_employe`,
   );
 }
 

@@ -31,9 +31,70 @@
   color: var(--couleur-back-office);
 }
 
-/* Tuiles non cliquables ici (contrairement au Tableau de bord existant). */
+/* Tuiles : simples affichages par défaut (taux, délais, part)… */
 .tableau-bord-dpae__tuile {
   cursor: default;
+}
+
+/* … cliquables quand elles se traduisent en une liste de demandes (main au survol). */
+.tableau-bord-dpae__tuile--cliquable {
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Info-bulle des graphiques (valeurs + « Voir les demandes »). */
+.tableau-bord-dpae__infobulle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  box-shadow: 0 4px 12px rgba(46, 32, 19, 0.15);
+  font-size: 0.85rem;
+}
+
+.tableau-bord-dpae__infobulle em {
+  margin-top: 0.2rem;
+  color: var(--couleur-back-office-dore);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Titres des listes atteintes au clic (défilement : voir defilerJusquA, TableauDeBordDpae.jsx). */
+.tableau-bord-dpae__titre-liste {
+  margin-top: 0;
+}
+
+/* Section « Demandes concernées » : titre et bouton « Effacer » sur une ligne. Dernière section de
+   la page : hauteur minimale d'un écran (moins l'en-tête et la barre de navigation), pour que le
+   défilement puisse toujours amener son titre en haut, sous la barre, même avec une liste courte. */
+.tableau-bord-dpae__selection {
+  margin-top: var(--espace-grand);
+  min-height: calc(100vh - var(--hauteur-entete) - var(--hauteur-barre-navigation) - 2rem);
+  box-sizing: border-box;
+}
+
+.tableau-bord-dpae__selection-entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+}
+
+.tableau-bord-dpae__effacer {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--couleur-back-office);
+  border-radius: 999px;
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .tableau-bord-dpae__evolution {

@@ -176,6 +176,16 @@
   --statut-echec-fort-texte: #7c2415;
   --statut-echec-fort-bordure: #e3a89f;
 
+  /* Urgence des demandes DPAE (2026-10-02, core/dpae/urgenceDpae.js) : pastilles PLEINES, texte
+     blanc, pour se distinguer d'un coup d'œil des pastilles de statut pastel posées juste à côté —
+     les variantes 'alerte' et 'echec' existantes ont des fonds presque identiques (orange et rouge
+     indiscernables). Même palette flat-UI que --couleur-erreur/--couleur-succes ; teintes choisies
+     pour un contraste du texte blanc d'au moins 4,5:1 (vert 5,1 ; orange 4,8 ; rouge 5,4). */
+  --urgence-vert-fond: #1e7e34;
+  --urgence-orange-fond: #c05000;
+  --urgence-rouge-fond: var(--couleur-erreur);
+  --urgence-texte: #ffffff;
+
   /* Rose/magenta (audit 2026-08-25, "Test non planifié") — teinte encore inutilisée par les
      autres variantes ci-dessus : 'neutre-fort' (gris), essayé avant celle-ci pour ce même statut,
      restait perçu comme un simple niveau de gris plutôt qu'une couleur à part entière à côté des
@@ -244,6 +254,20 @@
   --experience-5ans-fond: #e3edc7;
   --experience-5ans-texte: #4c6b1a;
   --experience-5ans-bordure: #c2d896;
+
+  /* Réponse « Êtes-vous étudiant ? » (core/dossier/BadgeEtudiant.jsx), 2026-10-02 — les deux réponses
+     se distinguent par la FORME : « Étudiant » en pastille PLEINE bleu ciel (même intensité claire que
+     les pastilles d'expérience), « Non étudiant » en CONTOUR seul (fond blanc).
+     Bleu ciel choisi par recherche systématique : le bleu clair le plus proche de « Plus de 6 mois »
+     qui en reste clairement distinct, ainsi que de « Test planifié » (même ligne) — écarts ΔE2000 du
+     fond : 10,1 (Plus de 6 mois), 12,9 (Test planifié), >= 14,5 avec toute autre pastille de la ligne.
+     Contrastes du texte : 7,00:1 (bleu foncé sur bleu ciel) et 10,31:1 (gris foncé sur blanc). */
+  --etudiant-fond: #a4ddfe;
+  --etudiant-texte: #09465e;
+  --etudiant-bordure: #5abbe9;
+  --non-etudiant-fond: #ffffff;
+  --non-etudiant-texte: var(--gris-700);
+  --non-etudiant-bordure: var(--gris-400);
 
   /* Boutons d'action secondaires "Présent(e)"/"Test non réalisé" (audit 2026-09-09,
      ListeEvaluationsAFaire.jsx) — famille DISTINCTE de la palette de statuts ci-dessus (même

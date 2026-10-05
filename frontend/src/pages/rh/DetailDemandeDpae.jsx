@@ -8,6 +8,8 @@ import ModaleValiderDpae from './ModaleValiderDpae';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
+import { formaterHeure, formaterHeuresParMois } from '../../core/dpae/formatsDpae';
+import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
 import {
   obtenirDemande,
   validerDemande,
@@ -186,6 +188,9 @@ export default function DetailDemandeDpae() {
                 libelle={libelleStatutDpae(demande.statut)}
                 variante={varianteStatutDpae(demande.statut)}
               />
+              {/* Pastille d'urgence, à côté du statut — « À traiter »/« En attente » seulement
+                  (core/dpae/PastilleUrgenceDpae.jsx). */}
+              <PastilleUrgenceDpae demande={demande} />
               {/* PDF de la fiche, généré côté serveur — rôles de consultation seulement
                   (voir core/dpae/TelechargementPdfDpae.jsx). */}
               <BoutonTelechargerPdfDemande demandeId={demande.id} />
@@ -251,8 +256,9 @@ export default function DetailDemandeDpae() {
           {ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste])}
           {ligne('Premier jour', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut)))}
           {ligne('Dernier jour', demande.date_fin && FORMAT_DATE.format(new Date(demande.date_fin)))}
-          {ligne('Heure d’arrivée jour 1', demande.heure_arrivee_j1)}
-          {ligne('Heures/mois', demande.heures_par_mois)}
+          {ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1))}
+          {/* « 08h00 », « 120 h » / « 120,5 h » (2026-10-02) : mêmes formats que le PDF, voir core/dpae/formatsDpae.js. */}
+          {ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois))}
         </section>
 
         {demande.modifications_demandees && (
@@ -289,7 +295,7 @@ export default function DetailDemandeDpae() {
               {semaineTravaillee.map((jour) => (
                 <li key={jour.jour}>
                   {JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}
-                  {jour.heureDebut && jour.heureFin ? ` : ${jour.heureDebut} – ${jour.heureFin}` : ''}
+                  {jour.heureDebut && jour.heureFin ? ` : ${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : ''}
                 </li>
               ))}
             </ul>

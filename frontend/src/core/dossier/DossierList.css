@@ -131,7 +131,8 @@
      famille composé très long) plutôt que d'élargir cette colonne figée. */
   max-width: 12rem;
   white-space: normal;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 /* Colonne "N°", juste devant "Candidat" — sans elle, "Candidat" resterait figée à un `left` fixe
@@ -231,21 +232,17 @@
    horizontal (demande utilisateur 2026-09-10, "sans scroller sur les côtés") — max-width plafonne
    la largeur que ces deux colonnes peuvent réclamer même en table-layout: auto (comportement
    standard des navigateurs : un <td> avec max-width limite bien la largeur de SA colonne, les
-   autres colonnes gardant leur largeur naturelle). overflow-wrap: anywhere sur l'email : une
-   adresse email est un seul "mot" sans espace, `word-break: break-word` seul ne le couperait pas
-   (il ne casse qu'aux limites de mots existantes) — anywhere autorise la coupure n'importe où si
-   besoin, seul moyen de faire tenir une adresse très longue dans cette largeur. */
-/* Colonne « Étudiant » : valeur courte (« ÉTUDIANT », « NON ÉTUDIANT », « — ») sur une
-   seule ligne. */
-.dossier-list__colonne-etudiant {
-  white-space: nowrap;
-}
-
+   autres colonnes gardant leur largeur naturelle). Email : coupure aux seuls points insérés par
+   DossierList.jsx (emailCoupable, après « @ » et avant « . »), plus jamais n'importe où
+   (2026-10-02, voir .dossier-list__colonne-email). */
 .dossier-list__colonne-email {
-  /* 13rem (resserré à 11rem à l'origine) — augmenté pour profiter de la largeur libérée par
-     "Candidat" ci-dessus (demande utilisateur 2026-09-10). */
-  max-width: 13rem;
-  overflow-wrap: anywhere;
+  /* 15rem (13rem auparavant) : élargie avec la place rendue par la colonne « Étudiant » (retirée le
+     2026-10-02). Plus de coupure n'importe où (overflow-wrap: anywhere) : l'adresse ne passe à la
+     ligne qu'après « @ », avant un « . » ou après un « - » (points de coupure insérés par
+     DossierList.jsx, emailCoupable), jamais au milieu d'un mot. */
+  max-width: 15rem;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .dossier-list__colonne-poste {

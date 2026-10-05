@@ -35,34 +35,6 @@
   background-color: var(--couleur-back-office-hover);
 }
 
-.page-suivi-dpae__table {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: var(--couleur-fond);
-  border-radius: var(--rayon-bordure);
-  overflow: hidden;
-  box-shadow: var(--ombre-bloc);
-}
-
-.page-suivi-dpae__table th,
-.page-suivi-dpae__table td {
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--couleur-bordure-legere);
-  text-align: left;
-}
-
-.page-suivi-dpae__table th {
-  background-color: var(--couleur-back-office-clair);
-  color: var(--couleur-back-office);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.page-suivi-dpae__table tbody tr:hover {
-  background-color: var(--couleur-fond-survol-tableau);
-}
-
 .page-suivi-dpae [role='alert'] {
   color: var(--couleur-erreur);
 }
@@ -100,14 +72,4 @@
 .page-suivi-dpae__filtre button.actif {
   background-color: var(--couleur-back-office);
   color: #ffffff;
-}
-
-/* Ligne cliquable : ouvre la fiche de la demande (clic ou Entrée au clavier). */
-.page-suivi-dpae__ligne {
-  cursor: pointer;
-}
-
-.page-suivi-dpae__ligne:focus-visible {
-  outline: 2px solid var(--couleur-back-office);
-  outline-offset: -2px;
 }

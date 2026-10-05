@@ -1,5 +1,7 @@
 const path = require('node:path');
 const PDFDocument = require('pdfkit');
+const { COORDONNEES_ACCECIT } = require('../../config/coordonneesAccecit');
+const { formaterHeure, formaterHeuresParMois } = require('./formatsDpae');
 
 // PDF d'une demande DPAE — généré CÔTÉ SERVEUR (pdfkit, pur
 // JavaScript, aucun navigateur embarqué). Contenu : EXACTEMENT les sections et champs de la fiche
@@ -9,6 +11,12 @@ const PDFDocument = require('pdfkit');
 // sont pas reprises. Toute évolution de la fiche doit être reportée dans sectionsDemande ci-dessous.
 //
 // Module spécifique à ACCECIT, comme tout le module Demandes DPAE (voir dpae.routes.js).
+//
+// Mise en page (révisée le 2026-10-02) : sur CHAQUE page, bandeau aux couleurs de l'en-tête de
+// l'application (dégradé marron, logo ACCECIT blanc à gauche, logos Hôtellerie et Tertiaire à droite) et pied de page (filet, coordonnées
+// ACCECIT, « Document confidentiel | usage interne », date de génération, « Page X/Y »). Les marges
+// de page réservent la place des deux : le contenu ne les chevauche jamais. Aucun tiret long dans
+// le document (séparateur : barre verticale).
 
 // Libellés — miroir de DetailDemandeDpae.jsx (types, postes, jours) et de
 // frontend/src/core/dpae/statutsDpae.js (statuts).
@@ -58,6 +66,8 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
   timeZone: 'Europe/Paris',
 });
+
+const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
 
 const formaterDate = (valeur) => FORMAT_DATE.format(new Date(valeur));
 const formaterDateHeure = (valeur) => FORMAT_DATE_HEURE.format(new Date(valeur));
@@ -143,8 +153,8 @@ function sectionsDemande(demande) {
       ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste]),
       ligne('Premier jour', demande.date_debut && formaterDate(demande.date_debut)),
       ligne('Dernier jour', demande.date_fin && formaterDate(demande.date_fin)),
-      ligne('Heure d’arrivée jour 1', demande.heure_arrivee_j1),
-      ligne('Heures/mois', demande.heures_par_mois),
+      ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1)),
+      ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois)),
     ]),
   });
 
@@ -188,7 +198,7 @@ function sectionsDemande(demande) {
       : {
           liste: semaineTravaillee.map(
             (jour) =>
-              `${JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}${jour.heureDebut && jour.heureFin ? ` : ${jour.heureDebut} – ${jour.heureFin}` : ''}`,
+              `${JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}${jour.heureDebut && jour.heureFin ? ` : ${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : ''}`,
           ),
         }),
   });
@@ -200,21 +210,17 @@ function sectionsDemande(demande) {
   return sections;
 }
 
-// Sous-marque ACCECIT de l'en-tête (Hôtellerie/Tertiaire). Une demande n'a aucun champ
-// « secteur » : seul le champ « Entité » (colonne `division`) l'indique, et seulement pour ACCHOT
-// (ACCECIT Hôtellerie). Toute autre valeur (RM, Autre, non renseignée) : logo ACCECIT général,
-// sans sous-marque — jamais une sous-marque devinée. Compléter cette table si une valeur doit
-// afficher « Tertiaire ».
-const SOUS_MARQUE_PAR_DIVISION = { acchot: 'hotellerie' };
-const SOUS_MARQUES = {
-  hotellerie: { nom: 'Hôtellerie', icone: path.join(__dirname, 'assets', 'icone-accecit-hotellerie.png') },
-  tertiaire: { nom: 'Tertiaire', icone: path.join(__dirname, 'assets', 'icone-accecit-tertiaire.png') },
-};
-const LOGO_ACCECIT = path.join(__dirname, 'assets', 'logo-accecit-fonce.png');
-
-function sousMarqueDemande(demande) {
-  return SOUS_MARQUE_PAR_DIVISION[demande.division] ?? null;
-}
+// Sous-marques ACCECIT du bandeau (2026-10-02) : « ACCECIT Hôtellerie » et « ACCECIT Tertiaire »,
+// l'une sous l'autre à droite, comme dans le bandeau de l'application (EnTeteAccecit.jsx) — sur
+// TOUTES les demandes, quelle que soit l'entité (plus aucune règle selon le champ « Entité »).
+// Icônes copiées de frontend/src/assets (le backend est construit sans le frontend).
+const SOUS_MARQUES = [
+  { nom: 'Hôtellerie', icone: path.join(__dirname, 'assets', 'icone-accecit-hotellerie.png') },
+  { nom: 'Tertiaire', icone: path.join(__dirname, 'assets', 'icone-accecit-tertiaire.png') },
+];
+// Logo blanc de l'en-tête de l'application (frontend/src/assets/logo-accecit-blanc.png, copié ici :
+// le backend est construit sans le frontend).
+const LOGO_ACCECIT_BLANC = path.join(__dirname, 'assets', 'logo-accecit-blanc.png');
 
 // Remplace les caractères qui casseraient un chemin (un "/" dans un nom créerait un sous-dossier
 // dans le ZIP) — même règle que l'export ZIP des pièces (pieces.routes.js, dossiers.routes.js),
@@ -227,35 +233,90 @@ function nomFichierPdf(demande) {
   return `DPAE ${demande.id} - ${nettoyerSegmentChemin(demande.salarie_nom)} ${nettoyerSegmentChemin(demande.salarie_prenom)}.pdf`;
 }
 
-// Mise en page A4 sobre, lisible à l'impression : texte foncé sur fond blanc, une seule couleur
-// d'accent (bleu du logo) pour les titres de section.
-const COULEURS = { texte: '#1f2430', libelle: '#5b6170', accent: '#2b3990', filet: '#c9cdd6' };
+// Textes du document hors sections (fonctions pures, testées) — barre verticale comme séparateur.
+function texteStatut(demande) {
+  const { libelle, date } = statutEtDate(demande);
+  return date ? `${libelle} | le ${date}` : libelle;
+}
+
+function textesPiedDePage(dateGeneration, numeroPage, nombrePages) {
+  const { nom, adresse, telephone, siteWeb } = COORDONNEES_ACCECIT;
+  return {
+    coordonnees: [nom, adresse, telephone, siteWeb].join(' | '),
+    confidentialite: 'Document confidentiel | usage interne',
+    generation: `PDF généré le ${formaterDate(dateGeneration)} à ${FORMAT_HEURE.format(new Date(dateGeneration))}`,
+    pagination: `Page ${numeroPage}/${nombrePages}`,
+  };
+}
+
+// Mise en page A4 sobre, lisible à l'impression. Bandeau : dégradé des couleurs de l'en-tête de
+// l'application (EnTeteAccecit.css : --couleur-back-office -> --couleur-back-office-dore).
+const COULEURS = {
+  texte: '#1f2430',
+  libelle: '#5b6170',
+  accent: '#2b3990',
+  filet: '#c9cdd6',
+  bandeauDebut: '#2e2013',
+  bandeauFin: '#7a5a34',
+};
 const MARGE = 50;
 const LARGEUR_LIBELLE = 170;
 const ECART_COLONNES = 12;
+const HAUTEUR_BANDEAU = 72;
+// Le pied de page occupe les PIED_HAUTEUR derniers points de la page (filet compris).
+const PIED_HAUTEUR = 64;
+// Marges du contenu : sous le bandeau et au-dessus du pied, avec un espace de respiration.
+const MARGE_HAUT_CONTENU = HAUTEUR_BANDEAU + 26;
+const MARGE_BAS_CONTENU = PIED_HAUTEUR + 14;
 
-function dessinerEnTete(doc, demande, dateGeneration) {
-  const haut = MARGE;
-  const sousMarque = SOUS_MARQUES[sousMarqueDemande(demande)];
-  if (sousMarque) {
-    // Même disposition que le logo des sous-marques du site (EnTeteAccecit.jsx) : icône, « ACCECIT »
-    // en lettres espacées, filet fin, sous-nom.
-    doc.image(sousMarque.icone, MARGE, haut, { height: 44 });
-    doc.font('Helvetica').fontSize(15).fillColor(COULEURS.accent)
-      .text('ACCECIT', MARGE + 54, haut + 4, { characterSpacing: 4, lineBreak: false });
-    doc.moveTo(MARGE + 54, haut + 24).lineTo(MARGE + 160, haut + 24).lineWidth(0.6).strokeColor(COULEURS.accent).stroke();
-    doc.fontSize(10).text(sousMarque.nom, MARGE + 54, haut + 29, { lineBreak: false });
-  } else {
-    doc.image(LOGO_ACCECIT, MARGE, haut - 6, { height: 52 });
-  }
+function dessinerBandeau(doc) {
+  const largeur = doc.page.width;
+  const degrade = doc.linearGradient(0, 0, largeur, 0);
+  degrade.stop(0, COULEURS.bandeauDebut).stop(1, COULEURS.bandeauFin);
+  doc.rect(0, 0, largeur, HAUTEUR_BANDEAU).fill(degrade);
 
+  doc.image(LOGO_ACCECIT_BLANC, MARGE - 6, (HAUTEUR_BANDEAU - 44) / 2, { height: 44 });
+
+  // Même disposition que les logos des sous-marques de l'en-tête (EnTeteAccecit.jsx) : icône,
+  // « ACCECIT » en lettres espacées, filet fin, sous-nom — en blanc, l'une sous l'autre.
+  const largeurTexte = 78;
+  const hauteurBloc = 29;
+  const xIcone = largeur - MARGE - largeurTexte - 32;
+  const xTexte = xIcone + 32;
+  SOUS_MARQUES.forEach((sousMarque, index) => {
+    const yHaut = 6 + index * (hauteurBloc + 3);
+    doc.image(sousMarque.icone, xIcone, yHaut + 1, { height: 26 });
+    doc.font('Helvetica').fontSize(10).fillColor('#ffffff')
+      .text('ACCECIT', xTexte, yHaut + 2, { characterSpacing: 2.5, lineBreak: false });
+    doc.moveTo(xTexte, yHaut + 14).lineTo(xTexte + largeurTexte, yHaut + 14).lineWidth(0.5).strokeColor('#ffffff').stroke();
+    doc.fontSize(7.5).text(sousMarque.nom, xTexte, yHaut + 17, { lineBreak: false });
+  });
+}
+
+function dessinerPiedDePage(doc, textes) {
   const largeurUtile = doc.page.width - 2 * MARGE;
-  doc.font('Helvetica').fontSize(9).fillColor(COULEURS.libelle)
-    .text(`PDF généré le ${formaterDateHeure(dateGeneration)}`, MARGE, haut + 4, { width: largeurUtile, align: 'right' });
+  const haut = doc.page.height - PIED_HAUTEUR;
+  doc.moveTo(MARGE, haut).lineTo(MARGE + largeurUtile, haut).lineWidth(0.5).strokeColor(COULEURS.filet).stroke();
+  doc.font('Helvetica').fontSize(7.5).fillColor(COULEURS.libelle);
+  doc.text(textes.coordonnees, MARGE, haut + 9, { width: largeurUtile, align: 'center', lineBreak: false });
+  doc.text(textes.confidentialite, MARGE, haut + 21, { width: largeurUtile, align: 'center', lineBreak: false });
+  doc.text(textes.generation, MARGE, haut + 39, { width: largeurUtile / 2, lineBreak: false });
+  doc.text(textes.pagination, MARGE + largeurUtile / 2, haut + 39, { width: largeurUtile / 2, align: 'right', lineBreak: false });
+}
 
-  doc.moveTo(MARGE, haut + 58).lineTo(doc.page.width - MARGE, haut + 58).lineWidth(0.6).strokeColor(COULEURS.filet).stroke();
-  doc.x = MARGE;
-  doc.y = haut + 74;
+// Bandeau et pied de page sur chaque page, dessinés une fois le contenu placé (nombre total de
+// pages connu). Écrits dans les marges : marges neutralisées le temps de l'écriture, sinon pdfkit
+// ajouterait une page vide.
+function dessinerHabillage(doc, dateGeneration) {
+  const pages = doc.bufferedPageRange();
+  for (let i = 0; i < pages.count; i += 1) {
+    doc.switchToPage(pages.start + i);
+    const marges = { ...doc.page.margins };
+    doc.page.margins = { top: 0, bottom: 0, left: 0, right: 0 };
+    dessinerBandeau(doc);
+    dessinerPiedDePage(doc, textesPiedDePage(dateGeneration, i + 1, pages.count));
+    doc.page.margins = marges;
+  }
 }
 
 function hauteurRestante(doc) {
@@ -295,6 +356,7 @@ function dessinerSection(doc, section) {
   if (section.texte) {
     doc.font('Helvetica').fontSize(10).fillColor(COULEURS.texte);
     sautSiNecessaire(doc, Math.min(doc.heightOfString(section.texte, { width: largeurUtile }), 60) + 6);
+    // Texte long : pdfkit le poursuit page suivante, à l'intérieur des mêmes marges.
     doc.text(section.texte, MARGE, doc.y, { width: largeurUtile });
     doc.y += 5;
   }
@@ -309,33 +371,15 @@ function dessinerSection(doc, section) {
   doc.y += 12;
 }
 
-// Pied de page sur chaque page : « Demande DPAE n° X — Page i / n ». Écrit dans la marge basse :
-// marge neutralisée le temps de l'écriture, sinon pdfkit ajouterait une page vide.
-function dessinerPiedsDePage(doc, demande) {
-  const pages = doc.bufferedPageRange();
-  for (let i = 0; i < pages.count; i += 1) {
-    doc.switchToPage(pages.start + i);
-    const margeBasse = doc.page.margins.bottom;
-    doc.page.margins.bottom = 0;
-    doc.font('Helvetica').fontSize(8).fillColor(COULEURS.libelle)
-      .text(`Demande DPAE n° ${demande.id} — Page ${i + 1} / ${pages.count}`, MARGE, doc.page.height - 32, {
-        width: doc.page.width - 2 * MARGE,
-        align: 'center',
-        lineBreak: false,
-      });
-    doc.page.margins.bottom = margeBasse;
-  }
-}
-
 // Renvoie le PDF complet en mémoire (Buffer) : une demande tient sur une à deux pages, et le ZIP
 // a besoin du contenu entier de chaque fichier. dateGeneration paramétrable pour les tests.
 function genererPdfDemande(demande, { dateGeneration = new Date() } = {}) {
   return new Promise((resoudre, rejeter) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: MARGE, bottom: MARGE + 10, left: MARGE, right: MARGE },
+      margins: { top: MARGE_HAUT_CONTENU, bottom: MARGE_BAS_CONTENU, left: MARGE, right: MARGE },
       bufferPages: true,
-      info: { Title: `Demande DPAE n° ${demande.id}`, Author: 'ACCECIT' },
+      info: { Title: `Demande DPAE n° ${demande.id}`, Author: COORDONNEES_ACCECIT.nom },
     });
     const morceaux = [];
     doc.on('data', (morceau) => morceaux.push(morceau));
@@ -343,19 +387,16 @@ function genererPdfDemande(demande, { dateGeneration = new Date() } = {}) {
     doc.on('error', rejeter);
 
     try {
-      dessinerEnTete(doc, demande, dateGeneration);
-
-      doc.font('Helvetica-Bold').fontSize(18).fillColor(COULEURS.texte).text(`Demande DPAE n° ${demande.id}`, MARGE, doc.y);
-      // Titre de la fiche (nom du salarié), puis statut et sa date (pastille de la fiche).
+      // Première page seulement : numéro, salarié (titre de la fiche) et statut avec sa date.
+      doc.font('Helvetica-Bold').fontSize(18).fillColor(COULEURS.texte).text(`Demande DPAE n° ${demande.id}`, MARGE, doc.page.margins.top);
       doc.font('Helvetica').fontSize(13).text(`${demande.salarie_prenom} ${demande.salarie_nom}`);
-      const { libelle, date } = statutEtDate(demande);
       doc.moveDown(0.3).fontSize(10).fillColor(COULEURS.libelle).text('Statut : ', { continued: true })
-        .font('Helvetica-Bold').fillColor(COULEURS.texte).text(date ? `${libelle} — le ${date}` : libelle);
+        .font('Helvetica-Bold').fillColor(COULEURS.texte).text(texteStatut(demande));
       doc.y += 16;
 
       for (const section of sectionsDemande(demande)) dessinerSection(doc, section);
 
-      dessinerPiedsDePage(doc, demande);
+      dessinerHabillage(doc, dateGeneration);
       doc.end();
     } catch (erreur) {
       rejeter(erreur);
@@ -367,7 +408,10 @@ module.exports = {
   genererPdfDemande,
   sectionsDemande,
   statutEtDate,
-  sousMarqueDemande,
+  texteStatut,
+  textesPiedDePage,
   nomFichierPdf,
   nettoyerSegmentChemin,
+  // Zones réservées (points) : exposées pour vérifier l'absence de chevauchement.
+  ZONES_PAGE: Object.freeze({ HAUTEUR_BANDEAU, PIED_HAUTEUR, MARGE_HAUT_CONTENU, MARGE_BAS_CONTENU }),
 };

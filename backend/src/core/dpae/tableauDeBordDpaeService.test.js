@@ -53,7 +53,7 @@ const BRUTS_VIDES = {
   contrats: [],
   motifsCdd: [],
   topSites: [],
-  nonReferencees: 0,
+  nonReferencees: { nombre: 0, ids: [] },
   postes: [],
   demandeurs: [],
   dejaEmploye: [],
@@ -228,4 +228,72 @@ test('requeteBase : toujours filtrée sur l’entité et sur le jour de créatio
 
   const nonReference = tableauDeBordDpaeRepository.requeteBase(bd, 7, { ...base, siteId: 'non_reference' }).toString();
   assert.match(nonReference, /not exists \(select \* from "demandes_dpae_sites"/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Demandes de chaque indicateur (2026-10-02) : au clic sur un indicateur, le front liste les
+// demandes dont les identifiants accompagnent le nombre affiché.
+// ---------------------------------------------------------------------------------------------
+const ids = (...valeurs) => valeurs;
+
+test('Chaque indicateur cliquable porte autant d’identifiants que le nombre affiché (statuts, total, répartitions, sites, postes, demandeurs, évolution)', () => {
+  const t = construireTableauDeBord({
+    filtres: {},
+    granularite: 'semaine',
+    optionsSites: [],
+    liens: [],
+    bruts: {
+      ...BRUTS_VIDES,
+      parStatut: [
+        { statut: 'envoyee', nombre: 2, ids: ids(1, 2) },
+        { statut: 'validee', nombre: 3, ids: ids(3, 4, 5) },
+        { statut: 'rejetee', nombre: 1, ids: ids(6) },
+      ],
+      evolution: [{ periode: '2026-09-28', envoyee: 2, en_attente: 0, validee: 3, rejetee: 1, ids_envoyee: ids(1, 2), ids_en_attente: [], ids_validee: ids(3, 4, 5), ids_rejetee: ids(6) }],
+      contrats: [{ cle: 'cdd', nombre: 4, ids: ids(1, 2, 3, 4) }, { cle: null, nombre: 2, ids: ids(5, 6) }],
+      motifsCdd: [{ cle: 'remplacement_absent', nombre: 3, ids: ids(1, 2, 3) }, { cle: null, nombre: 1, ids: ids(4) }],
+      topSites: [{ id: 51, nom: 'CADRAN', initiales: 'CAD', nombre: 2, ids: ids(1, 3) }],
+      nonReferencees: { nombre: 1, ids: ids(6) },
+      postes: [{ cle: 'cafetier', nombre: 5, ids: ids(1, 2, 3, 4, 5) }, { cle: null, nombre: 1, ids: ids(6) }],
+      demandeurs: [{ id: 9, prenom: 'Thomas', nom: 'Yamini', nombre: 6, ids: ids(1, 2, 3, 4, 5, 6) }],
+      dejaEmploye: [{ cle: false, nombre: 4, ids: ids(1, 2, 3, 4) }, { cle: true, nombre: 2, ids: ids(5, 6) }],
+    },
+  });
+  const paires = [
+    [t.activite.total, t.activite.ids],
+    ...['envoyee', 'en_attente', 'validee', 'rejetee'].map((code) => [t.activite.parStatut[code], t.activite.idsParStatut[code]]),
+    ...['envoyee', 'en_attente', 'validee', 'rejetee'].map((code) => [t.activite.evolution[0][code], t.activite.evolution[0][`ids_${code}`]]),
+    ...['cdd', 'cdi', 'non_renseigne'].map((cle) => [t.repartition.contrats[cle] ?? 0, t.repartition.idsContrats[cle] ?? []]),
+    ...['remplacement_absent', 'surcroit_activite', 'non_renseigne'].map((cle) => [t.repartition.motifsCdd[cle] ?? 0, t.repartition.idsMotifsCdd[cle] ?? []]),
+    ...t.repartition.sites.map((site) => [site.nombre, site.ids]),
+    [t.repartition.nonReferencees, t.repartition.idsNonReferencees],
+    ...t.repartition.postes.map((poste) => [poste.nombre, poste.ids]),
+    ...t.repartition.demandeurs.map((demandeur) => [demandeur.nombre, demandeur.ids]),
+    [t.repartition.nouveauxSalaries, t.repartition.idsNouveauxSalaries],
+    [t.repartition.dejaTravailleChezNous, t.repartition.idsDejaTravailleChezNous],
+    [t.declarationsTardives.nombre, t.declarationsTardives.demandes],
+  ];
+  for (const [nombre, liste] of paires) assert.equal(liste.length, nombre);
+  assert.deepEqual(t.activite.ids, [1, 2, 3, 4, 5, 6]);
+});
+
+test('Indicateurs (SQL) : chaque agrégat compte et liste les MÊMES lignes, dans la même requête (count et array_agg côte à côte)', async (t) => {
+  const r = tableauDeBordDpaeRepository;
+  for (const [fonction, ...arguments_] of [
+    [r.compterParStatut],
+    [r.repartirParContrat],
+    [r.repartirMotifsCdd],
+    [r.listerTopSites],
+    [r.compterNonReferencees],
+    [r.repartirParPoste],
+    [r.repartirParDemandeur],
+    [r.repartirDejaEmploye],
+  ]) {
+    const sql = await sqlEnvoye(t, fonction, ...arguments_);
+    assert.match(sql, /count\((?:DISTINCT )?(?:\*|base\.id)\)::int AS nombre, (?:coalesce\()?array_agg\((?:DISTINCT )?base\.id ORDER BY base\.id\)/, fonction.name);
+  }
+  const evolution = await sqlEnvoye(t, r.calculerEvolution, 'semaine');
+  for (const statut of ['envoyee', 'en_attente', 'validee', 'rejetee']) {
+    assert.match(evolution, new RegExp(`coalesce\\(array_agg\\(base\\.id ORDER BY base\\.id\\) FILTER \\(WHERE base\\.statut = '${statut}'\\), '\\{\\}'\\) AS ids_${statut}`));
+  }
 });

@@ -127,3 +127,42 @@
   color: var(--experience-5ans-texte);
   border-color: var(--experience-5ans-bordure);
 }
+
+/* Urgence des demandes DPAE (2026-10-02) — pastilles pleines, voir --urgence-* dans variables.css. */
+.statut-badge--urgence-vert,
+.statut-badge--urgence-orange,
+.statut-badge--urgence-rouge {
+  color: var(--urgence-texte);
+}
+
+.statut-badge--urgence-vert {
+  background-color: var(--urgence-vert-fond);
+  border-color: var(--urgence-vert-fond);
+}
+
+.statut-badge--urgence-orange {
+  background-color: var(--urgence-orange-fond);
+  border-color: var(--urgence-orange-fond);
+}
+
+.statut-badge--urgence-rouge {
+  background-color: var(--urgence-rouge-fond);
+  border-color: var(--urgence-rouge-fond);
+}
+
+/* Colonne « Étudiant » (Dossiers candidats) et ligne « Étudiant » des informations d'inscription
+   (core/dossier/BadgeEtudiant.jsx) — couleurs --etudiant-* / --non-etudiant-* (variables.css).
+   Étudiant : pastille PLEINE bleu ciel, texte bleu foncé. Non étudiant : CONTOUR seul (fond blanc,
+   bordure grise fine de la pastille de base, 1 px), texte gris foncé. Taille, forme et typographie :
+   celles de .statut-badge, inchangées. */
+.statut-badge--etudiant {
+  background-color: var(--etudiant-fond);
+  color: var(--etudiant-texte);
+  border-color: var(--etudiant-bordure);
+}
+
+.statut-badge--non-etudiant {
+  background-color: var(--non-etudiant-fond);
+  color: var(--non-etudiant-texte);
+  border-color: var(--non-etudiant-bordure);
+}

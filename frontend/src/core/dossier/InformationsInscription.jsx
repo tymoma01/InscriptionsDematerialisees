@@ -5,6 +5,7 @@ import { useSession } from '../auth/useSession';
 import { useRafraichissementAuto } from './useRafraichissementAuto';
 import PanneauApercuPiece from '../pieceJustificative/PanneauApercuPiece';
 import StatutBadge from '../workflow/StatutBadge';
+import BadgeEtudiant from './BadgeEtudiant';
 import { peut } from '../auth/permissions';
 import { LIBELLES_POSTE, POSTES_BUREAU, POSTES_HOTEL } from '../referentiels/postes';
 import {
@@ -41,6 +42,8 @@ import {
   EnteteCarte,
   BadgePositifNeutre,
 } from './elementsInformationsInscription';
+import { useTypesPieces } from '../pieceJustificative/useTypesPieces';
+import { ordonnerPiecesRecues } from '../pieceJustificative/ordrePiecesRecues';
 import './InformationsInscription.css';
 
 // Section repliable "Informations d'inscription complètes" de la fiche dossier candidat
@@ -75,8 +78,14 @@ import './InformationsInscription.css';
 //
 // dossierId reçu en prop, pas de useParams() ici : ce composant ne connaît rien du routage, même
 // patron que HistoriqueRelances.jsx — à l'appelant de le lire depuis le paramètre de route.
+//
+// Ordre et libellés du bloc « Pièces jointes » : MÊME source que le bloc « Pièces justificatives »
+// (CaptureTablette.jsx via VerificationPieces.jsx) — la configuration des pièces de l'entité,
+// table types_pieces, lue par useTypesPieces. Tant qu'elle n'est pas chargée (ou en cas d'échec),
+// les pièces restent affichées, avec le libellé du serveur (voir ordrePiecesRecues.js).
 export default function InformationsInscription({ dossierId }) {
   const { utilisateur } = useSession();
+  const { typesPieces } = useTypesPieces();
   const [inscription, setInscription] = useState(null);
   const [pieces, setPieces] = useState([]);
   const [chargement, setChargement] = useState(false);
@@ -449,11 +458,10 @@ export default function InformationsInscription({ dossierId }) {
                         }
                       />
                       <Ligne libelle="Type de poste recherché" valeur={libelle(LIBELLES_TYPE_POSTE, disponibilites.typePoste)} />
-                      {/* « Êtes-vous étudiant ? » (2026-10-01, dossiers.est_etudiant) : « — » pour un dossier antérieur. */}
-                      <Ligne
-                        libelle="Étudiant"
-                        valeur={candidat?.estEtudiant === true ? 'Oui' : candidat?.estEtudiant === false ? 'Non' : '—'}
-                      />
+                      {/* « Êtes-vous étudiant ? » (dossiers.est_etudiant) : même pastille que la colonne
+                          « Étudiant » de Dossiers candidats (BadgeEtudiant.jsx), libellée « Oui »/« Non »
+                          à côté de l'intitulé ; « — » pour un dossier antérieur à la question. */}
+                      <Ligne libelle="Étudiant" valeur={<BadgeEtudiant estEtudiant={candidat?.estEtudiant} libelleOui="Oui" libelleNon="Non" />} />
                       <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
                       <Ligne libelle="Langues parlées" valeur={languesValeur} />
                       <Ligne libelle="Comment nous a connu" valeur={commentConnuValeur} />
@@ -866,13 +874,21 @@ export default function InformationsInscription({ dossierId }) {
                   // des cellules indépendantes par ligne — c'est ce qui garantit que
                   // statut/date/Voir tombent exactement à la même position horizontale sur TOUTES
                   // les lignes, y compris quand un nom de pièce est plus long que les autres.
+                  // Ordre et libellés du bloc « Pièces justificatives » (2026-10-02, voir
+                  // core/pieceJustificative/ordrePiecesRecues.js) : verso en retrait juste sous sa
+                  // pièce, « Autres documents » à la fin dans leur ordre de réception. Toujours une
+                  // ligne par pièce reçue (compteur ci-dessus inchangé).
                   <ul className="informations-inscription__pieces">
-                    {pieces.map((piece) => (
+                    {ordonnerPiecesRecues(pieces, typesPieces ?? []).map(({ piece, libelle, libelleApercu, verso }) => (
                       <li key={piece.id} className="informations-inscription__piece">
                         {/* Pas de troncature : un nom long (ex. "Carte d'identité ou Carte de
                             séjour") passe à la ligne plutôt que d'être coupé (white-space:
                             normal côté .css, voir son commentaire). */}
-                        <span className="informations-inscription__piece-nom">{piece.type_piece_libelle}</span>
+                        <span
+                          className={`informations-inscription__piece-nom${verso ? ' informations-inscription__piece-nom--verso' : ''}`}
+                        >
+                          {libelle}
+                        </span>
                         <span className="informations-inscription__piece-date">{formaterDate(piece.date_upload)}</span>
                         <span className="informations-inscription__piece-statut">
                           <StatutBadge
@@ -888,7 +904,7 @@ export default function InformationsInscription({ dossierId }) {
                         <button
                           type="button"
                           className="informations-inscription__piece-action"
-                          onClick={() => setPieceEnApercu(piece)}
+                          onClick={() => setPieceEnApercu({ ...piece, libelleApercu })}
                         >
                           Voir
                         </button>
@@ -900,7 +916,7 @@ export default function InformationsInscription({ dossierId }) {
                 {pieceEnApercu && (
                   <PanneauApercuPiece
                     dossierId={dossierId}
-                    libelle={pieceEnApercu.type_piece_libelle}
+                    libelle={pieceEnApercu.libelleApercu ?? pieceEnApercu.type_piece_libelle}
                     piece={pieceEnApercu}
                     onFermer={() => setPieceEnApercu(null)}
                   />

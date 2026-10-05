@@ -130,7 +130,8 @@ async function executer() {
         assert.equal(t.activite.delaiMedianHeures, 4);
       });
       verifier('Activité : évolution par semaine (lundi), semaines vides incluses, série « en attente »', () =>
-        assert.deepEqual(t.activite.evolution, [
+        // Comptes seulement (les identifiants par statut sont vérifiés plus bas, « Indicateurs cliquables »).
+        assert.deepEqual(t.activite.evolution.map(({ periode, envoyee, en_attente, validee, rejetee }) => ({ periode, envoyee, en_attente, validee, rejetee })), [
           { periode: '2026-09-14', envoyee: 0, en_attente: 0, validee: 2, rejetee: 0 },
           { periode: '2026-09-21', envoyee: 0, en_attente: 0, validee: 0, rejetee: 0 },
           { periode: '2026-09-28', envoyee: 0, en_attente: 0, validee: 1, rejetee: 1 },
@@ -207,6 +208,46 @@ async function executer() {
         assert.equal(autreEntite.activite.total, 1);
         assert.deepEqual(idsDe(autreEntite.priorite.premierJourProche), [ids.d7]);
         assert.deepEqual(autreEntite.optionsSites, []);
+      });
+
+      // Demandes de chaque indicateur (2026-10-02) : pour CHAQUE indicateur cliquable du tableau, la
+      // liste d'identifiants renvoyée a exactement le nombre affiché, sans doublon, et ne contient que
+      // des demandes de l'entité — sur le tableau par défaut et sur chaque variante filtrée ci-dessus.
+      const idsEntiteA = new Set((await trx('demandes_dpae').where({ entite_id: entiteA.id }).pluck('id')).map(Number));
+      const indicateurs = (tableau) => [
+        ['total', tableau.activite.total, tableau.activite.ids],
+        ...['envoyee', 'en_attente', 'validee', 'rejetee'].map((code) => [`statut ${code}`, tableau.activite.parStatut[code], tableau.activite.idsParStatut[code]]),
+        ...tableau.activite.evolution.flatMap((p) =>
+          ['envoyee', 'en_attente', 'validee', 'rejetee'].map((code) => [`évolution ${p.periode} ${code}`, p[code], p[`ids_${code}`]]),
+        ),
+        ['déclarations tardives', tableau.declarationsTardives.nombre, tableau.declarationsTardives.demandes.map((d) => d.id)],
+        ...Object.keys(tableau.repartition.contrats).map((cle) => [`contrat ${cle}`, tableau.repartition.contrats[cle], tableau.repartition.idsContrats[cle]]),
+        ...Object.keys(tableau.repartition.motifsCdd).map((cle) => [`motif ${cle}`, tableau.repartition.motifsCdd[cle], tableau.repartition.idsMotifsCdd[cle]]),
+        ...tableau.repartition.sites.map((site) => [`site ${site.nom}`, site.nombre, site.ids]),
+        ['non référencé', tableau.repartition.nonReferencees, tableau.repartition.idsNonReferencees],
+        ...tableau.repartition.postes.map((poste) => [`poste ${poste.poste}`, poste.nombre, poste.ids]),
+        ...tableau.repartition.demandeurs.map((d) => [`demandeur ${d.id}`, d.nombre, d.ids]),
+        ['nouveaux salariés', tableau.repartition.nouveauxSalaries, tableau.repartition.idsNouveauxSalaries],
+        ['déjà travaillé chez nous', tableau.repartition.dejaTravailleChezNous, tableau.repartition.idsDejaTravailleChezNous],
+      ];
+      const variantes = { 'par défaut': t, 'site SITE UN': parSite, 'non référencé': nonRef, 'CDI': cdi };
+      verifier('Indicateurs cliquables : pour chaque indicateur, autant d’identifiants que le nombre affiché, sans doublon, tous de l’entité', () => {
+        let nombreControles = 0;
+        for (const [variante, tableau] of Object.entries(variantes)) {
+          for (const [libelle, nombre, liste] of indicateurs(tableau)) {
+            const identifiants = (liste ?? []).map(Number);
+            assert.equal(identifiants.length, nombre, `${variante} — ${libelle}`);
+            assert.equal(new Set(identifiants).size, identifiants.length, `${variante} — ${libelle} : doublon`);
+            assert.ok(identifiants.every((id) => idsEntiteA.has(id)), `${variante} — ${libelle} : autre entité`);
+            nombreControles += 1;
+          }
+        }
+        assert.ok(nombreControles > 40, `${nombreControles} contrôles`);
+      });
+      verifier('Indicateurs cliquables : total = union exacte des quatre statuts ; « SITE UN » = ses demandes filtrées', () => {
+        assert.deepEqual([...t.activite.ids].sort((a, b) => a - b), Object.values(t.activite.idsParStatut).flat().sort((a, b) => a - b));
+        const site1 = t.repartition.sites.find((site) => site.id === s1.id);
+        assert.deepEqual([...site1.ids].map(Number).sort((a, b) => a - b), [...parSite.activite.ids].map(Number).sort((a, b) => a - b));
       });
 
       throw ANNULATION;
