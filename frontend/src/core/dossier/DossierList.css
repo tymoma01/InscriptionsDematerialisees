@@ -18,10 +18,11 @@
      --planification-largeur-colonne-date (Planification.css). Assez large pour trois chiffres
      sans jamais être coupée. */
   --dossier-list-largeur-colonne-numero: 3rem;
-  /* Sélection multiple (audit 2026-08-24, actions groupées) : colonne de case à cocher, désormais
-     la première colonne figée (left: 0) quand elle se rend — "N°" décalée d'autant derrière elle,
-     même patron que --planification-largeur-colonne-case (Planification.css). */
-  --dossier-list-largeur-colonne-case: 2.5rem;
+  /* Sélection multiple : colonne de case à cocher, première colonne figée (left: 0) quand elle
+     se rend — "N°" décalée d'autant derrière elle, même patron que
+     --planification-largeur-colonne-case (Planification.css). Juste la case et une fine marge
+     (padding resserré, voir .dossier-list__colonne-case), pour laisser la place à "Candidat". */
+  --dossier-list-largeur-colonne-case: 1.75rem;
 }
 
 .dossier-list th,
@@ -125,10 +126,10 @@
      du contenu qui défile en dessous, même principe qu'un tableau à colonne figée classique. */
   border-right: 1px solid var(--couleur-bordure-legere);
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
-  /* 11rem (8rem auparavant) : élargie avec la place rendue par la colonne « Étudiant », retirée le
-     2026-10-02. Un nom long passe à la ligne UNIQUEMENT entre deux mots ou après un trait d'union,
-     jamais au milieu d'un mot (plus de word-break) : un mot plus long que la colonne l'élargit. */
-  max-width: 11rem;
+  /* Largeur rendue par les libellés de poste abrégés et la case à cocher resserrée. Un nom long
+     passe à la ligne UNIQUEMENT entre deux mots ou après un trait d'union, jamais au milieu d'un
+     mot (pas de word-break) : un mot plus long que la colonne l'élargit. */
+  max-width: 12rem;
   white-space: normal;
   word-break: normal;
   overflow-wrap: normal;
@@ -151,14 +152,18 @@
   background-color: var(--couleur-fond);
 }
 
-/* Colonne de sélection multiple (audit 2026-08-24, actions groupées) — première colonne figée
-   (left: 0) quand elle se rend (voir DossierList.jsx, `selectionActive`), même patron exact que
-   .planification__colonne-case (Planification.css). */
+/* Colonne de sélection multiple — première colonne figée (left: 0) quand elle se rend (voir
+   DossierList.jsx, `selectionActive`), même patron exact que .planification__colonne-case
+   (Planification.css). box-sizing + padding horizontal resserré : la largeur rendue doit égaler
+   --dossier-list-largeur-colonne-case, qui sert de décalage `left` à "N°" — avec le padding
+   standard des cellules, la colonne serait plus large que ce décalage et "N°" la chevaucherait. */
 .dossier-list__colonne-case {
   position: sticky;
   left: 0;
   z-index: 1;
+  box-sizing: border-box;
   width: var(--dossier-list-largeur-colonne-case);
+  min-width: var(--dossier-list-largeur-colonne-case);
   text-align: center;
   background-color: var(--couleur-fond);
 }
@@ -173,6 +178,14 @@
 .dossier-list td.dossier-list__colonne-numero,
 .dossier-list td.dossier-list__colonne-case {
   text-align: center;
+}
+
+/* Même qualification par `.dossier-list td/th` pour l'emporter sur le padding standard des
+   cellules (y compris celui de la plage tablette, plus bas). */
+.dossier-list td.dossier-list__colonne-case,
+.dossier-list th.dossier-list__colonne-case {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
 }
 
 .dossier-list th.dossier-list__colonne-figee,
@@ -233,8 +246,9 @@
 }
 
 .dossier-list__colonne-poste {
-  /* 10.5rem (resserré à 9rem à l'origine) — même raison que Email ci-dessus. */
-  max-width: 10.5rem;
+  /* Libellés abrégés (voir abreviationPoste, referentiels/postes.js) : seuls les postes sans
+     abréviation ("Machiniste"…) occupent encore la largeur pleine d'une puce. */
+  max-width: 7rem;
 }
 
 /* Resserrée un peu pour rendre un peu de largeur à "Candidat"

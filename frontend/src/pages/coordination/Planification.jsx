@@ -17,7 +17,7 @@ import { listerFormateurs } from '../../services/formateurService';
 import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import PanneauHistoriqueRendezvous from './PanneauHistoriqueRendezvous';
-import { libellePoste } from '../../core/referentiels/postes';
+import { abreviationPoste, libellePoste } from '../../core/referentiels/postes';
 import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import {
   FORMAT_DATE_HEURE,
@@ -924,8 +924,8 @@ export default function Planification() {
                     <td className="planification__colonne-poste">
                       <div className="planification__postes">
                         {[...(rdv.postesBureau ?? []), ...(rdv.postesHotel ?? [])].map((code) => (
-                          <span key={code} className="planification__badge-poste">
-                            {libellePoste(code)}
+                          <span key={code} className="planification__badge-poste" title={libellePoste(code)}>
+                            {abreviationPoste(code, rdv.candidat_civilite)}
                           </span>
                         ))}
                       </div>
