@@ -571,15 +571,19 @@
      pour trois chiffres sans jamais être coupée. */
   --planification-largeur-colonne-numero: 3rem;
   /* Largeur fixe de la colonne "case à cocher" (sélection de candidats, voir Planification.jsx) —
-     désormais la première colonne figée (left: 0), "N°" décalée d'autant derrière elle. Assez
-     large pour une case à cocher seule, centrée. */
-  --planification-largeur-colonne-case: 2.5rem;
+     première colonne figée (left: 0), "N°" décalée d'autant derrière elle. Juste la case et une
+     fine marge (padding resserré, voir .planification__colonne-case), même largeur que
+     --dossier-list-largeur-colonne-case (DossierList.css). */
+  --planification-largeur-colonne-case: 1.75rem;
 }
 
 .planification__table th,
 .planification__table td {
   padding: 0.75rem var(--espace-moyen);
   text-align: left;
+  /* Centré verticalement quelle que soit la cellule la plus haute — même patron que
+     DossierList.css. */
+  vertical-align: middle;
   border-bottom: 1px solid var(--couleur-bordure-legere);
   /* Séparateur vertical fin entre colonnes, même patron que DossierList.css — exclu de la
      dernière colonne (règle suivante) pour ne pas doubler la bordure de
@@ -656,6 +660,15 @@
   padding: 0.75rem var(--espace-moyen);
 }
 
+/* Case à cocher : padding horizontal resserré (en-tête et lignes) — avec box-sizing: border-box
+   (voir .planification__colonne-case), la largeur rendue égale exactement
+   --planification-largeur-colonne-case, qui sert de décalage `left` à "N°". */
+.planification__table th.planification__colonne-case,
+.planification__table td.planification__colonne-case {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
 .planification__entete-tri {
   display: flex;
   align-items: center;
@@ -717,7 +730,9 @@
   position: sticky;
   left: 0;
   z-index: 1;
+  box-sizing: border-box;
   width: var(--planification-largeur-colonne-case);
+  min-width: var(--planification-largeur-colonne-case);
   text-align: center;
   background-color: var(--couleur-fond);
 }
@@ -762,8 +777,8 @@
         auto calcule pour "AAAAAAAAAA" (overflow-wrap: break-word ne coupe qu'au RENDU, jamais au
         calcul de largeur minimale — contrairement à word-break: break-word — voir aussi le
         commentaire de .dossier-list__colonne-email, DossierList.css, sur cette distinction) : la
-        colonne s'élargissait alors bien AU-DELÀ de son max-width (constaté ~195px au lieu des 9rem
-        visés, max-width n'étant qu'une préférence pour ce calcul, jamais un plafond dur dès que le
+        colonne s'élargissait alors bien AU-DELÀ de son max-width (constaté ~195px au lieu du max-width
+        visé, max-width n'étant qu'une préférence pour ce calcul, jamais un plafond dur dès que le
         contenu l'exige) pour ne pas tronquer ce mot — débordement de retour, sur TOUTES les
         largeurs testées cette fois.
      word-break: break-word + min-width (RETENU) : reprend l'approche 1 (nécessaire pour que
@@ -772,7 +787,7 @@
      descend alors plus jamais sous min-width, quelle que soit la pression, ce qui referme
      spécifiquement le scénario 1 (largement au-dessus de la largeur d'un seul caractère, "Candidat"
      y tient sans se replier lettre par lettre). */
-  max-width: 9rem;
+  max-width: 12rem;
   min-width: 5rem;
   white-space: normal;
   word-break: break-word;
@@ -825,7 +840,9 @@
    .dossier-list__colonne-poste (DossierList.css, "Dossiers candidats") — réutilisé ici tel quel
    plutôt qu'une nouvelle règle inventée. */
 .planification__colonne-poste {
-  max-width: 9rem;
+  /* Libellés abrégés (voir abreviationPoste, referentiels/postes.js), même largeur que
+     .dossier-list__colonne-poste. */
+  max-width: 7rem;
 }
 
 .planification__postes {

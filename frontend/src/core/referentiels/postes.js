@@ -20,10 +20,16 @@ export function libellePoste(code) {
   return LIBELLES_POSTE[code] ?? code;
 }
 
-// Abréviations hôtellerie — les mêmes que dans le titre des événements Outlook des formateurs
-// (backend/src/core/rendezvous/rendezvousService.js). Femme/valet de chambre selon la civilité du
-// candidat. Les postes bureau n'ont pas d'abréviation : leur libellé reste affiché.
+// Abréviations affichées dans les listes du back-office. Celles de l'hôtellerie sont les mêmes que
+// dans le titre des événements Outlook des formateurs (backend/src/core/rendezvous/
+// rendezvousService.js) ; celles du bureau n'existent que côté front. Femme/valet de chambre selon
+// la civilité du candidat.
 const ABREVIATIONS_POSTE = {
+  nettoyage: 'NETT',
+  vitrerie: 'VITR',
+  machiniste: 'MACH',
+  chef_equipe: 'CEQP',
+  autres: 'AUTR',
   cafetier: 'CAF',
   equipier: 'EQP',
   gouvernant: 'GOV',

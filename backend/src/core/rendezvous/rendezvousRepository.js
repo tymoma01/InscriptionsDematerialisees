@@ -427,6 +427,8 @@ function listerRendezvousTest(bd, entiteId, { aVenirSeulement, formateurId, date
       'motifs.code as motif_code',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
+      // Abréviation FDC/VDC du poste femme/valet de chambre dans « Suivi des tests ».
+      'candidats.civilite as candidat_civilite',
       'statuts.code as dossier_statut_code',
       'statuts.libelle as dossier_statut_libelle',
       'utilisateurs.prenom as formateur_prenom',
