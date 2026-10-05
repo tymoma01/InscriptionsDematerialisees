@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
-import { creerDemande } from '../../services/dpaeService';
+import { creerDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
+import { JOURS_SEMAINE, donneesFormulaireDepuisDemande, donneesInitiales } from '../../core/dpae/formulaireDemandeDpae';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
 import './DemandeDpae.css';
 
@@ -28,62 +29,6 @@ const POSTES_HOTEL = [
   { code: 'autre', libelle: 'Autre' },
 ];
 
-const JOURS_SEMAINE = [
-  { code: 'lundi', libelle: 'Lundi' },
-  { code: 'mardi', libelle: 'Mardi' },
-  { code: 'mercredi', libelle: 'Mercredi' },
-  { code: 'jeudi', libelle: 'Jeudi' },
-  { code: 'vendredi', libelle: 'Vendredi' },
-  { code: 'samedi', libelle: 'Samedi' },
-  { code: 'dimanche', libelle: 'Dimanche' },
-];
-
-function semaineTypeInitiale() {
-  return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '' }));
-}
-
-const DONNEES_INITIALES = {
-  typeDemande: '',
-  salarieNom: '',
-  salariePrenom: '',
-  salarieTelephone: '',
-  salarieDejaEmploye: false,
-  candidatId: null,
-  // Site(s) d'affectation : ids du référentiel `sites_affectation`, remplace l'ancien
-  // champ texte `hotel` (plus envoyé, voir SelecteurSitesAffectation.jsx).
-  sitesAffectationIds: [],
-  typeContrat: '',
-  motifCdd: '',
-  salarieRemplaceNom: '',
-  dateFinAbsence: '',
-  raisonSurcroit: '',
-  division: '',
-  divisionAutre: '',
-  poste: '',
-  posteAutre: '',
-  dateDebut: '',
-  dateFin: '',
-  heureArriveeJ1: '',
-  heuresParMois: '',
-  modificationsDemandees: false,
-  modificationHoraires: false,
-  modificationJoursRepos: false,
-  modificationAffectation: false,
-  nouvelleAffectation: '',
-  typeChangementJours: '',
-  joursConcernes: [],
-  raisonChangementJours: '',
-  raisonIdentiqueContrat: '',
-  semaineType: semaineTypeInitiale(),
-  horairesDifferentsParJour: false,
-  heureDebutCommune: '',
-  heureFinCommune: '',
-  autreChoseSignaler: '',
-  verifBesoinHotel: false,
-  verifTousJoursInclus: false,
-  verifNonPlanification: false,
-};
-
 // Formulaire "Nouvelle demande DPAE" (module Demandes DPAE, 2026-09-28) — reprend les sections de
 // la maquette d'origine (voir le plan) avec le style de l'outil (PageBackOffice/EnTeteBackOffice,
 // mêmes classes .bloc-formulaire que le formulaire d'inscription candidat, voir
@@ -94,9 +39,17 @@ const DONNEES_INITIALES = {
 // "Jours concernés" (ajout/retrait de jours) : simple liste de dates ajoutées/retirées une à une,
 // plutôt que la grille tactile de la maquette — même donnée finale (un tableau de dates), pour un
 // premier jet plus simple à développer/tester (voir le plan, section Simplifications).
-export default function DemandeDpae() {
+//
+// Mode modification (route /coordination/dpae/:demandeId/modifier) : le MÊME formulaire, prérempli
+// avec la demande existante (donneesFormulaireDepuisDemande) ; « Enregistrer les modifications »
+// envoie la demande complète et la version lue (PUT /api/dpae/:id), « Annuler » revient à la fiche.
+function FormulaireDemandeDpae({ demande, onRecharger }) {
+  const modification = Boolean(demande);
   const navigate = useNavigate();
-  const [donnees, setDonnees] = useState(DONNEES_INITIALES);
+  const [donnees, setDonnees] = useState(() => (demande ? donneesFormulaireDepuisDemande(demande) : donneesInitiales()));
+  // Vrai quand le serveur a refusé l'enregistrement (409) : la demande a changé depuis son
+  // chargement. La saisie reste à l'écran ; recharger la remplace par la version à jour.
+  const [conflit, setConflit] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   // Bloc « Site(s) d'affectation » : replié à l'ouverture du formulaire, déplié automatiquement si
@@ -189,6 +142,7 @@ export default function DemandeDpae() {
 
     setEnvoiEnCours(true);
     setErreur(null);
+    setConflit(false);
     try {
       const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, ...reste } = donnees;
 
@@ -200,17 +154,24 @@ export default function DemandeDpae() {
         : donnees.semaineType.map((jour) =>
             jour.statut === 'travail' ? { ...jour, heureDebut: heureDebutCommune, heureFin: heureFinCommune } : jour,
           );
-      await creerDemande({
+      const corps = {
         ...reste,
         candidatId: candidatId || undefined,
         salarieRemplaceNom: estCddRemplacement ? reste.salarieRemplaceNom : undefined,
         heuresParMois: heuresParMois ? Number(heuresParMois) : undefined,
         semaineType,
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
-      });
-      navigate('/coordination/dpae/suivi');
+      };
+      if (modification) {
+        await modifierDemande(demande.id, { ...corps, version: demande.version });
+        navigate(`/rh/dpae/${demande.id}`, { state: { confirmation: 'Les modifications de la demande ont été enregistrées.' } });
+      } else {
+        await creerDemande(corps);
+        navigate('/coordination/dpae/suivi');
+      }
     } catch (erreurRequete) {
-      setErreur(erreurRequete.response?.data?.erreur ?? "Impossible d'envoyer la demande.");
+      setConflit(erreurRequete.response?.status === 409);
+      setErreur(erreurRequete.response?.data?.erreur ?? (modification ? "Impossible d'enregistrer les modifications." : "Impossible d'envoyer la demande."));
     } finally {
       setEnvoiEnCours(false);
     }
@@ -220,7 +181,7 @@ export default function DemandeDpae() {
     <PageBackOffice>
       <div className="page-demande-dpae">
         <header className="page-demande-dpae__entete">
-          <h1>Nouvelle demande DPAE</h1>
+          <h1>{modification ? `Modifier la demande DPAE n° ${demande.id}` : 'Nouvelle demande DPAE'}</h1>
           <EnTeteBackOffice />
         </header>
 
@@ -727,10 +688,30 @@ export default function DemandeDpae() {
             </label>
 
             {erreur && <p role="alert">{erreur}</p>}
+            {conflit && (
+              <p>
+                Votre saisie est conservée à l&rsquo;écran, mais elle ne peut pas être enregistrée telle quelle.{' '}
+                <button type="button" onClick={onRecharger}>
+                  Recharger la demande à jour
+                </button>{' '}
+                (remplace votre saisie par la version actuelle).
+              </p>
+            )}
 
             <div className="page-demande-dpae__actions">
+              {modification && (
+                <button type="button" onClick={() => navigate(`/rh/dpae/${demande.id}`)} disabled={envoiEnCours}>
+                  Annuler
+                </button>
+              )}
               <button type="submit" disabled={!formulaireCompletHorsSites || envoiEnCours}>
-                {envoiEnCours ? 'Envoi…' : 'Envoyer à la RH'}
+                {modification
+                  ? envoiEnCours
+                    ? 'Enregistrement…'
+                    : 'Enregistrer les modifications'
+                  : envoiEnCours
+                    ? 'Envoi…'
+                    : 'Envoyer à la RH'}
               </button>
             </div>
           </fieldset>
@@ -738,4 +719,39 @@ export default function DemandeDpae() {
       </div>
     </PageBackOffice>
   );
+}
+
+// Chargement de la demande à modifier, puis le même formulaire prérempli. `key` = id + version : une
+// demande rechargée (après un 409) réinitialise le formulaire avec ses valeurs à jour.
+function ModificationDemandeDpae({ demandeId }) {
+  const [demande, setDemande] = useState(null);
+  const [erreur, setErreur] = useState(null);
+
+  const charger = () => {
+    setErreur(null);
+    return obtenirDemande(demandeId)
+      .then(setDemande)
+      .catch(() => setErreur('Impossible de récupérer cette demande.'));
+  };
+
+  useEffect(() => {
+    charger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demandeId]);
+
+  if (erreur || !demande) {
+    return (
+      <PageBackOffice>
+        {erreur ? <p role="alert">{erreur}</p> : <p>Chargement…</p>}
+      </PageBackOffice>
+    );
+  }
+  return <FormulaireDemandeDpae key={`${demande.id}-${demande.version}`} demande={demande} onRecharger={charger} />;
+}
+
+// Page « Nouvelle demande DPAE » (sans identifiant dans l'adresse) ou « Modifier la demande »
+// (/coordination/dpae/:demandeId/modifier) — un seul composant de formulaire pour les deux.
+export default function DemandeDpae() {
+  const { demandeId } = useParams();
+  return demandeId ? <ModificationDemandeDpae demandeId={demandeId} /> : <FormulaireDemandeDpae />;
 }

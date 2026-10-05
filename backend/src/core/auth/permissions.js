@@ -70,6 +70,12 @@ const PERMISSIONS = {
   dpaeConsultation: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
   // Parmi eux, qui voit TOUTES les demandes de l'entité (les autres : seulement les leurs).
   dpaeConsultationToutes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
+  // Modification d'une demande encore « À traiter » ou « En attente » : les rôles qui peuvent
+  // modifier au moins leurs propres demandes (comme la création)…
+  dpaeModification: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE],
+  // … et, parmi eux, ceux qui peuvent modifier la demande de n'importe quel auteur (les autres :
+  // seulement les leurs). Règle par demande : demandeDpaeService.peutModifierDemande.
+  dpaeModificationToutes: [PLANNING, ADMIN],
   dpaeTableauDeBord: [ADMIN, RH, PLANNING],
   dpaeNotes: [ADMIN, RH, PLANNING],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.

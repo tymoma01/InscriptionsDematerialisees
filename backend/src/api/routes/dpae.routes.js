@@ -29,7 +29,10 @@ function enumOptionnel(valeurs) {
   return z.preprocess((valeur) => (valeur === '' ? undefined : valeur), z.enum(valeurs).optional());
 }
 
-const demandeBodySchema = z.object({
+// Champs d'une demande, SANS les règles croisées : source unique de la création (POST /) et de la
+// modification (PUT /:id), qui y ajoutent chacune leurs propres champs (version) et les mêmes
+// règles croisées (verifierReglesDemande).
+const demandeBaseSchema = z.object({
   typeDemande: z.enum([
     'nouvelle_embauche',
     'prolongation',
@@ -94,27 +97,38 @@ const demandeBodySchema = z.object({
   verifBesoinHotel: z.boolean(),
   verifTousJoursInclus: z.boolean(),
   verifNonPlanification: z.boolean(),
-})
-  // "Nom du salarié remplacé" obligatoire UNIQUEMENT pour un CDD de remplacement (audit 2026-09-29,
-  // demande utilisateur) — règle croisée entre champs, d'où ce superRefine plutôt qu'un min(1) sur
-  // le champ lui-même (qui l'imposerait dans tous les cas). salarieRemplaceNom est déjà trimé
-  // ci-dessus : une saisie faite d'espaces arrive ici vide et est refusée. Aucun contrôle pour un
-  // CDI ou un CDD de surcroît d'activité. La date de fin d'absence reste facultative (demande
-  // explicite). Colonne inchangée en base, demandes existantes non concernées.
-  .superRefine((demande, ctx) => {
-    if (demande.typeContrat === 'cdd' && demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['salarieRemplaceNom'],
-        message: 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.',
-      });
-    }
-  });
+});
 
-// Chaque décision porte la version de la demande lue par le client (verrouillage optimiste, voir
-// demandeDpaeService.appliquerTransition) : absente ou invalide -> 400.
+// Règles croisées entre champs, communes à la création et à la modification.
+// "Nom du salarié remplacé" obligatoire UNIQUEMENT pour un CDD de remplacement (audit 2026-09-29,
+// demande utilisateur) — règle croisée entre champs, d'où ce contrôle ici plutôt qu'un min(1) sur
+// le champ lui-même (qui l'imposerait dans tous les cas). salarieRemplaceNom est déjà trimé
+// ci-dessus : une saisie faite d'espaces arrive ici vide et est refusée. Aucun contrôle pour un
+// CDI ou un CDD de surcroît d'activité. La date de fin d'absence reste facultative (demande
+// explicite). Colonne inchangée en base, demandes existantes non concernées.
+function verifierReglesDemande(demande, ctx) {
+  if (demande.typeContrat === 'cdd' && demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['salarieRemplaceNom'],
+      message: 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.',
+    });
+  }
+}
+
+// Création : la demande complète.
+const demandeBodySchema = demandeBaseSchema.superRefine(verifierReglesDemande);
+
+// Version de la demande lue par le client (verrouillage optimiste, voir
+// demandeDpaeService.appliquerTransition et modifierDemande) : absente ou invalide -> 400.
 const versionSchema = z.coerce.number().int().positive();
 
+// Modification (PUT /:id) : la demande COMPLÈTE (mêmes champs et mêmes règles que la création) plus
+// la version lue. Le demandeur, l'entité, la date de création et le statut ne figurent pas dans le
+// schéma : un client qui les enverrait serait ignoré.
+const modificationBodySchema = demandeBaseSchema.extend({ version: versionSchema }).superRefine(verifierReglesDemande);
+
+// Chaque décision porte la version de la demande lue par le client : absente ou invalide -> 400.
 const validationBodySchema = z.object({ version: versionSchema });
 
 const rejetBodySchema = z.object({
@@ -128,9 +142,9 @@ const miseEnAttenteBodySchema = z.object({
   version: versionSchema,
 });
 
-// Réponses d'erreur communes aux trois décisions : demande d'une autre entité ou inexistante 404,
-// transition non autorisée depuis le statut courant ou demande modifiée entre-temps 409, corps
-// invalide 400. Renvoie true si l'erreur a été traitée.
+// Réponses d'erreur communes aux décisions et à la modification : demande d'une autre entité ou
+// inexistante 404, droit insuffisant 403, transition non autorisée depuis le statut courant ou
+// demande modifiée entre-temps 409, corps ou sites invalides 400. Renvoie true si l'erreur a été traitée.
 function repondreErreurDecision(res, erreur) {
   if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
     res.status(404).json({ erreur: erreur.message });
@@ -138,6 +152,14 @@ function repondreErreurDecision(res, erreur) {
   }
   if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee || erreur instanceof demandeDpaeService.ErreurDemandeModifiee) {
     res.status(409).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof demandeDpaeService.ErreurModificationInterdite) {
+    res.status(403).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof demandeDpaeService.ErreurSitesAffectationInvalides) {
+    res.status(400).json({ erreur: erreur.message });
     return true;
   }
   if (erreur instanceof z.ZodError) {
@@ -391,6 +413,29 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
   }
 });
 
+// PUT /api/dpae/:id { …demande complète, version } — modification d'une demande « À traiter » ou « En
+// attente » (« En attente » repasse « À traiter », la RH est notifiée). Garde de rôle : dpaeModification
+// (Planning, Admin, Inspecteur Hôtellerie) ; droit par demande (auteur, ou Planning/Admin pour toute
+// demande) et statut verrouillé vérifiés dans la transaction (demandeDpaeService.modifierDemande).
+// Réponse : { statut, version } après modification. utilisateurId, entité et rôle viennent de la
+// session, jamais du corps.
+router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_MODIFIER)), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const { version, ...donnees } = modificationBodySchema.parse(req.body);
+    const { statut, version: nouvelleVersion } = await demandeDpaeService.modifierDemande(req.entite, id, {
+      donnees,
+      version,
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+      adresseIp: req.ip,
+    });
+    res.json({ statut, version: nouvelleVersion });
+  } catch (erreur) {
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
+  }
+});
+
 // PATCH /api/dpae/:id/valider { version } — « À traiter » ou « En attente » -> « Validée ». La garde
 // de rôle, les statuts de départ et la traçabilité (journal_audit, notification du demandeur, dans
 // la même transaction que la décision) viennent de statutsDpae.js / demandeDpaeService.js.
@@ -492,6 +537,8 @@ module.exports = router;
 // aucune infrastructure de test HTTP dans ce projet, on teste le VRAI schéma monté sur POST /,
 // jamais une copie).
 module.exports.demandeBodySchema = demandeBodySchema;
+module.exports.demandeBaseSchema = demandeBaseSchema;
+module.exports.modificationBodySchema = modificationBodySchema;
 // Filtres du tableau de bord exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
 // Motif de mise en attente et note exposés pour dpae.routes.test.js (même raison que ci-dessus).

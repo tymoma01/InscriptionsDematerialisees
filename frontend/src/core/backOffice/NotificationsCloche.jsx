@@ -19,19 +19,37 @@ import './NotificationsCloche.css';
 // d'horodatage, juste le total).
 const INTERVALLE_MS = 45_000;
 
+const TYPE_DEMANDE_COMPLETEE = 'demande_dpae_completee';
+
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 // Une demande DPAE à traiter devient une "notification" d'affichage — même forme que
 // notifications.routes.js (id/message/lien/lue/date_creation), pour réutiliser le même rendu
 // ci-dessous sans le dupliquer. `lue` toujours false : voir le commentaire de estRh plus bas.
-function demandeVersNotification(demande) {
+// `completee` : notification stockée « Demande complétée » (le demandeur a modifié une demande que la
+// RH avait mise en attente, voir demandeDpaeService.modifierDemande) — la demande est alors de nouveau
+// dans la file et s'y présente avec ce message plutôt que « Nouvelle demande ». Ce n'est pas une
+// notification de plus : la demande est déjà comptée par la file.
+function demandeVersNotification(demande, completee) {
+  const salarie = `${demande.salarie_prenom} ${demande.salarie_nom}`;
   return {
     id: demande.id,
-    message: `Nouvelle demande DPAE : ${demande.salarie_prenom} ${demande.salarie_nom}.`,
+    notificationId: completee?.id ?? null,
+    message: completee ? `Demande complétée : ${salarie}.` : `Nouvelle demande DPAE : ${salarie}.`,
     lien: `/rh/dpae/${demande.id}`,
     lue: false,
-    date_creation: demande.date_creation,
+    date_creation: completee?.date_creation ?? demande.date_creation,
   };
+}
+
+// File RH affichée dans le panneau : demandes au statut initial, avec le message « Demande complétée »
+// pour celles qui ont une notification non lue de ce type. Un échec de lecture des notifications
+// n'empêche jamais d'afficher la file.
+function listerFileRh() {
+  return Promise.all([listerDemandesRh(STATUT_INITIAL), listerNotifications().catch(() => [])]).then(([demandes, notifications]) => {
+    const completees = new Map(notifications.filter((n) => n.type === TYPE_DEMANDE_COMPLETEE && !n.lue).map((n) => [n.cible_id, n]));
+    return demandes.map((demande) => demandeVersNotification(demande, completees.get(demande.id)));
+  });
 }
 
 // Système de notifications internes (basique — module Demandes DPAE, 2026-09-28) : cloche avec
@@ -117,7 +135,7 @@ export default function NotificationsCloche() {
     setOuvert((valeurPrecedente) => !valeurPrecedente);
     if (!ouvert) {
       setChargement(true);
-      (estRh ? listerDemandesRh(STATUT_INITIAL).then((demandes) => demandes.map(demandeVersNotification)) : listerNotifications())
+      (estRh ? listerFileRh() : listerNotifications())
         .then(setNotifications)
         .catch(() => setNotifications([]))
         .finally(() => setChargement(false));
@@ -125,6 +143,10 @@ export default function NotificationsCloche() {
   };
 
   const surClicNotification = async (notification) => {
+    if (estRh && notification.notificationId) {
+      // « Demande complétée » : vue, elle ne s'affichera plus avec ce message.
+      marquerNotificationLue(notification.notificationId).catch(() => {});
+    }
     if (!estRh && !notification.lue) {
       try {
         await marquerNotificationLue(notification.id);

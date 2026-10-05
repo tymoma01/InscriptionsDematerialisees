@@ -8,6 +8,8 @@ const notificationService = require('../notifications/notificationService');
 const siteAffectationRepository = require('./siteAffectationRepository');
 const journalAudit = require('../audit/journalAudit');
 const statutsDpae = require('./statutsDpae');
+const { champsModifies } = require('./champsDemandeDpae');
+const { ROLES } = require('../auth/rbac');
 const { aPermission } = require('../auth/permissions');
 
 class ErreurDemandeIntrouvable extends Error {}
@@ -17,6 +19,13 @@ class ErreurDemandeDejaTraitee extends Error {}
 class ErreurDemandeModifiee extends Error {
   constructor() {
     super('Cette demande a été modifiée entre-temps. Rechargez-la.');
+  }
+}
+// Modification refusée : ni l'auteur de la demande ni un rôle autorisé à modifier celles des autres
+// (traduit en 403 par dpae.routes.js).
+class ErreurModificationInterdite extends Error {
+  constructor() {
+    super('Rôle insuffisant pour cette action.');
   }
 }
 // Site(s) d'affectation inexistant(s), inactif(s) ou d'une autre entité (voir creerEtEnvoyer) —
@@ -38,6 +47,18 @@ async function verifierDemandeExiste(bd, entite, demandeId) {
   return demande;
 }
 
+// Chaque id doit exister, être actif et appartenir à l'entité : un seul id invalide refuse toute
+// la demande (création comme modification) AVANT la moindre écriture.
+async function verifierSitesValides(trx, entite, sitesAffectationIds) {
+  const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds);
+  const idsInvalides = sitesAffectationIds.filter((id) => !idsValides.includes(id));
+  if (idsInvalides.length > 0) {
+    throw new ErreurSitesAffectationInvalides(
+      `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
+    );
+  }
+}
+
 // Crée directement la demande au statut initial (pas de brouillon intermédiaire, voir migration
 // 066). Correctif 2026-09-28 (simplification demandée par l'utilisateur, revient sur un premier
 // essai plus compliqué — une notification stockée par RH à l'envoi, plus un rattrapage pour tout
@@ -56,13 +77,7 @@ async function creerEtEnvoyer(entite, demandeurId, donnees) {
   const bd = await db.obtenirKnex();
   const { sitesAffectationIds = [], ...champsDemande } = donnees;
   return bd.transaction(async (trx) => {
-    const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds);
-    const idsInvalides = sitesAffectationIds.filter((id) => !idsValides.includes(id));
-    if (idsInvalides.length > 0) {
-      throw new ErreurSitesAffectationInvalides(
-        `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
-      );
-    }
+    await verifierSitesValides(trx, entite, sitesAffectationIds);
     const demandeId = await demandeDpaeRepository.creerDemande(trx, {
       ...champsDemande,
       entiteId: entite.id,
@@ -267,7 +282,7 @@ async function rejeter(entite, demandeId, traitantId, motifRejet, { version, adr
     tracer: { action: 'demande_dpae_rejet', donnees: { motifRejet: motif } },
     notifier: (demande) => ({
       type: 'demande_dpae_rejetee',
-      message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été rejetée par la RH.`,
+      message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été rejetée par la RH : ${motif}`,
     }),
   });
 }
@@ -302,10 +317,92 @@ async function mettreEnAttente(entite, demandeId, traitantId, motif, { version, 
   });
 }
 
+// Modification : l'auteur de la demande (s'il a un rôle autorisé à modifier) ou un rôle qui peut
+// modifier celles de tous les auteurs (Planning, Admin). L'entité est déjà garantie par la
+// recherche de la demande elle-même (entite_id). Fonction pure, testable sans base.
+function peutModifierDemande({ roleCode, utilisateurId, demande }) {
+  if (aPermission(roleCode, 'dpaeModificationToutes')) return true;
+  return aPermission(roleCode, 'dpaeModification') && demande.demandeur_id === utilisateurId;
+}
+
+// Modifie une demande encore « À traiter » ou « En attente » (transition « modifier » de
+// statutsDpae.js : « À traiter » reste « À traiter », « En attente » repasse « À traiter » et la RH
+// est notifiée), dans UNE SEULE transaction : demande, sites d'affectation, journal d'audit et
+// notifications. Ordre des refus : introuvable (404) -> droit (403) -> version obsolète ou demande
+// modifiée entre-temps (409) -> statut verrouillé (409) -> sites invalides (400). Le demandeur,
+// l'entité et la date de création ne sont jamais modifiés. `donnees` : la demande complète, déjà
+// validée par le même schéma que la création (dpae.routes.js).
+// Trace : statut avant/après et NOMS des champs modifiés, jamais leurs valeurs (données
+// personnelles).
+async function modifierDemande(entite, demandeId, { donnees, version, utilisateurId, roleCode, adresseIp }) {
+  if (!Number.isInteger(version)) {
+    throw new Error('La version de la demande est obligatoire.');
+  }
+  const { sitesAffectationIds = [], ...champsDemande } = donnees;
+
+  const bd = await db.obtenirKnex();
+  return bd.transaction(async (trx) => {
+    const demande = await verifierDemandeExiste(trx, entite, demandeId);
+    if (!module.exports.peutModifierDemande({ roleCode, utilisateurId, demande })) throw new ErreurModificationInterdite();
+    if (demande.version !== version) throw new ErreurDemandeModifiee();
+
+    const transition = statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, demande.statut);
+    if (!transition) {
+      throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" déjà traitée (statut « ${demande.statut} ») : elle n'est plus modifiable.`);
+    }
+
+    await verifierSitesValides(trx, entite, sitesAffectationIds);
+    const anciensSites = (await siteAffectationRepository.listerSitesDemande(trx, demandeId)).map((site) => site.id);
+    const sitesModifies = anciensSites.length !== sitesAffectationIds.length || anciensSites.some((id) => !sitesAffectationIds.includes(id));
+    const champs = [...champsModifies(demande, champsDemande), ...(sitesModifies ? ['sitesAffectationIds'] : [])];
+
+    const lignesModifiees = await demandeDpaeRepository.modifierDemande(trx, demandeId, {
+      statutDepart: demande.statut,
+      version: demande.version,
+      statutArrivee: transition.vers,
+      donnees: champsDemande,
+    });
+    if (lignesModifiees !== 1) throw new ErreurDemandeModifiee();
+    await siteAffectationRepository.remplacerSitesDemande(trx, demandeId, sitesAffectationIds);
+
+    await journalAudit.enregistrerAction(trx, {
+      utilisateurId,
+      entiteId: entite.id,
+      action: 'demande_dpae_modification',
+      tableCible: 'demandes_dpae',
+      cibleId: demandeId,
+      donnees: { statutAvant: demande.statut, statutApres: transition.vers, champsModifies: champs },
+      adresseIp,
+    });
+
+    // « En attente » -> « À traiter » : la RH, qui avait suspendu la demande, est prévenue qu'elle est
+    // complétée. Une demande « À traiter » modifiée reste dans la file sans notification.
+    if (demande.statut !== transition.vers) {
+      const rhIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.RH);
+      await notificationService.creerNotifications(
+        trx,
+        rhIds.map((rhId) => ({
+          entiteId: entite.id,
+          utilisateurId: rhId,
+          type: 'demande_dpae_completee',
+          tableCible: 'demandes_dpae',
+          cibleId: demandeId,
+          message: `Demande complétée : la demande DPAE pour ${champsDemande.salariePrenom} ${champsDemande.salarieNom} a été modifiée et repasse « À traiter ».`,
+          lien: `/rh/dpae/${demandeId}`,
+        })),
+      );
+    }
+
+    return { statut: transition.vers, version: demande.version + 1, champsModifies: champs };
+  });
+}
+
 module.exports = {
   creerEtEnvoyer,
   perimetreSuivi,
   peutConsulterDemande,
+  peutModifierDemande,
+  modifierDemande,
   listerSuivi,
   listerPourRh,
   obtenirDemande,
@@ -316,6 +413,7 @@ module.exports = {
   ErreurDemandeIntrouvable,
   ErreurDemandeDejaTraitee,
   ErreurDemandeModifiee,
+  ErreurModificationInterdite,
   ErreurSitesAffectationInvalides,
   ErreurExportDemandesRefuse,
 };

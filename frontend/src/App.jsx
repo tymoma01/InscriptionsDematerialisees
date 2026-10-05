@@ -190,6 +190,16 @@ export default function App() {
             </RouteProtegee>
           }
         />
+        {/* Modification d'une demande « À traiter » / « En attente » : même formulaire que la création,
+            prérempli (le serveur revérifie le droit par demande et le statut). */}
+        <Route
+          path="/coordination/dpae/:demandeId/modifier"
+          element={
+            <RouteProtegee permission="dpaeModification">
+              <DemandeDpae />
+            </RouteProtegee>
+          }
+        />
         <Route
           path="/coordination/dpae/suivi"
           element={

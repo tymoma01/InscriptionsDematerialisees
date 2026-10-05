@@ -28,6 +28,7 @@ const STATUT_INITIAL = STATUT_ENVOYEE;
 const ACTION_METTRE_EN_ATTENTE = 'mettre_en_attente';
 const ACTION_VALIDER = 'valider';
 const ACTION_REJETER = 'rejeter';
+const ACTION_MODIFIER = 'modifier';
 
 // Table des transitions autorisées (aucune autre) : action, statut de départ, statut d'arrivée et
 // permission requise (clé de core/auth/permissions.js). Une même action a la même permission quel
@@ -39,6 +40,11 @@ const TRANSITIONS = Object.freeze(
     { action: ACTION_VALIDER, de: STATUT_EN_ATTENTE, vers: STATUT_VALIDEE, permission: 'dpaeTraitementRh' },
     { action: ACTION_REJETER, de: STATUT_ENVOYEE, vers: STATUT_REJETEE, permission: 'dpaeTraitementRh' },
     { action: ACTION_REJETER, de: STATUT_EN_ATTENTE, vers: STATUT_REJETEE, permission: 'dpaeTraitementRh' },
+    // Modification par le demandeur : une demande « À traiter » le reste ; une demande « En attente »
+    // repasse « À traiter » (la RH en est notifiée). Droit par demande (auteur, Planning, Admin) :
+    // demandeDpaeService.peutModifierDemande.
+    { action: ACTION_MODIFIER, de: STATUT_ENVOYEE, vers: STATUT_ENVOYEE, permission: 'dpaeModification' },
+    { action: ACTION_MODIFIER, de: STATUT_EN_ATTENTE, vers: STATUT_ENVOYEE, permission: 'dpaeModification' },
   ].map((transition) => Object.freeze(transition)),
 );
 
@@ -78,6 +84,7 @@ module.exports = {
   ACTION_METTRE_EN_ATTENTE,
   ACTION_VALIDER,
   ACTION_REJETER,
+  ACTION_MODIFIER,
   TRANSITIONS,
   trouverTransition,
   permissionPourAction,

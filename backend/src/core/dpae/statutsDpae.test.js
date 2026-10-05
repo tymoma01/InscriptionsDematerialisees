@@ -14,10 +14,12 @@ test('statuts « à décider » déduits de la table des transitions : À traite
   assert.deepEqual([...statutsDpae.STATUTS_A_DECIDER], ['envoyee', 'en_attente']);
 });
 
-test('table des transitions : exactement les cinq transitions autorisées', () => {
+test('table des transitions : exactement les sept transitions autorisées', () => {
   const transitions = statutsDpae.TRANSITIONS.map(({ action, de, vers }) => `${action}:${de}->${vers}`).sort();
   assert.deepEqual(transitions, [
     'mettre_en_attente:envoyee->en_attente',
+    'modifier:en_attente->envoyee',
+    'modifier:envoyee->envoyee',
     'rejeter:en_attente->rejetee',
     'rejeter:envoyee->rejetee',
     'valider:en_attente->validee',
@@ -26,7 +28,7 @@ test('table des transitions : exactement les cinq transitions autorisées', () =
 });
 
 test('transition non autorisée : aucune depuis un statut final, ni mise en attente depuis En attente', () => {
-  for (const action of [statutsDpae.ACTION_VALIDER, statutsDpae.ACTION_REJETER, statutsDpae.ACTION_METTRE_EN_ATTENTE]) {
+  for (const action of [statutsDpae.ACTION_VALIDER, statutsDpae.ACTION_REJETER, statutsDpae.ACTION_METTRE_EN_ATTENTE, statutsDpae.ACTION_MODIFIER]) {
     assert.equal(statutsDpae.trouverTransition(action, 'validee'), undefined, action);
     assert.equal(statutsDpae.trouverTransition(action, 'rejetee'), undefined, action);
   }
@@ -42,8 +44,14 @@ test('chaque transition ne relie que des statuts connus et exige une permission 
   }
 });
 
+test('modification : « À traiter » reste « À traiter », « En attente » repasse « À traiter »', () => {
+  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'envoyee').vers, 'envoyee');
+  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'en_attente').vers, 'envoyee');
+});
+
 test('permissionPourAction : permission unique par action, exception pour une action inconnue', () => {
   assert.equal(statutsDpae.permissionPourAction(statutsDpae.ACTION_VALIDER), 'dpaeTraitementRh');
+  assert.equal(statutsDpae.permissionPourAction(statutsDpae.ACTION_MODIFIER), 'dpaeModification');
   assert.throws(() => statutsDpae.permissionPourAction('inconnue'), /permission absente ou ambiguë/);
 });
 

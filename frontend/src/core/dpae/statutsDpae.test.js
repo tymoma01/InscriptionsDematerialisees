@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACTION_METTRE_EN_ATTENTE,
+  ACTION_MODIFIER,
   ACTION_REJETER,
   ACTION_VALIDER,
   STATUTS_A_DECIDER,
@@ -28,7 +29,14 @@ describe('statutsDpae (miroir du serveur)', () => {
     }
   });
 
-  it('aucune transition depuis un statut final', () => {
+  it('modification possible depuis À traiter et En attente (statuts de la demande non traitée), pas depuis un statut final', () => {
+    expect(transitionPossible(ACTION_MODIFIER, 'envoyee')).toBe(true);
+    expect(transitionPossible(ACTION_MODIFIER, 'en_attente')).toBe(true);
+    expect(transitionPossible(ACTION_MODIFIER, 'validee')).toBe(false);
+    expect(transitionPossible(ACTION_MODIFIER, 'rejetee')).toBe(false);
+  });
+
+  it('aucune transition de validation, rejet ou mise en attente depuis un statut final', () => {
     for (const statut of ['validee', 'rejetee']) {
       for (const action of [ACTION_VALIDER, ACTION_REJETER, ACTION_METTRE_EN_ATTENTE]) {
         expect(transitionPossible(action, statut)).toBe(false);

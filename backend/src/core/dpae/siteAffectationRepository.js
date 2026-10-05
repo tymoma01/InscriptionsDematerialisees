@@ -41,6 +41,13 @@ function lierSitesDemande(trx, demandeId, siteIds) {
   return trx('demandes_dpae_sites').insert(siteIds.map((siteId) => ({ demande_dpae_id: demandeId, site_affectation_id: siteId })));
 }
 
+// Remplace TOUS les liens d'une demande par `siteIds` (modification d'une demande) — à appeler dans
+// la transaction qui met la demande à jour.
+async function remplacerSitesDemande(trx, demandeId, siteIds) {
+  await trx('demandes_dpae_sites').where({ demande_dpae_id: demandeId }).del();
+  await lierSitesDemande(trx, demandeId, siteIds);
+}
+
 // Sites liés à une demande (affichage fiche RH), triés par nom — y compris un site désactivé depuis :
 // la demande garde la trace de ce qui a réellement été choisi.
 function listerSitesDemande(trx, demandeId) {
@@ -71,5 +78,6 @@ module.exports = {
   creerSite,
   listerIdsSitesValides,
   lierSitesDemande,
+  remplacerSitesDemande,
   listerSitesDemande,
 };

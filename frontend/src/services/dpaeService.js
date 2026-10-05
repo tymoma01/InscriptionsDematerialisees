@@ -11,6 +11,14 @@ export async function creerDemande(demande) {
   return data;
 }
 
+// Modification d'une demande « À traiter » ou « En attente » : la demande COMPLÈTE (mêmes champs que
+// la création) plus `version`, la version lue. Le serveur répond 409 si la demande a changé entre-
+// temps ou n'est plus modifiable, 403 sans le droit ; { statut, version } sinon.
+export async function modifierDemande(demandeId, demande) {
+  const { data } = await api.put(`/dpae/${demandeId}`, demande);
+  return data;
+}
+
 // Liste de la page « Suivi des demandes DPAE » (2026-09-30, remplace GET /dpae/mes-demandes) —
 // perimetre 'toutes' | 'mes' ; le serveur décide du périmètre effectif selon le rôle (seuls Admin
 // et RH obtiennent 'toutes'), voir dpae.routes.js GET /suivi. Chaque demande porte

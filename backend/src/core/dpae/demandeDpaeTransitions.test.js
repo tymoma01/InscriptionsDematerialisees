@@ -6,6 +6,7 @@ const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const demandeDpaeService = require('./demandeDpaeService');
+const siteAffectationRepository = require('./siteAffectationRepository');
 
 // Scénarios de concurrence et d'atomicité des décisions DPAE, sur une base factice qui reproduit ce
 // que garantit PostgreSQL : l'UPDATE ... WHERE statut AND version est un compare-and-set atomique, et
@@ -37,7 +38,7 @@ function creerBaseFactice(t, { statut = 'envoyee', version = 1, lecturesSimultan
   // L'instantané est pris AVANT l'attente : avec lecturesSimultanees = 2, les deux appelants lisent
   // la même version avant que l'un d'eux n'écrive.
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => {
-    const instantane = { id: 7, statut: etat.statut, version: etat.version, demandeur_id: 3, salarie_nom: 'Martin', salarie_prenom: 'Sophie' };
+    const instantane = { id: 7, statut: etat.statut, version: etat.version, demandeur_id: 16, salarie_nom: 'Martin', salarie_prenom: 'Sophie' };
     lectures += 1;
     if (lectures >= lecturesSimultanees) liberer();
     await barriere;
@@ -54,6 +55,15 @@ function creerBaseFactice(t, { statut = 'envoyee', version = 1, lecturesSimultan
   };
   t.mock.method(demandeDpaeRepository, 'marquerTraitee', async (trx, _id, parametres) => compareAndSet(trx, parametres));
   t.mock.method(demandeDpaeRepository, 'marquerEnAttente', async (trx, _id, parametres) => compareAndSet(trx, { ...parametres, statut: 'en_attente' }));
+
+  // Modification : même compare-and-set que les décisions ; sites et utilisateurs RH factices.
+  t.mock.method(demandeDpaeRepository, 'modifierDemande', async (trx, _id, { statutDepart, version, statutArrivee }) =>
+    compareAndSet(trx, { statutDepart, version, statut: statutArrivee }),
+  );
+  t.mock.method(siteAffectationRepository, 'listerIdsSitesValides', async (_trx, _entiteId, ids) => ids);
+  t.mock.method(siteAffectationRepository, 'listerSitesDemande', async () => []);
+  t.mock.method(siteAffectationRepository, 'remplacerSitesDemande', async () => {});
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => [3]);
 
   const empiler = (liste) => async (trx, valeur) => {
     liste.push(valeur);
@@ -173,4 +183,30 @@ test('échec de la création des notifications : décision et trace d’audit an
   await assert.rejects(() => demandeDpaeService.valider(ENTITE, 7, 42, { version: 1 }), /notifications indisponibles/);
   assert.deepEqual({ statut: etat.statut, version: etat.version }, { statut: 'envoyee', version: 1 });
   assert.equal(etat.audits.length, 0);
+});
+
+test('modification et décision RH simultanées sur la même demande : une seule réussit, l’autre reçoit le refus « modifiée entre-temps »', async (t) => {
+  const { etat } = creerBaseFactice(t, { statut: 'en_attente', version: 2, lecturesSimultanees: 2 });
+  const donnees = {
+    typeDemande: 'nouvelle_embauche',
+    salarieNom: 'Martin',
+    salariePrenom: 'Sophie',
+    salarieDejaEmploye: false,
+    sitesAffectationIds: [10],
+    dateDebut: '2026-10-12',
+    verifBesoinHotel: true,
+    verifTousJoursInclus: true,
+    verifNonPlanification: true,
+  };
+
+  const resultats = await Promise.allSettled([
+    demandeDpaeService.modifierDemande(ENTITE, 7, { donnees, version: 2, utilisateurId: 16, roleCode: 'planning', adresseIp: 'x' }),
+    demandeDpaeService.rejeter(ENTITE, 7, 42, 'Doublon', { version: 2 }),
+  ]);
+
+  assert.equal(resultats.filter((resultat) => resultat.status === 'fulfilled').length, 1);
+  const refusee = resultats.find((resultat) => resultat.status === 'rejected');
+  assert.ok(refusee.reason instanceof demandeDpaeService.ErreurDemandeModifiee);
+  assert.equal(etat.version, 3);
+  assert.equal(etat.audits.length, 1);
 });

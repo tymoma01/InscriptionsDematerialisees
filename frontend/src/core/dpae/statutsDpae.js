@@ -20,6 +20,7 @@ export const STATUT_INITIAL = 'envoyee';
 export const ACTION_METTRE_EN_ATTENTE = 'mettre_en_attente';
 export const ACTION_VALIDER = 'valider';
 export const ACTION_REJETER = 'rejeter';
+export const ACTION_MODIFIER = 'modifier';
 
 // Transitions autorisées (action, statut de départ, statut d'arrivée) — MIROIR de la table du serveur
 // (backend/src/core/dpae/statutsDpae.js), qui reste seule juge : ici elles ne servent qu'à décider
@@ -30,6 +31,9 @@ export const TRANSITIONS_DPAE = [
   { action: ACTION_VALIDER, de: 'en_attente', vers: 'validee' },
   { action: ACTION_REJETER, de: 'envoyee', vers: 'rejetee' },
   { action: ACTION_REJETER, de: 'en_attente', vers: 'rejetee' },
+  // Modification par le demandeur : « À traiter » reste « À traiter », « En attente » repasse « À traiter ».
+  { action: ACTION_MODIFIER, de: 'envoyee', vers: 'envoyee' },
+  { action: ACTION_MODIFIER, de: 'en_attente', vers: 'envoyee' },
 ];
 
 // Statuts depuis lesquels une transition est encore possible (demande sans décision finale), déduits

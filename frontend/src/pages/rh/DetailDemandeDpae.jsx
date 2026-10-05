@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
@@ -8,6 +8,7 @@ import ModaleValiderDpae from './ModaleValiderDpae';
 import NotesDossier from '../../core/dossier/NotesDossier';
 import {
   ACTION_METTRE_EN_ATTENTE,
+  ACTION_MODIFIER,
   STATUTS_A_DECIDER,
   libelleStatutDpae,
   transitionPossible,
@@ -86,6 +87,8 @@ export default function DetailDemandeDpae() {
   // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
   const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
+  // Message de confirmation transmis par le formulaire de modification après l'enregistrement.
+  const confirmation = useLocation().state?.confirmation;
 
   const [demande, setDemande] = useState(null);
   const [chargement, setChargement] = useState(true);
@@ -168,6 +171,13 @@ export default function DetailDemandeDpae() {
     );
   }
 
+  // « Modifier la demande » : droit de modification (l'auteur, ou Planning/Admin pour toute demande —
+  // le serveur revérifie) ET statut qui l'autorise (« À traiter », « En attente »).
+  const peutModifier =
+    peut(utilisateur, 'dpaeModification') &&
+    (peut(utilisateur, 'dpaeModificationToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_MODIFIER, demande.statut);
+
   const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
   const joursConcernes = demande.jours_concernes ?? [];
 
@@ -193,6 +203,11 @@ export default function DetailDemandeDpae() {
               {/* PDF de la fiche, généré côté serveur — rôles de consultation seulement
                   (voir core/dpae/TelechargementPdfDpae.jsx). */}
               <BoutonTelechargerPdfDemande demandeId={demande.id} />
+              {peutModifier && (
+                <Link to={`/coordination/dpae/${demande.id}/modifier`} className="page-detail-dpae__modifier">
+                  Modifier la demande
+                </Link>
+              )}
               {/* "En un clic accéder à la fiche du candidat" (demande utilisateur, module Demandes
                   DPAE) — dossier_id résolu côté back via candidat_id (voir demandeDpaeRepository.js,
                   requeteDemandesAvecJointures) : absent si le salarié n'est pas un candidat connu
@@ -210,6 +225,12 @@ export default function DetailDemandeDpae() {
           </div>
           <EnTeteBackOffice />
         </header>
+
+        {confirmation && (
+          <p role="status" className="page-detail-dpae__confirmation">
+            {confirmation}
+          </p>
+        )}
 
         <section className="page-detail-dpae__bloc">
           <h2>Demande</h2>
