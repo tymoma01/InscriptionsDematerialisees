@@ -267,51 +267,99 @@
   font: inherit;
 }
 
-.page-suivi-formation__formateur {
-  color: var(--couleur-texte-secondaire);
-}
-
-/* Colonne "Expérience" — même style discret que .formateur ci-dessus, cette
-   page n'ayant pas de colonne "Poste" existante à ses côtés (voir commentaire de
-   LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT, SuiviFormation.jsx). */
-.page-suivi-formation__experience {
-  color: var(--couleur-texte-secondaire);
-}
-
-/* Même patron que .liste-evaluations (ListeEvaluationsAFaire.css). */
+/* Liste en grille : l'en-tête de colonnes et CHAQUE ligne partagent le même gabarit
+   (--gabarit-colonnes) — Candidat en largeur souple, les autres colonnes en largeur fixe — donc
+   date, formateur, expérience et statut sont alignés d'une ligne à l'autre quelle que soit la
+   longueur du nom. */
 .page-suivi-formation__liste {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  --gabarit-colonnes: minmax(10rem, 1fr) 6rem 9rem 8.5rem 11rem 22rem;
   display: flex;
   flex-direction: column;
   gap: var(--espace-petit);
 }
 
+.page-suivi-formation__entete-colonnes,
 .page-suivi-formation__item {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: var(--gabarit-colonnes);
   align-items: center;
-  gap: var(--espace-moyen);
+  column-gap: var(--espace-moyen);
+}
+
+.page-suivi-formation__entete-colonnes {
+  padding: 0 var(--espace-moyen);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.page-suivi-formation__item {
   padding: var(--espace-moyen);
   background-color: var(--couleur-fond);
   border: 1px solid var(--couleur-bordure-legere);
   border-radius: var(--rayon-bordure);
 }
 
+/* Un nom long passe à la ligne entre deux mots, jamais au milieu d'un mot. */
 .page-suivi-formation__candidat {
-  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 600;
   color: var(--couleur-texte);
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
-.page-suivi-formation__date {
+.page-suivi-formation__date,
+.page-suivi-formation__formateur {
+  min-width: 0;
   color: var(--couleur-texte-secondaire);
+  overflow-wrap: normal;
+}
+
+.page-suivi-formation__cellule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit);
 }
 
 .page-suivi-formation__actions {
   display: flex;
   gap: var(--espace-petit);
+}
+
+/* Tablette (environ 1024 px) : colonnes plus étroites, les boutons de la dernière colonne passent
+   à la ligne. */
+@media (max-width: 1100px) {
+  .page-suivi-formation__liste {
+    --gabarit-colonnes: minmax(8rem, 1fr) 6rem 7.5rem 8.5rem 10.5rem 12rem;
+  }
+}
+
+/* Tablette en portrait (environ 768 px) : l'en-tête disparaît et chaque ligne passe sur deux
+   rangées (candidat, date, formateur / expérience, statut, actions), chaque valeur précédée de son
+   libellé. */
+@media (max-width: 860px) {
+  .page-suivi-formation__entete-colonnes {
+    display: none;
+  }
+
+  .page-suivi-formation__item {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr);
+    row-gap: var(--espace-petit);
+  }
+
+  .page-suivi-formation__cellule-actions {
+    grid-column: 1 / -1;
+  }
+
+  [data-libelle]::before {
+    content: attr(data-libelle) ' : ';
+    color: var(--couleur-texte-secondaire);
+    font-size: 0.75rem;
+  }
 }
 
 /* "Voir le dossier" — même cadre/couleur que .planification__action-voir (Planification.css,
