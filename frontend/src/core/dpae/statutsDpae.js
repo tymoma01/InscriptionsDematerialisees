@@ -13,6 +13,37 @@ export const STATUTS_DPAE = [
   { code: 'rejetee', libelle: 'Rejetée', libellePluriel: 'Rejetées', variante: 'echec', couleurGraphique: '#d03b3b' },
 ];
 
+// Statut d'une demande à sa création (file « À traiter » par défaut), miroir de STATUT_INITIAL côté
+// serveur (backend/src/core/dpae/statutsDpae.js).
+export const STATUT_INITIAL = 'envoyee';
+
+export const ACTION_METTRE_EN_ATTENTE = 'mettre_en_attente';
+export const ACTION_VALIDER = 'valider';
+export const ACTION_REJETER = 'rejeter';
+export const ACTION_MODIFIER = 'modifier';
+
+// Transitions autorisées (action, statut de départ, statut d'arrivée) — MIROIR de la table du serveur
+// (backend/src/core/dpae/statutsDpae.js), qui reste seule juge : ici elles ne servent qu'à décider
+// quels boutons afficher. Les deux tables doivent rester alignées.
+export const TRANSITIONS_DPAE = [
+  { action: ACTION_METTRE_EN_ATTENTE, de: 'envoyee', vers: 'en_attente' },
+  { action: ACTION_VALIDER, de: 'envoyee', vers: 'validee' },
+  { action: ACTION_VALIDER, de: 'en_attente', vers: 'validee' },
+  { action: ACTION_REJETER, de: 'envoyee', vers: 'rejetee' },
+  { action: ACTION_REJETER, de: 'en_attente', vers: 'rejetee' },
+  // Modification par le demandeur : « À traiter » reste « À traiter », « En attente » repasse « À traiter ».
+  { action: ACTION_MODIFIER, de: 'envoyee', vers: 'envoyee' },
+  { action: ACTION_MODIFIER, de: 'en_attente', vers: 'envoyee' },
+];
+
+// Statuts depuis lesquels une transition est encore possible (demande sans décision finale), déduits
+// de la table ci-dessus.
+export const STATUTS_A_DECIDER = STATUTS_DPAE.map((statut) => statut.code).filter((code) =>
+  TRANSITIONS_DPAE.some((transition) => transition.de === code),
+);
+
+export const transitionPossible = (action, statut) => TRANSITIONS_DPAE.some((transition) => transition.action === action && transition.de === statut);
+
 const PAR_CODE = Object.fromEntries(STATUTS_DPAE.map((statut) => [statut.code, statut]));
 
 // Code inconnu (statut ajouté côté serveur sans mise à jour ici) : code brut, badge neutre.

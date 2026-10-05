@@ -14,6 +14,8 @@
 // (maintenant AT TIME ZONE 'Europe/Paris')::date. date_debut/date_fin sont des colonnes `date`
 // (jours calendaires saisis tels quels), comparées directement à ces jours parisiens.
 
+const { STATUTS_DPAE, STATUTS_A_DECIDER, STATUT_VALIDEE, STATUT_REJETEE, listeSql } = require('./statutsDpae');
+
 const FUSEAU = 'Europe/Paris';
 
 const JOUR_CREATION = `(d.date_creation AT TIME ZONE '${FUSEAU}')::date`;
@@ -51,9 +53,9 @@ const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.sta
 
 // --- 1. À traiter en priorité ---------------------------------------------------------------------
 
-// Demandes encore sans décision : « À traiter » ('envoyee') ET « En attente »
-// ('en_attente') — une mise en attente n'est pas une décision, la demande reste prioritaire.
-const SANS_DECISION = "base.statut IN ('envoyee', 'en_attente')";
+// Demandes encore sans décision : tous les statuts « à décider » de statutsDpae.js (« À traiter » ET
+// « En attente ») — une mise en attente n'est pas une décision, la demande reste prioritaire.
+const SANS_DECISION = `base.statut IN (${listeSql(STATUTS_A_DECIDER)})`;
 
 // Sans décision, dont le premier jour est aujourd'hui ou demain (heure de Paris).
 function listerPremierJourProche(bd, entiteId, filtres, maintenant) {
@@ -104,6 +106,13 @@ async function calculerDelais(bd, entiteId, filtres) {
   return ligne;
 }
 
+// Une paire de colonnes par statut (nombre et identifiants), dans l'ordre du cycle de vie :
+// « <code> » et « ids_<code> » — générées depuis statutsDpae.js, jamais listées à la main.
+const COLONNES_EVOLUTION_PAR_STATUT = [
+  ...STATUTS_DPAE.map(({ code }) => `count(base.id) FILTER (WHERE base.statut = '${code}')::int AS ${code}`),
+  ...STATUTS_DPAE.map(({ code }) => `coalesce(${IDS} FILTER (WHERE base.statut = '${code}'), '{}') AS ids_${code}`),
+].join(',\n            ');
+
 // Évolution par semaine (lundi) ou par mois, TOUTES les périodes de l'intervalle (zéro inclus,
 // generate_series), réparties par statut. Série et jours de création comparés en horodatage SANS
 // fuseau (heure de Paris des deux côtés) : un date_trunc sur un `date` nu renverrait un horodatage
@@ -115,14 +124,7 @@ function calculerEvolution(bd, entiteId, filtres, granularite) {
     entiteId,
     filtres,
     `SELECT to_char(serie.debut, 'YYYY-MM-DD') AS periode,
-            count(base.id) FILTER (WHERE base.statut = 'envoyee')::int AS envoyee,
-            count(base.id) FILTER (WHERE base.statut = 'en_attente')::int AS en_attente,
-            count(base.id) FILTER (WHERE base.statut = 'validee')::int AS validee,
-            count(base.id) FILTER (WHERE base.statut = 'rejetee')::int AS rejetee,
-            coalesce(${IDS} FILTER (WHERE base.statut = 'envoyee'), '{}') AS ids_envoyee,
-            coalesce(${IDS} FILTER (WHERE base.statut = 'en_attente'), '{}') AS ids_en_attente,
-            coalesce(${IDS} FILTER (WHERE base.statut = 'validee'), '{}') AS ids_validee,
-            coalesce(${IDS} FILTER (WHERE base.statut = 'rejetee'), '{}') AS ids_rejetee
+${COLONNES_EVOLUTION_PAR_STATUT}
      FROM generate_series(date_trunc('${unite}', ?::date::timestamp), date_trunc('${unite}', ?::date::timestamp), interval '1 ${unite}') AS serie(debut)
      LEFT JOIN base ON date_trunc('${unite}', (base.date_creation AT TIME ZONE '${FUSEAU}')) = serie.debut
      GROUP BY serie.debut ORDER BY serie.debut`,
@@ -142,7 +144,7 @@ function listerValideesEnRetard(bd, entiteId, filtres) {
     `SELECT ${COLONNES_LISTE},
             ((base.date_traitement AT TIME ZONE '${FUSEAU}')::date - base.date_debut)::int AS retard_jours
      FROM base
-     WHERE base.statut = 'validee' AND base.date_debut IS NOT NULL
+     WHERE base.statut = '${STATUT_VALIDEE}' AND base.date_debut IS NOT NULL
        AND (base.date_traitement AT TIME ZONE '${FUSEAU}')::date > base.date_debut
      ORDER BY base.date_debut DESC, base.id DESC`,
   );
@@ -240,7 +242,7 @@ function listerFinsDeCdd(bd, entiteId, filtres, maintenant) {
     filtres,
     `SELECT ${COLONNES_LISTE}, (base.date_fin <= ${AUJOURDHUI} + 7) AS sous_7_jours
      FROM base
-     WHERE base.type_contrat = 'cdd' AND base.statut <> 'rejetee'
+     WHERE base.type_contrat = 'cdd' AND base.statut <> '${STATUT_REJETEE}'
        AND base.date_fin BETWEEN ${AUJOURDHUI} AND ${AUJOURDHUI} + 15
      ORDER BY base.date_fin, base.salarie_nom`,
     [maintenant, maintenant, maintenant],

@@ -11,6 +11,14 @@ export async function creerDemande(demande) {
   return data;
 }
 
+// Modification d'une demande « À traiter » ou « En attente » : la demande COMPLÈTE (mêmes champs que
+// la création) plus `version`, la version lue. Le serveur répond 409 si la demande a changé entre-
+// temps ou n'est plus modifiable, 403 sans le droit ; { statut, version } sinon.
+export async function modifierDemande(demandeId, demande) {
+  const { data } = await api.put(`/dpae/${demandeId}`, demande);
+  return data;
+}
+
 // Liste de la page « Suivi des demandes DPAE » (2026-09-30, remplace GET /dpae/mes-demandes) —
 // perimetre 'toutes' | 'mes' ; le serveur décide du périmètre effectif selon le rôle (seuls Admin
 // et RH obtiennent 'toutes'), voir dpae.routes.js GET /suivi. Chaque demande porte
@@ -20,8 +28,9 @@ export async function listerSuiviDemandes(perimetre) {
   return data;
 }
 
-// statut par défaut côté back : 'envoyee' (file à traiter) — passer 'tous' pour l'historique
-// complet (traitées incluses), voir dpae.routes.js.
+// statut par défaut côté back : le statut initial (file à traiter, voir STATUT_INITIAL dans
+// core/dpae/statutsDpae.js) — passer 'tous' pour l'historique complet (traitées incluses), voir
+// dpae.routes.js.
 export async function listerDemandesRh(statut) {
   const { data } = await api.get('/dpae', { params: statut ? { statut } : undefined });
   return data;
@@ -44,17 +53,20 @@ export function telechargerPdfDemandes(demandeIds) {
   return api.post('/dpae/export-pdf', { demandeIds }, { responseType: 'blob' });
 }
 
-export async function validerDemande(demandeId) {
-  await api.patch(`/dpae/${demandeId}/valider`);
+// Décisions : `version` est la version de la demande LUE par l'utilisateur (champ `version` de la
+// fiche). Si la demande a changé depuis, le serveur répond 409 « Cette demande a été modifiée
+// entre-temps. Rechargez-la. » et n'enregistre rien.
+export async function validerDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/valider`, { version });
 }
 
-export async function rejeterDemande(demandeId, motifRejet) {
-  await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet });
+export async function rejeterDemande(demandeId, motifRejet, version) {
+  await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet, version });
 }
 
 // « À traiter » -> « En attente », motif obligatoire (refusé sinon côté serveur).
-export async function mettreEnAttenteDemande(demandeId, motif) {
-  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { motif });
+export async function mettreEnAttenteDemande(demandeId, motif, version) {
+  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { motif, version });
 }
 
 // Notes propres à une demande — même forme de réponse que les notes d'un dossier

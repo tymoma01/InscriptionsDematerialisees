@@ -1,9 +1,14 @@
 // Accès données pour les demandes DPAE — uniquement des requêtes, aucune règle métier ici
 // (orchestrée par demandeDpaeService.js), même découpage que relanceRepository.js.
 
+const { STATUT_INITIAL, STATUT_EN_ATTENTE } = require('./statutsDpae');
+const { colonnesDepuisDonnees } = require('./champsDemandeDpae');
+
 const COLONNES_DEMANDE = [
   'demandes_dpae.id',
   'demandes_dpae.statut',
+  // Verrouillage optimiste (migration 078) : le client renvoie la version lue avec chaque décision.
+  'demandes_dpae.version',
   'demandes_dpae.type_demande',
   'demandes_dpae.salarie_nom',
   'demandes_dpae.salarie_prenom',
@@ -112,74 +117,74 @@ function listerDemandesPourRh(trx, entiteId, statut) {
   ]);
 }
 
+// Les colonnes saisies viennent de champsDemandeDpae.js (même table pour la modification). Pas de
+// colonne date_envoi distincte : une demande créée est immédiatement 'envoyee' (pas de statut
+// brouillon, voir migration 066), date_creation fait donc foi comme date d'envoi.
 async function creerDemande(trx, donnees) {
   const [demande] = await trx('demandes_dpae')
     .insert({
       entite_id: donnees.entiteId,
       demandeur_id: donnees.demandeurId,
-      statut: 'envoyee',
-      type_demande: donnees.typeDemande,
-      salarie_nom: donnees.salarieNom,
-      salarie_prenom: donnees.salariePrenom,
-      salarie_telephone: donnees.salarieTelephone || null,
-      salarie_deja_employe: donnees.salarieDejaEmploye,
-      candidat_id: donnees.candidatId || null,
-      hotel: donnees.hotel || null,
-      type_contrat: donnees.typeContrat || null,
-      motif_cdd: donnees.motifCdd || null,
-      salarie_remplace_nom: donnees.salarieRemplaceNom || null,
-      date_fin_absence: donnees.dateFinAbsence || null,
-      raison_surcroit: donnees.raisonSurcroit || null,
-      division: donnees.division || null,
-      division_autre: donnees.divisionAutre || null,
-      poste: donnees.poste || null,
-      poste_autre: donnees.posteAutre || null,
-      date_debut: donnees.dateDebut || null,
-      date_fin: donnees.dateFin || null,
-      heure_arrivee_j1: donnees.heureArriveeJ1 || null,
-      heures_par_mois: donnees.heuresParMois ?? null,
-      modifications_demandees: Boolean(donnees.modificationsDemandees),
-      modification_horaires: Boolean(donnees.modificationHoraires),
-      modification_jours_repos: Boolean(donnees.modificationJoursRepos),
-      modification_affectation: Boolean(donnees.modificationAffectation),
-      nouvelle_affectation: donnees.nouvelleAffectation || null,
-      type_changement_jours: donnees.typeChangementJours || null,
-      jours_concernes: JSON.stringify(donnees.joursConcernes ?? []),
-      raison_changement_jours: donnees.raisonChangementJours || null,
-      raison_identique_contrat: donnees.raisonIdentiqueContrat || null,
-      semaine_type: JSON.stringify(donnees.semaineType ?? []),
-      horaires_differents_par_jour: Boolean(donnees.horairesDifferentsParJour),
-      autre_chose_signaler: donnees.autreChoseSignaler || null,
-      verif_besoin_hotel: Boolean(donnees.verifBesoinHotel),
-      verif_tous_jours_inclus: Boolean(donnees.verifTousJoursInclus),
-      verif_non_planification: Boolean(donnees.verifNonPlanification),
-      // Pas de colonne date_envoi distincte : une demande créée est immédiatement 'envoyee' (pas
-      // de statut brouillon, voir migration 066), date_creation fait donc foi comme date d'envoi.
+      statut: STATUT_INITIAL,
+      ...colonnesDepuisDonnees(donnees),
     })
     .returning('id');
   return demande.id;
 }
 
-function marquerTraitee(trx, id, { statut, traitantId, motifRejet = null }) {
-  return trx('demandes_dpae').where({ id }).update({
-    statut,
-    traite_par_utilisateur_id: traitantId,
-    motif_rejet: motifRejet,
-    date_traitement: trx.fn.now(),
-    date_maj: trx.fn.now(),
-  });
+// Les deux écritures ci-dessous sont des compare-and-set : UPDATE ... WHERE id AND statut AND
+// version, version incrémentée. Elles renvoient le nombre de lignes modifiées — 0 signifie que la
+// demande a changé (statut ou version) depuis la lecture de l'appelant, qui doit alors refuser.
+function marquerTraitee(trx, id, { statutDepart, version, statut, traitantId, motifRejet = null }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({
+      statut,
+      traite_par_utilisateur_id: traitantId,
+      motif_rejet: motifRejet,
+      date_traitement: trx.fn.now(),
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
 }
 
 // Mise en attente : n'est PAS une décision — date_traitement et
 // traite_par_utilisateur_id restent vides (réservés à la validation/au rejet, voir migration 070).
-function marquerEnAttente(trx, id, { traitantId, motif }) {
-  return trx('demandes_dpae').where({ id }).update({
-    statut: 'en_attente',
-    motif_mise_en_attente: motif,
-    date_mise_en_attente: trx.fn.now(),
-    mis_en_attente_par_id: traitantId,
-    date_maj: trx.fn.now(),
-  });
+function marquerEnAttente(trx, id, { statutDepart, version, traitantId, motif }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({
+      statut: STATUT_EN_ATTENTE,
+      motif_mise_en_attente: motif,
+      date_mise_en_attente: trx.fn.now(),
+      mis_en_attente_par_id: traitantId,
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
+}
+
+// Modification par le demandeur : compare-and-set comme les décisions (id, statut de départ ET
+// version), version incrémentée. Seules les colonnes de champsDemandeDpae.js et le statut d'arrivée
+// sont écrits : jamais le demandeur, l'entité ni la date de création. Les colonnes de mise en
+// attente (motif, date, auteur) sont conservées telles quelles. Renvoie le nombre de lignes modifiées.
+function modifierDemande(trx, id, { statutDepart, version, statutArrivee, donnees }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({
+      ...colonnesDepuisDonnees(donnees),
+      statut: statutArrivee,
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
+}
+
+// Identifiants des comptes actifs d'un rôle dans l'entité (destinataires d'une notification).
+async function listerIdsUtilisateursActifsParRole(trx, entiteId, roleCode) {
+  const lignes = await trx('utilisateurs')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
+    .where({ 'utilisateurs.entite_id': entiteId, 'utilisateurs.actif': true, 'roles.code': roleCode })
+    .select('utilisateurs.id');
+  return lignes.map((ligne) => ligne.id);
 }
 
 module.exports = {
@@ -189,4 +194,6 @@ module.exports = {
   creerDemande,
   marquerTraitee,
   marquerEnAttente,
+  modifierDemande,
+  listerIdsUtilisateursActifsParRole,
 };

@@ -5,6 +5,7 @@
 const db = require('../../db/knex');
 const tableauDeBordDpaeRepository = require('./tableauDeBordDpaeRepository');
 const siteAffectationRepository = require('./siteAffectationRepository');
+const { CODES_STATUTS_DPAE, STATUT_VALIDEE, STATUT_REJETEE } = require('./statutsDpae');
 
 const FUSEAU = 'Europe/Paris';
 // Période par défaut : les 30 derniers jours, aujourd'hui inclus.
@@ -77,21 +78,15 @@ function ajouterSitesAuxLignes(lignes, liens) {
 function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, liens }) {
   // en_attente (« En attente », 2026-09-30) : compté dans le total, jamais dans les décidées.
   const parStatut = {
-    envoyee: 0,
-    en_attente: 0,
-    validee: 0,
-    rejetee: 0,
+    ...Object.fromEntries(CODES_STATUTS_DPAE.map((code) => [code, 0])),
     ...enMap(bruts.parStatut.map(({ statut, nombre }) => ({ cle: statut, nombre }))),
   };
-  const total = parStatut.envoyee + parStatut.en_attente + parStatut.validee + parStatut.rejetee;
-  const decidees = parStatut.validee + parStatut.rejetee;
+  const total = CODES_STATUTS_DPAE.reduce((somme, code) => somme + parStatut[code], 0);
+  const decidees = parStatut[STATUT_VALIDEE] + parStatut[STATUT_REJETEE];
   const dejaEmploye = enMap(bruts.dejaEmploye.map(({ cle, nombre }) => ({ cle: String(cle), nombre })));
   const idsDejaEmploye = enMapIds(bruts.dejaEmploye.map(({ cle, ids }) => ({ cle: String(cle), ids })));
   const idsParStatut = {
-    envoyee: [],
-    en_attente: [],
-    validee: [],
-    rejetee: [],
+    ...Object.fromEntries(CODES_STATUTS_DPAE.map((code) => [code, []])),
     ...enMapIds(bruts.parStatut.map(({ statut, ids }) => ({ cle: statut, ids }))),
   };
   const finsDeCdd = ajouterSitesAuxLignes(bruts.finsDeCdd, liens);
@@ -117,10 +112,10 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
     // clic sur un indicateur. Indicateurs sans liste (taux, délais) : aucun identifiant.
     activite: {
       total,
-      ids: ['envoyee', 'en_attente', 'validee', 'rejetee'].flatMap((code) => idsParStatut[code]),
+      ids: CODES_STATUTS_DPAE.flatMap((code) => idsParStatut[code]),
       parStatut,
       idsParStatut,
-      tauxRejet: decidees > 0 ? parStatut.rejetee / decidees : null,
+      tauxRejet: decidees > 0 ? parStatut[STATUT_REJETEE] / decidees : null,
       nombreTraitees: bruts.delais.nombre_traitees,
       delaiMoyenHeures: bruts.delais.moyen_heures,
       delaiMedianHeures: bruts.delais.median_heures,
@@ -131,8 +126,8 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
     // 0 % trompeur, même règle que le taux de rejet).
     declarationsTardives: {
       nombre: valideesEnRetard.length,
-      nombreValidees: parStatut.validee,
-      part: parStatut.validee > 0 ? valideesEnRetard.length / parStatut.validee : null,
+      nombreValidees: parStatut[STATUT_VALIDEE],
+      part: parStatut[STATUT_VALIDEE] > 0 ? valideesEnRetard.length / parStatut[STATUT_VALIDEE] : null,
       demandes: valideesEnRetard,
     },
     repartition: {

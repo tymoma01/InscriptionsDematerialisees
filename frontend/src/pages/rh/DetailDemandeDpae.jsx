@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
 import ModaleRejeterDpae from './ModaleRejeterDpae';
 import ModaleValiderDpae from './ModaleValiderDpae';
 import NotesDossier from '../../core/dossier/NotesDossier';
-import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import {
+  ACTION_METTRE_EN_ATTENTE,
+  ACTION_MODIFIER,
+  STATUTS_A_DECIDER,
+  libelleStatutDpae,
+  transitionPossible,
+  varianteStatutDpae,
+} from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
 import { formaterHeure, formaterHeuresParMois } from '../../core/dpae/formatsDpae';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
@@ -31,9 +38,6 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Statuts sans décision finale : Valider/Rejeter restent possibles ; « Mettre en
-// attente » seulement depuis « À traiter » (voir demandeDpaeService.js, transitions autorisées).
-const STATUTS_A_DECIDER = ['envoyee', 'en_attente'];
 const LIBELLE_PAR_TYPE = {
   nouvelle_embauche: 'Nouvelle embauche',
   prolongation: 'Prolongation',
@@ -83,12 +87,16 @@ export default function DetailDemandeDpae() {
   // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
   const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
+  // Message de confirmation transmis par le formulaire de modification après l'enregistrement.
+  const confirmation = useLocation().state?.confirmation;
 
   const [demande, setDemande] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [actionEnCours, setActionEnCours] = useState(false);
   const [erreurAction, setErreurAction] = useState(null);
+  // Vrai quand le serveur a refusé la décision (409) : la demande a changé depuis son chargement.
+  const [conflit, setConflit] = useState(false);
   // null | 'validation' | 'rejet' | 'attente' — une fenêtre de confirmation par décision ; rejet et
   // mise en attente partagent la même modale à motif obligatoire.
   const [modaleOuverte, setModaleOuverte] = useState(null);
@@ -106,46 +114,40 @@ export default function DetailDemandeDpae() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandeId]);
 
-  const valider = async () => {
+  // Décision (valider, rejeter, mettre en attente) envoyée avec la version de la demande lue : si
+  // quelqu'un l'a modifiée entre-temps, le serveur répond 409 et n'enregistre rien — le message est
+  // alors affiché avec un bouton pour recharger la demande.
+  const decider = async (appel, messageParDefaut) => {
     setActionEnCours(true);
     setErreurAction(null);
+    setConflit(false);
     try {
-      await validerDemande(demandeId);
+      await appel();
       setModaleOuverte(null);
       await charger();
     } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de valider cette demande.');
+      if (erreurRequete.response?.status === 409) {
+        setModaleOuverte(null);
+        setConflit(true);
+      }
+      setErreurAction(erreurRequete.response?.data?.erreur ?? messageParDefaut);
     } finally {
       setActionEnCours(false);
     }
   };
 
-  const rejeter = async (motifRejet) => {
-    setActionEnCours(true);
-    setErreurAction(null);
-    try {
-      await rejeterDemande(demandeId, motifRejet);
-      setModaleOuverte(null);
-      await charger();
-    } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de rejeter cette demande.');
-    } finally {
-      setActionEnCours(false);
-    }
-  };
+  const valider = () => decider(() => validerDemande(demandeId, demande.version), 'Impossible de valider cette demande.');
 
-  const mettreEnAttente = async (motif) => {
-    setActionEnCours(true);
+  const rejeter = (motifRejet) =>
+    decider(() => rejeterDemande(demandeId, motifRejet, demande.version), 'Impossible de rejeter cette demande.');
+
+  const mettreEnAttente = (motif) =>
+    decider(() => mettreEnAttenteDemande(demandeId, motif, demande.version), 'Impossible de mettre cette demande en attente.');
+
+  const recharger = () => {
     setErreurAction(null);
-    try {
-      await mettreEnAttenteDemande(demandeId, motif);
-      setModaleOuverte(null);
-      await charger();
-    } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de mettre cette demande en attente.');
-    } finally {
-      setActionEnCours(false);
-    }
+    setConflit(false);
+    charger();
   };
 
   const fermerModale = () => {
@@ -168,6 +170,13 @@ export default function DetailDemandeDpae() {
       </PageBackOffice>
     );
   }
+
+  // « Modifier la demande » : droit de modification (l'auteur, ou Planning/Admin pour toute demande —
+  // le serveur revérifie) ET statut qui l'autorise (« À traiter », « En attente »).
+  const peutModifier =
+    peut(utilisateur, 'dpaeModification') &&
+    (peut(utilisateur, 'dpaeModificationToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_MODIFIER, demande.statut);
 
   const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
   const joursConcernes = demande.jours_concernes ?? [];
@@ -194,6 +203,11 @@ export default function DetailDemandeDpae() {
               {/* PDF de la fiche, généré côté serveur — rôles de consultation seulement
                   (voir core/dpae/TelechargementPdfDpae.jsx). */}
               <BoutonTelechargerPdfDemande demandeId={demande.id} />
+              {peutModifier && (
+                <Link to={`/coordination/dpae/${demande.id}/modifier`} className="page-detail-dpae__modifier">
+                  Modifier la demande
+                </Link>
+              )}
               {/* "En un clic accéder à la fiche du candidat" (demande utilisateur, module Demandes
                   DPAE) — dossier_id résolu côté back via candidat_id (voir demandeDpaeRepository.js,
                   requeteDemandesAvecJointures) : absent si le salarié n'est pas un candidat connu
@@ -211,6 +225,12 @@ export default function DetailDemandeDpae() {
           </div>
           <EnTeteBackOffice />
         </header>
+
+        {confirmation && (
+          <p role="status" className="page-detail-dpae__confirmation">
+            {confirmation}
+          </p>
+        )}
 
         <section className="page-detail-dpae__bloc">
           <h2>Demande</h2>
@@ -322,10 +342,15 @@ export default function DetailDemandeDpae() {
         {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (
           <section className="page-detail-dpae__actions">
             {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
+            {conflit && (
+              <button type="button" onClick={recharger}>
+                Recharger la demande
+              </button>
+            )}
             <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleOuverte('rejet')} disabled={actionEnCours}>
               Rejeter
             </button>
-            {demande.statut === 'envoyee' && (
+            {transitionPossible(ACTION_METTRE_EN_ATTENTE, demande.statut) && (
               <button
                 type="button"
                 className="page-detail-dpae__mettre-en-attente"

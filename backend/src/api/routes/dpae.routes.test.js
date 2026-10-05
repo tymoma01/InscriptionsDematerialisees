@@ -7,7 +7,7 @@ const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
 const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
 const dpaeRouter = require('./dpae.routes');
 
-const { demandeBodySchema } = dpaeRouter;
+const { demandeBodySchema, modificationBodySchema } = dpaeRouter;
 
 // Testé sur le VRAI schéma monté sur POST /api/dpae (exporté par dpae.routes.js, même convention
 // que dossiers.routes.test.js).
@@ -153,6 +153,7 @@ function executerGarde(garde, roleCode) {
 
 const ACTIONS_DPAE = {
   'création (POST /)': ['post', '/'],
+  'modification (PUT /:id)': ['put', '/:id'],
   'liste de suivi (GET /suivi)': ['get', '/suivi'],
   'fiche (GET /:id)': ['get', '/:id'],
   'file RH (GET /)': ['get', '/'],
@@ -163,7 +164,7 @@ const ACTIONS_DPAE = {
   'notes, ajout (POST /:id/notes)': ['post', '/:id/notes'],
 };
 
-test("DPAE : l'Admin passe la garde de CHAQUE route (création, liste, fiche, file RH, validation, rejet, mise en attente, notes)", () => {
+test("DPAE : l'Admin passe la garde de CHAQUE route (création, modification, liste, fiche, file RH, validation, rejet, mise en attente, notes)", () => {
   for (const [action, [methode, chemin]] of Object.entries(ACTIONS_DPAE)) {
     assert.equal(executerGarde(gardeRoute(methode, chemin), 'admin').autorise, true, action);
   }
@@ -202,6 +203,109 @@ test('DPAE : traitement RH (file, validation, rejet) réservé à RH et Admin', 
     for (const roleCode of ['planning', 'accueil_coordination', 'formateur']) {
       assert.equal(executerGarde(garde, roleCode).statut, 403, `${chemin} ${roleCode}`);
     }
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Modification (PUT /:id) — garde de rôle, validation identique à la création, réponses d'erreur.
+// Le droit par demande (auteur) et le statut sont vérifiés par le service (modificationDemandeDpae.test.js).
+// ---------------------------------------------------------------------------------------------
+test('PUT /:id : Planning, Admin et Inspecteur Hôtellerie passent la garde ; RH, Accueil/Coordination, Formateur et Inspecteur -> 403', () => {
+  const garde = gardeRoute('put', '/:id');
+  for (const roleCode of ['planning', 'admin', 'inspecteur_hotellerie']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+    assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  }
+});
+
+const MODIFICATION_VALIDE = { ...DEMANDE_VALIDE, version: 3 };
+
+test('PUT /:id : mêmes champs et mêmes règles que la création (même schéma de base), plus la version', () => {
+  const champsBase = Object.keys(dpaeRouter.demandeBaseSchema.shape);
+  assert.deepEqual(Object.keys(demandeBodySchema.shape).sort(), [...champsBase].sort());
+  assert.deepEqual(Object.keys(modificationBodySchema.shape).sort(), [...champsBase, 'version'].sort());
+  assert.equal(modificationBodySchema.parse(MODIFICATION_VALIDE).version, 3);
+  assert.equal(demandeBodySchema.safeParse(DEMANDE_VALIDE).success, true);
+});
+
+test('PUT /:id : premier jour obligatoire comme à la création (absent ou vide -> refus, même message)', () => {
+  for (const dateDebut of [undefined, '', '   ']) {
+    const creation = demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, dateDebut });
+    const modification = modificationBodySchema.safeParse({ ...MODIFICATION_VALIDE, dateDebut });
+    assert.equal(modification.success, false, JSON.stringify(dateDebut));
+    assert.equal(
+      modification.error.issues.find((i) => i.path[0] === 'dateDebut').message,
+      creation.error.issues.find((i) => i.path[0] === 'dateDebut').message,
+    );
+    assert.equal(modification.error.issues.find((i) => i.path[0] === 'dateDebut').message, 'Le premier jour est obligatoire.');
+  }
+});
+
+test('PUT /:id : sites obligatoires, sans doublon, et règle du CDD de remplacement — comme à la création', () => {
+  assert.equal(modificationBodySchema.safeParse({ ...MODIFICATION_VALIDE, sitesAffectationIds: [] }).success, false);
+  assert.equal(modificationBodySchema.safeParse({ ...MODIFICATION_VALIDE, sitesAffectationIds: [4, 4] }).success, false);
+  const cddRemplacement = { ...MODIFICATION_VALIDE, typeContrat: 'cdd', motifCdd: 'remplacement_absent', salarieRemplaceNom: '  ' };
+  assert.equal(modificationBodySchema.safeParse(cddRemplacement).success, false);
+  assert.equal(modificationBodySchema.safeParse({ ...cddRemplacement, salarieRemplaceNom: 'Durand' }).success, true);
+});
+
+test('PUT /:id : version absente ou invalide -> refus ; demandeur, entité, date de création et statut envoyés par le client sont ignorés', () => {
+  for (const version of [undefined, 0, -1, 'abc']) {
+    assert.equal(modificationBodySchema.safeParse({ ...MODIFICATION_VALIDE, version }).success, false, String(version));
+  }
+  const resultat = modificationBodySchema.parse({ ...MODIFICATION_VALIDE, demandeurId: 99, demandeur_id: 99, entiteId: 2, dateCreation: 'x', statut: 'validee' });
+  for (const interdit of ['demandeurId', 'demandeur_id', 'entiteId', 'dateCreation', 'statut']) assert.equal(interdit in resultat, false, interdit);
+});
+
+test('PUT /:id : corps invalide -> 400, le service n’est pas appelé', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'modifierDemande', async () => ({}));
+  for (const body of [{}, { ...MODIFICATION_VALIDE, dateDebut: '' }, { ...MODIFICATION_VALIDE, version: undefined }]) {
+    const { res } = await appelerGestionnaire('put', '/:id', { params: { id: '7' }, body, roleCode: 'planning' });
+    assert.equal(res.statut, 400);
+  }
+  assert.equal(serviceMock.mock.calls.length, 0);
+});
+
+test('PUT /:id valide : service appelé avec l’auteur, le rôle et l’IP de la SESSION et la demande sans version ; réponse { statut, version }', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'modifierDemande', async () => ({ statut: 'envoyee', version: 4 }));
+  const { res } = await appelerGestionnaire('put', '/:id', {
+    params: { id: '7' },
+    body: { ...MODIFICATION_VALIDE, demandeurId: 99 },
+    roleCode: 'planning',
+    utilisateurId: 9,
+  });
+  assert.equal(res.statut, 200);
+  assert.deepEqual(res.corps, { statut: 'envoyee', version: 4 });
+  const [entite, id, parametres] = serviceMock.mock.calls[0].arguments;
+  assert.equal(entite.id, 1);
+  assert.equal(id, 7);
+  assert.deepEqual(
+    { version: parametres.version, utilisateurId: parametres.utilisateurId, roleCode: parametres.roleCode, adresseIp: parametres.adresseIp },
+    { version: 3, utilisateurId: 9, roleCode: 'planning', adresseIp: '127.0.0.1' },
+  );
+  assert.equal('version' in parametres.donnees, false);
+  assert.equal('demandeurId' in parametres.donnees, false);
+});
+
+test('PUT /:id : droit refusé -> 403 ; introuvable -> 404 ; statut verrouillé ou version obsolète -> 409 ; site invalide -> 400', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'modifierDemande', async () => {});
+  const cas = [
+    [new demandeDpaeService.ErreurModificationInterdite(), 403],
+    [new demandeDpaeService.ErreurDemandeIntrouvable('introuvable'), 404],
+    [new demandeDpaeService.ErreurDemandeDejaTraitee('déjà traitée'), 409],
+    [new demandeDpaeService.ErreurDemandeModifiee(), 409],
+    [new demandeDpaeService.ErreurSitesAffectationInvalides('site 99'), 400],
+  ];
+  for (const [erreur, statutAttendu] of cas) {
+    serviceMock.mock.mockImplementation(async () => {
+      throw erreur;
+    });
+    const { res, erreurTransmise } = await appelerGestionnaire('put', '/:id', { params: { id: '7' }, body: MODIFICATION_VALIDE, roleCode: 'planning' });
+    assert.equal(res.statut, statutAttendu, erreur.constructor.name);
+    assert.equal(erreurTransmise, null);
   }
 });
 
@@ -286,10 +390,10 @@ test('PATCH /:id/mettre-en-attente : RH et Admin autorisés ; Planning, Accueil/
   }
 });
 
-test('PATCH /:id/mettre-en-attente : motif absent, vide ou fait d’espaces -> 400, rien n’est fait ni tracé', async (t) => {
+test('PATCH /:id/mettre-en-attente : motif ou version absents ou invalides -> 400, rien n’est fait', async (t) => {
   const auditMock = mockerAudit(t);
   const serviceMock = t.mock.method(demandeDpaeService, 'mettreEnAttente', async () => {});
-  for (const body of [{}, { motif: '' }, { motif: '   ' }]) {
+  for (const body of [{}, { version: 1 }, { motif: 'x' }, { motif: '', version: 1 }, { motif: '   ', version: 1 }, { motif: 'x', version: 0 }, { motif: 'x', version: 'abc' }]) {
     const { res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', { params: { id: '7' }, body });
     assert.equal(res.statut, 400, JSON.stringify(body));
   }
@@ -297,42 +401,80 @@ test('PATCH /:id/mettre-en-attente : motif absent, vide ou fait d’espaces -> 4
   assert.equal(auditMock.mock.calls.length, 0);
 });
 
-test('PATCH /:id/mettre-en-attente avec motif : 204, changement tracé dans journal_audit (auteur de la session, motif)', async (t) => {
+// La trace journal_audit et la notification sont écrites par le service, dans la même transaction
+// que la décision (voir demandeDpaeService.test.js et demandeDpaeTransitions.test.js) : la route
+// ne les écrit plus elle-même, elle transmet l'auteur (session), la version lue et l'adresse IP.
+test('PATCH /:id/mettre-en-attente avec motif et version : 204, service appelé avec l’auteur de la session, la version et l’IP', async (t) => {
   const auditMock = mockerAudit(t);
   const serviceMock = t.mock.method(demandeDpaeService, 'mettreEnAttente', async () => {});
   const { res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', {
     params: { id: '7' },
-    body: { motif: ' Attente du planning client ' },
+    body: { motif: ' Attente du planning client ', version: 4 },
     utilisateurId: 9,
   });
   assert.equal(res.statut, 204);
-  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 9, 'Attente du planning client']);
-  const entree = auditMock.mock.calls[0].arguments[1];
-  assert.equal(entree.utilisateurId, 9);
-  assert.equal(entree.action, 'demande_dpae_mise_en_attente');
-  assert.equal(entree.cibleId, 7);
-  assert.deepEqual(entree.donnees, { motif: 'Attente du planning client' });
-});
-
-test('PATCH /:id/mettre-en-attente : transition refusée par le service -> 409 ; demande introuvable -> 404 ; rien de tracé', async (t) => {
-  const auditMock = mockerAudit(t);
-  const serviceMock = t.mock.method(demandeDpaeService, 'mettreEnAttente', async () => {
-    throw new demandeDpaeService.ErreurDemandeDejaTraitee('déjà en attente');
-  });
-  let { res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', { params: { id: '7' }, body: { motif: 'x' } });
-  assert.equal(res.statut, 409);
-  serviceMock.mock.mockImplementation(async () => {
-    throw new demandeDpaeService.ErreurDemandeIntrouvable('introuvable');
-  });
-  ({ res } = await appelerGestionnaire('patch', '/:id/mettre-en-attente', { params: { id: '7' }, body: { motif: 'x' } }));
-  assert.equal(res.statut, 404);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 9, 'Attente du planning client', { version: 4, adresseIp: '127.0.0.1' }]);
   assert.equal(auditMock.mock.calls.length, 0);
 });
 
-test('Schéma du motif de mise en attente : exporté, nettoyé, obligatoire', () => {
+test('Décisions (valider, rejeter, mettre en attente) : transition refusée -> 409 ; demande modifiée entre-temps -> 409 avec son message ; introuvable -> 404', async (t) => {
+  mockerAudit(t);
+  const appels = [
+    ['patch', '/:id/valider', 'valider', { version: 2 }],
+    ['patch', '/:id/rejeter', 'rejeter', { motifRejet: 'x', version: 2 }],
+    ['patch', '/:id/mettre-en-attente', 'mettreEnAttente', { motif: 'x', version: 2 }],
+  ];
+  for (const [methode, chemin, methodeService, body] of appels) {
+    const serviceMock = t.mock.method(demandeDpaeService, methodeService, async () => {
+      throw new demandeDpaeService.ErreurDemandeDejaTraitee('déjà traitée');
+    });
+    let { res } = await appelerGestionnaire(methode, chemin, { params: { id: '7' }, body });
+    assert.equal(res.statut, 409, `${chemin} transition refusée`);
+
+    serviceMock.mock.mockImplementation(async () => {
+      throw new demandeDpaeService.ErreurDemandeModifiee();
+    });
+    ({ res } = await appelerGestionnaire(methode, chemin, { params: { id: '7' }, body }));
+    assert.equal(res.statut, 409, `${chemin} version obsolète`);
+    assert.deepEqual(res.corps, { erreur: 'Cette demande a été modifiée entre-temps. Rechargez-la.' });
+
+    serviceMock.mock.mockImplementation(async () => {
+      throw new demandeDpaeService.ErreurDemandeIntrouvable('introuvable');
+    });
+    ({ res } = await appelerGestionnaire(methode, chemin, { params: { id: '7' }, body }));
+    assert.equal(res.statut, 404, `${chemin} introuvable`);
+  }
+});
+
+test('PATCH /:id/valider et /:id/rejeter : version obligatoire (400 sinon), transmise au service avec l’auteur et l’IP', async (t) => {
+  mockerAudit(t);
+  const validerMock = t.mock.method(demandeDpaeService, 'valider', async () => {});
+  const rejeterMock = t.mock.method(demandeDpaeService, 'rejeter', async () => {});
+
+  for (const body of [{}, { version: 0 }, { version: 'x' }]) {
+    const { res } = await appelerGestionnaire('patch', '/:id/valider', { params: { id: '7' }, body });
+    assert.equal(res.statut, 400, JSON.stringify(body));
+  }
+  for (const body of [{ motifRejet: 'x' }, { version: 1 }, { motifRejet: '  ', version: 1 }]) {
+    const { res } = await appelerGestionnaire('patch', '/:id/rejeter', { params: { id: '7' }, body });
+    assert.equal(res.statut, 400, JSON.stringify(body));
+  }
+  assert.equal(validerMock.mock.calls.length + rejeterMock.mock.calls.length, 0);
+
+  let { res } = await appelerGestionnaire('patch', '/:id/valider', { params: { id: '7' }, body: { version: '3' }, utilisateurId: 9 });
+  assert.equal(res.statut, 204);
+  assert.deepEqual(validerMock.mock.calls[0].arguments.slice(1), [7, 9, { version: 3, adresseIp: '127.0.0.1' }]);
+
+  ({ res } = await appelerGestionnaire('patch', '/:id/rejeter', { params: { id: '7' }, body: { motifRejet: ' Doublon ', version: 3 }, utilisateurId: 9 }));
+  assert.equal(res.statut, 204);
+  assert.deepEqual(rejeterMock.mock.calls[0].arguments.slice(1), [7, 9, 'Doublon', { version: 3, adresseIp: '127.0.0.1' }]);
+});
+
+test('Schéma de la mise en attente : exporté, motif nettoyé et obligatoire, version obligatoire', () => {
   const { miseEnAttenteBodySchema } = dpaeRouter;
-  assert.deepEqual(miseEnAttenteBodySchema.parse({ motif: '  Pièce manquante ' }), { motif: 'Pièce manquante' });
-  assert.equal(miseEnAttenteBodySchema.safeParse({ motif: '  ' }).success, false);
+  assert.deepEqual(miseEnAttenteBodySchema.parse({ motif: '  Pièce manquante ', version: '2' }), { motif: 'Pièce manquante', version: 2 });
+  assert.equal(miseEnAttenteBodySchema.safeParse({ motif: '  ', version: 1 }).success, false);
+  assert.equal(miseEnAttenteBodySchema.safeParse({ motif: 'x' }).success, false);
 });
 
 test('Filtre Statut du tableau de bord : « en_attente » accepté', () => {

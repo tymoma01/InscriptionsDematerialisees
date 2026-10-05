@@ -6,7 +6,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { listerDemandesRh } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
-import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import { STATUTS_DPAE, STATUT_INITIAL, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import {
   ActionTelechargementPdfDpae,
   CaseDemandeDpae,
@@ -32,19 +32,19 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // composant générique déjà utilisé partout ailleurs dans le projet pour ce même patron (statut de
 // dossier, rôle/statut de compte sur Comptes utilisateurs — voir FiltresStatut.jsx). Chaque code
 // correspond exactement à un statut réel de `demandes_dpae` (dpae.routes.js accepte n'importe quel
-// `?statut=`, pas seulement 'envoyee'/'tous' — aucun changement backend nécessaire ici).
+// `?statut=`, pas seulement le statut initial et 'tous' — aucun changement backend nécessaire ici).
 // Libellés et couleurs : source unique core/dpae/statutsDpae.js, mêmes couleurs que
 // les badges du tableau ci-dessous.
 const STATUTS_FILTRABLES = STATUTS_DPAE.map(({ code, libellePluriel, variante }) => ({ code, libelle: libellePluriel, variante }));
 
-// File RH du module Demandes DPAE — par défaut, uniquement les demandes 'envoyee'
-// (file à traiter, voir dpae.routes.js GET / sans ?statut) ; le filtre "Tous" (statutFiltre nul)
+// File RH du module Demandes DPAE — par défaut, uniquement les demandes au statut initial
+// (STATUT_INITIAL, file à traiter, voir dpae.routes.js GET / sans ?statut) ; le filtre "Tous" (statutFiltre nul)
 // revoit l'historique complet (?statut=tous).
 export default function TraitementDpae() {
   const [demandes, setDemandes] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
-  const [statutFiltre, setStatutFiltre] = useState('envoyee');
+  const [statutFiltre, setStatutFiltre] = useState(STATUT_INITIAL);
   // Compteurs des pastilles : calculés sur TOUTES les demandes de l'entité (même
   // route, ?statut=tous), chargées à part — la liste affichée et son filtrage restent inchangés.
   const [toutesDemandes, setToutesDemandes] = useState(null);
