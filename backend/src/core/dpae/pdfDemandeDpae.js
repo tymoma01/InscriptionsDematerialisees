@@ -12,11 +12,12 @@ const { formaterHeure, formaterHeuresParMois } = require('./formatsDpae');
 //
 // Module spécifique à ACCECIT, comme tout le module Demandes DPAE (voir dpae.routes.js).
 //
-// Mise en page (révisée le 2026-10-02) : sur CHAQUE page, bandeau aux couleurs de l'en-tête de
-// l'application (dégradé marron, logo ACCECIT blanc à gauche, logos Hôtellerie et Tertiaire à droite) et pied de page (filet, coordonnées
-// ACCECIT, « Document confidentiel | usage interne », date de génération, « Page X/Y »). Les marges
-// de page réservent la place des deux : le contenu ne les chevauche jamais. Aucun tiret long dans
-// le document (séparateur : barre verticale).
+// Mise en page : sur CHAQUE page, bandeau bleu en dégradé (logo ACCECIT blanc à gauche, logos
+// Hôtellerie et Tertiaire à droite) et pied de page (filet, coordonnées ACCECIT, « Document
+// confidentiel | usage interne », date de génération, « Page X/Y »). Première page : titre, salarié,
+// pastille de statut, encadré récapitulatif ; puis une carte par section, sur deux colonnes de
+// paires libellé/valeur. Les marges de page réservent la place du bandeau et du pied : le contenu ne
+// les chevauche jamais. Aucun tiret long ni demi-cadratin dans le document.
 
 // Libellés — miroir de DetailDemandeDpae.jsx (types, postes, jours) et de
 // frontend/src/core/dpae/statutsDpae.js (statuts).
@@ -84,24 +85,24 @@ function texteSitesAffectation(demande) {
   return (demande.sites_affectation ?? []).map((site) => `${site.nom} (${site.initiales})`).join('\n');
 }
 
-// Statut et date associée, telle que la fiche la montre : réception (« À traiter »), mise en
-// attente (« En attente »), traitement (« Validée »/« Rejetée »).
-function statutEtDate(demande) {
-  const dateParStatut = {
-    envoyee: demande.date_creation,
-    en_attente: demande.date_mise_en_attente,
-    validee: demande.date_traitement,
-    rejetee: demande.date_traitement,
-  };
-  const date = dateParStatut[demande.statut] ?? demande.date_creation;
-  return {
-    libelle: LIBELLE_PAR_STATUT[demande.statut] ?? demande.statut,
-    date: date ? formaterDateHeure(date) : null,
-  };
+// « Reçue le JJ/MM/AAAA à HH:MM » (heure de Paris), à droite de la pastille de statut.
+function texteReception(demande) {
+  return `Reçue le ${formaterDate(demande.date_creation)} à ${FORMAT_HEURE.format(new Date(demande.date_creation))}`;
+}
+
+// Les quatre cases de l'encadré récapitulatif : [libellé, valeur] (valeur vide : « Non renseigné »).
+function recapitulatif(demande) {
+  const poste = demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste];
+  return [
+    ['Salarié', `${demande.salarie_prenom} ${demande.salarie_nom}`],
+    ['Poste', poste || 'Non renseigné'],
+    ['Type de contrat', demande.type_contrat ? demande.type_contrat.toUpperCase() : 'Non renseigné'],
+    ['Premier jour', demande.date_debut ? formaterDate(demande.date_debut) : 'Non renseigné'],
+  ];
 }
 
 // Sections de la fiche, dans l'ordre de DetailDemandeDpae.jsx : [{ titre, lignes: [[libellé,
-// valeur]], texte?, liste? }]. Fonction pure, testable sans PDF. Une section conditionnelle de la
+// valeur]], texte?, tableau? }]. Fonction pure, testable sans PDF. Une section conditionnelle de la
 // fiche (Modifications demandées, Gestion des jours, Autre chose à signaler) n'apparaît que dans
 // les mêmes conditions.
 function sectionsDemande(demande) {
@@ -196,10 +197,11 @@ function sectionsDemande(demande) {
     ...(semaineTravaillee.length === 0
       ? { texte: 'Aucun jour de travail renseigné.' }
       : {
-          liste: semaineTravaillee.map(
-            (jour) =>
-              `${JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}${jour.heureDebut && jour.heureFin ? ` : ${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : ''}`,
-          ),
+          // Tableau « Jour | Horaires » : un jour travaillé par ligne, « de 10h00 à 12h00 ».
+          tableau: semaineTravaillee.map((jour) => [
+            JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour,
+            jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés',
+          ]),
         }),
   });
 
@@ -213,10 +215,12 @@ function sectionsDemande(demande) {
 // Sous-marques ACCECIT du bandeau (2026-10-02) : « ACCECIT Hôtellerie » et « ACCECIT Tertiaire »,
 // l'une sous l'autre à droite, comme dans le bandeau de l'application (EnTeteAccecit.jsx) — sur
 // TOUTES les demandes, quelle que soit l'entité (plus aucune règle selon le champ « Entité »).
-// Icônes copiées de frontend/src/assets (le backend est construit sans le frontend).
+// Icônes copiées de frontend/src/assets (le backend est construit sans le frontend), en versions
+// CLAIRES (suffixe -clair) pour le fond bleu du bandeau : arcs bleus recolorés en bleu très clair,
+// doré inchangé. Les originaux restent à côté, intacts.
 const SOUS_MARQUES = [
-  { nom: 'Hôtellerie', icone: path.join(__dirname, 'assets', 'icone-accecit-hotellerie.png') },
-  { nom: 'Tertiaire', icone: path.join(__dirname, 'assets', 'icone-accecit-tertiaire.png') },
+  { nom: 'Hôtellerie', icone: path.join(__dirname, 'assets', 'icone-accecit-hotellerie-clair.png') },
+  { nom: 'Tertiaire', icone: path.join(__dirname, 'assets', 'icone-accecit-tertiaire-clair.png') },
 ];
 // Logo blanc de l'en-tête de l'application (frontend/src/assets/logo-accecit-blanc.png, copié ici :
 // le backend est construit sans le frontend).
@@ -234,11 +238,6 @@ function nomFichierPdf(demande) {
 }
 
 // Textes du document hors sections (fonctions pures, testées) — barre verticale comme séparateur.
-function texteStatut(demande) {
-  const { libelle, date } = statutEtDate(demande);
-  return date ? `${libelle} | le ${date}` : libelle;
-}
-
 function textesPiedDePage(dateGeneration, numeroPage, nombrePages) {
   const { nom, adresse, telephone, siteWeb } = COORDONNEES_ACCECIT;
   return {
@@ -249,25 +248,82 @@ function textesPiedDePage(dateGeneration, numeroPage, nombrePages) {
   };
 }
 
-// Mise en page A4 sobre, lisible à l'impression. Bandeau : dégradé des couleurs de l'en-tête de
-// l'application (EnTeteAccecit.css : --couleur-back-office -> --couleur-back-office-dore).
+// ---------------------------------------------------------------------------------------------
+// Mise en page A4 portrait. Couleurs : AUCUNE teinte propre à ce document, toutes viennent de
+// l'application (frontend/src/styles/variables.css) ou du PDF d'origine.
+// ---------------------------------------------------------------------------------------------
+// Bleu foncé des titres de section (PDF d'origine) : défini UNE fois, repris pour le bandeau, les
+// titres, le premier jour de l'encadré.
+const BLEU_TITRES = '#2b3990';
 const COULEURS = {
   texte: '#1f2430',
   libelle: '#5b6170',
-  accent: '#2b3990',
+  accent: BLEU_TITRES,
   filet: '#c9cdd6',
-  bandeauDebut: '#2e2013',
-  bandeauFin: '#7a5a34',
+  // Dégradé du bandeau : --couleur-primaire-hover (à gauche) vers le bleu des titres (à droite).
+  bandeauDebut: '#243074',
+  bandeauFin: BLEU_TITRES,
+  // Fond de l'encadré récapitulatif : --couleur-primaire-clair.
+  fondRecapitulatif: '#eeeff6',
+  // Trait doré des titres de section : --couleur-back-office-dore.
+  dore: '#7a5a34',
+  blanc: '#ffffff',
 };
-const MARGE = 50;
-const LARGEUR_LIBELLE = 170;
-const ECART_COLONNES = 12;
-const HAUTEUR_BANDEAU = 72;
+
+// Pastille de statut : mêmes couleurs que StatutBadge dans l'application (variantes attente,
+// bleu-gris, succès, échec de variables.css), voir frontend/src/core/dpae/statutsDpae.js.
+const COULEURS_STATUT = {
+  envoyee: { fond: '#fdf3e2', texte: '#92620a', bordure: '#f3d9a4' },
+  en_attente: { fond: '#e8eef4', texte: '#3f5368', bordure: '#b9c7d6' },
+  validee: { fond: '#e6f4ea', texte: '#1e7e34', bordure: '#b8e2c4' },
+  rejetee: { fond: '#fbeae8', texte: '#c0392b', bordure: '#f1c3bd' },
+};
+
+const POLICE = 'Helvetica';
+const POLICE_GRAS = 'Helvetica-Bold';
+
+// A4 : 18 mm de marge latérale (51 pt), bandeau de 22 mm (62 pt).
+const MARGE = 51;
+const HAUTEUR_BANDEAU = 62;
 // Le pied de page occupe les PIED_HAUTEUR derniers points de la page (filet compris).
 const PIED_HAUTEUR = 64;
 // Marges du contenu : sous le bandeau et au-dessus du pied, avec un espace de respiration.
-const MARGE_HAUT_CONTENU = HAUTEUR_BANDEAU + 26;
-const MARGE_BAS_CONTENU = PIED_HAUTEUR + 14;
+const MARGE_HAUT_CONTENU = HAUTEUR_BANDEAU + 22;
+const MARGE_BAS_CONTENU = PIED_HAUTEUR + 12;
+
+const TAILLE_LIBELLE = 8.5;
+const TAILLE_VALEUR = 10.5;
+const ECART_CARTES = 10;
+const RAYON_CARTE = 6;
+const PADDING_CARTE = 12;
+const ECART_COLONNES = 16;
+const ECART_LIGNES = 7;
+// Zone de titre d'une carte (trait doré compris) et marge basse.
+const HAUTEUR_TITRE_CARTE = 32;
+const PADDING_BAS_CARTE = 6;
+
+// --- Bandeau ---------------------------------------------------------------------------------
+const HAUTEUR_LOGO_PRINCIPAL = 34;
+const COTE_ICONE = 28;
+const TAILLE_MARQUE = 9;
+const ESPACEMENT_MARQUE = 2.2;
+const TAILLE_SOUS_NOM = 8;
+const ECART_ICONE_TEXTE = 6;
+const ECART_SOUS_MARQUES = 20;
+
+// Largeur EXACTE du mot « ACCECIT » tel qu'il est dessiné (lettres espacées) : la largeur des
+// lettres plus les espacements ENTRE elles (pas après la dernière). Le trait qui le souligne a
+// exactement cette longueur. Police et taille doivent être celles du dessin.
+function largeurMotAccecit(doc) {
+  doc.font(POLICE).fontSize(TAILLE_MARQUE);
+  return doc.widthOfString('ACCECIT') + ESPACEMENT_MARQUE * ('ACCECIT'.length - 1);
+}
+
+// Position des éléments d'une sous-marque dont le bloc commence à `xBloc`.
+function geometrieSousMarque(doc, xBloc) {
+  const largeurMot = largeurMotAccecit(doc);
+  return { xIcone: xBloc, xTexte: xBloc + COTE_ICONE + ECART_ICONE_TEXTE, largeurMot, largeurBloc: COTE_ICONE + ECART_ICONE_TEXTE + largeurMot };
+}
 
 function dessinerBandeau(doc) {
   const largeur = doc.page.width;
@@ -275,29 +331,30 @@ function dessinerBandeau(doc) {
   degrade.stop(0, COULEURS.bandeauDebut).stop(1, COULEURS.bandeauFin);
   doc.rect(0, 0, largeur, HAUTEUR_BANDEAU).fill(degrade);
 
-  doc.image(LOGO_ACCECIT_BLANC, MARGE - 6, (HAUTEUR_BANDEAU - 44) / 2, { height: 44 });
+  doc.image(LOGO_ACCECIT_BLANC, MARGE, (HAUTEUR_BANDEAU - HAUTEUR_LOGO_PRINCIPAL) / 2, { height: HAUTEUR_LOGO_PRINCIPAL });
 
-  // Même disposition que les logos des sous-marques de l'en-tête (EnTeteAccecit.jsx) : icône,
-  // « ACCECIT » en lettres espacées, filet fin, sous-nom — en blanc, l'une sous l'autre.
-  const largeurTexte = 78;
-  const hauteurBloc = 29;
-  const xIcone = largeur - MARGE - largeurTexte - 32;
-  const xTexte = xIcone + 32;
+  // Sous-marques côte à côte, alignées à droite : icône, « ACCECIT » en lettres espacées, filet de la
+  // largeur exacte du mot, sous-nom.
+  const { largeurBloc } = geometrieSousMarque(doc, 0);
+  const xDepart = largeur - MARGE - (SOUS_MARQUES.length * largeurBloc + (SOUS_MARQUES.length - 1) * ECART_SOUS_MARQUES);
+  const yIcone = (HAUTEUR_BANDEAU - COTE_ICONE) / 2;
   SOUS_MARQUES.forEach((sousMarque, index) => {
-    const yHaut = 6 + index * (hauteurBloc + 3);
-    doc.image(sousMarque.icone, xIcone, yHaut + 1, { height: 26 });
-    doc.font('Helvetica').fontSize(10).fillColor('#ffffff')
-      .text('ACCECIT', xTexte, yHaut + 2, { characterSpacing: 2.5, lineBreak: false });
-    doc.moveTo(xTexte, yHaut + 14).lineTo(xTexte + largeurTexte, yHaut + 14).lineWidth(0.5).strokeColor('#ffffff').stroke();
-    doc.fontSize(7.5).text(sousMarque.nom, xTexte, yHaut + 17, { lineBreak: false });
+    const { xIcone, xTexte, largeurMot } = geometrieSousMarque(doc, xDepart + index * (largeurBloc + ECART_SOUS_MARQUES));
+    doc.image(sousMarque.icone, xIcone, yIcone, { height: COTE_ICONE });
+    doc.font(POLICE).fontSize(TAILLE_MARQUE).fillColor(COULEURS.blanc)
+      .text('ACCECIT', xTexte, yIcone + 3, { characterSpacing: ESPACEMENT_MARQUE, lineBreak: false });
+    const yFilet = yIcone + 3 + 12.5;
+    doc.moveTo(xTexte, yFilet).lineTo(xTexte + largeurMot, yFilet).lineWidth(0.6).strokeColor(COULEURS.blanc).stroke();
+    doc.font(POLICE).fontSize(TAILLE_SOUS_NOM).fillColor(COULEURS.blanc).text(sousMarque.nom, xTexte, yFilet + 3, { lineBreak: false });
   });
 }
 
+// --- Pied de page ----------------------------------------------------------------------------
 function dessinerPiedDePage(doc, textes) {
   const largeurUtile = doc.page.width - 2 * MARGE;
   const haut = doc.page.height - PIED_HAUTEUR;
   doc.moveTo(MARGE, haut).lineTo(MARGE + largeurUtile, haut).lineWidth(0.5).strokeColor(COULEURS.filet).stroke();
-  doc.font('Helvetica').fontSize(7.5).fillColor(COULEURS.libelle);
+  doc.font(POLICE).fontSize(7.5).fillColor(COULEURS.libelle);
   doc.text(textes.coordonnees, MARGE, haut + 9, { width: largeurUtile, align: 'center', lineBreak: false });
   doc.text(textes.confidentialite, MARGE, haut + 21, { width: largeurUtile, align: 'center', lineBreak: false });
   doc.text(textes.generation, MARGE, haut + 39, { width: largeurUtile / 2, lineBreak: false });
@@ -319,56 +376,226 @@ function dessinerHabillage(doc, dateGeneration) {
   }
 }
 
-function hauteurRestante(doc) {
-  return doc.page.height - doc.page.margins.bottom - doc.y;
+// --- Bloc de titre et encadré récapitulatif (première page) -----------------------------------
+function hauteurTexte(doc, texte, police, taille, largeur) {
+  doc.font(police).fontSize(taille);
+  return doc.heightOfString(texte, { width: largeur });
 }
 
-function sautSiNecessaire(doc, hauteur) {
-  if (hauteurRestante(doc) < hauteur) {
-    doc.addPage();
-    doc.y = doc.page.margins.top;
-  }
+function dessinerPastilleStatut(doc, demande, x, y) {
+  const couleurs = COULEURS_STATUT[demande.statut] ?? COULEURS_STATUT.envoyee;
+  const libelle = LIBELLE_PAR_STATUT[demande.statut] ?? demande.statut;
+  const hauteur = 17;
+  doc.font(POLICE_GRAS).fontSize(9);
+  const largeur = doc.widthOfString(libelle) + 20;
+  doc.roundedRect(x, y, largeur, hauteur, hauteur / 2).lineWidth(0.6).fillAndStroke(couleurs.fond, couleurs.bordure);
+  doc.fillColor(couleurs.texte).text(libelle, x, y + 4.5, { width: largeur, align: 'center', lineBreak: false });
+  return largeur;
 }
 
-function dessinerSection(doc, section) {
-  const largeurUtile = doc.page.width - 2 * MARGE;
-  const largeurValeur = largeurUtile - LARGEUR_LIBELLE - ECART_COLONNES;
+// Renvoie la position verticale sous le bloc.
+function dessinerTitre(doc, demande, y) {
+  doc.font(POLICE_GRAS).fontSize(22).fillColor(COULEURS.texte).text(`Demande DPAE n° ${demande.id}`, MARGE, y, { lineBreak: false });
+  doc.font(POLICE).fontSize(14).fillColor(COULEURS.texte).text(`${demande.salarie_prenom} ${demande.salarie_nom}`, MARGE, y + 29, { lineBreak: false });
+  const yPastille = y + 54;
+  const largeurPastille = dessinerPastilleStatut(doc, demande, MARGE, yPastille);
+  doc.font(POLICE).fontSize(9.5).fillColor(COULEURS.libelle).text(texteReception(demande), MARGE + largeurPastille + 10, yPastille + 4, { lineBreak: false });
+  return yPastille + 17 + 16;
+}
 
-  // Titre jamais seul en bas de page : on garde de la place pour au moins une ligne derrière.
-  sautSiNecessaire(doc, 60);
-  doc.font('Helvetica-Bold').fontSize(12).fillColor(COULEURS.accent).text(section.titre, MARGE, doc.y);
-  doc.moveTo(MARGE, doc.y + 2).lineTo(MARGE + largeurUtile, doc.y + 2).lineWidth(0.5).strokeColor(COULEURS.filet).stroke();
-  doc.y += 8;
+function dessinerRecapitulatif(doc, demande, y) {
+  const largeurBoite = doc.page.width - 2 * MARGE;
+  const padding = 14;
+  const cases = recapitulatif(demande);
+  const largeurCase = (largeurBoite - 2 * padding - 3 * 10) / 4;
+  const taille = (indice) => (indice === 3 ? 13 : 11);
+  const hauteurs = cases.map(([, valeur], indice) => hauteurTexte(doc, valeur, POLICE_GRAS, taille(indice), largeurCase));
+  const hauteurBoite = 2 * padding - 2 + 10 + 4 + Math.max(...hauteurs);
 
-  for (const [libelle, valeur] of section.lignes) {
-    doc.font('Helvetica').fontSize(10);
-    const hauteur = Math.max(
-      doc.heightOfString(libelle, { width: LARGEUR_LIBELLE }),
-      doc.heightOfString(valeur, { width: largeurValeur }),
-    );
-    sautSiNecessaire(doc, hauteur + 6);
-    const y = doc.y;
-    doc.fillColor(COULEURS.libelle).text(libelle, MARGE, y, { width: LARGEUR_LIBELLE });
-    doc.fillColor(COULEURS.texte).text(valeur, MARGE + LARGEUR_LIBELLE + ECART_COLONNES, y, { width: largeurValeur });
-    doc.y = y + hauteur + 5;
+  doc.roundedRect(MARGE, y, largeurBoite, hauteurBoite, 8).fill(COULEURS.fondRecapitulatif);
+  cases.forEach(([libelle, valeur], indice) => {
+    const x = MARGE + padding + indice * (largeurCase + 10);
+    doc.font(POLICE).fontSize(8).fillColor(COULEURS.libelle).text(libelle, x, y + padding - 1, { width: largeurCase, lineBreak: false });
+    doc.font(POLICE_GRAS).fontSize(taille(indice)).fillColor(indice === 3 ? COULEURS.accent : COULEURS.texte)
+      .text(valeur, x, y + padding + 13, { width: largeurCase });
+  });
+  return y + hauteurBoite + 14;
+}
+
+// --- Cartes de section -----------------------------------------------------------------------
+// Une carte = titre + « lignes » de contenu ({ hauteur, dessiner(x, y, largeur) }). Une carte qui ne
+// tient pas dans la place restante passe sur la page suivante si elle y tient entièrement ; seule une
+// carte plus haute qu'une page est répartie sur plusieurs pages, entre deux lignes.
+
+// Paires libellé/valeur sur deux colonnes : une valeur plus large qu'une colonne (ou sur plusieurs
+// lignes, comme les sites d'affectation) prend toute la largeur.
+function lignesDePaires(doc, paires, largeurInterne) {
+  const largeurColonne = (largeurInterne - ECART_COLONNES) / 2;
+  const mesurer = (libelle, valeur, largeur) =>
+    hauteurTexte(doc, libelle, POLICE, TAILLE_LIBELLE, largeur) + 2 + hauteurTexte(doc, valeur, POLICE, TAILLE_VALEUR, largeur);
+  const largeurValeur = (valeur) => {
+    doc.font(POLICE).fontSize(TAILLE_VALEUR);
+    return doc.widthOfString(valeur);
+  };
+  const dessinerPaire = (libelle, valeur, x, y, largeur) => {
+    doc.font(POLICE).fontSize(TAILLE_LIBELLE).fillColor(COULEURS.libelle).text(libelle, x, y, { width: largeur });
+    const yValeur = y + hauteurTexte(doc, libelle, POLICE, TAILLE_LIBELLE, largeur) + 2;
+    doc.font(POLICE).fontSize(TAILLE_VALEUR).fillColor(COULEURS.texte).text(valeur, x, yValeur, { width: largeur });
+  };
+
+  const lignes = [];
+  let enAttente = null;
+  const viderEnAttente = () => {
+    if (!enAttente) return;
+    const [libelle, valeur] = enAttente;
+    lignes.push({
+      hauteur: mesurer(libelle, valeur, largeurColonne) + ECART_LIGNES,
+      dessiner: (x, y) => dessinerPaire(libelle, valeur, x, y, largeurColonne),
+    });
+    enAttente = null;
+  };
+  for (const [libelle, valeur] of paires) {
+    const pleineLargeur = valeur.includes('\n') || largeurValeur(valeur) > largeurColonne;
+    if (pleineLargeur) {
+      viderEnAttente();
+      lignes.push({
+        hauteur: mesurer(libelle, valeur, largeurInterne) + ECART_LIGNES,
+        dessiner: (x, y) => dessinerPaire(libelle, valeur, x, y, largeurInterne),
+      });
+    } else if (enAttente) {
+      const [libelleGauche, valeurGauche] = enAttente;
+      enAttente = null;
+      lignes.push({
+        hauteur: Math.max(mesurer(libelleGauche, valeurGauche, largeurColonne), mesurer(libelle, valeur, largeurColonne)) + ECART_LIGNES,
+        dessiner: (x, y) => {
+          dessinerPaire(libelleGauche, valeurGauche, x, y, largeurColonne);
+          dessinerPaire(libelle, valeur, x + largeurColonne + ECART_COLONNES, y, largeurColonne);
+        },
+      });
+    } else {
+      enAttente = [libelle, valeur];
+    }
   }
+  viderEnAttente();
+  return lignes;
+}
 
-  if (section.texte) {
-    doc.font('Helvetica').fontSize(10).fillColor(COULEURS.texte);
-    sautSiNecessaire(doc, Math.min(doc.heightOfString(section.texte, { width: largeurUtile }), 60) + 6);
-    // Texte long : pdfkit le poursuit page suivante, à l'intérieur des mêmes marges.
-    doc.text(section.texte, MARGE, doc.y, { width: largeurUtile });
-    doc.y += 5;
+// Tableau « Jour | Horaires ».
+function lignesDeTableau(doc, tableau, largeurInterne) {
+  const largeurJour = 130;
+  const hauteurLigne = 17;
+  const lignes = [
+    {
+      hauteur: hauteurLigne,
+      dessiner: (x, y) => {
+        doc.rect(x, y, largeurInterne, hauteurLigne).fill(COULEURS.fondRecapitulatif);
+        doc.font(POLICE_GRAS).fontSize(TAILLE_LIBELLE).fillColor(COULEURS.libelle);
+        doc.text('Jour', x + 8, y + 4.5, { width: largeurJour, lineBreak: false });
+        doc.text('Horaires', x + largeurJour, y + 4.5, { width: largeurInterne - largeurJour, lineBreak: false });
+      },
+    },
+  ];
+  for (const [jour, horaires] of tableau) {
+    lignes.push({
+      hauteur: hauteurLigne,
+      dessiner: (x, y) => {
+        doc.font(POLICE).fontSize(TAILLE_VALEUR).fillColor(COULEURS.texte);
+        doc.text(jour, x + 8, y + 3.5, { width: largeurJour - 8, lineBreak: false });
+        doc.text(horaires, x + largeurJour, y + 3.5, { width: largeurInterne - largeurJour, lineBreak: false });
+        doc.moveTo(x, y + hauteurLigne).lineTo(x + largeurInterne, y + hauteurLigne).lineWidth(0.4).strokeColor(COULEURS.filet).stroke();
+      },
+    });
   }
+  return lignes;
+}
 
-  for (const element of section.liste ?? []) {
-    doc.font('Helvetica').fontSize(10).fillColor(COULEURS.texte);
-    sautSiNecessaire(doc, 18);
-    doc.text(`•  ${element}`, MARGE + 6, doc.y, { width: largeurUtile - 6 });
-    doc.y += 3;
+// Texte libre : un bloc par paragraphe, et seulement s'il dépasse MAX_CARACTERES_PAR_BLOC_TEXTE (très
+// long, plus d'une demi-page) découpé aux limites de mots, pour pouvoir le répartir sur deux pages.
+// Un découpage plus fin hacherait les lignes du texte.
+const MAX_CARACTERES_PAR_BLOC_TEXTE = 1500;
+function blocsDeTexte(texte) {
+  const blocs = [];
+  for (const paragraphe of String(texte).split('\n')) {
+    let courant = '';
+    for (const mot of paragraphe.split(' ')) {
+      if (courant && courant.length + mot.length + 1 > MAX_CARACTERES_PAR_BLOC_TEXTE) {
+        blocs.push(courant);
+        courant = mot;
+      } else {
+        courant = courant ? `${courant} ${mot}` : mot;
+      }
+    }
+    blocs.push(courant);
   }
+  return blocs;
+}
 
-  doc.y += 12;
+function lignesDeTexte(doc, texte, largeurInterne) {
+  return blocsDeTexte(texte).map((bloc) => ({
+    hauteur: hauteurTexte(doc, bloc, POLICE, TAILLE_VALEUR, largeurInterne) + 2,
+    dessiner: (x, y) => doc.font(POLICE).fontSize(TAILLE_VALEUR).fillColor(COULEURS.texte).text(bloc, x, y, { width: largeurInterne }),
+  }));
+}
+
+function limiteBasPage(doc) {
+  return doc.page.maxY() - 2;
+}
+
+function nouvellePage(doc) {
+  doc.addPage();
+  return doc.page.margins.top;
+}
+
+// Dessine une carte (ou ses morceaux) à partir de `y` ; renvoie la position verticale sous elle.
+function dessinerCarte(doc, titre, lignes, y) {
+  const largeurCarte = doc.page.width - 2 * MARGE;
+  const hauteurTotale = HAUTEUR_TITRE_CARTE + lignes.reduce((somme, ligne) => somme + ligne.hauteur, 0) + PADDING_BAS_CARTE;
+  const hauteurPage = limiteBasPage(doc) - doc.page.margins.top;
+
+  let enAttente = [...lignes];
+  let yCourant = y;
+  let premierMorceau = true;
+  // Ne tient pas dans la place restante mais tient sur une page entière : page suivante, carte entière.
+  if (hauteurTotale > limiteBasPage(doc) - yCourant && hauteurTotale <= hauteurPage) yCourant = nouvellePage(doc);
+
+  while (enAttente.length > 0) {
+    let place = limiteBasPage(doc) - yCourant - HAUTEUR_TITRE_CARTE - PADDING_BAS_CARTE;
+    if (place < enAttente[0].hauteur) {
+      yCourant = nouvellePage(doc);
+      place = limiteBasPage(doc) - yCourant - HAUTEUR_TITRE_CARTE - PADDING_BAS_CARTE;
+    }
+    const morceau = [];
+    let hauteurMorceau = 0;
+    while (enAttente.length > 0 && (morceau.length === 0 || hauteurMorceau + enAttente[0].hauteur <= place)) {
+      hauteurMorceau += enAttente[0].hauteur;
+      morceau.push(enAttente.shift());
+    }
+
+    const hauteurCarte = HAUTEUR_TITRE_CARTE + hauteurMorceau + PADDING_BAS_CARTE;
+    doc.roundedRect(MARGE, yCourant, largeurCarte, hauteurCarte, RAYON_CARTE).lineWidth(0.6).fillAndStroke(COULEURS.blanc, COULEURS.filet);
+    // Titre en bleu, trait doré à gauche.
+    doc.rect(MARGE + PADDING_CARTE, yCourant + 11, 3, 14).fill(COULEURS.dore);
+    doc.font(POLICE_GRAS).fontSize(11.5).fillColor(COULEURS.accent)
+      .text(premierMorceau ? titre : `${titre} (suite)`, MARGE + PADDING_CARTE + 10, yCourant + 12, { lineBreak: false });
+    let yLigne = yCourant + HAUTEUR_TITRE_CARTE;
+    for (const ligne of morceau) {
+      ligne.dessiner(MARGE + PADDING_CARTE, yLigne);
+      yLigne += ligne.hauteur;
+    }
+    yCourant += hauteurCarte;
+    if (enAttente.length > 0) yCourant = nouvellePage(doc);
+    premierMorceau = false;
+  }
+  return yCourant + ECART_CARTES;
+}
+
+// Contenu d'une section (voir sectionsDemande) sous forme de lignes dessinables.
+function lignesDeSection(doc, section, largeurInterne) {
+  return [
+    ...lignesDePaires(doc, section.lignes, largeurInterne),
+    ...(section.tableau ? lignesDeTableau(doc, section.tableau, largeurInterne) : []),
+    ...(section.texte ? lignesDeTexte(doc, section.texte, largeurInterne) : []),
+  ];
 }
 
 // Renvoie le PDF complet en mémoire (Buffer) : une demande tient sur une à deux pages, et le ZIP
@@ -387,14 +614,16 @@ function genererPdfDemande(demande, { dateGeneration = new Date() } = {}) {
     doc.on('error', rejeter);
 
     try {
-      // Première page seulement : numéro, salarié (titre de la fiche) et statut avec sa date.
-      doc.font('Helvetica-Bold').fontSize(18).fillColor(COULEURS.texte).text(`Demande DPAE n° ${demande.id}`, MARGE, doc.page.margins.top);
-      doc.font('Helvetica').fontSize(13).text(`${demande.salarie_prenom} ${demande.salarie_nom}`);
-      doc.moveDown(0.3).fontSize(10).fillColor(COULEURS.libelle).text('Statut : ', { continued: true })
-        .font('Helvetica-Bold').fillColor(COULEURS.texte).text(texteStatut(demande));
-      doc.y += 16;
+      let y = dessinerTitre(doc, demande, doc.page.margins.top);
+      y = dessinerRecapitulatif(doc, demande, y);
 
-      for (const section of sectionsDemande(demande)) dessinerSection(doc, section);
+      const largeurInterne = doc.page.width - 2 * MARGE - 2 * PADDING_CARTE;
+      for (const section of sectionsDemande(demande)) {
+        // Section entièrement vide : non affichée.
+        const lignes = lignesDeSection(doc, section, largeurInterne);
+        if (lignes.length === 0) continue;
+        y = dessinerCarte(doc, section.titre, lignes, y);
+      }
 
       dessinerHabillage(doc, dateGeneration);
       doc.end();
@@ -407,11 +636,14 @@ function genererPdfDemande(demande, { dateGeneration = new Date() } = {}) {
 module.exports = {
   genererPdfDemande,
   sectionsDemande,
-  statutEtDate,
-  texteStatut,
+  recapitulatif,
+  texteReception,
   textesPiedDePage,
   nomFichierPdf,
   nettoyerSegmentChemin,
+  // Bandeau : exposés pour vérifier que le filet souligne exactement le mot « ACCECIT ».
+  dessinerBandeau,
+  largeurMotAccecit,
   // Zones réservées (points) : exposées pour vérifier l'absence de chevauchement.
   ZONES_PAGE: Object.freeze({ HAUTEUR_BANDEAU, PIED_HAUTEUR, MARGE_HAUT_CONTENU, MARGE_BAS_CONTENU }),
 };

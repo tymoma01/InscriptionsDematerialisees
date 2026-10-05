@@ -1,13 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const PDFDocument = require('pdfkit');
 const {
   genererPdfDemande,
   sectionsDemande,
-  statutEtDate,
-  texteStatut,
+  recapitulatif,
+  texteReception,
   textesPiedDePage,
   nomFichierPdf,
+  dessinerBandeau,
+  largeurMotAccecit,
 } = require('./pdfDemandeDpae');
 
 // Demande telle que la renvoie demandeDpaeService.obtenirDemande (colonnes `date` : Date à minuit
@@ -142,18 +145,27 @@ test('Sections conditionnelles : mêmes conditions que la fiche (rejet, attente,
   ]);
   assert.deepEqual(section(complete, 'Modifications demandées').lignes, [['Horaires', 'Oui']]);
   assert.deepEqual(section(complete, 'Gestion des jours').lignes, [['Type', 'Retirer des jours'], ['Jours concernés', '12/10/2026']]);
-  assert.deepEqual(section(complete, 'Semaine type').liste, ['Lundi : 08h00 – 15h00', 'Samedi']);
+  assert.deepEqual(section(complete, 'Semaine type').tableau, [
+    ['Lundi', 'de 08h00 à 15h00'],
+    ['Samedi', 'Horaires non précisés'],
+  ]);
   assert.equal(section(complete, 'Autre chose à signaler').texte, 'Badge à prévoir');
 });
 
-test('Statut et sa date : réception, mise en attente, traitement', () => {
-  assert.deepEqual(statutEtDate(demande({ statut: 'envoyee', date_traitement: null })), { libelle: 'À traiter', date: '30/09/2026 14:34' });
-  assert.deepEqual(statutEtDate(demande({ statut: 'en_attente', date_mise_en_attente: new Date('2026-10-01T14:20:00Z') })), {
-    libelle: 'En attente',
-    date: '01/10/2026 16:20',
-  });
-  assert.deepEqual(statutEtDate(demande()), { libelle: 'Validée', date: '30/09/2026 17:48' });
-  assert.deepEqual(statutEtDate(demande({ statut: 'rejetee' })), { libelle: 'Rejetée', date: '30/09/2026 17:48' });
+test('Réception : « Reçue le JJ/MM/AAAA à HH:MM » en heure de Paris', () => {
+  assert.equal(texteReception(demande()), 'Reçue le 30/09/2026 à 14:34');
+});
+
+test('Encadré récapitulatif : salarié, poste, type de contrat, premier jour ; valeur absente : « Non renseigné »', () => {
+  assert.deepEqual(recapitulatif(demande()), [
+    ['Salarié', 'Léa MARTIN'],
+    ['Poste', 'Équipier'],
+    ['Type de contrat', 'CDD'],
+    ['Premier jour', '10/10/2026'],
+  ]);
+  const incomplet = recapitulatif(demande({ poste: null, type_contrat: null, date_debut: null }));
+  assert.deepEqual(incomplet.slice(1).map(([, valeur]) => valeur), ['Non renseigné', 'Non renseigné', 'Non renseigné']);
+  assert.equal(recapitulatif(demande({ poste: 'autre', poste_autre: 'Voiturier' }))[1][1], 'Voiturier');
 });
 
 test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ » remplacés comme dans l’export ZIP des pièces', () => {
@@ -172,11 +184,6 @@ test('PDF généré : document PDF A4, quelle que soit l’entité (même bandea
   }
 });
 
-test('Ligne du statut : barre verticale, jamais de tiret long — « À traiter | le 30/09/2026 14:34 »', () => {
-  assert.equal(texteStatut(demande({ statut: 'envoyee', date_traitement: null })), 'À traiter | le 30/09/2026 14:34');
-  assert.equal(texteStatut(demande()), 'Validée | le 30/09/2026 17:48');
-});
-
 test('Pied de page : coordonnées ACCECIT, confidentialité, date de génération (heure de Paris) et pagination', () => {
   assert.deepEqual(textesPiedDePage(new Date('2026-10-02T08:45:00Z'), 2, 3), {
     coordonnees: 'ACCECIT | 47 avenue Paul Vaillant Couturier, 94250 Gentilly | 01 56 56 69 56 | www.accecit.com',
@@ -186,7 +193,7 @@ test('Pied de page : coordonnées ACCECIT, confidentialité, date de génératio
   });
 });
 
-test('Aucun tiret long (—) dans les textes du PDF (sections, statut, pied de page)', () => {
+test('Aucun tiret long ni demi-cadratin dans les textes du PDF (sections, réception, pied de page)', () => {
   const complete = demande({
     statut: 'en_attente',
     date_mise_en_attente: new Date('2026-10-01T14:20:00Z'),
@@ -198,6 +205,40 @@ test('Aucun tiret long (—) dans les textes du PDF (sections, statut, pied de p
     autre_chose_signaler: 'Badge',
     sites_affectation: QUATRE_SITES,
   });
-  const textes = JSON.stringify([sectionsDemande(complete), texteStatut(complete), textesPiedDePage(new Date(), 1, 2)]);
-  assert.ok(!textes.includes('—'), textes);
+  const textes = JSON.stringify([sectionsDemande(complete), texteReception(complete), textesPiedDePage(new Date(), 1, 2)]);
+  assert.ok(!textes.includes('—') && !textes.includes('–'), textes);
+});
+
+test('Bandeau : le filet sous « ACCECIT » a EXACTEMENT la largeur du mot (lettres et espacements entre elles), pour chaque sous-marque', () => {
+  const doc = new PDFDocument({ size: 'A4' });
+  const filets = [];
+  const lineTo = doc.lineTo.bind(doc);
+  let origine = null;
+  const moveTo = doc.moveTo.bind(doc);
+  doc.moveTo = (x, y) => {
+    origine = [x, y];
+    return moveTo(x, y);
+  };
+  doc.lineTo = (x, y) => {
+    if (origine && origine[1] === y) filets.push(x - origine[0]);
+    return lineTo(x, y);
+  };
+
+  dessinerBandeau(doc);
+
+  const attendue = largeurMotAccecit(doc);
+  assert.equal(filets.length, 2);
+  for (const longueur of filets) assert.ok(Math.abs(longueur - attendue) < 1e-9, `${longueur} != ${attendue}`);
+  // Le mot lui-même : largeur des lettres + 6 espacements, sans espacement après la dernière lettre.
+  doc.font('Helvetica').fontSize(9);
+  assert.ok(Math.abs(attendue - (doc.widthOfString('ACCECIT') + 2.2 * 6)) < 1e-9);
+});
+
+test('Une section sans aucune ligne n’est pas affichée (sections vides ignorées) ; demande très longue : plusieurs pages, jamais de page vide', async () => {
+  const pdf = await genererPdfDemande(
+    demande({ sites_affectation: QUATRE_SITES, autre_chose_signaler: 'mot '.repeat(1800), modifications_demandees: true, modification_horaires: true }),
+    { dateGeneration: new Date('2026-10-02T08:45:00Z') },
+  );
+  const pages = (pdf.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length;
+  assert.ok(pages >= 2 && pages <= 4, `pages : ${pages}`);
 });
