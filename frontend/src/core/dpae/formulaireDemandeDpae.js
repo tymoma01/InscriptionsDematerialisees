@@ -13,6 +13,31 @@ export const JOURS_SEMAINE = [
   { code: 'dimanche', libelle: 'Dimanche' },
 ];
 
+// Sites d'affectation de chaque jour de la semaine type (`siteIds`, LISTE d'identifiants ajoutée au
+// JSON existant ; l'ancienne forme à un seul `siteId` est lue comme une liste d'un élément) :
+//  - jour de repos : aucun site ;
+//  - un seul site sélectionné : il est attribué à tous les jours travaillés (aucune liste à remplir) ;
+//  - plusieurs sites : seuls les sites du jour qui font toujours partie de la sélection sont conservés
+//    (un site retiré de la demande est retiré des jours qui l'utilisaient) ; un jour sans aucun site
+//    n'a plus de clé `siteIds` (il redevient « à choisir »).
+// Ne modifie pas la semaine reçue.
+export function affecterSitesSemaine(semaineType, sitesIds) {
+  return semaineType.map(({ siteId, siteIds, ...jour }) => {
+    if (jour.statut !== 'travail') return jour;
+    const sites = sitesIds.length === 1 ? sitesIds : (siteIds ?? (siteId ? [siteId] : [])).filter((id) => sitesIds.includes(id));
+    return sites.length === 0 ? jour : { ...jour, siteIds: sites };
+  });
+}
+
+// Jours travaillés qui se retrouvent SANS site parce que leurs sites ont été retirés de la sélection (et
+// qu'il reste plusieurs sites à choisir) : à signaler en erreur.
+export function joursPrivesDeSite(ancienneSemaine, nouvelleSemaine, sitesIds) {
+  if (sitesIds.length < 2) return [];
+  return nouvelleSemaine
+    .filter((jour, index) => jour.statut === 'travail' && !jour.siteIds?.length && ancienneSemaine[index]?.siteIds?.length > 0)
+    .map((jour) => jour.jour);
+}
+
 export function semaineTypeInitiale() {
   return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '' }));
 }
@@ -23,7 +48,8 @@ export function donneesInitiales() {
     salarieNom: '',
     salariePrenom: '',
     salarieTelephone: '',
-    salarieDejaEmploye: false,
+    // Obligatoire : ni Oui ni Non n'est présélectionné.
+    salarieDejaEmploye: null,
     candidatId: null,
     // Site(s) d'affectation : ids du référentiel `sites_affectation`, remplace l'ancien
     // champ texte `hotel` (plus envoyé, voir SelecteurSitesAffectation.jsx).
@@ -92,9 +118,14 @@ export function donneesFormulaireDepuisDemande(demande) {
       statut: jour?.statut === 'travail' ? 'travail' : 'repos',
       heureDebut: jour?.heureDebut ?? '',
       heureFin: jour?.heureFin ?? '',
+      // Ancienne forme (un seul siteId) convertie en liste ; demande antérieure au site par jour :
+      // aucun site (rien n'est inventé).
+      ...(jour?.siteIds?.length ? { siteIds: jour.siteIds } : jour?.siteId ? { siteIds: [jour.siteId] } : {}),
     };
   });
+  const sitesAffectationIds = (demande.sites_affectation ?? []).map((site) => site.id);
   const horairesDifferentsParJour = Boolean(demande.horaires_differents_par_jour);
+  const semaineAffectee = affecterSitesSemaine(semaineType, sitesAffectationIds);
   const premierJourTravaille = semaineType.find((jour) => jour.statut === 'travail');
 
   return {
@@ -104,7 +135,7 @@ export function donneesFormulaireDepuisDemande(demande) {
     salarieTelephone: demande.salarie_telephone ?? '',
     salarieDejaEmploye: Boolean(demande.salarie_deja_employe),
     candidatId: demande.candidat_id ?? null,
-    sitesAffectationIds: (demande.sites_affectation ?? []).map((site) => site.id),
+    sitesAffectationIds,
     typeContrat: demande.type_contrat ?? '',
     motifCdd: demande.motif_cdd ?? '',
     salarieRemplaceNom: demande.salarie_remplace_nom ?? '',
@@ -128,7 +159,7 @@ export function donneesFormulaireDepuisDemande(demande) {
     joursConcernes: (demande.jours_concernes ?? []).map((jour) => ({ ...jour, date: jour.date ?? '' })),
     raisonChangementJours: demande.raison_changement_jours ?? '',
     raisonIdentiqueContrat: demande.raison_identique_contrat ?? '',
-    semaineType,
+    semaineType: semaineAffectee,
     horairesDifferentsParJour,
     heureDebutCommune: horairesDifferentsParJour ? '' : (premierJourTravaille?.heureDebut ?? ''),
     heureFinCommune: horairesDifferentsParJour ? '' : (premierJourTravaille?.heureFin ?? ''),
@@ -137,4 +168,35 @@ export function donneesFormulaireDepuisDemande(demande) {
     verifTousJoursInclus: Boolean(demande.verif_tous_jours_inclus),
     verifNonPlanification: Boolean(demande.verif_non_planification),
   };
+}
+
+// Contrôles du formulaire avant envoi, MÊMES règles et mêmes messages que le serveur (schéma
+// demandeBaseSchema et verifierReglesDemande, backend/src/api/routes/dpae.routes.js), qui reste seul
+// juge. Renvoie les erreurs DANS L'ORDRE DU FORMULAIRE : [{ champ, message }] ; la première reçoit le
+// défilement. Clés de champ : 'salarieDejaEmploye', 'sites', 'typeContrat', 'motifCdd', 'poste',
+// 'dateDebut', 'dateFin', et 'semaine:<jour>' pour le site d'un jour travaillé. Les champs du CDD ne sont
+// contrôlés que pour un CDD.
+export function validerFormulaire(donnees) {
+  const erreurs = [];
+  const refuser = (champ, message) => erreurs.push({ champ, message });
+
+  if (typeof donnees.salarieDejaEmploye !== 'boolean') refuser('salarieDejaEmploye', 'Indiquez si le salarié a déjà travaillé chez nous.');
+  if (donnees.sitesAffectationIds.length === 0) refuser('sites', "Sélectionnez au moins un site d'affectation avant d'envoyer la demande.");
+  if (donnees.typeContrat !== 'cdd' && donnees.typeContrat !== 'cdi') refuser('typeContrat', 'Le type de contrat est obligatoire.');
+  const estCdd = donnees.typeContrat === 'cdd';
+  if (estCdd && !donnees.motifCdd) refuser('motifCdd', 'La raison du CDD est obligatoire.');
+  if (!donnees.poste) refuser('poste', 'Le poste est obligatoire.');
+  if (!donnees.dateDebut.trim()) refuser('dateDebut', 'Le premier jour est obligatoire.');
+  if (estCdd) {
+    if (!donnees.dateFin) refuser('dateFin', 'Le dernier jour est obligatoire pour un CDD.');
+    else if (donnees.dateDebut && donnees.dateFin < donnees.dateDebut) refuser('dateFin', 'Le dernier jour ne peut pas précéder le premier jour.');
+  }
+  if (donnees.sitesAffectationIds.length > 1) {
+    for (const jour of donnees.semaineType) {
+      if (jour.statut === 'travail' && !(jour.siteIds ?? []).some((id) => donnees.sitesAffectationIds.includes(id))) {
+        refuser(`semaine:${jour.jour}`, 'Au moins un site est obligatoire pour ce jour.');
+      }
+    }
+  }
+  return erreurs;
 }

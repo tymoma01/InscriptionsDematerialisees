@@ -43,3 +43,23 @@ test('Coordonnées ACCECIT : identiques à la source frontend (core/backOffice/c
   }
   assert.deepEqual(Object.keys(COORDONNEES_ACCECIT), ['nom', 'adresse', 'telephone', 'siteWeb']);
 });
+
+test('libellesSitesJour : tous les sites du jour « NOM (INITIALES) », dans l’ordre ; ancienne forme à un seul siteId lue comme une liste ; vide sans site', () => {
+  const { libellesSitesJour } = require('./formatsDpae');
+  const sites = [{ id: 51, nom: 'AIGLON', initiales: 'AIG' }, { id: 52, nom: 'LIB. GARE DE L\'EST', initiales: 'GDE' }];
+  assert.deepEqual(libellesSitesJour({ siteIds: [52, 51] }, sites), ['LIB. GARE DE L\'EST (GDE)', 'AIGLON (AIG)']);
+  assert.deepEqual(libellesSitesJour({ siteId: 51 }, sites), ['AIGLON (AIG)']);
+  assert.deepEqual(libellesSitesJour({}, sites), []);
+  assert.deepEqual(libellesSitesJour({ siteIds: [99] }, sites), []);
+  assert.deepEqual(libellesSitesJour({ siteIds: [51] }, undefined), []);
+});
+
+test('libelleDivision : Hôtellerie, Tertiaire, précision pour Autre, null si absente', () => {
+  const { libelleDivision } = require('./formatsDpae');
+  assert.equal(libelleDivision('hotellerie'), 'Hôtellerie');
+  assert.equal(libelleDivision('tertiaire'), 'Tertiaire');
+  assert.equal(libelleDivision('autre', 'Siège'), 'Siège');
+  assert.equal(libelleDivision('autre', ''), null);
+  assert.equal(libelleDivision(null), null);
+  assert.equal(libelleDivision('inconnue'), 'inconnue');
+});

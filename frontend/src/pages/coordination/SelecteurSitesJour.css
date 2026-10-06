@@ -1,0 +1,131 @@
+/* Sélection multiple des sites d'un jour de la semaine type (SelecteurSitesJour.jsx). Mêmes couleurs,
+   police et rayons que les autres listes de l'application (voir FiltresListeDpae.css). */
+.selecteur-sites-jour {
+  position: relative;
+  font-family: var(--police-base);
+}
+
+.selecteur-sites-jour__bouton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.selecteur-sites-jour__bouton:focus-visible {
+  outline: 2px solid var(--couleur-primaire);
+  outline-offset: 1px;
+}
+
+.selecteur-sites-jour__bouton--invalide {
+  border-color: var(--couleur-erreur);
+}
+
+/* Le résumé reste sur une ligne : la carte du jour garde sa taille quel que soit le nombre de sites. */
+.selecteur-sites-jour__resume {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selecteur-sites-jour__chevron {
+  flex: none;
+  color: var(--couleur-texte-secondaire);
+}
+
+/* Panneau en superposition (n'agrandit pas la carte) : sous le bouton par défaut, au-dessus ou aligné à
+   droite quand l'écran manque de place (classes posées après mesure). Largeur : celle du nom le plus
+   long, au moins celle du bouton. */
+.selecteur-sites-jour__panneau {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(24rem, calc(100vw - 1rem));
+  box-sizing: border-box;
+  margin-top: 0.2rem;
+  background: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 6px 18px rgba(46, 32, 19, 0.18);
+  overflow: hidden;
+}
+
+.selecteur-sites-jour__panneau--haut {
+  top: auto;
+  bottom: 100%;
+  margin-top: 0;
+  margin-bottom: 0.2rem;
+}
+
+.selecteur-sites-jour__panneau--droite {
+  left: auto;
+  right: 0;
+}
+
+.selecteur-sites-jour__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+}
+
+.selecteur-sites-jour__actions button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--couleur-primaire);
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.selecteur-sites-jour__actions button:hover {
+  color: var(--couleur-primaire-hover);
+}
+
+.selecteur-sites-jour__liste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+/* Ligne compacte (~32 px) : case à gauche, nom sur la même ligne aligné à gauche, ligne entière cliquable. */
+.selecteur-sites-jour__ligne {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 0 0.6rem;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.selecteur-sites-jour__ligne input {
+  flex: none;
+  margin: 0;
+}
+
+.selecteur-sites-jour__ligne:hover,
+.selecteur-sites-jour__ligne:focus-within {
+  background-color: var(--couleur-back-office-clair);
+}

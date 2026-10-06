@@ -146,8 +146,8 @@ test('Sections conditionnelles : mêmes conditions que la fiche (rejet, attente,
   assert.deepEqual(section(complete, 'Modifications demandées').lignes, [['Horaires', 'Oui']]);
   assert.deepEqual(section(complete, 'Gestion des jours').lignes, [['Type', 'Retirer des jours'], ['Jours concernés', '12/10/2026']]);
   assert.deepEqual(section(complete, 'Semaine type').tableau, [
-    ['Lundi', 'de 08h00 à 15h00'],
-    ['Samedi', 'Horaires non précisés'],
+    ['Lundi', 'de 08h00 à 15h00', 'Non précisé'],
+    ['Samedi', 'Horaires non précisés', 'Non précisé'],
   ]);
   assert.equal(section(complete, 'Autre chose à signaler').texte, 'Badge à prévoir');
 });
@@ -174,7 +174,7 @@ test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ 
 });
 
 test('PDF généré : document PDF A4, quelle que soit l’entité (même bandeau), 4 sites et toutes les sections', async () => {
-  for (const division of ['acchot', 'rm', null]) {
+  for (const division of ['hotellerie', 'tertiaire', null]) {
     const pdf = await genererPdfDemande(
       demande({ division, sites_affectation: QUATRE_SITES, modifications_demandees: true, autre_chose_signaler: 'x'.repeat(2000) }),
       { dateGeneration: new Date('2026-10-02T08:45:00Z') },
@@ -241,4 +241,63 @@ test('Une section sans aucune ligne n’est pas affichée (sections vides ignor�
   );
   const pages = (pdf.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length;
   assert.ok(pages >= 2 && pages <= 4, `pages : ${pages}`);
+});
+
+test('Semaine type : colonne « Site » après « Horaires », tous les sites du jour au format « NOM (INITIALES) » ; « Non précisé » pour une demande sans site par jour', () => {
+  const sites = [{ id: 51, nom: 'AIGLON', initiales: 'AIG' }, { id: 52, nom: 'ALBE', initiales: 'AL' }];
+  const tableau = section(
+    sectionsDemande(
+      demande({
+        sites_affectation: sites,
+        semaine_type: [
+          { jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteIds: [51] },
+          { jour: 'mardi', statut: 'repos' },
+          { jour: 'jeudi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteIds: [52, 51] },
+          { jour: 'vendredi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00' },
+          // Ancienne forme à un seul siteId : toujours lisible.
+          { jour: 'samedi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteId: 52 },
+        ],
+      }),
+    ),
+    'Semaine type',
+  ).tableau;
+  assert.deepEqual(tableau, [
+    ['Lundi', 'de 08h00 à 15h00', ['AIGLON (AIG)']],
+    ['Jeudi', 'de 09h00 à 17h00', ['ALBE (AL)', 'AIGLON (AIG)']],
+    ['Vendredi', 'de 09h00 à 17h00', 'Non précisé'],
+    ['Samedi', 'de 09h00 à 17h00', ['ALBE (AL)']],
+  ]);
+});
+
+test('Contrat : « Nombre total de jours calendaires » à côté du dernier jour, pour un CDD seulement (jours inclus)', () => {
+  const lignes = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes;
+  // Du 10/10 au 17/10 (minuit à Paris) : 8 jours.
+  const cdd = lignes({ date_fin: new Date('2026-10-16T22:00:00Z') });
+  const indice = cdd.findIndex(([libelle]) => libelle === 'Dernier jour');
+  assert.deepEqual(cdd[indice], ['Dernier jour', '17/10/2026']);
+  assert.deepEqual(cdd[indice + 1], ['Nombre total de jours calendaires', '8 jours']);
+  assert.deepEqual(lignes({ date_fin: new Date('2026-10-09T22:00:00Z') }).find(([l]) => l.startsWith('Nombre')), ['Nombre total de jours calendaires', '1 jour']);
+  // CDI, ou CDD sans dernier jour : aucune ligne.
+  assert.equal(lignes({ type_contrat: 'cdi', date_fin: new Date('2026-10-16T22:00:00Z') }).some(([l]) => l.startsWith('Nombre')), false);
+  assert.equal(lignes({ date_fin: null }).some(([l]) => l.startsWith('Nombre')), false);
+});
+
+test('PDF généré avec la colonne Site et le nombre de jours : document valide', async () => {
+  const pdf = await genererPdfDemande(
+    demande({
+      sites_affectation: QUATRE_SITES,
+      date_fin: new Date('2026-10-16T22:00:00Z'),
+      semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteIds: [52, 53] }],
+    }),
+    { dateGeneration: new Date('2026-10-02T08:45:00Z') },
+  );
+  assert.equal(pdf.subarray(0, 5).toString('latin1'), '%PDF-');
+});
+
+test('Entité : « Hôtellerie », « Tertiaire », ou la précision pour « Autre » ; aucune ligne si absente', () => {
+  const entite = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes.find(([libelle]) => libelle === 'Entité');
+  assert.deepEqual(entite({ division: 'hotellerie' }), ['Entité', 'Hôtellerie']);
+  assert.deepEqual(entite({ division: 'tertiaire' }), ['Entité', 'Tertiaire']);
+  assert.deepEqual(entite({ division: 'autre', division_autre: 'Siège' }), ['Entité', 'Siège']);
+  assert.equal(entite({ division: null }), undefined);
 });
