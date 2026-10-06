@@ -18,6 +18,8 @@ const DEMANDE_VALIDE = {
   salariePrenom: 'Léa',
   salarieDejaEmploye: false,
   sitesAffectationIds: [10],
+  poste: 'equipier',
+  typeContrat: 'cdi',
   dateDebut: '2026-10-12',
   verifBesoinHotel: true,
   verifTousJoursInclus: true,
@@ -97,7 +99,7 @@ test("POST /api/dpae : le champ Entité (division) reste facultatif (inchangé)"
 
 // "Nom du salarié remplacé" obligatoire uniquement pour un CDD de remplacement.
 const MESSAGE_SALARIE_REMPLACE = 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.';
-const CDD_REMPLACEMENT = { ...DEMANDE_VALIDE, typeContrat: 'cdd', motifCdd: 'remplacement_absent' };
+const CDD_REMPLACEMENT = { ...DEMANDE_VALIDE, typeContrat: 'cdd', motifCdd: 'remplacement_absent', dateFin: '2026-10-20' };
 
 test('POST /api/dpae : CDD de remplacement sans nom du salarié remplacé (absent, vide ou espaces) -> refusé avec le message dédié', () => {
   for (const [cas, donnees] of [
@@ -119,7 +121,7 @@ test("POST /api/dpae : CDD de remplacement avec nom du salarié remplacé -> acc
 });
 
 test("POST /api/dpae : CDD de surcroît d'activité sans nom du salarié remplacé -> accepté", () => {
-  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, typeContrat: 'cdd', motifCdd: 'surcroit_activite' }).success, true);
+  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, typeContrat: 'cdd', motifCdd: 'surcroit_activite', dateFin: '2026-10-20' }).success, true);
 });
 
 test('POST /api/dpae : CDI sans nom du salarié remplacé -> accepté (même si une raison de CDD traîne dans la demande)', () => {
@@ -245,7 +247,7 @@ test('PUT /:id : premier jour obligatoire comme à la création (absent ou vide 
 test('PUT /:id : sites obligatoires, sans doublon, et règle du CDD de remplacement — comme à la création', () => {
   assert.equal(modificationBodySchema.safeParse({ ...MODIFICATION_VALIDE, sitesAffectationIds: [] }).success, false);
   assert.equal(modificationBodySchema.safeParse({ ...MODIFICATION_VALIDE, sitesAffectationIds: [4, 4] }).success, false);
-  const cddRemplacement = { ...MODIFICATION_VALIDE, typeContrat: 'cdd', motifCdd: 'remplacement_absent', salarieRemplaceNom: '  ' };
+  const cddRemplacement = { ...MODIFICATION_VALIDE, typeContrat: 'cdd', motifCdd: 'remplacement_absent', dateFin: '2026-10-20', salarieRemplaceNom: '  ' };
   assert.equal(modificationBodySchema.safeParse(cddRemplacement).success, false);
   assert.equal(modificationBodySchema.safeParse({ ...cddRemplacement, salarieRemplaceNom: 'Durand' }).success, true);
 });
@@ -961,4 +963,149 @@ test('RH : action sur une demande « À valider » ou « Renvoyée » (refus du 
     assert.equal(res.statut, 403, chemin);
     assert.deepEqual(res.corps, { erreur: 'Rôle insuffisant pour cette action.' }, chemin);
   }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Champs obligatoires (poste, type de contrat, « a déjà travaillé chez nous ») et champs du CDD —
+// création ET modification, même schéma partagé.
+// ---------------------------------------------------------------------------------------------
+const messagesDe = (resultat, champ) => resultat.error.issues.filter((issue) => issue.path[0] === champ).map((issue) => issue.message);
+const SCHEMAS = { création: [demandeBodySchema, DEMANDE_VALIDE], modification: [modificationBodySchema, MODIFICATION_VALIDE] };
+
+test('Poste obligatoire (absent, vide ou espaces -> « Le poste est obligatoire. »), création et modification', () => {
+  for (const [nom, [schema, valide]] of Object.entries(SCHEMAS)) {
+    for (const poste of [undefined, '', '   ']) {
+      const resultat = schema.safeParse({ ...valide, poste });
+      assert.equal(resultat.success, false, `${nom} ${JSON.stringify(poste)}`);
+      assert.deepEqual(messagesDe(resultat, 'poste'), ['Le poste est obligatoire.']);
+    }
+    assert.equal(schema.safeParse(valide).success, true, nom);
+  }
+});
+
+test('Type de contrat obligatoire, CDD ou CDI seulement (absent, vide ou inconnu -> « Le type de contrat est obligatoire. »)', () => {
+  for (const [nom, [schema, valide]] of Object.entries(SCHEMAS)) {
+    for (const typeContrat of [undefined, '', 'interim']) {
+      const resultat = schema.safeParse({ ...valide, typeContrat });
+      assert.equal(resultat.success, false, `${nom} ${typeContrat}`);
+      assert.deepEqual(messagesDe(resultat, 'typeContrat'), ['Le type de contrat est obligatoire.']);
+    }
+  }
+});
+
+test('« A déjà travaillé chez nous » obligatoire : absent ou null refusés, Oui et Non acceptés', () => {
+  for (const [nom, [schema, valide]] of Object.entries(SCHEMAS)) {
+    for (const salarieDejaEmploye of [undefined, null]) {
+      const resultat = schema.safeParse({ ...valide, salarieDejaEmploye });
+      assert.equal(resultat.success, false, nom);
+      assert.deepEqual(messagesDe(resultat, 'salarieDejaEmploye'), ['Indiquez si le salarié a déjà travaillé chez nous.']);
+    }
+    for (const salarieDejaEmploye of [true, false]) assert.equal(schema.safeParse({ ...valide, salarieDejaEmploye }).success, true, nom);
+  }
+});
+
+test('CDD : raison du CDD et dernier jour obligatoires, avec leurs messages', () => {
+  for (const [nom, [schema, valide]] of Object.entries(SCHEMAS)) {
+    const resultat = schema.safeParse({ ...valide, typeContrat: 'cdd' });
+    assert.equal(resultat.success, false, nom);
+    assert.deepEqual(messagesDe(resultat, 'motifCdd'), ['La raison du CDD est obligatoire.']);
+    assert.deepEqual(messagesDe(resultat, 'dateFin'), ['Le dernier jour est obligatoire pour un CDD.']);
+    for (const dateFin of ['', '   ']) {
+      assert.deepEqual(messagesDe(schema.safeParse({ ...valide, typeContrat: 'cdd', motifCdd: 'surcroit_activite', dateFin }), 'dateFin'), [
+        'Le dernier jour est obligatoire pour un CDD.',
+      ]);
+    }
+    assert.equal(schema.safeParse({ ...valide, typeContrat: 'cdd', motifCdd: 'surcroit_activite', dateFin: '2026-10-20' }).success, true, nom);
+  }
+});
+
+test('CDD : dernier jour antérieur au premier jour refusé ; même jour ou postérieur accepté', () => {
+  for (const [nom, [schema, valide]] of Object.entries(SCHEMAS)) {
+    const cdd = { ...valide, typeContrat: 'cdd', motifCdd: 'surcroit_activite', dateDebut: '2026-10-12' };
+    const refuse = schema.safeParse({ ...cdd, dateFin: '2026-10-11' });
+    assert.equal(refuse.success, false, nom);
+    assert.deepEqual(messagesDe(refuse, 'dateFin'), ['Le dernier jour ne peut pas précéder le premier jour.']);
+    assert.equal(schema.safeParse({ ...cdd, dateFin: '2026-10-12' }).success, true, nom);
+    assert.equal(schema.safeParse({ ...cdd, dateFin: '2026-10-13' }).success, true, nom);
+  }
+});
+
+test('CDI : motif, dernier jour et champs du CDD non requis, et retirés de la demande enregistrée', () => {
+  const { normaliserDemande } = dpaeRouter;
+  for (const [, [schema, valide]] of Object.entries(SCHEMAS)) {
+    const resultat = schema.safeParse({
+      ...valide,
+      typeContrat: 'cdi',
+      motifCdd: 'remplacement_absent',
+      salarieRemplaceNom: 'Dupont',
+      dateFinAbsence: '2026-11-01',
+      raisonSurcroit: 'x',
+      dateFin: '2026-01-01',
+    });
+    assert.equal(resultat.success, true);
+    const donnees = normaliserDemande(resultat.data);
+    for (const champ of ['motifCdd', 'salarieRemplaceNom', 'dateFinAbsence', 'raisonSurcroit', 'dateFin']) assert.equal(champ in donnees, false, champ);
+    assert.equal(donnees.typeContrat, 'cdi');
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Semaine type : schéma précis (jours connus, HH:MM, site appartenant aux sites de la demande).
+// ---------------------------------------------------------------------------------------------
+const jour = (nom, surcharges = {}) => ({ jour: nom, statut: 'travail', heureDebut: '08:00', heureFin: '15:00', ...surcharges });
+const demandeAvecSemaine = (semaineType, sitesAffectationIds = [10]) => ({ ...DEMANDE_VALIDE, sitesAffectationIds, semaineType });
+
+test('Semaine type : jour inconnu, doublon, statut inconnu et heure invalide refusés', () => {
+  for (const [cas, semaine] of [
+    ['jour inconnu', [jour('funday')]],
+    ['doublon', [jour('lundi'), jour('lundi')]],
+    ['statut inconnu', [jour('lundi', { statut: 'conge' })]],
+    ['heure 25:00', [jour('lundi', { heureDebut: '25:00' })]],
+    ['heure 8h00', [jour('lundi', { heureFin: '8h00' })]],
+    ['heure avec secondes', [jour('lundi', { heureDebut: '08:00:00' })]],
+    ['plus de 7 jours', Array.from({ length: 8 }, () => jour('lundi'))],
+  ]) {
+    assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine(semaine)).success, false, cas);
+  }
+  const valide = demandeBodySchema.safeParse(
+    demandeAvecSemaine([jour('lundi'), { jour: 'mardi', statut: 'repos', heureDebut: '', heureFin: '' }, jour('samedi', { heureDebut: '', heureFin: '' })]),
+  );
+  assert.equal(valide.success, true);
+});
+
+test('Semaine type, un seul site : le site est attribué à chaque jour travaillé ; les jours de repos n’en ont pas', () => {
+  const { normaliserDemande } = dpaeRouter;
+  const resultat = demandeBodySchema.parse(demandeAvecSemaine([jour('lundi'), jour('mardi', { statut: 'repos', siteId: 10 }), jour('mercredi', { siteId: 10 })], [10]));
+  const [lundi, mardi, mercredi] = normaliserDemande(resultat).semaineType;
+  assert.equal(lundi.siteId, 10);
+  assert.equal('siteId' in mardi, false);
+  assert.equal(mercredi.siteId, 10);
+});
+
+test('Semaine type, plusieurs sites : site obligatoire pour chaque jour travaillé, pas pour un jour de repos', () => {
+  const sites = [10, 11];
+  const manquant = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteId: 10 }), jour('mardi')], sites));
+  assert.equal(manquant.success, false);
+  const issue = manquant.error.issues.find((i) => i.path[0] === 'semaineType');
+  assert.deepEqual(issue.path, ['semaineType', 1, 'siteId']);
+  assert.equal(issue.message, 'Le site est obligatoire pour chaque jour travaillé.');
+  assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteId: 11 }), jour('mardi', { statut: 'repos' })], sites)).success, true);
+  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi')], sites), version: 1 }).success, false);
+});
+
+test('Semaine type : site hors des sites de la demande refusé par le serveur (création et modification)', () => {
+  for (const sites of [[10], [10, 11]]) {
+    const resultat = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteId: 99 })], sites));
+    assert.equal(resultat.success, false);
+    assert.equal(
+      resultat.error.issues.find((i) => i.path[0] === 'semaineType').message,
+      'Le site d’un jour doit faire partie des sites d’affectation de la demande.',
+    );
+    assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteId: 99 })], sites), version: 1 }).success, false);
+  }
+});
+
+test('Semaine type : demande existante sans site par jour acceptée avec un seul site (attribué), refusée avec plusieurs à la prochaine modification', () => {
+  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi')], [10]), version: 1 }).success, true);
+  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi')], [10, 11]), version: 1 }).success, false);
 });

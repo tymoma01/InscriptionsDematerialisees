@@ -1,7 +1,8 @@
 const path = require('node:path');
 const PDFDocument = require('pdfkit');
 const { COORDONNEES_ACCECIT } = require('../../config/coordonneesAccecit');
-const { formaterHeure, formaterHeuresParMois } = require('./formatsDpae');
+const { formaterHeure, formaterHeuresParMois, libelleSiteJour } = require('./formatsDpae');
+const { nombreJoursCalendaires, libelleNombreJours } = require('./joursCalendaires');
 
 // PDF d'une demande DPAE — généré CÔTÉ SERVEUR (pdfkit, pur
 // JavaScript, aucun navigateur embarqué). Contenu : EXACTEMENT les sections et champs de la fiche
@@ -101,6 +102,12 @@ function recapitulatif(demande) {
   ];
 }
 
+// « Nombre total de jours calendaires » (premier et dernier jour inclus), seulement s'il est calculable.
+function nombreJoursLigne(demande) {
+  const nombre = nombreJoursCalendaires(demande.date_debut, demande.date_fin);
+  return nombre === null ? null : ligne('Nombre total de jours calendaires', libelleNombreJours(nombre));
+}
+
 // Sections de la fiche, dans l'ordre de DetailDemandeDpae.jsx : [{ titre, lignes: [[libellé,
 // valeur]], texte?, tableau? }]. Fonction pure, testable sans PDF. Une section conditionnelle de la
 // fiche (Modifications demandées, Gestion des jours, Autre chose à signaler) n'apparaît que dans
@@ -154,6 +161,8 @@ function sectionsDemande(demande) {
       ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste]),
       ligne('Premier jour', demande.date_debut && formaterDate(demande.date_debut)),
       ligne('Dernier jour', demande.date_fin && formaterDate(demande.date_fin)),
+      // CDD seulement, à côté du dernier jour ; calculé, jamais stocké.
+      demande.type_contrat === 'cdd' && nombreJoursLigne(demande),
       ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1)),
       ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois)),
     ]),
@@ -197,10 +206,12 @@ function sectionsDemande(demande) {
     ...(semaineTravaillee.length === 0
       ? { texte: 'Aucun jour de travail renseigné.' }
       : {
-          // Tableau « Jour | Horaires » : un jour travaillé par ligne, « de 10h00 à 12h00 ».
+          // Tableau « Jour | Horaires | Site » : un jour travaillé par ligne, « de 10h00 à 12h00 » puis
+          // « AIGLON (AIG) » (« Non précisé » pour une demande antérieure au site par jour).
           tableau: semaineTravaillee.map((jour) => [
             JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour,
             jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés',
+            libelleSiteJour(jour, demande.sites_affectation) ?? 'Non précisé',
           ]),
         }),
   });
@@ -480,9 +491,11 @@ function lignesDePaires(doc, paires, largeurInterne) {
   return lignes;
 }
 
-// Tableau « Jour | Horaires ».
+// Tableau « Jour | Horaires | Site ».
 function lignesDeTableau(doc, tableau, largeurInterne) {
-  const largeurJour = 130;
+  const largeurJour = 100;
+  const largeurHoraires = 120;
+  const largeurSite = largeurInterne - largeurJour - largeurHoraires;
   const hauteurLigne = 17;
   const lignes = [
     {
@@ -491,17 +504,20 @@ function lignesDeTableau(doc, tableau, largeurInterne) {
         doc.rect(x, y, largeurInterne, hauteurLigne).fill(COULEURS.fondRecapitulatif);
         doc.font(POLICE_GRAS).fontSize(TAILLE_LIBELLE).fillColor(COULEURS.libelle);
         doc.text('Jour', x + 8, y + 4.5, { width: largeurJour, lineBreak: false });
-        doc.text('Horaires', x + largeurJour, y + 4.5, { width: largeurInterne - largeurJour, lineBreak: false });
+        doc.text('Horaires', x + largeurJour, y + 4.5, { width: largeurHoraires, lineBreak: false });
+        doc.text('Site', x + largeurJour + largeurHoraires, y + 4.5, { width: largeurSite, lineBreak: false });
       },
     },
   ];
-  for (const [jour, horaires] of tableau) {
+  for (const [jour, horaires, site] of tableau) {
     lignes.push({
       hauteur: hauteurLigne,
       dessiner: (x, y) => {
         doc.font(POLICE).fontSize(TAILLE_VALEUR).fillColor(COULEURS.texte);
         doc.text(jour, x + 8, y + 3.5, { width: largeurJour - 8, lineBreak: false });
-        doc.text(horaires, x + largeurJour, y + 3.5, { width: largeurInterne - largeurJour, lineBreak: false });
+        doc.text(horaires, x + largeurJour, y + 3.5, { width: largeurHoraires, lineBreak: false });
+        // Ellipse plutôt qu'un débordement hors du cadre pour un nom de site très long.
+        doc.text(site, x + largeurJour + largeurHoraires, y + 3.5, { width: largeurSite - 8, lineBreak: false, ellipsis: true });
         doc.moveTo(x, y + hauteurLigne).lineTo(x + largeurInterne, y + hauteurLigne).lineWidth(0.4).strokeColor(COULEURS.filet).stroke();
       },
     });

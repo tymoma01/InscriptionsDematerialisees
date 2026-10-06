@@ -18,7 +18,8 @@ import {
   varianteStatutDpae,
 } from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
-import { formaterHeure, formaterHeuresParMois } from '../../core/dpae/formatsDpae';
+import { formaterHeure, formaterHeuresParMois, libelleSiteJour } from '../../core/dpae/formatsDpae';
+import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
 import {
   obtenirDemande,
@@ -191,6 +192,7 @@ export default function DetailDemandeDpae() {
     (peut(utilisateur, 'dpaeModificationToutes') || demande.demandeur_id === utilisateur?.id) &&
     transitionPossible(ACTION_MODIFIER, demande.statut);
 
+  const nombreJours = nombreJoursCalendaires(demande.date_debut, demande.date_fin);
   const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
   const joursConcernes = demande.jours_concernes ?? [];
 
@@ -291,6 +293,8 @@ export default function DetailDemandeDpae() {
           {ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste])}
           {ligne('Premier jour', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut)))}
           {ligne('Dernier jour', demande.date_fin && FORMAT_DATE.format(new Date(demande.date_fin)))}
+          {/* Calculé, jamais stocké : premier et dernier jour inclus, pour un CDD seulement. */}
+          {demande.type_contrat === 'cdd' && nombreJours !== null && ligne('Nombre total de jours calendaires', libelleNombreJours(nombreJours))}
           {ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1))}
           {/* « 08h00 », « 120 h » / « 120,5 h » (2026-10-02) : mêmes formats que le PDF, voir core/dpae/formatsDpae.js. */}
           {ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois))}
@@ -331,6 +335,8 @@ export default function DetailDemandeDpae() {
                 <li key={jour.jour}>
                   {JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}
                   {jour.heureDebut && jour.heureFin ? ` : ${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : ''}
+                  {/* Site du jour (« AIGLON (AIG) ») ; rien pour une demande antérieure au site par jour. */}
+                  {libelleSiteJour(jour, demande.sites_affectation) && ` · ${libelleSiteJour(jour, demande.sites_affectation)}`}
                 </li>
               ))}
             </ul>

@@ -29,6 +29,23 @@ function enumOptionnel(valeurs) {
   return z.preprocess((valeur) => (valeur === '' ? undefined : valeur), z.enum(valeurs).optional());
 }
 
+// Semaine type : jours connus, sans doublon, horaires « HH:MM » (ou vides), et — pour un jour travaillé
+// — l'identifiant du site d'affectation (siteId). Que le site appartienne bien aux sites de la
+// demande, et soit obligatoire quand il y en a plusieurs, est vérifié par verifierReglesDemande.
+const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const heureSchema = z.union([z.literal(''), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide : format HH:MM attendu.')]).optional();
+const jourSemaineSchema = z.object({
+  jour: z.enum(JOURS_SEMAINE),
+  statut: z.enum(['travail', 'repos']),
+  heureDebut: heureSchema,
+  heureFin: heureSchema,
+  siteId: z.preprocess((valeur) => (valeur === '' || valeur === null ? undefined : valeur), idPositifSchema.optional()),
+});
+const semaineTypeSchema = z
+  .array(jourSemaineSchema)
+  .max(7)
+  .refine((jours) => new Set(jours.map((jour) => jour.jour)).size === jours.length, { message: 'Un même jour ne peut figurer qu’une fois dans la semaine type.' });
+
 // Champs d'une demande, SANS les règles croisées : source unique de la création (POST /) et de la
 // modification (PUT /:id), qui y ajoutent chacune leurs propres champs (version) et les mêmes
 // règles croisées (verifierReglesDemande).
@@ -43,7 +60,8 @@ const demandeBaseSchema = z.object({
   salarieNom: z.string().trim().min(1),
   salariePrenom: z.string().trim().min(1),
   salarieTelephone: z.string().trim().optional(),
-  salarieDejaEmploye: z.boolean(),
+  // Obligatoire : aucune valeur par défaut, le demandeur doit répondre Oui ou Non.
+  salarieDejaEmploye: z.boolean({ error: 'Indiquez si le salarié a déjà travaillé chez nous.' }),
   candidatId: idPositifSchema.optional(),
   // Ancien champ texte libre "Site d'affectation" (colonne `hotel`, migration 068) — REMPLACÉ le
   // 2026-09-29 par sitesAffectationIds ci-dessous (référentiel, migration 069). Plus envoyé par le
@@ -63,14 +81,19 @@ const demandeBaseSchema = z.object({
         message: "Un même site d'affectation ne peut pas être sélectionné deux fois.",
       }),
   ),
-  typeContrat: enumOptionnel(['cdd', 'cdi']),
+  // Obligatoire. Les champs propres au CDD (motif, dernier jour…) sont exigés pour un CDD par
+  // verifierReglesDemande, et retirés pour un CDI par normaliserDemande.
+  typeContrat: z.preprocess(
+    (valeur) => (valeur === '' ? undefined : valeur),
+    z.enum(['cdd', 'cdi'], { error: 'Le type de contrat est obligatoire.' }),
+  ),
   motifCdd: enumOptionnel(['remplacement_absent', 'surcroit_activite']),
   salarieRemplaceNom: z.string().trim().optional(),
   dateFinAbsence: z.string().trim().optional(),
   raisonSurcroit: z.string().trim().optional(),
   division: enumOptionnel(['acchot', 'rm', 'autre']),
   divisionAutre: z.string().trim().optional(),
-  poste: z.string().trim().optional(),
+  poste: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le poste est obligatoire.')),
   posteAutre: z.string().trim().optional(),
   // Premier jour : obligatoire pour tous les types de demande (le formulaire l'affiche sans
   // distinction de typeDemande, voir DemandeDpae.jsx) — absent ou vide refusé avec le même
@@ -91,7 +114,7 @@ const demandeBaseSchema = z.object({
   joursConcernes: z.array(z.record(z.string(), z.unknown())).optional(),
   raisonChangementJours: z.string().trim().optional(),
   raisonIdentiqueContrat: enumOptionnel(['oui', 'non', 'ne_sais_pas']),
-  semaineType: z.array(z.record(z.string(), z.unknown())).optional(),
+  semaineType: semaineTypeSchema.optional(),
   horairesDifferentsParJour: z.boolean().optional(),
   autreChoseSignaler: z.string().trim().optional(),
   verifBesoinHotel: z.boolean(),
@@ -99,21 +122,56 @@ const demandeBaseSchema = z.object({
   verifNonPlanification: z.boolean(),
 });
 
+const FORMAT_JOUR = /^\d{4}-\d{2}-\d{2}$/;
+
 // Règles croisées entre champs, communes à la création et à la modification.
-// "Nom du salarié remplacé" obligatoire UNIQUEMENT pour un CDD de remplacement (audit 2026-09-29,
-// demande utilisateur) — règle croisée entre champs, d'où ce contrôle ici plutôt qu'un min(1) sur
-// le champ lui-même (qui l'imposerait dans tous les cas). salarieRemplaceNom est déjà trimé
-// ci-dessus : une saisie faite d'espaces arrive ici vide et est refusée. Aucun contrôle pour un
-// CDI ou un CDD de surcroît d'activité. La date de fin d'absence reste facultative (demande
-// explicite). Colonne inchangée en base, demandes existantes non concernées.
+//  - « Nom du salarié remplacé » obligatoire UNIQUEMENT pour un CDD de remplacement (règle croisée,
+//    d'où ce contrôle ici plutôt qu'un min(1) sur le champ). La date de fin d'absence reste facultative.
+//  - CDD : raison du CDD et dernier jour obligatoires ; le dernier jour ne peut pas précéder le premier.
+//  - Semaine type : le site d'un jour est l'un des sites de la demande ; avec plusieurs sites, il est
+//    obligatoire pour chaque jour travaillé (avec un seul, normaliserDemande l'attribue).
 function verifierReglesDemande(demande, ctx) {
-  if (demande.typeContrat === 'cdd' && demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['salarieRemplaceNom'],
-      message: 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.',
+  const refuser = (path, message) => ctx.addIssue({ code: 'custom', path, message });
+
+  if (demande.typeContrat === 'cdd') {
+    if (!demande.motifCdd) refuser(['motifCdd'], 'La raison du CDD est obligatoire.');
+    if (!demande.dateFin) refuser(['dateFin'], 'Le dernier jour est obligatoire pour un CDD.');
+    if (demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
+      refuser(['salarieRemplaceNom'], 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.');
+    }
+    // Dates « AAAA-MM-JJ » : la comparaison de chaînes suit l'ordre chronologique.
+    if (FORMAT_JOUR.test(demande.dateFin ?? '') && FORMAT_JOUR.test(demande.dateDebut) && demande.dateFin < demande.dateDebut) {
+      refuser(['dateFin'], 'Le dernier jour ne peut pas précéder le premier jour.');
+    }
+  }
+
+  const sitesIds = demande.sitesAffectationIds ?? [];
+  (demande.semaineType ?? []).forEach((jour, index) => {
+    if (jour.statut !== 'travail') return;
+    if (jour.siteId !== undefined && !sitesIds.includes(jour.siteId)) {
+      refuser(['semaineType', index, 'siteId'], 'Le site d’un jour doit faire partie des sites d’affectation de la demande.');
+    } else if (jour.siteId === undefined && sitesIds.length > 1) {
+      refuser(['semaineType', index, 'siteId'], 'Le site est obligatoire pour chaque jour travaillé.');
+    }
+  });
+}
+
+// Forme enregistrée (appliquée par les routes après validation) : pour un CDI, les champs propres au CDD ne sont pas conservés ; dans la semaine
+// type, un jour de repos n'a pas de site et, avec un seul site, chaque jour travaillé reçoit ce site.
+function normaliserDemande(demande) {
+  const donnees = { ...demande };
+  if (donnees.typeContrat === 'cdi') {
+    for (const champ of ['motifCdd', 'salarieRemplaceNom', 'dateFinAbsence', 'raisonSurcroit', 'dateFin']) delete donnees[champ];
+  }
+  if (donnees.semaineType) {
+    const sitesIds = donnees.sitesAffectationIds ?? [];
+    donnees.semaineType = donnees.semaineType.map(({ siteId, ...jour }) => {
+      if (jour.statut !== 'travail') return jour;
+      const site = sitesIds.length === 1 ? sitesIds[0] : siteId;
+      return site === undefined ? jour : { ...jour, siteId: site };
     });
   }
+  return donnees;
 }
 
 // Création : la demande complète.
@@ -189,7 +247,7 @@ function repondreErreurValidation(res, erreurZod) {
 // de la requête — même principe que relances.routes.js.
 router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
-    const donnees = demandeBodySchema.parse(req.body);
+    const donnees = normaliserDemande(demandeBodySchema.parse(req.body));
     const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees, { roleCode: req.utilisateur.roleCode });
 
     const bd = await obtenirKnex();
@@ -443,7 +501,7 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
 router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_MODIFIER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    const { version, ...donnees } = modificationBodySchema.parse(req.body);
+    const { version, ...donnees } = normaliserDemande(modificationBodySchema.parse(req.body));
     const { statut, version: nouvelleVersion, aucuneModification } = await demandeDpaeService.modifierDemande(req.entite, id, {
       donnees,
       version,
@@ -601,6 +659,7 @@ module.exports = router;
 // jamais une copie).
 module.exports.demandeBodySchema = demandeBodySchema;
 module.exports.demandeBaseSchema = demandeBaseSchema;
+module.exports.normaliserDemande = normaliserDemande;
 module.exports.modificationBodySchema = modificationBodySchema;
 // Filtres du tableau de bord exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;

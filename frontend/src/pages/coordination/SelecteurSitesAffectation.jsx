@@ -49,8 +49,9 @@ function messageErreurAjout(erreur) {
 // DemandeDpae.jsx). Il ne se replie jamais de lui-même à chaque clic sur un site.
 //
 // `selection` : ids sélectionnés (tenus par le formulaire parent, envoyés tels quels au serveur
-// comme sitesAffectationIds) ; `onChangerSelection(ids)` les remplace.
-export default function SelecteurSitesAffectation({ selection, onChangerSelection, ouvert, onChangerOuvert }) {
+// comme sitesAffectationIds) ; `onChangerSelection(ids)` les remplace. `onSitesCharges(sites)` (facultatif)
+// reçoit les sites actifs chargés.
+export default function SelecteurSitesAffectation({ selection, onChangerSelection, ouvert, onChangerOuvert, onSitesCharges }) {
   const [sites, setSites] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreurChargement, setErreurChargement] = useState(null);
@@ -78,6 +79,13 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
       annule = true;
     };
   }, []);
+
+  // Le formulaire a besoin du nom des sites sélectionnés (liste « site par jour » de la semaine type) :
+  // il reçoit la liste chargée, site ajouté via « + » compris.
+  useEffect(() => {
+    onSitesCharges?.(sites);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites]);
 
   // Tri côté client aussi (en plus du tri serveur) : un site ajouté via « + » prend ainsi sa place
   // alphabétique sans recharger la liste.

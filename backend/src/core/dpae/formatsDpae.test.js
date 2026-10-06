@@ -43,3 +43,12 @@ test('Coordonnées ACCECIT : identiques à la source frontend (core/backOffice/c
   }
   assert.deepEqual(Object.keys(COORDONNEES_ACCECIT), ['nom', 'adresse', 'telephone', 'siteWeb']);
 });
+
+test('libelleSiteJour : « NOM (INITIALES) » du site du jour, null sans site ou site introuvable', () => {
+  const { libelleSiteJour } = require('./formatsDpae');
+  const sites = [{ id: 51, nom: 'AIGLON', initiales: 'AIG' }];
+  assert.equal(libelleSiteJour({ siteId: 51 }, sites), 'AIGLON (AIG)');
+  assert.equal(libelleSiteJour({}, sites), null);
+  assert.equal(libelleSiteJour({ siteId: 99 }, sites), null);
+  assert.equal(libelleSiteJour({ siteId: 51 }, undefined), null);
+});

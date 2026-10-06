@@ -143,6 +143,20 @@
   color: #ffffff;
 }
 
+.page-demande-dpae__carte-jour-site {
+  padding: 0 var(--espace-petit) var(--espace-petit);
+}
+
+.page-demande-dpae__carte-jour-site select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.page-demande-dpae__carte-jour-site .page-demande-dpae__erreur-champ {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+}
+
 .page-demande-dpae__carte-jour-horaires {
   display: flex;
   flex-direction: column;

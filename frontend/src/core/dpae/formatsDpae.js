@@ -21,3 +21,11 @@ export function formaterHeuresParMois(valeur) {
   if (!Number.isFinite(nombre)) return String(valeur);
   return `${FORMAT_NOMBRE_HEURES.format(nombre)} h`;
 }
+
+// Site d'affectation d'un jour de la semaine type, « AIGLON (AIG) » : le site est cherché par son
+// identifiant (`siteId` du jour) parmi les sites de la demande. Demande antérieure à la saisie du site
+// par jour, ou site introuvable : null (l'appelant affiche « Non précisé »).
+export function libelleSiteJour(jour, sitesAffectation) {
+  const site = (sitesAffectation ?? []).find((candidat) => candidat.id === jour?.siteId);
+  return site ? `${site.nom} (${site.initiales})` : null;
+}
