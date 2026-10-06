@@ -13,7 +13,8 @@ import { STATUTS_A_DECIDER } from './statutsDpae.js';
 //   48 h à 72 h     -> orange (72 h et 48 h incluses)
 //   0 à moins de 48 h -> rouge (0 inclus : l'échéance n'est pas encore dépassée)
 //   < 0             -> rouge « En retard » (premier jour dépassé)
-// Seulement pour les demandes « À traiter » et « En attente » ; aucune pastille sans premier jour.
+// Seulement pour les demandes non décidées (« À valider par le Planning », « Renvoyée à l'inspecteur »,
+// « À traiter », « En attente ») ; aucune pastille sans premier jour.
 
 // Statuts avec pastille : ceux d'une demande encore sans décision (statutsDpae.js).
 export const STATUTS_AVEC_URGENCE = STATUTS_A_DECIDER;

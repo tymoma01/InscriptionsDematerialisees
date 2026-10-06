@@ -141,7 +141,7 @@ const ELEMENTS_NAVIGATION = [
     },
     estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
     permission: 'dpaeConsultation',
-    sousOnglets: ['dpae-tableau-de-bord', 'dpae-demandes'],
+    sousOnglets: ['dpae-tableau-de-bord', 'dpae-a-valider', 'dpae-demandes'],
   },
   // Sous-onglets de l'espace « RH » — `sousOngletSeulement` : jamais affichés dans la barre
   // principale, seulement dans la barre de sous-onglets de leur espace.
@@ -155,6 +155,15 @@ const ELEMENTS_NAVIGATION = [
     permissionSousOnglet: 'dpaeTableauDeBord',
   },
   {
+    // File du Planning : les demandes des inspecteurs à transmettre à la RH ou à renvoyer.
+    cle: 'dpae-a-valider',
+    libelle: 'Demandes à valider',
+    chemin: '/coordination/dpae/a-valider',
+    estActif: (chemin) => chemin.startsWith('/coordination/dpae/a-valider'),
+    sousOngletSeulement: true,
+    permissionSousOnglet: 'dpaeValidationPlanning',
+  },
+  {
     cle: 'dpae-demandes',
     libelle: 'Demandes DPAE',
     // Page de suivi ; file RH conservée comme destination pour le rôle RH (inchangé).
@@ -162,7 +171,9 @@ const ELEMENTS_NAVIGATION = [
     // Suivi, nouvelle demande, file RH et fiche d'une demande — tout sauf le tableau de bord.
     estActif: (chemin) =>
       chemin.startsWith('/rh/dpae') ||
-      (chemin.startsWith('/coordination/dpae/') && !chemin.startsWith('/coordination/dpae/tableau-de-bord')),
+      (chemin.startsWith('/coordination/dpae/') &&
+        !chemin.startsWith('/coordination/dpae/tableau-de-bord') &&
+        !chemin.startsWith('/coordination/dpae/a-valider')),
     sousOngletSeulement: true,
   },
   {

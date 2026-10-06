@@ -11,9 +11,10 @@ export async function creerDemande(demande) {
   return data;
 }
 
-// Modification d'une demande « À traiter » ou « En attente » : la demande COMPLÈTE (mêmes champs que
-// la création) plus `version`, la version lue. Le serveur répond 409 si la demande a changé entre-
-// temps ou n'est plus modifiable, 403 sans le droit ; { statut, version } sinon.
+// Modification d'une demande non décidée : la demande COMPLÈTE (mêmes champs que la création) plus
+// `version`, la version lue. Le serveur répond 409 si la demande a changé entre-temps ou n'est plus
+// modifiable, 403 sans le droit ; { statut, version } sinon, avec `aucuneModification: true` quand rien
+// n'a changé (rien n'est alors enregistré).
 export async function modifierDemande(demandeId, demande) {
   const { data } = await api.put(`/dpae/${demandeId}`, demande);
   return data;
@@ -33,6 +34,13 @@ export async function listerSuiviDemandes(perimetre) {
 // dpae.routes.js.
 export async function listerDemandesRh(statut) {
   const { data } = await api.get('/dpae', { params: statut ? { statut } : undefined });
+  return data;
+}
+
+// File « Demandes à valider » du Planning (Planning et Admin) : « À valider par le Planning » puis
+// « Renvoyée à l'inspecteur », premier jour le plus proche d'abord.
+export async function listerDemandesAValider() {
+  const { data } = await api.get('/dpae/a-valider');
   return data;
 }
 
@@ -62,6 +70,15 @@ export async function validerDemande(demandeId, version) {
 
 export async function rejeterDemande(demandeId, motifRejet, version) {
   await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet, version });
+}
+
+// Passage par le Planning : transmission à la RH, ou renvoi à l'inspecteur (motif obligatoire).
+export async function transmettreDemandeALaRh(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/transmettre-rh`, { version });
+}
+
+export async function renvoyerDemandeAInspecteur(demandeId, motif, version) {
+  await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, { motif, version });
 }
 
 // « À traiter » -> « En attente », motif obligatoire (refusé sinon côté serveur).

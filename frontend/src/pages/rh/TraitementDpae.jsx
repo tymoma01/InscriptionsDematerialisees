@@ -6,7 +6,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { listerDemandesRh } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
-import { STATUTS_DPAE, STATUT_INITIAL, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import { STATUTS_DPAE, STATUTS_AVANT_RH, STATUT_INITIAL, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import {
   ActionTelechargementPdfDpae,
   CaseDemandeDpae,
@@ -35,7 +35,8 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // `?statut=`, pas seulement le statut initial et 'tous' — aucun changement backend nécessaire ici).
 // Libellés et couleurs : source unique core/dpae/statutsDpae.js, mêmes couleurs que
 // les badges du tableau ci-dessous.
-const STATUTS_FILTRABLES = STATUTS_DPAE.map(({ code, libellePluriel, variante }) => ({ code, libelle: libellePluriel, variante }));
+// Les demandes encore chez le Planning ont leur propre file (« Demandes à valider ») : jamais ici.
+const STATUTS_FILTRABLES = STATUTS_DPAE.filter(({ code }) => !STATUTS_AVANT_RH.includes(code)).map(({ code, libellePluriel, variante }) => ({ code, libelle: libellePluriel, variante }));
 
 // File RH du module Demandes DPAE — par défaut, uniquement les demandes au statut initial
 // (STATUT_INITIAL, file à traiter, voir dpae.routes.js GET / sans ?statut) ; le filtre "Tous" (statutFiltre nul)

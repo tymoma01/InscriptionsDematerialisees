@@ -44,7 +44,9 @@ function granularitePeriode(debut, fin) {
 
 // Filtres déjà validés en forme par la route (dpae.routes.js) — ici : période par défaut (30
 // derniers jours, heure de Paris) et cohérence début <= fin.
-function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maintenant = new Date()) {
+// statutsExclus : statuts invisibles pour le rôle de l'appelant, jamais saisis par le client (voir
+// demandeDpaeService.statutsMasquesPour) ; absent de la réponse tant qu'il est vide.
+function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maintenant = new Date(), statutsExclus = []) {
   const finResolue = fin ?? jourParis(maintenant);
   const debutResolu = debut ?? decalerJour(finResolue, -(JOURS_PERIODE_PAR_DEFAUT - 1));
   if (debutResolu > finResolue) {
@@ -56,6 +58,7 @@ function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maint
     siteId: siteId ?? null,
     typeContrat: typeContrat ?? null,
     statut: statut ?? null,
+    ...(statutsExclus.length > 0 ? { statutsExclus: [...statutsExclus] } : {}),
   };
 }
 
@@ -154,9 +157,9 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
 }
 
 // Point d'entrée de la route. `maintenant` injectable (tests / script d'intégration).
-async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = new Date(), bd = null) {
+async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = new Date(), bd = null, { statutsExclus = [] } = {}) {
   const connexion = bd ?? (await db.obtenirKnex());
-  const filtres = resoudreFiltres(filtresDemandes, maintenant);
+  const filtres = resoudreFiltres(filtresDemandes, maintenant, statutsExclus);
   const granularite = granularitePeriode(filtres.debut, filtres.fin);
   const r = tableauDeBordDpaeRepository;
   const e = entite.id;

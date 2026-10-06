@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const journalAudit = require('../../core/audit/journalAudit');
 const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
 const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
+const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const dpaeRouter = require('./dpae.routes');
 
 const { demandeBodySchema, modificationBodySchema } = dpaeRouter;
@@ -355,7 +356,7 @@ function gestionnaireRoute(methode, chemin) {
 
 // Exécute le gestionnaire (après la garde) avec une requête factice ; renvoie la réponse et
 // l'erreur éventuellement transmise à next.
-async function appelerGestionnaire(methode, chemin, { params, body, roleCode = 'rh', utilisateurId = 9 }) {
+async function appelerGestionnaire(methode, chemin, { params, body, query, roleCode = 'rh', utilisateurId = 9 }) {
   const res = { statut: 200, corps: null };
   res.status = (code) => {
     res.statut = code;
@@ -368,7 +369,7 @@ async function appelerGestionnaire(methode, chemin, { params, body, roleCode = '
   res.end = () => res;
   let erreurTransmise = null;
   await gestionnaireRoute(methode, chemin)(
-    { params, body, entite: { id: 1, code: 'accecit' }, utilisateur: { id: utilisateurId, roleCode }, ip: '127.0.0.1' },
+    { params, body, query, entite: { id: 1, code: 'accecit' }, utilisateur: { id: utilisateurId, roleCode }, ip: '127.0.0.1' },
     res,
     (erreur) => {
       erreurTransmise = erreur;
@@ -413,7 +414,7 @@ test('PATCH /:id/mettre-en-attente avec motif et version : 204, service appelé 
     utilisateurId: 9,
   });
   assert.equal(res.statut, 204);
-  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 9, 'Attente du planning client', { version: 4, adresseIp: '127.0.0.1' }]);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 9, 'Attente du planning client', { version: 4, adresseIp: '127.0.0.1', roleCode: 'rh' }]);
   assert.equal(auditMock.mock.calls.length, 0);
 });
 
@@ -463,11 +464,11 @@ test('PATCH /:id/valider et /:id/rejeter : version obligatoire (400 sinon), tran
 
   let { res } = await appelerGestionnaire('patch', '/:id/valider', { params: { id: '7' }, body: { version: '3' }, utilisateurId: 9 });
   assert.equal(res.statut, 204);
-  assert.deepEqual(validerMock.mock.calls[0].arguments.slice(1), [7, 9, { version: 3, adresseIp: '127.0.0.1' }]);
+  assert.deepEqual(validerMock.mock.calls[0].arguments.slice(1), [7, 9, { version: 3, adresseIp: '127.0.0.1', roleCode: 'rh' }]);
 
   ({ res } = await appelerGestionnaire('patch', '/:id/rejeter', { params: { id: '7' }, body: { motifRejet: ' Doublon ', version: 3 }, utilisateurId: 9 }));
   assert.equal(res.statut, 204);
-  assert.deepEqual(rejeterMock.mock.calls[0].arguments.slice(1), [7, 9, 'Doublon', { version: 3, adresseIp: '127.0.0.1' }]);
+  assert.deepEqual(rejeterMock.mock.calls[0].arguments.slice(1), [7, 9, 'Doublon', { version: 3, adresseIp: '127.0.0.1', roleCode: 'rh' }]);
 });
 
 test('Schéma de la mise en attente : exporté, motif nettoyé et obligatoire, version obligatoire', () => {
@@ -777,4 +778,187 @@ test('POST /export-pdf : au-delà de 50 demandes -> 400 avec un message clair ; 
   const vide = await telecharger('post', '/export-pdf', { body: { demandeIds: [] } });
   assert.equal(vide.res.statut, 400);
   assert.equal(audit.mock.callCount(), 1);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Passage par le Planning : file « Demandes à valider », transmission, renvoi, visibilité de la RH.
+// ---------------------------------------------------------------------------------------------
+test('GET /a-valider : Planning et Admin autorisés ; RH, Inspecteur Hôtellerie et les autres rôles -> 403 ; déclarée AVANT GET /:id', () => {
+  const garde = gardeRoute('get', '/a-valider');
+  for (const roleCode of ['planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'inspecteur_hotellerie', 'accueil_coordination', 'formateur', 'inspecteur']) {
+    assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  }
+  const chemins = dpaeRouter.stack.filter((couche) => couche.route?.methods.get).map((couche) => couche.route.path);
+  assert.ok(chemins.indexOf('/a-valider') < chemins.indexOf('/:id'));
+});
+
+test('PATCH /:id/transmettre-rh et /:id/renvoyer-inspecteur : Planning et Admin autorisés ; RH, Inspecteur Hôtellerie et les autres -> 403', () => {
+  for (const chemin of ['/:id/transmettre-rh', '/:id/renvoyer-inspecteur']) {
+    const garde = gardeRoute('patch', chemin);
+    for (const roleCode of ['planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
+    for (const roleCode of ['rh', 'inspecteur_hotellerie', 'accueil_coordination', 'formateur', 'inspecteur']) {
+      assert.equal(executerGarde(garde, roleCode).statut, 403, `${chemin} ${roleCode}`);
+    }
+  }
+});
+
+test('Le Planning n’a aucun accès au rejet, à la validation ni à la mise en attente (réservés à la RH et à l’Admin)', () => {
+  for (const chemin of ['/:id/rejeter', '/:id/valider', '/:id/mettre-en-attente']) {
+    assert.equal(executerGarde(gardeRoute('patch', chemin), 'planning').statut, 403, chemin);
+  }
+});
+
+test('PATCH /:id/transmettre-rh : version obligatoire (400), sinon 204 avec l’auteur de la session, la version et l’IP', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'transmettreALaRh', async () => {});
+  for (const body of [{}, { version: 0 }]) {
+    const { res } = await appelerGestionnaire('patch', '/:id/transmettre-rh', { params: { id: '7' }, body, roleCode: 'planning' });
+    assert.equal(res.statut, 400, JSON.stringify(body));
+  }
+  assert.equal(serviceMock.mock.calls.length, 0);
+  const { res } = await appelerGestionnaire('patch', '/:id/transmettre-rh', { params: { id: '7' }, body: { version: '3' }, roleCode: 'planning', utilisateurId: 8 });
+  assert.equal(res.statut, 204);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 8, { version: 3, adresseIp: '127.0.0.1', roleCode: 'planning' }]);
+});
+
+test('PATCH /:id/renvoyer-inspecteur : motif obligatoire (absent, vide ou espaces -> 400, rien n’est fait), sinon 204 avec le motif nettoyé', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'renvoyerAInspecteur', async () => {});
+  for (const body of [{ version: 2 }, { motif: '', version: 2 }, { motif: '   ', version: 2 }, { motif: 'x' }]) {
+    const { res } = await appelerGestionnaire('patch', '/:id/renvoyer-inspecteur', { params: { id: '7' }, body, roleCode: 'planning' });
+    assert.equal(res.statut, 400, JSON.stringify(body));
+  }
+  assert.equal(serviceMock.mock.calls.length, 0);
+  const { res } = await appelerGestionnaire('patch', '/:id/renvoyer-inspecteur', {
+    params: { id: '7' },
+    body: { motif: ' Dates incohérentes ', version: 2 },
+    roleCode: 'planning',
+    utilisateurId: 8,
+  });
+  assert.equal(res.statut, 204);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 8, 'Dates incohérentes', { version: 2, adresseIp: '127.0.0.1', roleCode: 'planning' }]);
+});
+
+test('Transmission et renvoi : transition refusée ou version obsolète -> 409 ; introuvable -> 404', async (t) => {
+  mockerAudit(t);
+  for (const [chemin, methodeService, body] of [
+    ['/:id/transmettre-rh', 'transmettreALaRh', { version: 2 }],
+    ['/:id/renvoyer-inspecteur', 'renvoyerAInspecteur', { motif: 'x', version: 2 }],
+  ]) {
+    const serviceMock = t.mock.method(demandeDpaeService, methodeService, async () => {
+      throw new demandeDpaeService.ErreurDemandeDejaTraitee('déjà transmise');
+    });
+    let { res } = await appelerGestionnaire('patch', chemin, { params: { id: '7' }, body, roleCode: 'planning' });
+    assert.equal(res.statut, 409, chemin);
+    serviceMock.mock.mockImplementation(async () => {
+      throw new demandeDpaeService.ErreurDemandeModifiee();
+    });
+    ({ res } = await appelerGestionnaire('patch', chemin, { params: { id: '7' }, body, roleCode: 'planning' }));
+    assert.equal(res.statut, 409, chemin);
+    serviceMock.mock.mockImplementation(async () => {
+      throw new demandeDpaeService.ErreurDemandeIntrouvable('introuvable');
+    });
+    ({ res } = await appelerGestionnaire('patch', chemin, { params: { id: '7' }, body, roleCode: 'planning' }));
+    assert.equal(res.statut, 404, chemin);
+  }
+});
+
+test('GET /a-valider : la file du service est renvoyée telle quelle', async (t) => {
+  const serviceMock = t.mock.method(demandeDpaeService, 'listerAValider', async () => [{ id: 7 }]);
+  const { res } = await appelerGestionnaire('get', '/a-valider', { roleCode: 'planning' });
+  assert.deepEqual(res.corps, [{ id: 7 }]);
+  assert.equal(serviceMock.mock.calls[0].arguments[0].id, 1);
+});
+
+test('RH aveugle : GET /:id (consultation directe) d’une demande « À valider » ou « Renvoyée » -> 403, aucune donnée renvoyée ; autres statuts -> fiche', async (t) => {
+  for (const statut of ['a_valider_planning', 'renvoyee_inspecteur']) {
+    await t.test(statut, async (st) => {
+      st.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) => ({ id, statut, demandeur_id: 16 }));
+      const refus = await appelerGestionnaire('get', '/:id', { params: { id: '7' }, roleCode: 'rh' });
+      assert.equal(refus.res.statut, 403);
+      assert.equal(refus.res.corps.id, undefined);
+      for (const roleCode of ['admin', 'planning', 'inspecteur_hotellerie']) {
+        const { res } = await appelerGestionnaire('get', '/:id', { params: { id: '7' }, roleCode, utilisateurId: 16 });
+        assert.equal(res.statut, 200, roleCode);
+        assert.equal(res.corps.id, 7, roleCode);
+      }
+    });
+  }
+  t.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) => ({ id, statut: 'envoyee', demandeur_id: 16 }));
+  const { res } = await appelerGestionnaire('get', '/:id', { params: { id: '7' }, roleCode: 'rh' });
+  assert.equal(res.corps.id, 7);
+});
+
+test('RH aveugle : notes d’une demande encore chez le Planning -> 403 en lecture comme en ajout, rien n’est tracé', async (t) => {
+  const auditMock = mockerAudit(t);
+  const interdit = async () => {
+    throw new demandeDpaeService.ErreurModificationInterdite();
+  };
+  t.mock.method(notesDemandeDpaeService, 'listerNotes', interdit);
+  t.mock.method(notesDemandeDpaeService, 'ajouterNote', interdit);
+  const lecture = await appelerGestionnaire('get', '/:id/notes', { params: { id: '7' }, roleCode: 'rh' });
+  assert.equal(lecture.res.statut, 403);
+  const ajout = await appelerGestionnaire('post', '/:id/notes', { params: { id: '7' }, body: { contenu: 'x' }, roleCode: 'rh' });
+  assert.equal(ajout.res.statut, 403);
+  assert.equal(auditMock.mock.calls.length, 0);
+});
+
+test('GET /tableau-de-bord : la RH n’obtient aucun indicateur sur les deux statuts du Planning (exclus du calcul) ; Admin et Planning les voient', async (t) => {
+  const serviceMock = t.mock.method(tableauDeBordDpaeService, 'calculerTableauDeBord', async () => ({}));
+  for (const roleCode of ['rh', 'admin', 'planning']) {
+    await appelerGestionnaire('get', '/tableau-de-bord', { params: {}, body: undefined, roleCode, query: {} });
+  }
+  assert.deepEqual(
+    serviceMock.mock.calls.map((appel) => appel.arguments[4].statutsExclus),
+    [['a_valider_planning', 'renvoyee_inspecteur'], [], []],
+  );
+});
+
+test('POST / : le rôle de la session est transmis au service (l’Inspecteur Hôtellerie passe par le Planning)', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'creerEtEnvoyer', async () => 7);
+  const { res } = await appelerGestionnaire('post', '/', { params: {}, body: DEMANDE_VALIDE, roleCode: 'inspecteur_hotellerie', utilisateurId: 16 });
+  assert.equal(res.statut, 201);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments[3], { roleCode: 'inspecteur_hotellerie' });
+  assert.equal(serviceMock.mock.calls[0].arguments[1], 16);
+});
+
+test('PUT /:id sans aucun changement : 200 « Aucune modification », même version', async (t) => {
+  mockerAudit(t);
+  t.mock.method(demandeDpaeService, 'modifierDemande', async () => ({ statut: 'envoyee', version: 3, champsModifies: [], aucuneModification: true }));
+  const { res } = await appelerGestionnaire('put', '/:id', { params: { id: '7' }, body: MODIFICATION_VALIDE, roleCode: 'planning' });
+  assert.equal(res.statut, 200);
+  assert.deepEqual(res.corps, { statut: 'envoyee', version: 3, aucuneModification: true, message: 'Aucune modification' });
+});
+
+test('Schéma du renvoi : exporté, motif nettoyé et obligatoire, version obligatoire', () => {
+  const { renvoiBodySchema } = dpaeRouter;
+  assert.deepEqual(renvoiBodySchema.parse({ motif: '  Dates incohérentes ', version: '2' }), { motif: 'Dates incohérentes', version: 2 });
+  for (const corps of [{ version: 2 }, { motif: '   ', version: 2 }, { motif: 'x' }]) {
+    assert.equal(renvoiBodySchema.safeParse(corps).success, false, JSON.stringify(corps));
+  }
+});
+
+test('Filtre Statut du tableau de bord : « a_valider_planning » et « renvoyee_inspecteur » acceptés', () => {
+  const { filtresTableauDeBordSchema } = dpaeRouter;
+  for (const statut of ['a_valider_planning', 'renvoyee_inspecteur']) {
+    assert.equal(filtresTableauDeBordSchema.safeParse({ statut }).success, true, statut);
+  }
+});
+
+test('RH : action sur une demande « À valider » ou « Renvoyée » (refus du service) -> 403 sans aucune information sur le statut', async (t) => {
+  mockerAudit(t);
+  for (const [chemin, methodeService, body] of [
+    ['/:id/valider', 'valider', { version: 2 }],
+    ['/:id/rejeter', 'rejeter', { motifRejet: 'x', version: 2 }],
+    ['/:id/mettre-en-attente', 'mettreEnAttente', { motif: 'x', version: 2 }],
+  ]) {
+    t.mock.method(demandeDpaeService, methodeService, async () => {
+      throw new demandeDpaeService.ErreurModificationInterdite();
+    });
+    const { res } = await appelerGestionnaire('patch', chemin, { params: { id: '7' }, body, roleCode: 'rh' });
+    assert.equal(res.statut, 403, chemin);
+    assert.deepEqual(res.corps, { erreur: 'Rôle insuffisant pour cette action.' }, chemin);
+  }
 });

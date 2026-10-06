@@ -76,6 +76,13 @@ const PERMISSIONS = {
   // … et, parmi eux, ceux qui peuvent modifier la demande de n'importe quel auteur (les autres :
   // seulement les leurs). Règle par demande : demandeDpaeService.peutModifierDemande.
   dpaeModificationToutes: [PLANNING, ADMIN],
+  // Passage par le Planning : un Inspecteur Hôtellerie soumet ses demandes au Planning (qui les
+  // transmet à la RH ou les lui renvoie) ; les autres rôles créateurs les envoient directement à la RH.
+  dpaeCreationSoumiseAuPlanning: [INSPECTEUR_HOTELLERIE],
+  dpaeValidationPlanning: [PLANNING, ADMIN],
+  // Voir les demandes « À valider par le Planning » et « Renvoyée à l'inspecteur » : tous les rôles
+  // de consultation sauf la RH, qui n'en a connaissance qu'une fois la demande transmise.
+  dpaeVoitFilePlanning: [ADMIN, PLANNING, INSPECTEUR_HOTELLERIE],
   dpaeTableauDeBord: [ADMIN, RH, PLANNING],
   dpaeNotes: [ADMIN, RH, PLANNING],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.
@@ -84,7 +91,7 @@ const PERMISSIONS = {
   // --- Permissions d'écran (aucune route API associée) ---
   nouvelleInscription: [...ACCUEIL, ADMIN],
   suiviTests: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
-  cloche: [ADMIN, RH],
+  cloche: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
 };
 
 for (const cle of Object.keys(PERMISSIONS)) Object.freeze(PERMISSIONS[cle]);

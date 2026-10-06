@@ -193,9 +193,9 @@ export function valeursPresentes(demandes, cle) {
 
 // Tri par défaut des DEUX listes (Suivi des demandes DPAE et liste RH), à l'ouverture et après
 // « Effacer les filtres » ou le retrait d'un tri de colonne :
-//   1. groupes de statut dans l'ordre du cycle de vie : À traiter, En attente, Validée, Rejetée
-//      (statut inconnu : après ces quatre groupes) ;
-//   2. « À traiter » et « En attente » : échéance croissante — premier jour à l'heure d'arrivée,
+//   1. groupes de statut dans l'ordre du cycle de vie : À valider par le Planning, Renvoyée à
+//      l'inspecteur, À traiter, En attente, Validée, Rejetée (statut inconnu : après ces six groupes) ;
+//   2. tous les statuts non décidés (les quatre premiers) : échéance croissante — premier jour à l'heure d'arrivée,
 //      demandes en retard (échéance passée) en tête du groupe, sans premier jour en fin de groupe
 //      (trierParEcheance, même calcul que les pastilles d'urgence) ;
 //   3. « Validée » et « Rejetée » : date de la demande décroissante (la plus récente d'abord).

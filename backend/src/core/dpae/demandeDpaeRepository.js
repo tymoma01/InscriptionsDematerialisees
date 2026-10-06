@@ -1,7 +1,7 @@
 // Accès données pour les demandes DPAE — uniquement des requêtes, aucune règle métier ici
 // (orchestrée par demandeDpaeService.js), même découpage que relanceRepository.js.
 
-const { STATUT_INITIAL, STATUT_EN_ATTENTE } = require('./statutsDpae');
+const { STATUT_INITIAL, STATUT_EN_ATTENTE, STATUTS_AVANT_RH } = require('./statutsDpae');
 const { colonnesDepuisDonnees } = require('./champsDemandeDpae');
 
 const COLONNES_DEMANDE = [
@@ -49,7 +49,12 @@ const COLONNES_DEMANDE = [
   // 'en_attente'.
   'demandes_dpae.motif_mise_en_attente',
   'demandes_dpae.date_mise_en_attente',
+  // Dernier renvoi à l'inspecteur (migration 079) — motif affiché tant que la demande est renvoyée.
+  'demandes_dpae.motif_renvoi',
   'demandes_dpae.date_creation',
+  // Date d'envoi à la RH (migration 079) : nulle tant que la demande est chez le Planning ; départ
+  // des délais de traitement RH.
+  'demandes_dpae.date_envoi_rh',
   'demandes_dpae.date_maj',
   'demandes_dpae.date_traitement',
   'demandeur.id as demandeur_id',
@@ -95,21 +100,11 @@ function trouverDemandeParId(trx, entiteId, id) {
   return requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.id': id }).first();
 }
 
-function listerDemandesParDemandeur(trx, entiteId, demandeurId) {
-  return requeteDemandesAvecJointures(trx)
-    .where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.demandeur_id': demandeurId })
-    .orderBy([
-      { column: 'demandes_dpae.date_creation', order: 'desc' },
-      // Départage stable de deux demandes créées au même instant.
-      { column: 'demandes_dpae.id', order: 'desc' },
-    ]);
-}
-
-// statut optionnel : la file RH filtre par défaut sur 'envoyee' (voir demandeDpaeService), mais
-// peut aussi lister l'historique complet (traitées incluses) sans ce filtre.
-function listerDemandesPourRh(trx, entiteId, statut) {
-  const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId });
-  if (statut) requete.andWhere({ 'demandes_dpae.statut': statut });
+// statutsExclus : statuts à ne jamais renvoyer (demandes que le rôle de l'appelant n'a pas le droit
+// de voir, voir demandeDpaeService.statutsMasquesPour).
+function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = []) {
+  const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.demandeur_id': demandeurId });
+  if (statutsExclus.length > 0) requete.whereNotIn('demandes_dpae.statut', statutsExclus);
   return requete.orderBy([
     { column: 'demandes_dpae.date_creation', order: 'desc' },
     // Départage stable de deux demandes créées au même instant.
@@ -117,15 +112,47 @@ function listerDemandesPourRh(trx, entiteId, statut) {
   ]);
 }
 
+// statut optionnel : la file RH filtre par défaut sur 'envoyee' (voir demandeDpaeService), mais
+// peut aussi lister l'historique complet (traitées incluses) sans ce filtre.
+function listerDemandesPourRh(trx, entiteId, statut, statutsExclus = []) {
+  const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId });
+  if (statut) requete.andWhere({ 'demandes_dpae.statut': statut });
+  if (statutsExclus.length > 0) requete.whereNotIn('demandes_dpae.statut', statutsExclus);
+  return requete.orderBy([
+    { column: 'demandes_dpae.date_creation', order: 'desc' },
+    // Départage stable de deux demandes créées au même instant.
+    { column: 'demandes_dpae.id', order: 'desc' },
+  ]);
+}
+
+// File « Demandes à valider » du Planning : « À valider par le Planning » puis « Renvoyée à
+// l'inspecteur » (ordre de STATUTS_AVANT_RH), premier jour le plus proche d'abord, sans premier jour
+// en fin de groupe.
+function listerDemandesAValider(trx, entiteId) {
+  const rang = STATUTS_AVANT_RH.map((code, index) => `WHEN '${code}' THEN ${index}`).join(' ');
+  return requeteDemandesAvecJointures(trx)
+    .where({ 'demandes_dpae.entite_id': entiteId })
+    .whereIn('demandes_dpae.statut', STATUTS_AVANT_RH)
+    .orderByRaw(`CASE demandes_dpae.statut ${rang} END`)
+    .orderByRaw('demandes_dpae.date_debut ASC NULLS LAST')
+    .orderBy([
+      { column: 'demandes_dpae.date_creation', order: 'asc' },
+      { column: 'demandes_dpae.id', order: 'asc' },
+    ]);
+}
+
 // Les colonnes saisies viennent de champsDemandeDpae.js (même table pour la modification). Pas de
-// colonne date_envoi distincte : une demande créée est immédiatement 'envoyee' (pas de statut
-// brouillon, voir migration 066), date_creation fait donc foi comme date d'envoi.
+// brouillon (voir migration 066) : la demande démarre au statut demandé (« À traiter » par défaut).
+// date_envoi_rh est posée dès qu'elle part à la RH, donc à la création sauf si elle passe d'abord par
+// le Planning.
 async function creerDemande(trx, donnees) {
+  const statut = donnees.statut ?? STATUT_INITIAL;
   const [demande] = await trx('demandes_dpae')
     .insert({
       entite_id: donnees.entiteId,
       demandeur_id: donnees.demandeurId,
-      statut: STATUT_INITIAL,
+      statut,
+      date_envoi_rh: STATUTS_AVANT_RH.includes(statut) ? null : trx.fn.now(),
       ...colonnesDepuisDonnees(donnees),
     })
     .returning('id');
@@ -163,6 +190,21 @@ function marquerEnAttente(trx, id, { statutDepart, version, traitantId, motif })
     });
 }
 
+// Passage par le Planning (compare-and-set comme les décisions). Transmission à la RH : date_envoi_rh
+// est posée maintenant, départ des délais RH.
+function transmettreALaRh(trx, id, { statutDepart, version, statut }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({ statut, date_envoi_rh: trx.fn.now(), date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+}
+
+// Renvoi à l'inspecteur : le motif est conservé sur la demande (dernier motif, affiché sur la fiche).
+function renvoyerAInspecteur(trx, id, { statutDepart, version, statut, motif }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({ statut, motif_renvoi: motif, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+}
+
 // Modification par le demandeur : compare-and-set comme les décisions (id, statut de départ ET
 // version), version incrémentée. Seules les colonnes de champsDemandeDpae.js et le statut d'arrivée
 // sont écrits : jamais le demandeur, l'entité ni la date de création. Les colonnes de mise en
@@ -191,7 +233,10 @@ module.exports = {
   trouverDemandeParId,
   listerDemandesParDemandeur,
   listerDemandesPourRh,
+  listerDemandesAValider,
   creerDemande,
+  transmettreALaRh,
+  renvoyerAInspecteur,
   marquerTraitee,
   marquerEnAttente,
   modifierDemande,

@@ -131,6 +131,12 @@ const modificationBodySchema = demandeBaseSchema.extend({ version: versionSchema
 // Chaque décision porte la version de la demande lue par le client : absente ou invalide -> 400.
 const validationBodySchema = z.object({ version: versionSchema });
 
+// Renvoi à l'inspecteur : motif OBLIGATOIRE — absent, vide ou fait d'espaces -> 400.
+const renvoiBodySchema = z.object({
+  motif: z.string().trim().min(1, 'Un motif de renvoi est obligatoire.'),
+  version: versionSchema,
+});
+
 const rejetBodySchema = z.object({
   motifRejet: z.string().trim().min(1, 'Un motif de rejet est obligatoire.'),
   version: versionSchema,
@@ -178,13 +184,13 @@ function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
 
-// POST /api/dpae — crée une demande et l'envoie directement à la RH (pas de brouillon, voir
-// demandeDpaeService.creerEtEnvoyer). utilisateurId toujours pris de la session, jamais du corps
+// POST /api/dpae — crée une demande (pas de brouillon, voir demandeDpaeService.creerEtEnvoyer) : un
+// Inspecteur Hôtellerie la soumet au Planning, les autres rôles l'envoient directement à la RH. utilisateurId toujours pris de la session, jamais du corps
 // de la requête — même principe que relances.routes.js.
 router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
     const donnees = demandeBodySchema.parse(req.body);
-    const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees);
+    const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees, { roleCode: req.utilisateur.roleCode });
 
     const bd = await obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
@@ -250,7 +256,9 @@ const filtresTableauDeBordSchema = z.object({
 router.get('/tableau-de-bord', requirePermission('dpaeTableauDeBord'), async (req, res, next) => {
   try {
     const filtres = filtresTableauDeBordSchema.parse(req.query);
-    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres));
+    // La RH ne voit pas les demandes encore chez le Planning : exclues de tous les indicateurs.
+    const statutsExclus = demandeDpaeService.statutsMasquesPour(req.utilisateur.roleCode);
+    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres, new Date(), null, { statutsExclus }));
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof tableauDeBordDpaeService.ErreurFiltresTableauDeBord) {
@@ -340,6 +348,17 @@ router.post('/export-pdf', requirePermission('dpaeConsultation'), async (req, re
   }
 });
 
+// GET /api/dpae/a-valider — file « Demandes à valider » du Planning : « À valider par le Planning »
+// puis « Renvoyée à l'inspecteur », premier jour le plus proche d'abord. Planning et Admin
+// (dpaeValidationPlanning). Déclarée AVANT GET /:id.
+router.get('/a-valider', requirePermission('dpaeValidationPlanning'), async (req, res, next) => {
+  try {
+    res.json(await demandeDpaeService.listerAValider(req.entite));
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
 // GET /api/dpae — file RH. ?statut=<statut initial> (défaut, file à traiter) ou ?statut=tous
 // (historique complet, traitées incluses).
 router.get('/', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
@@ -413,8 +432,10 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
   }
 });
 
-// PUT /api/dpae/:id { …demande complète, version } — modification d'une demande « À traiter » ou « En
-// attente » (« En attente » repasse « À traiter », la RH est notifiée). Garde de rôle : dpaeModification
+// PUT /api/dpae/:id { …demande complète, version } — modification d'une demande non décidée
+// (« En attente » repasse « À traiter », la RH est notifiée ; « Renvoyée à l'inspecteur » repasse « À
+// valider par le Planning », le Planning est notifié). Un enregistrement sans changement n'écrit rien
+// et répond { aucuneModification: true, message: 'Aucune modification' }. Garde de rôle : dpaeModification
 // (Planning, Admin, Inspecteur Hôtellerie) ; droit par demande (auteur, ou Planning/Admin pour toute
 // demande) et statut verrouillé vérifiés dans la transaction (demandeDpaeService.modifierDemande).
 // Réponse : { statut, version } après modification. utilisateurId, entité et rôle viennent de la
@@ -423,13 +444,14 @@ router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpa
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { version, ...donnees } = modificationBodySchema.parse(req.body);
-    const { statut, version: nouvelleVersion } = await demandeDpaeService.modifierDemande(req.entite, id, {
+    const { statut, version: nouvelleVersion, aucuneModification } = await demandeDpaeService.modifierDemande(req.entite, id, {
       donnees,
       version,
       utilisateurId: req.utilisateur.id,
       roleCode: req.utilisateur.roleCode,
       adresseIp: req.ip,
     });
+    if (aucuneModification) return res.json({ statut, version: nouvelleVersion, aucuneModification: true, message: 'Aucune modification' });
     res.json({ statut, version: nouvelleVersion });
   } catch (erreur) {
     if (!repondreErreurDecision(res, erreur)) next(erreur);
@@ -443,19 +465,53 @@ router.patch('/:id/valider', requirePermission(statutsDpae.permissionPourAction(
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { version } = validationBodySchema.parse(req.body);
-    await demandeDpaeService.valider(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip });
+    await demandeDpaeService.valider(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
     res.status(204).end();
   } catch (erreur) {
     if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });
 
+// PATCH /api/dpae/:id/transmettre-rh { version } — « À valider par le Planning » -> « À traiter »
+// (date d'envoi à la RH posée ; la RH et l'inspecteur auteur sont notifiés). Planning et Admin.
+router.patch(
+  '/:id/transmettre-rh',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_TRANSMETTRE_RH)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.transmettreALaRh(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/renvoyer-inspecteur { motif, version } — « À valider par le Planning » ->
+// « Renvoyée à l'inspecteur », motif obligatoire ; l'inspecteur auteur est notifié. Planning et Admin.
+router.patch(
+  '/:id/renvoyer-inspecteur',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_RENVOYER_INSPECTEUR)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { motif, version } = renvoiBodySchema.parse(req.body);
+      await demandeDpaeService.renvoyerAInspecteur(req.entite, id, req.utilisateur.id, motif, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
 // PATCH /api/dpae/:id/rejeter { motifRejet, version } — « À traiter » ou « En attente » -> « Rejetée ».
 router.patch('/:id/rejeter', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_REJETER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { motifRejet, version } = rejetBodySchema.parse(req.body);
-    await demandeDpaeService.rejeter(req.entite, id, req.utilisateur.id, motifRejet, { version, adresseIp: req.ip });
+    await demandeDpaeService.rejeter(req.entite, id, req.utilisateur.id, motifRejet, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
     res.status(204).end();
   } catch (erreur) {
     if (!repondreErreurDecision(res, erreur)) next(erreur);
@@ -472,7 +528,7 @@ router.patch(
     try {
       const id = idPositifSchema.parse(req.params.id);
       const { motif, version } = miseEnAttenteBodySchema.parse(req.body);
-      await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, motif, { version, adresseIp: req.ip });
+      await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, motif, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
       res.status(204).end();
     } catch (erreur) {
       if (!repondreErreurDecision(res, erreur)) next(erreur);
@@ -486,10 +542,13 @@ router.patch(
 router.get('/:id/notes', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    res.json(await notesDemandeDpaeService.listerNotes(req.entite, id));
+    res.json(await notesDemandeDpaeService.listerNotes(req.entite, id, { roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id }));
   } catch (erreur) {
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof demandeDpaeService.ErreurModificationInterdite) {
+      return res.status(403).json({ erreur: erreur.message });
     }
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
@@ -509,6 +568,7 @@ router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next)
       demandeId: id,
       contenu,
       auteurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
     });
 
     const bd = await obtenirKnex();
@@ -526,6 +586,9 @@ router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next)
   } catch (erreur) {
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof demandeDpaeService.ErreurModificationInterdite) {
+      return res.status(403).json({ erreur: erreur.message });
     }
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
@@ -545,6 +608,7 @@ module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
 module.exports.miseEnAttenteBodySchema = miseEnAttenteBodySchema;
 module.exports.validationBodySchema = validationBodySchema;
 module.exports.rejetBodySchema = rejetBodySchema;
+module.exports.renvoiBodySchema = renvoiBodySchema;
 module.exports.noteBodySchema = noteBodySchema;
 // Export PDF : limite et nom du ZIP exposés pour dpae.routes.test.js.
 module.exports.LIMITE_DEMANDES_PAR_ZIP = LIMITE_DEMANDES_PAR_ZIP;

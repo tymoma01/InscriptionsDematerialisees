@@ -57,11 +57,11 @@ function listerFileRh() {
 // aucun envoi SMS/email. Monté une seule fois (comme "Mon profil"), autonome (son propre polling),
 // même patron que BarreNavigation.jsx/BoutonNouvelleInscription.jsx.
 //
-// Restreinte à Admin/RH (audit 2026-09-28, demande utilisateur explicite : "cette cloche ne doit
-// être que pour les rh et les admins") — retirée pour Accueil/Coordination et Planning (voir
-// `visible` plus bas). EnTeteBackOffice.jsx continue de monter ce composant sans condition sur
-// TOUTES les pages back-office (patron d'auto-gating inchangé, voir son propre commentaire) : le
-// filtrage par rôle reste entièrement local à CE composant, pas remonté à l'appelant.
+// Réservée aux rôles qui reçoivent des notifications DPAE : Admin, RH, Planning et Inspecteur
+// Hôtellerie (permission `cloche`, voir `visible` plus bas) ; retirée pour les autres rôles.
+// EnTeteBackOffice.jsx continue de monter ce composant sans condition sur TOUTES les pages
+// back-office (patron d'auto-gating inchangé, voir son propre commentaire) : le filtrage par rôle
+// reste entièrement local à CE composant, pas remonté à l'appelant.
 //
 // RH (simplification 2026-09-28, demande utilisateur explicite — revient sur un premier essai de
 // notifications stockées par destinataire à l'envoi, plus un rattrapage pour tout RH promu après
@@ -172,8 +172,7 @@ export default function NotificationsCloche() {
     }
   };
 
-  // Rien à monter pour un rôle non autorisé (Accueil/Coordination, Planning, Formateur,
-  // Inspecteur) — ni pour la brève fenêtre où la session n'est pas encore résolue (`visible` vaut
+  // Rien à monter pour un rôle non autorisé (Accueil/Coordination, Formateur, Inspecteur) — ni pour la brève fenêtre où la session n'est pas encore résolue (`visible` vaut
   // alors faussement `false`, utilisateur étant encore null : mieux vaut ne rien afficher un
   // instant que de laisser la cloche apparaître puis disparaître). Après les hooks ci-dessus
   // (jamais avant, voir la règle des Hooks) — même patron que EnTeteBackOffice.jsx.

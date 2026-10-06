@@ -4,27 +4,55 @@ const assert = require('node:assert/strict');
 const statutsDpae = require('./statutsDpae');
 const { PERMISSIONS } = require('../auth/permissions');
 
-test('statuts : quatre statuts dans l’ordre du cycle de vie, statut initial « À traiter » (code envoyee)', () => {
-  assert.deepEqual(statutsDpae.CODES_STATUTS_DPAE, ['envoyee', 'en_attente', 'validee', 'rejetee']);
+test('statuts : six statuts dans l’ordre du cycle de vie, statut initial « À traiter » (code envoyee)', () => {
+  assert.deepEqual(statutsDpae.CODES_STATUTS_DPAE, ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']);
   assert.equal(statutsDpae.STATUT_INITIAL, 'envoyee');
-  assert.equal(statutsDpae.STATUTS_DPAE[0].libelle, 'À traiter');
+  assert.deepEqual(
+    statutsDpae.STATUTS_DPAE.map(({ libelle }) => libelle),
+    ['À valider par le Planning', 'Renvoyée à l\'inspecteur', 'À traiter', 'En attente', 'Validée', 'Rejetée'],
+  );
 });
 
-test('statuts « à décider » déduits de la table des transitions : À traiter et En attente', () => {
-  assert.deepEqual([...statutsDpae.STATUTS_A_DECIDER], ['envoyee', 'en_attente']);
+test('statuts « à décider » déduits de la table des transitions : les deux statuts du Planning, À traiter et En attente', () => {
+  assert.deepEqual([...statutsDpae.STATUTS_A_DECIDER], ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente']);
 });
 
-test('table des transitions : exactement les sept transitions autorisées', () => {
+test('statuts à traiter par la RH : À traiter et En attente seulement ; statuts d’avant la RH : les deux statuts du Planning', () => {
+  assert.deepEqual([...statutsDpae.STATUTS_A_TRAITER_RH], ['envoyee', 'en_attente']);
+  assert.deepEqual([...statutsDpae.STATUTS_AVANT_RH], ['a_valider_planning', 'renvoyee_inspecteur']);
+});
+
+test('table des transitions : exactement les onze transitions autorisées', () => {
   const transitions = statutsDpae.TRANSITIONS.map(({ action, de, vers }) => `${action}:${de}->${vers}`).sort();
   assert.deepEqual(transitions, [
     'mettre_en_attente:envoyee->en_attente',
+    'modifier:a_valider_planning->a_valider_planning',
     'modifier:en_attente->envoyee',
     'modifier:envoyee->envoyee',
+    'modifier:renvoyee_inspecteur->a_valider_planning',
     'rejeter:en_attente->rejetee',
     'rejeter:envoyee->rejetee',
+    'renvoyer_inspecteur:a_valider_planning->renvoyee_inspecteur',
+    'transmettre_rh:a_valider_planning->envoyee',
     'valider:en_attente->validee',
     'valider:envoyee->validee',
   ]);
+});
+
+test('passage par le Planning : transmettre et renvoyer depuis « À valider » seulement, par la permission Planning/Admin ; aucun rejet ni décision RH depuis les statuts d’avant la RH', () => {
+  for (const action of [statutsDpae.ACTION_TRANSMETTRE_RH, statutsDpae.ACTION_RENVOYER_INSPECTEUR]) {
+    assert.equal(statutsDpae.permissionPourAction(action), 'dpaeValidationPlanning');
+    assert.ok(statutsDpae.trouverTransition(action, 'a_valider_planning'));
+    for (const statut of ['renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']) {
+      assert.equal(statutsDpae.trouverTransition(action, statut), undefined, `${action} depuis ${statut}`);
+    }
+  }
+  for (const statut of statutsDpae.STATUTS_AVANT_RH) {
+    for (const action of [statutsDpae.ACTION_VALIDER, statutsDpae.ACTION_REJETER, statutsDpae.ACTION_METTRE_EN_ATTENTE]) {
+      assert.equal(statutsDpae.trouverTransition(action, statut), undefined, `${action} depuis ${statut}`);
+    }
+  }
+  assert.deepEqual(PERMISSIONS.dpaeValidationPlanning, ['planning', 'admin']);
 });
 
 test('transition non autorisée : aucune depuis un statut final, ni mise en attente depuis En attente', () => {
@@ -44,6 +72,11 @@ test('chaque transition ne relie que des statuts connus et exige une permission 
   }
 });
 
+test('modification : « Renvoyée à l’inspecteur » repasse « À valider par le Planning », « À valider » reste tel quel', () => {
+  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'renvoyee_inspecteur').vers, 'a_valider_planning');
+  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'a_valider_planning').vers, 'a_valider_planning');
+});
+
 test('modification : « À traiter » reste « À traiter », « En attente » repasse « À traiter »', () => {
   assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'envoyee').vers, 'envoyee');
   assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'en_attente').vers, 'envoyee');
@@ -56,5 +89,5 @@ test('permissionPourAction : permission unique par action, exception pour une ac
 });
 
 test('listeSql : codes entre apostrophes, séparés par des virgules', () => {
-  assert.equal(statutsDpae.listeSql(statutsDpae.STATUTS_A_DECIDER), "'envoyee', 'en_attente'");
+  assert.equal(statutsDpae.listeSql(statutsDpae.STATUTS_A_TRAITER_RH), "'envoyee', 'en_attente'");
 });

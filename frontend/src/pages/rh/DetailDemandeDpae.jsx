@@ -9,7 +9,10 @@ import NotesDossier from '../../core/dossier/NotesDossier';
 import {
   ACTION_METTRE_EN_ATTENTE,
   ACTION_MODIFIER,
-  STATUTS_A_DECIDER,
+  ACTION_REJETER,
+  ACTION_RENVOYER_INSPECTEUR,
+  ACTION_TRANSMETTRE_RH,
+  ACTION_VALIDER,
   libelleStatutDpae,
   transitionPossible,
   varianteStatutDpae,
@@ -22,6 +25,8 @@ import {
   validerDemande,
   rejeterDemande,
   mettreEnAttenteDemande,
+  transmettreDemandeALaRh,
+  renvoyerDemandeAInspecteur,
   listerNotesDemande,
   ajouterNoteDemande,
 } from '../../services/dpaeService';
@@ -76,7 +81,8 @@ function ligne(libelle, valeur) {
 // à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, dpaeConsultation),
 // ouverte d'un clic depuis « Suivi des demandes DPAE » ; le serveur décide quelles fiches chacun
 // peut ouvrir (dpae.routes.js, GET /:id). Les actions Valider/Rejeter ne sont affichées qu'aux
-// rôles de traitement RH (RH, Admin), comme côté serveur. « Mettre en attente » : même
+// rôles de traitement RH (RH, Admin), comme côté serveur ; « Transmettre à la RH » et « Renvoyer à
+// l'inspecteur » (demande « À valider par le Planning ») au Planning et à l'Admin. « Mettre en attente » : même
 // rôles, motif obligatoire, uniquement sur une demande « À traiter ». Notes propres à la demande
 // en bas de fiche, juste avant les actions : lecture et ajout pour tous les rôles de
 // consultation (Admin, RH, Planning), même composant et mêmes règles que les notes d'un dossier.
@@ -84,6 +90,7 @@ export default function DetailDemandeDpae() {
   const { demandeId } = useParams();
   const { utilisateur } = useSession();
   const peutTraiter = peut(utilisateur, 'dpaeTraitementRh');
+  const peutValiderPlanning = peut(utilisateur, 'dpaeValidationPlanning');
   // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
   const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
@@ -97,8 +104,8 @@ export default function DetailDemandeDpae() {
   const [erreurAction, setErreurAction] = useState(null);
   // Vrai quand le serveur a refusé la décision (409) : la demande a changé depuis son chargement.
   const [conflit, setConflit] = useState(false);
-  // null | 'validation' | 'rejet' | 'attente' — une fenêtre de confirmation par décision ; rejet et
-  // mise en attente partagent la même modale à motif obligatoire.
+  // null | 'validation' | 'rejet' | 'attente' | 'renvoi' — une fenêtre de confirmation par décision ;
+  // rejet, mise en attente et renvoi partagent la même modale à motif obligatoire.
   const [modaleOuverte, setModaleOuverte] = useState(null);
 
   const charger = () => {
@@ -143,6 +150,12 @@ export default function DetailDemandeDpae() {
 
   const mettreEnAttente = (motif) =>
     decider(() => mettreEnAttenteDemande(demandeId, motif, demande.version), 'Impossible de mettre cette demande en attente.');
+
+  // Passage par le Planning : mêmes garanties de version que les décisions RH.
+  const transmettre = () => decider(() => transmettreDemandeALaRh(demandeId, demande.version), 'Impossible de transmettre cette demande à la RH.');
+
+  const renvoyer = (motif) =>
+    decider(() => renvoyerDemandeAInspecteur(demandeId, motif, demande.version), "Impossible de renvoyer cette demande à l'inspecteur.");
 
   const recharger = () => {
     setErreurAction(null);
@@ -242,6 +255,8 @@ export default function DetailDemandeDpae() {
               'Traitée le',
               `${FORMAT_DATE_HEURE.format(new Date(demande.date_traitement))} par ${demande.traitant_prenom} ${demande.traitant_nom}`,
             )}
+          {demande.date_envoi_rh && ligne('Envoyée à la RH le', FORMAT_DATE_HEURE.format(new Date(demande.date_envoi_rh)))}
+          {demande.statut === 'renvoyee_inspecteur' && ligne('Motif du renvoi', demande.motif_renvoi)}
           {demande.statut === 'rejetee' && ligne('Motif de rejet', demande.motif_rejet)}
           {/* Dernière mise en attente : affichée tant que la demande reste « En attente ». */}
           {demande.statut === 'en_attente' &&
@@ -339,7 +354,26 @@ export default function DetailDemandeDpae() {
           lectureSeule={!peut(utilisateur, 'dpaeNotes')}
         />
 
-        {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (
+        {peutValiderPlanning && transitionPossible(ACTION_TRANSMETTRE_RH, demande.statut) && (
+          <section className="page-detail-dpae__actions">
+            {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
+            {conflit && (
+              <button type="button" onClick={recharger}>
+                Recharger la demande
+              </button>
+            )}
+            {transitionPossible(ACTION_RENVOYER_INSPECTEUR, demande.statut) && (
+              <button type="button" className="page-detail-dpae__mettre-en-attente" onClick={() => setModaleOuverte('renvoi')} disabled={actionEnCours}>
+                Renvoyer à l’inspecteur
+              </button>
+            )}
+            <button type="button" className="page-detail-dpae__valider" onClick={transmettre} disabled={actionEnCours}>
+              {actionEnCours ? 'Transmission…' : 'Transmettre à la RH'}
+            </button>
+          </section>
+        )}
+
+        {peutTraiter && (transitionPossible(ACTION_VALIDER, demande.statut) || transitionPossible(ACTION_REJETER, demande.statut)) && (
           <section className="page-detail-dpae__actions">
             {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
             {conflit && (
@@ -392,6 +426,20 @@ export default function DetailDemandeDpae() {
 
         {modaleOuverte === 'rejet' && (
           <ModaleRejeterDpae onConfirmer={rejeter} onAnnuler={fermerModale} enCours={actionEnCours} erreur={erreurAction} />
+        )}
+
+        {modaleOuverte === 'renvoi' && (
+          <ModaleRejeterDpae
+            onConfirmer={renvoyer}
+            onAnnuler={fermerModale}
+            enCours={actionEnCours}
+            erreur={erreurAction}
+            titre="Renvoyer la demande à l’inspecteur"
+            libelleMotif="Motif du renvoi (obligatoire)"
+            libelleConfirmer="Renvoyer à l’inspecteur"
+            libelleEnCours="Renvoi…"
+            variante="attente"
+          />
         )}
 
         {modaleOuverte === 'attente' && (

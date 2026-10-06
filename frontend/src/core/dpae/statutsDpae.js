@@ -7,20 +7,33 @@
 // les graphiques (recharts attend une couleur, pas une classe). Ordre = ordre d'affichage.
 // La valeur technique 'envoyee' est affichée « À traiter » partout.
 export const STATUTS_DPAE = [
+  { code: 'a_valider_planning', libelle: 'À valider par le Planning', libellePluriel: 'À valider par le Planning', variante: 'violet', couleurGraphique: '#7c3aad' },
+  { code: 'renvoyee_inspecteur', libelle: 'Renvoyée à l\'inspecteur', libellePluriel: 'Renvoyées à l\'inspecteur', variante: 'alerte', couleurGraphique: '#c4561a' },
   { code: 'envoyee', libelle: 'À traiter', libellePluriel: 'À traiter', variante: 'attente', couleurGraphique: '#c98a0b' },
   { code: 'en_attente', libelle: 'En attente', libellePluriel: 'En attente', variante: 'bleu-gris', couleurGraphique: '#5f7a96' },
   { code: 'validee', libelle: 'Validée', libellePluriel: 'Validées', variante: 'succes', couleurGraphique: '#0ca30c' },
   { code: 'rejetee', libelle: 'Rejetée', libellePluriel: 'Rejetées', variante: 'echec', couleurGraphique: '#d03b3b' },
 ];
 
-// Statut d'une demande à sa création (file « À traiter » par défaut), miroir de STATUT_INITIAL côté
-// serveur (backend/src/core/dpae/statutsDpae.js).
+// Statut d'une demande à sa création quand elle part directement à la RH (file « À traiter » par
+// défaut), miroir de STATUT_INITIAL côté serveur (backend/src/core/dpae/statutsDpae.js).
 export const STATUT_INITIAL = 'envoyee';
+
+// Statuts d'avant l'envoi à la RH (chez le Planning) : la RH ne les voit nulle part. Miroir de
+// STATUTS_AVANT_RH côté serveur.
+export const STATUTS_AVANT_RH = ['a_valider_planning', 'renvoyee_inspecteur'];
+
+// Statuts proposés à un rôle : tous, sauf ceux d'avant la RH quand il n'a pas dpaeVoitFilePlanning
+// (la RH). Le serveur reste seul juge.
+export const statutsVisibles = (voitFilePlanning) =>
+  voitFilePlanning ? STATUTS_DPAE : STATUTS_DPAE.filter((statut) => !STATUTS_AVANT_RH.includes(statut.code));
 
 export const ACTION_METTRE_EN_ATTENTE = 'mettre_en_attente';
 export const ACTION_VALIDER = 'valider';
 export const ACTION_REJETER = 'rejeter';
 export const ACTION_MODIFIER = 'modifier';
+export const ACTION_TRANSMETTRE_RH = 'transmettre_rh';
+export const ACTION_RENVOYER_INSPECTEUR = 'renvoyer_inspecteur';
 
 // Transitions autorisées (action, statut de départ, statut d'arrivée) — MIROIR de la table du serveur
 // (backend/src/core/dpae/statutsDpae.js), qui reste seule juge : ici elles ne servent qu'à décider
@@ -31,7 +44,13 @@ export const TRANSITIONS_DPAE = [
   { action: ACTION_VALIDER, de: 'en_attente', vers: 'validee' },
   { action: ACTION_REJETER, de: 'envoyee', vers: 'rejetee' },
   { action: ACTION_REJETER, de: 'en_attente', vers: 'rejetee' },
-  // Modification par le demandeur : « À traiter » reste « À traiter », « En attente » repasse « À traiter ».
+  // Passage par le Planning.
+  { action: ACTION_TRANSMETTRE_RH, de: 'a_valider_planning', vers: 'envoyee' },
+  { action: ACTION_RENVOYER_INSPECTEUR, de: 'a_valider_planning', vers: 'renvoyee_inspecteur' },
+  // Modification par le demandeur : « À traiter » reste « À traiter », « En attente » repasse « À
+  // traiter », « Renvoyée à l'inspecteur » repasse « À valider par le Planning ».
+  { action: ACTION_MODIFIER, de: 'a_valider_planning', vers: 'a_valider_planning' },
+  { action: ACTION_MODIFIER, de: 'renvoyee_inspecteur', vers: 'a_valider_planning' },
   { action: ACTION_MODIFIER, de: 'envoyee', vers: 'envoyee' },
   { action: ACTION_MODIFIER, de: 'en_attente', vers: 'envoyee' },
 ];

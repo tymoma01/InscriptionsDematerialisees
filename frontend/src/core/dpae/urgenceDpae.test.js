@@ -54,10 +54,11 @@ test('Texte court en jours calendaires (« J-5 », « J-2 », « Jour J ») et d
   expect(calculerUrgence(demande({ heure_arrivee_j1: null }), new Date(2026, 9, 5)).infoBulle).toMatch(/à 00h00 \(heure d'arrivée non renseignée\)$/);
 });
 
-test('Pastille seulement pour « À traiter » et « En attente » ; aucune pour Validée, Rejetée ou sans premier jour', () => {
+test('Pastille pour les quatre statuts non décidés (dont « À valider par le Planning » et « Renvoyée à l’inspecteur ») ; aucune pour Validée, Rejetée ou sans premier jour', () => {
   const maintenant = avant(10 * HEURE);
-  expect(calculerUrgence(demande({ statut: 'envoyee' }), maintenant)).toBeTruthy();
-  expect(calculerUrgence(demande({ statut: 'en_attente' }), maintenant)).toBeTruthy();
+  for (const statut of ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente']) {
+    expect(calculerUrgence(demande({ statut }), maintenant), statut).toBeTruthy();
+  }
   expect(calculerUrgence(demande({ statut: 'validee' }), maintenant)).toBe(null);
   expect(calculerUrgence(demande({ statut: 'rejetee' }), maintenant)).toBe(null);
   expect(calculerUrgence(demande({ date_debut: null }), maintenant)).toBe(null);
