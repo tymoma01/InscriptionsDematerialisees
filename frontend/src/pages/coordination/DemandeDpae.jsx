@@ -15,6 +15,7 @@ import {
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
+import SelecteurSitesJour from './SelecteurSitesJour';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
 import './DemandeDpae.css';
 
@@ -453,8 +454,8 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
               <span>Entité</span>
               <select value={donnees.division} onChange={(e) => definir('division', e.target.value)}>
                 <option value="">Choisir…</option>
-                <option value="acchot">ACCHOT</option>
-                <option value="rm">RM</option>
+                <option value="hotellerie">Hôtellerie</option>
+                <option value="tertiaire">Tertiaire</option>
                 <option value="autre">Autre</option>
               </select>
             </label>
@@ -722,18 +723,13 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                     </button>
                     {enTravail && plusieursSites && (
                       <div className="page-demande-dpae__carte-jour-site" ref={refChamp(`semaine:${jour.jour}`)}>
-                        <select
-                          aria-label={`Site du ${libelle.toLowerCase()}`}
-                          value={jour.siteId ?? ''}
-                          onChange={(e) => definirJourSemaine(index, e.target.value ? { siteId: Number(e.target.value) } : { siteId: undefined })}
-                        >
-                          <option value="">Site…</option>
-                          {sitesSelectionnes.map((site) => (
-                            <option key={site.id} value={site.id}>
-                              {site.nom} ({site.initiales})
-                            </option>
-                          ))}
-                        </select>
+                        <SelecteurSitesJour
+                          sites={sitesSelectionnes}
+                          selection={jour.siteIds ?? []}
+                          onChanger={(ids) => definirJourSemaine(index, { siteIds: ids.length > 0 ? ids : undefined })}
+                          libelleJour={libelle.toLowerCase()}
+                          invalide={Boolean(messageErreur(`semaine:${jour.jour}`))}
+                        />
                         {erreurChamp(`semaine:${jour.jour}`)}
                       </div>
                     )}

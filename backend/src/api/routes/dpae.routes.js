@@ -30,17 +30,31 @@ function enumOptionnel(valeurs) {
 }
 
 // Semaine type : jours connus, sans doublon, horaires « HH:MM » (ou vides), et — pour un jour travaillé
-// — l'identifiant du site d'affectation (siteId). Que le site appartienne bien aux sites de la
-// demande, et soit obligatoire quand il y en a plusieurs, est vérifié par verifierReglesDemande.
+// — la LISTE des identifiants de ses sites d'affectation (siteIds, sans doublon). Que chaque site
+// appartienne bien aux sites de la demande, et qu'il y en ait au moins un quand la demande en compte
+// plusieurs, est vérifié par verifierReglesDemande. L'ancienne forme à un seul `siteId` est acceptée et
+// convertie en liste d'un élément.
+// Ancienne forme d'un jour : un seul `siteId` -> `siteIds: [siteId]` (le jour reste lisible et
+// modifiable).
+function convertirSiteIdUnique(jour) {
+  if (!jour || typeof jour !== 'object' || !('siteId' in jour)) return jour;
+  const { siteId, ...reste } = jour;
+  if (reste.siteIds !== undefined || siteId === '' || siteId === null || siteId === undefined) return reste;
+  return { ...reste, siteIds: [siteId] };
+}
 const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const heureSchema = z.union([z.literal(''), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide : format HH:MM attendu.')]).optional();
-const jourSemaineSchema = z.object({
+const siteIdsSchema = z
+  .array(idPositifSchema)
+  .refine((ids) => new Set(ids).size === ids.length, { message: 'Un même site ne peut pas être sélectionné deux fois pour un jour.' })
+  .optional();
+const jourSemaineSchema = z.preprocess(convertirSiteIdUnique, z.object({
   jour: z.enum(JOURS_SEMAINE),
   statut: z.enum(['travail', 'repos']),
   heureDebut: heureSchema,
   heureFin: heureSchema,
-  siteId: z.preprocess((valeur) => (valeur === '' || valeur === null ? undefined : valeur), idPositifSchema.optional()),
-});
+  siteIds: siteIdsSchema,
+}));
 const semaineTypeSchema = z
   .array(jourSemaineSchema)
   .max(7)
@@ -91,7 +105,7 @@ const demandeBaseSchema = z.object({
   salarieRemplaceNom: z.string().trim().optional(),
   dateFinAbsence: z.string().trim().optional(),
   raisonSurcroit: z.string().trim().optional(),
-  division: enumOptionnel(['acchot', 'rm', 'autre']),
+  division: enumOptionnel(['hotellerie', 'tertiaire', 'autre']),
   divisionAutre: z.string().trim().optional(),
   poste: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le poste est obligatoire.')),
   posteAutre: z.string().trim().optional(),
@@ -128,8 +142,8 @@ const FORMAT_JOUR = /^\d{4}-\d{2}-\d{2}$/;
 //  - « Nom du salarié remplacé » obligatoire UNIQUEMENT pour un CDD de remplacement (règle croisée,
 //    d'où ce contrôle ici plutôt qu'un min(1) sur le champ). La date de fin d'absence reste facultative.
 //  - CDD : raison du CDD et dernier jour obligatoires ; le dernier jour ne peut pas précéder le premier.
-//  - Semaine type : le site d'un jour est l'un des sites de la demande ; avec plusieurs sites, il est
-//    obligatoire pour chaque jour travaillé (avec un seul, normaliserDemande l'attribue).
+//  - Semaine type : les sites d'un jour sont des sites de la demande ; avec plusieurs sites, au moins un
+//    est obligatoire pour chaque jour travaillé (avec un seul, normaliserDemande l'attribue).
 function verifierReglesDemande(demande, ctx) {
   const refuser = (path, message) => ctx.addIssue({ code: 'custom', path, message });
 
@@ -148,16 +162,17 @@ function verifierReglesDemande(demande, ctx) {
   const sitesIds = demande.sitesAffectationIds ?? [];
   (demande.semaineType ?? []).forEach((jour, index) => {
     if (jour.statut !== 'travail') return;
-    if (jour.siteId !== undefined && !sitesIds.includes(jour.siteId)) {
-      refuser(['semaineType', index, 'siteId'], 'Le site d’un jour doit faire partie des sites d’affectation de la demande.');
-    } else if (jour.siteId === undefined && sitesIds.length > 1) {
-      refuser(['semaineType', index, 'siteId'], 'Le site est obligatoire pour chaque jour travaillé.');
+    const sitesDuJour = jour.siteIds ?? [];
+    if (sitesDuJour.some((id) => !sitesIds.includes(id))) {
+      refuser(['semaineType', index, 'siteIds'], 'Les sites d’un jour doivent faire partie des sites d’affectation de la demande.');
+    } else if (sitesDuJour.length === 0 && sitesIds.length > 1) {
+      refuser(['semaineType', index, 'siteIds'], 'Au moins un site est obligatoire pour chaque jour travaillé.');
     }
   });
 }
 
 // Forme enregistrée (appliquée par les routes après validation) : pour un CDI, les champs propres au CDD ne sont pas conservés ; dans la semaine
-// type, un jour de repos n'a pas de site et, avec un seul site, chaque jour travaillé reçoit ce site.
+// type, un jour de repos n'a pas de site et, avec un seul site, chaque jour travaillé reçoit ce site (liste).
 function normaliserDemande(demande) {
   const donnees = { ...demande };
   if (donnees.typeContrat === 'cdi') {
@@ -165,10 +180,10 @@ function normaliserDemande(demande) {
   }
   if (donnees.semaineType) {
     const sitesIds = donnees.sitesAffectationIds ?? [];
-    donnees.semaineType = donnees.semaineType.map(({ siteId, ...jour }) => {
+    donnees.semaineType = donnees.semaineType.map(({ siteIds, ...jour }) => {
       if (jour.statut !== 'travail') return jour;
-      const site = sitesIds.length === 1 ? sitesIds[0] : siteId;
-      return site === undefined ? jour : { ...jour, siteId: site };
+      const sites = sitesIds.length === 1 ? sitesIds : siteIds;
+      return sites === undefined || sites.length === 0 ? jour : { ...jour, siteIds: sites };
     });
   }
   return donnees;

@@ -94,7 +94,11 @@ test("POST /api/dpae : l'ancien champ texte hotel n'est plus exigé (toléré s'
 test("POST /api/dpae : le champ Entité (division) reste facultatif (inchangé)", () => {
   assert.equal(demandeBodySchema.safeParse(DEMANDE_VALIDE).success, true);
   assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: '' }).success, true);
-  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: 'acchot' }).success, true);
+  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: 'hotellerie' }).success, true);
+  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: 'tertiaire' }).success, true);
+  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: 'autre' }).success, true);
+  // Anciens codes : plus acceptés (convertis par la migration 080).
+  for (const ancien of ['acchot', 'rm']) assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, division: ancien }).success, false, ancien);
 });
 
 // "Nom du salarié remplacé" obligatoire uniquement pour un CDD de remplacement.
@@ -1073,36 +1077,70 @@ test('Semaine type : jour inconnu, doublon, statut inconnu et heure invalide ref
   assert.equal(valide.success, true);
 });
 
-test('Semaine type, un seul site : le site est attribué à chaque jour travaillé ; les jours de repos n’en ont pas', () => {
+test('Semaine type, un seul site : la liste du jour est le site unique pour chaque jour travaillé ; les jours de repos n’en ont pas', () => {
   const { normaliserDemande } = dpaeRouter;
-  const resultat = demandeBodySchema.parse(demandeAvecSemaine([jour('lundi'), jour('mardi', { statut: 'repos', siteId: 10 }), jour('mercredi', { siteId: 10 })], [10]));
+  const resultat = demandeBodySchema.parse(demandeAvecSemaine([jour('lundi'), jour('mardi', { statut: 'repos', siteIds: [10] }), jour('mercredi', { siteIds: [10] })], [10]));
   const [lundi, mardi, mercredi] = normaliserDemande(resultat).semaineType;
-  assert.equal(lundi.siteId, 10);
-  assert.equal('siteId' in mardi, false);
-  assert.equal(mercredi.siteId, 10);
+  assert.deepEqual(lundi.siteIds, [10]);
+  assert.equal('siteIds' in mardi, false);
+  assert.deepEqual(mercredi.siteIds, [10]);
 });
 
-test('Semaine type, plusieurs sites : site obligatoire pour chaque jour travaillé, pas pour un jour de repos', () => {
-  const sites = [10, 11];
-  const manquant = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteId: 10 }), jour('mardi')], sites));
-  assert.equal(manquant.success, false);
-  const issue = manquant.error.issues.find((i) => i.path[0] === 'semaineType');
-  assert.deepEqual(issue.path, ['semaineType', 1, 'siteId']);
-  assert.equal(issue.message, 'Le site est obligatoire pour chaque jour travaillé.');
-  assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteId: 11 }), jour('mardi', { statut: 'repos' })], sites)).success, true);
-  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi')], sites), version: 1 }).success, false);
+test('Semaine type, plusieurs sites : un jour peut avoir plusieurs sites (liste conservée dans l’ordre)', () => {
+  const { normaliserDemande } = dpaeRouter;
+  const resultat = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteIds: [11, 10] }), jour('mardi', { siteIds: [10] })], [10, 11, 12]));
+  assert.equal(resultat.success, true);
+  assert.deepEqual(normaliserDemande(resultat.data).semaineType.map((j) => j.siteIds), [[11, 10], [10]]);
+  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteIds: [10, 11] })], [10, 11]), version: 1 }).success, true);
 });
 
-test('Semaine type : site hors des sites de la demande refusé par le serveur (création et modification)', () => {
-  for (const sites of [[10], [10, 11]]) {
-    const resultat = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteId: 99 })], sites));
+test('Semaine type : un même site deux fois pour un jour -> refus', () => {
+  for (const schema of [demandeBodySchema, modificationBodySchema]) {
+    const resultat = schema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteIds: [10, 10] })], [10, 11]), version: 1 });
     assert.equal(resultat.success, false);
     assert.equal(
       resultat.error.issues.find((i) => i.path[0] === 'semaineType').message,
-      'Le site d’un jour doit faire partie des sites d’affectation de la demande.',
+      'Un même site ne peut pas être sélectionné deux fois pour un jour.',
     );
-    assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteId: 99 })], sites), version: 1 }).success, false);
   }
+});
+
+test('Semaine type, plusieurs sites : au moins un site pour chaque jour travaillé (absent ou liste vide -> refus), pas pour un jour de repos', () => {
+  const sites = [10, 11];
+  for (const sansSite of [jour('mardi'), jour('mardi', { siteIds: [] })]) {
+    const manquant = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteIds: [10] }), sansSite], sites));
+    assert.equal(manquant.success, false);
+    const issue = manquant.error.issues.find((i) => i.path[0] === 'semaineType');
+    assert.deepEqual(issue.path, ['semaineType', 1, 'siteIds']);
+    assert.equal(issue.message, 'Au moins un site est obligatoire pour chaque jour travaillé.');
+  }
+  assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteIds: [11] }), jour('mardi', { statut: 'repos' })], sites)).success, true);
+  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi')], sites), version: 1 }).success, false);
+});
+
+test('Semaine type : un site hors des sites de la demande refusé par le serveur, même mêlé à des sites valides (création et modification)', () => {
+  for (const sites of [[10], [10, 11]]) {
+    for (const siteIds of [[99], [10, 99]]) {
+      const resultat = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { siteIds })], sites));
+      assert.equal(resultat.success, false, JSON.stringify(siteIds));
+      assert.equal(
+        resultat.error.issues.find((i) => i.path[0] === 'semaineType').message,
+        'Les sites d’un jour doivent faire partie des sites d’affectation de la demande.',
+      );
+      assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteIds })], sites), version: 1 }).success, false);
+    }
+  }
+});
+
+test('Semaine type : ancienne forme à un seul siteId toujours acceptée et convertie en liste d’un élément', () => {
+  const { normaliserDemande } = dpaeRouter;
+  const resultat = modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteId: 11 })], [10, 11]), version: 1 });
+  assert.equal(resultat.success, true);
+  const [lundi] = normaliserDemande(resultat.data).semaineType;
+  assert.deepEqual(lundi.siteIds, [11]);
+  assert.equal('siteId' in lundi, false);
+  // Un ancien siteId hors sélection reste refusé.
+  assert.equal(modificationBodySchema.safeParse({ ...demandeAvecSemaine([jour('lundi', { siteId: 99 })], [10, 11]), version: 1 }).success, false);
 });
 
 test('Semaine type : demande existante sans site par jour acceptée avec un seul site (attribué), refusée avec plusieurs à la prochaine modification', () => {

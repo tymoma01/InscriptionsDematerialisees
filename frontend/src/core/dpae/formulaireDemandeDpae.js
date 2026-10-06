@@ -13,26 +13,28 @@ export const JOURS_SEMAINE = [
   { code: 'dimanche', libelle: 'Dimanche' },
 ];
 
-// Site d'affectation de chaque jour de la semaine type (`siteId`, ajouté au JSON existant) :
+// Sites d'affectation de chaque jour de la semaine type (`siteIds`, LISTE d'identifiants ajoutée au
+// JSON existant ; l'ancienne forme à un seul `siteId` est lue comme une liste d'un élément) :
 //  - jour de repos : aucun site ;
 //  - un seul site sélectionné : il est attribué à tous les jours travaillés (aucune liste à remplir) ;
-//  - plusieurs sites : le site choisi est conservé s'il fait toujours partie de la sélection, sinon il
-//    est vidé (le jour redevient « à choisir »).
+//  - plusieurs sites : seuls les sites du jour qui font toujours partie de la sélection sont conservés
+//    (un site retiré de la demande est retiré des jours qui l'utilisaient) ; un jour sans aucun site
+//    n'a plus de clé `siteIds` (il redevient « à choisir »).
 // Ne modifie pas la semaine reçue.
 export function affecterSitesSemaine(semaineType, sitesIds) {
-  return semaineType.map(({ siteId, ...jour }) => {
+  return semaineType.map(({ siteId, siteIds, ...jour }) => {
     if (jour.statut !== 'travail') return jour;
-    const site = sitesIds.length === 1 ? sitesIds[0] : sitesIds.includes(siteId) ? siteId : null;
-    return site === null ? jour : { ...jour, siteId: site };
+    const sites = sitesIds.length === 1 ? sitesIds : (siteIds ?? (siteId ? [siteId] : [])).filter((id) => sitesIds.includes(id));
+    return sites.length === 0 ? jour : { ...jour, siteIds: sites };
   });
 }
 
-// Jours travaillés dont le site vient d'être vidé parce qu'il a été retiré de la sélection (et qu'il
-// reste plusieurs sites à choisir) : à signaler en erreur.
+// Jours travaillés qui se retrouvent SANS site parce que leurs sites ont été retirés de la sélection (et
+// qu'il reste plusieurs sites à choisir) : à signaler en erreur.
 export function joursPrivesDeSite(ancienneSemaine, nouvelleSemaine, sitesIds) {
   if (sitesIds.length < 2) return [];
   return nouvelleSemaine
-    .filter((jour, index) => jour.statut === 'travail' && jour.siteId === undefined && ancienneSemaine[index]?.siteId !== undefined)
+    .filter((jour, index) => jour.statut === 'travail' && !jour.siteIds?.length && ancienneSemaine[index]?.siteIds?.length > 0)
     .map((jour) => jour.jour);
 }
 
@@ -116,8 +118,9 @@ export function donneesFormulaireDepuisDemande(demande) {
       statut: jour?.statut === 'travail' ? 'travail' : 'repos',
       heureDebut: jour?.heureDebut ?? '',
       heureFin: jour?.heureFin ?? '',
-      // Demande antérieure au site par jour : aucun siteId (rien n'est inventé).
-      ...(jour?.siteId ? { siteId: jour.siteId } : {}),
+      // Ancienne forme (un seul siteId) convertie en liste ; demande antérieure au site par jour :
+      // aucun site (rien n'est inventé).
+      ...(jour?.siteIds?.length ? { siteIds: jour.siteIds } : jour?.siteId ? { siteIds: [jour.siteId] } : {}),
     };
   });
   const sitesAffectationIds = (demande.sites_affectation ?? []).map((site) => site.id);
@@ -190,8 +193,8 @@ export function validerFormulaire(donnees) {
   }
   if (donnees.sitesAffectationIds.length > 1) {
     for (const jour of donnees.semaineType) {
-      if (jour.statut === 'travail' && !donnees.sitesAffectationIds.includes(jour.siteId)) {
-        refuser(`semaine:${jour.jour}`, 'Le site est obligatoire pour ce jour.');
+      if (jour.statut === 'travail' && !(jour.siteIds ?? []).some((id) => donnees.sitesAffectationIds.includes(id))) {
+        refuser(`semaine:${jour.jour}`, 'Au moins un site est obligatoire pour ce jour.');
       }
     }
   }

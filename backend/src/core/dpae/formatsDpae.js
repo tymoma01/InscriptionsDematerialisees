@@ -22,12 +22,26 @@ function formaterHeuresParMois(valeur) {
   return `${FORMAT_NOMBRE_HEURES.format(nombre)} h`;
 }
 
-// Site d'affectation d'un jour de la semaine type, « AIGLON (AIG) » : le site est cherché par son
-// identifiant (`siteId` du jour) parmi les sites de la demande. Demande antérieure à la saisie du site
-// par jour, ou site introuvable : null (l'appelant affiche « Non précisé »).
-function libelleSiteJour(jour, sitesAffectation) {
-  const site = (sitesAffectation ?? []).find((candidat) => candidat.id === jour?.siteId);
-  return site ? `${site.nom} (${site.initiales})` : null;
+// Sites d'affectation d'un jour de la semaine type : liste des libellés « NOM (INITIALES) » des sites
+// du jour (`siteIds`, cherchés par identifiant parmi les sites de la demande, dans l'ordre de la
+// liste). L'ancienne forme à un seul `siteId` est lue comme une liste d'un élément. Demande antérieure
+// à la saisie du site par jour, ou site introuvable : liste vide (l'appelant affiche « Non précisé »).
+function libellesSitesJour(jour, sitesAffectation) {
+  const ids = jour?.siteIds ?? (jour?.siteId ? [jour.siteId] : []);
+  return ids
+    .map((id) => (sitesAffectation ?? []).find((site) => site.id === id))
+    .filter(Boolean)
+    .map((site) => `${site.nom} (${site.initiales})`);
 }
 
-module.exports = { formaterHeure, formaterHeuresParMois, libelleSiteJour };
+// Libellé de la liste « Entité » d'une demande : « Hôtellerie » ou « Tertiaire » (codes stockés
+// `hotellerie` et `tertiaire`) ; « Autre » est remplacé par la précision saisie (`divisionAutre`). Valeur
+// inattendue : renvoyée telle quelle (jamais masquée) ; absente : null.
+const LIBELLE_PAR_DIVISION = { hotellerie: 'Hôtellerie', tertiaire: 'Tertiaire' };
+function libelleDivision(division, divisionAutre) {
+  if (!division) return null;
+  if (division === 'autre') return divisionAutre || null;
+  return LIBELLE_PAR_DIVISION[division] ?? division;
+}
+
+module.exports = { formaterHeure, formaterHeuresParMois, libellesSitesJour, libelleDivision };

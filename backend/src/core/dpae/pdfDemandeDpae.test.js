@@ -174,7 +174,7 @@ test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ 
 });
 
 test('PDF généré : document PDF A4, quelle que soit l’entité (même bandeau), 4 sites et toutes les sections', async () => {
-  for (const division of ['acchot', 'rm', null]) {
+  for (const division of ['hotellerie', 'tertiaire', null]) {
     const pdf = await genererPdfDemande(
       demande({ division, sites_affectation: QUATRE_SITES, modifications_demandees: true, autre_chose_signaler: 'x'.repeat(2000) }),
       { dateGeneration: new Date('2026-10-02T08:45:00Z') },
@@ -243,26 +243,29 @@ test('Une section sans aucune ligne n’est pas affichée (sections vides ignor�
   assert.ok(pages >= 2 && pages <= 4, `pages : ${pages}`);
 });
 
-test('Semaine type : colonne « Site » après « Horaires », au format « NOM (INITIALES) » ; « Non précisé » pour une demande sans site par jour', () => {
+test('Semaine type : colonne « Site » après « Horaires », tous les sites du jour au format « NOM (INITIALES) » ; « Non précisé » pour une demande sans site par jour', () => {
   const sites = [{ id: 51, nom: 'AIGLON', initiales: 'AIG' }, { id: 52, nom: 'ALBE', initiales: 'AL' }];
   const tableau = section(
     sectionsDemande(
       demande({
         sites_affectation: sites,
         semaine_type: [
-          { jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteId: 51 },
+          { jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteIds: [51] },
           { jour: 'mardi', statut: 'repos' },
-          { jour: 'jeudi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteId: 52 },
+          { jour: 'jeudi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteIds: [52, 51] },
           { jour: 'vendredi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00' },
+          // Ancienne forme à un seul siteId : toujours lisible.
+          { jour: 'samedi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteId: 52 },
         ],
       }),
     ),
     'Semaine type',
   ).tableau;
   assert.deepEqual(tableau, [
-    ['Lundi', 'de 08h00 à 15h00', 'AIGLON (AIG)'],
-    ['Jeudi', 'de 09h00 à 17h00', 'ALBE (AL)'],
+    ['Lundi', 'de 08h00 à 15h00', ['AIGLON (AIG)']],
+    ['Jeudi', 'de 09h00 à 17h00', ['ALBE (AL)', 'AIGLON (AIG)']],
     ['Vendredi', 'de 09h00 à 17h00', 'Non précisé'],
+    ['Samedi', 'de 09h00 à 17h00', ['ALBE (AL)']],
   ]);
 });
 
@@ -284,9 +287,17 @@ test('PDF généré avec la colonne Site et le nombre de jours : document valide
     demande({
       sites_affectation: QUATRE_SITES,
       date_fin: new Date('2026-10-16T22:00:00Z'),
-      semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteId: 52 }],
+      semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteIds: [52, 53] }],
     }),
     { dateGeneration: new Date('2026-10-02T08:45:00Z') },
   );
   assert.equal(pdf.subarray(0, 5).toString('latin1'), '%PDF-');
+});
+
+test('Entité : « Hôtellerie », « Tertiaire », ou la précision pour « Autre » ; aucune ligne si absente', () => {
+  const entite = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes.find(([libelle]) => libelle === 'Entité');
+  assert.deepEqual(entite({ division: 'hotellerie' }), ['Entité', 'Hôtellerie']);
+  assert.deepEqual(entite({ division: 'tertiaire' }), ['Entité', 'Tertiaire']);
+  assert.deepEqual(entite({ division: 'autre', division_autre: 'Siège' }), ['Entité', 'Siège']);
+  assert.equal(entite({ division: null }), undefined);
 });

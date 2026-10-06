@@ -102,31 +102,40 @@ describe('donneesFormulaireDepuisDemande', () => {
   });
 });
 
-const jourTravaille = (jour, siteId) => ({ jour, statut: 'travail', heureDebut: '08:00', heureFin: '15:00', ...(siteId ? { siteId } : {}) });
-const jourRepos = (jour, siteId) => ({ jour, statut: 'repos', heureDebut: '', heureFin: '', ...(siteId ? { siteId } : {}) });
+const jourTravaille = (jour, siteIds) => ({ jour, statut: 'travail', heureDebut: '08:00', heureFin: '15:00', ...(siteIds ? { siteIds } : {}) });
+const jourRepos = (jour, siteIds) => ({ jour, statut: 'repos', heureDebut: '', heureFin: '', ...(siteIds ? { siteIds } : {}) });
 
 describe('affecterSitesSemaine', () => {
-  const semaine = [jourTravaille('lundi', 10), jourRepos('mardi', 10), jourTravaille('mercredi'), jourTravaille('jeudi', 11)];
+  const semaine = [jourTravaille('lundi', [10, 11]), jourRepos('mardi', [10]), jourTravaille('mercredi'), jourTravaille('jeudi', [11])];
+  const sitesDe = (resultat) => resultat.map((jour) => jour.siteIds);
 
   it('un seul site : attribué à tous les jours travaillés, jamais aux jours de repos', () => {
-    const resultat = affecterSitesSemaine(semaine, [12]);
-    expect(resultat.map((jour) => jour.siteId)).toEqual([12, undefined, 12, 12]);
+    expect(sitesDe(affecterSitesSemaine(semaine, [12]))).toEqual([[12], undefined, [12], [12]]);
   });
 
-  it('plusieurs sites : le site choisi est conservé ; un jour sans site reste à choisir ; un repos n’a pas de site', () => {
-    const resultat = affecterSitesSemaine(semaine, [10, 11]);
-    expect(resultat.map((jour) => jour.siteId)).toEqual([10, undefined, undefined, 11]);
+  it('plusieurs sites : les sites choisis sont conservés (plusieurs par jour) ; un jour sans site reste à choisir ; un repos n’en a pas', () => {
+    expect(sitesDe(affecterSitesSemaine(semaine, [10, 11]))).toEqual([[10, 11], undefined, undefined, [11]]);
   });
 
-  it('un site retiré de la sélection : les jours qui l’utilisaient sont vidés', () => {
+  it('un site retiré de la sélection est retiré des jours qui l’utilisaient ; un jour sans site est signalé', () => {
     const resultat = affecterSitesSemaine(semaine, [11, 12]);
-    expect(resultat.map((jour) => jour.siteId)).toEqual([undefined, undefined, undefined, 11]);
-    expect(joursPrivesDeSite(semaine, resultat, [11, 12])).toEqual(['lundi']);
+    expect(sitesDe(resultat)).toEqual([[11], undefined, undefined, [11]]);
+    expect(joursPrivesDeSite(semaine, resultat, [11, 12])).toEqual([]);
+    const sansLeSeulSite = affecterSitesSemaine(semaine, [10, 12]);
+    expect(sitesDe(sansLeSeulSite)).toEqual([[10], undefined, undefined, undefined]);
+    expect(joursPrivesDeSite(semaine, sansLeSeulSite, [10, 12])).toEqual(['jeudi']);
   });
 
   it('aucun jour signalé quand il ne reste qu’un site (attribué automatiquement) ou aucun', () => {
-    expect(joursPrivesDeSite(semaine, affecterSitesSemaine(semaine, [11]), [11])).toEqual([]);
+    expect(joursPrivesDeSite(semaine, affecterSitesSemaine(semaine, [12]), [12])).toEqual([]);
     expect(joursPrivesDeSite(semaine, affecterSitesSemaine(semaine, []), [])).toEqual([]);
+  });
+
+  it('ancienne forme à un seul siteId : lue comme une liste d’un élément', () => {
+    const ancienne = [{ jour: 'lundi', statut: 'travail', heureDebut: '', heureFin: '', siteId: 11 }];
+    const resultat = affecterSitesSemaine(ancienne, [10, 11]);
+    expect(resultat[0].siteIds).toEqual([11]);
+    expect('siteId' in resultat[0]).toBe(false);
   });
 
   it('ne modifie pas la semaine reçue', () => {
@@ -136,21 +145,30 @@ describe('affecterSitesSemaine', () => {
   });
 });
 
-describe('donneesFormulaireDepuisDemande : site par jour', () => {
-  it('reprend le site de chaque jour ; une demande sans site par jour reste lisible (aucun siteId inventé avec plusieurs sites)', () => {
+describe('donneesFormulaireDepuisDemande : sites par jour', () => {
+  it('reprend la liste de sites de chaque jour ; une demande sans site par jour reste lisible', () => {
     const avec = donneesFormulaireDepuisDemande({
+      ...DEMANDE,
+      semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '07:00', heureFin: '15:00', siteIds: [10, 11] }],
+    });
+    expect(avec.semaineType[0].siteIds).toEqual([10, 11]);
+    const sans = donneesFormulaireDepuisDemande(DEMANDE);
+    expect(sans.semaineType.every((jour) => !('siteIds' in jour))).toBe(true);
+  });
+
+  it('demande enregistrée avec un seul siteId par jour : convertie en liste d’un élément', () => {
+    const donnees = donneesFormulaireDepuisDemande({
       ...DEMANDE,
       semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '07:00', heureFin: '15:00', siteId: 11 }],
     });
-    expect(avec.semaineType[0].siteId).toBe(11);
-    const sans = donneesFormulaireDepuisDemande(DEMANDE);
-    expect(sans.semaineType.every((jour) => !('siteId' in jour))).toBe(true);
+    expect(donnees.semaineType[0].siteIds).toEqual([11]);
+    expect('siteId' in donnees.semaineType[0]).toBe(false);
   });
 
   it('un seul site : attribué aux jours travaillés dès le chargement', () => {
     const donnees = donneesFormulaireDepuisDemande({ ...DEMANDE, sites_affectation: [{ id: 10, nom: 'AIGLON', initiales: 'AIG' }] });
-    expect(donnees.semaineType.filter((jour) => jour.statut === 'travail').every((jour) => jour.siteId === 10)).toBe(true);
-    expect(donnees.semaineType.filter((jour) => jour.statut === 'repos').every((jour) => !('siteId' in jour))).toBe(true);
+    expect(donnees.semaineType.filter((jour) => jour.statut === 'travail').every((jour) => jour.siteIds?.[0] === 10)).toBe(true);
+    expect(donnees.semaineType.filter((jour) => jour.statut === 'repos').every((jour) => !('siteIds' in jour))).toBe(true);
   });
 });
 
@@ -197,11 +215,12 @@ describe('validerFormulaire (mêmes messages que le serveur)', () => {
     expect(validerFormulaire(vide).map((erreur) => erreur.champ)).toEqual(['salarieDejaEmploye', 'sites', 'motifCdd', 'poste', 'dateDebut', 'dateFin']);
   });
 
-  it('site par jour : un seul site, rien à choisir ; plusieurs sites, obligatoire pour chaque jour travaillé (pas pour un repos)', () => {
+  it('sites par jour : un seul site, rien à choisir ; plusieurs sites, au moins un pour chaque jour travaillé (pas pour un repos)', () => {
     const base = complet();
     expect(validerFormulaire({ ...base, semaineType: [jourTravaille('lundi')] })).toEqual([]);
-    const plusieurs = { ...base, sitesAffectationIds: [10, 11], semaineType: [jourTravaille('lundi', 10), jourTravaille('mardi'), jourRepos('mercredi'), jourTravaille('jeudi', 99)] };
-    expect(messages(plusieurs)).toEqual({ 'semaine:mardi': 'Le site est obligatoire pour ce jour.', 'semaine:jeudi': 'Le site est obligatoire pour ce jour.' });
-    expect(validerFormulaire({ ...plusieurs, semaineType: [jourTravaille('lundi', 10), jourTravaille('mardi', 11), jourRepos('mercredi')] })).toEqual([]);
+    const plusieurs = { ...base, sitesAffectationIds: [10, 11], semaineType: [jourTravaille('lundi', [10]), jourTravaille('mardi'), jourRepos('mercredi'), jourTravaille('jeudi', [99])] };
+    const attendu = 'Au moins un site est obligatoire pour ce jour.';
+    expect(messages(plusieurs)).toEqual({ 'semaine:mardi': attendu, 'semaine:jeudi': attendu });
+    expect(validerFormulaire({ ...plusieurs, semaineType: [jourTravaille('lundi', [10, 11]), jourTravaille('mardi', [11]), jourRepos('mercredi')] })).toEqual([]);
   });
 });
