@@ -17,7 +17,9 @@ import {
 } from '../../core/dpae/indicateursTableauDeBordDpae';
 import '../tableauDeBord/Indicateurs.css';
 import './TableauDeBordDpae.css';
-import { STATUTS_DPAE, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import { libelleStatutDpae, statutsVisibles, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import { useSession } from '../../core/auth/useSession';
+import { peut } from '../../core/auth/permissions';
 
 // « Tableau de bord DPAE » (onglet RH > Tableau de bord DPAE, 2026-09-30). Indicateurs calculés côté
 // serveur (GET /api/dpae/tableau-de-bord, en base, heure de Paris) ; cette page ne fait qu'afficher.
@@ -234,6 +236,11 @@ export default function TableauDeBordDpae() {
   };
 
   const t = donnees;
+  // Statuts proposés (filtre, tuiles, graphique) : la RH ne voit pas les demandes encore chez le
+  // Planning (le serveur les exclut aussi de tous les indicateurs) ; l'Admin et le Planning ont en plus
+  // la tuile « À valider par le Planning ».
+  const { utilisateur } = useSession();
+  const statutsAffiches = statutsVisibles(peut(utilisateur, 'dpaeVoitFilePlanning'));
   // Demandes distinctes (une demande dans les deux listes compte une fois), calculé côté serveur.
   const nombrePriorites = t ? t.priorite.nombre : 0;
 
@@ -348,7 +355,7 @@ export default function TableauDeBordDpae() {
             <span>Statut</span>
             <select value={statut} onChange={(e) => setStatut(e.target.value)}>
               <option value="">Tous</option>
-              {STATUTS_DPAE.map((s) => (
+              {statutsAffiches.map((s) => (
                 <option key={s.code} value={s.code}>
                   {s.libelle}
                 </option>
@@ -388,7 +395,7 @@ export default function TableauDeBordDpae() {
             <h2 className="tableau-bord-dpae__section">Activité</h2>
             <div className="indicateurs__tuiles">
               <Tuile valeur={t.activite.total} libelle="Demandes" variante="neutre" {...proprietesTuile('total')} />
-              {STATUTS_DPAE.map((s) => (
+              {statutsAffiches.map((s) => (
                 <Tuile
                   key={s.code}
                   valeur={t.activite.parStatut[s.code] ?? 0}
@@ -403,8 +410,8 @@ export default function TableauDeBordDpae() {
                 precision="sur les demandes traitées"
                 variante="echec-fort"
               />
-              <Tuile valeur={formaterDelai(t.activite.delaiMoyenHeures)} libelle="Délai moyen" precision={`envoi → décision (${t.activite.nombreTraitees} traitées)`} variante="bleu" />
-              <Tuile valeur={formaterDelai(t.activite.delaiMedianHeures)} libelle="Délai médian" precision="envoi → décision" variante="bleu" />
+              <Tuile valeur={formaterDelai(t.activite.delaiMoyenHeures)} libelle="Délai moyen" precision={`envoi à la RH → décision (${t.activite.nombreTraitees} traitées)`} variante="bleu" />
+              <Tuile valeur={formaterDelai(t.activite.delaiMedianHeures)} libelle="Délai médian" precision="envoi à la RH → décision" variante="bleu" />
             </div>
             <section className="indicateurs__graphique tableau-bord-dpae__evolution">
               <h2>Évolution {t.granularite === 'mois' ? 'par mois' : 'par semaine'}</h2>
@@ -416,7 +423,7 @@ export default function TableauDeBordDpae() {
                   <Tooltip content={<InfoBulleGraphique />} cursor={{ fill: 'rgba(122, 90, 52, 0.08)' }} />
                   <Legend />
                   {/* Chaque segment (période x statut) est cliquable. */}
-                  {STATUTS_DPAE.map((s) => (
+                  {statutsAffiches.map((s) => (
                     <Bar
                       key={s.code}
                       dataKey={s.code}

@@ -35,8 +35,9 @@ function demandeEnBase(statut, surcharges = {}) {
   };
 }
 
-// Demande complète renvoyée par le client (même forme que le corps du POST de création).
-const DONNEES = {
+// Demande complète renvoyée par le client (même forme que le corps du POST de création), identique à
+// la demande en base : un enregistrement sans changement.
+const DONNEES_SANS_CHANGEMENT = {
   typeDemande: 'nouvelle_embauche',
   salarieNom: 'Martin',
   salariePrenom: 'Sophie',
@@ -47,6 +48,9 @@ const DONNEES = {
   verifTousJoursInclus: true,
   verifNonPlanification: true,
 };
+
+// Même demande avec un changement réel (téléphone) : seule une vraie modification s'enregistre.
+const DONNEES = { ...DONNEES_SANS_CHANGEMENT, salarieTelephone: '0612345678' };
 
 const CONTEXTE = { version: VERSION, utilisateurId: AUTEUR_ID, roleCode: 'planning', adresseIp: '10.0.0.1' };
 
@@ -72,14 +76,18 @@ function mockerBase(t, statut, { surcharges = {}, sitesEnBase = [10], sitesValid
   const remplacerSitesMock = t.mock.method(siteAffectationRepository, 'remplacerSitesDemande', async (trx, id, ids) => {
     trx.ecritures.push(['sites', id, ids]);
   });
-  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => rhIds);
+  const rolesDemandes = [];
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async (_trx, _entiteId, roleCode) => {
+    rolesDemandes.push(roleCode);
+    return rhIds;
+  });
   const auditMock = t.mock.method(journalAudit, 'enregistrerAction', async (trx, entree) => {
     trx.ecritures.push(['audit', entree]);
   });
   const notificationsMock = t.mock.method(notificationService, 'creerNotifications', async (trx, notifications) => {
     trx.ecritures.push(['notifications', notifications]);
   });
-  return { etat, modifierMock, remplacerSitesMock, auditMock, notificationsMock };
+  return { etat, modifierMock, remplacerSitesMock, auditMock, notificationsMock, rolesDemandes };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -261,10 +269,55 @@ test('modifierDemande : audit « modification » avec statut avant/après et NOM
   for (const valeur of ['Durand', '0612345678', 'Sophie']) assert.equal(texte.includes(valeur), false, valeur);
 });
 
-test('modifierDemande : aucune modification réelle -> audit avec liste de champs vide (la demande reste valide)', async (t) => {
-  const { auditMock } = mockerBase(t, 'envoyee');
-  await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE });
-  assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees.champsModifies, []);
+test('modifierDemande : enregistrement sans aucun changement -> rien n’est écrit (ni version, ni audit, ni notification), « Aucune modification »', async (t) => {
+  for (const statut of ['envoyee', 'en_attente', 'a_valider_planning', 'renvoyee_inspecteur']) {
+    await t.test(statut, async (st) => {
+      const { etat, modifierMock, remplacerSitesMock, auditMock, notificationsMock } = mockerBase(st, statut);
+      const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES_SANS_CHANGEMENT, ...CONTEXTE });
+      assert.deepEqual(resultat, { statut, version: VERSION, champsModifies: [], aucuneModification: true });
+      assert.equal(modifierMock.mock.calls.length, 0);
+      assert.equal(remplacerSitesMock.mock.calls.length, 0);
+      assert.equal(auditMock.mock.calls.length, 0);
+      assert.equal(notificationsMock.mock.calls.length, 0);
+      assert.deepEqual(etat.ecritures, []);
+    });
+  }
+});
+
+test('modifierDemande : une demande « À valider par le Planning » le reste, sans notification ; auteur, Planning et Admin peuvent la modifier', async (t) => {
+  for (const [roleCode, utilisateurId] of [['inspecteur_hotellerie', AUTEUR_ID], ['planning', 2], ['admin', 1]]) {
+    await t.test(roleCode, async (st) => {
+      const { modifierMock, notificationsMock } = mockerBase(st, 'a_valider_planning');
+      const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE, roleCode, utilisateurId });
+      assert.equal(resultat.statut, 'a_valider_planning');
+      assert.equal(resultat.version, VERSION + 1);
+      assert.equal(modifierMock.mock.calls[0].arguments[2].statutArrivee, 'a_valider_planning');
+      assert.equal(notificationsMock.mock.calls.length, 0);
+    });
+  }
+});
+
+test('modifierDemande : « Renvoyée à l’inspecteur » repasse automatiquement « À valider par le Planning » et le Planning (jamais la RH) est notifié', async (t) => {
+  const { modifierMock, notificationsMock, auditMock, rolesDemandes } = mockerBase(t, 'renvoyee_inspecteur', { rhIds: [8, 9] });
+
+  const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE, roleCode: 'inspecteur_hotellerie' });
+
+  assert.equal(resultat.statut, 'a_valider_planning');
+  assert.deepEqual(
+    { de: modifierMock.mock.calls[0].arguments[2].statutDepart, vers: modifierMock.mock.calls[0].arguments[2].statutArrivee },
+    { de: 'renvoyee_inspecteur', vers: 'a_valider_planning' },
+  );
+  assert.deepEqual(rolesDemandes, ['planning']);
+  const notifications = notificationsMock.mock.calls[0].arguments[1];
+  assert.deepEqual(notifications.map((n) => n.utilisateurId), [8, 9]);
+  for (const notification of notifications) {
+    assert.equal(notification.type, 'demande_dpae_corrigee');
+    assert.match(notification.message, /corrigée par l'inspecteur, à valider : Sophie Martin/);
+    assert.equal(notification.lien, '/rh/dpae/7');
+  }
+  const entree = auditMock.mock.calls[0].arguments[1];
+  assert.equal(entree.donnees.statutAvant, 'renvoyee_inspecteur');
+  assert.equal(entree.donnees.statutApres, 'a_valider_planning');
 });
 
 test('modifierDemande : échec de l’audit -> aucune écriture enregistrée (demande, sites, notification)', async (t) => {

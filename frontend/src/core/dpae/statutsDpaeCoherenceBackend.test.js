@@ -23,6 +23,10 @@ describe('statuts et transitions DPAE : frontend = backend', () => {
     expect(front.STATUTS_A_DECIDER).toEqual([...back.STATUTS_A_DECIDER]);
   });
 
+  it('mêmes statuts d’avant la RH', () => {
+    expect(front.STATUTS_AVANT_RH).toEqual([...back.STATUTS_AVANT_RH]);
+  });
+
   it('mêmes transitions (action, statut de départ, statut d’arrivée), ni plus ni moins', () => {
     expect(front.TRANSITIONS_DPAE.map(cleTransition).sort()).toEqual(back.TRANSITIONS.map(cleTransition).sort());
   });
@@ -33,11 +37,15 @@ describe('statuts et transitions DPAE : frontend = backend', () => {
       valider: front.ACTION_VALIDER,
       rejeter: front.ACTION_REJETER,
       modifier: front.ACTION_MODIFIER,
+      transmettreRh: front.ACTION_TRANSMETTRE_RH,
+      renvoyerInspecteur: front.ACTION_RENVOYER_INSPECTEUR,
     }).toEqual({
       mettreEnAttente: back.ACTION_METTRE_EN_ATTENTE,
       valider: back.ACTION_VALIDER,
       rejeter: back.ACTION_REJETER,
       modifier: back.ACTION_MODIFIER,
+      transmettreRh: back.ACTION_TRANSMETTRE_RH,
+      renvoyerInspecteur: back.ACTION_RENVOYER_INSPECTEUR,
     });
   });
 });

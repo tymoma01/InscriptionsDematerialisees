@@ -291,7 +291,7 @@ test("listerSuivi « Mes demandes » : seulement celles de l'utilisateur, dans s
   const { miennesMock } = mockerBaseConsultation(t);
   const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 30, roleCode: 'admin', perimetreDemande: 'mes' });
   assert.deepEqual(demandes.map((d) => d.id), [2]);
-  assert.deepEqual(miennesMock.mock.calls[0].arguments.slice(1), [1, 30]);
+  assert.deepEqual(miennesMock.mock.calls[0].arguments.slice(1), [1, 30, []]);
 });
 
 test("peutConsulterDemande : Admin, RH et Planning toutes les fiches ; Accueil/Coordination jamais, même auteur", () => {
@@ -417,5 +417,6 @@ test("listerPourRh (liste RH, 2026-10-02) : chaque demande porte ses sites (colo
   assert.deepEqual(demandes[0].sites_affectation, [{ id: 10, nom: 'AIGLON', initiales: 'AIG' }, { id: 11, nom: 'ALBE', initiales: 'AL' }]);
   assert.deepEqual(demandes[1].sites_affectation, []);
   assert.equal(demandes[1].hotel, 'Ancien texte');
-  assert.deepEqual(toutesMock.mock.calls[0].arguments.slice(1), [1, null]);
+  // La file RH n'inclut jamais les demandes encore chez le Planning.
+  assert.deepEqual(toutesMock.mock.calls[0].arguments.slice(1), [1, null, ['a_valider_planning', 'renvoyee_inspecteur']]);
 });

@@ -14,7 +14,7 @@
 // (maintenant AT TIME ZONE 'Europe/Paris')::date. date_debut/date_fin sont des colonnes `date`
 // (jours calendaires saisis tels quels), comparées directement à ces jours parisiens.
 
-const { STATUTS_DPAE, STATUTS_A_DECIDER, STATUT_VALIDEE, STATUT_REJETEE, listeSql } = require('./statutsDpae');
+const { STATUTS_DPAE, STATUTS_A_TRAITER_RH, STATUT_VALIDEE, STATUT_REJETEE, listeSql } = require('./statutsDpae');
 
 const FUSEAU = 'Europe/Paris';
 
@@ -23,13 +23,16 @@ const AUJOURDHUI = `(?::timestamptz AT TIME ZONE '${FUSEAU}')::date`;
 
 // Sélection commune à TOUS les indicateurs : entité courante (jamais une autre), période (jour
 // parisien de création, bornes incluses), puis filtres optionnels — site (id, ou 'non_reference'
-// pour les anciennes demandes sans site lié), type de contrat, statut.
+// pour les anciennes demandes sans site lié), type de contrat, statut. filtres.statutsExclus : statuts
+// que le rôle de l'appelant ne doit jamais voir (la RH ne voit pas les demandes encore chez le
+// Planning) — absents de TOUS les indicateurs.
 function requeteBase(bd, entiteId, filtres) {
   const requete = bd('demandes_dpae as d')
     .where('d.entite_id', entiteId)
     .whereRaw(`${JOUR_CREATION} BETWEEN ?::date AND ?::date`, [filtres.debut, filtres.fin]);
   if (filtres.typeContrat) requete.where('d.type_contrat', filtres.typeContrat);
   if (filtres.statut) requete.where('d.statut', filtres.statut);
+  if (filtres.statutsExclus?.length > 0) requete.whereNotIn('d.statut', filtres.statutsExclus);
   if (filtres.siteId === 'non_reference') {
     requete.whereNotExists(bd('demandes_dpae_sites as l').whereRaw('l.demande_dpae_id = d.id'));
   } else if (filtres.siteId) {
@@ -53,9 +56,10 @@ const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.sta
 
 // --- 1. À traiter en priorité ---------------------------------------------------------------------
 
-// Demandes encore sans décision : tous les statuts « à décider » de statutsDpae.js (« À traiter » ET
-// « En attente ») — une mise en attente n'est pas une décision, la demande reste prioritaire.
-const SANS_DECISION = `base.statut IN (${listeSql(STATUTS_A_DECIDER)})`;
+// Demandes encore sans décision de la RH : les statuts « à traiter par la RH » de statutsDpae.js (« À
+// traiter » ET « En attente ») — une mise en attente n'est pas une décision, la demande reste
+// prioritaire. Une demande encore chez le Planning n'est pas à la RH : elle n'en fait pas partie.
+const SANS_DECISION = `base.statut IN (${listeSql(STATUTS_A_TRAITER_RH)})`;
 
 // Sans décision, dont le premier jour est aujourd'hui ou demain (heure de Paris).
 function listerPremierJourProche(bd, entiteId, filtres, maintenant) {
@@ -70,16 +74,16 @@ function listerPremierJourProche(bd, entiteId, filtres, maintenant) {
   );
 }
 
-// Sans décision depuis plus de 24 h (écart réel entre l'envoi et maintenant — une mise en attente ne
-// remet pas ce compteur à zéro).
+// Sans décision depuis plus de 24 h (écart réel entre l'envoi à la RH et maintenant — une mise en
+// attente ne remet pas ce compteur à zéro).
 function listerATraiterPlus24h(bd, entiteId, filtres, maintenant) {
   return executerSurBase(
     bd,
     entiteId,
     filtres,
     `SELECT ${COLONNES_LISTE} FROM base
-     WHERE ${SANS_DECISION} AND base.date_creation < ?::timestamptz - interval '24 hours'
-     ORDER BY base.date_creation`,
+     WHERE ${SANS_DECISION} AND base.date_envoi_rh < ?::timestamptz - interval '24 hours'
+     ORDER BY base.date_envoi_rh`,
     [maintenant],
   );
 }
@@ -90,18 +94,20 @@ function compterParStatut(bd, entiteId, filtres) {
   return executerSurBase(bd, entiteId, filtres, `SELECT base.statut, count(*)::int AS nombre, ${IDS} AS ids FROM base GROUP BY base.statut`);
 }
 
-// Délai de traitement RH (envoi -> décision FINALE), en heures, sur les demandes décidées de la
-// sélection. date_traitement n'est posée qu'à la validation/au rejet, jamais à une mise en attente
-// (voir migration 070) : une demande passée par « En attente » compte donc de son envoi à sa décision.
+// Délai de traitement RH (envoi à la RH -> décision FINALE), en heures, sur les demandes décidées de
+// la sélection. Le point de départ est date_envoi_rh (migration 079), pas la création : le temps passé
+// chez le Planning n'est pas du temps RH. date_traitement n'est posée qu'à la validation/au rejet,
+// jamais à une mise en attente (voir migration 070) : une demande passée par « En attente » compte
+// donc de son envoi à sa décision.
 async function calculerDelais(bd, entiteId, filtres) {
   const [ligne] = await executerSurBase(
     bd,
     entiteId,
     filtres,
     `SELECT count(*)::int AS nombre_traitees,
-            avg(extract(epoch FROM base.date_traitement - base.date_creation) / 3600)::float AS moyen_heures,
-            percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM base.date_traitement - base.date_creation) / 3600)::float AS median_heures
-     FROM base WHERE base.date_traitement IS NOT NULL`,
+            avg(extract(epoch FROM base.date_traitement - base.date_envoi_rh) / 3600)::float AS moyen_heures,
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM base.date_traitement - base.date_envoi_rh) / 3600)::float AS median_heures
+     FROM base WHERE base.date_traitement IS NOT NULL AND base.date_envoi_rh IS NOT NULL`,
   );
   return ligne;
 }

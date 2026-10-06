@@ -53,8 +53,8 @@ const parType = (prefixe) => [...indicateurs.values()].filter((indicateur) => in
 describe('Nombre de demandes listées = nombre affiché, pour chaque type d’indicateur', () => {
   for (const [type, attendus] of [
     ['total', 1],
-    ['statut', 4],
-    ['evolution', 8],
+    ['statut', 6],
+    ['evolution', 12],
     ['tardives', 1],
     ['contrat', 3],
     ['motif', 3],

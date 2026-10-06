@@ -220,6 +220,21 @@ describe('Tri par défaut (les deux listes)', () => {
     expect(resultat).toHaveLength(LISTE.length);
   });
 
+  test('ordre des six groupes : À valider par le Planning, Renvoyée à l’inspecteur, À traiter, En attente, Validée, Rejetée ; premier jour croissant dans les deux groupes du Planning', () => {
+    const liste = [
+      ...LISTE,
+      demande(12, 'renvoyee_inspecteur', { premierJour: jour(2026, 10, 12), creation: instant(2026, 9, 26) }),
+      demande(13, 'a_valider_planning', { premierJour: jour(2026, 10, 20), creation: instant(2026, 10, 1) }),
+      demande(14, 'a_valider_planning', { premierJour: jour(2026, 10, 8), creation: instant(2026, 9, 27) }),
+      demande(15, 'renvoyee_inspecteur', { premierJour: jour(2026, 10, 7), creation: instant(2026, 9, 29) }),
+    ];
+    const resultat = trierParDefaut(liste);
+    const groupes = statuts(resultat).filter((statut, rang, tous) => rang === 0 || tous[rang - 1] !== statut);
+    expect(groupes).toStrictEqual(['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']);
+    expect(ids(resultat.filter((d) => d.statut === 'a_valider_planning'))).toStrictEqual([14, 13]);
+    expect(ids(resultat.filter((d) => d.statut === 'renvoyee_inspecteur'))).toStrictEqual([15, 12]);
+  });
+
   test('« À traiter » et « En attente » : premier jour croissant, retards en tête du groupe, sans premier jour en fin', () => {
     expect(MAINTENANT > new Date(LISTE[4].date_debut)).toBe(true); // 5 est bien en retard
     const resultat = trierParDefaut(LISTE);

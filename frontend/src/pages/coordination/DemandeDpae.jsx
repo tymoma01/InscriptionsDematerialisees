@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
+import { useSession } from '../../core/auth/useSession';
+import { peut } from '../../core/auth/permissions';
 import { creerDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
 import { JOURS_SEMAINE, donneesFormulaireDepuisDemande, donneesInitiales } from '../../core/dpae/formulaireDemandeDpae';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
@@ -32,8 +34,9 @@ const POSTES_HOTEL = [
 // Formulaire "Nouvelle demande DPAE" (module Demandes DPAE, 2026-09-28) — reprend les sections de
 // la maquette d'origine (voir le plan) avec le style de l'outil (PageBackOffice/EnTeteBackOffice,
 // mêmes classes .bloc-formulaire que le formulaire d'inscription candidat, voir
-// styles/blocFormulaire.css). Pas de brouillon : un seul bouton "Envoyer à la RH", désactivé tant
-// que le formulaire n'est pas complet — même esprit que la maquette (voir demandeDpaeService.js,
+// styles/blocFormulaire.css). Pas de brouillon : un seul bouton, « Envoyer au Planning » pour un rôle
+// dont les demandes passent d'abord par le Planning (dpaeCreationSoumiseAuPlanning), « Envoyer à la
+// RH » pour les autres, désactivé tant que le formulaire n'est pas complet — même esprit que la maquette (voir demandeDpaeService.js,
 // pas de statut brouillon côté back).
 //
 // "Jours concernés" (ajout/retrait de jours) : simple liste de dates ajoutées/retirées une à une,
@@ -46,6 +49,10 @@ const POSTES_HOTEL = [
 function FormulaireDemandeDpae({ demande, onRecharger }) {
   const modification = Boolean(demande);
   const navigate = useNavigate();
+  const { utilisateur } = useSession();
+  const libelleEnvoi = peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
+  // Enregistrement sans aucun changement : rien n'a été écrit, on reste sur le formulaire.
+  const [information, setInformation] = useState(null);
   const [donnees, setDonnees] = useState(() => (demande ? donneesFormulaireDepuisDemande(demande) : donneesInitiales()));
   // Vrai quand le serveur a refusé l'enregistrement (409) : la demande a changé depuis son
   // chargement. La saisie reste à l'écran ; recharger la remplace par la version à jour.
@@ -142,6 +149,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
 
     setEnvoiEnCours(true);
     setErreur(null);
+    setInformation(null);
     setConflit(false);
     try {
       const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, ...reste } = donnees;
@@ -163,7 +171,11 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
       };
       if (modification) {
-        await modifierDemande(demande.id, { ...corps, version: demande.version });
+        const resultat = await modifierDemande(demande.id, { ...corps, version: demande.version });
+        if (resultat.aucuneModification) {
+          setInformation(resultat.message ?? 'Aucune modification');
+          return;
+        }
         navigate(`/rh/dpae/${demande.id}`, { state: { confirmation: 'Les modifications de la demande ont été enregistrées.' } });
       } else {
         await creerDemande(corps);
@@ -688,6 +700,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
             </label>
 
             {erreur && <p role="alert">{erreur}</p>}
+            {information && <p role="status">{information}</p>}
             {conflit && (
               <p>
                 Votre saisie est conservée à l&rsquo;écran, mais elle ne peut pas être enregistrée telle quelle.{' '}
@@ -711,7 +724,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                     : 'Enregistrer les modifications'
                   : envoiEnCours
                     ? 'Envoi…'
-                    : 'Envoyer à la RH'}
+                    : libelleEnvoi}
               </button>
             </div>
           </fieldset>
