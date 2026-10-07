@@ -11,6 +11,12 @@
 #   AZ_CONTAINERAPP_NAME   nom de la Container App
 #   AZ_RESOURCE_GROUP      resource group Azure correspondant
 #
+# Rétention (le push supprime de ghcr.io les images au-delà de GHCR_GARDER, ce qui demande
+# le scope delete:packages : gh auth refresh -s delete:packages) :
+#   GHCR_GARDER              images conservées sur ghcr.io (défaut 10)
+#   AZ_REVISIONS_INACTIVES   révisions inactives conservées par la Container App (défaut 5) —
+#                            doit rester ≤ GHCR_GARDER, sinon une révision pointe vers une image supprimée
+#
 # Exemple (remplacer <...> par les vraies valeurs — volontairement pas de vrais noms ici, repo public) :
 #   AZ_CONTAINERAPP_NAME=<nom-container-app> AZ_RESOURCE_GROUP=<resource-group> ./redeploy.sh --deploy
 
@@ -25,6 +31,14 @@ export PATH="$HOME/.docker/bin:$PATH"
 
 IMAGE="ghcr.io/tymoma01/inscriptionsdematerialisees-backend"
 SHA_COURT="$(git rev-parse --short HEAD)"
+GHCR_GARDER="${GHCR_GARDER:-10}"
+AZ_REVISIONS_INACTIVES="${AZ_REVISIONS_INACTIVES:-5}"
+
+if [ "$AZ_REVISIONS_INACTIVES" -gt "$GHCR_GARDER" ]; then
+  echo "✗ AZ_REVISIONS_INACTIVES (${AZ_REVISIONS_INACTIVES}) > GHCR_GARDER (${GHCR_GARDER}) :" \
+       "des révisions pointeraient vers des images supprimées." >&2
+  exit 1
+fi
 
 MODE_PUSH=1
 MODE_DEPLOY=0
@@ -69,6 +83,36 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 
 echo "✓ Image poussée : ${IMAGE}:latest et ${IMAGE}:${SHA_COURT}"
 
+# Nettoyage ghcr.io : conserve les GHCR_GARDER dernières images taguées. Une image multi-plateforme
+# est un index qui référence des manifestes enfants sans tag (une image par arch + attestations) :
+# on les lit dans chaque index conservé pour ne jamais supprimer une pièce d'une image gardée.
+API_VERSIONS="/user/packages/container/inscriptionsdematerialisees-backend/versions"
+
+echo "→ Nettoyage ghcr.io (conserve les ${GHCR_GARDER} dernières images)..."
+VERSIONS="$(gh api --paginate "$API_VERSIONS" \
+  --jq '.[] | [.id, .name, (.metadata.container.tags | join(","))] | @tsv')"
+
+# L'API renvoie les versions de la plus récente à la plus ancienne
+A_GARDER="$(printf '%s\n' "$VERSIONS" | awk -F'\t' '$3 != "" {print $2}' | head -n "$GHCR_GARDER")"
+for digest in $A_GARDER; do
+  ENFANTS="$(docker buildx imagetools inspect "${IMAGE}@${digest}" \
+    --format '{{range .Manifest.Manifests}}{{println .Digest}}{{end}}')"
+  A_GARDER="${A_GARDER}"$'\n'"${ENFANTS}"
+done
+
+if [ -z "$A_GARDER" ]; then
+  echo "✗ Aucune image à conserver trouvée, nettoyage annulé par sécurité." >&2
+else
+  NB_SUPPR=0
+  while IFS=$'\t' read -r id digest _tags; do
+    if ! grep -qx "$digest" <<< "$A_GARDER"; then
+      gh api -X DELETE "${API_VERSIONS}/${id}" --silent
+      NB_SUPPR=$((NB_SUPPR + 1))
+    fi
+  done <<< "$VERSIONS"
+  echo "✓ ${NB_SUPPR} version(s) supprimée(s) de ghcr.io"
+fi
+
 if [ "$MODE_DEPLOY" -eq 0 ]; then
   echo "  (--deploy non demandé : la Container App n'a pas été mise à jour.)"
   exit 0
@@ -84,6 +128,7 @@ echo "→ Mise à jour de la Container App '${AZ_CONTAINERAPP_NAME}' (resource g
 az containerapp update \
   --name "$AZ_CONTAINERAPP_NAME" \
   --resource-group "$AZ_RESOURCE_GROUP" \
-  --image "${IMAGE}:${SHA_COURT}"
+  --image "${IMAGE}:${SHA_COURT}" \
+  --max-inactive-revisions "$AZ_REVISIONS_INACTIVES"
 
 echo "✓ Déployé : ${IMAGE}:${SHA_COURT}"
