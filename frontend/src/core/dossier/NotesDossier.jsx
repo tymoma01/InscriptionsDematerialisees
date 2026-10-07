@@ -114,6 +114,7 @@ export default function NotesDossier({
         <ul className="notes-dossier__liste">
           {notes.map((note) => (
             <li key={note.id} className="notes-dossier__item">
+              {note.est_note_modification && <span className="notes-dossier__etiquette">Note de modification</span>}
               <p className="notes-dossier__contenu">{note.contenu}</p>
               <span className="notes-dossier__meta">
                 {/* "Nom (Rôle) _ date et heure" (ex. "Jeanne Dupont (Accueil / Coordination) _

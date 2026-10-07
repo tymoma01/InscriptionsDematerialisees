@@ -1,9 +1,21 @@
-import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
-import { creerDemande } from '../../services/dpaeService';
+import { useSession } from '../../core/auth/useSession';
+import { peut } from '../../core/auth/permissions';
+import { creerDemande, listerNotesDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
+import {
+  JOURS_SEMAINE,
+  affecterSitesSemaine,
+  donneesFormulaireDepuisDemande,
+  donneesInitiales,
+  joursPrivesDeSite,
+  validerFormulaire,
+} from '../../core/dpae/formulaireDemandeDpae';
+import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
+import SelecteurSitesJour from './SelecteurSitesJour';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
 import './DemandeDpae.css';
 
@@ -28,82 +40,64 @@ const POSTES_HOTEL = [
   { code: 'autre', libelle: 'Autre' },
 ];
 
-const JOURS_SEMAINE = [
-  { code: 'lundi', libelle: 'Lundi' },
-  { code: 'mardi', libelle: 'Mardi' },
-  { code: 'mercredi', libelle: 'Mercredi' },
-  { code: 'jeudi', libelle: 'Jeudi' },
-  { code: 'vendredi', libelle: 'Vendredi' },
-  { code: 'samedi', libelle: 'Samedi' },
-  { code: 'dimanche', libelle: 'Dimanche' },
-];
-
-function semaineTypeInitiale() {
-  return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '' }));
-}
-
-const DONNEES_INITIALES = {
-  typeDemande: '',
-  salarieNom: '',
-  salariePrenom: '',
-  salarieTelephone: '',
-  salarieDejaEmploye: false,
-  candidatId: null,
-  // Site(s) d'affectation : ids du référentiel `sites_affectation`, remplace l'ancien
-  // champ texte `hotel` (plus envoyé, voir SelecteurSitesAffectation.jsx).
-  sitesAffectationIds: [],
-  typeContrat: '',
-  motifCdd: '',
-  salarieRemplaceNom: '',
-  dateFinAbsence: '',
-  raisonSurcroit: '',
-  division: '',
-  divisionAutre: '',
-  poste: '',
-  posteAutre: '',
-  dateDebut: '',
-  dateFin: '',
-  heureArriveeJ1: '',
-  heuresParMois: '',
-  modificationsDemandees: false,
-  modificationHoraires: false,
-  modificationJoursRepos: false,
-  modificationAffectation: false,
-  nouvelleAffectation: '',
-  typeChangementJours: '',
-  joursConcernes: [],
-  raisonChangementJours: '',
-  raisonIdentiqueContrat: '',
-  semaineType: semaineTypeInitiale(),
-  horairesDifferentsParJour: false,
-  heureDebutCommune: '',
-  heureFinCommune: '',
-  autreChoseSignaler: '',
-  verifBesoinHotel: false,
-  verifTousJoursInclus: false,
-  verifNonPlanification: false,
-};
-
 // Formulaire "Nouvelle demande DPAE" (module Demandes DPAE, 2026-09-28) — reprend les sections de
 // la maquette d'origine (voir le plan) avec le style de l'outil (PageBackOffice/EnTeteBackOffice,
 // mêmes classes .bloc-formulaire que le formulaire d'inscription candidat, voir
-// styles/blocFormulaire.css). Pas de brouillon : un seul bouton "Envoyer à la RH", désactivé tant
-// que le formulaire n'est pas complet — même esprit que la maquette (voir demandeDpaeService.js,
+// styles/blocFormulaire.css). Pas de brouillon : un seul bouton, « Envoyer au Planning » pour un rôle
+// dont les demandes passent d'abord par le Planning (dpaeCreationSoumiseAuPlanning), « Envoyer à la
+// RH » pour les autres, désactivé tant que le formulaire n'est pas complet — même esprit que la maquette (voir demandeDpaeService.js,
 // pas de statut brouillon côté back).
 //
 // "Jours concernés" (ajout/retrait de jours) : simple liste de dates ajoutées/retirées une à une,
 // plutôt que la grille tactile de la maquette — même donnée finale (un tableau de dates), pour un
 // premier jet plus simple à développer/tester (voir le plan, section Simplifications).
-export default function DemandeDpae() {
+//
+// Note sur la modification (mode modification) : TOUJOURS obligatoire ; les 3 dernières notes de la
+// demande s'affichent en lecture seule au-dessus du champ. Elle est enregistrée avec la modification,
+// dans la même transaction côté serveur. Enregistrer ne change jamais le statut de la demande.
+//
+// Mode modification (route /coordination/dpae/:demandeId/modifier) : le MÊME formulaire, prérempli
+// avec la demande existante (donneesFormulaireDepuisDemande) ; « Enregistrer les modifications »
+// envoie la demande complète et la version lue (PUT /api/dpae/:id), « Annuler » revient à la fiche.
+const LONGUEUR_MAX_NOTE = 1000;
+const NOMBRE_NOTES_AFFICHEES = 3;
+const FORMAT_DATE_NOTE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function FormulaireDemandeDpae({ demande, onRecharger }) {
+  const modification = Boolean(demande);
+  const [noteModification, setNoteModification] = useState('');
+  // Dernières notes de la demande (plus récentes d'abord), affichées au-dessus du champ de note.
+  const [dernieresNotes, setDernieresNotes] = useState([]);
+  const [erreurNotes, setErreurNotes] = useState(false);
+  useEffect(() => {
+    if (!modification) return;
+    listerNotesDemande(demande.id)
+      .then((notes) => setDernieresNotes(notes.slice(0, NOMBRE_NOTES_AFFICHEES)))
+      .catch(() => setErreurNotes(true));
+  }, [modification, demande?.id]);
   const navigate = useNavigate();
-  const [donnees, setDonnees] = useState(DONNEES_INITIALES);
+  const { utilisateur } = useSession();
+  const libelleEnvoi = peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
+  const [donnees, setDonnees] = useState(() => (demande ? donneesFormulaireDepuisDemande(demande) : donneesInitiales()));
+  // Vrai quand le serveur a refusé l'enregistrement (409) : la demande a changé depuis son
+  // chargement. La saisie reste à l'écran ; recharger la remplace par la version à jour.
+  const [conflit, setConflit] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreur, setErreur] = useState(null);
   // Bloc « Site(s) d'affectation » : replié à l'ouverture du formulaire, déplié automatiquement si
   // l'on tente d'envoyer sans site (voir envoyer) — d'où un état tenu ici, pas dans le sélecteur.
   const [sitesOuverts, setSitesOuverts] = useState(false);
-  const [erreurSites, setErreurSites] = useState(null);
-  const blocSitesRef = useRef(null);
+  // Champs obligatoires : pas de `required` HTML (il empêcherait d'afficher le message dédié sous le
+  // champ). À la première tentative d'envoi, tous les champs en erreur sont signalés (validerFormulaire,
+  // mêmes messages que le serveur), le formulaire défile vers le premier, et les erreurs suivent ensuite
+  // la saisie. `semaineSignalee` : après le retrait d'un site, les jours privés de site sont signalés
+  // tout de suite, sans attendre l'envoi.
+  const [tentativeEnvoi, setTentativeEnvoi] = useState(false);
+  const [semaineSignalee, setSemaineSignalee] = useState(false);
+  const refsChamps = useRef({});
+  // Sites connus (nom et initiales) pour la liste « site par jour » : sites actifs chargés par le
+  // sélecteur, plus ceux déjà liés à la demande modifiée (un site désactivé depuis reste affiché).
+  const [sitesChargees, setSitesChargees] = useState([]);
 
   const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
 
@@ -132,6 +126,18 @@ export default function DemandeDpae() {
     }));
   };
 
+  // Bascule Travail/Repos : un jour de repos n'a pas de site ; avec un seul site, un jour travaillé le
+  // reçoit aussitôt.
+  const basculerJour = (index, statut) => {
+    setDonnees((precedent) => ({
+      ...precedent,
+      semaineType: affecterSitesSemaine(
+        precedent.semaineType.map((jour, indexJour) => (indexJour === index ? { ...jour, statut } : jour)),
+        precedent.sitesAffectationIds,
+      ),
+    }));
+  };
+
   const ajouterJourConcerne = () => definir('joursConcernes', [...donnees.joursConcernes, { date: '' }]);
   const definirJourConcerne = (index, date) =>
     definir(
@@ -144,17 +150,53 @@ export default function DemandeDpae() {
       donnees.joursConcernes.filter((_, indexJour) => indexJour !== index),
     );
 
+  // Sélection de sites : les jours de la semaine type sont réaffectés (un seul site : attribué à tous les
+  // jours travaillés ; un site retiré : les jours qui l'utilisaient sont vidés et signalés).
+  const changerSites = (ids) => {
+    const ancienne = donnees.semaineType;
+    const nouvelle = affecterSitesSemaine(ancienne, ids);
+    if (joursPrivesDeSite(ancienne, nouvelle, ids).length > 0) setSemaineSignalee(true);
+    setDonnees((precedent) => ({ ...precedent, sitesAffectationIds: ids, semaineType: nouvelle }));
+  };
+
+  const sitesConnus = useMemo(() => {
+    const parId = new Map((demande?.sites_affectation ?? []).map((site) => [site.id, site]));
+    for (const site of sitesChargees) parId.set(site.id, site);
+    return parId;
+  }, [demande, sitesChargees]);
+  const sitesSelectionnes = donnees.sitesAffectationIds.map((id) => sitesConnus.get(id)).filter(Boolean);
+  const plusieursSites = donnees.sitesAffectationIds.length > 1;
+
+  const erreurs = useMemo(() => validerFormulaire(donnees), [donnees]);
+  const messageErreur = (champ) => {
+    const visible = tentativeEnvoi || (semaineSignalee && champ.startsWith('semaine:'));
+    return visible ? erreurs.find((erreur) => erreur.champ === champ)?.message : undefined;
+  };
+  const refChamp = (champ) => (element) => {
+    refsChamps.current[champ] = element;
+  };
+  const erreurChamp = (champ) => {
+    const message = messageErreur(champ);
+    return (
+      message && (
+        <p role="alert" className="page-demande-dpae__erreur-champ">
+          {message}
+        </p>
+      )
+    );
+  };
+
+  const nombreJours = nombreJoursCalendaires(donnees.dateDebut, donnees.dateFin);
   const estAjoutRetraitJours = donnees.typeDemande === 'ajout_retrait_jours';
   // CDD de remplacement : seul cas où "Nom du salarié remplacé" est obligatoire
   // — même règle côté serveur (dpae.routes.js, demandeBodySchema). Dans tous les autres cas (CDI,
   // CDD de surcroît d'activité), la valeur éventuellement saisie n'est pas envoyée (voir envoyer).
   const estCddRemplacement = donnees.typeContrat === 'cdd' && donnees.motifCdd === 'remplacement_absent';
 
-  // Site(s) d'affectation traités à part : pour que l'agent puisse TENTER d'envoyer sans
-  // site et que le bloc des sites se déplie alors de lui-même (voir envoyer), le bouton « Envoyer »
-  // ne dépend que des AUTRES champs obligatoires — il reste désactivé pour eux, comme avant. L'envoi
-  // lui-même reste bloqué tant qu'aucun site n'est choisi (et refusé côté serveur de toute façon).
-  const sitesManquants = donnees.sitesAffectationIds.length === 0;
+  // Les champs contrôlés par validerFormulaire (sites, contrat, poste, dates, site par jour…) sont
+  // traités à part : pour que l'agent puisse TENTER d'envoyer sans les avoir renseignés et voir le
+  // message dédié (voir envoyer), le bouton « Envoyer » ne dépend que des AUTRES champs obligatoires.
+  // L'envoi lui-même reste bloqué tant que l'un d'eux manque (et refusé côté serveur de toute façon).
   const formulaireCompletHorsSites =
     donnees.typeDemande &&
     donnees.salarieNom.trim() &&
@@ -162,44 +204,63 @@ export default function DemandeDpae() {
     (!estCddRemplacement || donnees.salarieRemplaceNom.trim()) &&
     donnees.verifBesoinHotel &&
     donnees.verifTousJoursInclus &&
-    donnees.verifNonPlanification;
+    donnees.verifNonPlanification &&
+    (!modification || noteModification.trim());
 
   const envoyer = async (evenement) => {
     evenement.preventDefault();
     if (!formulaireCompletHorsSites || envoiEnCours) return;
-    if (sitesManquants) {
-      // Tentative d'envoi sans site : on déplie le bloc et on l'amène à l'écran, pour que l'agent
-      // voie où agir — aucune requête n'est envoyée.
-      setSitesOuverts(true);
-      setErreurSites("Sélectionnez au moins un site d'affectation avant d'envoyer la demande.");
-      blocSitesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTentativeEnvoi(true);
+    if (erreurs.length > 0) {
+      // Bloc Sites déplié et défilement vers le premier champ en erreur (ordre du formulaire) — aucune
+      // requête n'est envoyée.
+      if (erreurs.some((erreur) => erreur.champ === 'sites')) setSitesOuverts(true);
+      refsChamps.current[erreurs[0].champ]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
     setEnvoiEnCours(true);
     setErreur(null);
+    setConflit(false);
     try {
       const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, ...reste } = donnees;
 
       // Semaine type envoyée telle quelle si horaires différents par jour, sinon les heures
       // communes sont recopiées sur chaque jour "travail" — le back reçoit toujours la même forme
       // (un tableau de 7 entrées), sans avoir à connaître cette bascule d'interface.
-      const semaineType = donnees.horairesDifferentsParJour
+      const semaineHoraires = donnees.horairesDifferentsParJour
         ? donnees.semaineType
         : donnees.semaineType.map((jour) =>
             jour.statut === 'travail' ? { ...jour, heureDebut: heureDebutCommune, heureFin: heureFinCommune } : jour,
           );
-      await creerDemande({
+      // Site par jour : un jour de repos n'en a pas, un seul site est attribué à tous les jours travaillés.
+      const semaineType = affecterSitesSemaine(semaineHoraires, donnees.sitesAffectationIds);
+      // CDI : motif, dernier jour et champs du CDD ne sont pas envoyés (champs masqués).
+      const estCdd = donnees.typeContrat === 'cdd';
+      const corps = {
         ...reste,
         candidatId: candidatId || undefined,
+        motifCdd: estCdd ? reste.motifCdd : undefined,
+        dateFin: estCdd ? reste.dateFin : undefined,
+        dateFinAbsence: estCdd ? reste.dateFinAbsence : undefined,
+        raisonSurcroit: estCdd ? reste.raisonSurcroit : undefined,
         salarieRemplaceNom: estCddRemplacement ? reste.salarieRemplaceNom : undefined,
         heuresParMois: heuresParMois ? Number(heuresParMois) : undefined,
         semaineType,
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
-      });
-      navigate('/coordination/dpae/suivi');
+      };
+      if (modification) {
+        const resultat = await modifierDemande(demande.id, { ...corps, version: demande.version, noteModification: noteModification.trim() });
+        // Version inchangée : seule la note a été enregistrée (aucun changement de la demande).
+        const confirmation = resultat.version === demande.version ? 'La note a été enregistrée.' : 'Les modifications de la demande ont été enregistrées.';
+        navigate(`/rh/dpae/${demande.id}`, { state: { confirmation } });
+      } else {
+        await creerDemande(corps);
+        navigate('/coordination/dpae/suivi');
+      }
     } catch (erreurRequete) {
-      setErreur(erreurRequete.response?.data?.erreur ?? "Impossible d'envoyer la demande.");
+      setConflit(erreurRequete.response?.status === 409);
+      setErreur(erreurRequete.response?.data?.erreur ?? (modification ? "Impossible d'enregistrer les modifications." : "Impossible d'envoyer la demande."));
     } finally {
       setEnvoiEnCours(false);
     }
@@ -209,7 +270,7 @@ export default function DemandeDpae() {
     <PageBackOffice>
       <div className="page-demande-dpae">
         <header className="page-demande-dpae__entete">
-          <h1>Nouvelle demande DPAE</h1>
+          <h1>{modification ? `Modifier la demande DPAE n° ${demande.id}` : 'Nouvelle demande DPAE'}</h1>
           <EnTeteBackOffice />
         </header>
 
@@ -263,54 +324,56 @@ export default function DemandeDpae() {
               <input type="tel" value={donnees.salarieTelephone} onChange={(e) => definir('salarieTelephone', e.target.value)} />
             </label>
 
-            <fieldset>
-              <legend>A déjà travaillé chez nous ?</legend>
-              <label className="champ-inline">
-                <input
-                  type="radio"
-                  name="salarieDejaEmploye"
-                  checked={donnees.salarieDejaEmploye === true}
-                  onChange={() => definir('salarieDejaEmploye', true)}
-                />
-                Oui
-              </label>
-              <label className="champ-inline">
-                <input
-                  type="radio"
-                  name="salarieDejaEmploye"
-                  checked={donnees.salarieDejaEmploye === false}
-                  onChange={() => definir('salarieDejaEmploye', false)}
-                />
-                Non
-              </label>
-            </fieldset>
+            <div ref={refChamp('salarieDejaEmploye')}>
+              <fieldset>
+                <legend>
+                  A déjà travaillé chez nous ? <span className="champ-obligatoire">*</span>
+                </legend>
+                <label className="champ-inline">
+                  <input
+                    type="radio"
+                    name="salarieDejaEmploye"
+                    checked={donnees.salarieDejaEmploye === true}
+                    onChange={() => definir('salarieDejaEmploye', true)}
+                  />
+                  Oui
+                </label>
+                <label className="champ-inline">
+                  <input
+                    type="radio"
+                    name="salarieDejaEmploye"
+                    checked={donnees.salarieDejaEmploye === false}
+                    onChange={() => definir('salarieDejaEmploye', false)}
+                  />
+                  Non
+                </label>
+              </fieldset>
+              {erreurChamp('salarieDejaEmploye')}
+            </div>
 
             {/* Site(s) d'affectation : sélection d'un ou plusieurs sites du référentiel,
                 au moins un obligatoire (envoi bloqué sinon, voir envoyer) — contrôlé aussi côté
                 serveur (dpae.routes.js, sitesAffectationIds). Remplace le champ texte libre. Bloc
                 replié par défaut, déplié automatiquement sur une tentative d'envoi sans site. */}
-            <div ref={blocSitesRef}>
+            <div ref={refChamp('sites')}>
               <SelecteurSitesAffectation
                 selection={donnees.sitesAffectationIds}
-                onChangerSelection={(ids) => {
-                  definir('sitesAffectationIds', ids);
-                  if (ids.length > 0) setErreurSites(null);
-                }}
+                onChangerSelection={changerSites}
                 ouvert={sitesOuverts}
                 onChangerOuvert={setSitesOuverts}
+                onSitesCharges={setSitesChargees}
               />
-              {erreurSites && (
-                <p role="alert" className="page-demande-dpae__erreur-sites">
-                  {erreurSites}
-                </p>
-              )}
+              {erreurChamp('sites')}
             </div>
           </fieldset>
 
           <fieldset className="bloc-formulaire">
             <legend>Paramètres du contrat</legend>
+            <div ref={refChamp('typeContrat')}>
             <fieldset>
-              <legend>Type de contrat</legend>
+              <legend>
+                Type de contrat <span className="champ-obligatoire">*</span>
+              </legend>
               <label className="champ-inline">
                 <input
                   type="radio"
@@ -330,11 +393,16 @@ export default function DemandeDpae() {
                 CDI
               </label>
             </fieldset>
+            {erreurChamp('typeContrat')}
+            </div>
 
             {donnees.typeContrat === 'cdd' && (
               <>
+                <div ref={refChamp('motifCdd')}>
                 <fieldset>
-                  <legend>Raison du CDD</legend>
+                  <legend>
+                    Raison du CDD <span className="champ-obligatoire">*</span>
+                  </legend>
                   <label className="champ-inline">
                     <input
                       type="radio"
@@ -354,6 +422,8 @@ export default function DemandeDpae() {
                     Surcroît d&rsquo;activité
                   </label>
                 </fieldset>
+                {erreurChamp('motifCdd')}
+                </div>
 
                 {donnees.motifCdd === 'remplacement_absent' && (
                   <>
@@ -398,8 +468,8 @@ export default function DemandeDpae() {
               <span>Entité</span>
               <select value={donnees.division} onChange={(e) => definir('division', e.target.value)}>
                 <option value="">Choisir…</option>
-                <option value="acchot">ACCHOT</option>
-                <option value="rm">RM</option>
+                <option value="hotellerie">Hôtellerie</option>
+                <option value="tertiaire">Tertiaire</option>
                 <option value="autre">Autre</option>
               </select>
             </label>
@@ -410,17 +480,22 @@ export default function DemandeDpae() {
               </label>
             )}
 
-            <label>
-              <span>Poste</span>
-              <select value={donnees.poste} onChange={(e) => definir('poste', e.target.value)}>
-                <option value="">Choisir…</option>
-                {POSTES_HOTEL.map((poste) => (
-                  <option key={poste.code} value={poste.code}>
-                    {poste.libelle}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div ref={refChamp('poste')}>
+              <label>
+                <span>
+                  Poste <span className="champ-obligatoire">*</span>
+                </span>
+                <select value={donnees.poste} onChange={(e) => definir('poste', e.target.value)}>
+                  <option value="">Choisir…</option>
+                  {POSTES_HOTEL.map((poste) => (
+                    <option key={poste.code} value={poste.code}>
+                      {poste.libelle}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {erreurChamp('poste')}
+            </div>
             {donnees.poste === 'autre' && (
               <label>
                 <span>Préciser le poste</span>
@@ -428,14 +503,34 @@ export default function DemandeDpae() {
               </label>
             )}
 
-            <label>
-              <span>Premier jour</span>
-              <input type="date" value={donnees.dateDebut} onChange={(e) => definir('dateDebut', e.target.value)} />
-            </label>
-            <label>
-              <span>Dernier jour</span>
-              <input type="date" value={donnees.dateFin} onChange={(e) => definir('dateFin', e.target.value)} />
-            </label>
+            <div ref={refChamp('dateDebut')}>
+              <label>
+                <span>
+                  Premier jour <span className="champ-obligatoire">*</span>
+                </span>
+                <input type="date" value={donnees.dateDebut} onChange={(e) => definir('dateDebut', e.target.value)} />
+              </label>
+              {erreurChamp('dateDebut')}
+            </div>
+            {/* Dernier jour : CDD seulement (masqué, et non envoyé, pour un CDI). */}
+            {donnees.typeContrat === 'cdd' && (
+              <>
+                <div ref={refChamp('dateFin')}>
+                  <label>
+                    <span>
+                      Dernier jour <span className="champ-obligatoire">*</span>
+                    </span>
+                    <input type="date" value={donnees.dateFin} onChange={(e) => definir('dateFin', e.target.value)} />
+                  </label>
+                  {erreurChamp('dateFin')}
+                </div>
+                {/* Calculé, jamais saisi ni stocké : jours calendaires, premier et dernier jour inclus. */}
+                <label>
+                  <span>Nombre total de jours calendaires</span>
+                  <input type="text" readOnly value={nombreJours === null ? '' : libelleNombreJours(nombreJours)} />
+                </label>
+              </>
+            )}
             <label>
               <span>Heure d&rsquo;arrivée jour 1</span>
               <input type="time" value={donnees.heureArriveeJ1} onChange={(e) => definir('heureArriveeJ1', e.target.value)} />
@@ -635,11 +730,23 @@ export default function DemandeDpae() {
                     <button
                       type="button"
                       className="page-demande-dpae__carte-jour-bascule"
-                      onClick={() => definirJourSemaine(index, { statut: enTravail ? 'repos' : 'travail' })}
+                      onClick={() => basculerJour(index, enTravail ? 'repos' : 'travail')}
                     >
                       <span className="page-demande-dpae__carte-jour-nom">{libelle}</span>
                       <span className="page-demande-dpae__carte-jour-statut">{enTravail ? 'Travail' : 'Repos'}</span>
                     </button>
+                    {enTravail && plusieursSites && (
+                      <div className="page-demande-dpae__carte-jour-site" ref={refChamp(`semaine:${jour.jour}`)}>
+                        <SelecteurSitesJour
+                          sites={sitesSelectionnes}
+                          selection={jour.siteIds ?? []}
+                          onChanger={(ids) => definirJourSemaine(index, { siteIds: ids.length > 0 ? ids : undefined })}
+                          libelleJour={libelle.toLowerCase()}
+                          invalide={Boolean(messageErreur(`semaine:${jour.jour}`))}
+                        />
+                        {erreurChamp(`semaine:${jour.jour}`)}
+                      </div>
+                    )}
                     {enTravail && donnees.horairesDifferentsParJour && (
                       <div className="page-demande-dpae__carte-jour-horaires">
                         <input
@@ -700,10 +807,60 @@ export default function DemandeDpae() {
             </label>
 
             {erreur && <p role="alert">{erreur}</p>}
+            {conflit && (
+              <p>
+                Votre saisie est conservée à l&rsquo;écran, mais elle ne peut pas être enregistrée telle quelle.{' '}
+                <button type="button" onClick={onRecharger}>
+                  Recharger la demande à jour
+                </button>{' '}
+                (remplace votre saisie par la version actuelle).
+              </p>
+            )}
+
+            {modification && (
+              <div className="page-demande-dpae__note-modification">
+                <div className="page-demande-dpae__dernieres-notes">
+                  <strong>Dernières notes de la demande</strong>
+                  {erreurNotes && <p role="alert">Impossible de récupérer les notes de cette demande.</p>}
+                  {!erreurNotes && dernieresNotes.length === 0 && <p>Aucune note enregistrée pour cette demande.</p>}
+                  {dernieresNotes.map((note) => (
+                    <div key={note.id} className="page-demande-dpae__note">
+                      <p>{note.contenu}</p>
+                      <span>
+                        {note.auteur_prenom} {note.auteur_nom} _ {FORMAT_DATE_NOTE.format(new Date(note.date_creation))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <label>
+                  <span>
+                    Note sur la modification <span className="champ-obligatoire">*</span>
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={noteModification}
+                    onChange={(e) => setNoteModification(e.target.value)}
+                    maxLength={LONGUEUR_MAX_NOTE}
+                    required
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="page-demande-dpae__actions">
+              {modification && (
+                <button type="button" onClick={() => navigate(`/rh/dpae/${demande.id}`)} disabled={envoiEnCours}>
+                  Annuler
+                </button>
+              )}
               <button type="submit" disabled={!formulaireCompletHorsSites || envoiEnCours}>
-                {envoiEnCours ? 'Envoi…' : 'Envoyer à la RH'}
+                {modification
+                  ? envoiEnCours
+                    ? 'Enregistrement…'
+                    : 'Enregistrer les modifications'
+                  : envoiEnCours
+                    ? 'Envoi…'
+                    : libelleEnvoi}
               </button>
             </div>
           </fieldset>
@@ -711,4 +868,39 @@ export default function DemandeDpae() {
       </div>
     </PageBackOffice>
   );
+}
+
+// Chargement de la demande à modifier, puis le même formulaire prérempli. `key` = id + version : une
+// demande rechargée (après un 409) réinitialise le formulaire avec ses valeurs à jour.
+function ModificationDemandeDpae({ demandeId }) {
+  const [demande, setDemande] = useState(null);
+  const [erreur, setErreur] = useState(null);
+
+  const charger = () => {
+    setErreur(null);
+    return obtenirDemande(demandeId)
+      .then(setDemande)
+      .catch(() => setErreur('Impossible de récupérer cette demande.'));
+  };
+
+  useEffect(() => {
+    charger();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demandeId]);
+
+  if (erreur || !demande) {
+    return (
+      <PageBackOffice>
+        {erreur ? <p role="alert">{erreur}</p> : <p>Chargement…</p>}
+      </PageBackOffice>
+    );
+  }
+  return <FormulaireDemandeDpae key={`${demande.id}-${demande.version}`} demande={demande} onRecharger={charger} />;
+}
+
+// Page « Nouvelle demande DPAE » (sans identifiant dans l'adresse) ou « Modifier la demande »
+// (/coordination/dpae/:demandeId/modifier) — un seul composant de formulaire pour les deux.
+export default function DemandeDpae() {
+  const { demandeId } = useParams();
+  return demandeId ? <ModificationDemandeDpae demandeId={demandeId} /> : <FormulaireDemandeDpae />;
 }

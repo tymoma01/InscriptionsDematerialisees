@@ -7,6 +7,7 @@ const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
 const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
 const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
+const statutsDpae = require('../../core/dpae/statutsDpae');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -28,7 +29,41 @@ function enumOptionnel(valeurs) {
   return z.preprocess((valeur) => (valeur === '' ? undefined : valeur), z.enum(valeurs).optional());
 }
 
-const demandeBodySchema = z.object({
+// Semaine type : jours connus, sans doublon, horaires « HH:MM » (ou vides), et — pour un jour travaillé
+// — la LISTE des identifiants de ses sites d'affectation (siteIds, sans doublon). Que chaque site
+// appartienne bien aux sites de la demande, et qu'il y en ait au moins un quand la demande en compte
+// plusieurs, est vérifié par verifierReglesDemande. L'ancienne forme à un seul `siteId` est acceptée et
+// convertie en liste d'un élément.
+// Ancienne forme d'un jour : un seul `siteId` -> `siteIds: [siteId]` (le jour reste lisible et
+// modifiable).
+function convertirSiteIdUnique(jour) {
+  if (!jour || typeof jour !== 'object' || !('siteId' in jour)) return jour;
+  const { siteId, ...reste } = jour;
+  if (reste.siteIds !== undefined || siteId === '' || siteId === null || siteId === undefined) return reste;
+  return { ...reste, siteIds: [siteId] };
+}
+const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const heureSchema = z.union([z.literal(''), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure invalide : format HH:MM attendu.')]).optional();
+const siteIdsSchema = z
+  .array(idPositifSchema)
+  .refine((ids) => new Set(ids).size === ids.length, { message: 'Un même site ne peut pas être sélectionné deux fois pour un jour.' })
+  .optional();
+const jourSemaineSchema = z.preprocess(convertirSiteIdUnique, z.object({
+  jour: z.enum(JOURS_SEMAINE),
+  statut: z.enum(['travail', 'repos']),
+  heureDebut: heureSchema,
+  heureFin: heureSchema,
+  siteIds: siteIdsSchema,
+}));
+const semaineTypeSchema = z
+  .array(jourSemaineSchema)
+  .max(7)
+  .refine((jours) => new Set(jours.map((jour) => jour.jour)).size === jours.length, { message: 'Un même jour ne peut figurer qu’une fois dans la semaine type.' });
+
+// Champs d'une demande, SANS les règles croisées : source unique de la création (POST /) et de la
+// modification (PUT /:id), qui y ajoutent chacune leurs propres champs (version) et les mêmes
+// règles croisées (verifierReglesDemande).
+const demandeBaseSchema = z.object({
   typeDemande: z.enum([
     'nouvelle_embauche',
     'prolongation',
@@ -39,7 +74,8 @@ const demandeBodySchema = z.object({
   salarieNom: z.string().trim().min(1),
   salariePrenom: z.string().trim().min(1),
   salarieTelephone: z.string().trim().optional(),
-  salarieDejaEmploye: z.boolean(),
+  // Obligatoire : aucune valeur par défaut, le demandeur doit répondre Oui ou Non.
+  salarieDejaEmploye: z.boolean({ error: 'Indiquez si le salarié a déjà travaillé chez nous.' }),
   candidatId: idPositifSchema.optional(),
   // Ancien champ texte libre "Site d'affectation" (colonne `hotel`, migration 068) — REMPLACÉ le
   // 2026-09-29 par sitesAffectationIds ci-dessous (référentiel, migration 069). Plus envoyé par le
@@ -59,16 +95,24 @@ const demandeBodySchema = z.object({
         message: "Un même site d'affectation ne peut pas être sélectionné deux fois.",
       }),
   ),
-  typeContrat: enumOptionnel(['cdd', 'cdi']),
+  // Obligatoire. Les champs propres au CDD (motif, dernier jour…) sont exigés pour un CDD par
+  // verifierReglesDemande, et retirés pour un CDI par normaliserDemande.
+  typeContrat: z.preprocess(
+    (valeur) => (valeur === '' ? undefined : valeur),
+    z.enum(['cdd', 'cdi'], { error: 'Le type de contrat est obligatoire.' }),
+  ),
   motifCdd: enumOptionnel(['remplacement_absent', 'surcroit_activite']),
   salarieRemplaceNom: z.string().trim().optional(),
   dateFinAbsence: z.string().trim().optional(),
   raisonSurcroit: z.string().trim().optional(),
-  division: enumOptionnel(['acchot', 'rm', 'autre']),
+  division: enumOptionnel(['hotellerie', 'tertiaire', 'autre']),
   divisionAutre: z.string().trim().optional(),
-  poste: z.string().trim().optional(),
+  poste: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le poste est obligatoire.')),
   posteAutre: z.string().trim().optional(),
-  dateDebut: z.string().trim().optional(),
+  // Premier jour : obligatoire pour tous les types de demande (le formulaire l'affiche sans
+  // distinction de typeDemande, voir DemandeDpae.jsx) — absent ou vide refusé avec le même
+  // message que côté front.
+  dateDebut: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le premier jour est obligatoire.')),
   dateFin: z.string().trim().optional(),
   heureArriveeJ1: z.string().trim().optional(),
   heuresParMois: z.number().nonnegative().optional(),
@@ -84,37 +128,113 @@ const demandeBodySchema = z.object({
   joursConcernes: z.array(z.record(z.string(), z.unknown())).optional(),
   raisonChangementJours: z.string().trim().optional(),
   raisonIdentiqueContrat: enumOptionnel(['oui', 'non', 'ne_sais_pas']),
-  semaineType: z.array(z.record(z.string(), z.unknown())).optional(),
+  semaineType: semaineTypeSchema.optional(),
   horairesDifferentsParJour: z.boolean().optional(),
   autreChoseSignaler: z.string().trim().optional(),
   verifBesoinHotel: z.boolean(),
   verifTousJoursInclus: z.boolean(),
   verifNonPlanification: z.boolean(),
-})
-  // "Nom du salarié remplacé" obligatoire UNIQUEMENT pour un CDD de remplacement (audit 2026-09-29,
-  // demande utilisateur) — règle croisée entre champs, d'où ce superRefine plutôt qu'un min(1) sur
-  // le champ lui-même (qui l'imposerait dans tous les cas). salarieRemplaceNom est déjà trimé
-  // ci-dessus : une saisie faite d'espaces arrive ici vide et est refusée. Aucun contrôle pour un
-  // CDI ou un CDD de surcroît d'activité. La date de fin d'absence reste facultative (demande
-  // explicite). Colonne inchangée en base, demandes existantes non concernées.
-  .superRefine((demande, ctx) => {
-    if (demande.typeContrat === 'cdd' && demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['salarieRemplaceNom'],
-        message: 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.',
-      });
+});
+
+const FORMAT_JOUR = /^\d{4}-\d{2}-\d{2}$/;
+
+// Règles croisées entre champs, communes à la création et à la modification.
+//  - « Nom du salarié remplacé » obligatoire UNIQUEMENT pour un CDD de remplacement (règle croisée,
+//    d'où ce contrôle ici plutôt qu'un min(1) sur le champ). La date de fin d'absence reste facultative.
+//  - CDD : raison du CDD et dernier jour obligatoires ; le dernier jour ne peut pas précéder le premier.
+//  - Semaine type : les sites d'un jour sont des sites de la demande ; avec plusieurs sites, au moins un
+//    est obligatoire pour chaque jour travaillé (avec un seul, normaliserDemande l'attribue).
+function verifierReglesDemande(demande, ctx) {
+  const refuser = (path, message) => ctx.addIssue({ code: 'custom', path, message });
+
+  if (demande.typeContrat === 'cdd') {
+    if (!demande.motifCdd) refuser(['motifCdd'], 'La raison du CDD est obligatoire.');
+    if (!demande.dateFin) refuser(['dateFin'], 'Le dernier jour est obligatoire pour un CDD.');
+    if (demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
+      refuser(['salarieRemplaceNom'], 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.');
+    }
+    // Dates « AAAA-MM-JJ » : la comparaison de chaînes suit l'ordre chronologique.
+    if (FORMAT_JOUR.test(demande.dateFin ?? '') && FORMAT_JOUR.test(demande.dateDebut) && demande.dateFin < demande.dateDebut) {
+      refuser(['dateFin'], 'Le dernier jour ne peut pas précéder le premier jour.');
+    }
+  }
+
+  const sitesIds = demande.sitesAffectationIds ?? [];
+  (demande.semaineType ?? []).forEach((jour, index) => {
+    if (jour.statut !== 'travail') return;
+    const sitesDuJour = jour.siteIds ?? [];
+    if (sitesDuJour.some((id) => !sitesIds.includes(id))) {
+      refuser(['semaineType', index, 'siteIds'], 'Les sites d’un jour doivent faire partie des sites d’affectation de la demande.');
+    } else if (sitesDuJour.length === 0 && sitesIds.length > 1) {
+      refuser(['semaineType', index, 'siteIds'], 'Au moins un site est obligatoire pour chaque jour travaillé.');
     }
   });
+}
 
-const rejetBodySchema = z.object({
-  motifRejet: z.string().trim().min(1, 'Un motif de rejet est obligatoire.'),
-});
+// Forme enregistrée (appliquée par les routes après validation) : pour un CDI, les champs propres au CDD ne sont pas conservés ; dans la semaine
+// type, un jour de repos n'a pas de site et, avec un seul site, chaque jour travaillé reçoit ce site (liste).
+function normaliserDemande(demande) {
+  const donnees = { ...demande };
+  if (donnees.typeContrat === 'cdi') {
+    for (const champ of ['motifCdd', 'salarieRemplaceNom', 'dateFinAbsence', 'raisonSurcroit', 'dateFin']) delete donnees[champ];
+  }
+  if (donnees.semaineType) {
+    const sitesIds = donnees.sitesAffectationIds ?? [];
+    donnees.semaineType = donnees.semaineType.map(({ siteIds, ...jour }) => {
+      if (jour.statut !== 'travail') return jour;
+      const sites = sitesIds.length === 1 ? sitesIds : siteIds;
+      return sites === undefined || sites.length === 0 ? jour : { ...jour, siteIds: sites };
+    });
+  }
+  return donnees;
+}
 
-// Mise en attente : motif OBLIGATOIRE — absent, vide ou fait d'espaces -> 400.
-const miseEnAttenteBodySchema = z.object({
-  motif: z.string().trim().min(1, 'Un motif de mise en attente est obligatoire.'),
-});
+// Création : la demande complète.
+const demandeBodySchema = demandeBaseSchema.superRefine(verifierReglesDemande);
+
+// Version de la demande lue par le client (verrouillage optimiste, voir
+// demandeDpaeService.appliquerTransition et modifierDemande) : absente ou invalide -> 400.
+const versionSchema = z.coerce.number().int().positive();
+
+// Modification (PUT /:id) : la demande COMPLÈTE (mêmes champs et mêmes règles que la création) plus
+// la version lue. Le demandeur, l'entité, la date de création et le statut ne figurent pas dans le
+// schéma : un client qui les enverrait serait ignoré.
+// `noteModification` : note facultative (obligatoire selon le statut, vérifié par le service), 1 000 caractères au plus.
+const modificationBodySchema = demandeBaseSchema
+  .extend({ version: versionSchema, noteModification: z.string().trim().max(1000, 'La note ne peut pas dépasser 1 000 caractères.').optional() })
+  .superRefine(verifierReglesDemande);
+
+// Chaque décision (valider, rejeter, mettre en attente, transmettre, renvoyer) porte la version de la
+// demande lue par le client : absente ou invalide -> 400. Aucun motif n'est attendu : un champ `motif`
+// envoyé par un ancien client est ignoré (la raison se consigne dans les notes de la demande).
+const validationBodySchema = z.object({ version: versionSchema });
+
+// Réponses d'erreur communes aux décisions et à la modification : demande d'une autre entité ou
+// inexistante 404, droit insuffisant 403, transition non autorisée depuis le statut courant ou
+// demande modifiée entre-temps 409, corps ou sites invalides 400. Renvoie true si l'erreur a été traitée.
+function repondreErreurDecision(res, erreur) {
+  if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+    res.status(404).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee || erreur instanceof demandeDpaeService.ErreurDemandeModifiee) {
+    res.status(409).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof demandeDpaeService.ErreurModificationInterdite) {
+    res.status(403).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof demandeDpaeService.ErreurSitesAffectationInvalides || erreur instanceof demandeDpaeService.ErreurNoteModificationObligatoire) {
+    res.status(400).json({ erreur: erreur.message });
+    return true;
+  }
+  if (erreur instanceof z.ZodError) {
+    repondreErreurValidation(res, erreur);
+    return true;
+  }
+  return false;
+}
 
 // Notes d'une demande DPAE : mêmes règles que les notes d'un dossier (notes.routes.js).
 const noteBodySchema = z.object({
@@ -125,13 +245,13 @@ function repondreErreurValidation(res, erreurZod) {
   res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
 }
 
-// POST /api/dpae — crée une demande et l'envoie directement à la RH (pas de brouillon, voir
-// demandeDpaeService.creerEtEnvoyer). utilisateurId toujours pris de la session, jamais du corps
+// POST /api/dpae — crée une demande (pas de brouillon, voir demandeDpaeService.creerEtEnvoyer) : un
+// Inspecteur Hôtellerie la soumet au Planning, les autres rôles l'envoient directement à la RH. utilisateurId toujours pris de la session, jamais du corps
 // de la requête — même principe que relances.routes.js.
 router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
-    const donnees = demandeBodySchema.parse(req.body);
-    const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees);
+    const donnees = normaliserDemande(demandeBodySchema.parse(req.body));
+    const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees, { roleCode: req.utilisateur.roleCode });
 
     const bd = await obtenirKnex();
     await journalAudit.enregistrerAction(bd, {
@@ -181,7 +301,7 @@ router.get('/suivi', requirePermission('dpaeConsultation'), async (req, res, nex
 // GET /:id : sinon « tableau-de-bord » serait pris pour un identifiant de demande.
 // Filtres (tous optionnels) : debut/fin (AAAA-MM-JJ, jours parisiens de création ; défaut : les 30
 // derniers jours), siteId (id d'un site, ou 'non_reference' pour les anciennes demandes sans site
-// lié), typeContrat (cdd|cdi), statut (envoyee|en_attente|validee|rejetee). Une valeur vide vaut
+// lié), typeContrat (cdd|cdi), statut (un des statuts de statutsDpae.js). Une valeur vide vaut
 // « tous ».
 const videVersIndefini = (valeur) => (valeur === '' ? undefined : valeur);
 const filtresTableauDeBordSchema = z.object({
@@ -189,7 +309,7 @@ const filtresTableauDeBordSchema = z.object({
   fin: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
   siteId: z.preprocess(videVersIndefini, z.union([z.literal('non_reference'), idPositifSchema]).optional()),
   typeContrat: enumOptionnel(['cdd', 'cdi']),
-  statut: enumOptionnel(['envoyee', 'en_attente', 'validee', 'rejetee']),
+  statut: enumOptionnel(statutsDpae.CODES_STATUTS_DPAE),
 });
 
 // dpaeTableauDeBord : Admin, RH, Planning — l'Inspecteur Hôtellerie, bien que
@@ -197,7 +317,11 @@ const filtresTableauDeBordSchema = z.object({
 router.get('/tableau-de-bord', requirePermission('dpaeTableauDeBord'), async (req, res, next) => {
   try {
     const filtres = filtresTableauDeBordSchema.parse(req.query);
-    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres));
+    // La RH ne voit pas les demandes encore chez le Planning ni celles classées sans suite avant tout
+    // envoi à la RH : exclues de tous les indicateurs.
+    const statutsExclus = demandeDpaeService.statutsMasquesPour(req.utilisateur.roleCode);
+    const masquerClasseesNonTransmises = demandeDpaeService.masqueClasseesNonTransmises(req.utilisateur.roleCode);
+    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres, new Date(), null, { statutsExclus, masquerClasseesNonTransmises }));
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof tableauDeBordDpaeService.ErreurFiltresTableauDeBord) {
@@ -287,11 +411,22 @@ router.post('/export-pdf', requirePermission('dpaeConsultation'), async (req, re
   }
 });
 
-// GET /api/dpae — file RH. ?statut=envoyee (défaut, file à traiter) ou ?statut=tous (historique
-// complet, traitées incluses).
+// GET /api/dpae/a-valider — file « Demandes à valider » du Planning : « À valider par le Planning »
+// puis « Renvoyée à l'inspecteur », premier jour le plus proche d'abord. Planning et Admin
+// (dpaeValidationPlanning). Déclarée AVANT GET /:id.
+router.get('/a-valider', requirePermission('dpaeValidationPlanning'), async (req, res, next) => {
+  try {
+    res.json(await demandeDpaeService.listerAValider(req.entite));
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// GET /api/dpae — file RH. ?statut=<statut initial> (défaut, file à traiter) ou ?statut=tous
+// (historique complet, traitées incluses).
 router.get('/', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
-    const statut = req.query.statut === 'tous' ? null : req.query.statut || 'envoyee';
+    const statut = req.query.statut === 'tous' ? null : req.query.statut || statutsDpae.STATUT_INITIAL;
     const demandes = await demandeDpaeService.listerPourRh(req.entite, statut);
     res.json(demandes);
   } catch (erreur) {
@@ -360,97 +495,178 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
   }
 });
 
-router.patch('/:id/valider', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
+// PUT /api/dpae/:id { …demande complète, version } — modification d'une demande non décidée
+// ; la note de modification est obligatoire (400 sinon) et le statut ne change JAMAIS (une demande
+// renvoyée à l'inspecteur repart au Planning par PATCH /:id/envoyer-au-planning). Sans changement de la
+// demande, seule la note est enregistrée. Garde de rôle : dpaeModification
+// (Planning, Admin, Inspecteur Hôtellerie) ; droit par demande (auteur, ou Planning/Admin pour toute
+// demande) et statut verrouillé vérifiés dans la transaction (demandeDpaeService.modifierDemande).
+// Réponse : { statut, version } après modification. utilisateurId, entité et rôle viennent de la
+// session, jamais du corps.
+router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_MODIFIER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    await demandeDpaeService.valider(req.entite, id, req.utilisateur.id);
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
+    const { version, noteModification, ...donnees } = normaliserDemande(modificationBodySchema.parse(req.body));
+    const { statut, version: nouvelleVersion, noteEnregistree } = await demandeDpaeService.modifierDemande(req.entite, id, {
+      donnees,
+      version,
+      noteModification,
       utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'demande_dpae_validation',
-      tableCible: 'demandes_dpae',
-      cibleId: id,
-      donnees: {},
+      roleCode: req.utilisateur.roleCode,
       adresseIp: req.ip,
     });
-
-    res.status(204).end();
+    res.json({ statut, version: nouvelleVersion, noteEnregistree: Boolean(noteEnregistree) });
   } catch (erreur) {
-    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
-      return res.status(404).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
-      return res.status(409).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });
 
-router.patch('/:id/rejeter', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
+// PATCH /api/dpae/:id/valider { version } — « À traiter » ou « En attente » -> « Validée ». La garde
+// de rôle, les statuts de départ et la traçabilité (journal_audit, notification du demandeur, dans
+// la même transaction que la décision) viennent de statutsDpae.js / demandeDpaeService.js.
+router.patch('/:id/valider', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_VALIDER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    const { motifRejet } = rejetBodySchema.parse(req.body);
-    await demandeDpaeService.rejeter(req.entite, id, req.utilisateur.id, motifRejet);
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
-      utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'demande_dpae_rejet',
-      tableCible: 'demandes_dpae',
-      cibleId: id,
-      donnees: { motifRejet },
-      adresseIp: req.ip,
-    });
-
+    const { version } = validationBodySchema.parse(req.body);
+    await demandeDpaeService.valider(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
     res.status(204).end();
   } catch (erreur) {
-    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
-      return res.status(404).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
-      return res.status(409).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });
 
-// PATCH /api/dpae/:id/mettre-en-attente — « À traiter » -> « En attente », RH/Admin
-// (dpaeTraitementRh), motif obligatoire. Depuis tout autre statut : 409. Tracé dans journal_audit
-// (auteur = session, motif) ; le demandeur est notifié (demandeDpaeService.mettreEnAttente).
-router.patch('/:id/mettre-en-attente', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
+// PATCH /api/dpae/:id/transmettre-rh { version } — « À valider par le Planning » -> « À traiter »
+// (date d'envoi à la RH posée ; la RH et l'inspecteur auteur sont notifiés). Planning et Admin.
+router.patch(
+  '/:id/transmettre-rh',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_TRANSMETTRE_RH)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.transmettreALaRh(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/renvoyer-inspecteur { version } — « À valider par le Planning » ->
+// « Renvoyée à l'inspecteur » ; l'inspecteur auteur est notifié. Planning et Admin.
+router.patch(
+  '/:id/renvoyer-inspecteur',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_RENVOYER_INSPECTEUR)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.renvoyerAInspecteur(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/classer-sans-suite { version } — statut final « Classée sans suite », depuis tout
+// statut où la RH n'a pas encore décidé. Garde de rôle : dpaeClassementSansSuite (Inspecteur Hôtellerie,
+// Planning, Admin) ; droit par demande (l'Inspecteur : ses demandes seulement, 403 sinon) vérifié dans
+// la transaction (demandeDpaeService.classerSansSuite).
+router.patch(
+  '/:id/classer-sans-suite',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_CLASSER_SANS_SUITE)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.classerSansSuite(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/envoyer-au-planning { version } — « Renvoyée à l'inspecteur » -> « À valider par le
+// Planning » (le Planning est notifié). Garde de rôle : dpaeEnvoiPlanning (Inspecteur Hôtellerie, Admin) ;
+// droit par demande (l'Inspecteur : ses demandes seulement, 403 sinon) vérifié dans la transaction.
+router.patch(
+  '/:id/envoyer-au-planning',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_ENVOYER_AU_PLANNING)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.envoyerAuPlanning(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/retransmettre-rh { version } — « En attente » -> « À traiter » (la RH est notifiée,
+// date_envoi_rh conservée). Garde de rôle : dpaeRetransmissionRh (Inspecteur Hôtellerie, Planning, Admin) ;
+// droit par demande (l'Inspecteur : ses demandes seulement, 403 sinon) vérifié dans la transaction.
+router.patch(
+  '/:id/retransmettre-rh',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_RETRANSMETTRE_RH)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.retransmettreALaRh(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/reactiver { version } — « Classée sans suite » -> statut selon le rôle qui l'avait classée
+// (inspecteur : renvoyée ; Planning : à valider ; Admin : son statut d'avant). Admin SEULEMENT (garde
+// dpaeReactivation : 403 pour tout autre rôle) ; 409 si la demande n'est pas classée sans suite. La seule
+// transition sortante de ce statut ; date_envoi_rh n'est jamais modifiée.
+router.patch('/:id/reactiver', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_REACTIVER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    const { motif } = miseEnAttenteBodySchema.parse(req.body);
-    await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, motif);
-
-    const bd = await obtenirKnex();
-    await journalAudit.enregistrerAction(bd, {
-      utilisateurId: req.utilisateur.id,
-      entiteId: req.entite.id,
-      action: 'demande_dpae_mise_en_attente',
-      tableCible: 'demandes_dpae',
-      cibleId: id,
-      donnees: { motif },
-      adresseIp: req.ip,
-    });
-
+    const { version } = validationBodySchema.parse(req.body);
+    await demandeDpaeService.reactiver(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
     res.status(204).end();
   } catch (erreur) {
-    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
-      return res.status(404).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof demandeDpaeService.ErreurDemandeDejaTraitee) {
-      return res.status(409).json({ erreur: erreur.message });
-    }
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
-    next(erreur);
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });
+
+// PATCH /api/dpae/:id/rejeter { version } — « À traiter » ou « En attente » -> « Rejetée ».
+router.patch('/:id/rejeter', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_REJETER)), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const { version } = validationBodySchema.parse(req.body);
+    await demandeDpaeService.rejeter(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+    res.status(204).end();
+  } catch (erreur) {
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
+  }
+});
+
+// PATCH /api/dpae/:id/mettre-en-attente { version } — « À traiter » -> « En attente ». Depuis tout
+// autre statut : 409. Tracé dans journal_audit (auteur = session) ; le demandeur est notifié (demandeDpaeService.mettreEnAttente).
+router.patch(
+  '/:id/mettre-en-attente',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_METTRE_EN_ATTENTE)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.mettreEnAttente(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
 
 // GET /api/dpae/:id/notes — notes propres à la demande, plus récentes d'abord. Lecture
 // ouverte aux mêmes rôles que la fiche (dpaeConsultation : Admin, RH, Planning) ; demande
@@ -458,10 +674,13 @@ router.patch('/:id/mettre-en-attente', requirePermission('dpaeTraitementRh'), as
 router.get('/:id/notes', requirePermission('dpaeConsultation'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    res.json(await notesDemandeDpaeService.listerNotes(req.entite, id));
+    res.json(await notesDemandeDpaeService.listerNotes(req.entite, id, { roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id }));
   } catch (erreur) {
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof demandeDpaeService.ErreurModificationInterdite) {
+      return res.status(403).json({ erreur: erreur.message });
     }
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
@@ -471,8 +690,9 @@ router.get('/:id/notes', requirePermission('dpaeConsultation'), async (req, res,
 // POST /api/dpae/:id/notes — ajoute une note (auteur pris de la session, jamais du
 // corps), mêmes rôles que la lecture. Aucune modification ni suppression (pas de route prévue).
 // Chaque ajout est tracé dans journal_audit.
-// Ajout de note : dpaeNotes (Admin, RH, Planning) — l'Inspecteur Hôtellerie lit les notes
-// (GET ci-dessus, dpaeConsultation) mais n'en ajoute pas.
+// Ajout de note : dpaeNotes (Admin, RH, Planning, Inspecteur Hôtellerie), quel que soit le statut de la
+// demande, statuts finaux compris ; l'Inspecteur Hôtellerie seulement sur ses propres demandes (403 sinon,
+// notesDemandeDpaeService.ajouterNote).
 router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
@@ -481,6 +701,7 @@ router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next)
       demandeId: id,
       contenu,
       auteurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
     });
 
     const bd = await obtenirKnex();
@@ -499,6 +720,9 @@ router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next)
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
     }
+    if (erreur instanceof demandeDpaeService.ErreurModificationInterdite) {
+      return res.status(403).json({ erreur: erreur.message });
+    }
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     next(erreur);
   }
@@ -509,10 +733,13 @@ module.exports = router;
 // aucune infrastructure de test HTTP dans ce projet, on teste le VRAI schéma monté sur POST /,
 // jamais une copie).
 module.exports.demandeBodySchema = demandeBodySchema;
+module.exports.demandeBaseSchema = demandeBaseSchema;
+module.exports.normaliserDemande = normaliserDemande;
+module.exports.modificationBodySchema = modificationBodySchema;
 // Filtres du tableau de bord exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;
 // Motif de mise en attente et note exposés pour dpae.routes.test.js (même raison que ci-dessus).
-module.exports.miseEnAttenteBodySchema = miseEnAttenteBodySchema;
+module.exports.validationBodySchema = validationBodySchema;
 module.exports.noteBodySchema = noteBodySchema;
 // Export PDF : limite et nom du ZIP exposés pour dpae.routes.test.js.
 module.exports.LIMITE_DEMANDES_PAR_ZIP = LIMITE_DEMANDES_PAR_ZIP;

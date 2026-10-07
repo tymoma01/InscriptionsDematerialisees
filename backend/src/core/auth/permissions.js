@@ -70,15 +70,45 @@ const PERMISSIONS = {
   dpaeConsultation: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
   // Parmi eux, qui voit TOUTES les demandes de l'entité (les autres : seulement les leurs).
   dpaeConsultationToutes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
+  // Modification d'une demande encore « À traiter » ou « En attente » : les rôles qui peuvent
+  // modifier au moins leurs propres demandes (comme la création)…
+  dpaeModification: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE],
+  // … et, parmi eux, ceux qui peuvent modifier la demande de n'importe quel auteur (les autres :
+  // seulement les leurs). Règle par demande : demandeDpaeService.peutModifierDemande.
+  dpaeModificationToutes: [PLANNING, ADMIN],
+  // Passage par le Planning : un Inspecteur Hôtellerie soumet ses demandes au Planning (qui les
+  // transmet à la RH ou les lui renvoie) ; les autres rôles créateurs les envoient directement à la RH.
+  dpaeCreationSoumiseAuPlanning: [INSPECTEUR_HOTELLERIE],
+  dpaeValidationPlanning: [PLANNING, ADMIN],
+  // Voir les demandes « À valider par le Planning » et « Renvoyée à l'inspecteur » : tous les rôles
+  // de consultation sauf la RH, qui n'en a connaissance qu'une fois la demande transmise.
+  dpaeVoitFilePlanning: [ADMIN, PLANNING, INSPECTEUR_HOTELLERIE],
+  // Classer une demande sans suite (avant toute décision de la RH) : les rôles qui peuvent le faire sur
+  // leurs propres demandes… et, parmi eux, ceux qui le peuvent sur celles de n'importe quel auteur.
+  dpaeClassementSansSuite: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
+  dpaeClassementSansSuiteToutes: [PLANNING, ADMIN],
   dpaeTableauDeBord: [ADMIN, RH, PLANNING],
-  dpaeNotes: [ADMIN, RH, PLANNING],
+  // Renvoyer une demande corrigée au Planning (« Renvoyée à l'inspecteur » -> « À valider par le Planning ») :
+  // l'Inspecteur Hôtellerie auteur, ou l'Admin pour toute demande.
+  dpaeEnvoiPlanning: [INSPECTEUR_HOTELLERIE, ADMIN],
+  dpaeEnvoiPlanningToutes: [ADMIN],
+  // Renvoyer à la RH une demande « En attente » une fois complétée : l'auteur (Inspecteur Hôtellerie), ou le
+  // Planning et l'Admin pour toute demande.
+  dpaeRetransmissionRh: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
+  dpaeRetransmissionRhToutes: [PLANNING, ADMIN],
+  // Réactiver une demande classée sans suite : l'Admin seulement.
+  dpaeReactivation: [ADMIN],
+  // Notes d'une demande : tous les rôles de consultation ; l'Inspecteur Hôtellerie seulement sur ses propres
+  // demandes (dpaeNotesToutes pour les autres).
+  dpaeNotes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
+  dpaeNotesToutes: [ADMIN, RH, PLANNING],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.
   rechercheCandidats: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE, RH],
 
   // --- Permissions d'écran (aucune route API associée) ---
   nouvelleInscription: [...ACCUEIL, ADMIN],
   suiviTests: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
-  cloche: [ADMIN, RH],
+  cloche: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
 };
 
 for (const cle of Object.keys(PERMISSIONS)) Object.freeze(PERMISSIONS[cle]);

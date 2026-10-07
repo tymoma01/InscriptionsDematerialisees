@@ -1,20 +1,40 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
-import ModaleRejeterDpae from './ModaleRejeterDpae';
-import ModaleValiderDpae from './ModaleValiderDpae';
+import ModaleConfirmationDpae from './ModaleConfirmationDpae';
 import NotesDossier from '../../core/dossier/NotesDossier';
-import { libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import {
+  ACTION_METTRE_EN_ATTENTE,
+  ACTION_MODIFIER,
+  ACTION_REJETER,
+  ACTION_CLASSER_SANS_SUITE,
+  ACTION_ENVOYER_AU_PLANNING,
+  ACTION_REACTIVER,
+  ACTION_RETRANSMETTRE_RH,
+  ACTION_RENVOYER_INSPECTEUR,
+  ACTION_TRANSMETTRE_RH,
+  ACTION_VALIDER,
+  libelleStatutDpae,
+  transitionPossible,
+  varianteStatutDpae,
+} from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
-import { formaterHeure, formaterHeuresParMois } from '../../core/dpae/formatsDpae';
+import { formaterHeure, formaterHeuresParMois, libellesSitesJour, libelleDivision } from '../../core/dpae/formatsDpae';
+import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
 import {
   obtenirDemande,
   validerDemande,
   rejeterDemande,
   mettreEnAttenteDemande,
+  transmettreDemandeALaRh,
+  renvoyerDemandeAInspecteur,
+  classerSansSuiteDemande,
+  envoyerAuPlanningDemande,
+  retransmettreDemandeALaRh,
+  reactiverDemande,
   listerNotesDemande,
   ajouterNoteDemande,
 } from '../../services/dpaeService';
@@ -31,9 +51,6 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
-// Statuts sans décision finale : Valider/Rejeter restent possibles ; « Mettre en
-// attente » seulement depuis « À traiter » (voir demandeDpaeService.js, transitions autorisées).
-const STATUTS_A_DECIDER = ['envoyee', 'en_attente'];
 const LIBELLE_PAR_TYPE = {
   nouvelle_embauche: 'Nouvelle embauche',
   prolongation: 'Prolongation',
@@ -72,25 +89,53 @@ function ligne(libelle, valeur) {
 // à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, dpaeConsultation),
 // ouverte d'un clic depuis « Suivi des demandes DPAE » ; le serveur décide quelles fiches chacun
 // peut ouvrir (dpae.routes.js, GET /:id). Les actions Valider/Rejeter ne sont affichées qu'aux
-// rôles de traitement RH (RH, Admin), comme côté serveur. « Mettre en attente » : même
-// rôles, motif obligatoire, uniquement sur une demande « À traiter ». Notes propres à la demande
+// rôles de traitement RH (RH, Admin), comme côté serveur ; « Transmettre à la RH » et « Renvoyer à
+// l'inspecteur » (demande « À valider par le Planning ») au Planning et à l'Admin. « Mettre en attente » : même
+// rôles, uniquement sur une demande « À traiter ». Toutes ces actions passent par la même fenêtre de
+// confirmation, sans motif : la raison se consigne dans les notes de la demande. Notes propres à la demande
 // en bas de fiche, juste avant les actions : lecture et ajout pour tous les rôles de
 // consultation (Admin, RH, Planning), même composant et mêmes règles que les notes d'un dossier.
+// Titre et couleur de la fenêtre de confirmation, par action.
+// Où repart une demande réactivée, d'après le statut de retour calculé par le serveur.
+const DESTINATION_REACTIVATION = {
+  renvoyee_inspecteur: 'chez l’inspecteur',
+  a_valider_planning: 'au Planning',
+  envoyee: 'à la RH',
+  en_attente: 'à la RH',
+};
+
+const ACTIONS_CONFIRMATION = {
+  validation: { titre: 'Valider la demande ?', variante: 'validation' },
+  rejet: { titre: 'Rejeter la demande ?', variante: 'rejet' },
+  attente: { titre: 'Mettre la demande en attente ?', variante: 'attente' },
+  renvoi: { titre: 'Renvoyer la demande à l’inspecteur ?', variante: 'attente' },
+  transmission: { titre: 'Transmettre la demande à la RH ?', variante: 'validation' },
+  reactivation: { titre: 'Réactiver la demande ?', variante: 'reactivation' },
+  retransmission: { titre: 'Transmettre la demande à la RH ?', variante: 'validation' },
+  envoiPlanning: { titre: 'Envoyer la demande au Planning ?', variante: 'validation' },
+  classement: { titre: 'Classer la demande sans suite ?', variante: 'classement' },
+};
+
 export default function DetailDemandeDpae() {
   const { demandeId } = useParams();
   const { utilisateur } = useSession();
   const peutTraiter = peut(utilisateur, 'dpaeTraitementRh');
+  const peutValiderPlanning = peut(utilisateur, 'dpaeValidationPlanning');
   // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
   const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
+  // Message de confirmation transmis par le formulaire de modification après l'enregistrement.
+  const confirmation = useLocation().state?.confirmation;
 
   const [demande, setDemande] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [actionEnCours, setActionEnCours] = useState(false);
   const [erreurAction, setErreurAction] = useState(null);
-  // null | 'validation' | 'rejet' | 'attente' — une fenêtre de confirmation par décision ; rejet et
-  // mise en attente partagent la même modale à motif obligatoire.
+  // Vrai quand le serveur a refusé la décision (409) : la demande a changé depuis son chargement.
+  const [conflit, setConflit] = useState(false);
+  // null | 'validation' | 'rejet' | 'attente' | 'renvoi' | 'transmission' | 'retransmission' | 'reactivation' | 'envoiPlanning' | 'classement' — la même fenêtre de
+  // confirmation (ModaleConfirmationDpae) pour toutes les actions.
   const [modaleOuverte, setModaleOuverte] = useState(null);
 
   const charger = () => {
@@ -106,46 +151,51 @@ export default function DetailDemandeDpae() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandeId]);
 
-  const valider = async () => {
+  // Décision (valider, rejeter, mettre en attente) envoyée avec la version de la demande lue : si
+  // quelqu'un l'a modifiée entre-temps, le serveur répond 409 et n'enregistre rien — le message est
+  // alors affiché avec un bouton pour recharger la demande.
+  const decider = async (appel, messageParDefaut) => {
     setActionEnCours(true);
     setErreurAction(null);
+    setConflit(false);
     try {
-      await validerDemande(demandeId);
+      await appel();
       setModaleOuverte(null);
       await charger();
     } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de valider cette demande.');
+      if (erreurRequete.response?.status === 409) {
+        setModaleOuverte(null);
+        setConflit(true);
+      }
+      setErreurAction(erreurRequete.response?.data?.erreur ?? messageParDefaut);
     } finally {
       setActionEnCours(false);
     }
   };
 
-  const rejeter = async (motifRejet) => {
-    setActionEnCours(true);
-    setErreurAction(null);
-    try {
-      await rejeterDemande(demandeId, motifRejet);
-      setModaleOuverte(null);
-      await charger();
-    } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de rejeter cette demande.');
-    } finally {
-      setActionEnCours(false);
-    }
-  };
+  const valider = () => decider(() => validerDemande(demandeId, demande.version), 'Impossible de valider cette demande.');
 
-  const mettreEnAttente = async (motif) => {
-    setActionEnCours(true);
+  const rejeter = () => decider(() => rejeterDemande(demandeId, demande.version), 'Impossible de rejeter cette demande.');
+
+  const mettreEnAttente = () => decider(() => mettreEnAttenteDemande(demandeId, demande.version), 'Impossible de mettre cette demande en attente.');
+
+  // Passage par le Planning : mêmes garanties de version que les décisions RH.
+  const transmettre = () => decider(() => transmettreDemandeALaRh(demandeId, demande.version), 'Impossible de transmettre cette demande à la RH.');
+
+  const reactiver = () => decider(() => reactiverDemande(demandeId, demande.version), 'Impossible de réactiver cette demande.');
+
+  const retransmettre = () => decider(() => retransmettreDemandeALaRh(demandeId, demande.version), 'Impossible de transmettre cette demande à la RH.');
+
+  const envoyerAuPlanning = () => decider(() => envoyerAuPlanningDemande(demandeId, demande.version), "Impossible d'envoyer cette demande au Planning.");
+
+  const classerSansSuite = () => decider(() => classerSansSuiteDemande(demandeId, demande.version), 'Impossible de classer cette demande sans suite.');
+
+  const renvoyer = () => decider(() => renvoyerDemandeAInspecteur(demandeId, demande.version), "Impossible de renvoyer cette demande à l'inspecteur.");
+
+  const recharger = () => {
     setErreurAction(null);
-    try {
-      await mettreEnAttenteDemande(demandeId, motif);
-      setModaleOuverte(null);
-      await charger();
-    } catch (erreurRequete) {
-      setErreurAction(erreurRequete.response?.data?.erreur ?? 'Impossible de mettre cette demande en attente.');
-    } finally {
-      setActionEnCours(false);
-    }
+    setConflit(false);
+    charger();
   };
 
   const fermerModale = () => {
@@ -169,6 +219,37 @@ export default function DetailDemandeDpae() {
     );
   }
 
+  const peutClasser =
+    peut(utilisateur, 'dpaeClassementSansSuite') &&
+    (peut(utilisateur, 'dpaeClassementSansSuiteToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_CLASSER_SANS_SUITE, demande.statut);
+
+  // Notes : tous les rôles de consultation, quel que soit le statut (statuts finaux compris) ; l'Inspecteur
+  // Hôtellerie seulement sur ses propres demandes (le serveur revérifie).
+  const peutAjouterNote = peut(utilisateur, 'dpaeNotes') && (peut(utilisateur, 'dpaeNotesToutes') || demande.demandeur_id === utilisateur?.id);
+  const actionsPlanning = peutValiderPlanning && transitionPossible(ACTION_TRANSMETTRE_RH, demande.statut);
+  // « Envoyer au Planning » : l'auteur Inspecteur Hôtellerie (ou l'Admin) renvoie sa demande corrigée.
+  const actionsEnvoiPlanning =
+    peut(utilisateur, 'dpaeEnvoiPlanning') &&
+    (peut(utilisateur, 'dpaeEnvoiPlanningToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_ENVOYER_AU_PLANNING, demande.statut);
+  // « Transmettre à la RH » d'une demande « En attente » : l'auteur, le Planning et l'Admin ; le serveur revérifie.
+  const actionsRetransmission =
+    peut(utilisateur, 'dpaeRetransmissionRh') &&
+    (peut(utilisateur, 'dpaeRetransmissionRhToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_RETRANSMETTRE_RH, demande.statut);
+  // « Réactiver la demande » : Admin seulement, depuis « Classée sans suite » ; le serveur revérifie.
+  const peutReactiver = peut(utilisateur, 'dpaeReactivation') && transitionPossible(ACTION_REACTIVER, demande.statut);
+  const actionsRh = peutTraiter && (transitionPossible(ACTION_VALIDER, demande.statut) || transitionPossible(ACTION_REJETER, demande.statut));
+
+  // « Modifier la demande » : droit de modification (l'auteur, ou Planning/Admin pour toute demande —
+  // le serveur revérifie) ET statut qui l'autorise (« À traiter », « En attente »).
+  const peutModifier =
+    peut(utilisateur, 'dpaeModification') &&
+    (peut(utilisateur, 'dpaeModificationToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_MODIFIER, demande.statut);
+
+  const nombreJours = nombreJoursCalendaires(demande.date_debut, demande.date_fin);
   const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
   const joursConcernes = demande.jours_concernes ?? [];
 
@@ -194,6 +275,11 @@ export default function DetailDemandeDpae() {
               {/* PDF de la fiche, généré côté serveur — rôles de consultation seulement
                   (voir core/dpae/TelechargementPdfDpae.jsx). */}
               <BoutonTelechargerPdfDemande demandeId={demande.id} />
+              {peutModifier && (
+                <Link to={`/coordination/dpae/${demande.id}/modifier`} className="page-detail-dpae__modifier">
+                  Modifier la demande
+                </Link>
+              )}
               {/* "En un clic accéder à la fiche du candidat" (demande utilisateur, module Demandes
                   DPAE) — dossier_id résolu côté back via candidat_id (voir demandeDpaeRepository.js,
                   requeteDemandesAvecJointures) : absent si le salarié n'est pas un candidat connu
@@ -212,6 +298,12 @@ export default function DetailDemandeDpae() {
           <EnTeteBackOffice />
         </header>
 
+        {confirmation && (
+          <p role="status" className="page-detail-dpae__confirmation">
+            {confirmation}
+          </p>
+        )}
+
         <section className="page-detail-dpae__bloc">
           <h2>Demande</h2>
           {ligne('Type', LIBELLE_PAR_TYPE[demande.type_demande] ?? demande.type_demande)}
@@ -222,12 +314,11 @@ export default function DetailDemandeDpae() {
               'Traitée le',
               `${FORMAT_DATE_HEURE.format(new Date(demande.date_traitement))} par ${demande.traitant_prenom} ${demande.traitant_nom}`,
             )}
-          {demande.statut === 'rejetee' && ligne('Motif de rejet', demande.motif_rejet)}
+          {demande.date_envoi_rh && ligne('Envoyée à la RH le', FORMAT_DATE_HEURE.format(new Date(demande.date_envoi_rh)))}
           {/* Dernière mise en attente : affichée tant que la demande reste « En attente ». */}
           {demande.statut === 'en_attente' &&
             demande.date_mise_en_attente &&
             ligne('Mise en attente le', FORMAT_DATE_HEURE.format(new Date(demande.date_mise_en_attente)))}
-          {demande.statut === 'en_attente' && ligne('Motif de mise en attente', demande.motif_mise_en_attente)}
         </section>
 
         <section className="page-detail-dpae__bloc">
@@ -252,10 +343,12 @@ export default function DetailDemandeDpae() {
           {ligne('Salarié remplacé', demande.salarie_remplace_nom)}
           {ligne('Date de fin d’absence', demande.date_fin_absence && FORMAT_DATE.format(new Date(demande.date_fin_absence)))}
           {ligne('Raison du surcroît', demande.raison_surcroit)}
-          {ligne('Entité', demande.division === 'autre' ? demande.division_autre : demande.division?.toUpperCase())}
+          {ligne('Entité', libelleDivision(demande.division, demande.division_autre))}
           {ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste])}
           {ligne('Premier jour', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut)))}
           {ligne('Dernier jour', demande.date_fin && FORMAT_DATE.format(new Date(demande.date_fin)))}
+          {/* Calculé, jamais stocké : premier et dernier jour inclus, pour un CDD seulement. */}
+          {demande.type_contrat === 'cdd' && nombreJours !== null && ligne('Nombre total de jours calendaires', libelleNombreJours(nombreJours))}
           {ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1))}
           {/* « 08h00 », « 120 h » / « 120,5 h » (2026-10-02) : mêmes formats que le PDF, voir core/dpae/formatsDpae.js. */}
           {ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois))}
@@ -296,6 +389,8 @@ export default function DetailDemandeDpae() {
                 <li key={jour.jour}>
                   {JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}
                   {jour.heureDebut && jour.heureFin ? ` : ${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : ''}
+                  {/* Sites du jour (« ALBE (AL), LIB. GARE DE L'EST (GDE) ») ; rien pour une demande antérieure au site par jour. */}
+                  {libellesSitesJour(jour, demande.sites_affectation).length > 0 && ` · ${libellesSitesJour(jour, demande.sites_affectation).join(', ')}`}
                 </li>
               ))}
             </ul>
@@ -315,71 +410,87 @@ export default function DetailDemandeDpae() {
           ajouter={ajouterNoteDemande}
           texteAucuneNote="Aucune note enregistrée pour cette demande."
           texteErreurChargement="Impossible de récupérer les notes de cette demande."
-          // Ajout réservé à dpaeNotes : l'Inspecteur Hôtellerie lit seulement.
-          lectureSeule={!peut(utilisateur, 'dpaeNotes')}
+          // Ajout selon le droit de la demande (peutAjouterNote), jamais selon son statut.
+          lectureSeule={!peutAjouterNote}
         />
 
-        {STATUTS_A_DECIDER.includes(demande.statut) && peutTraiter && (
+        {/* Une seule rangée d'actions : « Classer sans suite » seul à gauche (l'auteur Inspecteur Hôtellerie, ou
+            Planning et Admin pour toute demande ; le serveur revérifie), les autres actions à droite. */}
+        {(peutClasser || peutReactiver || actionsEnvoiPlanning || actionsRetransmission || actionsPlanning || actionsRh) && (
           <section className="page-detail-dpae__actions">
-            {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
-            <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleOuverte('rejet')} disabled={actionEnCours}>
-              Rejeter
-            </button>
-            {demande.statut === 'envoyee' && (
-              <button
-                type="button"
-                className="page-detail-dpae__mettre-en-attente"
-                onClick={() => setModaleOuverte('attente')}
-                disabled={actionEnCours}
-              >
-                Mettre en attente
+            <div className="page-detail-dpae__actions-gauche">
+              {peutClasser && (
+                <button type="button" className="page-detail-dpae__classer" onClick={() => setModaleOuverte('classement')} disabled={actionEnCours}>
+                  Classer sans suite
+                </button>
+              )}
+              {erreurAction && !modaleOuverte && <p role="alert">{erreurAction}</p>}
+              {conflit && (
+                <button type="button" onClick={recharger}>
+                  Recharger la demande
+                </button>
+              )}
+            </div>
+            {peutReactiver && (
+              <button type="button" className="page-detail-dpae__reactiver" onClick={() => setModaleOuverte('reactivation')} disabled={actionEnCours}>
+                Réactiver la demande
               </button>
             )}
-            <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('validation')} disabled={actionEnCours}>
-              Valider
-            </button>
+            {actionsEnvoiPlanning && (
+              <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('envoiPlanning')} disabled={actionEnCours}>
+                Envoyer au Planning
+              </button>
+            )}
+            {actionsRetransmission && (
+              <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('retransmission')} disabled={actionEnCours}>
+                Transmettre à la RH
+              </button>
+            )}
+            {actionsPlanning && (
+              <>
+                {transitionPossible(ACTION_RENVOYER_INSPECTEUR, demande.statut) && (
+                  <button type="button" className="page-detail-dpae__mettre-en-attente" onClick={() => setModaleOuverte('renvoi')} disabled={actionEnCours}>
+                    Renvoyer à l’inspecteur
+                  </button>
+                )}
+                <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('transmission')} disabled={actionEnCours}>
+                  Transmettre à la RH
+                </button>
+              </>
+            )}
+            {actionsRh && (
+              <>
+                <button type="button" className="page-detail-dpae__rejeter" onClick={() => setModaleOuverte('rejet')} disabled={actionEnCours}>
+                  Rejeter
+                </button>
+                {transitionPossible(ACTION_METTRE_EN_ATTENTE, demande.statut) && (
+                  <button
+                    type="button"
+                    className="page-detail-dpae__mettre-en-attente"
+                    onClick={() => setModaleOuverte('attente')}
+                    disabled={actionEnCours}
+                  >
+                    Mettre en attente
+                  </button>
+                )}
+                <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('validation')} disabled={actionEnCours}>
+                  Valider
+                </button>
+              </>
+            )}
           </section>
         )}
 
-        {/* Confirmation avant validation — même comportement que la demande soit « À
-            traiter » ou « En attente ». Rappel formaté comme les sections de la fiche ci-dessus. */}
-        {modaleOuverte === 'validation' && (
-          <ModaleValiderDpae
-            recapitulatif={[
-              ['Salarié', `${demande.salarie_prenom} ${demande.salarie_nom}`],
-              ['Type de demande', LIBELLE_PAR_TYPE[demande.type_demande] ?? demande.type_demande],
-              ['Type de contrat', demande.type_contrat?.toUpperCase()],
-              ['Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste]],
-              ['Premier jour', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut))],
-              [
-                (demande.sites_affectation ?? []).length > 1 ? "Sites d'affectation" : "Site d'affectation",
-                (demande.sites_affectation ?? []).length > 0
-                  ? demande.sites_affectation.map((site) => `${site.nom} (${site.initiales})`).join(', ')
-                  : demande.hotel,
-              ],
-            ]}
-            onConfirmer={valider}
+        {/* Une seule fenêtre de confirmation pour toutes les actions (titre et couleur selon l'action). */}
+        {modaleOuverte && (
+          <ModaleConfirmationDpae
+            titre={ACTIONS_CONFIRMATION[modaleOuverte].titre}
+            description={modaleOuverte === 'reactivation' ? `Elle repartira ${DESTINATION_REACTIVATION[demande.statut_retour_reactivation] ?? 'au Planning'}.` : undefined}
+            variante={ACTIONS_CONFIRMATION[modaleOuverte].variante}
+            onConfirmer={{ validation: valider, rejet: rejeter, attente: mettreEnAttente, renvoi: renvoyer, transmission: transmettre, envoiPlanning: envoyerAuPlanning, retransmission: retransmettre, reactivation: reactiver, classement: classerSansSuite }[modaleOuverte]}
             onAnnuler={fermerModale}
             enCours={actionEnCours}
             erreur={erreurAction}
-          />
-        )}
-
-        {modaleOuverte === 'rejet' && (
-          <ModaleRejeterDpae onConfirmer={rejeter} onAnnuler={fermerModale} enCours={actionEnCours} erreur={erreurAction} />
-        )}
-
-        {modaleOuverte === 'attente' && (
-          <ModaleRejeterDpae
-            onConfirmer={mettreEnAttente}
-            onAnnuler={fermerModale}
-            enCours={actionEnCours}
-            erreur={erreurAction}
-            titre="Mettre la demande en attente"
-            libelleMotif="Motif de la mise en attente (obligatoire)"
-            libelleConfirmer="Mettre en attente"
-            libelleEnCours="Mise en attente…"
-            variante="attente"
           />
         )}
       </div>

@@ -126,9 +126,11 @@
      du contenu qui défile en dessous, même principe qu'un tableau à colonne figée classique. */
   border-right: 1px solid var(--couleur-bordure-legere);
   box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+
   /* Largeur reprise sur Poste (libellés abrégés) et sur la case à cocher — un "Prénom Nom"
      plus long repasse simplement à la ligne (word-break en filet de sécurité pour un nom de
      famille composé très long) plutôt que d'élargir cette colonne figée. */
+
   max-width: 12rem;
   white-space: normal;
   word-break: normal;

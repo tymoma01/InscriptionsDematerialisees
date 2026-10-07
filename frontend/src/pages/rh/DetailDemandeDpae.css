@@ -40,6 +40,22 @@
   text-decoration: underline;
 }
 
+.page-detail-dpae__modifier {
+  color: var(--couleur-primaire);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
+.page-detail-dpae__confirmation {
+  margin: 0;
+  padding: var(--espace-petit) var(--espace-grand);
+  border: 1px solid var(--couleur-succes);
+  border-radius: var(--rayon-bordure);
+  color: var(--couleur-succes);
+  font-weight: 600;
+}
+
 .page-detail-dpae__bloc {
   background-color: var(--couleur-fond);
   border: 1px solid var(--couleur-bordure-legere);
@@ -80,8 +96,17 @@
 }
 
 .page-detail-dpae__actions [role='alert'] {
-  margin-right: auto;
+  margin: 0;
   color: var(--couleur-erreur);
+}
+
+/* Groupe de gauche : « Classer sans suite » (et l'erreur éventuelle), poussé à gauche ; les autres
+   boutons restent alignés à droite. */
+.page-detail-dpae__actions-gauche {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  margin-right: auto;
 }
 
 .page-detail-dpae__actions button {
@@ -91,24 +116,82 @@
   cursor: pointer;
 }
 
+/* Boutons d'action : pleins, texte blanc, survol plus foncé, contour au focus clavier. Chaque classe
+   fixe sa couleur (variables --action-* de variables.css) :
+   vert (valider, transmettre, envoyer au Planning), rouge (rejeter), violet (mettre en attente, renvoyer à
+   l'inspecteur), ambre (classer sans suite), bleu (réactiver). */
 .page-detail-dpae__valider {
-  border: 1px solid var(--couleur-succes);
-  background-color: var(--couleur-succes);
-  color: #ffffff;
+  --bouton-fond: var(--action-vert-fond);
+  --bouton-survol: var(--action-vert-fond-survol);
 }
 
 .page-detail-dpae__rejeter {
-  border: 1px solid var(--couleur-erreur);
-  background-color: var(--couleur-fond);
-  color: var(--couleur-erreur);
+  --bouton-fond: var(--action-rouge-fond);
+  --bouton-survol: var(--action-rouge-fond-survol);
 }
 
-/* « Mettre en attente » : couleur du badge « En attente » (variante bleu-gris,
-   core/dpae/statutsDpae.js). */
 .page-detail-dpae__mettre-en-attente {
-  border: 1px solid var(--statut-bleu-gris-texte);
-  background-color: var(--couleur-fond);
-  color: var(--statut-bleu-gris-texte);
+  --bouton-fond: var(--action-violet-fond);
+  --bouton-survol: var(--action-violet-fond-survol);
+}
+
+.page-detail-dpae__classer {
+  --bouton-fond: var(--action-ambre-fond);
+  --bouton-survol: var(--action-ambre-fond-survol);
+}
+
+.page-detail-dpae__reactiver {
+  --bouton-fond: var(--action-bleu-fond);
+  --bouton-survol: var(--action-bleu-fond-survol);
+}
+
+.page-detail-dpae__valider,
+.page-detail-dpae__rejeter,
+.page-detail-dpae__mettre-en-attente,
+.page-detail-dpae__classer,
+.page-detail-dpae__reactiver {
+  border: 1px solid var(--bouton-fond);
+  background-color: var(--bouton-fond);
+  color: var(--action-texte);
+}
+
+.page-detail-dpae__valider:hover:not(:disabled),
+.page-detail-dpae__rejeter:hover:not(:disabled),
+.page-detail-dpae__mettre-en-attente:hover:not(:disabled),
+.page-detail-dpae__classer:hover:not(:disabled),
+.page-detail-dpae__reactiver:hover:not(:disabled) {
+  border-color: var(--bouton-survol);
+  background-color: var(--bouton-survol);
+}
+
+.page-detail-dpae__valider:focus-visible,
+.page-detail-dpae__rejeter:focus-visible,
+.page-detail-dpae__mettre-en-attente:focus-visible,
+.page-detail-dpae__classer:focus-visible,
+.page-detail-dpae__reactiver:focus-visible {
+  outline: 3px solid var(--bouton-survol);
+  outline-offset: 2px;
+}
+
+/* En dessous de la largeur tablette : les boutons s'empilent sans déborder, « Classer sans suite » en
+   dernier (l'erreur éventuelle en premier). */
+@media (max-width: 768px) {
+  .page-detail-dpae__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-detail-dpae__actions-gauche {
+    display: contents;
+  }
+
+  .page-detail-dpae__actions [role='alert'] {
+    order: -1;
+  }
+
+  .page-detail-dpae__classer {
+    order: 1;
+  }
 }
 
 .page-detail-dpae__actions button:disabled {

@@ -15,6 +15,7 @@ import Indicateurs from './pages/tableauDeBord/Indicateurs';
 import Connexion from './pages/connexion/Connexion';
 import DemandeDpae from './pages/coordination/DemandeDpae';
 import SuiviDemandesDpae from './pages/coordination/SuiviDemandesDpae';
+import DemandesAValiderDpae from './pages/coordination/DemandesAValiderDpae';
 import TableauDeBordDpae from './pages/coordination/TableauDeBordDpae';
 import TraitementDpae from './pages/rh/TraitementDpae';
 import DetailDemandeDpae from './pages/rh/DetailDemandeDpae';
@@ -190,11 +191,31 @@ export default function App() {
             </RouteProtegee>
           }
         />
+        {/* Modification d'une demande « À traiter » / « En attente » : même formulaire que la création,
+            prérempli (le serveur revérifie le droit par demande et le statut). */}
+        <Route
+          path="/coordination/dpae/:demandeId/modifier"
+          element={
+            <RouteProtegee permission="dpaeModification">
+              <DemandeDpae />
+            </RouteProtegee>
+          }
+        />
         <Route
           path="/coordination/dpae/suivi"
           element={
             <RouteProtegee permission="dpaeConsultation">
               <SuiviDemandesDpae />
+            </RouteProtegee>
+          }
+        />
+        {/* File « Demandes à valider » : Planning et Admin (dpaeValidationPlanning), contrôlée aussi côté
+            serveur (dpae.routes.js, GET /a-valider). */}
+        <Route
+          path="/coordination/dpae/a-valider"
+          element={
+            <RouteProtegee permission="dpaeValidationPlanning">
+              <DemandesAValiderDpae />
             </RouteProtegee>
           }
         />

@@ -4,23 +4,59 @@
 
 const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const notificationService = require('../notifications/notificationService');
 const siteAffectationRepository = require('./siteAffectationRepository');
+const journalAudit = require('../audit/journalAudit');
+const statutsDpae = require('./statutsDpae');
+const { champsModifies } = require('./champsDemandeDpae');
+const { ROLES } = require('../auth/rbac');
 const { aPermission } = require('../auth/permissions');
 
-const STATUT_ENVOYEE = 'envoyee';
-const STATUT_VALIDEE = 'validee';
-const STATUT_REJETEE = 'rejetee';
-// « En attente » : la RH suspend une demande « À traiter » (motif obligatoire) avant
-// de décider. Transitions autorisées (aucune autre) :
-//   envoyee (« À traiter ») -> en_attente | validee | rejetee
-//   en_attente              -> validee | rejetee
-const STATUT_EN_ATTENTE = 'en_attente';
-// Statuts depuis lesquels une décision finale (validation/rejet) est encore possible.
-const STATUTS_A_DECIDER = [STATUT_ENVOYEE, STATUT_EN_ATTENTE];
-
 class ErreurDemandeIntrouvable extends Error {}
+// Transition refusée : la demande n'est pas (ou plus) dans un statut qui l'autorise.
 class ErreurDemandeDejaTraitee extends Error {}
+// Verrouillage optimiste : la demande a changé entre la lecture du client et son écriture.
+class ErreurDemandeModifiee extends Error {
+  constructor() {
+    super('Cette demande a été modifiée entre-temps. Rechargez-la.');
+  }
+}
+// Modification refusée : ni l'auteur de la demande ni un rôle autorisé à modifier celles des autres
+// (traduit en 403 par dpae.routes.js).
+class ErreurModificationInterdite extends Error {
+  constructor() {
+    super('Rôle insuffisant pour cette action.');
+  }
+}
+// Modification sans la note exigée au retour d'un renvoi ou d'une mise en attente (traduit en 400).
+class ErreurNoteModificationObligatoire extends Error {
+  constructor() {
+    super('Une note sur la modification est obligatoire pour cette demande.');
+  }
+}
+// Envoi au Planning refusé : demande d'un autre auteur pour un Inspecteur Hôtellerie (403, message affiché tel quel).
+class ErreurEnvoiPlanningInterdit extends ErreurModificationInterdite {
+  constructor() {
+    super();
+    this.message = 'Vous ne pouvez envoyer au Planning que vos propres demandes.';
+  }
+}
+// Retransmission à la RH refusée : demande d'un autre auteur pour un Inspecteur Hôtellerie (403, message affiché tel quel).
+class ErreurRetransmissionInterdite extends ErreurModificationInterdite {
+  constructor() {
+    super();
+    this.message = 'Vous ne pouvez transmettre à la RH que vos propres demandes.';
+  }
+}
+// Classement sans suite refusé : demande d'un autre auteur pour un Inspecteur Hôtellerie (403, message
+// affiché tel quel).
+class ErreurClassementInterdit extends ErreurModificationInterdite {
+  constructor() {
+    super();
+    this.message = 'Vous ne pouvez classer sans suite que vos propres demandes.';
+  }
+}
 // Site(s) d'affectation inexistant(s), inactif(s) ou d'une autre entité (voir creerEtEnvoyer) —
 // traduit en 400 avec son message par dpae.routes.js.
 class ErreurSitesAffectationInvalides extends Error {}
@@ -40,39 +76,67 @@ async function verifierDemandeExiste(bd, entite, demandeId) {
   return demande;
 }
 
-// Crée directement la demande à l'état 'envoyee' (pas de brouillon intermédiaire, voir migration
-// 066). Correctif 2026-09-28 (simplification demandée par l'utilisateur, revient sur un premier
-// essai plus compliqué — une notification stockée par RH à l'envoi, plus un rattrapage pour tout
-// RH promu après coup) : plus aucune notification stockée ici. Tout RH voit "toutes les demandes
-// en cours" directement depuis la liste live des demandes 'envoyee' (voir listerPourRh plus bas,
-// consommée par NotificationsCloche.jsx pour ce rôle) — vrai dès l'instant où une demande existe,
-// pour n'importe quel compte RH quelle que soit la date à laquelle il a obtenu ce rôle, sans
-// synchronisation à maintenir.
+// Chaque id doit exister, être actif et appartenir à l'entité : un seul id invalide refuse toute
+// la demande (création comme modification) AVANT la moindre écriture.
+async function verifierSitesValides(trx, entite, sitesAffectationIds) {
+  const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds);
+  const idsInvalides = sitesAffectationIds.filter((id) => !idsValides.includes(id));
+  if (idsInvalides.length > 0) {
+    throw new ErreurSitesAffectationInvalides(
+      `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
+    );
+  }
+}
+
+// Crée directement la demande (pas de brouillon intermédiaire, voir migration 066). Une demande
+// d'un rôle « soumis au Planning » (Inspecteur Hôtellerie) démarre « À valider par le Planning », sans
+// date d'envoi à la RH, et les utilisateurs Planning de l'entité en sont notifiés ; toute autre
+// démarre « À traiter », envoyée à la RH à l'instant (la RH la voit dans sa file, sans notification
+// stockée : voir listerPourRh).
 //
-// Sites d'affectation (2026-09-29, référentiel `sites_affectation`, migration 069) : la demande et
-// ses liens sont enregistrés dans UNE SEULE transaction — aucun enregistrement partiel en cas
-// d'erreur. Chaque id est d'abord vérifié (existant, actif, de cette entité) ; un seul id invalide
-// refuse toute la demande AVANT la moindre écriture. La présence d'au moins un site et l'absence de
-// doublon sont déjà garanties par la route (dpae.routes.js, demandeBodySchema).
-async function creerEtEnvoyer(entite, demandeurId, donnees) {
+// Sites d'affectation (référentiel `sites_affectation`, migration 069) : la demande et ses liens sont
+// enregistrés dans UNE SEULE transaction — aucun enregistrement partiel en cas d'erreur. Chaque id
+// est d'abord vérifié (existant, actif, de cette entité) ; un seul id invalide refuse toute la
+// demande AVANT la moindre écriture. La présence d'au moins un site et l'absence de doublon sont déjà
+// garanties par la route (dpae.routes.js, demandeBodySchema).
+async function creerEtEnvoyer(entite, demandeurId, donnees, { roleCode } = {}) {
   const bd = await db.obtenirKnex();
   const { sitesAffectationIds = [], ...champsDemande } = donnees;
+  const soumiseAuPlanning = aPermission(roleCode, 'dpaeCreationSoumiseAuPlanning');
   return bd.transaction(async (trx) => {
-    const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds);
-    const idsInvalides = sitesAffectationIds.filter((id) => !idsValides.includes(id));
-    if (idsInvalides.length > 0) {
-      throw new ErreurSitesAffectationInvalides(
-        `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
-      );
-    }
+    await verifierSitesValides(trx, entite, sitesAffectationIds);
     const demandeId = await demandeDpaeRepository.creerDemande(trx, {
       ...champsDemande,
       entiteId: entite.id,
       demandeurId,
+      statut: soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL,
     });
     await siteAffectationRepository.lierSitesDemande(trx, demandeId, sitesAffectationIds);
+    if (soumiseAuPlanning) {
+      await notifierRole(trx, entite, ROLES.PLANNING, demandeId, {
+        type: 'demande_dpae_a_valider',
+        message: `Nouvelle demande DPAE à valider : ${champsDemande.salariePrenom} ${champsDemande.salarieNom}.`,
+      });
+    }
     return demandeId;
   });
+}
+
+// Notifie tous les comptes actifs d'un rôle de l'entité, avec un lien vers la fiche de la demande.
+async function notifierRole(trx, entite, roleCode, demandeId, { type, message }) {
+  const ids = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, roleCode);
+  await notificationService.creerNotifications(
+    trx,
+    ids.map((utilisateurId) => ({
+      entiteId: entite.id,
+      utilisateurId,
+      type,
+      tableCible: 'demandes_dpae',
+      cibleId: demandeId,
+      message,
+      lien: `/rh/dpae/${demandeId}`,
+    })),
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -88,10 +152,33 @@ function perimetreSuivi({ roleCode, perimetreDemande }) {
   return perimetreDemande === 'mes' ? 'mes' : 'toutes';
 }
 
+// Statuts d'avant l'envoi à la RH : invisibles pour un rôle sans dpaeVoitFilePlanning (la RH).
+function statutsMasquesPour(roleCode) {
+  return aPermission(roleCode, 'dpaeVoitFilePlanning') ? [] : statutsDpae.STATUTS_AVANT_RH;
+}
+
+function peutVoirStatut(roleCode, statut) {
+  return !statutsMasquesPour(roleCode).includes(statut);
+}
+
+// La RH ne voit pas une demande classée sans suite avant tout envoi à la RH (date_envoi_rh nulle) : elle
+// ne l'a jamais eue. Elle voit celles classées après l'envoi. Les rôles qui voient la file du Planning
+// (Planning, Admin, Inspecteur Hôtellerie) voient toutes celles qui les concernent.
+function masqueClasseesNonTransmises(roleCode) {
+  return !aPermission(roleCode, 'dpaeVoitFilePlanning');
+}
+
+// Visibilité d'une demande donnée pour un rôle : son statut, puis le cas des classées non transmises.
+function peutVoirDemande(roleCode, demande) {
+  if (!peutVoirStatut(roleCode, demande.statut)) return false;
+  return !(demande.statut === statutsDpae.STATUT_CLASSEE_SANS_SUITE && !demande.date_envoi_rh && masqueClasseesNonTransmises(roleCode));
+}
+
 // Une fiche est consultable par un rôle qui voit toutes les demandes, ou par son auteur s'il a un
 // rôle de consultation. Accueil/Coordination et tout autre rôle : jamais (même auteur d'une demande
 // ancienne). L'entité est déjà garantie par la recherche de la demande elle-même (entite_id).
 function peutConsulterDemande({ roleCode, utilisateurId, demande }) {
+  if (!peutVoirDemande(roleCode, demande)) return false;
   if (aPermission(roleCode, 'dpaeConsultationToutes')) return true;
   return aPermission(roleCode, 'dpaeConsultation') && demande.demandeur_id === utilisateurId;
 }
@@ -119,18 +206,27 @@ async function listerSuivi(entite, { utilisateurId, roleCode, perimetreDemande }
   const perimetre = perimetreSuivi({ roleCode, perimetreDemande });
   const demandes =
     perimetre === 'toutes'
-      ? await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, null)
-      : await demandeDpaeRepository.listerDemandesParDemandeur(bd, entite.id, utilisateurId);
+      ? await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, null, statutsMasquesPour(roleCode), masqueClasseesNonTransmises(roleCode))
+      : await demandeDpaeRepository.listerDemandesParDemandeur(bd, entite.id, utilisateurId, statutsMasquesPour(roleCode), masqueClasseesNonTransmises(roleCode));
   return ajouterSites(bd, demandes);
 }
 
-// statut par défaut 'envoyee' (file à traiter) — un appelant qui veut l'historique complet
+// File des demandes que le Planning doit valider (« À valider par le Planning », puis « Renvoyée à
+// l'inspecteur »), sites d'affectation inclus. L'accès (dpaeValidationPlanning) est vérifié par la route.
+async function listerAValider(entite) {
+  const bd = await db.obtenirKnex();
+  return ajouterSites(bd, await demandeDpaeRepository.listerDemandesAValider(bd, entite.id));
+}
+
+// statut par défaut : statut initial (file à traiter) — un appelant qui veut l'historique complet
 // (traitées incluses) passe explicitement statut=null (voir dpae.routes.js, ?statut=tous).
 // Sites d'affectation inclus (2026-10-02 : colonne « Site(s) d'affectation » de la liste RH), même
 // forme que listerSuivi.
-async function listerPourRh(entite, statut = STATUT_ENVOYEE) {
+// La file RH ne contient jamais les demandes encore chez le Planning, même pour l'Admin : elles ont
+// leur propre file (listerAValider).
+async function listerPourRh(entite, statut = statutsDpae.STATUT_INITIAL) {
   const bd = await db.obtenirKnex();
-  const demandes = await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut);
+  const demandes = await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut, statutsDpae.STATUTS_AVANT_RH, true);
   return ajouterSites(bd, demandes);
 }
 
@@ -141,7 +237,9 @@ async function obtenirDemande(entite, demandeId) {
   const bd = await db.obtenirKnex();
   const demande = await verifierDemandeExiste(bd, entite, demandeId);
   const sitesAffectation = await siteAffectationRepository.listerSitesDemande(bd, demandeId);
-  return { ...demande, sites_affectation: sitesAffectation };
+  // Demande classée sans suite : où repartirait sa réactivation (affiché dans la fenêtre de confirmation).
+  const statutRetour = demande.statut === statutsDpae.STATUT_CLASSEE_SANS_SUITE ? statutsDpae.statutRetourReactivation(demande) : null;
+  return { ...demande, sites_affectation: sitesAffectation, statut_retour_reactivation: statutRetour };
 }
 
 // Demandes d'un export PDF groupé (ZIP, 2026-10-02) — MÊMES règles que la fiche (GET /:id) :
@@ -171,102 +269,439 @@ async function obtenirDemandesPourExport(entite, demandeIds, { roleCode, utilisa
   return demandes;
 }
 
-async function valider(entite, demandeId, traitantId) {
-  const bd = await db.obtenirKnex();
-  const demande = await verifierDemandeExiste(bd, entite, demandeId);
-  if (!STATUTS_A_DECIDER.includes(demande.statut)) {
-    throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" déjà traitée (statut « ${demande.statut} »).`);
+// Applique une transition de statut (valider, rejeter, mettre en attente) dans UNE SEULE
+// transaction : lecture, vérifications, écriture gardée, journal d'audit et notifications — si
+// l'une échoue, rien n'est enregistré.
+//   0. visibilité : `roleCode` doit pouvoir voir le statut de la demande, sinon ErreurModificationInterdite
+//      (403) ;
+//   1. version : celle que le client a lue doit être la version courante, sinon ErreurDemandeModifiee ;
+//   2. transition : (action, statut courant) doit figurer dans la table de statutsDpae.js, sinon
+//      ErreurDemandeDejaTraitee ;
+//   3. écriture gardée par statut ET version : si une décision concurrente est passée entre la lecture
+//      et l'écriture, aucune ligne n'est modifiée -> ErreurDemandeModifiee.
+// `statutArrivee(demande)` : destination d'une action à plusieurs destinations (la réactivation).
+// `ecrire(trx, demande, transition)` renvoie le nombre de lignes modifiées ; `tracer` décrit l'audit (objet, ou
+// fonction (demande, transition) -> objet)
+// et `notifier(demande, trx)` renvoie les notifications de l'action, [{ utilisateurId, type, message,
+// lien }].
+async function appliquerTransition(entite, demandeId, { action, version, utilisateurId, roleCode, adresseIp, ecrire, tracer, notifier, verifierDroit, statutArrivee }) {
+  if (!Number.isInteger(version)) {
+    throw new Error('La version de la demande est obligatoire.');
   }
 
-  await demandeDpaeRepository.marquerTraitee(bd, demandeId, { statut: STATUT_VALIDEE, traitantId });
-  await notificationService.creerNotifications(bd, [
-    {
+  const bd = await db.obtenirKnex();
+  return bd.transaction(async (trx) => {
+    const demande = await verifierDemandeExiste(trx, entite, demandeId);
+    // Une demande que le rôle n'a pas le droit de voir (la RH, avant l'envoi à la RH) : refus 403
+    // identique à la consultation, avant toute autre vérification — aucune information sur le statut.
+    if (!peutVoirDemande(roleCode, demande)) throw new ErreurModificationInterdite();
+    // Droit propre à la demande (ex. auteur seulement), avant tout contrôle de version ou de statut.
+    verifierDroit?.(demande);
+    if (demande.version !== version) throw new ErreurDemandeModifiee();
+
+    const transition = statutsDpae.trouverTransition(action, demande.statut, statutArrivee?.(demande));
+    if (!transition) {
+      throw new ErreurDemandeDejaTraitee(
+        `Demande DPAE "${demandeId}" : action « ${action} » impossible depuis le statut « ${demande.statut} ».`,
+      );
+    }
+
+    const lignesModifiees = await ecrire(trx, demande, transition);
+    if (lignesModifiees !== 1) throw new ErreurDemandeModifiee();
+
+    await journalAudit.enregistrerAction(trx, {
+      utilisateurId,
       entiteId: entite.id,
-      utilisateurId: demande.demandeur_id,
-      type: 'demande_dpae_validee',
       tableCible: 'demandes_dpae',
       cibleId: demandeId,
-      message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été validée par la RH.`,
-      lien: `/coordination/dpae/suivi`,
-    },
-  ]);
-}
-
-// motifRejet obligatoire — même exigence que ModaleForcerStatut.jsx pour un forçage de statut :
-// un rejet doit toujours porter une raison exploitable par le demandeur.
-async function rejeter(entite, demandeId, traitantId, motifRejet) {
-  if (!motifRejet || !motifRejet.trim()) {
-    throw new Error('Un motif de rejet est obligatoire.');
-  }
-
-  const bd = await db.obtenirKnex();
-  const demande = await verifierDemandeExiste(bd, entite, demandeId);
-  if (!STATUTS_A_DECIDER.includes(demande.statut)) {
-    throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" déjà traitée (statut « ${demande.statut} »).`);
-  }
-
-  await demandeDpaeRepository.marquerTraitee(bd, demandeId, {
-    statut: STATUT_REJETEE,
-    traitantId,
-    motifRejet: motifRejet.trim(),
-  });
-  await notificationService.creerNotifications(bd, [
-    {
-      entiteId: entite.id,
-      utilisateurId: demande.demandeur_id,
-      type: 'demande_dpae_rejetee',
-      tableCible: 'demandes_dpae',
-      cibleId: demandeId,
-      message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été rejetée par la RH.`,
-      lien: `/coordination/dpae/suivi`,
-    },
-  ]);
-}
-
-// Mise en attente : uniquement depuis « À traiter » ('envoyee') — une demande déjà en
-// attente ou déjà décidée est refusée (409). Motif obligatoire, conservé sur la demande (dernier
-// motif, affiché sur la fiche) ; le demandeur est notifié. N'est pas une décision : date de
-// traitement inchangée (voir demandeDpaeRepository.marquerEnAttente).
-async function mettreEnAttente(entite, demandeId, traitantId, motif) {
-  if (!motif || !motif.trim()) {
-    throw new Error('Un motif de mise en attente est obligatoire.');
-  }
-
-  const bd = await db.obtenirKnex();
-  const demande = await verifierDemandeExiste(bd, entite, demandeId);
-  if (demande.statut !== STATUT_ENVOYEE) {
-    throw new ErreurDemandeDejaTraitee(
-      `Demande DPAE "${demandeId}" : mise en attente impossible depuis le statut « ${demande.statut} ».`,
+      adresseIp,
+      ...(typeof tracer === 'function' ? tracer(demande, transition) : tracer),
+    });
+    const notifications = await notifier(demande, trx, transition);
+    await notificationService.creerNotifications(
+      trx,
+      notifications.map((notification) => ({ entiteId: entite.id, tableCible: 'demandes_dpae', cibleId: demandeId, ...notification })),
     );
-  }
+  });
+}
 
-  await demandeDpaeRepository.marquerEnAttente(bd, demandeId, { traitantId, motif: motif.trim() });
-  await notificationService.creerNotifications(bd, [
-    {
+// Fin des notifications d'une décision sans motif : la raison est dans les notes de la demande.
+const INVITATION_NOTES = 'Consultez les notes de la demande.';
+
+// Notification du seul demandeur, vers sa liste de suivi (décisions de la RH).
+const versDemandeur = (type, messageDe) => (demande) => [
+  { utilisateurId: demande.demandeur_id, type, message: messageDe(demande), lien: '/coordination/dpae/suivi' },
+];
+
+// `version` : version de la demande lue par l'appelant (verrouillage optimiste, voir
+// appliquerTransition). `adresseIp` : tracée dans journal_audit.
+async function valider(entite, demandeId, traitantId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_VALIDER,
+    version,
+    roleCode,
+    utilisateurId: traitantId,
+    adresseIp,
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.marquerTraitee(trx, demandeId, {
+        statutDepart: demande.statut,
+        version: demande.version,
+        statut: transition.vers,
+        traitantId,
+      }),
+    tracer: { action: 'demande_dpae_validation', donnees: {} },
+    notifier: versDemandeur('demande_dpae_validee', (demande) => `Votre demande DPAE pour ${libelleSalarie(demande)} a été validée par la RH.`),
+  });
+}
+
+// Rejet : aucun motif saisi — la raison se consigne dans les notes de la demande (voir
+// notesDemandeDpaeService.js) ; le demandeur est invité à les consulter.
+async function rejeter(entite, demandeId, traitantId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_REJETER,
+    version,
+    roleCode,
+    utilisateurId: traitantId,
+    adresseIp,
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.marquerTraitee(trx, demandeId, {
+        statutDepart: demande.statut,
+        version: demande.version,
+        statut: transition.vers,
+        traitantId,
+      }),
+    tracer: { action: 'demande_dpae_rejet', donnees: {} },
+    notifier: versDemandeur('demande_dpae_rejetee', () => `Votre demande DPAE n° ${demandeId} a été rejetée. ${INVITATION_NOTES}`),
+  });
+}
+
+// Mise en attente : aucun motif saisi (voir rejeter) ; le demandeur est notifié. N'est pas une
+// décision : date de traitement inchangée (voir demandeDpaeRepository.marquerEnAttente). Les statuts
+// de départ autorisés sont ceux de la table de transitions (statutsDpae.js).
+async function mettreEnAttente(entite, demandeId, traitantId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_METTRE_EN_ATTENTE,
+    version,
+    roleCode,
+    utilisateurId: traitantId,
+    adresseIp,
+    ecrire: (trx, demande) =>
+      demandeDpaeRepository.marquerEnAttente(trx, demandeId, {
+        statutDepart: demande.statut,
+        version: demande.version,
+        traitantId,
+      }),
+    tracer: { action: 'demande_dpae_mise_en_attente', donnees: {} },
+    notifier: versDemandeur('demande_dpae_en_attente', () => `Votre demande DPAE n° ${demandeId} a été mise en attente. ${INVITATION_NOTES}`),
+  });
+}
+
+// Transmission à la RH par le Planning (ou l'Admin) : date_envoi_rh posée à la première transmission seulement,
+// la RH et l'inspecteur auteur sont notifiés. Chaque transmission a sa propre entrée journal_audit datée.
+async function transmettreALaRh(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_TRANSMETTRE_RH,
+    version,
+    roleCode,
+    utilisateurId,
+    adresseIp,
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.transmettreALaRh(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
+    tracer: { action: 'demande_dpae_transmission_rh', donnees: {} },
+    notifier: async (demande, trx) => {
+      const rhIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.RH);
+      return [
+        ...rhIds.map((rhId) => ({
+          utilisateurId: rhId,
+          type: 'demande_dpae_transmise',
+          message: `Nouvelle demande DPAE à traiter : ${libelleSalarie(demande)}.`,
+          lien: `/rh/dpae/${demandeId}`,
+        })),
+        {
+          utilisateurId: demande.demandeur_id,
+          type: 'demande_dpae_transmise',
+          message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été transmise à la RH par le Planning.`,
+          lien: `/rh/dpae/${demandeId}`,
+        },
+      ];
+    },
+  });
+}
+
+// Renvoi à l'inspecteur auteur : aucun motif saisi (voir rejeter) ; l'inspecteur est notifié.
+async function renvoyerAInspecteur(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_RENVOYER_INSPECTEUR,
+    version,
+    roleCode,
+    utilisateurId,
+    adresseIp,
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.renvoyerAInspecteur(trx, demandeId, {
+        statutDepart: demande.statut,
+        version: demande.version,
+        statut: transition.vers,
+      }),
+    tracer: { action: 'demande_dpae_renvoi_inspecteur', donnees: {} },
+    notifier: (demande) => [
+      {
+        utilisateurId: demande.demandeur_id,
+        type: 'demande_dpae_renvoyee',
+        message: `Votre demande DPAE n° ${demandeId} a été renvoyée. ${INVITATION_NOTES}`,
+        lien: `/rh/dpae/${demandeId}`,
+      },
+    ],
+  });
+}
+
+// Classement sans suite : le Planning et l'Admin classent toute demande, l'Inspecteur Hôtellerie
+// seulement les siennes. Fonction pure, testable sans base.
+function peutClasserSansSuite({ roleCode, utilisateurId, demande }) {
+  if (aPermission(roleCode, 'dpaeClassementSansSuiteToutes')) return true;
+  return aPermission(roleCode, 'dpaeClassementSansSuite') && demande.demandeur_id === utilisateurId;
+}
+
+// Classement sans suite : statut final, sans motif (la raison se consigne dans les notes), tracé dans
+// journal_audit. Les statuts de départ autorisés sont ceux de la table de transitions (statutsDpae.js) :
+// jamais depuis un statut final.
+async function classerSansSuite(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_CLASSER_SANS_SUITE,
+    version,
+    roleCode,
+    utilisateurId,
+    adresseIp,
+    verifierDroit: (demande) => {
+      if (!module.exports.peutClasserSansSuite({ roleCode, utilisateurId, demande })) throw new ErreurClassementInterdit();
+    },
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.classerSansSuite(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers, classeeParRole: roleCode }),
+    tracer: { action: 'demande_dpae_classement_sans_suite', donnees: {} },
+    notifier: () => [],
+  });
+}
+
+// Retransmission à la RH : Planning et Admin pour toute demande, l'Inspecteur Hôtellerie pour les siennes.
+function peutRetransmettreALaRh({ roleCode, utilisateurId, demande }) {
+  if (aPermission(roleCode, 'dpaeRetransmissionRhToutes')) return true;
+  return aPermission(roleCode, 'dpaeRetransmissionRh') && demande.demandeur_id === utilisateurId;
+}
+
+// Retransmission d'une demande « En attente » à la RH, une fois complétée : retour dans la file « À traiter »,
+// sans motif, date_envoi_rh conservée. La RH est notifiée (« Demande complétée »). Tracé dans journal_audit.
+async function retransmettreALaRh(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_RETRANSMETTRE_RH,
+    version,
+    roleCode,
+    utilisateurId,
+    adresseIp,
+    verifierDroit: (demande) => {
+      if (!module.exports.peutRetransmettreALaRh({ roleCode, utilisateurId, demande })) throw new ErreurRetransmissionInterdite();
+    },
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.retransmettreALaRh(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
+    tracer: { action: 'demande_dpae_retransmission_rh', donnees: {} },
+    notifier: async (demande, trx) => {
+      const rhIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.RH);
+      return rhIds.map((rhId) => ({
+        utilisateurId: rhId,
+        type: 'demande_dpae_completee',
+        message: `Demande complétée : la demande DPAE pour ${libelleSalarie(demande)} repasse « À traiter ».`,
+        lien: `/rh/dpae/${demandeId}`,
+      }));
+    },
+  });
+}
+
+// Envoi au Planning : l'Admin pour toute demande, l'Inspecteur Hôtellerie pour les siennes. Fonction pure.
+function peutEnvoyerAuPlanning({ roleCode, utilisateurId, demande }) {
+  if (aPermission(roleCode, 'dpaeEnvoiPlanningToutes')) return true;
+  return aPermission(roleCode, 'dpaeEnvoiPlanning') && demande.demandeur_id === utilisateurId;
+}
+
+// Envoi au Planning d'une demande renvoyée, une fois corrigée : « Renvoyée à l'inspecteur » -> « À valider
+// par le Planning », sans motif ; le Planning est notifié. Tracé dans journal_audit.
+async function envoyerAuPlanning(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_ENVOYER_AU_PLANNING,
+    version,
+    roleCode,
+    utilisateurId,
+    adresseIp,
+    verifierDroit: (demande) => {
+      if (!module.exports.peutEnvoyerAuPlanning({ roleCode, utilisateurId, demande })) throw new ErreurEnvoiPlanningInterdit();
+    },
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.envoyerAuPlanning(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
+    tracer: { action: 'demande_dpae_envoi_planning', donnees: {} },
+    notifier: async (demande, trx) => {
+      const planningIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.PLANNING);
+      return planningIds.map((planningId) => ({
+        utilisateurId: planningId,
+        type: 'demande_dpae_a_valider',
+        message: `Demande DPAE corrigée par l'inspecteur, à valider : ${libelleSalarie(demande)}.`,
+        lien: `/rh/dpae/${demandeId}`,
+      }));
+    },
+  });
+}
+
+// Réactivation d'une demande classée sans suite : l'Admin SEUL. La demande repart chez le rôle qui l'avait
+// classée (statutsDpae.statutRetourReactivation), les colonnes de classement repassent à NULL, date_envoi_rh
+// n'est jamais modifiée ; la personne qui reprend la main est notifiée. Tracée dans journal_audit.
+async function reactiver(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+  return appliquerTransition(entite, demandeId, {
+    action: statutsDpae.ACTION_REACTIVER,
+    version,
+    roleCode,
+    utilisateurId,
+    adresseIp,
+    verifierDroit: () => {
+      if (!aPermission(roleCode, 'dpaeReactivation')) throw new ErreurModificationInterdite();
+    },
+    statutArrivee: statutsDpae.statutRetourReactivation,
+    ecrire: (trx, demande, transition) =>
+      demandeDpaeRepository.reactiver(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
+    tracer: (demande, transition) => ({ action: 'demande_dpae_reactivation', donnees: { statutRetour: transition.vers } }),
+    notifier: async (demande, trx, transition) => {
+      if (transition.vers === statutsDpae.STATUT_RENVOYEE_INSPECTEUR) {
+        return [
+          { utilisateurId: demande.demandeur_id, type: 'demande_dpae_renvoyee', message: `Votre demande DPAE n° ${demandeId} a été réactivée et vous est renvoyée.`, lien: `/rh/dpae/${demandeId}` },
+        ];
+      }
+      const auPlanning = transition.vers === statutsDpae.STATUT_A_VALIDER_PLANNING;
+      const ids = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, auPlanning ? ROLES.PLANNING : ROLES.RH);
+      return ids.map((id) => ({
+        utilisateurId: id,
+        type: auPlanning ? 'demande_dpae_a_valider' : 'demande_dpae_transmise',
+        message: `Demande DPAE réactivée${auPlanning ? ', à valider' : ', à traiter'} : ${libelleSalarie(demande)}.`,
+        lien: `/rh/dpae/${demandeId}`,
+      }));
+    },
+  });
+}
+
+// Modification : l'auteur de la demande (s'il a un rôle autorisé à modifier) ou un rôle qui peut
+// modifier celles de tous les auteurs (Planning, Admin). L'entité est déjà garantie par la
+// recherche de la demande elle-même (entite_id). Fonction pure, testable sans base.
+function peutModifierDemande({ roleCode, utilisateurId, demande }) {
+  if (aPermission(roleCode, 'dpaeModificationToutes')) return true;
+  return aPermission(roleCode, 'dpaeModification') && demande.demandeur_id === utilisateurId;
+}
+
+// Note de modification, dans la transaction de l'appelant : le droit d'écrire est celui de modifier la
+// demande (déjà vérifié), pas dpaeNotes. Tracée comme toute note.
+async function enregistrerNoteModification(trx, entite, demandeId, { contenu, utilisateurId, adresseIp }) {
+  const noteId = await notesDemandeDpaeRepository.ajouterNote(trx, { demandeId, auteurId: utilisateurId, contenu, estNoteModification: true });
+  await journalAudit.enregistrerAction(trx, {
+    utilisateurId,
+    entiteId: entite.id,
+    action: 'note_demande_dpae_creation',
+    tableCible: 'notes_demande_dpae',
+    cibleId: noteId,
+    donnees: { demandeId, contenu, noteModification: true },
+    adresseIp,
+  });
+}
+
+// Modifie une demande non décidée (transition « modifier » de statutsDpae.js : le statut ne change JAMAIS ;
+// l'inspecteur renvoie sa demande corrigée par l'action explicite envoyerAuPlanning), dans UNE SEULE
+// transaction : demande, sites d'affectation, note de modification et journal d'audit. La note de
+// modification est TOUJOURS obligatoire. Ordre des refus : introuvable (404) -> droit (403) -> version
+// obsolète ou demande modifiée entre-temps (409) -> statut verrouillé (409) -> note absente (400) -> sites
+// invalides (400). Le demandeur, l'entité et la date de création ne sont jamais modifiés. `donnees` : la
+// demande complète, déjà validée par le même schéma que la création (dpae.routes.js).
+// Sans aucun changement de la demande, seule la note est enregistrée : ni version, ni notification.
+// Trace : statut et NOMS des champs modifiés, jamais leurs valeurs (données personnelles).
+async function modifierDemande(entite, demandeId, { donnees, version, utilisateurId, roleCode, adresseIp, noteModification }) {
+  if (!Number.isInteger(version)) {
+    throw new Error('La version de la demande est obligatoire.');
+  }
+  const { sitesAffectationIds = [], ...champsDemande } = donnees;
+  const note = noteModification?.trim() || null;
+
+  const bd = await db.obtenirKnex();
+  return bd.transaction(async (trx) => {
+    const demande = await verifierDemandeExiste(trx, entite, demandeId);
+    if (!module.exports.peutModifierDemande({ roleCode, utilisateurId, demande })) throw new ErreurModificationInterdite();
+    if (demande.version !== version) throw new ErreurDemandeModifiee();
+
+    const transition = statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, demande.statut);
+    if (!transition) {
+      throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" déjà traitée (statut « ${demande.statut} ») : elle n'est plus modifiable.`);
+    }
+
+    if (!note) throw new ErreurNoteModificationObligatoire();
+
+    await verifierSitesValides(trx, entite, sitesAffectationIds);
+    const anciensSites = (await siteAffectationRepository.listerSitesDemande(trx, demandeId)).map((site) => site.id);
+    const sitesModifies = anciensSites.length !== sitesAffectationIds.length || anciensSites.some((id) => !sitesAffectationIds.includes(id));
+    const champs = [...champsModifies(demande, champsDemande), ...(sitesModifies ? ['sitesAffectationIds'] : [])];
+    if (champs.length === 0) {
+      await enregistrerNoteModification(trx, entite, demandeId, { contenu: note, utilisateurId, adresseIp });
+      return { statut: demande.statut, version: demande.version, champsModifies: [], noteEnregistree: true };
+    }
+
+    const lignesModifiees = await demandeDpaeRepository.modifierDemande(trx, demandeId, {
+      statutDepart: demande.statut,
+      version: demande.version,
+      statutArrivee: transition.vers,
+      donnees: champsDemande,
+    });
+    if (lignesModifiees !== 1) throw new ErreurDemandeModifiee();
+    await siteAffectationRepository.remplacerSitesDemande(trx, demandeId, sitesAffectationIds);
+
+    await journalAudit.enregistrerAction(trx, {
+      utilisateurId,
       entiteId: entite.id,
-      utilisateurId: demande.demandeur_id,
-      type: 'demande_dpae_en_attente',
+      action: 'demande_dpae_modification',
       tableCible: 'demandes_dpae',
       cibleId: demandeId,
-      message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été mise en attente par la RH : ${motif.trim()}`,
-      lien: `/coordination/dpae/suivi`,
-    },
-  ]);
+      donnees: { statut: demande.statut, champsModifies: champs },
+      adresseIp,
+    });
+    await enregistrerNoteModification(trx, entite, demandeId, { contenu: note, utilisateurId, adresseIp });
+
+    return { statut: transition.vers, version: demande.version + 1, champsModifies: champs, noteEnregistree: true };
+  });
 }
 
 module.exports = {
   creerEtEnvoyer,
   perimetreSuivi,
+  statutsMasquesPour,
+  masqueClasseesNonTransmises,
+  peutVoirStatut,
+  peutVoirDemande,
   peutConsulterDemande,
+  peutModifierDemande,
+  peutClasserSansSuite,
+  classerSansSuite,
+  reactiver,
+  peutEnvoyerAuPlanning,
+  envoyerAuPlanning,
+  peutRetransmettreALaRh,
+  retransmettreALaRh,
+  modifierDemande,
   listerSuivi,
   listerPourRh,
+  listerAValider,
   obtenirDemande,
   obtenirDemandesPourExport,
   valider,
   rejeter,
   mettreEnAttente,
+  transmettreALaRh,
+  renvoyerAInspecteur,
   ErreurDemandeIntrouvable,
   ErreurDemandeDejaTraitee,
+  ErreurDemandeModifiee,
+  ErreurModificationInterdite,
+  ErreurClassementInterdit,
+  ErreurEnvoiPlanningInterdit,
+  ErreurRetransmissionInterdite,
   ErreurSitesAffectationInvalides,
+  ErreurNoteModificationObligatoire,
   ErreurExportDemandesRefuse,
 };

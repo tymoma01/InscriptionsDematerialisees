@@ -9,6 +9,7 @@ import {
   marquerToutesNotificationsLues,
 } from '../../services/notificationService';
 import { listerDemandesRh } from '../../services/dpaeService';
+import { STATUT_INITIAL } from '../dpae/statutsDpae';
 import './NotificationsCloche.css';
 
 // Même intervalle que useRafraichissementAuto.js (core/dossier/) — pas ce hook lui-même,
@@ -18,19 +19,37 @@ import './NotificationsCloche.css';
 // d'horodatage, juste le total).
 const INTERVALLE_MS = 45_000;
 
+const TYPE_DEMANDE_COMPLETEE = 'demande_dpae_completee';
+
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 // Une demande DPAE à traiter devient une "notification" d'affichage — même forme que
 // notifications.routes.js (id/message/lien/lue/date_creation), pour réutiliser le même rendu
 // ci-dessous sans le dupliquer. `lue` toujours false : voir le commentaire de estRh plus bas.
-function demandeVersNotification(demande) {
+// `completee` : notification stockée « Demande complétée » (le demandeur a modifié une demande que la
+// RH avait mise en attente, voir demandeDpaeService.modifierDemande) — la demande est alors de nouveau
+// dans la file et s'y présente avec ce message plutôt que « Nouvelle demande ». Ce n'est pas une
+// notification de plus : la demande est déjà comptée par la file.
+function demandeVersNotification(demande, completee) {
+  const salarie = `${demande.salarie_prenom} ${demande.salarie_nom}`;
   return {
     id: demande.id,
-    message: `Nouvelle demande DPAE : ${demande.salarie_prenom} ${demande.salarie_nom}.`,
+    notificationId: completee?.id ?? null,
+    message: completee ? `Demande complétée : ${salarie}.` : `Nouvelle demande DPAE : ${salarie}.`,
     lien: `/rh/dpae/${demande.id}`,
     lue: false,
-    date_creation: demande.date_creation,
+    date_creation: completee?.date_creation ?? demande.date_creation,
   };
+}
+
+// File RH affichée dans le panneau : demandes au statut initial, avec le message « Demande complétée »
+// pour celles qui ont une notification non lue de ce type. Un échec de lecture des notifications
+// n'empêche jamais d'afficher la file.
+function listerFileRh() {
+  return Promise.all([listerDemandesRh(STATUT_INITIAL), listerNotifications().catch(() => [])]).then(([demandes, notifications]) => {
+    const completees = new Map(notifications.filter((n) => n.type === TYPE_DEMANDE_COMPLETEE && !n.lue).map((n) => [n.cible_id, n]));
+    return demandes.map((demande) => demandeVersNotification(demande, completees.get(demande.id)));
+  });
 }
 
 // Système de notifications internes (basique — module Demandes DPAE, 2026-09-28) : cloche avec
@@ -38,18 +57,18 @@ function demandeVersNotification(demande) {
 // aucun envoi SMS/email. Monté une seule fois (comme "Mon profil"), autonome (son propre polling),
 // même patron que BarreNavigation.jsx/BoutonNouvelleInscription.jsx.
 //
-// Restreinte à Admin/RH (audit 2026-09-28, demande utilisateur explicite : "cette cloche ne doit
-// être que pour les rh et les admins") — retirée pour Accueil/Coordination et Planning (voir
-// `visible` plus bas). EnTeteBackOffice.jsx continue de monter ce composant sans condition sur
-// TOUTES les pages back-office (patron d'auto-gating inchangé, voir son propre commentaire) : le
-// filtrage par rôle reste entièrement local à CE composant, pas remonté à l'appelant.
+// Réservée aux rôles qui reçoivent des notifications DPAE : Admin, RH, Planning et Inspecteur
+// Hôtellerie (permission `cloche`, voir `visible` plus bas) ; retirée pour les autres rôles.
+// EnTeteBackOffice.jsx continue de monter ce composant sans condition sur TOUTES les pages
+// back-office (patron d'auto-gating inchangé, voir son propre commentaire) : le filtrage par rôle
+// reste entièrement local à CE composant, pas remonté à l'appelant.
 //
 // RH (simplification 2026-09-28, demande utilisateur explicite — revient sur un premier essai de
 // notifications stockées par destinataire à l'envoi, plus un rattrapage pour tout RH promu après
 // coup : trop compliqué, et un compte RH créé après une demande ne recevait quand même rien tant
 // que le rattrapage n'était pas déclenché) : pour ce rôle, la cloche n'interroge PAS
 // /api/notifications — elle affiche directement "toutes les demandes en cours" (GET /api/dpae,
-// statut 'envoyee' par défaut, la même file que la page "Demandes DPAE"), toujours exact quel que
+// STATUT_INITIAL, la même file que la page "Demandes DPAE"), toujours exact quel que
 // soit le moment où le compte a obtenu ce rôle, sans aucune notification à stocker ni à
 // synchroniser. Pas de "lue"/"tout marquer comme lu" dans ce mode : une demande disparaît d'elle-
 // même de la liste dès qu'elle est traitée (validée/rejetée), ce qui sert déjà de signal de
@@ -76,7 +95,7 @@ export default function NotificationsCloche() {
   const navigate = useNavigate();
 
   const rafraichirCompteur = () => {
-    (estRh ? listerDemandesRh().then((demandes) => demandes.length) : compterNotificationsNonLues())
+    (estRh ? listerDemandesRh(STATUT_INITIAL).then((demandes) => demandes.length) : compterNotificationsNonLues())
       .then(setTotal)
       .catch(() => {});
   };
@@ -116,7 +135,7 @@ export default function NotificationsCloche() {
     setOuvert((valeurPrecedente) => !valeurPrecedente);
     if (!ouvert) {
       setChargement(true);
-      (estRh ? listerDemandesRh().then((demandes) => demandes.map(demandeVersNotification)) : listerNotifications())
+      (estRh ? listerFileRh() : listerNotifications())
         .then(setNotifications)
         .catch(() => setNotifications([]))
         .finally(() => setChargement(false));
@@ -124,6 +143,10 @@ export default function NotificationsCloche() {
   };
 
   const surClicNotification = async (notification) => {
+    if (estRh && notification.notificationId) {
+      // « Demande complétée » : vue, elle ne s'affichera plus avec ce message.
+      marquerNotificationLue(notification.notificationId).catch(() => {});
+    }
     if (!estRh && !notification.lue) {
       try {
         await marquerNotificationLue(notification.id);
@@ -149,8 +172,7 @@ export default function NotificationsCloche() {
     }
   };
 
-  // Rien à monter pour un rôle non autorisé (Accueil/Coordination, Planning, Formateur,
-  // Inspecteur) — ni pour la brève fenêtre où la session n'est pas encore résolue (`visible` vaut
+  // Rien à monter pour un rôle non autorisé (Accueil/Coordination, Formateur, Inspecteur) — ni pour la brève fenêtre où la session n'est pas encore résolue (`visible` vaut
   // alors faussement `false`, utilisateur étant encore null : mieux vaut ne rien afficher un
   // instant que de laisser la cloche apparaître puis disparaître). Après les hooks ci-dessus
   // (jamais avant, voir la règle des Hooks) — même patron que EnTeteBackOffice.jsx.

@@ -16,9 +16,11 @@ test('le compte système n’a aucune permission', () => {
   assert.deepEqual(permissionsDuRole(ROLES.SYSTEME), []);
 });
 
+// Seule exception : dpaeCreationSoumiseAuPlanning désigne le rôle dont les demandes DPAE passent
+// d'abord par le Planning (Inspecteur Hôtellerie) ; l'Admin, lui, envoie directement à la RH.
 test('Admin a toutes les permissions', () => {
   const sansAdmin = Object.keys(PERMISSIONS).filter((cle) => !aPermission(ROLES.ADMIN, cle));
-  assert.deepEqual(sansAdmin, []);
+  assert.deepEqual(sansAdmin, ['dpaeCreationSoumiseAuPlanning']);
 });
 
 // Planning = Accueil/Coordination + forçage + DPAE.

@@ -98,7 +98,9 @@
   border: 2px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);
   background-color: var(--couleur-fond-secondaire);
-  overflow: hidden;
+  /* Visible : la liste de sites d'un jour s'ouvre en superposition (SelecteurSitesJour.css) ; le bouton
+     de bascule suit lui-même l'arrondi de la carte. */
+  overflow: visible;
   transition: border-color 0.15s, background-color 0.15s;
 }
 
@@ -108,6 +110,7 @@
 }
 
 .page-demande-dpae__carte-jour-bascule {
+  border-radius: calc(var(--rayon-bordure) - 2px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -141,6 +144,20 @@
 .page-demande-dpae__carte-jour--travail .page-demande-dpae__carte-jour-statut {
   background-color: var(--statut-succes-texte);
   color: #ffffff;
+}
+
+.page-demande-dpae__carte-jour-site {
+  padding: 0 var(--espace-petit) var(--espace-petit);
+}
+
+.page-demande-dpae__carte-jour-site select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.page-demande-dpae__carte-jour-site .page-demande-dpae__erreur-champ {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
 }
 
 .page-demande-dpae__carte-jour-horaires {
@@ -180,9 +197,40 @@
   color: var(--couleur-erreur);
 }
 
-/* Message affiché sous le bloc « Site(s) d'affectation » quand l'agent tente d'envoyer sans site
-   (2026-09-29, voir DemandeDpae.jsx, envoyer) — même couleur d'erreur que le reste de l'outil. */
-.page-demande-dpae__erreur-sites {
+/* Message affiché sous un champ obligatoire (Site(s) d'affectation, Premier jour…) quand l'agent
+   tente d'envoyer sans l'avoir renseigné (voir DemandeDpae.jsx, envoyer) — même couleur d'erreur
+   que le reste de l'outil. */
+.page-demande-dpae__erreur-champ {
   margin: 0 0 var(--espace-petit);
   color: var(--couleur-erreur);
+}
+
+.page-demande-dpae__note-modification {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.page-demande-dpae__dernieres-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.page-demande-dpae__note {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--couleur-back-office);
+  background-color: var(--couleur-fond-secondaire);
+  border-radius: var(--rayon-bordure);
+}
+
+.page-demande-dpae__note p {
+  margin: 0.25rem 0;
+  white-space: pre-wrap;
+}
+
+.page-demande-dpae__note span {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
 }

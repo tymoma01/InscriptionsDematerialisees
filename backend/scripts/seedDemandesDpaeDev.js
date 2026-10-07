@@ -27,6 +27,8 @@ const { obtenirConnectionString } = require('../src/db/config');
 const { obtenirKnex } = require('../src/db/knex');
 const journalAudit = require('../src/core/audit/journalAudit');
 const demandeDpaeService = require('../src/core/dpae/demandeDpaeService');
+const notesDemandeDpaeService = require('../src/core/dpae/notesDemandeDpaeService');
+const { ROLES } = require('../src/core/auth/rbac');
 const { demandeBodySchema } = require('../src/api/routes/dpae.routes');
 const { jourParis, decalerJour } = require('../src/core/dpae/tableauDeBordDpaeService');
 
@@ -236,29 +238,14 @@ async function creerDemandes(bd, entite, comptes, maintenant) {
       adresseIp: ADRESSE_IP,
     });
 
-    // Décision RH (service de l'application) + trace identique aux routes PATCH /:id/valider|rejeter.
+    // Décision RH (service de l'application, qui écrit lui-même la trace journal_audit dans la même
+    // transaction). Demande tout juste créée : sa version est 1.
     if (d.statut === 'validee') {
-      await demandeDpaeService.valider(entite, id, comptes.rh.id);
-      await journalAudit.enregistrerAction(bd, {
-        utilisateurId: comptes.rh.id,
-        entiteId: entite.id,
-        action: 'demande_dpae_validation',
-        tableCible: 'demandes_dpae',
-        cibleId: id,
-        donnees: {},
-        adresseIp: ADRESSE_IP,
-      });
+      await demandeDpaeService.valider(entite, id, comptes.rh.id, { version: 1, adresseIp: ADRESSE_IP });
     } else if (d.statut === 'rejetee') {
-      await demandeDpaeService.rejeter(entite, id, comptes.rh.id, d.motifRejet);
-      await journalAudit.enregistrerAction(bd, {
-        utilisateurId: comptes.rh.id,
-        entiteId: entite.id,
-        action: 'demande_dpae_rejet',
-        tableCible: 'demandes_dpae',
-        cibleId: id,
-        donnees: { motifRejet: d.motifRejet },
-        adresseIp: ADRESSE_IP,
-      });
+      // Plus de motif saisi à la décision : la raison du rejet est une note de la demande.
+      await notesDemandeDpaeService.ajouterNote(entite, { demandeId: id, contenu: d.motifRejet, auteurId: comptes.rh.id, roleCode: ROLES.RH });
+      await demandeDpaeService.rejeter(entite, id, comptes.rh.id, { version: 1, adresseIp: ADRESSE_IP });
     }
 
     // Seules dates que les services ne permettent pas de fixer : ajustées pour CETTE demande.

@@ -94,7 +94,25 @@
   background-color: var(--couleur-back-office-hover);
 }
 
+.notes-dossier__formulaire button:focus-visible {
+  outline: 3px solid var(--couleur-back-office-hover);
+  outline-offset: 2px;
+}
+
+/* Désactivé (champ vide) : gris ; actif : couleur principale du back-office (marron de l'en-tête). */
 .notes-dossier__formulaire button:disabled {
-  opacity: 0.6;
+  background-color: var(--gris-300);
+  color: var(--gris-700);
   cursor: default;
+}
+
+.notes-dossier__etiquette {
+  display: inline-block;
+  margin-bottom: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond-secondaire);
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+  font-weight: 600;
 }

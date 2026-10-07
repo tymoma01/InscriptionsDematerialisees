@@ -4,6 +4,7 @@ import { useSession } from '../../core/auth/useSession';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import StatutBadge from '../../core/workflow/StatutBadge';
+import BadgeExperience, { CODES_EXPERIENCE_ACCECIT, libelleExperience } from '../../core/dossier/BadgeExperience';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
@@ -80,24 +81,6 @@ const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2
 // transitions.routes.js, embaucheService.js pour le même patron déjà appliqué à "Embauché").
 const CODE_ACTION_FORMATION_VALIDEE = 'marquer_formation_validee';
 const CODE_ACTION_FORMATION_NON_VALIDEE = 'invalider_formation';
-
-// Libellés/options du filtre + colonne "Expérience" — mêmes codes que
-// BlocDisponibilites.jsx (formulaire d'inscription)/Planification.jsx (Suivi des tests), dupliqués
-// plutôt que partagés (voir CLAUDE.md conventions du projet). Cette page n'affichait jusqu'ici
-// aucune colonne "Poste" (contrairement à Dossiers candidats/Suivi des tests) : "Expérience" est
-// donc la première information candidat de ce type ajoutée ici, sans colonne "Poste" existante à
-// ses côtés.
-const LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT = {
-  aucune: "Pas d'expérience",
-  plus_6_mois: 'Plus de 6 mois',
-  plus_2_ans: 'Plus de 2 ans',
-  plus_5_ans: 'Plus de 5 ans',
-};
-const CODES_EXPERIENCE_ACCECIT = ['aucune', 'plus_6_mois', 'plus_2_ans', 'plus_5_ans'];
-function libelleExperience(code) {
-  if (!code) return '-';
-  return LIBELLES_EXPERIENCE_PAR_CODE_ACCECIT[code] ?? code;
-}
 
 // Recherche élargie (nom/prénom, n° de dossier, poste(s) déclaré(s), nom du formateur, libellé du
 // statut) — même patron que Planification.jsx (rechercheCorrespond), dupliqué plutôt que partagé
@@ -453,54 +436,60 @@ export default function SuiviFormation() {
                     ? `${dossier.formateur_prenom ?? ''} ${dossier.formateur_nom ?? ''}`.trim()
                     : '—'}
                 </span>
-                <span className="page-suivi-formation__experience">{libelleExperience(dossier.experience)}</span>
-                <StatutBadge libelle={libelleBadgeStatut(dossier)} variante={varianteStatut(dossier.statut_code)} />
+                <span className="page-suivi-formation__experience">
+                  <BadgeExperience code={dossier.experience} />
+                </span>
+                <span className="page-suivi-formation__statut">
+                  <StatutBadge libelle={libelleBadgeStatut(dossier)} variante={varianteStatut(dossier.statut_code)} />
+                </span>
 
-                {accesComplet && dossier.statut_code === 'valide_envoi_formation' && (
-                  <div className="page-suivi-formation__actions">
-                    <button
-                      type="button"
-                      disabled={enCoursId === dossier.id}
-                      onClick={() =>
-                        setActionAConfirmer({ dossier, codeAction: CODE_ACTION_FORMATION_VALIDEE, titre: 'Formation validée' })
-                      }
-                    >
-                      Formation validée
-                    </button>
-                    <button
-                      type="button"
-                      className="page-suivi-formation__bouton-secondaire"
-                      disabled={enCoursId === dossier.id}
-                      onClick={() =>
-                        setActionAConfirmer({
-                          dossier,
-                          codeAction: CODE_ACTION_FORMATION_NON_VALIDEE,
-                          titre: 'Formation non validée',
-                        })
-                      }
-                    >
-                      Formation non validée
-                    </button>
-                  </div>
-                )}
+                <div className="page-suivi-formation__cellule-actions">
+                  {accesComplet && dossier.statut_code === 'valide_envoi_formation' && (
+                    <div className="page-suivi-formation__actions">
+                      <button
+                        type="button"
+                        disabled={enCoursId === dossier.id}
+                        onClick={() =>
+                          setActionAConfirmer({ dossier, codeAction: CODE_ACTION_FORMATION_VALIDEE, titre: 'Formation validée' })
+                        }
+                      >
+                        Formation validée
+                      </button>
+                      <button
+                        type="button"
+                        className="page-suivi-formation__bouton-secondaire"
+                        disabled={enCoursId === dossier.id}
+                        onClick={() =>
+                          setActionAConfirmer({
+                            dossier,
+                            codeAction: CODE_ACTION_FORMATION_NON_VALIDEE,
+                            titre: 'Formation non validée',
+                          })
+                        }
+                      >
+                        Formation non validée
+                      </button>
+                    </div>
+                  )}
 
-                {/* "Voir le dossier" — placé en dernier sur la ligne (audit 2026-08-31, décision
-                    utilisateur : ordre nom/date/formateur/statut/"Formation validée"/"Formation non
-                    validée"/"Voir le dossier"), déplacé depuis sa position d'origine juste après le
-                    badge de statut. Même bouton (style/couleur/cadre/route fiche dossier) que sur
-                    "Suivi des tests" (Planification.jsx, .planification__action-voir) : consultation
-                    de la fiche dossier complète (onglet "Formation", historique complet — voir
-                    Formation.jsx), sans restriction de rôle, contrairement aux deux boutons "Formation
-                    validée"/"Formation non validée" ci-dessus (accesComplet). Accueil/Coordination,
-                    qui n'a ici qu'un accès lecture seule (voir commentaire d'en-tête de ce fichier),
-                    doit tout de même pouvoir consulter le dossier depuis cette page. */}
-                <button
-                  type="button"
-                  className="page-suivi-formation__action-voir"
-                  onClick={() => navigate(`/coordination/dossiers/${dossier.id}/formation`)}
-                >
-                  Voir le dossier
-                </button>
+                  {/* "Voir le dossier" — placé en dernier sur la ligne (audit 2026-08-31, décision
+                      utilisateur : ordre nom/date/formateur/statut/"Formation validée"/"Formation non
+                      validée"/"Voir le dossier"), déplacé depuis sa position d'origine juste après le
+                      badge de statut. Même bouton (style/couleur/cadre/route fiche dossier) que sur
+                      "Suivi des tests" (Planification.jsx, .planification__action-voir) : consultation
+                      de la fiche dossier complète (onglet "Formation", historique complet — voir
+                      Formation.jsx), sans restriction de rôle, contrairement aux deux boutons "Formation
+                      validée"/"Formation non validée" ci-dessus (accesComplet). Accueil/Coordination,
+                      qui n'a ici qu'un accès lecture seule (voir commentaire d'en-tête de ce fichier),
+                      doit tout de même pouvoir consulter le dossier depuis cette page. */}
+                  <button
+                    type="button"
+                    className="page-suivi-formation__action-voir"
+                    onClick={() => navigate(`/coordination/dossiers/${dossier.id}/formation`)}
+                  >
+                    Voir le dossier
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

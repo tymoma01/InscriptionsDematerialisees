@@ -11,6 +11,15 @@ export async function creerDemande(demande) {
   return data;
 }
 
+// Modification d'une demande non décidée : la demande COMPLÈTE (mêmes champs que la création) plus
+// `version`, la version lue. Le serveur répond 409 si la demande a changé entre-temps ou n'est plus
+// modifiable, 403 sans le droit ; { statut, version } sinon, avec `aucuneModification: true` quand rien
+// n'a changé (rien n'est alors enregistré).
+export async function modifierDemande(demandeId, demande) {
+  const { data } = await api.put(`/dpae/${demandeId}`, demande);
+  return data;
+}
+
 // Liste de la page « Suivi des demandes DPAE » (2026-09-30, remplace GET /dpae/mes-demandes) —
 // perimetre 'toutes' | 'mes' ; le serveur décide du périmètre effectif selon le rôle (seuls Admin
 // et RH obtiennent 'toutes'), voir dpae.routes.js GET /suivi. Chaque demande porte
@@ -20,10 +29,18 @@ export async function listerSuiviDemandes(perimetre) {
   return data;
 }
 
-// statut par défaut côté back : 'envoyee' (file à traiter) — passer 'tous' pour l'historique
-// complet (traitées incluses), voir dpae.routes.js.
+// statut par défaut côté back : le statut initial (file à traiter, voir STATUT_INITIAL dans
+// core/dpae/statutsDpae.js) — passer 'tous' pour l'historique complet (traitées incluses), voir
+// dpae.routes.js.
 export async function listerDemandesRh(statut) {
   const { data } = await api.get('/dpae', { params: statut ? { statut } : undefined });
+  return data;
+}
+
+// File « Demandes à valider » du Planning (Planning et Admin) : « À valider par le Planning » puis
+// « Renvoyée à l'inspecteur », premier jour le plus proche d'abord.
+export async function listerDemandesAValider() {
+  const { data } = await api.get('/dpae/a-valider');
   return data;
 }
 
@@ -44,17 +61,50 @@ export function telechargerPdfDemandes(demandeIds) {
   return api.post('/dpae/export-pdf', { demandeIds }, { responseType: 'blob' });
 }
 
-export async function validerDemande(demandeId) {
-  await api.patch(`/dpae/${demandeId}/valider`);
+// Décisions : `version` est la version de la demande LUE par l'utilisateur (champ `version` de la
+// fiche). Si la demande a changé depuis, le serveur répond 409 « Cette demande a été modifiée
+// entre-temps. Rechargez-la. » et n'enregistre rien.
+export async function validerDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/valider`, { version });
 }
 
-export async function rejeterDemande(demandeId, motifRejet) {
-  await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet });
+// Aucune de ces actions ne porte de motif : la raison se consigne dans les notes de la demande.
+export async function rejeterDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/rejeter`, { version });
 }
 
-// « À traiter » -> « En attente », motif obligatoire (refusé sinon côté serveur).
-export async function mettreEnAttenteDemande(demandeId, motif) {
-  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { motif });
+// Passage par le Planning : transmission à la RH, ou renvoi à l'inspecteur.
+export async function transmettreDemandeALaRh(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/transmettre-rh`, { version });
+}
+
+export async function renvoyerDemandeAInspecteur(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, { version });
+}
+
+// « Renvoyée à l'inspecteur » -> « À valider par le Planning », une fois la demande corrigée.
+export async function envoyerAuPlanningDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/envoyer-au-planning`, { version });
+}
+
+// « Classée sans suite » -> statut de retour selon le rôle qui l'avait classée (Admin seulement).
+export async function reactiverDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/reactiver`, { version });
+}
+
+// « En attente » -> « À traiter » (renvoi à la RH une fois la demande complétée).
+export async function retransmettreDemandeALaRh(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/retransmettre-rh`, { version });
+}
+
+// Statut final « Classée sans suite » (sans motif : la raison se consigne dans les notes).
+export async function classerSansSuiteDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/classer-sans-suite`, { version });
+}
+
+// « À traiter » -> « En attente ».
+export async function mettreEnAttenteDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { version });
 }
 
 // Notes propres à une demande — même forme de réponse que les notes d'un dossier

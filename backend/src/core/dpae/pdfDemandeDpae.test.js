@@ -1,13 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+const PDFDocument = require('pdfkit');
 const {
   genererPdfDemande,
   sectionsDemande,
-  statutEtDate,
-  texteStatut,
+  recapitulatif,
+  texteReception,
   textesPiedDePage,
   nomFichierPdf,
+  dessinerBandeau,
+  largeurMotAccecit,
 } = require('./pdfDemandeDpae');
 
 // Demande telle que la renvoie demandeDpaeService.obtenirDemande (colonnes `date` : Date à minuit
@@ -39,8 +42,6 @@ function demande(surcharges = {}) {
     jours_concernes: [],
     semaine_type: [],
     autre_chose_signaler: null,
-    motif_rejet: null,
-    motif_mise_en_attente: null,
     date_mise_en_attente: null,
     date_creation: new Date('2026-09-30T12:34:07Z'),
     date_traitement: new Date('2026-09-30T15:48:43Z'),
@@ -81,7 +82,7 @@ test('Sections : mêmes sections et mêmes champs que la fiche, dans le même or
     ['Motif CDD', "Surcroît d'activité"],
     ['Raison du surcroît', 'Salon'],
     ['Poste', 'Équipier'],
-    ['Premier jour', '10/10/2026'],
+    ['Premier jour', '10/10/2026', { nouvelleLigne: true, seule: true }],
     ['Heure d’arrivée jour 1', '08h00'],
     ['Heures/mois', '151,67 h'],
   ]);
@@ -109,17 +110,15 @@ test("Sections : demande antérieure au référentiel -> « Site d'affectation �
   assert.deepEqual(lignes.at(-1), ["Site d'affectation", 'Hôtel du Parc']);
 });
 
-test('Sections conditionnelles : mêmes conditions que la fiche (rejet, attente, modifications, jours, semaine, autre chose)', () => {
+test('Sections conditionnelles : mêmes conditions que la fiche (attente, modifications, jours, semaine, autre chose) ; aucun motif de décision', () => {
+  // Les motifs de rejet, de mise en attente et de renvoi n'apparaissent plus : ils sont dans les notes.
   const rejetee = sectionsDemande(demande({ statut: 'rejetee', motif_rejet: 'Doublon' }));
-  assert.deepEqual(section(rejetee, 'Demande').lignes.at(-1), ['Motif de rejet', 'Doublon']);
+  assert.equal(section(rejetee, 'Demande').lignes.some(([libelle]) => /motif/i.test(libelle)), false);
 
   const enAttente = sectionsDemande(
-    demande({ statut: 'en_attente', date_traitement: null, date_mise_en_attente: new Date('2026-10-01T14:20:00Z'), motif_mise_en_attente: 'Client' }),
+    demande({ statut: 'en_attente', date_traitement: null, date_mise_en_attente: new Date('2026-10-01T14:20:00Z') }),
   );
-  assert.deepEqual(section(enAttente, 'Demande').lignes.slice(-2), [
-    ['Mise en attente le', '01/10/2026 16:20'],
-    ['Motif de mise en attente', 'Client'],
-  ]);
+  assert.deepEqual(section(enAttente, 'Demande').lignes.at(-1), ['Mise en attente le', '01/10/2026 16:20']);
 
   const complete = sectionsDemande(
     demande({
@@ -142,18 +141,27 @@ test('Sections conditionnelles : mêmes conditions que la fiche (rejet, attente,
   ]);
   assert.deepEqual(section(complete, 'Modifications demandées').lignes, [['Horaires', 'Oui']]);
   assert.deepEqual(section(complete, 'Gestion des jours').lignes, [['Type', 'Retirer des jours'], ['Jours concernés', '12/10/2026']]);
-  assert.deepEqual(section(complete, 'Semaine type').liste, ['Lundi : 08h00 – 15h00', 'Samedi']);
+  assert.deepEqual(section(complete, 'Semaine type').tableau, [
+    ['Lundi', 'de 08h00 à 15h00', 'Non précisé'],
+    ['Samedi', 'Horaires non précisés', 'Non précisé'],
+  ]);
   assert.equal(section(complete, 'Autre chose à signaler').texte, 'Badge à prévoir');
 });
 
-test('Statut et sa date : réception, mise en attente, traitement', () => {
-  assert.deepEqual(statutEtDate(demande({ statut: 'envoyee', date_traitement: null })), { libelle: 'À traiter', date: '30/09/2026 14:34' });
-  assert.deepEqual(statutEtDate(demande({ statut: 'en_attente', date_mise_en_attente: new Date('2026-10-01T14:20:00Z') })), {
-    libelle: 'En attente',
-    date: '01/10/2026 16:20',
-  });
-  assert.deepEqual(statutEtDate(demande()), { libelle: 'Validée', date: '30/09/2026 17:48' });
-  assert.deepEqual(statutEtDate(demande({ statut: 'rejetee' })), { libelle: 'Rejetée', date: '30/09/2026 17:48' });
+test('Réception : « Reçue le JJ/MM/AAAA à HH:MM » en heure de Paris', () => {
+  assert.equal(texteReception(demande()), 'Reçue le 30/09/2026 à 14:34');
+});
+
+test('Encadré récapitulatif : salarié, poste, type de contrat, premier jour ; valeur absente : « Non renseigné »', () => {
+  assert.deepEqual(recapitulatif(demande()), [
+    ['Salarié', 'Léa MARTIN'],
+    ['Poste', 'Équipier'],
+    ['Type de contrat', 'CDD'],
+    ['Premier jour', '10/10/2026'],
+  ]);
+  const incomplet = recapitulatif(demande({ poste: null, type_contrat: null, date_debut: null }));
+  assert.deepEqual(incomplet.slice(1).map(([, valeur]) => valeur), ['Non renseigné', 'Non renseigné', 'Non renseigné']);
+  assert.equal(recapitulatif(demande({ poste: 'autre', poste_autre: 'Voiturier' }))[1][1], 'Voiturier');
 });
 
 test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ » remplacés comme dans l’export ZIP des pièces', () => {
@@ -162,7 +170,7 @@ test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ 
 });
 
 test('PDF généré : document PDF A4, quelle que soit l’entité (même bandeau), 4 sites et toutes les sections', async () => {
-  for (const division of ['acchot', 'rm', null]) {
+  for (const division of ['hotellerie', 'tertiaire', null]) {
     const pdf = await genererPdfDemande(
       demande({ division, sites_affectation: QUATRE_SITES, modifications_demandees: true, autre_chose_signaler: 'x'.repeat(2000) }),
       { dateGeneration: new Date('2026-10-02T08:45:00Z') },
@@ -170,11 +178,6 @@ test('PDF généré : document PDF A4, quelle que soit l’entité (même bandea
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
     assert.match(pdf.toString('latin1'), /\/MediaBox \[0 0 595\.28 841\.89\]/);
   }
-});
-
-test('Ligne du statut : barre verticale, jamais de tiret long — « À traiter | le 30/09/2026 14:34 »', () => {
-  assert.equal(texteStatut(demande({ statut: 'envoyee', date_traitement: null })), 'À traiter | le 30/09/2026 14:34');
-  assert.equal(texteStatut(demande()), 'Validée | le 30/09/2026 17:48');
 });
 
 test('Pied de page : coordonnées ACCECIT, confidentialité, date de génération (heure de Paris) et pagination', () => {
@@ -186,11 +189,10 @@ test('Pied de page : coordonnées ACCECIT, confidentialité, date de génératio
   });
 });
 
-test('Aucun tiret long (—) dans les textes du PDF (sections, statut, pied de page)', () => {
+test('Aucun tiret long ni demi-cadratin dans les textes du PDF (sections, réception, pied de page)', () => {
   const complete = demande({
     statut: 'en_attente',
     date_mise_en_attente: new Date('2026-10-01T14:20:00Z'),
-    motif_mise_en_attente: 'Client',
     type_demande: 'ajout_retrait_jours',
     modifications_demandees: true,
     modification_horaires: true,
@@ -198,6 +200,117 @@ test('Aucun tiret long (—) dans les textes du PDF (sections, statut, pied de p
     autre_chose_signaler: 'Badge',
     sites_affectation: QUATRE_SITES,
   });
-  const textes = JSON.stringify([sectionsDemande(complete), texteStatut(complete), textesPiedDePage(new Date(), 1, 2)]);
-  assert.ok(!textes.includes('—'), textes);
+  const textes = JSON.stringify([sectionsDemande(complete), texteReception(complete), textesPiedDePage(new Date(), 1, 2)]);
+  assert.ok(!textes.includes('—') && !textes.includes('–'), textes);
+});
+
+test('Bandeau : le filet sous « ACCECIT » a EXACTEMENT la largeur du mot (lettres et espacements entre elles), pour chaque sous-marque', () => {
+  const doc = new PDFDocument({ size: 'A4' });
+  const filets = [];
+  const lineTo = doc.lineTo.bind(doc);
+  let origine = null;
+  const moveTo = doc.moveTo.bind(doc);
+  doc.moveTo = (x, y) => {
+    origine = [x, y];
+    return moveTo(x, y);
+  };
+  doc.lineTo = (x, y) => {
+    if (origine && origine[1] === y) filets.push(x - origine[0]);
+    return lineTo(x, y);
+  };
+
+  dessinerBandeau(doc);
+
+  const attendue = largeurMotAccecit(doc);
+  assert.equal(filets.length, 2);
+  for (const longueur of filets) assert.ok(Math.abs(longueur - attendue) < 1e-9, `${longueur} != ${attendue}`);
+  // Le mot lui-même : largeur des lettres + 6 espacements, sans espacement après la dernière lettre.
+  doc.font('Helvetica').fontSize(9);
+  assert.ok(Math.abs(attendue - (doc.widthOfString('ACCECIT') + 2.2 * 6)) < 1e-9);
+});
+
+test('Une section sans aucune ligne n’est pas affichée (sections vides ignorées) ; demande très longue : plusieurs pages, jamais de page vide', async () => {
+  const pdf = await genererPdfDemande(
+    demande({ sites_affectation: QUATRE_SITES, autre_chose_signaler: 'mot '.repeat(1800), modifications_demandees: true, modification_horaires: true }),
+    { dateGeneration: new Date('2026-10-02T08:45:00Z') },
+  );
+  const pages = (pdf.toString('latin1').match(/\/Type \/Page\b/g) ?? []).length;
+  assert.ok(pages >= 2 && pages <= 4, `pages : ${pages}`);
+});
+
+test('Semaine type : colonne « Site » après « Horaires », tous les sites du jour au format « NOM (INITIALES) » ; « Non précisé » pour une demande sans site par jour', () => {
+  const sites = [{ id: 51, nom: 'AIGLON', initiales: 'AIG' }, { id: 52, nom: 'ALBE', initiales: 'AL' }];
+  const tableau = section(
+    sectionsDemande(
+      demande({
+        sites_affectation: sites,
+        semaine_type: [
+          { jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteIds: [51] },
+          { jour: 'mardi', statut: 'repos' },
+          { jour: 'jeudi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteIds: [52, 51] },
+          { jour: 'vendredi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00' },
+          // Ancienne forme à un seul siteId : toujours lisible.
+          { jour: 'samedi', statut: 'travail', heureDebut: '09:00', heureFin: '17:00', siteId: 52 },
+        ],
+      }),
+    ),
+    'Semaine type',
+  ).tableau;
+  assert.deepEqual(tableau, [
+    ['Lundi', 'de 08h00 à 15h00', ['AIGLON (AIG)']],
+    ['Jeudi', 'de 09h00 à 17h00', ['ALBE (AL)', 'AIGLON (AIG)']],
+    ['Vendredi', 'de 09h00 à 17h00', 'Non précisé'],
+    ['Samedi', 'de 09h00 à 17h00', ['ALBE (AL)']],
+  ]);
+});
+
+test('Contrat : Premier jour et Dernier jour sur la même ligne, puis le nombre de jours calendaires seul à gauche (CDD)', () => {
+  const lignes = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes;
+  // Du 10/10 au 17/10 (minuit à Paris) : 8 jours.
+  const cdd = lignes({ date_fin: new Date('2026-10-16T22:00:00Z') });
+  const indice = cdd.findIndex(([libelle]) => libelle === 'Premier jour');
+  assert.deepEqual(cdd[indice], ['Premier jour', '10/10/2026', { nouvelleLigne: true, seule: false }]);
+  assert.deepEqual(cdd[indice + 1], ['Dernier jour', '17/10/2026']);
+  assert.deepEqual(cdd[indice + 2], ['Nombre total de jours calendaires', '8 jours', { nouvelleLigne: true, seule: true }]);
+  assert.deepEqual(lignes({ date_fin: new Date('2026-10-09T22:00:00Z') }).find(([l]) => l.startsWith('Nombre')).slice(0, 2), ['Nombre total de jours calendaires', '1 jour']);
+  // CDI, ou CDD sans dernier jour : « Premier jour » seul, ni dernier jour ni nombre de jours.
+  for (const surcharges of [{ type_contrat: 'cdi', date_fin: null }, { date_fin: null }]) {
+    const sansFin = lignes(surcharges);
+    assert.deepEqual(sansFin.find(([l]) => l === 'Premier jour'), ['Premier jour', '10/10/2026', { nouvelleLigne: true, seule: true }]);
+    assert.equal(sansFin.some(([l]) => l === 'Dernier jour' || l.startsWith('Nombre')), false);
+  }
+  // CDI (même avec une date de fin résiduelle) : aucun nombre de jours.
+  assert.equal(lignes({ type_contrat: 'cdi', date_fin: new Date('2026-10-16T22:00:00Z') }).some(([l]) => l.startsWith('Nombre')), false);
+});
+
+test('Contrat : le groupe de dates garde sa place quels que soient les champs affichés avant (Motif CDD, Raison du surcroît…)', () => {
+  const lignes = section(
+    sectionsDemande(demande({ motif_cdd: 'surcroit_activite', raison_surcroit: 'Séminaire', date_fin: new Date('2026-10-16T22:00:00Z') })),
+    'Contrat',
+  ).lignes;
+  const libelles = lignes.map(([l]) => l);
+  assert.deepEqual(libelles.slice(libelles.indexOf('Premier jour'), libelles.indexOf('Premier jour') + 3), ['Premier jour', 'Dernier jour', 'Nombre total de jours calendaires']);
+  // Les autres champs gardent leur ordre, avant et après le groupe.
+  assert.ok(libelles.indexOf('Poste') < libelles.indexOf('Premier jour'));
+  assert.ok(libelles.indexOf('Premier jour') < libelles.indexOf('Heure d’arrivée jour 1'));
+});
+
+test('PDF généré avec la colonne Site et le nombre de jours : document valide', async () => {
+  const pdf = await genererPdfDemande(
+    demande({
+      sites_affectation: QUATRE_SITES,
+      date_fin: new Date('2026-10-16T22:00:00Z'),
+      semaine_type: [{ jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '15:00', siteIds: [52, 53] }],
+    }),
+    { dateGeneration: new Date('2026-10-02T08:45:00Z') },
+  );
+  assert.equal(pdf.subarray(0, 5).toString('latin1'), '%PDF-');
+});
+
+test('Entité : « Hôtellerie », « Tertiaire », ou la précision pour « Autre » ; aucune ligne si absente', () => {
+  const entite = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes.find(([libelle]) => libelle === 'Entité');
+  assert.deepEqual(entite({ division: 'hotellerie' }), ['Entité', 'Hôtellerie']);
+  assert.deepEqual(entite({ division: 'tertiaire' }), ['Entité', 'Tertiaire']);
+  assert.deepEqual(entite({ division: 'autre', division_autre: 'Siège' }), ['Entité', 'Siège']);
+  assert.equal(entite({ division: null }), undefined);
 });
