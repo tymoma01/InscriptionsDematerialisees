@@ -7,8 +7,9 @@ import './ModaleConfirmationDpae.css';
 //
 // Échap et clic en dehors de la fenêtre = « Annuler », sauf pendant l'envoi. Une erreur du serveur
 // s'affiche ici, la fenêtre restant ouverte.
-// `variante` : 'rejet' (rouge) | 'attente' (bleu-gris) | 'validation' (vert) | 'classement' (ambre) — couleur du bouton.
-export default function ModaleConfirmationDpae({ titre, onConfirmer, onAnnuler, enCours, erreur, variante = 'validation' }) {
+// `variante` : 'rejet' (rouge) | 'attente' (violet) | 'validation' (vert) | 'classement' (ambre) | 'reactivation' (bleu) — couleur du bouton.
+// `description` : phrase facultative sous le titre (ex. où repart une demande réactivée).
+export default function ModaleConfirmationDpae({ titre, description, onConfirmer, onAnnuler, enCours, erreur, variante = 'validation' }) {
   useEffect(() => {
     const surTouche = (evenement) => {
       if (evenement.key === 'Escape' && !enCours) onAnnuler();
@@ -34,6 +35,8 @@ export default function ModaleConfirmationDpae({ titre, onConfirmer, onAnnuler, 
       <div className={`modale-confirmation-dpae modale-confirmation-dpae--${variante}`} role="dialog" aria-modal="true" aria-labelledby="titre-confirmation-dpae">
         <h2 id="titre-confirmation-dpae">{titre}</h2>
         <form onSubmit={confirmer}>
+          {description && <p className="modale-confirmation-dpae__description">{description}</p>}
+
           {erreur && <p role="alert">{erreur}</p>}
 
           <div className="modale-confirmation-dpae__actions">

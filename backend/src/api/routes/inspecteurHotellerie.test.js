@@ -79,6 +79,11 @@ const AUTORISEES = [
   ['dpae', 'get', '/suivi'],
   ['dpae', 'get', '/:id'],
   ['dpae', 'get', '/:id/notes'],
+  // Notes : ajout autorisé par la garde ; seulement sur ses propres demandes (vérifié par le service).
+  ['dpae', 'post', '/:id/notes'],
+  ['dpae', 'patch', '/:id/envoyer-au-planning'],
+  ['dpae', 'patch', '/:id/retransmettre-rh'],
+  ['dpae', 'patch', '/:id/classer-sans-suite'],
   ['sitesAffectation', 'get', '/'],
   ['sitesAffectation', 'post', '/'],
   ['candidats', 'get', '/recherche'],
@@ -131,7 +136,6 @@ const INTERDITES = [
   ['dpae', 'patch', '/:id/rejeter'],
   ['dpae', 'patch', '/:id/mettre-en-attente'],
   ['dpae', 'get', '/tableau-de-bord'],
-  ['dpae', 'post', '/:id/notes'],
 ];
 
 test('Inspecteur Hôtellerie : 403 sur toute écriture, les pièces, le traitement RH, le tableau de bord DPAE et les écrans interdits', () => {

@@ -27,10 +27,6 @@ describe('statuts et transitions DPAE : frontend = backend', () => {
     expect(front.STATUTS_AVANT_RH).toEqual([...back.STATUTS_AVANT_RH]);
   });
 
-  it('mêmes statuts à note de modification obligatoire', () => {
-    expect(front.STATUTS_NOTE_MODIFICATION_OBLIGATOIRE).toEqual([...back.STATUTS_NOTE_MODIFICATION_OBLIGATOIRE]);
-  });
-
   it('mêmes transitions (action, statut de départ, statut d’arrivée), ni plus ni moins', () => {
     expect(front.TRANSITIONS_DPAE.map(cleTransition).sort()).toEqual(back.TRANSITIONS.map(cleTransition).sort());
   });
@@ -42,6 +38,9 @@ describe('statuts et transitions DPAE : frontend = backend', () => {
       rejeter: front.ACTION_REJETER,
       modifier: front.ACTION_MODIFIER,
       transmettreRh: front.ACTION_TRANSMETTRE_RH,
+      envoyerAuPlanning: front.ACTION_ENVOYER_AU_PLANNING,
+      retransmettreRh: front.ACTION_RETRANSMETTRE_RH,
+      reactiver: front.ACTION_REACTIVER,
       renvoyerInspecteur: front.ACTION_RENVOYER_INSPECTEUR,
     }).toEqual({
       mettreEnAttente: back.ACTION_METTRE_EN_ATTENTE,
@@ -49,6 +48,9 @@ describe('statuts et transitions DPAE : frontend = backend', () => {
       rejeter: back.ACTION_REJETER,
       modifier: back.ACTION_MODIFIER,
       transmettreRh: back.ACTION_TRANSMETTRE_RH,
+      envoyerAuPlanning: back.ACTION_ENVOYER_AU_PLANNING,
+      retransmettreRh: back.ACTION_RETRANSMETTRE_RH,
+      reactiver: back.ACTION_REACTIVER,
       renvoyerInspecteur: back.ACTION_RENVOYER_INSPECTEUR,
     });
   });

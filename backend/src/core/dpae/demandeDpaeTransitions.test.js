@@ -7,6 +7,7 @@ const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const demandeDpaeService = require('./demandeDpaeService');
 const siteAffectationRepository = require('./siteAffectationRepository');
+const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 
 // Scénarios de concurrence et d'atomicité des décisions DPAE, sur une base factice qui reproduit ce
 // que garantit PostgreSQL : l'UPDATE ... WHERE statut AND version est un compare-and-set atomique, et
@@ -63,6 +64,7 @@ function creerBaseFactice(t, { statut = 'envoyee', version = 1, lecturesSimultan
   t.mock.method(siteAffectationRepository, 'listerIdsSitesValides', async (_trx, _entiteId, ids) => ids);
   t.mock.method(siteAffectationRepository, 'listerSitesDemande', async () => []);
   t.mock.method(siteAffectationRepository, 'remplacerSitesDemande', async () => {});
+  t.mock.method(notesDemandeDpaeRepository, 'ajouterNote', async () => 55);
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => [3]);
 
   const empiler = (liste) => async (trx, valeur) => {
@@ -200,7 +202,7 @@ test('modification et décision RH simultanées sur la même demande : une seule
   };
 
   const resultats = await Promise.allSettled([
-    demandeDpaeService.modifierDemande(ENTITE, 7, { donnees, version: 2, utilisateurId: 16, roleCode: 'planning', adresseIp: 'x' }),
+    demandeDpaeService.modifierDemande(ENTITE, 7, { donnees, version: 2, utilisateurId: 16, roleCode: 'planning', adresseIp: 'x', noteModification: 'Précision' }),
     demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 2 }),
   ]);
 
@@ -208,5 +210,6 @@ test('modification et décision RH simultanées sur la même demande : une seule
   const refusee = resultats.find((resultat) => resultat.status === 'rejected');
   assert.ok(refusee.reason instanceof demandeDpaeService.ErreurDemandeModifiee);
   assert.equal(etat.version, 3);
-  assert.equal(etat.audits.length, 1);
+  // Une seule trace par décision gagnante ; la modification gagnante en écrit deux (modification et note).
+  assert.equal(etat.audits.length, resultats[0].status === 'fulfilled' ? 2 : 1);
 });

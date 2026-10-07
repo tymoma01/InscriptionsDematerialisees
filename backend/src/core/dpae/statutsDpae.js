@@ -34,10 +34,6 @@ const CODES_STATUTS_DPAE = Object.freeze(STATUTS_DPAE.map((statut) => statut.cod
 // consultation directe, notes).
 const STATUTS_AVANT_RH = Object.freeze([STATUT_A_VALIDER_PLANNING, STATUT_RENVOYEE_INSPECTEUR]);
 
-// Statuts dont la modification exige une note : la demande revient d'un renvoi ou d'une mise en
-// attente, le demandeur explique ce qu'il a corrigé. Miroir front : frontend/src/core/dpae/statutsDpae.js.
-const STATUTS_NOTE_MODIFICATION_OBLIGATOIRE = Object.freeze([STATUT_RENVOYEE_INSPECTEUR, STATUT_EN_ATTENTE]);
-
 // Statut d'une demande à sa création (pas de brouillon) quand elle va directement à la RH ; une
 // demande soumise au Planning démarre en STATUT_A_VALIDER_PLANNING (demandeDpaeService.creerEtEnvoyer).
 const STATUT_INITIAL = STATUT_ENVOYEE;
@@ -49,6 +45,9 @@ const ACTION_MODIFIER = 'modifier';
 const ACTION_TRANSMETTRE_RH = 'transmettre_rh';
 const ACTION_RENVOYER_INSPECTEUR = 'renvoyer_inspecteur';
 const ACTION_CLASSER_SANS_SUITE = 'classer_sans_suite';
+const ACTION_ENVOYER_AU_PLANNING = 'envoyer_au_planning';
+const ACTION_RETRANSMETTRE_RH = 'retransmettre_rh';
+const ACTION_REACTIVER = 'reactiver';
 
 // Actions de décision de la RH : elles définissent les statuts « à traiter » par la RH.
 const ACTIONS_DECISION_RH = Object.freeze([ACTION_METTRE_EN_ATTENTE, ACTION_VALIDER, ACTION_REJETER]);
@@ -74,28 +73,57 @@ const TRANSITIONS = Object.freeze(
     { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
     { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_ENVOYEE, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
     { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_EN_ATTENTE, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
-    // Modification par le demandeur : une demande « À traiter » le reste ; une demande « En attente »
-    // repasse « À traiter » (la RH en est notifiée) ; une demande « Renvoyée à l'inspecteur » repasse
-    // « À valider par le Planning » (le Planning en est notifié). Droit par demande (auteur, Planning,
-    // Admin) : demandeDpaeService.peutModifierDemande.
+    // Réactivation d'une demande classée sans suite, par l'Admin SEULEMENT : SEULE transition sortante du statut.
+    // Le statut de retour dépend du rôle qui l'avait classée (statutRetourReactivation) : une ligne par
+    // destination possible, date_envoi_rh n'est jamais modifiée.
+    { action: ACTION_REACTIVER, de: STATUT_CLASSEE_SANS_SUITE, vers: STATUT_RENVOYEE_INSPECTEUR, permission: 'dpaeReactivation' },
+    { action: ACTION_REACTIVER, de: STATUT_CLASSEE_SANS_SUITE, vers: STATUT_A_VALIDER_PLANNING, permission: 'dpaeReactivation' },
+    { action: ACTION_REACTIVER, de: STATUT_CLASSEE_SANS_SUITE, vers: STATUT_ENVOYEE, permission: 'dpaeReactivation' },
+    { action: ACTION_REACTIVER, de: STATUT_CLASSEE_SANS_SUITE, vers: STATUT_EN_ATTENTE, permission: 'dpaeReactivation' },
+    // Demande « En attente » renvoyée à la RH une fois complétée : retour dans la file « À traiter », la
+    // première date d'envoi à la RH est conservée. Droit par demande (auteur, Planning, Admin) :
+    // demandeDpaeService.peutRetransmettreALaRh.
+    { action: ACTION_RETRANSMETTRE_RH, de: STATUT_EN_ATTENTE, vers: STATUT_ENVOYEE, permission: 'dpaeRetransmissionRh' },
+    // Renvoi de l'inspecteur au Planning, après correction : action explicite (la sauvegarde d'une
+    // modification ne change jamais le statut). Droit par demande (auteur, ou Admin) :
+    // demandeDpaeService.peutEnvoyerAuPlanning.
+    { action: ACTION_ENVOYER_AU_PLANNING, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_A_VALIDER_PLANNING, permission: 'dpaeEnvoiPlanning' },
+    // Modification par le demandeur : le statut ne change JAMAIS (les changements de statut passent par
+    // les actions ci-dessus). Droit par demande (auteur, Planning, Admin) : demandeDpaeService.peutModifierDemande.
     { action: ACTION_MODIFIER, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_A_VALIDER_PLANNING, permission: 'dpaeModification' },
-    { action: ACTION_MODIFIER, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_A_VALIDER_PLANNING, permission: 'dpaeModification' },
+    { action: ACTION_MODIFIER, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_RENVOYEE_INSPECTEUR, permission: 'dpaeModification' },
     { action: ACTION_MODIFIER, de: STATUT_ENVOYEE, vers: STATUT_ENVOYEE, permission: 'dpaeModification' },
-    { action: ACTION_MODIFIER, de: STATUT_EN_ATTENTE, vers: STATUT_ENVOYEE, permission: 'dpaeModification' },
+    { action: ACTION_MODIFIER, de: STATUT_EN_ATTENTE, vers: STATUT_EN_ATTENTE, permission: 'dpaeModification' },
   ].map((transition) => Object.freeze(transition)),
 );
 
 // Statuts depuis lesquels une transition est encore possible (demande sans décision finale) —
-// déduits de la table, jamais saisis à la main.
-const STATUTS_A_DECIDER = Object.freeze(CODES_STATUTS_DPAE.filter((code) => TRANSITIONS.some((transition) => transition.de === code)));
+// déduits de la table, jamais saisis à la main. La réactivation d'une demande classée sans suite n'en fait
+// pas un statut « à décider » (pastille d'urgence, files de travail).
+const STATUTS_A_DECIDER = Object.freeze(
+  CODES_STATUTS_DPAE.filter((code) => TRANSITIONS.some((transition) => transition.de === code && transition.action !== ACTION_REACTIVER)),
+);
 
 // Statuts sur lesquels la RH doit encore décider (file « À traiter » et « En attente »).
 const STATUTS_A_TRAITER_RH = Object.freeze(
   CODES_STATUTS_DPAE.filter((code) => TRANSITIONS.some((transition) => transition.de === code && ACTIONS_DECISION_RH.includes(transition.action))),
 );
 
-function trouverTransition(action, statutDepart) {
-  return TRANSITIONS.find((transition) => transition.action === action && transition.de === statutDepart);
+// `statutArrivee` optionnel : pour une action à plusieurs destinations (la réactivation).
+function trouverTransition(action, statutDepart, statutArrivee) {
+  return TRANSITIONS.find(
+    (transition) => transition.action === action && transition.de === statutDepart && (statutArrivee === undefined || transition.vers === statutArrivee),
+  );
+}
+
+// Statut où repart une demande réactivée, selon le rôle qui l'avait classée : Inspecteur Hôtellerie -> renvoyée
+// à l'inspecteur ; Planning -> à valider par le Planning ; Admin -> le statut qu'elle avait avant le classement.
+// Informations absentes (demande classée non reconstituée) ou incohérentes -> à valider par le Planning.
+function statutRetourReactivation({ classee_par_role: classeeParRole, statut_avant_classement: statutAvantClassement } = {}) {
+  if (classeeParRole === 'inspecteur_hotellerie') return STATUT_RENVOYEE_INSPECTEUR;
+  if (classeeParRole === 'planning') return STATUT_A_VALIDER_PLANNING;
+  if (classeeParRole === 'admin' && trouverTransition(ACTION_REACTIVER, STATUT_CLASSEE_SANS_SUITE, statutAvantClassement)) return statutAvantClassement;
+  return STATUT_A_VALIDER_PLANNING;
 }
 
 // Permission requise pour une action (garde des routes). Exception au chargement si l'action est
@@ -124,7 +152,6 @@ module.exports = {
   STATUT_CLASSEE_SANS_SUITE,
   STATUT_INITIAL,
   STATUTS_AVANT_RH,
-  STATUTS_NOTE_MODIFICATION_OBLIGATOIRE,
   STATUTS_DPAE,
   CODES_STATUTS_DPAE,
   STATUTS_A_DECIDER,
@@ -136,8 +163,12 @@ module.exports = {
   ACTION_TRANSMETTRE_RH,
   ACTION_RENVOYER_INSPECTEUR,
   ACTION_CLASSER_SANS_SUITE,
+  ACTION_ENVOYER_AU_PLANNING,
+  ACTION_RETRANSMETTRE_RH,
+  ACTION_REACTIVER,
   TRANSITIONS,
   trouverTransition,
+  statutRetourReactivation,
   permissionPourAction,
   listeSql,
 };

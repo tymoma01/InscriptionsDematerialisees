@@ -14,7 +14,6 @@ import {
   joursPrivesDeSite,
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
-import { STATUTS_NOTE_MODIFICATION_OBLIGATOIRE } from '../../core/dpae/statutsDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import SelecteurSitesJour from './SelecteurSitesJour';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
@@ -53,10 +52,9 @@ const POSTES_HOTEL = [
 // plutôt que la grille tactile de la maquette — même donnée finale (un tableau de dates), pour un
 // premier jet plus simple à développer/tester (voir le plan, section Simplifications).
 //
-// Note sur la modification (mode modification) : facultative, obligatoire pour une demande « Renvoyée à
-// l'inspecteur » ou « En attente » (les 3 dernières notes de la demande s'affichent alors en lecture
-// seule au-dessus du champ : la raison du renvoi ou de la mise en attente s'y trouve).
-// Elle est enregistrée avec la modification, dans la même transaction côté serveur.
+// Note sur la modification (mode modification) : TOUJOURS obligatoire ; les 3 dernières notes de la
+// demande s'affichent en lecture seule au-dessus du champ. Elle est enregistrée avec la modification,
+// dans la même transaction côté serveur. Enregistrer ne change jamais le statut de la demande.
 //
 // Mode modification (route /coordination/dpae/:demandeId/modifier) : le MÊME formulaire, prérempli
 // avec la demande existante (donneesFormulaireDepuisDemande) ; « Enregistrer les modifications »
@@ -68,21 +66,18 @@ const FORMAT_DATE_NOTE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', mont
 function FormulaireDemandeDpae({ demande, onRecharger }) {
   const modification = Boolean(demande);
   const [noteModification, setNoteModification] = useState('');
-  const noteObligatoire = modification && STATUTS_NOTE_MODIFICATION_OBLIGATOIRE.includes(demande.statut);
-  // Dernières notes de la demande (plus récentes d'abord), seulement quand la note est obligatoire.
+  // Dernières notes de la demande (plus récentes d'abord), affichées au-dessus du champ de note.
   const [dernieresNotes, setDernieresNotes] = useState([]);
   const [erreurNotes, setErreurNotes] = useState(false);
   useEffect(() => {
-    if (!noteObligatoire) return;
+    if (!modification) return;
     listerNotesDemande(demande.id)
       .then((notes) => setDernieresNotes(notes.slice(0, NOMBRE_NOTES_AFFICHEES)))
       .catch(() => setErreurNotes(true));
-  }, [noteObligatoire, demande?.id]);
+  }, [modification, demande?.id]);
   const navigate = useNavigate();
   const { utilisateur } = useSession();
   const libelleEnvoi = peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
-  // Enregistrement sans aucun changement : rien n'a été écrit, on reste sur le formulaire.
-  const [information, setInformation] = useState(null);
   const [donnees, setDonnees] = useState(() => (demande ? donneesFormulaireDepuisDemande(demande) : donneesInitiales()));
   // Vrai quand le serveur a refusé l'enregistrement (409) : la demande a changé depuis son
   // chargement. La saisie reste à l'écran ; recharger la remplace par la version à jour.
@@ -210,7 +205,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
     donnees.verifBesoinHotel &&
     donnees.verifTousJoursInclus &&
     donnees.verifNonPlanification &&
-    (!noteObligatoire || noteModification.trim());
+    (!modification || noteModification.trim());
 
   const envoyer = async (evenement) => {
     evenement.preventDefault();
@@ -226,7 +221,6 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
 
     setEnvoiEnCours(true);
     setErreur(null);
-    setInformation(null);
     setConflit(false);
     try {
       const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, ...reste } = donnees;
@@ -256,11 +250,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
       };
       if (modification) {
-        const resultat = await modifierDemande(demande.id, { ...corps, version: demande.version, noteModification: noteModification.trim() || undefined });
-        if (resultat.aucuneModification) {
-          setInformation(resultat.message ?? 'Aucune modification');
-          return;
-        }
+        const resultat = await modifierDemande(demande.id, { ...corps, version: demande.version, noteModification: noteModification.trim() });
         // Version inchangée : seule la note a été enregistrée (aucun changement de la demande).
         const confirmation = resultat.version === demande.version ? 'La note a été enregistrée.' : 'Les modifications de la demande ont été enregistrées.';
         navigate(`/rh/dpae/${demande.id}`, { state: { confirmation } });
@@ -817,7 +807,6 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
             </label>
 
             {erreur && <p role="alert">{erreur}</p>}
-            {information && <p role="status">{information}</p>}
             {conflit && (
               <p>
                 Votre saisie est conservée à l&rsquo;écran, mais elle ne peut pas être enregistrée telle quelle.{' '}
@@ -830,31 +819,29 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
 
             {modification && (
               <div className="page-demande-dpae__note-modification">
-                {noteObligatoire && (
-                  <div className="page-demande-dpae__dernieres-notes">
-                    <strong>Dernières notes de la demande</strong>
-                    {erreurNotes && <p role="alert">Impossible de récupérer les notes de cette demande.</p>}
-                    {!erreurNotes && dernieresNotes.length === 0 && <p>Aucune note enregistrée pour cette demande.</p>}
-                    {dernieresNotes.map((note) => (
-                      <div key={note.id} className="page-demande-dpae__note">
-                        <p>{note.contenu}</p>
-                        <span>
-                          {note.auteur_prenom} {note.auteur_nom} _ {FORMAT_DATE_NOTE.format(new Date(note.date_creation))}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <div className="page-demande-dpae__dernieres-notes">
+                  <strong>Dernières notes de la demande</strong>
+                  {erreurNotes && <p role="alert">Impossible de récupérer les notes de cette demande.</p>}
+                  {!erreurNotes && dernieresNotes.length === 0 && <p>Aucune note enregistrée pour cette demande.</p>}
+                  {dernieresNotes.map((note) => (
+                    <div key={note.id} className="page-demande-dpae__note">
+                      <p>{note.contenu}</p>
+                      <span>
+                        {note.auteur_prenom} {note.auteur_nom} _ {FORMAT_DATE_NOTE.format(new Date(note.date_creation))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
                 <label>
                   <span>
-                    Note sur la modification{noteObligatoire && <> <span className="champ-obligatoire">*</span></>}
+                    Note sur la modification <span className="champ-obligatoire">*</span>
                   </span>
                   <textarea
                     rows={3}
                     value={noteModification}
                     onChange={(e) => setNoteModification(e.target.value)}
                     maxLength={LONGUEUR_MAX_NOTE}
-                    required={noteObligatoire}
+                    required
                   />
                 </label>
               </div>

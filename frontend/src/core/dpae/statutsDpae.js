@@ -37,6 +37,9 @@ export const ACTION_MODIFIER = 'modifier';
 export const ACTION_TRANSMETTRE_RH = 'transmettre_rh';
 export const ACTION_RENVOYER_INSPECTEUR = 'renvoyer_inspecteur';
 export const ACTION_CLASSER_SANS_SUITE = 'classer_sans_suite';
+export const ACTION_ENVOYER_AU_PLANNING = 'envoyer_au_planning';
+export const ACTION_RETRANSMETTRE_RH = 'retransmettre_rh';
+export const ACTION_REACTIVER = 'reactiver';
 
 // Transitions autorisées (action, statut de départ, statut d'arrivée) — MIROIR de la table du serveur
 // (backend/src/core/dpae/statutsDpae.js), qui reste seule juge : ici elles ne servent qu'à décider
@@ -55,23 +58,29 @@ export const TRANSITIONS_DPAE = [
   { action: ACTION_CLASSER_SANS_SUITE, de: 'renvoyee_inspecteur', vers: 'classee_sans_suite' },
   { action: ACTION_CLASSER_SANS_SUITE, de: 'envoyee', vers: 'classee_sans_suite' },
   { action: ACTION_CLASSER_SANS_SUITE, de: 'en_attente', vers: 'classee_sans_suite' },
-  // Modification par le demandeur : « À traiter » reste « À traiter », « En attente » repasse « À
-  // traiter », « Renvoyée à l'inspecteur » repasse « À valider par le Planning ».
+  // Réactivation d'une demande classée sans suite (Admin) : SEULE transition sortante ; la destination dépend
+  // du rôle qui l'avait classée (une ligne par destination possible).
+  { action: ACTION_REACTIVER, de: 'classee_sans_suite', vers: 'renvoyee_inspecteur' },
+  { action: ACTION_REACTIVER, de: 'classee_sans_suite', vers: 'a_valider_planning' },
+  { action: ACTION_REACTIVER, de: 'classee_sans_suite', vers: 'envoyee' },
+  { action: ACTION_REACTIVER, de: 'classee_sans_suite', vers: 'en_attente' },
+  // Demande « En attente » renvoyée à la RH une fois complétée.
+  { action: ACTION_RETRANSMETTRE_RH, de: 'en_attente', vers: 'envoyee' },
+  // Renvoi de l'inspecteur au Planning, après correction : action explicite.
+  { action: ACTION_ENVOYER_AU_PLANNING, de: 'renvoyee_inspecteur', vers: 'a_valider_planning' },
+  // Modification par le demandeur : le statut ne change JAMAIS.
   { action: ACTION_MODIFIER, de: 'a_valider_planning', vers: 'a_valider_planning' },
-  { action: ACTION_MODIFIER, de: 'renvoyee_inspecteur', vers: 'a_valider_planning' },
+  { action: ACTION_MODIFIER, de: 'renvoyee_inspecteur', vers: 'renvoyee_inspecteur' },
   { action: ACTION_MODIFIER, de: 'envoyee', vers: 'envoyee' },
-  { action: ACTION_MODIFIER, de: 'en_attente', vers: 'envoyee' },
+  { action: ACTION_MODIFIER, de: 'en_attente', vers: 'en_attente' },
 ];
 
 // Statuts depuis lesquels une transition est encore possible (demande sans décision finale), déduits
 // de la table ci-dessus.
+// La réactivation d'une demande classée sans suite n'en fait pas un statut « à décider ».
 export const STATUTS_A_DECIDER = STATUTS_DPAE.map((statut) => statut.code).filter((code) =>
-  TRANSITIONS_DPAE.some((transition) => transition.de === code),
+  TRANSITIONS_DPAE.some((transition) => transition.de === code && transition.action !== ACTION_REACTIVER),
 );
-
-// Statuts dont la modification exige une note (miroir de STATUTS_NOTE_MODIFICATION_OBLIGATOIRE côté
-// serveur, vérifié par statutsDpaeCoherenceBackend.test.js).
-export const STATUTS_NOTE_MODIFICATION_OBLIGATOIRE = ['renvoyee_inspecteur', 'en_attente'];
 
 export const transitionPossible = (action, statut) => TRANSITIONS_DPAE.some((transition) => transition.action === action && transition.de === statut);
 

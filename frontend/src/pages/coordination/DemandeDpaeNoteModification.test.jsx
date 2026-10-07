@@ -63,7 +63,7 @@ const champNote = () => screen.findByLabelText(/Note sur la modification/);
 const boutonEnregistrer = () => screen.getByRole('button', { name: 'Enregistrer les modifications' });
 
 describe('Formulaire de modification : note sur la modification', () => {
-  it('« Renvoyée à l’inspecteur » : note obligatoire, 3 dernières notes (texte, auteur, date) en lecture seule au-dessus du champ', async () => {
+  it('« Renvoyée à l’inspecteur » : 3 dernières notes (texte, auteur, date) en lecture seule au-dessus du champ', async () => {
     const notes = [4, 3, 2, 1].map((n) => ({
       id: n,
       contenu: `Note numéro ${n}`,
@@ -103,17 +103,26 @@ describe('Formulaire de modification : note sur la modification', () => {
     expect(boutonEnregistrer().disabled).toBe(true);
   });
 
-  it('autres statuts : note facultative, aucun motif affiché, note absente du corps si vide', async () => {
-    afficher(demandeEnBase('a_valider_planning'));
-    const note = await champNote();
-    expect(note.required).toBe(false);
-    expect(screen.queryByText(/Dernières notes/)).toBeNull();
-    expect(listerNotesDemande).not.toHaveBeenCalled();
-    expect(boutonEnregistrer().disabled).toBe(false);
+  it('tous les statuts : note toujours obligatoire, dernières notes affichées', async () => {
+    for (const statut of ['a_valider_planning', 'envoyee']) {
+      afficher(demandeEnBase(statut));
+      const note = await champNote();
+      expect(note.required, statut).toBe(true);
+      expect(screen.getByText('Dernières notes de la demande'), statut).toBeTruthy();
+      expect(boutonEnregistrer().disabled, statut).toBe(true);
+      fireEvent.change(note, { target: { value: 'Téléphone corrigé' } });
+      expect(boutonEnregistrer().disabled, statut).toBe(false);
+      cleanup();
+    }
+  });
 
+  it('après l’enregistrement : retour sur la fiche, sans aucune bascule de statut côté interface', async () => {
+    modifierDemande.mockResolvedValue({ statut: 'renvoyee_inspecteur', version: 5, noteEnregistree: true });
+    afficher(demandeEnBase('renvoyee_inspecteur'));
+    fireEvent.change(await champNote(), { target: { value: 'Corrigé' } });
     fireEvent.click(boutonEnregistrer());
-    await waitFor(() => expect(modifierDemande).toHaveBeenCalledTimes(1));
-    expect(modifierDemande.mock.calls[0][1].noteModification).toBeUndefined();
+    await screen.findByText('fiche de la demande');
+    expect(modifierDemande.mock.calls[0][1]).not.toHaveProperty('statut');
   });
 
   it('note seule (version inchangée) : retour à la fiche avec la confirmation « La note a été enregistrée. »', async () => {

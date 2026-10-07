@@ -42,9 +42,9 @@ function mockerBase(t, statut) {
 const classer = (roleCode, utilisateurId) =>
   demandeDpaeService.classerSansSuite(ENTITE, 7, utilisateurId, { version: VERSION, adresseIp: '10.0.0.1', roleCode });
 
-test('statut final : « Classée sans suite » n’a aucune transition sortante, la demande n’est plus modifiable', () => {
+test('statut final : la réactivation est la SEULE transition sortante de « Classée sans suite », la demande n’est plus modifiable', () => {
   assert.ok(statutsDpae.CODES_STATUTS_DPAE.includes('classee_sans_suite'));
-  assert.equal(statutsDpae.TRANSITIONS.some(({ de }) => de === 'classee_sans_suite'), false);
+  assert.deepEqual([...new Set(statutsDpae.TRANSITIONS.filter(({ de }) => de === 'classee_sans_suite').map(({ action }) => action))], ['reactiver']);
   assert.equal(statutsDpae.STATUTS_A_DECIDER.includes('classee_sans_suite'), false);
   assert.equal(statutsDpae.STATUTS_A_TRAITER_RH.includes('classee_sans_suite'), false);
 });
@@ -98,7 +98,7 @@ test('Planning et Admin : classent toute demande non traitée, statut et version
     for (const roleCode of ['planning', 'admin']) {
       const { classerMock } = mockerBase(t, statut);
       await classer(roleCode, 99);
-      assert.deepEqual(classerMock.mock.calls[0].arguments.slice(1), [7, { statutDepart: statut, version: VERSION, statut: 'classee_sans_suite' }], `${roleCode} ${statut}`);
+      assert.deepEqual(classerMock.mock.calls[0].arguments.slice(1), [7, { statutDepart: statut, version: VERSION, statut: 'classee_sans_suite', classeeParRole: roleCode }], `${roleCode} ${statut}`);
     }
   }
 });

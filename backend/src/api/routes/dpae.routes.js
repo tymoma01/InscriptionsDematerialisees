@@ -496,9 +496,9 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
 });
 
 // PUT /api/dpae/:id { …demande complète, version } — modification d'une demande non décidée
-// (« En attente » repasse « À traiter », la RH est notifiée ; « Renvoyée à l'inspecteur » repasse « À
-// valider par le Planning », le Planning est notifié). Un enregistrement sans changement n'écrit rien
-// et répond { aucuneModification: true, message: 'Aucune modification' }. Garde de rôle : dpaeModification
+// ; la note de modification est obligatoire (400 sinon) et le statut ne change JAMAIS (une demande
+// renvoyée à l'inspecteur repart au Planning par PATCH /:id/envoyer-au-planning). Sans changement de la
+// demande, seule la note est enregistrée. Garde de rôle : dpaeModification
 // (Planning, Admin, Inspecteur Hôtellerie) ; droit par demande (auteur, ou Planning/Admin pour toute
 // demande) et statut verrouillé vérifiés dans la transaction (demandeDpaeService.modifierDemande).
 // Réponse : { statut, version } après modification. utilisateurId, entité et rôle viennent de la
@@ -507,7 +507,7 @@ router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpa
   try {
     const id = idPositifSchema.parse(req.params.id);
     const { version, noteModification, ...donnees } = normaliserDemande(modificationBodySchema.parse(req.body));
-    const { statut, version: nouvelleVersion, aucuneModification, noteEnregistree } = await demandeDpaeService.modifierDemande(req.entite, id, {
+    const { statut, version: nouvelleVersion, noteEnregistree } = await demandeDpaeService.modifierDemande(req.entite, id, {
       donnees,
       version,
       noteModification,
@@ -515,7 +515,6 @@ router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpa
       roleCode: req.utilisateur.roleCode,
       adresseIp: req.ip,
     });
-    if (aucuneModification) return res.json({ statut, version: nouvelleVersion, aucuneModification: true, message: 'Aucune modification' });
     res.json({ statut, version: nouvelleVersion, noteEnregistree: Boolean(noteEnregistree) });
   } catch (erreur) {
     if (!repondreErreurDecision(res, erreur)) next(erreur);
@@ -589,6 +588,57 @@ router.patch(
   },
 );
 
+// PATCH /api/dpae/:id/envoyer-au-planning { version } — « Renvoyée à l'inspecteur » -> « À valider par le
+// Planning » (le Planning est notifié). Garde de rôle : dpaeEnvoiPlanning (Inspecteur Hôtellerie, Admin) ;
+// droit par demande (l'Inspecteur : ses demandes seulement, 403 sinon) vérifié dans la transaction.
+router.patch(
+  '/:id/envoyer-au-planning',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_ENVOYER_AU_PLANNING)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.envoyerAuPlanning(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/retransmettre-rh { version } — « En attente » -> « À traiter » (la RH est notifiée,
+// date_envoi_rh conservée). Garde de rôle : dpaeRetransmissionRh (Inspecteur Hôtellerie, Planning, Admin) ;
+// droit par demande (l'Inspecteur : ses demandes seulement, 403 sinon) vérifié dans la transaction.
+router.patch(
+  '/:id/retransmettre-rh',
+  requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_RETRANSMETTRE_RH)),
+  async (req, res, next) => {
+    try {
+      const id = idPositifSchema.parse(req.params.id);
+      const { version } = validationBodySchema.parse(req.body);
+      await demandeDpaeService.retransmettreALaRh(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      res.status(204).end();
+    } catch (erreur) {
+      if (!repondreErreurDecision(res, erreur)) next(erreur);
+    }
+  },
+);
+
+// PATCH /api/dpae/:id/reactiver { version } — « Classée sans suite » -> statut selon le rôle qui l'avait classée
+// (inspecteur : renvoyée ; Planning : à valider ; Admin : son statut d'avant). Admin SEULEMENT (garde
+// dpaeReactivation : 403 pour tout autre rôle) ; 409 si la demande n'est pas classée sans suite. La seule
+// transition sortante de ce statut ; date_envoi_rh n'est jamais modifiée.
+router.patch('/:id/reactiver', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_REACTIVER)), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const { version } = validationBodySchema.parse(req.body);
+    await demandeDpaeService.reactiver(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+    res.status(204).end();
+  } catch (erreur) {
+    if (!repondreErreurDecision(res, erreur)) next(erreur);
+  }
+});
+
 // PATCH /api/dpae/:id/rejeter { version } — « À traiter » ou « En attente » -> « Rejetée ».
 router.patch('/:id/rejeter', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_REJETER)), async (req, res, next) => {
   try {
@@ -640,8 +690,9 @@ router.get('/:id/notes', requirePermission('dpaeConsultation'), async (req, res,
 // POST /api/dpae/:id/notes — ajoute une note (auteur pris de la session, jamais du
 // corps), mêmes rôles que la lecture. Aucune modification ni suppression (pas de route prévue).
 // Chaque ajout est tracé dans journal_audit.
-// Ajout de note : dpaeNotes (Admin, RH, Planning) — l'Inspecteur Hôtellerie lit les notes
-// (GET ci-dessus, dpaeConsultation) mais n'en ajoute pas.
+// Ajout de note : dpaeNotes (Admin, RH, Planning, Inspecteur Hôtellerie), quel que soit le statut de la
+// demande, statuts finaux compris ; l'Inspecteur Hôtellerie seulement sur ses propres demandes (403 sinon,
+// notesDemandeDpaeService.ajouterNote).
 router.post('/:id/notes', requirePermission('dpaeNotes'), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);

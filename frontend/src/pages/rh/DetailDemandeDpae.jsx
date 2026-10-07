@@ -10,6 +10,9 @@ import {
   ACTION_MODIFIER,
   ACTION_REJETER,
   ACTION_CLASSER_SANS_SUITE,
+  ACTION_ENVOYER_AU_PLANNING,
+  ACTION_REACTIVER,
+  ACTION_RETRANSMETTRE_RH,
   ACTION_RENVOYER_INSPECTEUR,
   ACTION_TRANSMETTRE_RH,
   ACTION_VALIDER,
@@ -29,6 +32,9 @@ import {
   transmettreDemandeALaRh,
   renvoyerDemandeAInspecteur,
   classerSansSuiteDemande,
+  envoyerAuPlanningDemande,
+  retransmettreDemandeALaRh,
+  reactiverDemande,
   listerNotesDemande,
   ajouterNoteDemande,
 } from '../../services/dpaeService';
@@ -90,12 +96,23 @@ function ligne(libelle, valeur) {
 // en bas de fiche, juste avant les actions : lecture et ajout pour tous les rôles de
 // consultation (Admin, RH, Planning), même composant et mêmes règles que les notes d'un dossier.
 // Titre et couleur de la fenêtre de confirmation, par action.
+// Où repart une demande réactivée, d'après le statut de retour calculé par le serveur.
+const DESTINATION_REACTIVATION = {
+  renvoyee_inspecteur: 'chez l’inspecteur',
+  a_valider_planning: 'au Planning',
+  envoyee: 'à la RH',
+  en_attente: 'à la RH',
+};
+
 const ACTIONS_CONFIRMATION = {
   validation: { titre: 'Valider la demande ?', variante: 'validation' },
   rejet: { titre: 'Rejeter la demande ?', variante: 'rejet' },
   attente: { titre: 'Mettre la demande en attente ?', variante: 'attente' },
   renvoi: { titre: 'Renvoyer la demande à l’inspecteur ?', variante: 'attente' },
   transmission: { titre: 'Transmettre la demande à la RH ?', variante: 'validation' },
+  reactivation: { titre: 'Réactiver la demande ?', variante: 'reactivation' },
+  retransmission: { titre: 'Transmettre la demande à la RH ?', variante: 'validation' },
+  envoiPlanning: { titre: 'Envoyer la demande au Planning ?', variante: 'validation' },
   classement: { titre: 'Classer la demande sans suite ?', variante: 'classement' },
 };
 
@@ -117,7 +134,7 @@ export default function DetailDemandeDpae() {
   const [erreurAction, setErreurAction] = useState(null);
   // Vrai quand le serveur a refusé la décision (409) : la demande a changé depuis son chargement.
   const [conflit, setConflit] = useState(false);
-  // null | 'validation' | 'rejet' | 'attente' | 'renvoi' | 'transmission' | 'classement' — la même fenêtre de
+  // null | 'validation' | 'rejet' | 'attente' | 'renvoi' | 'transmission' | 'retransmission' | 'reactivation' | 'envoiPlanning' | 'classement' — la même fenêtre de
   // confirmation (ModaleConfirmationDpae) pour toutes les actions.
   const [modaleOuverte, setModaleOuverte] = useState(null);
 
@@ -165,6 +182,12 @@ export default function DetailDemandeDpae() {
   // Passage par le Planning : mêmes garanties de version que les décisions RH.
   const transmettre = () => decider(() => transmettreDemandeALaRh(demandeId, demande.version), 'Impossible de transmettre cette demande à la RH.');
 
+  const reactiver = () => decider(() => reactiverDemande(demandeId, demande.version), 'Impossible de réactiver cette demande.');
+
+  const retransmettre = () => decider(() => retransmettreDemandeALaRh(demandeId, demande.version), 'Impossible de transmettre cette demande à la RH.');
+
+  const envoyerAuPlanning = () => decider(() => envoyerAuPlanningDemande(demandeId, demande.version), "Impossible d'envoyer cette demande au Planning.");
+
   const classerSansSuite = () => decider(() => classerSansSuiteDemande(demandeId, demande.version), 'Impossible de classer cette demande sans suite.');
 
   const renvoyer = () => decider(() => renvoyerDemandeAInspecteur(demandeId, demande.version), "Impossible de renvoyer cette demande à l'inspecteur.");
@@ -201,7 +224,22 @@ export default function DetailDemandeDpae() {
     (peut(utilisateur, 'dpaeClassementSansSuiteToutes') || demande.demandeur_id === utilisateur?.id) &&
     transitionPossible(ACTION_CLASSER_SANS_SUITE, demande.statut);
 
+  // Notes : tous les rôles de consultation, quel que soit le statut (statuts finaux compris) ; l'Inspecteur
+  // Hôtellerie seulement sur ses propres demandes (le serveur revérifie).
+  const peutAjouterNote = peut(utilisateur, 'dpaeNotes') && (peut(utilisateur, 'dpaeNotesToutes') || demande.demandeur_id === utilisateur?.id);
   const actionsPlanning = peutValiderPlanning && transitionPossible(ACTION_TRANSMETTRE_RH, demande.statut);
+  // « Envoyer au Planning » : l'auteur Inspecteur Hôtellerie (ou l'Admin) renvoie sa demande corrigée.
+  const actionsEnvoiPlanning =
+    peut(utilisateur, 'dpaeEnvoiPlanning') &&
+    (peut(utilisateur, 'dpaeEnvoiPlanningToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_ENVOYER_AU_PLANNING, demande.statut);
+  // « Transmettre à la RH » d'une demande « En attente » : l'auteur, le Planning et l'Admin ; le serveur revérifie.
+  const actionsRetransmission =
+    peut(utilisateur, 'dpaeRetransmissionRh') &&
+    (peut(utilisateur, 'dpaeRetransmissionRhToutes') || demande.demandeur_id === utilisateur?.id) &&
+    transitionPossible(ACTION_RETRANSMETTRE_RH, demande.statut);
+  // « Réactiver la demande » : Admin seulement, depuis « Classée sans suite » ; le serveur revérifie.
+  const peutReactiver = peut(utilisateur, 'dpaeReactivation') && transitionPossible(ACTION_REACTIVER, demande.statut);
   const actionsRh = peutTraiter && (transitionPossible(ACTION_VALIDER, demande.statut) || transitionPossible(ACTION_REJETER, demande.statut));
 
   // « Modifier la demande » : droit de modification (l'auteur, ou Planning/Admin pour toute demande —
@@ -372,13 +410,13 @@ export default function DetailDemandeDpae() {
           ajouter={ajouterNoteDemande}
           texteAucuneNote="Aucune note enregistrée pour cette demande."
           texteErreurChargement="Impossible de récupérer les notes de cette demande."
-          // Ajout réservé à dpaeNotes : l'Inspecteur Hôtellerie lit seulement.
-          lectureSeule={!peut(utilisateur, 'dpaeNotes')}
+          // Ajout selon le droit de la demande (peutAjouterNote), jamais selon son statut.
+          lectureSeule={!peutAjouterNote}
         />
 
         {/* Une seule rangée d'actions : « Classer sans suite » seul à gauche (l'auteur Inspecteur Hôtellerie, ou
             Planning et Admin pour toute demande ; le serveur revérifie), les autres actions à droite. */}
-        {(peutClasser || actionsPlanning || actionsRh) && (
+        {(peutClasser || peutReactiver || actionsEnvoiPlanning || actionsRetransmission || actionsPlanning || actionsRh) && (
           <section className="page-detail-dpae__actions">
             <div className="page-detail-dpae__actions-gauche">
               {peutClasser && (
@@ -393,6 +431,21 @@ export default function DetailDemandeDpae() {
                 </button>
               )}
             </div>
+            {peutReactiver && (
+              <button type="button" className="page-detail-dpae__reactiver" onClick={() => setModaleOuverte('reactivation')} disabled={actionEnCours}>
+                Réactiver la demande
+              </button>
+            )}
+            {actionsEnvoiPlanning && (
+              <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('envoiPlanning')} disabled={actionEnCours}>
+                Envoyer au Planning
+              </button>
+            )}
+            {actionsRetransmission && (
+              <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('retransmission')} disabled={actionEnCours}>
+                Transmettre à la RH
+              </button>
+            )}
             {actionsPlanning && (
               <>
                 {transitionPossible(ACTION_RENVOYER_INSPECTEUR, demande.statut) && (
@@ -432,8 +485,9 @@ export default function DetailDemandeDpae() {
         {modaleOuverte && (
           <ModaleConfirmationDpae
             titre={ACTIONS_CONFIRMATION[modaleOuverte].titre}
+            description={modaleOuverte === 'reactivation' ? `Elle repartira ${DESTINATION_REACTIVATION[demande.statut_retour_reactivation] ?? 'au Planning'}.` : undefined}
             variante={ACTIONS_CONFIRMATION[modaleOuverte].variante}
-            onConfirmer={{ validation: valider, rejet: rejeter, attente: mettreEnAttente, renvoi: renvoyer, transmission: transmettre, classement: classerSansSuite }[modaleOuverte]}
+            onConfirmer={{ validation: valider, rejet: rejeter, attente: mettreEnAttente, renvoi: renvoyer, transmission: transmettre, envoiPlanning: envoyerAuPlanning, retransmission: retransmettre, reactivation: reactiver, classement: classerSansSuite }[modaleOuverte]}
             onAnnuler={fermerModale}
             enCours={actionEnCours}
             erreur={erreurAction}

@@ -302,7 +302,7 @@ test('listes SQL : les statuts exclus sont écartés (whereNotIn) ; aucune exclu
 test('transmission et renvoi (SQL) : compare-and-set sur id, statut ET version ; date d’envoi posée seulement à la transmission', () => {
   const bd = knex({ client: 'pg' });
   const transmission = demandeDpaeRepository.transmettreALaRh(bd, 7, { statutDepart: 'a_valider_planning', version: 3, statut: 'envoyee' }).toSQL();
-  assert.match(transmission.sql, /"date_envoi_rh" = CURRENT_TIMESTAMP/);
+  assert.match(transmission.sql, /"date_envoi_rh" = COALESCE\(date_envoi_rh, now\(\)\)/);
   assert.match(transmission.sql, /"version" = version \+ 1/);
   assert.match(transmission.sql, /where "id" = \? and "statut" = \? and "version" = \?$/);
   assert.deepEqual(transmission.bindings.slice(-3), [7, 'a_valider_planning', 3]);

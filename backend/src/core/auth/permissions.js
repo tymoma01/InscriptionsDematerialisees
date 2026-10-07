@@ -88,7 +88,20 @@ const PERMISSIONS = {
   dpaeClassementSansSuite: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
   dpaeClassementSansSuiteToutes: [PLANNING, ADMIN],
   dpaeTableauDeBord: [ADMIN, RH, PLANNING],
-  dpaeNotes: [ADMIN, RH, PLANNING],
+  // Renvoyer une demande corrigée au Planning (« Renvoyée à l'inspecteur » -> « À valider par le Planning ») :
+  // l'Inspecteur Hôtellerie auteur, ou l'Admin pour toute demande.
+  dpaeEnvoiPlanning: [INSPECTEUR_HOTELLERIE, ADMIN],
+  dpaeEnvoiPlanningToutes: [ADMIN],
+  // Renvoyer à la RH une demande « En attente » une fois complétée : l'auteur (Inspecteur Hôtellerie), ou le
+  // Planning et l'Admin pour toute demande.
+  dpaeRetransmissionRh: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
+  dpaeRetransmissionRhToutes: [PLANNING, ADMIN],
+  // Réactiver une demande classée sans suite : l'Admin seulement.
+  dpaeReactivation: [ADMIN],
+  // Notes d'une demande : tous les rôles de consultation ; l'Inspecteur Hôtellerie seulement sur ses propres
+  // demandes (dpaeNotesToutes pour les autres).
+  dpaeNotes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
+  dpaeNotesToutes: [ADMIN, RH, PLANNING],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.
   rechercheCandidats: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE, RH],
 

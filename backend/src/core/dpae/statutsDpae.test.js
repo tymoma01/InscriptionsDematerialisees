@@ -22,21 +22,27 @@ test('statuts à traiter par la RH : À traiter et En attente seulement ; statut
   assert.deepEqual([...statutsDpae.STATUTS_AVANT_RH], ['a_valider_planning', 'renvoyee_inspecteur']);
 });
 
-test('table des transitions : exactement les quinze transitions autorisées', () => {
+test('table des transitions : exactement les vingt et une transitions autorisées', () => {
   const transitions = statutsDpae.TRANSITIONS.map(({ action, de, vers }) => `${action}:${de}->${vers}`).sort();
   assert.deepEqual(transitions, [
     'classer_sans_suite:a_valider_planning->classee_sans_suite',
     'classer_sans_suite:en_attente->classee_sans_suite',
     'classer_sans_suite:envoyee->classee_sans_suite',
     'classer_sans_suite:renvoyee_inspecteur->classee_sans_suite',
+    'envoyer_au_planning:renvoyee_inspecteur->a_valider_planning',
     'mettre_en_attente:envoyee->en_attente',
     'modifier:a_valider_planning->a_valider_planning',
-    'modifier:en_attente->envoyee',
+    'modifier:en_attente->en_attente',
     'modifier:envoyee->envoyee',
-    'modifier:renvoyee_inspecteur->a_valider_planning',
+    'modifier:renvoyee_inspecteur->renvoyee_inspecteur',
+    'reactiver:classee_sans_suite->a_valider_planning',
+    'reactiver:classee_sans_suite->en_attente',
+    'reactiver:classee_sans_suite->envoyee',
+    'reactiver:classee_sans_suite->renvoyee_inspecteur',
     'rejeter:en_attente->rejetee',
     'rejeter:envoyee->rejetee',
     'renvoyer_inspecteur:a_valider_planning->renvoyee_inspecteur',
+    'retransmettre_rh:en_attente->envoyee',
     'transmettre_rh:a_valider_planning->envoyee',
     'valider:en_attente->validee',
     'valider:envoyee->validee',
@@ -76,14 +82,19 @@ test('chaque transition ne relie que des statuts connus et exige une permission 
   }
 });
 
-test('modification : « Renvoyée à l’inspecteur » repasse « À valider par le Planning », « À valider » reste tel quel', () => {
-  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'renvoyee_inspecteur').vers, 'a_valider_planning');
-  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'a_valider_planning').vers, 'a_valider_planning');
+test('modification : le statut ne change jamais (chaque statut modifiable reste le même)', () => {
+  for (const statut of ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente']) {
+    assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, statut).vers, statut, statut);
+  }
+  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'validee'), undefined);
 });
 
-test('modification : « À traiter » reste « À traiter », « En attente » repasse « À traiter »', () => {
-  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'envoyee').vers, 'envoyee');
-  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_MODIFIER, 'en_attente').vers, 'envoyee');
+test('envoi au Planning : seulement depuis « Renvoyée à l’inspecteur », vers « À valider par le Planning »', () => {
+  assert.equal(statutsDpae.permissionPourAction(statutsDpae.ACTION_ENVOYER_AU_PLANNING), 'dpaeEnvoiPlanning');
+  assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_ENVOYER_AU_PLANNING, 'renvoyee_inspecteur').vers, 'a_valider_planning');
+  for (const statut of ['a_valider_planning', 'envoyee', 'en_attente', 'validee', 'rejetee', 'classee_sans_suite']) {
+    assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_ENVOYER_AU_PLANNING, statut), undefined, statut);
+  }
 });
 
 test('permissionPourAction : permission unique par action, exception pour une action inconnue', () => {

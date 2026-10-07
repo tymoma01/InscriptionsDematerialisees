@@ -186,10 +186,20 @@
   --urgence-rouge-fond: var(--couleur-erreur);
   --urgence-texte: #ffffff;
 
-  /* Action « Classer sans suite » (fiche d'une demande DPAE) : ambre plein, texte blanc — contraste 5,0:1
-     (survol 7,1:1), distinct du rouge de « Rejeter » et des autres actions. */
+  /* Boutons d'action de la fiche d'une demande DPAE et leurs fenêtres de confirmation : pleins, texte blanc,
+     contraste WCAG AA (≥ 4,5:1) au repos et au survol (plus foncé). Contrastes avec le blanc :
+     vert 5,1 (survol 8,7) ; rouge 5,4 (7,8) ; ambre 5,0 (7,1) ; violet 7,0 (8,7) ; bleu 8,0 (10,9). */
+  --action-texte: #ffffff;
+  --action-vert-fond: #1e7e34;
+  --action-vert-fond-survol: #155724;
+  --action-rouge-fond: #c0392b;
+  --action-rouge-fond-survol: #962d22;
   --action-ambre-fond: #b45309;
   --action-ambre-fond-survol: #92400e;
+  --action-violet-fond: #7e22ce;
+  --action-violet-fond-survol: #6b21a8;
+  --action-bleu-fond: #1f4e9c;
+  --action-bleu-fond-survol: #173b78;
 
   /* Rose/magenta (audit 2026-08-25, "Test non planifié") — teinte encore inutilisée par les
      autres variantes ci-dessus : 'neutre-fort' (gris), essayé avant celle-ci pour ce même statut,

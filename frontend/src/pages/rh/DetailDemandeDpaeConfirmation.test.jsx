@@ -14,13 +14,16 @@ vi.mock('../../services/dpaeService', () => ({
   transmettreDemandeALaRh: vi.fn(),
   renvoyerDemandeAInspecteur: vi.fn(),
   classerSansSuiteDemande: vi.fn(),
+  envoyerAuPlanningDemande: vi.fn(),
+  retransmettreDemandeALaRh: vi.fn(),
+  reactiverDemande: vi.fn(),
   listerNotesDemande: vi.fn().mockResolvedValue([]),
   ajouterNoteDemande: vi.fn(),
 }));
 // L'habillage, les notes et le PDF ne sont pas l'objet de ces tests.
 vi.mock('../../core/backOffice/PageBackOffice', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('../../core/auth/EnTeteBackOffice', () => ({ default: () => null }));
-vi.mock('../../core/dossier/NotesDossier', () => ({ default: () => <p>notes de la demande</p> }));
+vi.mock('../../core/dossier/NotesDossier', () => ({ default: ({ lectureSeule }) => <p>notes de la demande{lectureSeule ? ' (lecture seule)' : ''}</p> }));
 vi.mock('../../core/dpae/TelechargementPdfDpae', () => ({ BoutonTelechargerPdfDemande: () => null }));
 
 function demande(statut) {
@@ -47,9 +50,9 @@ function demande(statut) {
   };
 }
 
-function afficher(statut, utilisateur) {
+function afficher(statut, utilisateur, surcharges = {}) {
   useSession.mockReturnValue({ utilisateur, chargement: false });
-  dpaeService.obtenirDemande.mockResolvedValue(demande(statut));
+  dpaeService.obtenirDemande.mockResolvedValue({ ...demande(statut), ...surcharges });
   render(
     <MemoryRouter initialEntries={['/rh/dpae/7']}>
       <Routes>
@@ -60,9 +63,10 @@ function afficher(statut, utilisateur) {
 }
 
 const PLANNING = { roleCode: 'planning', permissions: ['dpaeConsultation', 'dpaeValidationPlanning'] };
-const INSPECTEUR_AUTEUR = { id: 5, roleCode: 'inspecteur_hotellerie', permissions: ['dpaeConsultation', 'dpaeClassementSansSuite'] };
+const INSPECTEUR_AUTEUR = { id: 5, roleCode: 'inspecteur_hotellerie', permissions: ['dpaeConsultation', 'dpaeClassementSansSuite', 'dpaeEnvoiPlanning', 'dpaeRetransmissionRh', 'dpaeNotes'] };
 const INSPECTEUR_AUTRE = { ...INSPECTEUR_AUTEUR, id: 77 };
-const ADMIN = { id: 1, roleCode: 'admin', permissions: ['dpaeConsultation', 'dpaeClassementSansSuite', 'dpaeClassementSansSuiteToutes', 'dpaeTraitementRh', 'dpaeValidationPlanning'] };
+const ADMIN = { id: 1, roleCode: 'admin', permissions: ['dpaeConsultation', 'dpaeClassementSansSuite', 'dpaeClassementSansSuiteToutes', 'dpaeTraitementRh', 'dpaeValidationPlanning', 'dpaeEnvoiPlanning', 'dpaeEnvoiPlanningToutes', 'dpaeRetransmissionRh', 'dpaeRetransmissionRhToutes', 'dpaeReactivation', 'dpaeNotes', 'dpaeNotesToutes'] };
+const PLANNING_COMPLET = { id: 8, roleCode: 'planning', permissions: ['dpaeConsultation', 'dpaeValidationPlanning', 'dpaeRetransmissionRh', 'dpaeRetransmissionRhToutes'] };
 const RH = { roleCode: 'rh', permissions: ['dpaeConsultation', 'dpaeTraitementRh'] };
 
 beforeEach(() => {
@@ -112,7 +116,7 @@ describe('Fiche d’une demande DPAE : fenêtre de confirmation commune, sans mo
   it('les anciens motifs ne sont plus affichés sur la fiche', async () => {
     for (const statut of ['rejetee', 'renvoyee_inspecteur', 'en_attente']) {
       afficher(statut, RH);
-      await screen.findByText('notes de la demande');
+      await screen.findByText(/^notes de la demande/);
       expect(screen.queryByText(/Motif (de rejet|du renvoi|de mise en attente)/)).toBeNull();
       expect(screen.queryByText(/Ancien motif/)).toBeNull();
       cleanup();
@@ -128,11 +132,11 @@ describe('Fiche d’une demande DPAE : classement sans suite', () => {
     expect(await screen.findByRole('button', { name: 'Classer sans suite' })).toBeTruthy();
     cleanup();
     afficher('a_valider_planning', INSPECTEUR_AUTRE);
-    await screen.findByText('notes de la demande');
+    await screen.findByText(/^notes de la demande/);
     expect(bouton()).toBeNull();
     cleanup();
     afficher('envoyee', RH);
-    await screen.findByText('notes de la demande');
+    await screen.findByText(/^notes de la demande/);
     expect(bouton()).toBeNull();
   });
 
@@ -144,7 +148,7 @@ describe('Fiche d’une demande DPAE : classement sans suite', () => {
     }
     for (const statut of ['validee', 'rejetee', 'classee_sans_suite']) {
       afficher(statut, ADMIN);
-      await screen.findByText('notes de la demande');
+      await screen.findByText(/^notes de la demande/);
       expect(bouton(), statut).toBeNull();
       cleanup();
     }
@@ -190,5 +194,130 @@ describe('Fiche d’une demande DPAE : classement sans suite', () => {
       expect(within(fenetre).getByRole('button', { name: 'Confirmer' })).toBeTruthy();
       cleanup();
     }
+  });
+});
+
+describe('Fiche d’une demande DPAE : « Envoyer au Planning » et notes', () => {
+  const bouton = () => screen.queryByRole('button', { name: 'Envoyer au Planning' });
+
+  it('« Renvoyée à l’inspecteur » : bouton vert à droite pour l’auteur et l’Admin, absent pour un autre inspecteur ; fenêtre sans motif', async () => {
+    afficher('renvoyee_inspecteur', INSPECTEUR_AUTEUR);
+    const envoyer = await screen.findByRole('button', { name: 'Envoyer au Planning' });
+    expect(envoyer.className).toContain('page-detail-dpae__valider');
+    expect(envoyer.parentElement.className).not.toContain('actions-gauche');
+    cleanup();
+    afficher('renvoyee_inspecteur', INSPECTEUR_AUTRE);
+    await screen.findByText(/notes de la demande/);
+    expect(bouton()).toBeNull();
+    cleanup();
+
+    const fenetre = await ouvrir('renvoyee_inspecteur', ADMIN, 'Envoyer au Planning');
+    expect(within(fenetre).getByRole('heading', { name: 'Envoyer la demande au Planning ?' })).toBeTruthy();
+    expect(within(fenetre).queryByRole('textbox')).toBeNull();
+    fireEvent.click(within(fenetre).getByRole('button', { name: 'Confirmer' }));
+    await waitFor(() => expect(dpaeService.envoyerAuPlanningDemande).toHaveBeenCalledWith('7', 3));
+  });
+
+  it('bouton absent depuis tout autre statut ; « Renvoyer à l’inspecteur » et « Transmettre à la RH » inchangés en « À valider »', async () => {
+    for (const statut of ['a_valider_planning', 'envoyee', 'en_attente', 'validee', 'rejetee', 'classee_sans_suite']) {
+      afficher(statut, ADMIN);
+      await screen.findByText(/notes de la demande/);
+      expect(bouton(), statut).toBeNull();
+      cleanup();
+    }
+    afficher('a_valider_planning', ADMIN);
+    expect(await screen.findByRole('button', { name: 'Renvoyer à l’inspecteur' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Transmettre à la RH' })).toBeTruthy();
+  });
+
+  it('ajout de note : possible sur tout statut, statuts finaux compris, pour l’auteur et les rôles de consultation ; lecture seule pour un autre inspecteur', async () => {
+    for (const statut of ['envoyee', 'validee', 'rejetee', 'classee_sans_suite']) {
+      for (const utilisateur of [ADMIN, INSPECTEUR_AUTEUR]) {
+        afficher(statut, utilisateur);
+        expect(await screen.findByText(/^notes de la demande$/), `${statut} ${utilisateur.roleCode}`).toBeTruthy();
+        cleanup();
+      }
+      afficher(statut, INSPECTEUR_AUTRE);
+      expect(await screen.findByText('notes de la demande (lecture seule)'), statut).toBeTruthy();
+      cleanup();
+    }
+  });
+});
+
+describe('Fiche d’une demande DPAE : « Transmettre à la RH » depuis « En attente »', () => {
+  const bouton = () => screen.queryByRole('button', { name: 'Transmettre à la RH' });
+
+  it('bouton vert à droite pour l’auteur, le Planning et l’Admin ; fenêtre sans motif ; Confirmer appelle le service', async () => {
+    for (const utilisateur of [INSPECTEUR_AUTEUR, PLANNING_COMPLET, ADMIN]) {
+      afficher('en_attente', utilisateur);
+      const transmettre = await screen.findByRole('button', { name: 'Transmettre à la RH' });
+      expect(transmettre.className, utilisateur.roleCode).toContain('page-detail-dpae__valider');
+      expect(transmettre.parentElement.className, utilisateur.roleCode).not.toContain('actions-gauche');
+      cleanup();
+    }
+    const fenetre = await ouvrir('en_attente', INSPECTEUR_AUTEUR, 'Transmettre à la RH');
+    expect(within(fenetre).getByRole('heading', { name: 'Transmettre la demande à la RH ?' })).toBeTruthy();
+    expect(within(fenetre).queryByRole('textbox')).toBeNull();
+    fireEvent.click(within(fenetre).getByRole('button', { name: 'Confirmer' }));
+    await waitFor(() => expect(dpaeService.retransmettreDemandeALaRh).toHaveBeenCalledWith('7', 3));
+  });
+
+  it('absent pour un autre inspecteur et pour la RH (qui garde Valider et Rejeter) ; absent depuis un autre statut', async () => {
+    afficher('en_attente', INSPECTEUR_AUTRE);
+    await screen.findByText(/notes de la demande/);
+    expect(bouton()).toBeNull();
+    cleanup();
+    afficher('en_attente', RH);
+    expect(await screen.findByRole('button', { name: 'Valider' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Rejeter' })).toBeTruthy();
+    expect(bouton()).toBeNull();
+    cleanup();
+    for (const statut of ['envoyee', 'validee', 'classee_sans_suite']) {
+      afficher(statut, INSPECTEUR_AUTEUR);
+      await screen.findByText(/notes de la demande/);
+      expect(bouton(), statut).toBeNull();
+      cleanup();
+    }
+  });
+});
+
+describe('Fiche d’une demande DPAE : « Réactiver la demande »', () => {
+  const bouton = () => screen.queryByRole('button', { name: 'Réactiver la demande' });
+  const PLANNING_SEUL = { id: 8, roleCode: 'planning', permissions: ['dpaeConsultation', 'dpaeValidationPlanning'] };
+
+  it('Admin seulement, depuis « Classée sans suite » : bouton secondaire (contour) à droite', async () => {
+    afficher('classee_sans_suite', ADMIN, { statut_retour_reactivation: 'a_valider_planning' });
+    const reactiver = await screen.findByRole('button', { name: 'Réactiver la demande' });
+    expect(reactiver.className).toContain('page-detail-dpae__reactiver');
+    expect(reactiver.parentElement.className).not.toContain('actions-gauche');
+    cleanup();
+    for (const utilisateur of [PLANNING_SEUL, RH, INSPECTEUR_AUTEUR]) {
+      afficher('classee_sans_suite', utilisateur, { statut_retour_reactivation: 'a_valider_planning' });
+      await screen.findByText(/notes de la demande/);
+      expect(bouton(), utilisateur.roleCode).toBeNull();
+      cleanup();
+    }
+    for (const statut of ['a_valider_planning', 'envoyee', 'en_attente', 'validee']) {
+      afficher(statut, ADMIN);
+      await screen.findByText(/notes de la demande/);
+      expect(bouton(), statut).toBeNull();
+      cleanup();
+    }
+  });
+
+  it.each([
+    ['renvoyee_inspecteur', 'Elle repartira chez l’inspecteur.'],
+    ['a_valider_planning', 'Elle repartira au Planning.'],
+    ['envoyee', 'Elle repartira à la RH.'],
+    ['en_attente', 'Elle repartira à la RH.'],
+  ])('fenêtre « Réactiver la demande ? » sans motif, destination %s : « %s »', async (statutRetour, phrase) => {
+    afficher('classee_sans_suite', ADMIN, { statut_retour_reactivation: statutRetour });
+    fireEvent.click(await screen.findByRole('button', { name: 'Réactiver la demande' }));
+    const fenetre = await screen.findByRole('dialog');
+    expect(within(fenetre).getByRole('heading', { name: 'Réactiver la demande ?' })).toBeTruthy();
+    expect(within(fenetre).getByText(phrase)).toBeTruthy();
+    expect(within(fenetre).queryByRole('textbox')).toBeNull();
+    fireEvent.click(within(fenetre).getByRole('button', { name: 'Confirmer' }));
+    await waitFor(() => expect(dpaeService.reactiverDemande).toHaveBeenCalledWith('7', 3));
   });
 });

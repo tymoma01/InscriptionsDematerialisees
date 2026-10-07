@@ -60,37 +60,54 @@
   color: var(--couleur-texte);
 }
 
+/* « Confirmer » prend la couleur de l'action (variables --action-* de variables.css) ; « Annuler » reste
+   neutre. Rejet : rouge (défaut). */
+.modale-confirmation-dpae {
+  --bouton-fond: var(--action-rouge-fond);
+  --bouton-survol: var(--action-rouge-fond-survol);
+}
+
+.modale-confirmation-dpae--validation {
+  --bouton-fond: var(--action-vert-fond);
+  --bouton-survol: var(--action-vert-fond-survol);
+}
+
+.modale-confirmation-dpae--attente {
+  --bouton-fond: var(--action-violet-fond);
+  --bouton-survol: var(--action-violet-fond-survol);
+}
+
+.modale-confirmation-dpae--classement {
+  --bouton-fond: var(--action-ambre-fond);
+  --bouton-survol: var(--action-ambre-fond-survol);
+}
+
+.modale-confirmation-dpae--reactivation {
+  --bouton-fond: var(--action-bleu-fond);
+  --bouton-survol: var(--action-bleu-fond-survol);
+}
+
 .modale-confirmation-dpae__actions button[type='submit'] {
-  border: 1px solid var(--couleur-erreur);
-  background-color: var(--couleur-erreur);
-  color: #ffffff;
+  border: 1px solid var(--bouton-fond);
+  background-color: var(--bouton-fond);
+  color: var(--action-texte);
 }
 
-/* Mise en attente : même teinte que le badge « En attente » (variante bleu-gris). */
-.modale-confirmation-dpae--attente .modale-confirmation-dpae__actions button[type='submit'] {
-  border-color: var(--statut-bleu-gris-texte);
-  background-color: var(--statut-bleu-gris-texte);
+.modale-confirmation-dpae__actions button[type='submit']:hover:not(:disabled) {
+  border-color: var(--bouton-survol);
+  background-color: var(--bouton-survol);
 }
 
-/* Classement sans suite : même ambre que le bouton « Classer sans suite » de la fiche. */
-.modale-confirmation-dpae--classement .modale-confirmation-dpae__actions button[type='submit'] {
-  border-color: var(--action-ambre-fond);
-  background-color: var(--action-ambre-fond);
-}
-
-.modale-confirmation-dpae--classement .modale-confirmation-dpae__actions button[type='submit']:hover:not(:disabled) {
-  border-color: var(--action-ambre-fond-survol);
-  background-color: var(--action-ambre-fond-survol);
-}
-
-/* Validation : bouton de confirmation vert, même teinte que
-   le bouton « Valider » de la fiche (DetailDemandeDpae.css). */
-.modale-confirmation-dpae--validation .modale-confirmation-dpae__actions button[type='submit'] {
-  border-color: var(--couleur-succes);
-  background-color: var(--couleur-succes);
+.modale-confirmation-dpae__actions button:focus-visible {
+  outline: 3px solid var(--bouton-survol);
+  outline-offset: 2px;
 }
 
 .modale-confirmation-dpae__actions button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.modale-confirmation-dpae__description {
+  margin: 0;
 }

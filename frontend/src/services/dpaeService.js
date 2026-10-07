@@ -82,6 +82,21 @@ export async function renvoyerDemandeAInspecteur(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, { version });
 }
 
+// « Renvoyée à l'inspecteur » -> « À valider par le Planning », une fois la demande corrigée.
+export async function envoyerAuPlanningDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/envoyer-au-planning`, { version });
+}
+
+// « Classée sans suite » -> statut de retour selon le rôle qui l'avait classée (Admin seulement).
+export async function reactiverDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/reactiver`, { version });
+}
+
+// « En attente » -> « À traiter » (renvoi à la RH une fois la demande complétée).
+export async function retransmettreDemandeALaRh(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/retransmettre-rh`, { version });
+}
+
 // Statut final « Classée sans suite » (sans motif : la raison se consigne dans les notes).
 export async function classerSansSuiteDemande(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/classer-sans-suite`, { version });

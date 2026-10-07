@@ -48,6 +48,9 @@ const COLONNES_DEMANDE = [
   // d'avant a été repris dans les notes de la demande (migration 082).
   'demandes_dpae.date_mise_en_attente',
   'demandes_dpae.date_creation',
+  // Rôle qui a classé la demande sans suite et statut d'avant (migration 084), nuls hors classement.
+  'demandes_dpae.classee_par_role',
+  'demandes_dpae.statut_avant_classement',
   // Date d'envoi à la RH (migration 079) : nulle tant que la demande est chez le Planning ; départ
   // des délais de traitement RH.
   'demandes_dpae.date_envoi_rh',
@@ -193,11 +196,18 @@ function marquerEnAttente(trx, id, { statutDepart, version, traitantId }) {
 }
 
 // Passage par le Planning (compare-and-set comme les décisions). Transmission à la RH : date_envoi_rh
-// est posée maintenant, départ des délais RH.
+// (départ des délais RH) n'est posée que la PREMIÈRE fois — une retransmission (après un classement sans
+// suite puis une réactivation, par exemple) conserve la première date ; l'historique des transmissions
+// successives est dans journal_audit.
 function transmettreALaRh(trx, id, { statutDepart, version, statut }) {
   return trx('demandes_dpae')
     .where({ id, statut: statutDepart, version })
-    .update({ statut, date_envoi_rh: trx.fn.now(), date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+    .update({
+      statut,
+      date_envoi_rh: trx.raw('COALESCE(date_envoi_rh, now())'),
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
 }
 
 // Renvoi à l'inspecteur (compare-and-set comme les décisions).
@@ -207,8 +217,38 @@ function renvoyerAInspecteur(trx, id, { statutDepart, version, statut }) {
     .update({ statut, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
 }
 
-// Classement sans suite (compare-and-set comme les décisions) : statut final.
-function classerSansSuite(trx, id, { statutDepart, version, statut }) {
+// Classement sans suite (compare-and-set comme les décisions) : statut final ; le rôle qui classe et le
+// statut d'avant sont mémorisés pour la réactivation.
+function classerSansSuite(trx, id, { statutDepart, version, statut, classeeParRole }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({
+      statut,
+      classee_par_role: classeeParRole,
+      statut_avant_classement: statutDepart,
+      date_maj: trx.fn.now(),
+      version: trx.raw('version + 1'),
+    });
+}
+
+// Réactivation d'une demande classée sans suite (compare-and-set) : les colonnes de classement repassent à
+// NULL ; date_envoi_rh n'est JAMAIS modifiée.
+function reactiver(trx, id, { statutDepart, version, statut }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({ statut, classee_par_role: null, statut_avant_classement: null, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+}
+
+// Retour d'une demande « En attente » dans la file « À traiter » de la RH (compare-and-set) : date_envoi_rh
+// n'est PAS modifiée, la première date d'envoi est conservée.
+function retransmettreALaRh(trx, id, { statutDepart, version, statut }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({ statut, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+}
+
+// Renvoi de l'inspecteur au Planning (compare-and-set comme les décisions).
+function envoyerAuPlanning(trx, id, { statutDepart, version, statut }) {
   return trx('demandes_dpae')
     .where({ id, statut: statutDepart, version })
     .update({ statut, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
@@ -248,6 +288,9 @@ module.exports = {
   transmettreALaRh,
   renvoyerAInspecteur,
   classerSansSuite,
+  reactiver,
+  envoyerAuPlanning,
+  retransmettreALaRh,
   marquerTraitee,
   marquerEnAttente,
   modifierDemande,

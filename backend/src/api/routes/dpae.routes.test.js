@@ -951,12 +951,52 @@ test('POST / : le rôle de la session est transmis au service (l’Inspecteur H�
   assert.equal(serviceMock.mock.calls[0].arguments[1], 16);
 });
 
-test('PUT /:id sans aucun changement : 200 « Aucune modification », même version', async (t) => {
+test('PUT /:id sans changement de la demande : la note seule est enregistrée, réponse sans « aucuneModification »', async (t) => {
   mockerAudit(t);
-  t.mock.method(demandeDpaeService, 'modifierDemande', async () => ({ statut: 'envoyee', version: 3, champsModifies: [], aucuneModification: true }));
-  const { res } = await appelerGestionnaire('put', '/:id', { params: { id: '7' }, body: MODIFICATION_VALIDE, roleCode: 'planning' });
+  t.mock.method(demandeDpaeService, 'modifierDemande', async () => ({ statut: 'envoyee', version: 3, champsModifies: [], noteEnregistree: true }));
+  const { res } = await appelerGestionnaire('put', '/:id', { params: { id: '7' }, body: { ...MODIFICATION_VALIDE, noteModification: 'Précision' }, roleCode: 'planning' });
   assert.equal(res.statut, 200);
-  assert.deepEqual(res.corps, { statut: 'envoyee', version: 3, aucuneModification: true, message: 'Aucune modification' });
+  assert.deepEqual(res.corps, { statut: 'envoyee', version: 3, noteEnregistree: true });
+});
+
+test('PUT /:id sans note de modification : 400 (note toujours obligatoire)', async (t) => {
+  mockerAudit(t);
+  t.mock.method(demandeDpaeService, 'modifierDemande', async () => {
+    throw new demandeDpaeService.ErreurNoteModificationObligatoire();
+  });
+  const { res } = await appelerGestionnaire('put', '/:id', { params: { id: '7' }, body: MODIFICATION_VALIDE, roleCode: 'planning' });
+  assert.equal(res.statut, 400);
+});
+
+test('PATCH /:id/envoyer-au-planning : Inspecteur Hôtellerie et Admin passent la garde ; Planning, RH et les autres -> 403', () => {
+  const garde = gardeRoute('patch', '/:id/envoyer-au-planning');
+  for (const roleCode of ['inspecteur_hotellerie', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['planning', 'rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+    assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  }
+});
+
+test('PATCH /:id/envoyer-au-planning : version obligatoire (400), sinon 204 ; autre auteur -> 403 avec message clair ; autre statut -> 409', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'envoyerAuPlanning', async () => {});
+  let { res } = await appelerGestionnaire('patch', '/:id/envoyer-au-planning', { params: { id: '7' }, body: {}, roleCode: 'inspecteur_hotellerie' });
+  assert.equal(res.statut, 400);
+  ({ res } = await appelerGestionnaire('patch', '/:id/envoyer-au-planning', { params: { id: '7' }, body: { version: 2 }, roleCode: 'inspecteur_hotellerie', utilisateurId: 5 }));
+  assert.equal(res.statut, 204);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 5, { version: 2, adresseIp: '127.0.0.1', roleCode: 'inspecteur_hotellerie' }]);
+
+  serviceMock.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurEnvoiPlanningInterdit();
+  });
+  ({ res } = await appelerGestionnaire('patch', '/:id/envoyer-au-planning', { params: { id: '7' }, body: { version: 2 }, roleCode: 'inspecteur_hotellerie' }));
+  assert.equal(res.statut, 403);
+  assert.deepEqual(res.corps, { erreur: 'Vous ne pouvez envoyer au Planning que vos propres demandes.' });
+
+  serviceMock.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurDemandeDejaTraitee('mauvais statut');
+  });
+  ({ res } = await appelerGestionnaire('patch', '/:id/envoyer-au-planning', { params: { id: '7' }, body: { version: 2 }, roleCode: 'admin' }));
+  assert.equal(res.statut, 409);
 });
 
 test('Filtre Statut du tableau de bord : « a_valider_planning » et « renvoyee_inspecteur » acceptés', () => {
@@ -1197,4 +1237,61 @@ test('PATCH /:id/classer-sans-suite : version obligatoire (400), sinon 204 ; dem
   });
   ({ res } = await appelerGestionnaire('patch', '/:id/classer-sans-suite', { params: { id: '7' }, body: { version: 2 }, roleCode: 'planning' }));
   assert.equal(res.statut, 409);
+});
+
+test('PATCH /:id/retransmettre-rh : Inspecteur Hôtellerie, Planning et Admin passent la garde ; RH et les autres -> 403', () => {
+  const garde = gardeRoute('patch', '/:id/retransmettre-rh');
+  for (const roleCode of ['inspecteur_hotellerie', 'planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+});
+
+test('PATCH /:id/retransmettre-rh : version obligatoire (400), sinon 204 ; autre auteur -> 403 avec message clair ; autre statut -> 409', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'retransmettreALaRh', async () => {});
+  let { res } = await appelerGestionnaire('patch', '/:id/retransmettre-rh', { params: { id: '7' }, body: {}, roleCode: 'planning' });
+  assert.equal(res.statut, 400);
+  ({ res } = await appelerGestionnaire('patch', '/:id/retransmettre-rh', { params: { id: '7' }, body: { version: 2, motif: 'ignoré' }, roleCode: 'planning', utilisateurId: 8 }));
+  assert.equal(res.statut, 204);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 8, { version: 2, adresseIp: '127.0.0.1', roleCode: 'planning' }]);
+
+  serviceMock.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurRetransmissionInterdite();
+  });
+  ({ res } = await appelerGestionnaire('patch', '/:id/retransmettre-rh', { params: { id: '7' }, body: { version: 2 }, roleCode: 'inspecteur_hotellerie' }));
+  assert.equal(res.statut, 403);
+  assert.deepEqual(res.corps, { erreur: 'Vous ne pouvez transmettre à la RH que vos propres demandes.' });
+
+  serviceMock.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurDemandeDejaTraitee('mauvais statut');
+  });
+  ({ res } = await appelerGestionnaire('patch', '/:id/retransmettre-rh', { params: { id: '7' }, body: { version: 2 }, roleCode: 'admin' }));
+  assert.equal(res.statut, 409);
+});
+
+test('PATCH /:id/reactiver : Admin seulement ; Planning, RH, inspecteur et les autres -> 403', () => {
+  const garde = gardeRoute('patch', '/:id/reactiver');
+  assert.equal(executerGarde(garde, 'admin').autorise, true);
+  for (const roleCode of ['planning', 'rh', 'inspecteur_hotellerie', 'accueil_coordination', 'formateur', 'inspecteur']) {
+    assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  }
+});
+
+test('PATCH /:id/reactiver : version obligatoire (400), sinon 204 ; hors « Classée sans suite » -> 409 ; refus du service -> 403', async (t) => {
+  mockerAudit(t);
+  const serviceMock = t.mock.method(demandeDpaeService, 'reactiver', async () => {});
+  let { res } = await appelerGestionnaire('patch', '/:id/reactiver', { params: { id: '7' }, body: {}, roleCode: 'admin' });
+  assert.equal(res.statut, 400);
+  ({ res } = await appelerGestionnaire('patch', '/:id/reactiver', { params: { id: '7' }, body: { version: 2 }, roleCode: 'admin', utilisateurId: 1 }));
+  assert.equal(res.statut, 204);
+  assert.deepEqual(serviceMock.mock.calls[0].arguments.slice(1), [7, 1, { version: 2, adresseIp: '127.0.0.1', roleCode: 'admin' }]);
+  serviceMock.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurDemandeDejaTraitee('pas classée');
+  });
+  ({ res } = await appelerGestionnaire('patch', '/:id/reactiver', { params: { id: '7' }, body: { version: 2 }, roleCode: 'admin' }));
+  assert.equal(res.statut, 409);
+  serviceMock.mock.mockImplementation(async () => {
+    throw new demandeDpaeService.ErreurModificationInterdite();
+  });
+  ({ res } = await appelerGestionnaire('patch', '/:id/reactiver', { params: { id: '7' }, body: { version: 2 }, roleCode: 'admin' }));
+  assert.equal(res.statut, 403);
 });
