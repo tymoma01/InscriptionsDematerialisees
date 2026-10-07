@@ -21,9 +21,8 @@ import api from '../../services/api';
 import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import './Validation.css';
 
-// Rôles autorisés pour le changement de statut manuel/forcé (audit RBAC 2026-08-31 ; étendu au
-// rôle Planning le 2026-09-25, voir forcerStatut) — miroir de forcerStatut côté backend
-// (transitions.routes.js). La vraie garde reste côté serveur — ce test ne fait que masquer le
+// Rôles autorisés pour le changement de statut manuel/forcé (Admin, Planning, RH) — miroir de forcerStatut
+// côté backend (transitions.routes.js). La vraie garde reste côté serveur — ce test ne fait que masquer le
 // bouton pour les autres rôles.
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -163,8 +162,8 @@ export default function Validation() {
   // Export ZIP : les mêmes, plus la RH. Formateur/Inspecteur : consultation seule (liste ci-dessous).
   const peutGererPieces = peut(utilisateur, 'gestionPieces');
   const peutExporterPieces = peut(utilisateur, 'exportPieces');
-  // Sections Rendez-vous, Relances et Notes : leurs données et écrans sont refusés à
-  // la RH côté serveur — sections masquées plutôt que menant à un 403. Inchangé pour les autres.
+  // Sections Rendez-vous et Relances : leurs données et écrans sont refusés à la RH côté serveur —
+  // sections masquées plutôt que menant à un 403. Les notes, elles, sont ouvertes à la RH.
   const peutSuivreDossier = peut(utilisateur, 'lectureRelances');
   // Notes : lecture pour lectureNotesDossier, ajout pour ajoutNotesDossier seulement.
   const peutVoirNotes = peut(utilisateur, 'lectureNotesDossier');
@@ -687,7 +686,7 @@ export default function Validation() {
                 </button>
               </div>
               <p className="page-validation__forcer-statut-description">
-                Réservé aux rôles Admin et Planning : place le dossier directement sur le statut
+                Réservé aux rôles Admin, Planning et RH : place le dossier directement sur le statut
                 choisi, en dehors du parcours normal (voir la fenêtre de confirmation pour le
                 détail des effets de bord).
               </p>

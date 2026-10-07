@@ -30,8 +30,8 @@ test('Planning a toutes les permissions d’Accueil/Coordination', () => {
   }
 });
 
-test('forçage de statut : Admin et Planning uniquement', () => {
-  assert.deepEqual([...PERMISSIONS.forcerStatut].sort(), [ROLES.ADMIN, ROLES.PLANNING].sort());
+test('forçage de statut : Admin, Planning et RH uniquement', () => {
+  assert.deepEqual([...PERMISSIONS.forcerStatut].sort(), [ROLES.ADMIN, ROLES.PLANNING, ROLES.RH].sort());
 });
 
 test('Accueil/Coordination n’a aucun accès DPAE', () => {

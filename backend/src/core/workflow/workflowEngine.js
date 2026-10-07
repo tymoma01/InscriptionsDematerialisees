@@ -275,9 +275,9 @@ const STATUTS_EXCLUS_FORCAGE = [
 // échéant — cette fonction reste un moteur générique, sans dépendance à journalAudit ni à
 // graphCalendarService (voir l'en-tête de ce fichier).
 async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEmbauche, utilisateurId, roleCode }) {
-  // Admin et Planning (forcerStatut, rbac.js — audit 2026-09-25, rôle Planning).
+  // Admin, Planning et RH (permission forcerStatut, core/auth/permissions.js).
   if (!aPermission(roleCode, 'forcerStatut')) {
-    throw new ErreurTransitionInvalide('Seuls les rôles Admin et Planning peuvent forcer le statut d’un dossier.');
+    throw new ErreurTransitionInvalide('Seuls les rôles Admin, Planning et RH peuvent forcer le statut d’un dossier.');
   }
   if (!commentaire || !commentaire.trim()) {
     throw new ErreurTransitionInvalide('Un commentaire est obligatoire pour forcer un changement de statut.');

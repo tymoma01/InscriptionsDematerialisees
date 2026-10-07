@@ -36,10 +36,12 @@ const PERMISSIONS = {
   // Horodatage de dernière modification (actualisation automatique) : tout le back-office.
   toutBackOffice: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
   gestionTransitions: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
-  forcerStatut: [ADMIN, PLANNING],
+  // Forçage de statut : mêmes droits pour Admin, Planning et RH (mêmes statuts cibles, mêmes effets).
+  forcerStatut: [ADMIN, PLANNING, RH],
   marquerEmbauche: [...ACCUEIL, ADMIN],
-  ajoutNotesDossier: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
-  lectureNotesDossier: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
+  // Notes d'un dossier : la RH les lit et en ajoute comme le Planning (jamais de modification ni suppression).
+  ajoutNotesDossier: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR],
+  lectureNotesDossier: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
 
   // --- Pièces justificatives ---
   gestionPieces: [...ACCUEIL, ADMIN],

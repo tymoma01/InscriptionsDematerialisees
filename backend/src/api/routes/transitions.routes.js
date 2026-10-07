@@ -293,8 +293,8 @@ async function supprimerEvenementsOutlookRendezvousNeutralises(entite, { rendezv
 
 // POST /api/dossiers/:dossierId/transitions/forcer-statut — place le dossier sur N'IMPORTE QUEL
 // statut existant de l'entité, indépendamment du statut courant et sans passer par
-// `transitions_statut` (voir workflowEngine.forcerStatut) — réservé à Admin et Planning
-// (forcerStatut, rbac.js). Distinct de POST / ci-dessus : jamais de codeAction ici, seulement le
+// `transitions_statut` (voir workflowEngine.forcerStatut) — réservé à Admin, Planning et RH
+// (forcerStatut, permissions.js). Distinct de POST / ci-dessus : jamais de codeAction ici, seulement le
 // code du statut cible choisi librement (onglet "Dossier" de la fiche, voir Validation.jsx).
 router.post('/forcer-statut', requirePermission('forcerStatut'), async (req, res, next) => {
   try {
@@ -329,6 +329,7 @@ router.post('/forcer-statut', requirePermission('forcerStatut'), async (req, res
         statutApres: resultat.statutApresCode,
         commentaire,
         dateEmbauche,
+        roleCode: req.utilisateur.roleCode,
       },
       adresseIp: req.ip,
     });

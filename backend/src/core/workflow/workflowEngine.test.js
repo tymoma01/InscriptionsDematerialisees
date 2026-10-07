@@ -156,7 +156,7 @@ test('forcerStatut neutralise aussi vers un statut où neutralise_rendezvous_act
   assert.equal(neutraliserMock.mock.calls.length, 1);
 });
 
-test('forcerStatut rejette un rôle autre qu’Admin/Planning', async (t) => {
+test('forcerStatut rejette un rôle autre qu’Admin/Planning/RH', async (t) => {
   mockerKnex(t);
   mockerDependancesBase(t);
 
@@ -169,7 +169,7 @@ test('forcerStatut rejette un rôle autre qu’Admin/Planning', async (t) => {
         utilisateurId: 5,
         roleCode: 'accueil_coordination',
       }),
-    /Seuls les rôles Admin et Planning peuvent forcer/,
+    /Seuls les rôles Admin, Planning et RH peuvent forcer/,
   );
 });
 
@@ -356,6 +356,27 @@ test("forcerStatut accepte le rôle Planning (permission forcerStatut), même co
   );
 });
 
+test('forcerStatut accepte le rôle RH : mêmes effets que le Planning (neutralisation des rendez-vous actifs, motif, statut cible)', async (t) => {
+  mockerKnex(t);
+  const rendezvousRetourne = { id: 160, statutAvant: 'prevu', outlookEventId: null, formateurId: null };
+  const { neutraliserMock } = mockerDependancesBase(t, { neutraliserRendezvousActifsDossier: async () => [rendezvousRetourne] });
+
+  const resultat = await workflowEngine.forcerStatut(ENTITE_ACCECIT, {
+    dossierId: 127,
+    statutCode: 'test_non_realise',
+    commentaire: 'Correction RH.',
+    utilisateurId: 9,
+    roleCode: 'rh',
+  });
+
+  assert.equal(neutraliserMock.mock.calls.length, 1);
+  const appel = neutraliserMock.mock.calls[0].arguments[1];
+  assert.equal(appel.statutRemplace, 'annule');
+  assert.equal(appel.motifId, MOTIF_NEUTRALISE_PAR_FORCAGE.id);
+  assert.deepEqual(resultat.rendezvousNeutralises, [rendezvousRetourne]);
+  assert.equal(resultat.statutApresCode, 'test_non_realise');
+});
+
 // Non-régression explicite (bloc 3) : Accueil/Coordination seul (sans être Planning) reste refusé.
 test('forcerStatut rejette toujours un compte Accueil/Coordination seul', async (t) => {
   mockerKnex(t);
@@ -370,7 +391,7 @@ test('forcerStatut rejette toujours un compte Accueil/Coordination seul', async 
         utilisateurId: 5,
         roleCode: 'accueil_coordination',
       }),
-    /Seuls les rôles Admin et Planning peuvent forcer/,
+    /Seuls les rôles Admin, Planning et RH peuvent forcer/,
   );
 });
 
@@ -389,7 +410,7 @@ test('forcerStatut rejette toujours Formateur et Inspecteur', async (t) => {
           utilisateurId: 5,
           roleCode,
         }),
-      /Seuls les rôles Admin et Planning peuvent forcer/,
+      /Seuls les rôles Admin, Planning et RH peuvent forcer/,
     );
   }
 });

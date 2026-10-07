@@ -16,7 +16,7 @@ const router = Router({ mergeParams: true });
 // comme les autres — même chose pour l'inspecteur, côté bureau). Pas de distinction lecture/
 // écriture entre rôles : simple journal partagé. Rôle Recruteur retiré — voir
 // suppression du rôle en base.
-// Lecture seule en plus : Inspecteur Hôtellerie, dans son périmètre de dossiers
+// La RH lit et ajoute des notes comme le Planning. Lecture seule en plus : Inspecteur Hôtellerie, dans son périmètre de dossiers
 // (verifierPerimetreDossier, app.js) — jamais l'ajout de note (POST, ajoutNotesDossier).
 
 router.use(requireAuth);
