@@ -1,7 +1,7 @@
 // Accès données pour les demandes DPAE — uniquement des requêtes, aucune règle métier ici
 // (orchestrée par demandeDpaeService.js), même découpage que relanceRepository.js.
 
-const { STATUT_INITIAL, STATUT_EN_ATTENTE, STATUTS_AVANT_RH } = require('./statutsDpae');
+const { STATUT_INITIAL, STATUT_EN_ATTENTE, STATUT_CLASSEE_SANS_SUITE, STATUTS_AVANT_RH } = require('./statutsDpae');
 const { colonnesDepuisDonnees } = require('./champsDemandeDpae');
 
 const COLONNES_DEMANDE = [
@@ -44,13 +44,9 @@ const COLONNES_DEMANDE = [
   'demandes_dpae.verif_besoin_hotel',
   'demandes_dpae.verif_tous_jours_inclus',
   'demandes_dpae.verif_non_planification',
-  'demandes_dpae.motif_rejet',
-  // Dernière mise en attente (migration 070) — motif affiché sur la fiche tant que la demande est
-  // 'en_attente'.
-  'demandes_dpae.motif_mise_en_attente',
+  // Les colonnes de motif (rejet, mise en attente, renvoi) ne sont ni lues ni écrites : leur contenu
+  // d'avant a été repris dans les notes de la demande (migration 082).
   'demandes_dpae.date_mise_en_attente',
-  // Dernier renvoi à l'inspecteur (migration 079) — motif affiché tant que la demande est renvoyée.
-  'demandes_dpae.motif_renvoi',
   'demandes_dpae.date_creation',
   // Date d'envoi à la RH (migration 079) : nulle tant que la demande est chez le Planning ; départ
   // des délais de traitement RH.
@@ -100,11 +96,18 @@ function trouverDemandeParId(trx, entiteId, id) {
   return requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.id': id }).first();
 }
 
+// Écarte les demandes classées sans suite AVANT tout envoi à la RH (date_envoi_rh nulle) : la RH ne les
+// a jamais vues (voir demandeDpaeService.masqueClasseesNonTransmises). `alias` : nom de la table de la requête.
+function exclureClasseesNonTransmises(requete, alias = 'demandes_dpae') {
+  return requete.whereNot((condition) => condition.where(`${alias}.statut`, STATUT_CLASSEE_SANS_SUITE).whereNull(`${alias}.date_envoi_rh`));
+}
+
 // statutsExclus : statuts à ne jamais renvoyer (demandes que le rôle de l'appelant n'a pas le droit
 // de voir, voir demandeDpaeService.statutsMasquesPour).
-function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = []) {
+function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = [], masquerClasseesNonTransmises = false) {
   const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.demandeur_id': demandeurId });
   if (statutsExclus.length > 0) requete.whereNotIn('demandes_dpae.statut', statutsExclus);
+  if (masquerClasseesNonTransmises) exclureClasseesNonTransmises(requete);
   return requete.orderBy([
     { column: 'demandes_dpae.date_creation', order: 'desc' },
     // Départage stable de deux demandes créées au même instant.
@@ -114,10 +117,11 @@ function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = 
 
 // statut optionnel : la file RH filtre par défaut sur 'envoyee' (voir demandeDpaeService), mais
 // peut aussi lister l'historique complet (traitées incluses) sans ce filtre.
-function listerDemandesPourRh(trx, entiteId, statut, statutsExclus = []) {
+function listerDemandesPourRh(trx, entiteId, statut, statutsExclus = [], masquerClasseesNonTransmises = false) {
   const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId });
   if (statut) requete.andWhere({ 'demandes_dpae.statut': statut });
   if (statutsExclus.length > 0) requete.whereNotIn('demandes_dpae.statut', statutsExclus);
+  if (masquerClasseesNonTransmises) exclureClasseesNonTransmises(requete);
   return requete.orderBy([
     { column: 'demandes_dpae.date_creation', order: 'desc' },
     // Départage stable de deux demandes créées au même instant.
@@ -162,13 +166,12 @@ async function creerDemande(trx, donnees) {
 // Les deux écritures ci-dessous sont des compare-and-set : UPDATE ... WHERE id AND statut AND
 // version, version incrémentée. Elles renvoient le nombre de lignes modifiées — 0 signifie que la
 // demande a changé (statut ou version) depuis la lecture de l'appelant, qui doit alors refuser.
-function marquerTraitee(trx, id, { statutDepart, version, statut, traitantId, motifRejet = null }) {
+function marquerTraitee(trx, id, { statutDepart, version, statut, traitantId }) {
   return trx('demandes_dpae')
     .where({ id, statut: statutDepart, version })
     .update({
       statut,
       traite_par_utilisateur_id: traitantId,
-      motif_rejet: motifRejet,
       date_traitement: trx.fn.now(),
       date_maj: trx.fn.now(),
       version: trx.raw('version + 1'),
@@ -177,12 +180,11 @@ function marquerTraitee(trx, id, { statutDepart, version, statut, traitantId, mo
 
 // Mise en attente : n'est PAS une décision — date_traitement et
 // traite_par_utilisateur_id restent vides (réservés à la validation/au rejet, voir migration 070).
-function marquerEnAttente(trx, id, { statutDepart, version, traitantId, motif }) {
+function marquerEnAttente(trx, id, { statutDepart, version, traitantId }) {
   return trx('demandes_dpae')
     .where({ id, statut: statutDepart, version })
     .update({
       statut: STATUT_EN_ATTENTE,
-      motif_mise_en_attente: motif,
       date_mise_en_attente: trx.fn.now(),
       mis_en_attente_par_id: traitantId,
       date_maj: trx.fn.now(),
@@ -198,11 +200,18 @@ function transmettreALaRh(trx, id, { statutDepart, version, statut }) {
     .update({ statut, date_envoi_rh: trx.fn.now(), date_maj: trx.fn.now(), version: trx.raw('version + 1') });
 }
 
-// Renvoi à l'inspecteur : le motif est conservé sur la demande (dernier motif, affiché sur la fiche).
-function renvoyerAInspecteur(trx, id, { statutDepart, version, statut, motif }) {
+// Renvoi à l'inspecteur (compare-and-set comme les décisions).
+function renvoyerAInspecteur(trx, id, { statutDepart, version, statut }) {
   return trx('demandes_dpae')
     .where({ id, statut: statutDepart, version })
-    .update({ statut, motif_renvoi: motif, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+    .update({ statut, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
+}
+
+// Classement sans suite (compare-and-set comme les décisions) : statut final.
+function classerSansSuite(trx, id, { statutDepart, version, statut }) {
+  return trx('demandes_dpae')
+    .where({ id, statut: statutDepart, version })
+    .update({ statut, date_maj: trx.fn.now(), version: trx.raw('version + 1') });
 }
 
 // Modification par le demandeur : compare-and-set comme les décisions (id, statut de départ ET
@@ -230,6 +239,7 @@ async function listerIdsUtilisateursActifsParRole(trx, entiteId, roleCode) {
 }
 
 module.exports = {
+  exclureClasseesNonTransmises,
   trouverDemandeParId,
   listerDemandesParDemandeur,
   listerDemandesPourRh,
@@ -237,6 +247,7 @@ module.exports = {
   creerDemande,
   transmettreALaRh,
   renvoyerAInspecteur,
+  classerSansSuite,
   marquerTraitee,
   marquerEnAttente,
   modifierDemande,

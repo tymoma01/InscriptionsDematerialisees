@@ -4,12 +4,12 @@ const assert = require('node:assert/strict');
 const statutsDpae = require('./statutsDpae');
 const { PERMISSIONS } = require('../auth/permissions');
 
-test('statuts : six statuts dans l’ordre du cycle de vie, statut initial « À traiter » (code envoyee)', () => {
-  assert.deepEqual(statutsDpae.CODES_STATUTS_DPAE, ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']);
+test('statuts : sept statuts dans l’ordre du cycle de vie, statut initial « À traiter » (code envoyee)', () => {
+  assert.deepEqual(statutsDpae.CODES_STATUTS_DPAE, ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee', 'classee_sans_suite']);
   assert.equal(statutsDpae.STATUT_INITIAL, 'envoyee');
   assert.deepEqual(
     statutsDpae.STATUTS_DPAE.map(({ libelle }) => libelle),
-    ['À valider par le Planning', 'Renvoyée à l\'inspecteur', 'À traiter', 'En attente', 'Validée', 'Rejetée'],
+    ['À valider par le Planning', 'Renvoyée à l\'inspecteur', 'À traiter', 'En attente', 'Validée', 'Rejetée', 'Classée sans suite'],
   );
 });
 
@@ -22,9 +22,13 @@ test('statuts à traiter par la RH : À traiter et En attente seulement ; statut
   assert.deepEqual([...statutsDpae.STATUTS_AVANT_RH], ['a_valider_planning', 'renvoyee_inspecteur']);
 });
 
-test('table des transitions : exactement les onze transitions autorisées', () => {
+test('table des transitions : exactement les quinze transitions autorisées', () => {
   const transitions = statutsDpae.TRANSITIONS.map(({ action, de, vers }) => `${action}:${de}->${vers}`).sort();
   assert.deepEqual(transitions, [
+    'classer_sans_suite:a_valider_planning->classee_sans_suite',
+    'classer_sans_suite:en_attente->classee_sans_suite',
+    'classer_sans_suite:envoyee->classee_sans_suite',
+    'classer_sans_suite:renvoyee_inspecteur->classee_sans_suite',
     'mettre_en_attente:envoyee->en_attente',
     'modifier:a_valider_planning->a_valider_planning',
     'modifier:en_attente->envoyee',

@@ -68,22 +68,28 @@ export async function validerDemande(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/valider`, { version });
 }
 
-export async function rejeterDemande(demandeId, motifRejet, version) {
-  await api.patch(`/dpae/${demandeId}/rejeter`, { motifRejet, version });
+// Aucune de ces actions ne porte de motif : la raison se consigne dans les notes de la demande.
+export async function rejeterDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/rejeter`, { version });
 }
 
-// Passage par le Planning : transmission à la RH, ou renvoi à l'inspecteur (motif obligatoire).
+// Passage par le Planning : transmission à la RH, ou renvoi à l'inspecteur.
 export async function transmettreDemandeALaRh(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/transmettre-rh`, { version });
 }
 
-export async function renvoyerDemandeAInspecteur(demandeId, motif, version) {
-  await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, { motif, version });
+export async function renvoyerDemandeAInspecteur(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, { version });
 }
 
-// « À traiter » -> « En attente », motif obligatoire (refusé sinon côté serveur).
-export async function mettreEnAttenteDemande(demandeId, motif, version) {
-  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { motif, version });
+// Statut final « Classée sans suite » (sans motif : la raison se consigne dans les notes).
+export async function classerSansSuiteDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/classer-sans-suite`, { version });
+}
+
+// « À traiter » -> « En attente ».
+export async function mettreEnAttenteDemande(demandeId, version) {
+  await api.patch(`/dpae/${demandeId}/mettre-en-attente`, { version });
 }
 
 // Notes propres à une demande — même forme de réponse que les notes d'un dossier

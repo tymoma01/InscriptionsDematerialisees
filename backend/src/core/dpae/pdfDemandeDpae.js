@@ -108,6 +108,23 @@ function nombreJoursLigne(demande) {
   return nombre === null ? null : ligne('Nombre total de jours calendaires', libelleNombreJours(nombre));
 }
 
+// Groupe de dates du bloc « Contrat », toujours aligné sur la grille à deux colonnes quels que soient
+// les champs affichés avant lui : « Premier jour » (gauche) et « Dernier jour » (droite) sur la même
+// ligne, puis « Nombre total de jours calendaires » seul à gauche sur la ligne suivante (CDD, calculé,
+// jamais stocké). Sans dernier jour (CDI) : « Premier jour » seul à gauche, ni dernier jour ni nombre.
+// Le troisième élément d'une paire est une option de mise en page lue par lignesDePaires :
+// `nouvelleLigne` (la paire ouvre une ligne de la grille) et `seule` (colonne de droite laissée vide).
+function lignesDates(demande) {
+  const premier = ligne('Premier jour', demande.date_debut && formaterDate(demande.date_debut));
+  const dernier = ligne('Dernier jour', demande.date_fin && formaterDate(demande.date_fin));
+  const nombre = demande.type_contrat === 'cdd' && nombreJoursLigne(demande);
+  const lignes = [];
+  if (premier) lignes.push([...premier, { nouvelleLigne: true, seule: !dernier }]);
+  if (dernier) lignes.push(premier ? dernier : [...dernier, { nouvelleLigne: true, seule: true }]);
+  if (nombre) lignes.push([...nombre, { nouvelleLigne: true, seule: true }]);
+  return lignes;
+}
+
 // Sections de la fiche, dans l'ordre de DetailDemandeDpae.jsx : [{ titre, lignes: [[libellé,
 // valeur]], texte?, tableau? }]. Fonction pure, testable sans PDF. Une section conditionnelle de la
 // fiche (Modifications demandées, Gestion des jours, Autre chose à signaler) n'apparaît que dans
@@ -124,11 +141,9 @@ function sectionsDemande(demande) {
       ligne('Demandée par', `${demande.demandeur_prenom} ${demande.demandeur_nom}`),
       demande.date_traitement &&
         ligne('Traitée le', `${formaterDateHeure(demande.date_traitement)} par ${demande.traitant_prenom} ${demande.traitant_nom}`),
-      demande.statut === 'rejetee' && ligne('Motif de rejet', demande.motif_rejet),
       demande.statut === 'en_attente' &&
         demande.date_mise_en_attente &&
         ligne('Mise en attente le', formaterDateHeure(demande.date_mise_en_attente)),
-      demande.statut === 'en_attente' && ligne('Motif de mise en attente', demande.motif_mise_en_attente),
     ]),
   });
 
@@ -159,10 +174,7 @@ function sectionsDemande(demande) {
       ligne('Raison du surcroît', demande.raison_surcroit),
       ligne('Entité', libelleDivision(demande.division, demande.division_autre)),
       ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste]),
-      ligne('Premier jour', demande.date_debut && formaterDate(demande.date_debut)),
-      ligne('Dernier jour', demande.date_fin && formaterDate(demande.date_fin)),
-      // CDD seulement, à côté du dernier jour ; calculé, jamais stocké.
-      demande.type_contrat === 'cdd' && nombreJoursLigne(demande),
+      ...lignesDates(demande),
       ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1)),
       ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois)),
     ]),
@@ -440,7 +452,8 @@ function dessinerRecapitulatif(doc, demande, y) {
 // carte plus haute qu'une page est répartie sur plusieurs pages, entre deux lignes.
 
 // Paires libellé/valeur sur deux colonnes : une valeur plus large qu'une colonne (ou sur plusieurs
-// lignes, comme les sites d'affectation) prend toute la largeur.
+// lignes, comme les sites d'affectation) prend toute la largeur. Option d'une paire (3e élément) :
+// `nouvelleLigne` ferme la ligne en cours avant elle, `seule` la laisse seule dans la colonne de gauche.
 function lignesDePaires(doc, paires, largeurInterne) {
   const largeurColonne = (largeurInterne - ECART_COLONNES) / 2;
   const mesurer = (libelle, valeur, largeur) =>
@@ -466,7 +479,8 @@ function lignesDePaires(doc, paires, largeurInterne) {
     });
     enAttente = null;
   };
-  for (const [libelle, valeur] of paires) {
+  for (const [libelle, valeur, options = {}] of paires) {
+    if (options.nouvelleLigne) viderEnAttente();
     const pleineLargeur = valeur.includes('\n') || largeurValeur(valeur) > largeurColonne;
     if (pleineLargeur) {
       viderEnAttente();
@@ -486,6 +500,7 @@ function lignesDePaires(doc, paires, largeurInterne) {
       });
     } else {
       enAttente = [libelle, valeur];
+      if (options.seule) viderEnAttente();
     }
   }
   viderEnAttente();

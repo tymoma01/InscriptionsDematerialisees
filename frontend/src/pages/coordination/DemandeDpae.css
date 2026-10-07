@@ -204,3 +204,33 @@
   margin: 0 0 var(--espace-petit);
   color: var(--couleur-erreur);
 }
+
+.page-demande-dpae__note-modification {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.page-demande-dpae__dernieres-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.page-demande-dpae__note {
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--couleur-back-office);
+  background-color: var(--couleur-fond-secondaire);
+  border-radius: var(--rayon-bordure);
+}
+
+.page-demande-dpae__note p {
+  margin: 0.25rem 0;
+  white-space: pre-wrap;
+}
+
+.page-demande-dpae__note span {
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.85rem;
+}

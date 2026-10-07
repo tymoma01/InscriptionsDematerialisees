@@ -96,8 +96,17 @@
 }
 
 .page-detail-dpae__actions [role='alert'] {
-  margin-right: auto;
+  margin: 0;
   color: var(--couleur-erreur);
+}
+
+/* Groupe de gauche : « Classer sans suite » (et l'erreur éventuelle), poussé à gauche ; les autres
+   boutons restent alignés à droite. */
+.page-detail-dpae__actions-gauche {
+  display: flex;
+  align-items: center;
+  gap: var(--espace-petit);
+  margin-right: auto;
 }
 
 .page-detail-dpae__actions button {
@@ -125,6 +134,44 @@
   border: 1px solid var(--statut-bleu-gris-texte);
   background-color: var(--couleur-fond);
   color: var(--statut-bleu-gris-texte);
+}
+
+/* « Classer sans suite » : ambre plein, texte blanc (contraste AA, voir --action-ambre-fond). */
+.page-detail-dpae__classer {
+  border: 1px solid var(--action-ambre-fond);
+  background-color: var(--action-ambre-fond);
+  color: #ffffff;
+}
+
+.page-detail-dpae__classer:hover:not(:disabled) {
+  border-color: var(--action-ambre-fond-survol);
+  background-color: var(--action-ambre-fond-survol);
+}
+
+.page-detail-dpae__classer:focus-visible {
+  outline: 3px solid var(--action-ambre-fond-survol);
+  outline-offset: 2px;
+}
+
+/* En dessous de la largeur tablette : les boutons s'empilent sans déborder, « Classer sans suite » en
+   dernier (l'erreur éventuelle en premier). */
+@media (max-width: 768px) {
+  .page-detail-dpae__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-detail-dpae__actions-gauche {
+    display: contents;
+  }
+
+  .page-detail-dpae__actions [role='alert'] {
+    order: -1;
+  }
+
+  .page-detail-dpae__classer {
+    order: 1;
+  }
 }
 
 .page-detail-dpae__actions button:disabled {

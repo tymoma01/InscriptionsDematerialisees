@@ -42,8 +42,6 @@ function demande(surcharges = {}) {
     jours_concernes: [],
     semaine_type: [],
     autre_chose_signaler: null,
-    motif_rejet: null,
-    motif_mise_en_attente: null,
     date_mise_en_attente: null,
     date_creation: new Date('2026-09-30T12:34:07Z'),
     date_traitement: new Date('2026-09-30T15:48:43Z'),
@@ -84,7 +82,7 @@ test('Sections : mêmes sections et mêmes champs que la fiche, dans le même or
     ['Motif CDD', "Surcroît d'activité"],
     ['Raison du surcroît', 'Salon'],
     ['Poste', 'Équipier'],
-    ['Premier jour', '10/10/2026'],
+    ['Premier jour', '10/10/2026', { nouvelleLigne: true, seule: true }],
     ['Heure d’arrivée jour 1', '08h00'],
     ['Heures/mois', '151,67 h'],
   ]);
@@ -112,17 +110,15 @@ test("Sections : demande antérieure au référentiel -> « Site d'affectation �
   assert.deepEqual(lignes.at(-1), ["Site d'affectation", 'Hôtel du Parc']);
 });
 
-test('Sections conditionnelles : mêmes conditions que la fiche (rejet, attente, modifications, jours, semaine, autre chose)', () => {
+test('Sections conditionnelles : mêmes conditions que la fiche (attente, modifications, jours, semaine, autre chose) ; aucun motif de décision', () => {
+  // Les motifs de rejet, de mise en attente et de renvoi n'apparaissent plus : ils sont dans les notes.
   const rejetee = sectionsDemande(demande({ statut: 'rejetee', motif_rejet: 'Doublon' }));
-  assert.deepEqual(section(rejetee, 'Demande').lignes.at(-1), ['Motif de rejet', 'Doublon']);
+  assert.equal(section(rejetee, 'Demande').lignes.some(([libelle]) => /motif/i.test(libelle)), false);
 
   const enAttente = sectionsDemande(
-    demande({ statut: 'en_attente', date_traitement: null, date_mise_en_attente: new Date('2026-10-01T14:20:00Z'), motif_mise_en_attente: 'Client' }),
+    demande({ statut: 'en_attente', date_traitement: null, date_mise_en_attente: new Date('2026-10-01T14:20:00Z') }),
   );
-  assert.deepEqual(section(enAttente, 'Demande').lignes.slice(-2), [
-    ['Mise en attente le', '01/10/2026 16:20'],
-    ['Motif de mise en attente', 'Client'],
-  ]);
+  assert.deepEqual(section(enAttente, 'Demande').lignes.at(-1), ['Mise en attente le', '01/10/2026 16:20']);
 
   const complete = sectionsDemande(
     demande({
@@ -197,7 +193,6 @@ test('Aucun tiret long ni demi-cadratin dans les textes du PDF (sections, récep
   const complete = demande({
     statut: 'en_attente',
     date_mise_en_attente: new Date('2026-10-01T14:20:00Z'),
-    motif_mise_en_attente: 'Client',
     type_demande: 'ajout_retrait_jours',
     modifications_demandees: true,
     modification_horaires: true,
@@ -269,17 +264,35 @@ test('Semaine type : colonne « Site » après « Horaires », tous les sites du
   ]);
 });
 
-test('Contrat : « Nombre total de jours calendaires » à côté du dernier jour, pour un CDD seulement (jours inclus)', () => {
+test('Contrat : Premier jour et Dernier jour sur la même ligne, puis le nombre de jours calendaires seul à gauche (CDD)', () => {
   const lignes = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes;
   // Du 10/10 au 17/10 (minuit à Paris) : 8 jours.
   const cdd = lignes({ date_fin: new Date('2026-10-16T22:00:00Z') });
-  const indice = cdd.findIndex(([libelle]) => libelle === 'Dernier jour');
-  assert.deepEqual(cdd[indice], ['Dernier jour', '17/10/2026']);
-  assert.deepEqual(cdd[indice + 1], ['Nombre total de jours calendaires', '8 jours']);
-  assert.deepEqual(lignes({ date_fin: new Date('2026-10-09T22:00:00Z') }).find(([l]) => l.startsWith('Nombre')), ['Nombre total de jours calendaires', '1 jour']);
-  // CDI, ou CDD sans dernier jour : aucune ligne.
+  const indice = cdd.findIndex(([libelle]) => libelle === 'Premier jour');
+  assert.deepEqual(cdd[indice], ['Premier jour', '10/10/2026', { nouvelleLigne: true, seule: false }]);
+  assert.deepEqual(cdd[indice + 1], ['Dernier jour', '17/10/2026']);
+  assert.deepEqual(cdd[indice + 2], ['Nombre total de jours calendaires', '8 jours', { nouvelleLigne: true, seule: true }]);
+  assert.deepEqual(lignes({ date_fin: new Date('2026-10-09T22:00:00Z') }).find(([l]) => l.startsWith('Nombre')).slice(0, 2), ['Nombre total de jours calendaires', '1 jour']);
+  // CDI, ou CDD sans dernier jour : « Premier jour » seul, ni dernier jour ni nombre de jours.
+  for (const surcharges of [{ type_contrat: 'cdi', date_fin: null }, { date_fin: null }]) {
+    const sansFin = lignes(surcharges);
+    assert.deepEqual(sansFin.find(([l]) => l === 'Premier jour'), ['Premier jour', '10/10/2026', { nouvelleLigne: true, seule: true }]);
+    assert.equal(sansFin.some(([l]) => l === 'Dernier jour' || l.startsWith('Nombre')), false);
+  }
+  // CDI (même avec une date de fin résiduelle) : aucun nombre de jours.
   assert.equal(lignes({ type_contrat: 'cdi', date_fin: new Date('2026-10-16T22:00:00Z') }).some(([l]) => l.startsWith('Nombre')), false);
-  assert.equal(lignes({ date_fin: null }).some(([l]) => l.startsWith('Nombre')), false);
+});
+
+test('Contrat : le groupe de dates garde sa place quels que soient les champs affichés avant (Motif CDD, Raison du surcroît…)', () => {
+  const lignes = section(
+    sectionsDemande(demande({ motif_cdd: 'surcroit_activite', raison_surcroit: 'Séminaire', date_fin: new Date('2026-10-16T22:00:00Z') })),
+    'Contrat',
+  ).lignes;
+  const libelles = lignes.map(([l]) => l);
+  assert.deepEqual(libelles.slice(libelles.indexOf('Premier jour'), libelles.indexOf('Premier jour') + 3), ['Premier jour', 'Dernier jour', 'Nombre total de jours calendaires']);
+  // Les autres champs gardent leur ordre, avant et après le groupe.
+  assert.ok(libelles.indexOf('Poste') < libelles.indexOf('Premier jour'));
+  assert.ok(libelles.indexOf('Premier jour') < libelles.indexOf('Heure d’arrivée jour 1'));
 });
 
 test('PDF généré avec la colonne Site et le nombre de jours : document valide', async () => {

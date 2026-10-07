@@ -13,6 +13,8 @@ export const STATUTS_DPAE = [
   { code: 'en_attente', libelle: 'En attente', libellePluriel: 'En attente', variante: 'bleu-gris', couleurGraphique: '#5f7a96' },
   { code: 'validee', libelle: 'Validée', libellePluriel: 'Validées', variante: 'succes', couleurGraphique: '#0ca30c' },
   { code: 'rejetee', libelle: 'Rejetée', libellePluriel: 'Rejetées', variante: 'echec', couleurGraphique: '#d03b3b' },
+  // Statut final, gris : distinct des autres pastilles.
+  { code: 'classee_sans_suite', libelle: 'Classée sans suite', libellePluriel: 'Classées sans suite', variante: 'neutre', couleurGraphique: '#8a919c' },
 ];
 
 // Statut d'une demande à sa création quand elle part directement à la RH (file « À traiter » par
@@ -34,6 +36,7 @@ export const ACTION_REJETER = 'rejeter';
 export const ACTION_MODIFIER = 'modifier';
 export const ACTION_TRANSMETTRE_RH = 'transmettre_rh';
 export const ACTION_RENVOYER_INSPECTEUR = 'renvoyer_inspecteur';
+export const ACTION_CLASSER_SANS_SUITE = 'classer_sans_suite';
 
 // Transitions autorisées (action, statut de départ, statut d'arrivée) — MIROIR de la table du serveur
 // (backend/src/core/dpae/statutsDpae.js), qui reste seule juge : ici elles ne servent qu'à décider
@@ -47,6 +50,11 @@ export const TRANSITIONS_DPAE = [
   // Passage par le Planning.
   { action: ACTION_TRANSMETTRE_RH, de: 'a_valider_planning', vers: 'envoyee' },
   { action: ACTION_RENVOYER_INSPECTEUR, de: 'a_valider_planning', vers: 'renvoyee_inspecteur' },
+  // Classement sans suite : depuis tout statut non décidé par la RH, jamais depuis un statut final.
+  { action: ACTION_CLASSER_SANS_SUITE, de: 'a_valider_planning', vers: 'classee_sans_suite' },
+  { action: ACTION_CLASSER_SANS_SUITE, de: 'renvoyee_inspecteur', vers: 'classee_sans_suite' },
+  { action: ACTION_CLASSER_SANS_SUITE, de: 'envoyee', vers: 'classee_sans_suite' },
+  { action: ACTION_CLASSER_SANS_SUITE, de: 'en_attente', vers: 'classee_sans_suite' },
   // Modification par le demandeur : « À traiter » reste « À traiter », « En attente » repasse « À
   // traiter », « Renvoyée à l'inspecteur » repasse « À valider par le Planning ».
   { action: ACTION_MODIFIER, de: 'a_valider_planning', vers: 'a_valider_planning' },
@@ -60,6 +68,10 @@ export const TRANSITIONS_DPAE = [
 export const STATUTS_A_DECIDER = STATUTS_DPAE.map((statut) => statut.code).filter((code) =>
   TRANSITIONS_DPAE.some((transition) => transition.de === code),
 );
+
+// Statuts dont la modification exige une note (miroir de STATUTS_NOTE_MODIFICATION_OBLIGATOIRE côté
+// serveur, vérifié par statutsDpaeCoherenceBackend.test.js).
+export const STATUTS_NOTE_MODIFICATION_OBLIGATOIRE = ['renvoyee_inspecteur', 'en_attente'];
 
 export const transitionPossible = (action, statut) => TRANSITIONS_DPAE.some((transition) => transition.action === action && transition.de === statut);
 

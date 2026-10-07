@@ -79,7 +79,7 @@ test('deux décisions simultanées sur la même demande : une seule réussit, l�
 
   const resultats = await Promise.allSettled([
     demandeDpaeService.valider(ENTITE, 7, 41, { version: 1 }),
-    demandeDpaeService.rejeter(ENTITE, 7, 42, 'Doublon', { version: 1 }),
+    demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 1 }),
   ]);
 
   const reussies = resultats.filter((resultat) => resultat.status === 'fulfilled');
@@ -115,8 +115,8 @@ test('version obsolète : refus, aucune écriture, aucune trace ni notification'
 
   for (const appel of [
     () => demandeDpaeService.valider(ENTITE, 7, 42, { version: 4 }),
-    () => demandeDpaeService.rejeter(ENTITE, 7, 42, 'Motif', { version: 4 }),
-    () => demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, 'Motif', { version: 4 }),
+    () => demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 4 }),
+    () => demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, { version: 4 }),
   ]) {
     await assert.rejects(appel, demandeDpaeService.ErreurDemandeModifiee);
   }
@@ -138,8 +138,8 @@ test('rejeu d’une décision avec l’ancienne version après une première dé
 test('transition non autorisée (demande déjà décidée, bonne version) : refus, rien n’est écrit', async (t) => {
   const { etat } = creerBaseFactice(t, { statut: 'validee', version: 2 });
 
-  await assert.rejects(() => demandeDpaeService.rejeter(ENTITE, 7, 42, 'Motif', { version: 2 }), demandeDpaeService.ErreurDemandeDejaTraitee);
-  await assert.rejects(() => demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, 'Motif', { version: 2 }), demandeDpaeService.ErreurDemandeDejaTraitee);
+  await assert.rejects(() => demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 2 }), demandeDpaeService.ErreurDemandeDejaTraitee);
+  await assert.rejects(() => demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, { version: 2 }), demandeDpaeService.ErreurDemandeDejaTraitee);
   assert.deepEqual({ statut: etat.statut, version: etat.version }, { statut: 'validee', version: 2 });
   assert.equal(etat.audits.length, 0);
 });
@@ -147,10 +147,10 @@ test('transition non autorisée (demande déjà décidée, bonne version) : refu
 test('mise en attente puis décision avec la nouvelle version : enchaînement autorisé, version incrémentée à chaque écriture', async (t) => {
   const { etat } = creerBaseFactice(t);
 
-  await demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, 'Pièce manquante', { version: 1 });
+  await demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, { version: 1 });
   assert.deepEqual({ statut: etat.statut, version: etat.version }, { statut: 'en_attente', version: 2 });
 
-  await demandeDpaeService.rejeter(ENTITE, 7, 42, 'Doublon', { version: 2 });
+  await demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 2 });
   assert.deepEqual({ statut: etat.statut, version: etat.version }, { statut: 'rejetee', version: 3 });
   assert.equal(etat.audits.length, 2);
   assert.equal(etat.notifications.length, 2);
@@ -164,8 +164,8 @@ test('échec de l’écriture dans le journal d’audit : aucune décision enreg
 
   for (const appel of [
     () => demandeDpaeService.valider(ENTITE, 7, 42, { version: 1 }),
-    () => demandeDpaeService.rejeter(ENTITE, 7, 42, 'Motif', { version: 1 }),
-    () => demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, 'Motif', { version: 1 }),
+    () => demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 1 }),
+    () => demandeDpaeService.mettreEnAttente(ENTITE, 7, 42, { version: 1 }),
   ]) {
     await assert.rejects(appel, /journal_audit indisponible/);
     assert.deepEqual({ statut: etat.statut, version: etat.version }, { statut: 'envoyee', version: 1 });
@@ -186,7 +186,7 @@ test('échec de la création des notifications : décision et trace d’audit an
 });
 
 test('modification et décision RH simultanées sur la même demande : une seule réussit, l’autre reçoit le refus « modifiée entre-temps »', async (t) => {
-  const { etat } = creerBaseFactice(t, { statut: 'en_attente', version: 2, lecturesSimultanees: 2 });
+  const { etat } = creerBaseFactice(t, { statut: 'envoyee', version: 2, lecturesSimultanees: 2 });
   const donnees = {
     typeDemande: 'nouvelle_embauche',
     salarieNom: 'Martin',
@@ -201,7 +201,7 @@ test('modification et décision RH simultanées sur la même demande : une seule
 
   const resultats = await Promise.allSettled([
     demandeDpaeService.modifierDemande(ENTITE, 7, { donnees, version: 2, utilisateurId: 16, roleCode: 'planning', adresseIp: 'x' }),
-    demandeDpaeService.rejeter(ENTITE, 7, 42, 'Doublon', { version: 2 }),
+    demandeDpaeService.rejeter(ENTITE, 7, 42, { version: 2 }),
   ]);
 
   assert.equal(resultats.filter((resultat) => resultat.status === 'fulfilled').length, 1);

@@ -5,7 +5,7 @@
 const db = require('../../db/knex');
 const tableauDeBordDpaeRepository = require('./tableauDeBordDpaeRepository');
 const siteAffectationRepository = require('./siteAffectationRepository');
-const { CODES_STATUTS_DPAE, STATUT_VALIDEE, STATUT_REJETEE } = require('./statutsDpae');
+const { CODES_STATUTS_DPAE, STATUT_VALIDEE, STATUT_REJETEE, STATUT_CLASSEE_SANS_SUITE } = require('./statutsDpae');
 
 const FUSEAU = 'Europe/Paris';
 // Période par défaut : les 30 derniers jours, aujourd'hui inclus.
@@ -46,7 +46,7 @@ function granularitePeriode(debut, fin) {
 // derniers jours, heure de Paris) et cohérence début <= fin.
 // statutsExclus : statuts invisibles pour le rôle de l'appelant, jamais saisis par le client (voir
 // demandeDpaeService.statutsMasquesPour) ; absent de la réponse tant qu'il est vide.
-function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maintenant = new Date(), statutsExclus = []) {
+function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maintenant = new Date(), statutsExclus = [], masquerClasseesNonTransmises = false) {
   const finResolue = fin ?? jourParis(maintenant);
   const debutResolu = debut ?? decalerJour(finResolue, -(JOURS_PERIODE_PAR_DEFAUT - 1));
   if (debutResolu > finResolue) {
@@ -59,6 +59,7 @@ function resoudreFiltres({ debut, fin, siteId, typeContrat, statut } = {}, maint
     typeContrat: typeContrat ?? null,
     statut: statut ?? null,
     ...(statutsExclus.length > 0 ? { statutsExclus: [...statutsExclus] } : {}),
+    ...(masquerClasseesNonTransmises ? { masquerClasseesNonTransmises: true } : {}),
   };
 }
 
@@ -84,7 +85,9 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
     ...Object.fromEntries(CODES_STATUTS_DPAE.map((code) => [code, 0])),
     ...enMap(bruts.parStatut.map(({ statut, nombre }) => ({ cle: statut, nombre }))),
   };
-  const total = CODES_STATUTS_DPAE.reduce((somme, code) => somme + parStatut[code], 0);
+  // Le total ne compte pas les demandes classées sans suite (abandonnées) ; la répartition par statut les montre.
+  const codesDuTotal = CODES_STATUTS_DPAE.filter((code) => code !== STATUT_CLASSEE_SANS_SUITE);
+  const total = codesDuTotal.reduce((somme, code) => somme + parStatut[code], 0);
   const decidees = parStatut[STATUT_VALIDEE] + parStatut[STATUT_REJETEE];
   const dejaEmploye = enMap(bruts.dejaEmploye.map(({ cle, nombre }) => ({ cle: String(cle), nombre })));
   const idsDejaEmploye = enMapIds(bruts.dejaEmploye.map(({ cle, ids }) => ({ cle: String(cle), ids })));
@@ -115,7 +118,7 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
     // clic sur un indicateur. Indicateurs sans liste (taux, délais) : aucun identifiant.
     activite: {
       total,
-      ids: CODES_STATUTS_DPAE.flatMap((code) => idsParStatut[code]),
+      ids: codesDuTotal.flatMap((code) => idsParStatut[code]),
       parStatut,
       idsParStatut,
       tauxRejet: decidees > 0 ? parStatut[STATUT_REJETEE] / decidees : null,
@@ -157,9 +160,9 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
 }
 
 // Point d'entrée de la route. `maintenant` injectable (tests / script d'intégration).
-async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = new Date(), bd = null, { statutsExclus = [] } = {}) {
+async function calculerTableauDeBord(entite, filtresDemandes = {}, maintenant = new Date(), bd = null, { statutsExclus = [], masquerClasseesNonTransmises = false } = {}) {
   const connexion = bd ?? (await db.obtenirKnex());
-  const filtres = resoudreFiltres(filtresDemandes, maintenant, statutsExclus);
+  const filtres = resoudreFiltres(filtresDemandes, maintenant, statutsExclus, masquerClasseesNonTransmises);
   const granularite = granularitePeriode(filtres.debut, filtres.fin);
   const r = tableauDeBordDpaeRepository;
   const e = entite.id;

@@ -83,6 +83,10 @@ const PERMISSIONS = {
   // Voir les demandes « À valider par le Planning » et « Renvoyée à l'inspecteur » : tous les rôles
   // de consultation sauf la RH, qui n'en a connaissance qu'une fois la demande transmise.
   dpaeVoitFilePlanning: [ADMIN, PLANNING, INSPECTEUR_HOTELLERIE],
+  // Classer une demande sans suite (avant toute décision de la RH) : les rôles qui peuvent le faire sur
+  // leurs propres demandes… et, parmi eux, ceux qui le peuvent sur celles de n'importe quel auteur.
+  dpaeClassementSansSuite: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
+  dpaeClassementSansSuiteToutes: [PLANNING, ADMIN],
   dpaeTableauDeBord: [ADMIN, RH, PLANNING],
   dpaeNotes: [ADMIN, RH, PLANNING],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.

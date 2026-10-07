@@ -186,6 +186,11 @@
   --urgence-rouge-fond: var(--couleur-erreur);
   --urgence-texte: #ffffff;
 
+  /* Action « Classer sans suite » (fiche d'une demande DPAE) : ambre plein, texte blanc — contraste 5,0:1
+     (survol 7,1:1), distinct du rouge de « Rejeter » et des autres actions. */
+  --action-ambre-fond: #b45309;
+  --action-ambre-fond-survol: #92400e;
+
   /* Rose/magenta (audit 2026-08-25, "Test non planifié") — teinte encore inutilisée par les
      autres variantes ci-dessus : 'neutre-fort' (gris), essayé avant celle-ci pour ce même statut,
      restait perçu comme un simple niveau de gris plutôt qu'une couleur à part entière à côté des

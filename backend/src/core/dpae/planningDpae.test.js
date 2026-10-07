@@ -142,31 +142,19 @@ test('transmettre à la RH : « À valider » -> « À traiter », date d’envo
   assert.equal(etat.ecritures.length, 3);
 });
 
-test('renvoyer à l’inspecteur : motif obligatoire (absent, vide ou espaces -> refus, rien d’écrit)', async (t) => {
-  const { etat, renvoyerMock } = mockerBase(t, 'a_valider_planning');
-  for (const motif of [undefined, '', '   ']) {
-    await assert.rejects(() => demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 8, motif, { version: 2, roleCode: 'planning' }), /motif de renvoi est obligatoire/);
-  }
-  assert.equal(renvoyerMock.mock.calls.length, 0);
-  assert.deepEqual(etat.ecritures, []);
-});
-
-test('renvoyer à l’inspecteur : « À valider » -> « Renvoyée », motif conservé, inspecteur auteur notifié avec le motif, action tracée', async (t) => {
+test('renvoyer à l’inspecteur : « À valider » -> « Renvoyée », sans motif, inspecteur auteur notifié sans motif, action tracée sans motif', async (t) => {
   const { renvoyerMock, auditMock, notificationsMock } = mockerBase(t, 'a_valider_planning');
 
-  await demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 8, '  Dates incohérentes ', { version: 2, adresseIp: '10.0.0.1', roleCode: 'planning' });
+  await demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 8, { version: 2, adresseIp: '10.0.0.1', roleCode: 'planning' });
 
-  assert.deepEqual(renvoyerMock.mock.calls[0].arguments.slice(1), [
-    7,
-    { statutDepart: 'a_valider_planning', version: 2, statut: 'renvoyee_inspecteur', motif: 'Dates incohérentes' },
-  ]);
+  assert.deepEqual(renvoyerMock.mock.calls[0].arguments.slice(1), [7, { statutDepart: 'a_valider_planning', version: 2, statut: 'renvoyee_inspecteur' }]);
   const entree = auditMock.mock.calls[0].arguments[1];
   assert.equal(entree.action, 'demande_dpae_renvoi_inspecteur');
-  assert.deepEqual(entree.donnees, { motif: 'Dates incohérentes' });
+  assert.deepEqual(entree.donnees, {});
   const notifications = notificationsMock.mock.calls[0].arguments[1];
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].utilisateurId, AUTEUR_ID);
-  assert.match(notifications[0].message, /renvoyée par le Planning : Dates incohérentes$/);
+  assert.equal(notifications[0].message, 'Votre demande DPAE n° 7 a été renvoyée. Consultez les notes de la demande.');
 });
 
 test('transmettre ou renvoyer hors « À valider par le Planning » -> refus, rien n’est écrit ni notifié', async (t) => {
@@ -174,7 +162,7 @@ test('transmettre ou renvoyer hors « À valider par le Planning » -> refus, ri
     await t.test(statut, async (st) => {
       const { etat, transmettreMock, renvoyerMock } = mockerBase(st, statut);
       await assert.rejects(() => demandeDpaeService.transmettreALaRh(ENTITE, 7, 8, { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
-      await assert.rejects(() => demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 8, 'Motif', { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
+      await assert.rejects(() => demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 8, { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
       assert.equal(transmettreMock.mock.calls.length + renvoyerMock.mock.calls.length, 0);
       assert.deepEqual(etat.ecritures, []);
     });
@@ -185,9 +173,9 @@ test('le Planning ne peut pas rejeter (ni valider, ni mettre en attente) une dem
   for (const statut of ['a_valider_planning', 'renvoyee_inspecteur']) {
     await t.test(statut, async (st) => {
       const { etat, marquerMock } = mockerBase(st, statut);
-      await assert.rejects(() => demandeDpaeService.rejeter(ENTITE, 7, 8, 'Motif', { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
+      await assert.rejects(() => demandeDpaeService.rejeter(ENTITE, 7, 8, { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
       await assert.rejects(() => demandeDpaeService.valider(ENTITE, 7, 8, { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
-      await assert.rejects(() => demandeDpaeService.mettreEnAttente(ENTITE, 7, 8, 'Motif', { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
+      await assert.rejects(() => demandeDpaeService.mettreEnAttente(ENTITE, 7, 8, { version: 2, roleCode: 'planning' }), demandeDpaeService.ErreurDemandeDejaTraitee);
       assert.equal(marquerMock.mock.calls.length, 0);
       assert.deepEqual(etat.ecritures, []);
     });
@@ -202,10 +190,10 @@ test('RH : toute action (valider, rejeter, mettre en attente, transmettre, renvo
       const options = { version: 1, roleCode: 'rh' };
       for (const appel of [
         () => demandeDpaeService.valider(ENTITE, 7, 3, options),
-        () => demandeDpaeService.rejeter(ENTITE, 7, 3, 'Motif', options),
-        () => demandeDpaeService.mettreEnAttente(ENTITE, 7, 3, 'Motif', options),
+        () => demandeDpaeService.rejeter(ENTITE, 7, 3, options),
+        () => demandeDpaeService.mettreEnAttente(ENTITE, 7, 3, options),
         () => demandeDpaeService.transmettreALaRh(ENTITE, 7, 3, options),
-        () => demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 3, 'Motif', options),
+        () => demandeDpaeService.renvoyerAInspecteur(ENTITE, 7, 3, options),
       ]) {
         await assert.rejects(appel, demandeDpaeService.ErreurModificationInterdite);
       }
@@ -319,8 +307,8 @@ test('transmission et renvoi (SQL) : compare-and-set sur id, statut ET version ;
   assert.match(transmission.sql, /where "id" = \? and "statut" = \? and "version" = \?$/);
   assert.deepEqual(transmission.bindings.slice(-3), [7, 'a_valider_planning', 3]);
 
-  const renvoi = demandeDpaeRepository.renvoyerAInspecteur(bd, 7, { statutDepart: 'a_valider_planning', version: 3, statut: 'renvoyee_inspecteur', motif: 'Dates' }).toSQL();
+  const renvoi = demandeDpaeRepository.renvoyerAInspecteur(bd, 7, { statutDepart: 'a_valider_planning', version: 3, statut: 'renvoyee_inspecteur' }).toSQL();
   assert.doesNotMatch(renvoi.sql, /date_envoi_rh/);
-  assert.match(renvoi.sql, /"motif_renvoi" = \?/);
+  assert.doesNotMatch(renvoi.sql, /motif_renvoi/);
   assert.match(renvoi.sql, /where "id" = \? and "statut" = \? and "version" = \?$/);
 });

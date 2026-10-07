@@ -2,7 +2,7 @@
 // (demandeDpaeService.js), les routes (dpae.routes.js) et le tableau de bord (tableauDeBordDpae*.js)
 // s'appuient tous sur ce module, aucune liste de statuts n'est recopiée ailleurs. Miroir côté
 // front : frontend/src/core/dpae/statutsDpae.js (les deux doivent rester alignés ; la contrainte
-// CHECK de la migration 079 fige les mêmes codes en base).
+// CHECK de la migration 083 fige les mêmes codes en base).
 //
 // Module spécifique à ACCECIT, hors moteur de workflow des dossiers (voir demandeDpaeService.js) :
 // les transitions vivent ici, pas dans un switch/case éparpillé.
@@ -13,6 +13,8 @@ const STATUT_ENVOYEE = 'envoyee';
 const STATUT_EN_ATTENTE = 'en_attente';
 const STATUT_VALIDEE = 'validee';
 const STATUT_REJETEE = 'rejetee';
+// Statut FINAL : demande abandonnée avant toute décision de la RH, sans transition sortante.
+const STATUT_CLASSEE_SANS_SUITE = 'classee_sans_suite';
 
 // Ordre = ordre du cycle de vie (passage par le Planning, puis traitement RH). La valeur technique
 // 'envoyee' est affichée « À traiter ».
@@ -23,6 +25,7 @@ const STATUTS_DPAE = Object.freeze([
   Object.freeze({ code: STATUT_EN_ATTENTE, libelle: 'En attente' }),
   Object.freeze({ code: STATUT_VALIDEE, libelle: 'Validée' }),
   Object.freeze({ code: STATUT_REJETEE, libelle: 'Rejetée' }),
+  Object.freeze({ code: STATUT_CLASSEE_SANS_SUITE, libelle: 'Classée sans suite' }),
 ]);
 
 const CODES_STATUTS_DPAE = Object.freeze(STATUTS_DPAE.map((statut) => statut.code));
@@ -30,6 +33,10 @@ const CODES_STATUTS_DPAE = Object.freeze(STATUTS_DPAE.map((statut) => statut.cod
 // Statuts antérieurs à l'envoi à la RH : la RH ne les voit nulle part (listes, tableau de bord,
 // consultation directe, notes).
 const STATUTS_AVANT_RH = Object.freeze([STATUT_A_VALIDER_PLANNING, STATUT_RENVOYEE_INSPECTEUR]);
+
+// Statuts dont la modification exige une note : la demande revient d'un renvoi ou d'une mise en
+// attente, le demandeur explique ce qu'il a corrigé. Miroir front : frontend/src/core/dpae/statutsDpae.js.
+const STATUTS_NOTE_MODIFICATION_OBLIGATOIRE = Object.freeze([STATUT_RENVOYEE_INSPECTEUR, STATUT_EN_ATTENTE]);
 
 // Statut d'une demande à sa création (pas de brouillon) quand elle va directement à la RH ; une
 // demande soumise au Planning démarre en STATUT_A_VALIDER_PLANNING (demandeDpaeService.creerEtEnvoyer).
@@ -41,6 +48,7 @@ const ACTION_REJETER = 'rejeter';
 const ACTION_MODIFIER = 'modifier';
 const ACTION_TRANSMETTRE_RH = 'transmettre_rh';
 const ACTION_RENVOYER_INSPECTEUR = 'renvoyer_inspecteur';
+const ACTION_CLASSER_SANS_SUITE = 'classer_sans_suite';
 
 // Actions de décision de la RH : elles définissent les statuts « à traiter » par la RH.
 const ACTIONS_DECISION_RH = Object.freeze([ACTION_METTRE_EN_ATTENTE, ACTION_VALIDER, ACTION_REJETER]);
@@ -59,6 +67,13 @@ const TRANSITIONS = Object.freeze(
     // obligatoire). Il ne peut pas la rejeter : seul le rejet RH existe, depuis les statuts RH.
     { action: ACTION_TRANSMETTRE_RH, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_ENVOYEE, permission: 'dpaeValidationPlanning' },
     { action: ACTION_RENVOYER_INSPECTEUR, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_RENVOYEE_INSPECTEUR, permission: 'dpaeValidationPlanning' },
+    // Classement sans suite : depuis tout statut où la RH n'a pas encore décidé, jamais depuis un statut
+    // final. Droit par demande (auteur pour l'Inspecteur Hôtellerie, toutes pour Planning et Admin) :
+    // demandeDpaeService.peutClasserSansSuite.
+    { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
+    { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
+    { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_ENVOYEE, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
+    { action: ACTION_CLASSER_SANS_SUITE, de: STATUT_EN_ATTENTE, vers: STATUT_CLASSEE_SANS_SUITE, permission: 'dpaeClassementSansSuite' },
     // Modification par le demandeur : une demande « À traiter » le reste ; une demande « En attente »
     // repasse « À traiter » (la RH en est notifiée) ; une demande « Renvoyée à l'inspecteur » repasse
     // « À valider par le Planning » (le Planning en est notifié). Droit par demande (auteur, Planning,
@@ -106,8 +121,10 @@ module.exports = {
   STATUT_EN_ATTENTE,
   STATUT_VALIDEE,
   STATUT_REJETEE,
+  STATUT_CLASSEE_SANS_SUITE,
   STATUT_INITIAL,
   STATUTS_AVANT_RH,
+  STATUTS_NOTE_MODIFICATION_OBLIGATOIRE,
   STATUTS_DPAE,
   CODES_STATUTS_DPAE,
   STATUTS_A_DECIDER,
@@ -118,6 +135,7 @@ module.exports = {
   ACTION_MODIFIER,
   ACTION_TRANSMETTRE_RH,
   ACTION_RENVOYER_INSPECTEUR,
+  ACTION_CLASSER_SANS_SUITE,
   TRANSITIONS,
   trouverTransition,
   permissionPourAction,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACTION_CLASSER_SANS_SUITE,
   ACTION_METTRE_EN_ATTENTE,
   ACTION_MODIFIER,
   ACTION_REJETER,
@@ -11,7 +12,9 @@ import {
   STATUTS_DPAE,
   STATUT_INITIAL,
   statutsVisibles,
+  libelleStatutDpae,
   transitionPossible,
+  varianteStatutDpae,
 } from './statutsDpae';
 
 describe('statutsDpae (miroir du serveur)', () => {
@@ -24,6 +27,7 @@ describe('statutsDpae (miroir du serveur)', () => {
       'en_attente',
       'validee',
       'rejetee',
+      'classee_sans_suite',
     ]);
   });
 
@@ -46,7 +50,7 @@ describe('statutsDpae (miroir du serveur)', () => {
   });
 
   it('la RH ne se voit proposer aucun statut d’avant l’envoi à la RH', () => {
-    expect(statutsVisibles(false).map((statut) => statut.code)).toEqual(['envoyee', 'en_attente', 'validee', 'rejetee']);
+    expect(statutsVisibles(false).map((statut) => statut.code)).toEqual(['envoyee', 'en_attente', 'validee', 'rejetee', 'classee_sans_suite']);
     expect(statutsVisibles(true)).toBe(STATUTS_DPAE);
   });
 
@@ -71,5 +75,17 @@ describe('statutsDpae (miroir du serveur)', () => {
         expect(transitionPossible(action, statut)).toBe(false);
       }
     }
+  });
+
+  it('classement sans suite : depuis tout statut non décidé par la RH, jamais depuis un statut final ; aucun statut sortant', () => {
+    for (const statut of ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente']) {
+      expect(transitionPossible(ACTION_CLASSER_SANS_SUITE, statut), statut).toBe(true);
+    }
+    for (const statut of ['validee', 'rejetee', 'classee_sans_suite']) {
+      expect(transitionPossible(ACTION_CLASSER_SANS_SUITE, statut), statut).toBe(false);
+    }
+    expect(STATUTS_A_DECIDER).not.toContain('classee_sans_suite');
+    expect(libelleStatutDpae('classee_sans_suite')).toBe('Classée sans suite');
+    expect(varianteStatutDpae('classee_sans_suite')).toBe('neutre');
   });
 });

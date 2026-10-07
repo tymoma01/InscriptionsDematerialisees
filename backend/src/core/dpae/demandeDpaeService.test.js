@@ -187,30 +187,22 @@ test('valider marque la demande validée (écriture gardée par statut et versio
   });
 });
 
-test('rejeter exige un motif', async (t) => {
-  mockerKnex(t);
-
-  await assert.rejects(
-    () => demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, '   ', CONTEXTE_DECISION),
-    /motif de rejet est obligatoire/,
-  );
-});
-
-test('rejeter marque la demande rejetée avec le motif, trace (motif compris) et notifie le demandeur', async (t) => {
+test('rejeter marque la demande rejetée sans motif, trace sans motif et notifie le demandeur sans motif', async (t) => {
   const { marquerTraiteeMock, auditMock, creerNotificationsMock } = mockerDemandeAuStatut(t, 'envoyee');
 
-  await demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, '  Poste déjà pourvu  ', CONTEXTE_DECISION);
+  await demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, CONTEXTE_DECISION);
 
   assert.deepEqual(marquerTraiteeMock.mock.calls[0].arguments[2], {
     statutDepart: 'envoyee',
     version: VERSION_LUE,
     statut: 'rejetee',
     traitantId: 42,
-    motifRejet: 'Poste déjà pourvu',
   });
   assert.equal(auditMock.mock.calls[0].arguments[1].action, 'demande_dpae_rejet');
-  assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees, { motifRejet: 'Poste déjà pourvu' });
-  assert.equal(creerNotificationsMock.mock.calls[0].arguments[1][0].type, 'demande_dpae_rejetee');
+  assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees, {});
+  const [notification] = creerNotificationsMock.mock.calls[0].arguments[1];
+  assert.equal(notification.type, 'demande_dpae_rejetee');
+  assert.equal(notification.message, 'Votre demande DPAE n° 7 a été rejetée. Consultez les notes de la demande.');
 });
 
 test('décision sans version (appel interne) -> refus, rien n’est lu ni écrit', async (t) => {
@@ -291,7 +283,7 @@ test("listerSuivi « Mes demandes » : seulement celles de l'utilisateur, dans s
   const { miennesMock } = mockerBaseConsultation(t);
   const demandes = await demandeDpaeService.listerSuivi(ENTITE_ACCECIT, { utilisateurId: 30, roleCode: 'admin', perimetreDemande: 'mes' });
   assert.deepEqual(demandes.map((d) => d.id), [2]);
-  assert.deepEqual(miennesMock.mock.calls[0].arguments.slice(1), [1, 30, []]);
+  assert.deepEqual(miennesMock.mock.calls[0].arguments.slice(1), [1, 30, [], false]);
 });
 
 test("peutConsulterDemande : Admin, RH et Planning toutes les fiches ; Accueil/Coordination jamais, même auteur", () => {
@@ -314,38 +306,25 @@ test("obtenirDemande : une demande d'une autre entité est introuvable, quel que
 });
 
 // ---------------------------------------------------------------------------------------------
-// Statut « En attente » — transitions autorisées : À traiter -> En attente (motif
-// obligatoire) ; En attente -> Validée | Rejetée. Aucune autre.
+// Statut « En attente » — transitions autorisées : À traiter -> En attente ; En attente -> Validée | Rejetée. Aucune autre.
 // ---------------------------------------------------------------------------------------------
-test('mettreEnAttente depuis « À traiter » : statut en attente avec le motif (nettoyé), demandeur notifié avec le motif, action tracée', async (t) => {
+test('mettreEnAttente depuis « À traiter » : statut en attente sans motif, demandeur notifié sans motif, action tracée sans motif', async (t) => {
   const { marquerEnAttenteMock, marquerTraiteeMock, creerNotificationsMock, auditMock } = mockerDemandeAuStatut(t, 'envoyee');
 
-  await demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 7, 42, '  Pièce manquante  ', CONTEXTE_DECISION);
+  await demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 7, 42, CONTEXTE_DECISION);
 
   assert.deepEqual(marquerEnAttenteMock.mock.calls[0].arguments.slice(1), [
     7,
-    { statutDepart: 'envoyee', version: VERSION_LUE, traitantId: 42, motif: 'Pièce manquante' },
+    { statutDepart: 'envoyee', version: VERSION_LUE, traitantId: 42 },
   ]);
   // Pas une décision : la date de traitement (marquerTraitee) n'est jamais posée.
   assert.equal(marquerTraiteeMock.mock.calls.length, 0);
   const [notification] = creerNotificationsMock.mock.calls[0].arguments[1];
   assert.equal(notification.utilisateurId, 3);
   assert.equal(notification.type, 'demande_dpae_en_attente');
-  assert.match(notification.message, /mise en attente par la RH : Pièce manquante$/);
+  assert.equal(notification.message, 'Votre demande DPAE n° 7 a été mise en attente. Consultez les notes de la demande.');
   assert.equal(auditMock.mock.calls[0].arguments[1].action, 'demande_dpae_mise_en_attente');
-  assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees, { motif: 'Pièce manquante' });
-});
-
-test('mettreEnAttente : motif absent, vide ou fait d’espaces -> refus, rien n’est écrit ni notifié', async (t) => {
-  const { marquerEnAttenteMock, creerNotificationsMock } = mockerDemandeAuStatut(t, 'envoyee');
-  for (const motif of [undefined, '', '   ']) {
-    await assert.rejects(
-      () => demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 7, 42, motif, CONTEXTE_DECISION),
-      /motif de mise en attente est obligatoire/,
-    );
-  }
-  assert.equal(marquerEnAttenteMock.mock.calls.length, 0);
-  assert.equal(creerNotificationsMock.mock.calls.length, 0);
+  assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees, {});
 });
 
 test('mettreEnAttente depuis « En attente », « Validée » ou « Rejetée » -> refus (aucune autre transition)', async (t) => {
@@ -353,7 +332,7 @@ test('mettreEnAttente depuis « En attente », « Validée » ou « Rejetée » 
     await t.test(statut, async (st) => {
       const { marquerEnAttenteMock, auditMock, creerNotificationsMock } = mockerDemandeAuStatut(st, statut);
       await assert.rejects(
-        () => demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 7, 42, 'Motif', CONTEXTE_DECISION),
+        () => demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 7, 42, CONTEXTE_DECISION),
         demandeDpaeService.ErreurDemandeDejaTraitee,
       );
       assert.equal(marquerEnAttenteMock.mock.calls.length, 0);
@@ -367,7 +346,7 @@ test('mettreEnAttente : demande introuvable (ou d’une autre entité) -> Erreur
   mockerKnexTransaction(t);
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => undefined);
   await assert.rejects(
-    () => demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 999, 42, 'Motif', CONTEXTE_DECISION),
+    () => demandeDpaeService.mettreEnAttente(ENTITE_ACCECIT, 999, 42, CONTEXTE_DECISION),
     demandeDpaeService.ErreurDemandeIntrouvable,
   );
 });
@@ -384,15 +363,14 @@ test('« En attente » -> « Validée » : autorisé, décision posée et demand
   assert.equal(creerNotificationsMock.mock.calls[0].arguments[1][0].type, 'demande_dpae_validee');
 });
 
-test('« En attente » -> « Rejetée » : autorisé avec motif', async (t) => {
+test('« En attente » -> « Rejetée » : autorisé', async (t) => {
   const { marquerTraiteeMock } = mockerDemandeAuStatut(t, 'en_attente');
-  await demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, 'Doublon', CONTEXTE_DECISION);
+  await demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, CONTEXTE_DECISION);
   assert.deepEqual(marquerTraiteeMock.mock.calls[0].arguments[2], {
     statutDepart: 'en_attente',
     version: VERSION_LUE,
     statut: 'rejetee',
     traitantId: 42,
-    motifRejet: 'Doublon',
   });
 });
 
@@ -402,7 +380,7 @@ test('Validation ou rejet d’une demande déjà décidée (validée ou rejetée
       const { marquerTraiteeMock } = mockerDemandeAuStatut(st, statut);
       await assert.rejects(() => demandeDpaeService.valider(ENTITE_ACCECIT, 7, 42, CONTEXTE_DECISION), demandeDpaeService.ErreurDemandeDejaTraitee);
       await assert.rejects(
-        () => demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, 'Motif', CONTEXTE_DECISION),
+        () => demandeDpaeService.rejeter(ENTITE_ACCECIT, 7, 42, CONTEXTE_DECISION),
         demandeDpaeService.ErreurDemandeDejaTraitee,
       );
       assert.equal(marquerTraiteeMock.mock.calls.length, 0);
@@ -418,5 +396,5 @@ test("listerPourRh (liste RH, 2026-10-02) : chaque demande porte ses sites (colo
   assert.deepEqual(demandes[1].sites_affectation, []);
   assert.equal(demandes[1].hotel, 'Ancien texte');
   // La file RH n'inclut jamais les demandes encore chez le Planning.
-  assert.deepEqual(toutesMock.mock.calls[0].arguments.slice(1), [1, null, ['a_valider_planning', 'renvoyee_inspecteur']]);
+  assert.deepEqual(toutesMock.mock.calls[0].arguments.slice(1), [1, null, ['a_valider_planning', 'renvoyee_inspecteur'], true]);
 });

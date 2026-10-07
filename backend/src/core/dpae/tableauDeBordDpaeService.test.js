@@ -64,7 +64,7 @@ test('construireTableauDeBord : sans aucune décision, taux de rejet null (jamai
   const t = construireTableauDeBord({ filtres: {}, granularite: 'semaine', optionsSites: [], liens: [], bruts: BRUTS_VIDES });
   assert.equal(t.activite.total, 0);
   assert.equal(t.activite.tauxRejet, null);
-  assert.deepEqual(t.activite.parStatut, { a_valider_planning: 0, renvoyee_inspecteur: 0, envoyee: 0, en_attente: 0, validee: 0, rejetee: 0 });
+  assert.deepEqual(t.activite.parStatut, { a_valider_planning: 0, renvoyee_inspecteur: 0, envoyee: 0, en_attente: 0, validee: 0, rejetee: 0, classee_sans_suite: 0 });
   assert.deepEqual(t.repartition.contrats, { cdd: 0, cdi: 0 });
   assert.deepEqual(t.repartition.motifsCdd, { remplacement_absent: 0, surcroit_activite: 0 });
   assert.deepEqual(t.anticipation, { sous7Jours: 0, sous15Jours: 0, demandes: [] });
@@ -170,7 +170,7 @@ test('construireTableauDeBord : les demandes « En attente » comptent dans le t
       delais: { nombre_traitees: 4, moyen_heures: 10, median_heures: 8 },
     },
   });
-  assert.deepEqual(t.activite.parStatut, { a_valider_planning: 0, renvoyee_inspecteur: 0, envoyee: 2, en_attente: 4, validee: 3, rejetee: 1 });
+  assert.deepEqual(t.activite.parStatut, { a_valider_planning: 0, renvoyee_inspecteur: 0, envoyee: 2, en_attente: 4, validee: 3, rejetee: 1, classee_sans_suite: 0 });
   assert.equal(t.activite.total, 10);
   assert.equal(t.activite.tauxRejet, 0.25); // 1 / (3 + 1) : les 4 en attente ne sont pas décidées
   assert.equal(t.activite.nombreTraitees, 4);

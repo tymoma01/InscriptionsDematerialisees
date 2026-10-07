@@ -1,0 +1,96 @@
+/* Fenêtre de confirmation commune aux actions sur une demande DPAE (valider, rejeter, mettre en
+   attente, renvoyer, transmettre) : aucun champ de saisie. */
+.modale-confirmation-dpae__fond {
+  position: fixed;
+  top: calc(var(--hauteur-entete) + var(--hauteur-barre-navigation));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  padding: var(--espace-grand) var(--espace-moyen);
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.modale-confirmation-dpae {
+  margin: auto;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 100%;
+  max-width: 32rem;
+  padding: 1.75rem;
+}
+
+.modale-confirmation-dpae h2 {
+  margin: 0 0 var(--espace-moyen);
+  color: var(--couleur-back-office);
+}
+
+.modale-confirmation-dpae form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+}
+
+.modale-confirmation-dpae [role='alert'] {
+  margin: 0;
+  color: var(--couleur-erreur);
+  font-size: 0.9rem;
+}
+
+.modale-confirmation-dpae__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espace-petit);
+}
+
+.modale-confirmation-dpae__actions button {
+  padding: 0.6rem 1.5rem;
+  border-radius: var(--rayon-bordure);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.modale-confirmation-dpae__actions button[type='button'] {
+  border: 1px solid var(--couleur-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+}
+
+.modale-confirmation-dpae__actions button[type='submit'] {
+  border: 1px solid var(--couleur-erreur);
+  background-color: var(--couleur-erreur);
+  color: #ffffff;
+}
+
+/* Mise en attente : même teinte que le badge « En attente » (variante bleu-gris). */
+.modale-confirmation-dpae--attente .modale-confirmation-dpae__actions button[type='submit'] {
+  border-color: var(--statut-bleu-gris-texte);
+  background-color: var(--statut-bleu-gris-texte);
+}
+
+/* Classement sans suite : même ambre que le bouton « Classer sans suite » de la fiche. */
+.modale-confirmation-dpae--classement .modale-confirmation-dpae__actions button[type='submit'] {
+  border-color: var(--action-ambre-fond);
+  background-color: var(--action-ambre-fond);
+}
+
+.modale-confirmation-dpae--classement .modale-confirmation-dpae__actions button[type='submit']:hover:not(:disabled) {
+  border-color: var(--action-ambre-fond-survol);
+  background-color: var(--action-ambre-fond-survol);
+}
+
+/* Validation : bouton de confirmation vert, même teinte que
+   le bouton « Valider » de la fiche (DetailDemandeDpae.css). */
+.modale-confirmation-dpae--validation .modale-confirmation-dpae__actions button[type='submit'] {
+  border-color: var(--couleur-succes);
+  background-color: var(--couleur-succes);
+}
+
+.modale-confirmation-dpae__actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

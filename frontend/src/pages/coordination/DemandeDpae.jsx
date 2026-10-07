@@ -5,7 +5,7 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
 import { useSession } from '../../core/auth/useSession';
 import { peut } from '../../core/auth/permissions';
-import { creerDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
+import { creerDemande, listerNotesDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
 import {
   JOURS_SEMAINE,
   affecterSitesSemaine,
@@ -14,6 +14,7 @@ import {
   joursPrivesDeSite,
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
+import { STATUTS_NOTE_MODIFICATION_OBLIGATOIRE } from '../../core/dpae/statutsDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import SelecteurSitesJour from './SelecteurSitesJour';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
@@ -52,11 +53,31 @@ const POSTES_HOTEL = [
 // plutôt que la grille tactile de la maquette — même donnée finale (un tableau de dates), pour un
 // premier jet plus simple à développer/tester (voir le plan, section Simplifications).
 //
+// Note sur la modification (mode modification) : facultative, obligatoire pour une demande « Renvoyée à
+// l'inspecteur » ou « En attente » (les 3 dernières notes de la demande s'affichent alors en lecture
+// seule au-dessus du champ : la raison du renvoi ou de la mise en attente s'y trouve).
+// Elle est enregistrée avec la modification, dans la même transaction côté serveur.
+//
 // Mode modification (route /coordination/dpae/:demandeId/modifier) : le MÊME formulaire, prérempli
 // avec la demande existante (donneesFormulaireDepuisDemande) ; « Enregistrer les modifications »
 // envoie la demande complète et la version lue (PUT /api/dpae/:id), « Annuler » revient à la fiche.
+const LONGUEUR_MAX_NOTE = 1000;
+const NOMBRE_NOTES_AFFICHEES = 3;
+const FORMAT_DATE_NOTE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
 function FormulaireDemandeDpae({ demande, onRecharger }) {
   const modification = Boolean(demande);
+  const [noteModification, setNoteModification] = useState('');
+  const noteObligatoire = modification && STATUTS_NOTE_MODIFICATION_OBLIGATOIRE.includes(demande.statut);
+  // Dernières notes de la demande (plus récentes d'abord), seulement quand la note est obligatoire.
+  const [dernieresNotes, setDernieresNotes] = useState([]);
+  const [erreurNotes, setErreurNotes] = useState(false);
+  useEffect(() => {
+    if (!noteObligatoire) return;
+    listerNotesDemande(demande.id)
+      .then((notes) => setDernieresNotes(notes.slice(0, NOMBRE_NOTES_AFFICHEES)))
+      .catch(() => setErreurNotes(true));
+  }, [noteObligatoire, demande?.id]);
   const navigate = useNavigate();
   const { utilisateur } = useSession();
   const libelleEnvoi = peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
@@ -188,7 +209,8 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
     (!estCddRemplacement || donnees.salarieRemplaceNom.trim()) &&
     donnees.verifBesoinHotel &&
     donnees.verifTousJoursInclus &&
-    donnees.verifNonPlanification;
+    donnees.verifNonPlanification &&
+    (!noteObligatoire || noteModification.trim());
 
   const envoyer = async (evenement) => {
     evenement.preventDefault();
@@ -234,12 +256,14 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
       };
       if (modification) {
-        const resultat = await modifierDemande(demande.id, { ...corps, version: demande.version });
+        const resultat = await modifierDemande(demande.id, { ...corps, version: demande.version, noteModification: noteModification.trim() || undefined });
         if (resultat.aucuneModification) {
           setInformation(resultat.message ?? 'Aucune modification');
           return;
         }
-        navigate(`/rh/dpae/${demande.id}`, { state: { confirmation: 'Les modifications de la demande ont été enregistrées.' } });
+        // Version inchangée : seule la note a été enregistrée (aucun changement de la demande).
+        const confirmation = resultat.version === demande.version ? 'La note a été enregistrée.' : 'Les modifications de la demande ont été enregistrées.';
+        navigate(`/rh/dpae/${demande.id}`, { state: { confirmation } });
       } else {
         await creerDemande(corps);
         navigate('/coordination/dpae/suivi');
@@ -802,6 +826,38 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                 </button>{' '}
                 (remplace votre saisie par la version actuelle).
               </p>
+            )}
+
+            {modification && (
+              <div className="page-demande-dpae__note-modification">
+                {noteObligatoire && (
+                  <div className="page-demande-dpae__dernieres-notes">
+                    <strong>Dernières notes de la demande</strong>
+                    {erreurNotes && <p role="alert">Impossible de récupérer les notes de cette demande.</p>}
+                    {!erreurNotes && dernieresNotes.length === 0 && <p>Aucune note enregistrée pour cette demande.</p>}
+                    {dernieresNotes.map((note) => (
+                      <div key={note.id} className="page-demande-dpae__note">
+                        <p>{note.contenu}</p>
+                        <span>
+                          {note.auteur_prenom} {note.auteur_nom} _ {FORMAT_DATE_NOTE.format(new Date(note.date_creation))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <label>
+                  <span>
+                    Note sur la modification{noteObligatoire && <> <span className="champ-obligatoire">*</span></>}
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={noteModification}
+                    onChange={(e) => setNoteModification(e.target.value)}
+                    maxLength={LONGUEUR_MAX_NOTE}
+                    required={noteObligatoire}
+                  />
+                </label>
+              </div>
             )}
 
             <div className="page-demande-dpae__actions">

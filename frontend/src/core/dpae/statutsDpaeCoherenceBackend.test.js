@@ -27,6 +27,10 @@ describe('statuts et transitions DPAE : frontend = backend', () => {
     expect(front.STATUTS_AVANT_RH).toEqual([...back.STATUTS_AVANT_RH]);
   });
 
+  it('mêmes statuts à note de modification obligatoire', () => {
+    expect(front.STATUTS_NOTE_MODIFICATION_OBLIGATOIRE).toEqual([...back.STATUTS_NOTE_MODIFICATION_OBLIGATOIRE]);
+  });
+
   it('mêmes transitions (action, statut de départ, statut d’arrivée), ni plus ni moins', () => {
     expect(front.TRANSITIONS_DPAE.map(cleTransition).sort()).toEqual(back.TRANSITIONS.map(cleTransition).sort());
   });

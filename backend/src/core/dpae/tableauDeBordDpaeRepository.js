@@ -14,7 +14,8 @@
 // (maintenant AT TIME ZONE 'Europe/Paris')::date. date_debut/date_fin sont des colonnes `date`
 // (jours calendaires saisis tels quels), comparées directement à ces jours parisiens.
 
-const { STATUTS_DPAE, STATUTS_A_TRAITER_RH, STATUT_VALIDEE, STATUT_REJETEE, listeSql } = require('./statutsDpae');
+const { STATUTS_DPAE, STATUTS_A_TRAITER_RH, STATUT_VALIDEE, STATUT_REJETEE, STATUT_CLASSEE_SANS_SUITE, listeSql } = require('./statutsDpae');
+const { exclureClasseesNonTransmises } = require('./demandeDpaeRepository');
 
 const FUSEAU = 'Europe/Paris';
 
@@ -25,7 +26,8 @@ const AUJOURDHUI = `(?::timestamptz AT TIME ZONE '${FUSEAU}')::date`;
 // parisien de création, bornes incluses), puis filtres optionnels — site (id, ou 'non_reference'
 // pour les anciennes demandes sans site lié), type de contrat, statut. filtres.statutsExclus : statuts
 // que le rôle de l'appelant ne doit jamais voir (la RH ne voit pas les demandes encore chez le
-// Planning) — absents de TOUS les indicateurs.
+// Planning) — absents de TOUS les indicateurs, comme ses demandes classées sans suite jamais transmises
+// à la RH (filtres.masquerClasseesNonTransmises).
 function requeteBase(bd, entiteId, filtres) {
   const requete = bd('demandes_dpae as d')
     .where('d.entite_id', entiteId)
@@ -33,6 +35,7 @@ function requeteBase(bd, entiteId, filtres) {
   if (filtres.typeContrat) requete.where('d.type_contrat', filtres.typeContrat);
   if (filtres.statut) requete.where('d.statut', filtres.statut);
   if (filtres.statutsExclus?.length > 0) requete.whereNotIn('d.statut', filtres.statutsExclus);
+  if (filtres.masquerClasseesNonTransmises) exclureClasseesNonTransmises(requete, 'd');
   if (filtres.siteId === 'non_reference') {
     requete.whereNotExists(bd('demandes_dpae_sites as l').whereRaw('l.demande_dpae_id = d.id'));
   } else if (filtres.siteId) {
@@ -168,13 +171,13 @@ function repartirParContrat(bd, entiteId, filtres) {
 }
 
 // Raison du CDD, pour les CDD SEULEMENT : une raison restée d'une saisie précédente sur un CDI
-// (constaté en PROD, demande 1) n'est jamais comptée.
+// (constaté en PROD, demande 1) n'est jamais comptée. Les demandes classées sans suite non plus.
 function repartirMotifsCdd(bd, entiteId, filtres) {
   return executerSurBase(
     bd,
     entiteId,
     filtres,
-    `SELECT base.motif_cdd AS cle, count(*)::int AS nombre, ${IDS} AS ids FROM base WHERE base.type_contrat = 'cdd' GROUP BY base.motif_cdd`,
+    `SELECT base.motif_cdd AS cle, count(*)::int AS nombre, ${IDS} AS ids FROM base WHERE base.type_contrat = 'cdd' AND base.statut <> '${STATUT_CLASSEE_SANS_SUITE}' GROUP BY base.motif_cdd`,
   );
 }
 
@@ -238,7 +241,7 @@ function repartirDejaEmploye(bd, entiteId, filtres) {
 
 // --- 4. Anticipation ------------------------------------------------------------------------------
 
-// CDD (non rejetés : un CDD refusé ne prendra jamais fin) dont le dernier jour tombe entre
+// CDD (ni rejetés ni classés sans suite : un CDD refusé ou abandonné ne prendra jamais fin) dont le dernier jour tombe entre
 // aujourd'hui et aujourd'hui + 15 jours (heure de Paris) ; `sous_7_jours` marque ceux des 7
 // prochains jours.
 function listerFinsDeCdd(bd, entiteId, filtres, maintenant) {
@@ -248,7 +251,7 @@ function listerFinsDeCdd(bd, entiteId, filtres, maintenant) {
     filtres,
     `SELECT ${COLONNES_LISTE}, (base.date_fin <= ${AUJOURDHUI} + 7) AS sous_7_jours
      FROM base
-     WHERE base.type_contrat = 'cdd' AND base.statut <> '${STATUT_REJETEE}'
+     WHERE base.type_contrat = 'cdd' AND base.statut NOT IN ('${STATUT_REJETEE}', '${STATUT_CLASSEE_SANS_SUITE}')
        AND base.date_fin BETWEEN ${AUJOURDHUI} AND ${AUJOURDHUI} + 15
      ORDER BY base.date_fin, base.salarie_nom`,
     [maintenant, maintenant, maintenant],

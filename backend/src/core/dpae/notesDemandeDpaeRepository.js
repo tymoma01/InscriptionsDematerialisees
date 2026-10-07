@@ -15,6 +15,7 @@ function listerNotesParDemande(bd, entiteId, demandeId) {
       'notes_demande_dpae.id',
       'notes_demande_dpae.contenu',
       'notes_demande_dpae.date_creation',
+      'notes_demande_dpae.est_note_modification',
       'utilisateurs.prenom as auteur_prenom',
       'utilisateurs.nom as auteur_nom',
       'roles.libelle as auteur_role_libelle',
@@ -25,9 +26,9 @@ function listerNotesParDemande(bd, entiteId, demandeId) {
     ]);
 }
 
-async function ajouterNote(bd, { demandeId, auteurId, contenu }) {
+async function ajouterNote(bd, { demandeId, auteurId, contenu, estNoteModification = false }) {
   const [note] = await bd('notes_demande_dpae')
-    .insert({ demande_dpae_id: demandeId, auteur_id: auteurId, contenu })
+    .insert({ demande_dpae_id: demandeId, auteur_id: auteurId, contenu, est_note_modification: estNoteModification })
     .returning('id');
   return note.id;
 }
