@@ -128,7 +128,15 @@ echo "→ Mise à jour de la Container App '${AZ_CONTAINERAPP_NAME}' (resource g
 az containerapp update \
   --name "$AZ_CONTAINERAPP_NAME" \
   --resource-group "$AZ_RESOURCE_GROUP" \
-  --image "${IMAGE}:${SHA_COURT}" \
-  --max-inactive-revisions "$AZ_REVISIONS_INACTIVES"
+  --image "${IMAGE}:${SHA_COURT}"
+
+# az containerapp update n'expose pas ce réglage sans l'extension containerapp : on passe par la
+# propriété ARM. Réglage de l'application (pas du template), il ne crée pas de nouvelle révision.
+az resource update \
+  --resource-group "$AZ_RESOURCE_GROUP" \
+  --name "$AZ_CONTAINERAPP_NAME" \
+  --resource-type Microsoft.App/containerApps \
+  --set properties.configuration.maxInactiveRevisions="$AZ_REVISIONS_INACTIVES" \
+  --output none
 
 echo "✓ Déployé : ${IMAGE}:${SHA_COURT}"
