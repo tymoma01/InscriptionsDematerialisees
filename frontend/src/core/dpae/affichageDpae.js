@@ -48,7 +48,7 @@ const LIBELLE_PAR_TYPE_DEMANDE = {
   prolongation: 'Prolongation',
   ajout_retrait_jours: 'Ajout/retrait de jours',
   passage_cdi: 'Passage CDI',
-  changement_horaires_affectation: 'Changement horaires/affectation',
+  changement_horaires_affectation: 'Avenant',
 };
 
 export function libelleTypeDemande(demande) {

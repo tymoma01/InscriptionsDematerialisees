@@ -26,7 +26,7 @@ const TYPES_DEMANDE = [
   { code: 'prolongation', libelle: 'Prolongation' },
   { code: 'ajout_retrait_jours', libelle: 'Ajout/retrait de jours' },
   { code: 'passage_cdi', libelle: 'Passage CDI' },
-  { code: 'changement_horaires_affectation', libelle: 'Changement horaires/affectation' },
+  { code: 'changement_horaires_affectation', libelle: 'Avenant' },
 ];
 
 // Postes hôtel — mêmes codes/libellés que BlocDisponibilites.jsx (POSTES_HOTEL), dupliqués ici

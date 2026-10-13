@@ -27,7 +27,7 @@ const LIBELLE_PAR_TYPE = {
   prolongation: 'Prolongation',
   ajout_retrait_jours: 'Ajout/retrait de jours',
   passage_cdi: 'Passage CDI',
-  changement_horaires_affectation: 'Changement horaires/affectation',
+  changement_horaires_affectation: 'Avenant',
 };
 const LIBELLE_PAR_POSTE = {
   femme_valet_chambre: 'Femme/Valet de chambre',

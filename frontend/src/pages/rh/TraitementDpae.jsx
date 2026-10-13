@@ -166,7 +166,7 @@ export default function TraitementDpae() {
                       </td>
                     )}
                     <td>{FORMAT_DATE.format(new Date(demande.date_creation))}</td>
-                    {/* Coupure possible après « / » (« Changement horaires/ affectation ») : colonne étroite. */}
+                    {/* Coupure possible après « / » (« Ajout/ retrait de jours ») : colonne étroite. */}
                     <td className="filtres-liste-dpae__colonne-type">{libelleTypeDemande(demande).replaceAll('/', '/\u200B')}</td>
                     <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--salarie">
                       {demande.salarie_prenom} {demande.salarie_nom}
