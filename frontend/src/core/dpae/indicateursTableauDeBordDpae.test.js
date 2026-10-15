@@ -56,7 +56,7 @@ describe('Nombre de demandes listées = nombre affiché, pour chaque type d’in
     ['statut', 7],
     ['evolution', 14],
     ['tardives', 1],
-    ['contrat', 3],
+    ['contrat', 4],
     ['motif', 3],
     ['emploi', 2],
     ['site', 3],

@@ -314,3 +314,35 @@ test('Entité : « Hôtellerie », « Tertiaire », ou la précision pour « Aut
   assert.deepEqual(entite({ division: 'autre', division_autre: 'Siège' }), ['Entité', 'Siège']);
   assert.equal(entite({ division: null }), undefined);
 });
+
+test('Semaine type : la pause est affichée à côté des horaires ; à 0 ou absente (demande ancienne), rien', () => {
+  const tableau = section(
+    sectionsDemande(
+      demande({
+        semaine_type: [
+          { jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00', pauseMinutes: 60 },
+          { jour: 'mardi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00', pauseMinutes: 0 },
+          { jour: 'mercredi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00' },
+        ],
+      }),
+    ),
+    'Semaine type',
+  ).tableau;
+  assert.deepEqual(tableau.map((ligne) => ligne[1]), ['de 08h00 à 16h00 (pause 1h00)', 'de 08h00 à 16h00', 'de 08h00 à 16h00']);
+});
+
+test('Contrat : « AVENANT » affiché tel quel, sans motif CDD ; nombre de jours seulement si le dernier jour est renseigné', () => {
+  const lignes = (surcharges) => section(sectionsDemande(demande({ type_contrat: 'avenant', motif_cdd: null, ...surcharges })), 'Contrat').lignes;
+  const avecFin = lignes({ date_fin: new Date('2026-10-16T22:00:00Z') });
+  assert.deepEqual(avecFin[0], ['Type de contrat', 'AVENANT']);
+  assert.equal(avecFin.some(([l]) => l === 'Motif CDD'), false);
+  assert.equal(avecFin.some(([l]) => l.startsWith('Nombre')), true);
+  const sansFin = lignes({ date_fin: null });
+  assert.equal(sansFin.some(([l]) => l === 'Dernier jour' || l.startsWith('Nombre')), false);
+  assert.deepEqual(recapitulatif(demande({ type_contrat: 'avenant' }))[2], ['Type de contrat', 'AVENANT']);
+});
+
+test('Contrat : les heures/mois décimales s’affichent au format français (« 135,67 h »)', () => {
+  const contrat = section(sectionsDemande(demande({ heures_par_mois: '135.67' })), 'Contrat').lignes;
+  assert.deepEqual(contrat.find(([l]) => l === 'Heures/mois'), ['Heures/mois', '135,67 h']);
+});

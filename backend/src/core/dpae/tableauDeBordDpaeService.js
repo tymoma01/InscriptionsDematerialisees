@@ -137,8 +137,8 @@ function construireTableauDeBord({ filtres, granularite, optionsSites, bruts, li
       demandes: valideesEnRetard,
     },
     repartition: {
-      contrats: { cdd: 0, cdi: 0, ...enMap(bruts.contrats) },
-      idsContrats: { cdd: [], cdi: [], ...enMapIds(bruts.contrats) },
+      contrats: { cdd: 0, cdi: 0, avenant: 0, ...enMap(bruts.contrats) },
+      idsContrats: { cdd: [], cdi: [], avenant: [], ...enMapIds(bruts.contrats) },
       motifsCdd: { remplacement_absent: 0, surcroit_activite: 0, ...enMap(bruts.motifsCdd) },
       idsMotifsCdd: { remplacement_absent: [], surcroit_activite: [], ...enMapIds(bruts.motifsCdd) },
       sites: bruts.topSites,

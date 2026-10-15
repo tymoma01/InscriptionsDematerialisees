@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { formaterHeure, formaterHeuresParMois } = require('./formatsDpae');
+const { formaterHeure, formaterHeuresParMois, formaterPause, libelleTypeContrat } = require('./formatsDpae');
 const { COORDONNEES_ACCECIT } = require('../../config/coordonneesAccecit');
 
 test('Heure : « 08h00 » au lieu de « 08:00:00 » ; valeur vide conservée ; valeur inattendue rendue telle quelle', () => {
@@ -62,4 +62,18 @@ test('libelleDivision : Hôtellerie, Tertiaire, précision pour Autre, null si a
   assert.equal(libelleDivision('autre', ''), null);
   assert.equal(libelleDivision(null), null);
   assert.equal(libelleDivision('inconnue'), 'inconnue');
+});
+
+test('Pause : « 1h00 », « 0h30 », « 1h15 » ; absente ou à 0 : rien d’affiché', () => {
+  assert.equal(formaterPause(60), '1h00');
+  assert.equal(formaterPause(30), '0h30');
+  assert.equal(formaterPause(75), '1h15');
+  for (const vide of [0, null, undefined, '']) assert.equal(formaterPause(vide), '');
+});
+
+test('Type de contrat : « CDD », « CDI », « AVENANT » ; absent : null', () => {
+  assert.equal(libelleTypeContrat('cdd'), 'CDD');
+  assert.equal(libelleTypeContrat('cdi'), 'CDI');
+  assert.equal(libelleTypeContrat('avenant'), 'AVENANT');
+  assert.equal(libelleTypeContrat(null), null);
 });

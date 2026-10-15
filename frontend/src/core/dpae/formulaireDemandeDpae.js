@@ -38,8 +38,41 @@ export function joursPrivesDeSite(ancienneSemaine, nouvelleSemaine, sitesIds) {
     .map((jour) => jour.jour);
 }
 
+// Pause : minutes entières, de 0 à 4 h par pas de 15 min (listes déroulantes du formulaire).
+export const HEURES_PAUSE = [0, 1, 2, 3, 4];
+export const MINUTES_PAUSE = [0, 15, 30, 45];
+
+export const TYPES_CONTRAT = ['cdd', 'cdi', 'avenant'];
+
 export function semaineTypeInitiale() {
-  return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '' }));
+  return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '', pauseMinutes: 0 }));
+}
+
+const enMinutes = (heure) => Number(heure.slice(0, 2)) * 60 + Number(heure.slice(3, 5));
+
+// Durée d'une journée en minutes (une fin avant le début désigne une journée qui passe minuit) ;
+// null tant que les deux heures ne sont pas saisies.
+function dureeJournee(heureDebut, heureFin) {
+  if (!heureDebut || !heureFin) return null;
+  const debut = enMinutes(heureDebut);
+  const fin = enMinutes(heureFin);
+  return fin > debut ? fin - debut : fin - debut + 24 * 60;
+}
+
+// Pause en minutes lue en base : absente (demande antérieure aux pauses) ou invalide = 0.
+const pauseDepuisBase = (valeur) => (Number.isInteger(valeur) && valeur > 0 ? valeur : 0);
+
+const FORMAT_HEURES_PAR_MOIS = /^\d+([.,]\d{1,2})?$/;
+export const MESSAGE_HEURES_PAR_MOIS = 'Les heures/mois doivent être un nombre positif, avec 2 décimales au plus.';
+
+// Saisie des heures/mois (virgule ou point) -> nombre ; chaîne vide -> null (champ facultatif) ;
+// saisie invalide (lettres, plus de 2 décimales, négative, nulle, au-delà de 999,99) -> NaN.
+export function analyserHeuresParMois(saisie) {
+  const texte = String(saisie ?? '').trim();
+  if (texte === '') return null;
+  if (!FORMAT_HEURES_PAR_MOIS.test(texte)) return Number.NaN;
+  const nombre = Number(texte.replace(',', '.'));
+  return nombre > 0 && nombre <= 999.99 ? nombre : Number.NaN;
 }
 
 export function donneesInitiales() {
@@ -80,6 +113,7 @@ export function donneesInitiales() {
     horairesDifferentsParJour: false,
     heureDebutCommune: '',
     heureFinCommune: '',
+    pauseCommuneMinutes: 0,
     autreChoseSignaler: '',
     verifBesoinHotel: false,
     verifTousJoursInclus: false,
@@ -102,8 +136,9 @@ function jourPourChamp(valeur) {
 // 'HH:MM:SS' (colonne `time`) -> 'HH:MM' pour un <input type="time">.
 const heurePourChamp = (valeur) => (valeur ? String(valeur).slice(0, 5) : '');
 
-// Nombre décimal renvoyé en chaîne (« 151.67 », « 40.00 ») -> chaîne du champ numérique.
-const nombrePourChamp = (valeur) => (valeur === null || valeur === undefined || valeur === '' ? '' : String(Number(valeur)));
+// Nombre décimal renvoyé en chaîne (« 151.67 », « 40.00 ») -> chaîne du champ de saisie, avec la
+// virgule française (« 151,67 », « 40 »).
+const nombrePourChamp = (valeur) => (valeur === null || valeur === undefined || valeur === '' ? '' : String(Number(valeur)).replace('.', ','));
 
 // Demande existante -> données du formulaire. La semaine type est toujours ramenée à 7 jours dans
 // l'ordre de JOURS_SEMAINE ; quand les horaires ne diffèrent pas selon les jours, les heures
@@ -118,6 +153,7 @@ export function donneesFormulaireDepuisDemande(demande) {
       statut: jour?.statut === 'travail' ? 'travail' : 'repos',
       heureDebut: jour?.heureDebut ?? '',
       heureFin: jour?.heureFin ?? '',
+      pauseMinutes: pauseDepuisBase(jour?.pauseMinutes),
       // Ancienne forme (un seul siteId) convertie en liste ; demande antérieure au site par jour :
       // aucun site (rien n'est inventé).
       ...(jour?.siteIds?.length ? { siteIds: jour.siteIds } : jour?.siteId ? { siteIds: [jour.siteId] } : {}),
@@ -163,6 +199,7 @@ export function donneesFormulaireDepuisDemande(demande) {
     horairesDifferentsParJour,
     heureDebutCommune: horairesDifferentsParJour ? '' : (premierJourTravaille?.heureDebut ?? ''),
     heureFinCommune: horairesDifferentsParJour ? '' : (premierJourTravaille?.heureFin ?? ''),
+    pauseCommuneMinutes: horairesDifferentsParJour ? 0 : (premierJourTravaille?.pauseMinutes ?? 0),
     autreChoseSignaler: demande.autre_chose_signaler ?? '',
     verifBesoinHotel: Boolean(demande.verif_besoin_hotel),
     verifTousJoursInclus: Boolean(demande.verif_tous_jours_inclus),
@@ -182,21 +219,35 @@ export function validerFormulaire(donnees) {
 
   if (typeof donnees.salarieDejaEmploye !== 'boolean') refuser('salarieDejaEmploye', 'Indiquez si le salarié a déjà travaillé chez nous.');
   if (donnees.sitesAffectationIds.length === 0) refuser('sites', "Sélectionnez au moins un site d'affectation avant d'envoyer la demande.");
-  if (donnees.typeContrat !== 'cdd' && donnees.typeContrat !== 'cdi') refuser('typeContrat', 'Le type de contrat est obligatoire.');
+  if (!TYPES_CONTRAT.includes(donnees.typeContrat)) refuser('typeContrat', 'Le type de contrat est obligatoire.');
   const estCdd = donnees.typeContrat === 'cdd';
   if (estCdd && !donnees.motifCdd) refuser('motifCdd', 'La raison du CDD est obligatoire.');
   if (!donnees.poste) refuser('poste', 'Le poste est obligatoire.');
   if (!donnees.dateDebut.trim()) refuser('dateDebut', 'Le premier jour est obligatoire.');
-  if (estCdd) {
-    if (!donnees.dateFin) refuser('dateFin', 'Le dernier jour est obligatoire pour un CDD.');
-    else if (donnees.dateDebut && donnees.dateFin < donnees.dateDebut) refuser('dateFin', 'Le dernier jour ne peut pas précéder le premier jour.');
+  if (estCdd && !donnees.dateFin) refuser('dateFin', 'Le dernier jour est obligatoire pour un CDD.');
+  // Avenant : dernier jour facultatif, mais s'il est renseigné il ne peut pas précéder le premier.
+  if ((estCdd || donnees.typeContrat === 'avenant') && donnees.dateFin && donnees.dateDebut && donnees.dateFin < donnees.dateDebut) {
+    refuser('dateFin', 'Le dernier jour ne peut pas précéder le premier jour.');
   }
+  if (Number.isNaN(analyserHeuresParMois(donnees.heuresParMois))) refuser('heuresParMois', MESSAGE_HEURES_PAR_MOIS);
   if (donnees.sitesAffectationIds.length > 1) {
     for (const jour of donnees.semaineType) {
       if (jour.statut === 'travail' && !(jour.siteIds ?? []).some((id) => donnees.sitesAffectationIds.includes(id))) {
         refuser(`semaine:${jour.jour}`, 'Au moins un site est obligatoire pour ce jour.');
       }
     }
+  }
+  // Pause plus courte que la journée : une seule pause commune, ou une par jour travaillé.
+  const messagePause = 'La pause doit être inférieure à la durée de la journée.';
+  if (donnees.horairesDifferentsParJour) {
+    for (const jour of donnees.semaineType) {
+      const duree = jour.statut === 'travail' ? dureeJournee(jour.heureDebut, jour.heureFin) : null;
+      if (duree !== null && jour.pauseMinutes > 0 && jour.pauseMinutes >= duree) refuser(`pause:${jour.jour}`, messagePause);
+    }
+  } else {
+    const duree = dureeJournee(donnees.heureDebutCommune, donnees.heureFinCommune);
+    const aUnJourTravaille = donnees.semaineType.some((jour) => jour.statut === 'travail');
+    if (aUnJourTravaille && duree !== null && donnees.pauseCommuneMinutes > 0 && donnees.pauseCommuneMinutes >= duree) refuser('pause', messagePause);
   }
   return erreurs;
 }

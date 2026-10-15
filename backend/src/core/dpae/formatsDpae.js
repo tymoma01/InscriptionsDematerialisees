@@ -44,4 +44,19 @@ function libelleDivision(division, divisionAutre) {
   return LIBELLE_PAR_DIVISION[division] ?? division;
 }
 
-module.exports = { formaterHeure, formaterHeuresParMois, libellesSitesJour, libelleDivision };
+// Pause en minutes -> « 1h00 », « 0h30 ». Absente ou nulle : chaîne vide (rien n'est affiché).
+function formaterPause(minutes) {
+  const total = Number(minutes);
+  if (!Number.isFinite(total) || total <= 0) return '';
+  return `${Math.floor(total / 60)}h${String(total % 60).padStart(2, '0')}`;
+}
+
+// Code du type de contrat -> libellé (« CDD », « CDI », « AVENANT »). Valeur inattendue : en
+// majuscules, jamais masquée ; absente : null.
+const LIBELLE_PAR_TYPE_CONTRAT = { cdd: 'CDD', cdi: 'CDI', avenant: 'AVENANT' };
+function libelleTypeContrat(code) {
+  if (!code) return null;
+  return LIBELLE_PAR_TYPE_CONTRAT[code] ?? String(code).toUpperCase();
+}
+
+module.exports = { formaterPause, libelleTypeContrat, formaterHeure, formaterHeuresParMois, libellesSitesJour, libelleDivision };

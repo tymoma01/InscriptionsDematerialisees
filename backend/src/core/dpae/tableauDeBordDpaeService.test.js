@@ -65,7 +65,7 @@ test('construireTableauDeBord : sans aucune décision, taux de rejet null (jamai
   assert.equal(t.activite.total, 0);
   assert.equal(t.activite.tauxRejet, null);
   assert.deepEqual(t.activite.parStatut, { a_valider_planning: 0, renvoyee_inspecteur: 0, envoyee: 0, en_attente: 0, validee: 0, rejetee: 0, classee_sans_suite: 0 });
-  assert.deepEqual(t.repartition.contrats, { cdd: 0, cdi: 0 });
+  assert.deepEqual(t.repartition.contrats, { cdd: 0, cdi: 0, avenant: 0 });
   assert.deepEqual(t.repartition.motifsCdd, { remplacement_absent: 0, surcroit_activite: 0 });
   assert.deepEqual(t.anticipation, { sous7Jours: 0, sous15Jours: 0, demandes: [] });
   assert.equal(t.priorite.nombre, 0);
@@ -144,7 +144,7 @@ test('construireTableauDeBord : taux de rejet sur les décidées, sites rattach�
   });
   assert.equal(t.activite.total, 9);
   assert.equal(t.activite.tauxRejet, 0.25);
-  assert.deepEqual(t.repartition.contrats, { cdd: 6, cdi: 0, non_renseigne: 3 });
+  assert.deepEqual(t.repartition.contrats, { cdd: 6, cdi: 0, avenant: 0, non_renseigne: 3 });
   assert.equal(t.repartition.dejaTravailleChezNous, 2);
   assert.equal(t.repartition.nouveauxSalaries, 7);
   assert.deepEqual(t.priorite.premierJourProche[0].sites_affectation.map((s) => s.initiales), ['AIG', 'AL']);
@@ -264,7 +264,7 @@ test('Chaque indicateur cliquable porte autant d’identifiants que le nombre af
     [t.activite.total, t.activite.ids],
     ...['envoyee', 'en_attente', 'validee', 'rejetee'].map((code) => [t.activite.parStatut[code], t.activite.idsParStatut[code]]),
     ...['envoyee', 'en_attente', 'validee', 'rejetee'].map((code) => [t.activite.evolution[0][code], t.activite.evolution[0][`ids_${code}`]]),
-    ...['cdd', 'cdi', 'non_renseigne'].map((cle) => [t.repartition.contrats[cle] ?? 0, t.repartition.idsContrats[cle] ?? []]),
+    ...['cdd', 'cdi', 'avenant', 'non_renseigne'].map((cle) => [t.repartition.contrats[cle] ?? 0, t.repartition.idsContrats[cle] ?? []]),
     ...['remplacement_absent', 'surcroit_activite', 'non_renseigne'].map((cle) => [t.repartition.motifsCdd[cle] ?? 0, t.repartition.idsMotifsCdd[cle] ?? []]),
     ...t.repartition.sites.map((site) => [site.nombre, site.ids]),
     [t.repartition.nonReferencees, t.repartition.idsNonReferencees],

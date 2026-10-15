@@ -1,7 +1,7 @@
 const path = require('node:path');
 const PDFDocument = require('pdfkit');
 const { COORDONNEES_ACCECIT } = require('../../config/coordonneesAccecit');
-const { formaterHeure, formaterHeuresParMois, libellesSitesJour, libelleDivision } = require('./formatsDpae');
+const { formaterHeure, formaterHeuresParMois, formaterPause, libelleTypeContrat, libellesSitesJour, libelleDivision } = require('./formatsDpae');
 const { nombreJoursCalendaires, libelleNombreJours } = require('./joursCalendaires');
 
 // PDF d'une demande DPAE — généré CÔTÉ SERVEUR (pdfkit, pur
@@ -97,7 +97,7 @@ function recapitulatif(demande) {
   return [
     ['Salarié', `${demande.salarie_prenom} ${demande.salarie_nom}`],
     ['Poste', poste || 'Non renseigné'],
-    ['Type de contrat', demande.type_contrat ? demande.type_contrat.toUpperCase() : 'Non renseigné'],
+    ['Type de contrat', libelleTypeContrat(demande.type_contrat) ?? 'Non renseigné'],
     ['Premier jour', demande.date_debut ? formaterDate(demande.date_debut) : 'Non renseigné'],
   ];
 }
@@ -117,7 +117,7 @@ function nombreJoursLigne(demande) {
 function lignesDates(demande) {
   const premier = ligne('Premier jour', demande.date_debut && formaterDate(demande.date_debut));
   const dernier = ligne('Dernier jour', demande.date_fin && formaterDate(demande.date_fin));
-  const nombre = demande.type_contrat === 'cdd' && nombreJoursLigne(demande);
+  const nombre = demande.type_contrat !== 'cdi' && nombreJoursLigne(demande);
   const lignes = [];
   if (premier) lignes.push([...premier, { nouvelleLigne: true, seule: !dernier }]);
   if (dernier) lignes.push(premier ? dernier : [...dernier, { nouvelleLigne: true, seule: true }]);
@@ -167,7 +167,7 @@ function sectionsDemande(demande) {
   sections.push({
     titre: 'Contrat',
     lignes: garder([
-      ligne('Type de contrat', demande.type_contrat?.toUpperCase()),
+      ligne('Type de contrat', libelleTypeContrat(demande.type_contrat)),
       ligne('Motif CDD', motifCdd),
       ligne('Salarié remplacé', demande.salarie_remplace_nom),
       ligne('Date de fin d’absence', demande.date_fin_absence && formaterDate(demande.date_fin_absence)),
@@ -223,7 +223,8 @@ function sectionsDemande(demande) {
           // antérieure au site par jour) — mise en forme par lignesDeTableau.
           tableau: semaineTravaillee.map((jour) => [
             JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour,
-            jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés',
+            (jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés') +
+              (formaterPause(jour.pauseMinutes) ? ` (pause ${formaterPause(jour.pauseMinutes)})` : ''),
             libellesSitesJour(jour, demande.sites_affectation).length > 0 ? libellesSitesJour(jour, demande.sites_affectation) : 'Non précisé',
           ]),
         }),

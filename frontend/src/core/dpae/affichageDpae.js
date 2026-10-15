@@ -3,6 +3,8 @@
 // filtres de ces deux listes (listeDemandesDpae.js) : ce qui est cherché ou filtré est exactement
 // ce qui est affiché.
 
+import { libelleTypeContrat as libelleCodeContrat } from './formatsDpae';
+
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 // Colonne `date` (premier jour) : le pilote PostgreSQL la renvoie comme l'instant de minuit HEURE
@@ -56,7 +58,7 @@ export function libelleTypeDemande(demande) {
 }
 
 export function libelleTypeContrat(demande) {
-  return demande.type_contrat ? demande.type_contrat.toUpperCase() : '—';
+  return libelleCodeContrat(demande.type_contrat) ?? '—';
 }
 
 export function libelleSalarie(demande) {

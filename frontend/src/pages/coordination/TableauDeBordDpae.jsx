@@ -349,6 +349,7 @@ export default function TableauDeBordDpae() {
               <option value="">Tous</option>
               <option value="cdd">CDD</option>
               <option value="cdi">CDI</option>
+              <option value="avenant">AVENANT</option>
             </select>
           </label>
           <label className="indicateurs__filtre">
@@ -484,12 +485,13 @@ export default function TableauDeBordDpae() {
             <h2 className="tableau-bord-dpae__section">Répartition</h2>
             <div className="tableau-bord-dpae__grille">
               <Camembert
-                titre="CDD / CDI"
+                titre="CDD / CDI / AVENANT"
                 cleActive={selection}
                 onChoisir={choisirIndicateur}
                 donnees={[
                   { cle: 'contrat:cdd', libelle: 'CDD', valeur: t.repartition.contrats.cdd },
                   { cle: 'contrat:cdi', libelle: 'CDI', valeur: t.repartition.contrats.cdi },
+                  { cle: 'contrat:avenant', libelle: 'AVENANT', valeur: t.repartition.contrats.avenant ?? 0 },
                   { cle: 'contrat:non_renseigne', libelle: 'Non renseigné', valeur: t.repartition.contrats.non_renseigne ?? 0 },
                 ]}
               />

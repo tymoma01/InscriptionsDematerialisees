@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   JOURS_SEMAINE,
   affecterSitesSemaine,
+  analyserHeuresParMois,
   donneesFormulaireDepuisDemande,
   donneesInitiales,
   joursPrivesDeSite,
@@ -60,7 +61,7 @@ describe('donneesFormulaireDepuisDemande', () => {
       dateDebut: '2026-10-12',
       dateFin: '2026-10-30',
       heureArriveeJ1: '07:30',
-      heuresParMois: '151.67',
+      heuresParMois: '151,67',
       poste: 'equipier',
       sitesAffectationIds: [10, 11],
       joursConcernes: [{ date: '2026-10-14' }],
@@ -72,8 +73,8 @@ describe('donneesFormulaireDepuisDemande', () => {
 
   it('ramène la semaine type à 7 jours dans l’ordre du formulaire et reprend les heures communes du premier jour travaillé', () => {
     expect(donnees.semaineType.map((jour) => jour.jour)).toEqual(JOURS_SEMAINE.map((jour) => jour.code));
-    expect(donnees.semaineType[0]).toEqual({ jour: 'lundi', statut: 'travail', heureDebut: '07:00', heureFin: '15:00' });
-    expect(donnees.semaineType[2]).toEqual({ jour: 'mercredi', statut: 'repos', heureDebut: '', heureFin: '' });
+    expect(donnees.semaineType[0]).toEqual({ jour: 'lundi', statut: 'travail', heureDebut: '07:00', heureFin: '15:00', pauseMinutes: 0 });
+    expect(donnees.semaineType[2]).toEqual({ jour: 'mercredi', statut: 'repos', heureDebut: '', heureFin: '', pauseMinutes: 0 });
     expect(donnees.heureDebutCommune).toBe('07:00');
     expect(donnees.heureFinCommune).toBe('15:00');
   });
@@ -222,5 +223,75 @@ describe('validerFormulaire (mêmes messages que le serveur)', () => {
     const attendu = 'Au moins un site est obligatoire pour ce jour.';
     expect(messages(plusieurs)).toEqual({ 'semaine:mardi': attendu, 'semaine:jeudi': attendu });
     expect(validerFormulaire({ ...plusieurs, semaineType: [jourTravaille('lundi', [10, 11]), jourTravaille('mardi', [11]), jourRepos('mercredi')] })).toEqual([]);
+  });
+});
+
+// Formulaire valide de base : un seul jour travaillé, horaires communs.
+const formulaireValide = (surcharges = {}) => ({
+  ...donneesInitiales(),
+  salarieDejaEmploye: false,
+  sitesAffectationIds: [10],
+  typeContrat: 'cdi',
+  poste: 'equipier',
+  dateDebut: '2026-10-12',
+  ...surcharges,
+});
+const champsEnErreur = (donnees) => validerFormulaire(donnees).map((erreur) => erreur.champ);
+const semaineAvec = (index, champs) => donneesInitiales().semaineType.map((jour, i) => (i === index ? { ...jour, statut: 'travail', ...champs } : jour));
+
+describe('Pause dans la semaine type', () => {
+  it('une demande ancienne (sans pause) est lue avec une pause à 0, sans erreur', () => {
+    const donnees = donneesFormulaireDepuisDemande(DEMANDE);
+    expect(donnees.semaineType.every((jour) => jour.pauseMinutes === 0)).toBe(true);
+    expect(donnees.pauseCommuneMinutes).toBe(0);
+    expect(validerFormulaire(donnees).some((erreur) => erreur.champ.startsWith('pause'))).toBe(false);
+  });
+
+  it('la pause enregistrée est reprise : par jour, et comme pause commune du premier jour travaillé', () => {
+    const semaine = [{ jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00', pauseMinutes: 60 }];
+    const donnees = donneesFormulaireDepuisDemande({ ...DEMANDE, semaine_type: semaine });
+    expect(donnees.semaineType[0].pauseMinutes).toBe(60);
+    expect(donnees.pauseCommuneMinutes).toBe(60);
+  });
+
+  it('pause commune plus longue que la journée : refusée avec un message clair ; plus courte : acceptée', () => {
+    const base = { semaineType: semaineAvec(0, {}), heureDebutCommune: '08:00', heureFinCommune: '09:00' };
+    const refusee = validerFormulaire(formulaireValide({ ...base, pauseCommuneMinutes: 60 }));
+    expect(refusee).toEqual([{ champ: 'pause', message: 'La pause doit être inférieure à la durée de la journée.' }]);
+    expect(champsEnErreur(formulaireValide({ ...base, pauseCommuneMinutes: 45 }))).toEqual([]);
+  });
+
+  it('une pause par jour quand les horaires diffèrent : seul le jour fautif est signalé', () => {
+    const semaine = semaineAvec(0, { heureDebut: '08:00', heureFin: '16:00', pauseMinutes: 60 }).map((jour, i) =>
+      i === 1 ? { ...jour, statut: 'travail', heureDebut: '08:00', heureFin: '09:00', pauseMinutes: 120 } : jour,
+    );
+    expect(champsEnErreur(formulaireValide({ horairesDifferentsParJour: true, semaineType: semaine }))).toEqual(['pause:mardi']);
+  });
+});
+
+describe('Type de contrat « AVENANT »', () => {
+  it('accepté sans motif CDD, avec ou sans dernier jour', () => {
+    expect(champsEnErreur(formulaireValide({ typeContrat: 'avenant', dateFin: '' }))).toEqual([]);
+    expect(champsEnErreur(formulaireValide({ typeContrat: 'avenant', dateFin: '2026-10-30' }))).toEqual([]);
+  });
+
+  it('un dernier jour renseigné ne peut pas précéder le premier ; le CDD exige toujours motif et dernier jour', () => {
+    expect(champsEnErreur(formulaireValide({ typeContrat: 'avenant', dateFin: '2026-10-01' }))).toEqual(['dateFin']);
+    expect(champsEnErreur(formulaireValide({ typeContrat: 'cdd' }))).toEqual(['motifCdd', 'dateFin']);
+  });
+});
+
+describe('Heures/mois', () => {
+  it('virgule et point acceptés, entiers et décimaux à 2 chiffres', () => {
+    expect(analyserHeuresParMois('135,67')).toBe(135.67);
+    expect(analyserHeuresParMois('135.67')).toBe(135.67);
+    expect(analyserHeuresParMois('135')).toBe(135);
+    expect(analyserHeuresParMois('')).toBeNull();
+  });
+
+  it('3 décimales, valeur négative, nulle ou non numérique : refusées', () => {
+    for (const saisie of ['135,678', '-5', '0', 'abc', '1e3']) expect(analyserHeuresParMois(saisie), saisie).toBeNaN();
+    expect(champsEnErreur(formulaireValide({ heuresParMois: '135,678' }))).toEqual(['heuresParMois']);
+    expect(champsEnErreur(formulaireValide({ heuresParMois: '135,67' }))).toEqual([]);
   });
 });

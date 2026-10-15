@@ -31,7 +31,7 @@ export function libellePoste(poste) {
   return poste ? (LIBELLE_PAR_POSTE[poste] ?? poste) : 'Non renseigné';
 }
 
-const LIBELLE_CONTRAT = { cdd: 'CDD', cdi: 'CDI', non_renseigne: 'non renseigné' };
+const LIBELLE_CONTRAT = { cdd: 'CDD', cdi: 'CDI', avenant: 'AVENANT', non_renseigne: 'non renseigné' };
 const LIBELLE_MOTIF = { remplacement_absent: 'Remplacement', surcroit_activite: 'Surcroît d’activité', non_renseigne: 'non renseignée' };
 
 // Map cle -> { cle, libelle, nombre, ids }, dans l'ordre d'affichage de la page.
@@ -60,7 +60,7 @@ export function indicateursCliquables(t) {
     t.declarationsTardives.nombre,
     t.declarationsTardives.demandes.map((demande) => demande.id),
   );
-  for (const cle of ['cdd', 'cdi', 'non_renseigne']) {
+  for (const cle of ['cdd', 'cdi', 'avenant', 'non_renseigne']) {
     ajouter(`contrat:${cle}`, `contrat ${LIBELLE_CONTRAT[cle]}`, t.repartition.contrats[cle], t.repartition.idsContrats?.[cle]);
   }
   for (const cle of ['remplacement_absent', 'surcroit_activite', 'non_renseigne']) {

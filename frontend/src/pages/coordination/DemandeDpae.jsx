@@ -9,12 +9,14 @@ import { creerDemande, listerNotesDemande, modifierDemande, obtenirDemande } fro
 import {
   JOURS_SEMAINE,
   affecterSitesSemaine,
+  analyserHeuresParMois,
   donneesFormulaireDepuisDemande,
   donneesInitiales,
   joursPrivesDeSite,
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
+import SelecteurPause from './SelecteurPause';
 import SelecteurSitesJour from './SelecteurSitesJour';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
 import './DemandeDpae.css';
@@ -223,7 +225,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
     setErreur(null);
     setConflit(false);
     try {
-      const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, ...reste } = donnees;
+      const { candidatId, heuresParMois, heureDebutCommune, heureFinCommune, pauseCommuneMinutes, ...reste } = donnees;
 
       // Semaine type envoyée telle quelle si horaires différents par jour, sinon les heures
       // communes sont recopiées sur chaque jour "travail" — le back reçoit toujours la même forme
@@ -231,21 +233,25 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
       const semaineHoraires = donnees.horairesDifferentsParJour
         ? donnees.semaineType
         : donnees.semaineType.map((jour) =>
-            jour.statut === 'travail' ? { ...jour, heureDebut: heureDebutCommune, heureFin: heureFinCommune } : jour,
+            jour.statut === 'travail'
+              ? { ...jour, heureDebut: heureDebutCommune, heureFin: heureFinCommune, pauseMinutes: pauseCommuneMinutes }
+              : jour,
           );
       // Site par jour : un jour de repos n'en a pas, un seul site est attribué à tous les jours travaillés.
       const semaineType = affecterSitesSemaine(semaineHoraires, donnees.sitesAffectationIds);
-      // CDI : motif, dernier jour et champs du CDD ne sont pas envoyés (champs masqués).
+      // CDI : motif, dernier jour et champs du CDD ne sont pas envoyés (champs masqués). Avenant : ni
+      // motif ni remplacement, dernier jour facultatif.
       const estCdd = donnees.typeContrat === 'cdd';
+      const aDernierJour = estCdd || donnees.typeContrat === 'avenant';
       const corps = {
         ...reste,
         candidatId: candidatId || undefined,
         motifCdd: estCdd ? reste.motifCdd : undefined,
-        dateFin: estCdd ? reste.dateFin : undefined,
+        dateFin: aDernierJour ? reste.dateFin || undefined : undefined,
         dateFinAbsence: estCdd ? reste.dateFinAbsence : undefined,
         raisonSurcroit: estCdd ? reste.raisonSurcroit : undefined,
         salarieRemplaceNom: estCddRemplacement ? reste.salarieRemplaceNom : undefined,
-        heuresParMois: heuresParMois ? Number(heuresParMois) : undefined,
+        heuresParMois: analyserHeuresParMois(heuresParMois) ?? undefined,
         semaineType,
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
       };
@@ -392,6 +398,15 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                 />
                 CDI
               </label>
+              <label className="champ-inline">
+                <input
+                  type="radio"
+                  name="typeContrat"
+                  checked={donnees.typeContrat === 'avenant'}
+                  onChange={() => definir('typeContrat', 'avenant')}
+                />
+                AVENANT
+              </label>
             </fieldset>
             {erreurChamp('typeContrat')}
             </div>
@@ -512,19 +527,20 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
               </label>
               {erreurChamp('dateDebut')}
             </div>
-            {/* Dernier jour : CDD seulement (masqué, et non envoyé, pour un CDI). */}
-            {donnees.typeContrat === 'cdd' && (
+            {/* Dernier jour : CDD (obligatoire) et avenant (facultatif) ; masqué, et non envoyé, pour un CDI. */}
+            {(donnees.typeContrat === 'cdd' || donnees.typeContrat === 'avenant') && (
               <>
                 <div ref={refChamp('dateFin')}>
                   <label>
                     <span>
-                      Dernier jour <span className="champ-obligatoire">*</span>
+                      Dernier jour {donnees.typeContrat === 'cdd' && <span className="champ-obligatoire">*</span>}
                     </span>
                     <input type="date" value={donnees.dateFin} onChange={(e) => definir('dateFin', e.target.value)} />
                   </label>
                   {erreurChamp('dateFin')}
                 </div>
-                {/* Calculé, jamais saisi ni stocké : jours calendaires, premier et dernier jour inclus. */}
+                {/* Calculé, jamais saisi ni stocké : jours calendaires, premier et dernier jour inclus
+                    (pour un avenant, seulement si le dernier jour est renseigné). */}
                 <label>
                   <span>Nombre total de jours calendaires</span>
                   <input type="text" readOnly value={nombreJours === null ? '' : libelleNombreJours(nombreJours)} />
@@ -535,16 +551,19 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
               <span>Heure d&rsquo;arrivée jour 1</span>
               <input type="time" value={donnees.heureArriveeJ1} onChange={(e) => definir('heureArriveeJ1', e.target.value)} />
             </label>
-            <label>
-              <span>Heures/mois</span>
-              <input
-                type="number"
-                min="0"
-                step="0.5"
-                value={donnees.heuresParMois}
-                onChange={(e) => definir('heuresParMois', e.target.value)}
-              />
-            </label>
+            <div ref={refChamp('heuresParMois')}>
+              <label>
+                <span>Heures/mois</span>
+                {/* Texte plutôt que number : la virgule française est acceptée comme le point. */}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={donnees.heuresParMois}
+                  onChange={(e) => definir('heuresParMois', e.target.value)}
+                />
+              </label>
+              {erreurChamp('heuresParMois')}
+            </div>
 
             <fieldset>
               <legend>Les jours ou horaires changent-ils ?</legend>
@@ -708,6 +727,18 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                     onChange={(e) => definir('heureFinCommune', e.target.value)}
                   />
                 </label>
+                {/* Une seule pause, appliquée à tous les jours travaillés. */}
+                <div ref={refChamp('pause')}>
+                  <label>
+                    <span>Pause</span>
+                    <SelecteurPause
+                      minutes={donnees.pauseCommuneMinutes}
+                      onChanger={(minutes) => definir('pauseCommuneMinutes', minutes)}
+                      invalide={Boolean(messageErreur('pause'))}
+                    />
+                  </label>
+                  {erreurChamp('pause')}
+                </div>
               </div>
             )}
 
@@ -759,6 +790,13 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                           value={jour.heureFin}
                           onChange={(e) => definirJourSemaine(index, { heureFin: e.target.value })}
                         />
+                        <SelecteurPause
+                          minutes={jour.pauseMinutes}
+                          onChanger={(minutes) => definirJourSemaine(index, { pauseMinutes: minutes })}
+                          invalide={Boolean(messageErreur(`pause:${jour.jour}`))}
+                          libelleJour={libelle.toLowerCase()}
+                        />
+                        <span ref={refChamp(`pause:${jour.jour}`)}>{erreurChamp(`pause:${jour.jour}`)}</span>
                       </div>
                     )}
                   </div>

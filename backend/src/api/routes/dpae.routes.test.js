@@ -1295,3 +1295,79 @@ test('PATCH /:id/reactiver : version obligatoire (400), sinon 204 ; hors « Clas
   ({ res } = await appelerGestionnaire('patch', '/:id/reactiver', { params: { id: '7' }, body: { version: 2 }, roleCode: 'admin' }));
   assert.equal(res.statut, 403);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Pause dans la semaine type, type de contrat « Avenant », heures/mois décimales.
+// ---------------------------------------------------------------------------------------------
+test('Pause : enregistrée en minutes sur les jours travaillés ; à 0, non conservée (absente = 0)', () => {
+  const { normaliserDemande } = dpaeRouter;
+  const resultat = demandeBodySchema.safeParse(
+    demandeAvecSemaine([jour('lundi', { heureFin: '16:00', pauseMinutes: 60 }), jour('mardi', { pauseMinutes: 0 }), { jour: 'mercredi', statut: 'repos', pauseMinutes: 30 }]),
+  );
+  assert.equal(resultat.success, true);
+  const [lundi, mardi, mercredi] = normaliserDemande(resultat.data).semaineType;
+  assert.equal(lundi.pauseMinutes, 60);
+  assert.equal('pauseMinutes' in mardi, false);
+  assert.equal('pauseMinutes' in mercredi, false);
+});
+
+test('Pause : demande ancienne sans pause acceptée ; pause hors liste (non entière, négative, > 4 h, pas de 15 min) refusée', () => {
+  assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi')])).success, true);
+  for (const pauseMinutes of [-15, 7, 255, 15.5, '60']) {
+    assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { pauseMinutes })])).success, false, String(pauseMinutes));
+  }
+});
+
+test('Pause : égale ou supérieure à la durée de la journée refusée (message clair), inférieure acceptée', () => {
+  const resultat = demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { heureDebut: '08:00', heureFin: '09:00', pauseMinutes: 60 })]));
+  assert.equal(resultat.success, false);
+  const issue = resultat.error.issues.find((i) => i.path[2] === 'pauseMinutes');
+  assert.deepEqual(issue.path, ['semaineType', 0, 'pauseMinutes']);
+  assert.equal(issue.message, 'La pause doit être inférieure à la durée de la journée.');
+  assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { heureDebut: '08:00', heureFin: '09:00', pauseMinutes: 45 })])).success, true);
+  // Journée de nuit (fin avant le début) : 22h00 -> 06h00 = 8 h.
+  assert.equal(demandeBodySchema.safeParse(demandeAvecSemaine([jour('lundi', { heureDebut: '22:00', heureFin: '06:00', pauseMinutes: 60 })])).success, true);
+});
+
+test('Avenant : accepté sans motif CDD, avec ou sans dernier jour ; champs du CDD non conservés', () => {
+  const { normaliserDemande } = dpaeRouter;
+  for (const [nom, schema] of [['création', demandeBodySchema], ['modification', modificationBodySchema]]) {
+    const valide = nom === 'création' ? DEMANDE_VALIDE : MODIFICATION_VALIDE;
+    assert.equal(schema.safeParse({ ...valide, typeContrat: 'avenant' }).success, true, `${nom} sans dernier jour`);
+    assert.equal(schema.safeParse({ ...valide, typeContrat: 'avenant', dateFin: '2026-10-30' }).success, true, `${nom} avec dernier jour`);
+  }
+  const donnees = normaliserDemande(
+    demandeBodySchema.parse({ ...DEMANDE_VALIDE, typeContrat: 'avenant', motifCdd: 'surcroit_activite', salarieRemplaceNom: 'X', dateFin: '2026-10-30' }),
+  );
+  assert.equal(donnees.typeContrat, 'avenant');
+  assert.equal(donnees.dateFin, '2026-10-30');
+  for (const champ of ['motifCdd', 'salarieRemplaceNom', 'dateFinAbsence', 'raisonSurcroit']) assert.equal(champ in donnees, false, champ);
+});
+
+test('Avenant : un dernier jour renseigné ne peut pas précéder le premier jour', () => {
+  const resultat = demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, typeContrat: 'avenant', dateDebut: '2026-10-12', dateFin: '2026-10-01' });
+  assert.equal(resultat.success, false);
+  assert.deepEqual(messagesDe(resultat, 'dateFin'), ['Le dernier jour ne peut pas précéder le premier jour.']);
+});
+
+test('Avenant : accepté comme filtre du tableau de bord', () => {
+  const { filtresTableauDeBordSchema } = dpaeRouter;
+  assert.equal(filtresTableauDeBordSchema.parse({ typeContrat: 'avenant' }).typeContrat, 'avenant');
+});
+
+test('Heures/mois : 135,67 et 135.67 (texte) et 135.67 (nombre) acceptés, entier accepté', () => {
+  for (const heuresParMois of ['135,67', '135.67', 135.67, 135, '135']) {
+    const resultat = demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, heuresParMois });
+    assert.equal(resultat.success, true, String(heuresParMois));
+    assert.equal(resultat.data.heuresParMois, Number(String(heuresParMois).replace(',', '.')));
+  }
+  assert.equal(demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, heuresParMois: '' }).data.heuresParMois, undefined);
+});
+
+test('Heures/mois : 3 décimales, valeur négative, nulle, non numérique ou hors plafond de la colonne refusées', () => {
+  for (const heuresParMois of ['135,678', 135.678, -5, '-5', 0, 'abc', '1000', 1000]) {
+    const resultat = demandeBodySchema.safeParse({ ...DEMANDE_VALIDE, heuresParMois });
+    assert.equal(resultat.success, false, String(heuresParMois));
+    assert.deepEqual(messagesDe(resultat, 'heuresParMois'), ['Les heures/mois doivent être un nombre positif, avec 2 décimales au plus.'], String(heuresParMois));
+  }
+});

@@ -48,11 +48,22 @@ const siteIdsSchema = z
   .array(idPositifSchema)
   .refine((ids) => new Set(ids).size === ids.length, { message: 'Un même site ne peut pas être sélectionné deux fois pour un jour.' })
   .optional();
+// Pause d'un jour travaillé, en minutes entières : de 0 à 4 h par pas de 15 min (les listes du
+// formulaire). Absente = 0 (demandes antérieures aux pauses).
+const PAUSE_MAX_MINUTES = 240;
+const pauseMinutesSchema = z
+  .number({ error: 'La pause est invalide.' })
+  .int('La pause est invalide.')
+  .min(0, 'La pause est invalide.')
+  .max(PAUSE_MAX_MINUTES, 'La pause ne peut pas dépasser 4 h.')
+  .refine((minutes) => minutes % 15 === 0, { message: 'La pause doit être un multiple de 15 minutes.' })
+  .optional();
 const jourSemaineSchema = z.preprocess(convertirSiteIdUnique, z.object({
   jour: z.enum(JOURS_SEMAINE),
   statut: z.enum(['travail', 'repos']),
   heureDebut: heureSchema,
   heureFin: heureSchema,
+  pauseMinutes: pauseMinutesSchema,
   siteIds: siteIdsSchema,
 }));
 const semaineTypeSchema = z
@@ -63,6 +74,25 @@ const semaineTypeSchema = z
 // Champs d'une demande, SANS les règles croisées : source unique de la création (POST /) et de la
 // modification (PUT /:id), qui y ajoutent chacune leurs propres champs (version) et les mêmes
 // règles croisées (verifierReglesDemande).
+// Heures/mois : entier ou décimal à 2 chiffres au plus, strictement positif, virgule ou point
+// acceptés quand la valeur arrive en texte. La colonne est numeric(5,2) : au-delà de 999,99, la base
+// refuserait l'écriture, d'où le plafond.
+const HEURES_PAR_MOIS_MAX = 999.99;
+const FORMAT_HEURES_PAR_MOIS = /^\d+([.,]\d{1,2})?$/;
+const MESSAGE_HEURES_PAR_MOIS = 'Les heures/mois doivent être un nombre positif, avec 2 décimales au plus.';
+const nombreHeuresParMois = z
+  .number({ error: MESSAGE_HEURES_PAR_MOIS })
+  .positive(MESSAGE_HEURES_PAR_MOIS)
+  .max(HEURES_PAR_MOIS_MAX, MESSAGE_HEURES_PAR_MOIS)
+  .refine((nombre) => Math.abs(nombre * 100 - Math.round(nombre * 100)) < 1e-6, { message: MESSAGE_HEURES_PAR_MOIS });
+const heuresParMoisSchema = z.preprocess((valeur) => {
+  if (valeur === '' || valeur === null) return undefined;
+  if (typeof valeur !== 'string') return valeur;
+  const texte = valeur.trim();
+  return FORMAT_HEURES_PAR_MOIS.test(texte) ? Number(texte.replace(',', '.')) : Number.NaN;
+}, nombreHeuresParMois.optional());
+
+const TYPES_CONTRAT = ['cdd', 'cdi', 'avenant'];
 const demandeBaseSchema = z.object({
   typeDemande: z.enum([
     'nouvelle_embauche',
@@ -96,10 +126,11 @@ const demandeBaseSchema = z.object({
       }),
   ),
   // Obligatoire. Les champs propres au CDD (motif, dernier jour…) sont exigés pour un CDD par
-  // verifierReglesDemande, et retirés pour un CDI par normaliserDemande.
+  // verifierReglesDemande, et retirés pour un CDI par normaliserDemande. Un avenant n'a ni motif ni
+  // remplacement ; son dernier jour est facultatif.
   typeContrat: z.preprocess(
     (valeur) => (valeur === '' ? undefined : valeur),
-    z.enum(['cdd', 'cdi'], { error: 'Le type de contrat est obligatoire.' }),
+    z.enum(TYPES_CONTRAT, { error: 'Le type de contrat est obligatoire.' }),
   ),
   motifCdd: enumOptionnel(['remplacement_absent', 'surcroit_activite']),
   salarieRemplaceNom: z.string().trim().optional(),
@@ -115,7 +146,7 @@ const demandeBaseSchema = z.object({
   dateDebut: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le premier jour est obligatoire.')),
   dateFin: z.string().trim().optional(),
   heureArriveeJ1: z.string().trim().optional(),
-  heuresParMois: z.number().nonnegative().optional(),
+  heuresParMois: heuresParMoisSchema,
   modificationsDemandees: z.boolean().optional(),
   modificationHoraires: z.boolean().optional(),
   modificationJoursRepos: z.boolean().optional(),
@@ -138,6 +169,8 @@ const demandeBaseSchema = z.object({
 
 const FORMAT_JOUR = /^\d{4}-\d{2}-\d{2}$/;
 
+const enMinutes = (heure) => Number(heure.slice(0, 2)) * 60 + Number(heure.slice(3, 5));
+
 // Règles croisées entre champs, communes à la création et à la modification.
 //  - « Nom du salarié remplacé » obligatoire UNIQUEMENT pour un CDD de remplacement (règle croisée,
 //    d'où ce contrôle ici plutôt qu'un min(1) sur le champ). La date de fin d'absence reste facultative.
@@ -153,15 +186,28 @@ function verifierReglesDemande(demande, ctx) {
     if (demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
       refuser(['salarieRemplaceNom'], 'Le nom du salarié remplacé est obligatoire pour un CDD de remplacement.');
     }
-    // Dates « AAAA-MM-JJ » : la comparaison de chaînes suit l'ordre chronologique.
-    if (FORMAT_JOUR.test(demande.dateFin ?? '') && FORMAT_JOUR.test(demande.dateDebut) && demande.dateFin < demande.dateDebut) {
-      refuser(['dateFin'], 'Le dernier jour ne peut pas précéder le premier jour.');
-    }
+  }
+  // Dates « AAAA-MM-JJ » : la comparaison de chaînes suit l'ordre chronologique. Pour un avenant, le
+  // dernier jour est facultatif mais, renseigné, reste soumis à la même règle.
+  if (
+    (demande.typeContrat === 'cdd' || demande.typeContrat === 'avenant') &&
+    FORMAT_JOUR.test(demande.dateFin ?? '') &&
+    FORMAT_JOUR.test(demande.dateDebut) &&
+    demande.dateFin < demande.dateDebut
+  ) {
+    refuser(['dateFin'], 'Le dernier jour ne peut pas précéder le premier jour.');
   }
 
   const sitesIds = demande.sitesAffectationIds ?? [];
   (demande.semaineType ?? []).forEach((jour, index) => {
     if (jour.statut !== 'travail') return;
+    if (jour.pauseMinutes > 0 && jour.heureDebut && jour.heureFin) {
+      const debut = enMinutes(jour.heureDebut);
+      const fin = enMinutes(jour.heureFin);
+      // Une fin avant le début désigne une journée qui passe minuit.
+      const duree = fin > debut ? fin - debut : fin - debut + 24 * 60;
+      if (jour.pauseMinutes >= duree) refuser(['semaineType', index, 'pauseMinutes'], 'La pause doit être inférieure à la durée de la journée.');
+    }
     const sitesDuJour = jour.siteIds ?? [];
     if (sitesDuJour.some((id) => !sitesIds.includes(id))) {
       refuser(['semaineType', index, 'siteIds'], 'Les sites d’un jour doivent faire partie des sites d’affectation de la demande.');
@@ -178,12 +224,17 @@ function normaliserDemande(demande) {
   if (donnees.typeContrat === 'cdi') {
     for (const champ of ['motifCdd', 'salarieRemplaceNom', 'dateFinAbsence', 'raisonSurcroit', 'dateFin']) delete donnees[champ];
   }
+  if (donnees.typeContrat === 'avenant') {
+    for (const champ of ['motifCdd', 'salarieRemplaceNom', 'dateFinAbsence', 'raisonSurcroit']) delete donnees[champ];
+  }
   if (donnees.semaineType) {
     const sitesIds = donnees.sitesAffectationIds ?? [];
-    donnees.semaineType = donnees.semaineType.map(({ siteIds, ...jour }) => {
+    donnees.semaineType = donnees.semaineType.map(({ siteIds, pauseMinutes, ...jour }) => {
       if (jour.statut !== 'travail') return jour;
+      // Pause à 0 : non conservée (absente = 0, comme sur les demandes antérieures aux pauses).
+      const avecPause = pauseMinutes > 0 ? { ...jour, pauseMinutes } : jour;
       const sites = sitesIds.length === 1 ? sitesIds : siteIds;
-      return sites === undefined || sites.length === 0 ? jour : { ...jour, siteIds: sites };
+      return sites === undefined || sites.length === 0 ? avecPause : { ...avecPause, siteIds: sites };
     });
   }
   return donnees;
@@ -308,7 +359,7 @@ const filtresTableauDeBordSchema = z.object({
   debut: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
   fin: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
   siteId: z.preprocess(videVersIndefini, z.union([z.literal('non_reference'), idPositifSchema]).optional()),
-  typeContrat: enumOptionnel(['cdd', 'cdi']),
+  typeContrat: enumOptionnel(TYPES_CONTRAT),
   statut: enumOptionnel(statutsDpae.CODES_STATUTS_DPAE),
 });
 
