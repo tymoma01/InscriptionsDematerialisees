@@ -1,0 +1,75 @@
+/* Pastilles « Métier » (FiltreMetier.jsx) — boîte ivoire de .filtres-statut__statuts
+   (FiltresStatut.css). Exactement une ligne par secteur (pas de retour à la ligne), titrée de son
+   secteur ; les pastilles s'étirent pour remplir la ligne sans jamais devenir plus étroites que
+   leur libellé. Sélecteurs préfixés de `div` / doublés de classes : ils doivent l'emporter sur les
+   règles des pages qui stylent toutes leurs boîtes .filtres-statut__statuts (ex.
+   `.tableau-bord-accueil .filtres-statut__statuts`). */
+div.filtre-metier.filtres-statut__statuts {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem var(--espace-petit);
+  margin-bottom: var(--espace-petit);
+}
+
+.filtre-metier__lignes {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filtre-metier__groupe {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Largeur fixe : les pastilles des deux lignes démarrent au même endroit. */
+.filtre-metier__secteur {
+  flex-shrink: 0;
+  width: 4.8rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.filtre-metier__groupe[data-secteur='hotel'] .filtre-metier__secteur {
+  color: var(--couleur-primaire);
+}
+
+.filtre-metier__groupe[data-secteur='bureau'] .filtre-metier__secteur {
+  color: var(--statut-dore-texte);
+}
+
+/* Forme pilule + curseur posés ici : le bloc n'a pas toujours d'ancêtre .filtres-statut. */
+.filtre-metier.filtres-statut__statuts .filtre-metier__groupe button {
+  flex: 1 0 auto;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* Couleur du secteur au repos, la même que les pastilles Hôtellerie (bleu) / Tertiaire (doré) de
+   FiltreEntite.css ; une fois sélectionnée, le remplissage plein .actif ci-dessous l'emporte. */
+.filtre-metier__groupe[data-secteur='hotel'] button:not(.actif) {
+  background-color: var(--couleur-primaire-clair);
+  border-color: rgba(45, 60, 146, 0.35);
+  color: var(--couleur-primaire);
+}
+
+.filtre-metier__groupe[data-secteur='bureau'] button:not(.actif) {
+  background-color: var(--statut-dore-fond);
+  border-color: var(--statut-dore-bordure);
+  color: var(--statut-dore-texte);
+}
+
+/* Sélectionnée : même remplissage plein que `.filtres-statut button.actif`, posé ici pour la même
+   raison. */
+.filtre-metier button.actif {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+}

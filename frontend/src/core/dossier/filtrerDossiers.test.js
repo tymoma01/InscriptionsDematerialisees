@@ -115,3 +115,20 @@ describe('filtrerDossiers — filtre Étudiant', () => {
     expect(correspondFiltreEtudiant({ est_etudiant: null }, '')).toBe(true);
   });
 });
+
+describe('filtrerDossiers — filtre Métier', () => {
+  const dossiers = [
+    dossier({ id: 1, postesHotel: ['equipier'], postesBureau: [] }),
+    dossier({ id: 2, postesHotel: [], postesBureau: ['vitrerie', 'nettoyage'] }),
+    dossier({ id: 3, postesHotel: ['equipier'], postesBureau: ['nettoyage'] }),
+  ];
+
+  test('ne garde que les dossiers ayant déclaré ce métier, quel que soit le secteur', () => {
+    expect(filtrerDossiers(dossiers, { ...SANS_FILTRE, metierFiltre: 'equipier' }).map((d) => d.id)).toEqual([1, 3]);
+    expect(filtrerDossiers(dossiers, { ...SANS_FILTRE, metierFiltre: 'nettoyage' }).map((d) => d.id)).toEqual([2, 3]);
+  });
+
+  test('sans métier choisi, aucune restriction', () => {
+    expect(filtrerDossiers(dossiers, { ...SANS_FILTRE, metierFiltre: '' }).map((d) => d.id)).toEqual([1, 2, 3]);
+  });
+});

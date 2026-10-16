@@ -395,6 +395,34 @@
   display: contents;
 }
 
+.tableau-bord-accueil__ligne-statuts .filtres-statut {
+  margin-bottom: var(--espace-petit);
+}
+
+/* Boîte des statuts resserrée : marges internes et pastilles plus compactes que les autres boîtes
+   de filtres (.tableau-bord-accueil .filtres-statut__statuts, plus bas). */
+.tableau-bord-accueil__ligne-statuts div.filtres-statut__statuts {
+  gap: 0.3rem;
+  padding: 0.3rem var(--espace-petit);
+}
+
+.tableau-bord-accueil__ligne-statuts .filtres-statut__statuts button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.15;
+}
+
+.tableau-bord-accueil__ligne-metier.filtres-statut {
+  margin-bottom: var(--espace-petit);
+}
+
+/* Tous / secteur / « Étudiant » aussi compacts que les pastilles de statut et de métier. */
+.tableau-bord-accueil__ligne-metier .filtres-statut__gauche button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.15;
+}
+
 /* Bloc de gauche et grille des statuts de même hauteur, alignés en haut ET en bas (2026-10-02) :
    la ligne étire ses deux blocs (stretch, au lieu du flex-start générique de FiltresStatut.css) et
    la colonne de gauche répartit ses trois lignes sur toute cette hauteur (space-between) — écart
@@ -471,7 +499,7 @@
 .tableau-bord-accueil
   .filtres-statut__statuts:not(.tableau-bord-accueil__filtres-experience):not(
     .tableau-bord-accueil__filtre-disponibilite-embauche
-  ) {
+  ):not(.filtre-metier) {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }

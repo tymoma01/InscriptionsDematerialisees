@@ -35,6 +35,10 @@ import './FiltresStatut.css';
 // --statut-<variante>-* du badge correspondant (voir FiltresStatut.css, une seule règle pour toutes
 // les variantes). Sans `variante` : rendu historique inchangé (les pages qui colorent déjà leurs
 // pastilles via data-statut, ex. TableauDeBordAccueil.css, ne sont pas concernées).
+//
+// `afficherTous` optionnel (défaut true) : false quand la page place elle-même le bouton « Tous »
+// ailleurs (ex. Dossiers candidats, au-dessus du filtre de secteur) — le bloc de gauche disparaît
+// alors s'il n'a rien d'autre à afficher.
 export default function FiltresStatut({
   statuts = [],
   statutFiltre,
@@ -43,6 +47,7 @@ export default function FiltresStatut({
   filtresSupplementaires,
   compteurTous,
   compteurs,
+  afficherTous = true,
 }) {
   return (
     <nav className="filtres-statut" aria-label={ariaLabel}>
@@ -51,18 +56,22 @@ export default function FiltresStatut({
           de disposer ce bloc autrement (ex. empilé en colonne de largeur fixe,
           TableauDeBordAccueil.css) sans que ce composant générique n'ait à connaître sa mise en
           page cible. */}
-      <div className="filtres-statut__gauche">
-        <div className="filtres-statut__tous">
-          <button
-            type="button"
-            className={statutFiltre === null ? 'actif' : ''}
-            onClick={() => onChangerStatutFiltre(null)}
-          >
-            Tous{compteurTous != null ? <strong> ({compteurTous})</strong> : ''}
-          </button>
+      {(afficherTous || filtresSupplementaires) && (
+        <div className="filtres-statut__gauche">
+          {afficherTous && (
+            <div className="filtres-statut__tous">
+              <button
+                type="button"
+                className={statutFiltre === null ? 'actif' : ''}
+                onClick={() => onChangerStatutFiltre(null)}
+              >
+                Tous{compteurTous != null ? <strong> ({compteurTous})</strong> : ''}
+              </button>
+            </div>
+          )}
+          {filtresSupplementaires}
         </div>
-        {filtresSupplementaires}
-      </div>
+      )}
       <div className="filtres-statut__statuts">
         {statuts.map((statut) => (
           <button

@@ -4,6 +4,7 @@ import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import FiltreEtudiant from '../../core/dossier/FiltreEtudiant';
+import FiltreMetier from '../../core/dossier/FiltreMetier';
 import { CODES_EXPERIENCE_ACCECIT, libelleExperience, varianteExperience } from '../../core/dossier/BadgeExperience';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
 import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, filtrerDossiers } from '../../core/dossier/filtrerDossiers';
@@ -99,6 +100,11 @@ export default function TableauDeBordAccueil({ vue = null }) {
   const [etudiantFiltreBrut, setEtudiantFiltre] = useParametreURL('etudiant', '');
   const etudiantFiltre = etudiantFiltreBrut === FILTRE_ETUDIANT ? FILTRE_ETUDIANT : '';
   const basculerEtudiantFiltre = () => setEtudiantFiltre(basculerChoixUnique(etudiantFiltre, FILTRE_ETUDIANT));
+
+  // Filtre « Métier » : un code de poste ('' = tous), persistant dans l'URL comme les autres ; un
+  // second clic sur la pastille active revient à tous les métiers.
+  const [metierFiltre, setMetierFiltre] = useParametreURL('metier', '');
+  const basculerMetierFiltre = (code) => setMetierFiltre(basculerChoixUnique(metierFiltre, code));
 
   // Filtre "Expérience" — même mécanisme que le sélecteur "Poste" du tableau
   // de bord Indicateurs (Indicateurs.jsx) : un <select> simple, persistant dans l'URL comme les
@@ -281,10 +287,11 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        metierFiltre,
         entitesFiltre: new Set(),
         etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, etudiantFiltre],
+    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, etudiantFiltre],
   );
 
   // Recherche/dates/entité, SANS le filtre « Étudiant » : base du compteur Étudiant,
@@ -297,9 +304,10 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        metierFiltre,
         entitesFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre],
+    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre],
   );
 
   // Recherche/dates/entité (ni statut ni expérience) : base commune aux DEUX familles de
@@ -315,10 +323,11 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        metierFiltre,
         entitesFiltre,
         etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre],
+    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre],
   );
 
   // Recherche/dates/entité/expérience (pas encore le statut) : c'est cette liste, group par
@@ -559,6 +568,32 @@ export default function TableauDeBordAccueil({ vue = null }) {
     [dossiersSansFiltreEtudiant, correspondStatutEtExperience],
   );
 
+  // Compteur de chaque pastille « Métier » : tous les autres filtres appliqués, métier ignoré —
+  // chaque pastille compte ce qu'on obtiendrait en la cliquant. Un dossier compte une fois pour
+  // chacun des métiers qu'il a déclarés.
+  const dossiersSansFiltreMetier = useMemo(
+    () =>
+      filtrerDossiers(dossiers, {
+        recherche,
+        codePostalFiltre,
+        dateDebutFiltre,
+        dateFinFiltre,
+        libellePoste,
+        entitesFiltre,
+        etudiantFiltre,
+      }),
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre],
+  );
+  const compteursParMetier = useMemo(() => {
+    const compte = {};
+    dossiersSansFiltreMetier.filter(correspondStatutEtExperience).forEach((dossier) => {
+      new Set([...(dossier.postesHotel ?? []), ...(dossier.postesBureau ?? [])]).forEach((code) => {
+        compte[code] = (compte[code] ?? 0) + 1;
+      });
+    });
+    return compte;
+  }, [dossiersSansFiltreMetier, correspondStatutEtExperience]);
+
   // "À planifier" inséré juste après "En attente de pièces" (audit 2026-09-27, demande
   // utilisateur — déplacé de la tête de liste, où il vivait depuis son ajout, audit 2026-09-14) :
   // entrée construite à la main, pas via CODES_STATUTS_FILTRES_ACCUEIL (voir le commentaire de
@@ -602,21 +637,34 @@ export default function TableauDeBordAccueil({ vue = null }) {
           <EnTeteBackOffice />
         </header>
 
-        {/* Statut + entité Hôtellerie/Tertiaire en haut (demande utilisateur) — ce sont les deux
-            filtres consultés en premier à l'accueil (état du dossier, secteur du candidat), le
-            reste (recherche nom/prénom, dates, expérience) suit juste en dessous, toujours
-            visible (plus de bouton "Plus de filtres" pour le masquer, retiré le 2026-09-11). */}
-        <FiltresStatut
-          statuts={statutsFiltres}
-          statutFiltre={statutFiltre}
-          onChangerStatutFiltre={setStatutFiltre}
-          compteurTous={dossiersFiltresSansStatut.length}
-          compteurs={compteursParStatut}
-          filtresSupplementaires={
-            // « Étudiant » juste sous Hôtellerie/Tertiaire (seule pastille de ce bloc avec « Tous » pour
-            // l'Inspecteur Hôtellerie, qui n'a pas le filtre de secteur). Conteneur transparent à la mise
-            // en page (display: contents) : « Tous », la rangée de secteur et « Étudiant » sont les trois
-            // lignes d'une même colonne, régulièrement espacées.
+        {/* Ordre des filtres : statuts en pleine largeur, puis Tous/secteur/« Étudiant » à gauche et
+            métiers à droite, enfin recherche/dates/expérience. */}
+        <div className="tableau-bord-accueil__ligne-statuts">
+          <FiltresStatut
+            statuts={statutsFiltres}
+            statutFiltre={statutFiltre}
+            onChangerStatutFiltre={setStatutFiltre}
+            compteurTous={dossiersFiltresSansStatut.length}
+            compteurs={compteursParStatut}
+            afficherTous={false}
+          />
+        </div>
+
+        {/* Classe .filtres-statut reprise pour la mise en page de la ligne (colonne de gauche de
+            TableauDeBordAccueil.css) et le style des pastilles Tous/Secteur/Étudiant. « Tous »
+            (statut) reste en tête de la colonne, au-dessus du secteur. Conteneur transparent
+            (display: contents) : Tous, secteur et « Étudiant » sont les trois lignes de la colonne. */}
+        <div className="filtres-statut tableau-bord-accueil__ligne-metier">
+          <div className="filtres-statut__gauche">
+            <div className="filtres-statut__tous">
+              <button
+                type="button"
+                className={statutFiltre === null ? 'actif' : ''}
+                onClick={() => setStatutFiltre(null)}
+              >
+                Tous <strong>({dossiersFiltresSansStatut.length})</strong>
+              </button>
+            </div>
             <div className="tableau-bord-accueil__filtres-pastilles">
               {!estInspecteurHotellerie && (
                 <FiltreEntite
@@ -628,13 +676,15 @@ export default function TableauDeBordAccueil({ vue = null }) {
               )}
               <FiltreEtudiant actif={etudiantFiltre === FILTRE_ETUDIANT} onBasculer={basculerEtudiantFiltre} compteur={compteurEtudiant} />
             </div>
-          }
-        />
+          </div>
+          <FiltreMetier
+            metierFiltre={metierFiltre}
+            onBasculerMetier={basculerMetierFiltre}
+            compteurs={compteursParMetier}
+            secteurs={estInspecteurHotellerie ? ['hotel'] : undefined}
+          />
+        </div>
 
-        {/* Recherche/dates/expérience — plus de bouton "Plus de filtres" pour les masquer (retiré
-            le 2026-09-11, décision utilisateur : composant PanneauFiltresRepliable.jsx supprimé,
-            ce bloc reste désormais visible en permanence sur les 3 écrans qui le portaient,
-            Dossiers candidats/Suivi des tests/Suivi des formations). */}
         <FiltresRechercheDossiers
           recherche={recherche}
           onChangerRecherche={setRecherche}

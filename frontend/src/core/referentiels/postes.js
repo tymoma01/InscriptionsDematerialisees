@@ -43,3 +43,12 @@ export function abreviationPoste(code, civilite) {
   }
   return ABREVIATIONS_POSTE[code] ?? libellePoste(code);
 }
+
+// Libellé complet suivi de l'abréviation, ex. « Équipier(ère) (EQP) » : utilisé là où l'agent
+// choisit un métier (filtre de Dossiers candidats) et doit faire le lien avec les abréviations
+// des listes. Sans civilité, femme/valet de chambre donne « FDC/VDC ».
+export function libelleEtAbreviationPoste(code) {
+  const abreviation = abreviationPoste(code);
+  const libelle = libellePoste(code);
+  return abreviation === libelle ? libelle : `${libelle} (${abreviation})`;
+}

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { abreviationPoste, libellePoste } from './postes';
+import { abreviationPoste, libelleEtAbreviationPoste, libellePoste } from './postes';
 
 test('abréviations hôtellerie, comme dans les événements Outlook des formateurs', () => {
   expect(abreviationPoste('equipier')).toBe('EQP');
@@ -23,4 +23,10 @@ test('abréviations bureau', () => {
 
 test('code inconnu : libellé tel quel', () => {
   expect(abreviationPoste('poste_inconnu')).toBe(libellePoste('poste_inconnu'));
+});
+
+test('libellé complet suivi de l’abréviation', () => {
+  expect(libelleEtAbreviationPoste('equipier')).toBe('Équipier(ère) (EQP)');
+  expect(libelleEtAbreviationPoste('femme_valet_chambre')).toBe('Femme/Valet de chambre (FDC/VDC)');
+  expect(libelleEtAbreviationPoste('poste_inconnu')).toBe('poste_inconnu');
 });

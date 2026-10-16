@@ -70,6 +70,13 @@ export function compterEtudiants(dossiers) {
   return dossiers.filter((dossier) => correspondFiltreEtudiant(dossier, FILTRE_ETUDIANT)).length;
 }
 
+// Filtre « Métier » : '' (aucune restriction) ou un code de poste ; le dossier doit l'avoir déclaré
+// parmi ses postes Hôtellerie ou Tertiaire.
+export function correspondFiltreMetier(dossier, metierFiltre) {
+  if (!metierFiltre) return true;
+  return [...(dossier.postesHotel ?? []), ...(dossier.postesBureau ?? [])].includes(metierFiltre);
+}
+
 // Pastille à bascule : un clic sélectionne, un second clic revient à la liste complète.
 export function basculerChoixUnique(actuel, choix) {
   return actuel === choix ? '' : choix;
@@ -77,7 +84,7 @@ export function basculerChoixUnique(actuel, choix) {
 
 export function filtrerDossiers(
   dossiers,
-  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre, etudiantFiltre = '' },
+  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre, etudiantFiltre = '', metierFiltre = '' },
 ) {
   // Code postal : champ de filtre séparé (comme Du/Au), plus intégré à `recherche` (voir
   // FiltresRechercheDossiers.jsx) — même comportement "commence par", null-safe, que l'ancien
@@ -166,6 +173,7 @@ export function filtrerDossiers(
       if (!correspondEntite) return false;
     }
     if (!correspondFiltreEtudiant(dossier, etudiantFiltre)) return false;
+    if (!correspondFiltreMetier(dossier, metierFiltre)) return false;
     return true;
   });
 }
