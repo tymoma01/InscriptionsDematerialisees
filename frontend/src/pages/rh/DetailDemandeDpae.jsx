@@ -21,8 +21,9 @@ import {
   varianteStatutDpae,
 } from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
-import { formaterHeure, formaterHeuresParMois, formaterPause, libelleTypeContrat, libellesSitesJour, libelleDivision } from '../../core/dpae/formatsDpae';
+import { formaterHeure, formaterHeuresParMois, libelleTypeContrat, libelleDivision } from '../../core/dpae/formatsDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
+import TableauSemaineType from '../../core/dpae/TableauSemaineType';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
 import {
   obtenirDemande,
@@ -64,15 +65,6 @@ const LIBELLE_PAR_POSTE = {
   equipier: 'Équipier',
   gouvernant: 'Gouvernant(e)',
   autre: 'Autre',
-};
-const JOURS_SEMAINE_LIBELLE = {
-  lundi: 'Lundi',
-  mardi: 'Mardi',
-  mercredi: 'Mercredi',
-  jeudi: 'Jeudi',
-  vendredi: 'Vendredi',
-  samedi: 'Samedi',
-  dimanche: 'Dimanche',
 };
 
 function ligne(libelle, valeur) {
@@ -250,7 +242,6 @@ export default function DetailDemandeDpae() {
     transitionPossible(ACTION_MODIFIER, demande.statut);
 
   const nombreJours = nombreJoursCalendaires(demande.date_debut, demande.date_fin);
-  const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
   const joursConcernes = demande.jours_concernes ?? [];
 
   return (
@@ -382,20 +373,7 @@ export default function DetailDemandeDpae() {
 
         <section className="page-detail-dpae__bloc">
           <h2>Semaine type</h2>
-          {semaineTravaillee.length === 0 && <p>Aucun jour de travail renseigné.</p>}
-          {semaineTravaillee.length > 0 && (
-            <ul className="page-detail-dpae__semaine-type">
-              {semaineTravaillee.map((jour) => (
-                <li key={jour.jour}>
-                  {JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour}
-                  {jour.heureDebut && jour.heureFin ? ` : ${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : ''}
-                  {formaterPause(jour.pauseMinutes) && ` (pause ${formaterPause(jour.pauseMinutes)})`}
-                  {/* Sites du jour (« ALBE (AL), LIB. GARE DE L'EST (GDE) ») ; rien pour une demande antérieure au site par jour. */}
-                  {libellesSitesJour(jour, demande.sites_affectation).length > 0 && ` · ${libellesSitesJour(jour, demande.sites_affectation).join(', ')}`}
-                </li>
-              ))}
-            </ul>
-          )}
+          <TableauSemaineType semaineType={demande.semaine_type} sitesAffectation={demande.sites_affectation} />
         </section>
 
         {demande.autre_chose_signaler && (

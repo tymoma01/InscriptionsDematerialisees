@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, fireEvent } from '@testing-library/react';
 import SelecteurSitesJour, { resumeSelectionSites } from './SelecteurSitesJour';
@@ -48,6 +49,38 @@ describe('SelecteurSitesJour', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tout cocher' }));
     fireEvent.click(screen.getByRole('button', { name: 'Tout décocher' }));
     expect(appels).toEqual([[1, 3], [1, 2, 3], []]);
+  });
+
+  it('un clic sur le NOM du site coche ou décoche la case (toute la ligne est un <label>)', () => {
+    const appels = [];
+    afficher([1], (ids) => appels.push(ids));
+    fireEvent.click(screen.getByRole('button', { name: 'Sites du lundi' }));
+    fireEvent.click(screen.getByText('COLOMBES (COL)'));
+    fireEvent.click(screen.getByText('AIGLON (AIG)'));
+    expect(appels).toEqual([[1, 2], []]);
+    expect(screen.getByText('COLOMBES (COL)').closest('label').querySelector('input[type="checkbox"]')).toBeTruthy();
+  });
+
+  it('clic réel sur le NOM : la perte de focus de la case ne ferme pas le panneau, qui reste ouvert pour cocher plusieurs sites', () => {
+    function Parent() {
+      const [selection, setSelection] = useState([]);
+      return <SelecteurSitesJour sites={SITES} selection={selection} onChanger={setSelection} libelleJour="lundi" />;
+    }
+    render(<Parent />);
+    const bouton = screen.getByRole('button', { name: 'Sites du lundi' });
+    fireEvent.click(bouton);
+    const premiereCase = screen.getAllByRole('checkbox')[0];
+    premiereCase.focus();
+    // Navigateur : l'appui sur du texte non focalisable retire le focus de la case, sans nouvelle cible.
+    fireEvent.blur(premiereCase, { relatedTarget: null });
+    fireEvent.click(screen.getByText('AIGLON (AIG)'));
+    expect(bouton.textContent).toContain('AIG');
+    fireEvent.click(screen.getByText('COLOMBES (COL)'));
+    expect(screen.getByRole('group')).toBeTruthy();
+    expect(bouton.textContent).toContain('AIG, COL');
+    // Le focus qui part vers un élément extérieur ferme toujours le panneau.
+    fireEvent.blur(screen.getAllByRole('checkbox')[0], { relatedTarget: document.body.appendChild(document.createElement('input')) });
+    expect(screen.queryByRole('group')).toBeNull();
   });
 
   it('Échap ferme le panneau et rend le focus au bouton ; le clic à l’extérieur le ferme aussi', () => {

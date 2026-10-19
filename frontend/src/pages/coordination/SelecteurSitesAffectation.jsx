@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import LigneSiteCochable from '../../core/dpae/LigneSiteCochable';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { listerSitesAffectation, creerSiteAffectation } from '../../services/siteAffectationService';
 import './SelecteurSitesAffectation.css';
@@ -217,24 +218,9 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
         {/* Grille : ordre alphabétique de lecture ligne par ligne, de gauche à droite (flux de grille
             par défaut), 4 colonnes en largeur bureau, 2 en tablette (voir le .css). */}
         <div className="selecteur-sites__grille">
-          {sitesAffiches.map((site) => {
-            const estSelectionne = selection.includes(site.id);
-            return (
-              <button
-                key={site.id}
-                type="button"
-                className={`selecteur-sites__site${estSelectionne ? ' selecteur-sites__site--selectionne' : ''}`}
-                aria-pressed={estSelectionne}
-                onClick={() => basculerSite(site.id)}
-              >
-                <span className="selecteur-sites__coche" aria-hidden="true">
-                  {estSelectionne ? '✓' : ''}
-                </span>
-                <span className="selecteur-sites__nom">{site.nom}</span>
-                <span className="selecteur-sites__initiales">{site.initiales}</span>
-              </button>
-            );
-          })}
+          {sitesAffiches.map((site) => (
+            <LigneSiteCochable key={site.id} site={site} coche={selection.includes(site.id)} onBasculer={basculerSite} variante="tuile" afficherInitiales />
+          ))}
         </div>
 
         <div className="selecteur-sites__pied">

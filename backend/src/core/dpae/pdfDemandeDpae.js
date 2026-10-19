@@ -75,6 +75,9 @@ const formaterDate = (valeur) => FORMAT_DATE.format(new Date(valeur));
 const formaterDateHeure = (valeur) => FORMAT_DATE_HEURE.format(new Date(valeur));
 
 // Même règle que ligne() de la fiche : valeur nulle, indéfinie ou vide -> ligne non affichée.
+// Cellule « Pause » d'un jour sans pause.
+const SANS_PAUSE = '-';
+
 function ligne(libelle, valeur) {
   if (valeur === null || valeur === undefined || valeur === '') return null;
   return [libelle, String(valeur)];
@@ -218,13 +221,14 @@ function sectionsDemande(demande) {
     ...(semaineTravaillee.length === 0
       ? { texte: 'Aucun jour de travail renseigné.' }
       : {
-          // Tableau « Jour | Horaires | Site(s) » : un jour travaillé par ligne, « de 10h00 à 12h00 » puis
-          // la LISTE des sites du jour, [« AIGLON (AIG) », …] (« Non précisé » pour une demande
-          // antérieure au site par jour) — mise en forme par lignesDeTableau.
+          // Tableau « Jour | Horaires | Pause | Site(s) » : un jour travaillé par ligne, « de 10h00 à 12h00 »,
+          // la pause (« 1h00 », « - » sans pause) puis la LISTE des sites du jour, [« AIGLON (AIG) », …]
+          // (« Non précisé » pour une demande antérieure au site par jour). La colonne Pause n'est
+          // dessinée que si un jour au moins a une pause — mise en forme par lignesDeTableau.
           tableau: semaineTravaillee.map((jour) => [
             JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour,
-            (jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés') +
-              (formaterPause(jour.pauseMinutes) ? ` (pause ${formaterPause(jour.pauseMinutes)})` : ''),
+            jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés',
+            formaterPause(jour.pauseMinutes) || SANS_PAUSE,
             libellesSitesJour(jour, demande.sites_affectation).length > 0 ? libellesSitesJour(jour, demande.sites_affectation) : 'Non précisé',
           ]),
         }),
@@ -508,37 +512,51 @@ function lignesDePaires(doc, paires, largeurInterne) {
   return lignes;
 }
 
-// Tableau « Jour | Horaires | Site(s) ». La cellule des sites est une liste de libellés (ou un texte) :
-// les sites sont séparés par « , » et, si la place manque, le retour à la ligne se fait ENTRE deux
-// sites (espaces insécables à l'intérieur d'un libellé) ; la ligne grandit en conséquence.
+// Tableau « Jour | Horaires | Pause | Site(s) » (colonne Pause absente si aucun jour n'a de pause). La
+// cellule des sites est une liste de libellés (ou un texte) : un site par ligne, un nom trop long
+// passe à la ligne entre deux mots. La hauteur d'une ligne est celle de sa cellule la plus haute : aucun texte ne déborde sur la
+// ligne suivante.
 function lignesDeTableau(doc, tableau, largeurInterne) {
+  const avecPause = tableau.some((ligne) => ligne[2] !== SANS_PAUSE);
   const largeurJour = 100;
   const largeurHoraires = 120;
-  const largeurSite = largeurInterne - largeurJour - largeurHoraires - 8;
+  const largeurPause = avecPause ? 60 : 0;
+  const largeurSite = largeurInterne - largeurJour - largeurHoraires - largeurPause - 8;
   const hauteurLigne = 17;
+  const xHoraires = largeurJour;
+  const xPause = xHoraires + largeurHoraires;
+  const xSite = xPause + largeurPause;
   const lignes = [
     {
       hauteur: hauteurLigne,
       dessiner: (x, y) => {
         doc.rect(x, y, largeurInterne, hauteurLigne).fill(COULEURS.fondRecapitulatif);
         doc.font(POLICE_GRAS).fontSize(TAILLE_LIBELLE).fillColor(COULEURS.libelle);
-        doc.text('Jour', x + 8, y + 4.5, { width: largeurJour, lineBreak: false });
-        doc.text('Horaires', x + largeurJour, y + 4.5, { width: largeurHoraires, lineBreak: false });
-        doc.text('Site', x + largeurJour + largeurHoraires, y + 4.5, { width: largeurSite, lineBreak: false });
+        doc.text('Jour', x + 8, y + 4.5, { width: largeurJour - 8, lineBreak: false });
+        doc.text('Horaires', x + xHoraires, y + 4.5, { width: largeurHoraires, lineBreak: false });
+        if (avecPause) doc.text('Pause', x + xPause, y + 4.5, { width: largeurPause, lineBreak: false });
+        doc.text('Site', x + xSite, y + 4.5, { width: largeurSite, lineBreak: false });
       },
     },
   ];
-  for (const [jour, horaires, sites] of tableau) {
-    const texteSites = Array.isArray(sites) ? sites.map((site) => site.replace(/ /g, '\u00a0')).join(', ') : sites;
+  for (const [jour, horaires, pause, sites] of tableau) {
+    const texteSites = Array.isArray(sites) ? sites.join('\n') : sites;
     doc.font(POLICE).fontSize(TAILLE_VALEUR);
-    const hauteur = Math.max(hauteurLigne, doc.heightOfString(texteSites, { width: largeurSite }) + 7);
+    const hauteurTexteMax = Math.max(
+      doc.heightOfString(jour, { width: largeurJour - 8 }),
+      doc.heightOfString(horaires, { width: largeurHoraires - 4 }),
+      avecPause ? doc.heightOfString(pause, { width: largeurPause - 4 }) : 0,
+      doc.heightOfString(texteSites, { width: largeurSite }),
+    );
+    const hauteur = Math.max(hauteurLigne, hauteurTexteMax + 7);
     lignes.push({
       hauteur,
       dessiner: (x, y) => {
         doc.font(POLICE).fontSize(TAILLE_VALEUR).fillColor(COULEURS.texte);
-        doc.text(jour, x + 8, y + 3.5, { width: largeurJour - 8, lineBreak: false });
-        doc.text(horaires, x + largeurJour, y + 3.5, { width: largeurHoraires, lineBreak: false });
-        doc.text(texteSites, x + largeurJour + largeurHoraires, y + 3.5, { width: largeurSite });
+        doc.text(jour, x + 8, y + 3.5, { width: largeurJour - 8 });
+        doc.text(horaires, x + xHoraires, y + 3.5, { width: largeurHoraires - 4 });
+        if (avecPause) doc.text(pause, x + xPause, y + 3.5, { width: largeurPause - 4 });
+        doc.text(texteSites, x + xSite, y + 3.5, { width: largeurSite });
         doc.moveTo(x, y + hauteur).lineTo(x + largeurInterne, y + hauteur).lineWidth(0.4).strokeColor(COULEURS.filet).stroke();
       },
     });
@@ -678,6 +696,8 @@ module.exports = {
   textesPiedDePage,
   nomFichierPdf,
   nettoyerSegmentChemin,
+  // Tableau de la semaine type : exposé pour vérifier colonnes et hauteurs de lignes.
+  lignesDeTableau,
   // Bandeau : exposés pour vérifier que le filet souligne exactement le mot « ACCECIT ».
   dessinerBandeau,
   largeurMotAccecit,

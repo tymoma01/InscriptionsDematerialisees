@@ -6,11 +6,11 @@ const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const notificationService = require('../notifications/notificationService');
+const notificationsDpae = require('./notificationsDpae');
 const siteAffectationRepository = require('./siteAffectationRepository');
 const journalAudit = require('../audit/journalAudit');
 const statutsDpae = require('./statutsDpae');
 const { champsModifies } = require('./champsDemandeDpae');
-const { ROLES } = require('../auth/rbac');
 const { aPermission } = require('../auth/permissions');
 
 class ErreurDemandeIntrouvable extends Error {}
@@ -64,10 +64,6 @@ class ErreurSitesAffectationInvalides extends Error {}
 // requête est refusée (403 dans dpae.routes.js), jamais de ZIP partiel.
 class ErreurExportDemandesRefuse extends Error {}
 
-function libelleSalarie(demande) {
-  return `${demande.salarie_prenom} ${demande.salarie_nom}`;
-}
-
 async function verifierDemandeExiste(bd, entite, demandeId) {
   const demande = await demandeDpaeRepository.trouverDemandeParId(bd, entite.id, demandeId);
   if (!demande) {
@@ -90,9 +86,8 @@ async function verifierSitesValides(trx, entite, sitesAffectationIds) {
 
 // Crée directement la demande (pas de brouillon intermédiaire, voir migration 066). Une demande
 // d'un rôle « soumis au Planning » (Inspecteur Hôtellerie) démarre « À valider par le Planning », sans
-// date d'envoi à la RH, et les utilisateurs Planning de l'entité en sont notifiés ; toute autre
-// démarre « À traiter », envoyée à la RH à l'instant (la RH la voit dans sa file, sans notification
-// stockée : voir listerPourRh).
+// date d'envoi à la RH, et le Planning en est notifié ; toute autre démarre « À traiter », envoyée à la RH
+// à l'instant, et la RH en est notifiée.
 //
 // Sites d'affectation (référentiel `sites_affectation`, migration 069) : la demande et ses liens sont
 // enregistrés dans UNE SEULE transaction — aucun enregistrement partiel en cas d'erreur. Chaque id
@@ -112,31 +107,23 @@ async function creerEtEnvoyer(entite, demandeurId, donnees, { roleCode } = {}) {
       statut: soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL,
     });
     await siteAffectationRepository.lierSitesDemande(trx, demandeId, sitesAffectationIds);
-    if (soumiseAuPlanning) {
-      await notifierRole(trx, entite, ROLES.PLANNING, demandeId, {
-        type: 'demande_dpae_a_valider',
-        message: `Nouvelle demande DPAE à valider : ${champsDemande.salariePrenom} ${champsDemande.salarieNom}.`,
-      });
-    }
+    const demandeCreee = {
+      id: demandeId,
+      statut: soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL,
+      demandeur_id: demandeurId,
+      salarie_prenom: champsDemande.salariePrenom,
+      salarie_nom: champsDemande.salarieNom,
+      date_envoi_rh: null,
+    };
+    await notificationsDpae.notifierAction(trx, entite, demandeCreee, {
+      auteurId: demandeurId,
+      type: soumiseAuPlanning ? 'demande_dpae_a_valider' : 'demande_dpae_transmise',
+      action: 'demande créée',
+      parties: [soumiseAuPlanning ? notificationsDpae.PARTIE_PLANNING : notificationsDpae.PARTIE_RH],
+      rhConcernee: !soumiseAuPlanning,
+    });
     return demandeId;
   });
-}
-
-// Notifie tous les comptes actifs d'un rôle de l'entité, avec un lien vers la fiche de la demande.
-async function notifierRole(trx, entite, roleCode, demandeId, { type, message }) {
-  const ids = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, roleCode);
-  await notificationService.creerNotifications(
-    trx,
-    ids.map((utilisateurId) => ({
-      entiteId: entite.id,
-      utilisateurId,
-      type,
-      tableCible: 'demandes_dpae',
-      cibleId: demandeId,
-      message,
-      lien: `/rh/dpae/${demandeId}`,
-    })),
-  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -325,13 +312,12 @@ async function appliquerTransition(entite, demandeId, { action, version, utilisa
   });
 }
 
-// Fin des notifications d'une décision sans motif : la raison est dans les notes de la demande.
-const INVITATION_NOTES = 'Consultez les notes de la demande.';
+// Notifier d'une transition : `parties` visées, auteur = utilisateur qui agit (jamais notifié lui-même).
+// La raison d'une décision est dans les notes de la demande, pas dans la notification.
+const notifierParties = (entite, auteurId, { type, action, parties, ...options }) => (demande, trx) =>
+  notificationsDpae.construireNotifications(trx, entite, demande, { auteurId, type, action, parties, ...options });
 
-// Notification du seul demandeur, vers sa liste de suivi (décisions de la RH).
-const versDemandeur = (type, messageDe) => (demande) => [
-  { utilisateurId: demande.demandeur_id, type, message: messageDe(demande), lien: '/coordination/dpae/suivi' },
-];
+const { PARTIE_DEMANDEUR, PARTIE_PLANNING, PARTIE_RH, TOUTES_LES_PARTIES } = notificationsDpae;
 
 // `version` : version de la demande lue par l'appelant (verrouillage optimiste, voir
 // appliquerTransition). `adresseIp` : tracée dans journal_audit.
@@ -350,7 +336,7 @@ async function valider(entite, demandeId, traitantId, { version, adresseIp, role
         traitantId,
       }),
     tracer: { action: 'demande_dpae_validation', donnees: {} },
-    notifier: versDemandeur('demande_dpae_validee', (demande) => `Votre demande DPAE pour ${libelleSalarie(demande)} a été validée par la RH.`),
+    notifier: notifierParties(entite, traitantId, { type: 'demande_dpae_validee', action: 'validée', parties: [PARTIE_DEMANDEUR, PARTIE_PLANNING] }),
   });
 }
 
@@ -371,7 +357,7 @@ async function rejeter(entite, demandeId, traitantId, { version, adresseIp, role
         traitantId,
       }),
     tracer: { action: 'demande_dpae_rejet', donnees: {} },
-    notifier: versDemandeur('demande_dpae_rejetee', () => `Votre demande DPAE n° ${demandeId} a été rejetée. ${INVITATION_NOTES}`),
+    notifier: notifierParties(entite, traitantId, { type: 'demande_dpae_rejetee', action: 'rejetée', parties: [PARTIE_DEMANDEUR, PARTIE_PLANNING] }),
   });
 }
 
@@ -392,7 +378,7 @@ async function mettreEnAttente(entite, demandeId, traitantId, { version, adresse
         traitantId,
       }),
     tracer: { action: 'demande_dpae_mise_en_attente', donnees: {} },
-    notifier: versDemandeur('demande_dpae_en_attente', () => `Votre demande DPAE n° ${demandeId} a été mise en attente. ${INVITATION_NOTES}`),
+    notifier: notifierParties(entite, traitantId, { type: 'demande_dpae_en_attente', action: 'mise en attente', parties: [PARTIE_DEMANDEUR, PARTIE_PLANNING] }),
   });
 }
 
@@ -408,23 +394,7 @@ async function transmettreALaRh(entite, demandeId, utilisateurId, { version, adr
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.transmettreALaRh(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
     tracer: { action: 'demande_dpae_transmission_rh', donnees: {} },
-    notifier: async (demande, trx) => {
-      const rhIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.RH);
-      return [
-        ...rhIds.map((rhId) => ({
-          utilisateurId: rhId,
-          type: 'demande_dpae_transmise',
-          message: `Nouvelle demande DPAE à traiter : ${libelleSalarie(demande)}.`,
-          lien: `/rh/dpae/${demandeId}`,
-        })),
-        {
-          utilisateurId: demande.demandeur_id,
-          type: 'demande_dpae_transmise',
-          message: `Votre demande DPAE pour ${libelleSalarie(demande)} a été transmise à la RH par le Planning.`,
-          lien: `/rh/dpae/${demandeId}`,
-        },
-      ];
-    },
+    notifier: notifierParties(entite, utilisateurId, { type: 'demande_dpae_transmise', action: 'transmise à la RH', parties: [PARTIE_RH, PARTIE_DEMANDEUR], rhConcernee: true }),
   });
 }
 
@@ -443,14 +413,7 @@ async function renvoyerAInspecteur(entite, demandeId, utilisateurId, { version, 
         statut: transition.vers,
       }),
     tracer: { action: 'demande_dpae_renvoi_inspecteur', donnees: {} },
-    notifier: (demande) => [
-      {
-        utilisateurId: demande.demandeur_id,
-        type: 'demande_dpae_renvoyee',
-        message: `Votre demande DPAE n° ${demandeId} a été renvoyée. ${INVITATION_NOTES}`,
-        lien: `/rh/dpae/${demandeId}`,
-      },
-    ],
+    notifier: notifierParties(entite, utilisateurId, { type: 'demande_dpae_renvoyee', action: 'renvoyée à l’inspecteur', parties: [PARTIE_DEMANDEUR] }),
   });
 }
 
@@ -477,7 +440,7 @@ async function classerSansSuite(entite, demandeId, utilisateurId, { version, adr
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.classerSansSuite(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers, classeeParRole: roleCode }),
     tracer: { action: 'demande_dpae_classement_sans_suite', donnees: {} },
-    notifier: () => [],
+    notifier: notifierParties(entite, utilisateurId, { type: 'demande_dpae_classee', action: 'classée sans suite', parties: TOUTES_LES_PARTIES }),
   });
 }
 
@@ -502,15 +465,7 @@ async function retransmettreALaRh(entite, demandeId, utilisateurId, { version, a
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.retransmettreALaRh(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
     tracer: { action: 'demande_dpae_retransmission_rh', donnees: {} },
-    notifier: async (demande, trx) => {
-      const rhIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.RH);
-      return rhIds.map((rhId) => ({
-        utilisateurId: rhId,
-        type: 'demande_dpae_completee',
-        message: `Demande complétée : la demande DPAE pour ${libelleSalarie(demande)} repasse « À traiter ».`,
-        lien: `/rh/dpae/${demandeId}`,
-      }));
-    },
+    notifier: notifierParties(entite, utilisateurId, { type: 'demande_dpae_transmise', action: 'transmise à la RH', parties: [PARTIE_RH, PARTIE_DEMANDEUR] }),
   });
 }
 
@@ -535,15 +490,7 @@ async function envoyerAuPlanning(entite, demandeId, utilisateurId, { version, ad
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.envoyerAuPlanning(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
     tracer: { action: 'demande_dpae_envoi_planning', donnees: {} },
-    notifier: async (demande, trx) => {
-      const planningIds = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.PLANNING);
-      return planningIds.map((planningId) => ({
-        utilisateurId: planningId,
-        type: 'demande_dpae_a_valider',
-        message: `Demande DPAE corrigée par l'inspecteur, à valider : ${libelleSalarie(demande)}.`,
-        lien: `/rh/dpae/${demandeId}`,
-      }));
-    },
+    notifier: notifierParties(entite, utilisateurId, { type: 'demande_dpae_a_valider', action: 'envoyée au Planning', parties: [PARTIE_PLANNING] }),
   });
 }
 
@@ -564,20 +511,20 @@ async function reactiver(entite, demandeId, utilisateurId, { version, adresseIp,
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.reactiver(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
     tracer: (demande, transition) => ({ action: 'demande_dpae_reactivation', donnees: { statutRetour: transition.vers } }),
-    notifier: async (demande, trx, transition) => {
-      if (transition.vers === statutsDpae.STATUT_RENVOYEE_INSPECTEUR) {
-        return [
-          { utilisateurId: demande.demandeur_id, type: 'demande_dpae_renvoyee', message: `Votre demande DPAE n° ${demandeId} a été réactivée et vous est renvoyée.`, lien: `/rh/dpae/${demandeId}` },
-        ];
-      }
-      const auPlanning = transition.vers === statutsDpae.STATUT_A_VALIDER_PLANNING;
-      const ids = await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, auPlanning ? ROLES.PLANNING : ROLES.RH);
-      return ids.map((id) => ({
-        utilisateurId: id,
-        type: auPlanning ? 'demande_dpae_a_valider' : 'demande_dpae_transmise',
-        message: `Demande DPAE réactivée${auPlanning ? ', à valider' : ', à traiter'} : ${libelleSalarie(demande)}.`,
-        lien: `/rh/dpae/${demandeId}`,
-      }));
+    notifier: (demande, trx, transition) => {
+      const reprise = {
+        [statutsDpae.STATUT_RENVOYEE_INSPECTEUR]: [],
+        [statutsDpae.STATUT_A_VALIDER_PLANNING]: [PARTIE_PLANNING],
+        [statutsDpae.STATUT_ENVOYEE]: [PARTIE_RH],
+        [statutsDpae.STATUT_EN_ATTENTE]: [PARTIE_RH],
+      }[transition.vers];
+      return notifierParties(entite, utilisateurId, {
+        type: 'demande_dpae_reactivee',
+        action: 'réactivée',
+        parties: [PARTIE_DEMANDEUR, ...reprise],
+        // Le Planning reprend la main : il est destinataire même si le demandeur n'est pas un inspecteur.
+        circuitPlanning: transition.vers === statutsDpae.STATUT_A_VALIDER_PLANNING ? true : undefined,
+      })(demande, trx);
     },
   });
 }
@@ -612,7 +559,8 @@ async function enregistrerNoteModification(trx, entite, demandeId, { contenu, ut
 // obsolète ou demande modifiée entre-temps (409) -> statut verrouillé (409) -> note absente (400) -> sites
 // invalides (400). Le demandeur, l'entité et la date de création ne sont jamais modifiés. `donnees` : la
 // demande complète, déjà validée par le même schéma que la création (dpae.routes.js).
-// Sans aucun changement de la demande, seule la note est enregistrée : ni version, ni notification.
+// Sans aucun changement de la demande, seule la note est enregistrée (ni version) : les parties sont
+// notifiées de la note. Sinon, elles le sont de la modification, avec l'extrait de sa note.
 // Trace : statut et NOMS des champs modifiés, jamais leurs valeurs (données personnelles).
 async function modifierDemande(entite, demandeId, { donnees, version, utilisateurId, roleCode, adresseIp, noteModification }) {
   if (!Number.isInteger(version)) {
@@ -640,6 +588,13 @@ async function modifierDemande(entite, demandeId, { donnees, version, utilisateu
     const champs = [...champsModifies(demande, champsDemande), ...(sitesModifies ? ['sitesAffectationIds'] : [])];
     if (champs.length === 0) {
       await enregistrerNoteModification(trx, entite, demandeId, { contenu: note, utilisateurId, adresseIp });
+      await notificationsDpae.notifierAction(trx, entite, demande, {
+        auteurId: utilisateurId,
+        type: 'demande_dpae_note',
+        action: 'note ajoutée',
+        parties: TOUTES_LES_PARTIES,
+        note,
+      });
       return { statut: demande.statut, version: demande.version, champsModifies: [], noteEnregistree: true };
     }
 
@@ -662,6 +617,13 @@ async function modifierDemande(entite, demandeId, { donnees, version, utilisateu
       adresseIp,
     });
     await enregistrerNoteModification(trx, entite, demandeId, { contenu: note, utilisateurId, adresseIp });
+    await notificationsDpae.notifierAction(trx, entite, demande, {
+      auteurId: utilisateurId,
+      type: 'demande_dpae_modifiee',
+      action: 'demande modifiée',
+      parties: TOUTES_LES_PARTIES,
+      note,
+    });
 
     return { statut: transition.vers, version: demande.version + 1, champsModifies: champs, noteEnregistree: true };
   });

@@ -2,7 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const db = require('../../db/knex');
+const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const notesDemandeDpaeService = require('./notesDemandeDpaeService');
 const { ErreurDemandeIntrouvable, ErreurModificationInterdite } = require('./demandeDpaeService');
@@ -21,7 +23,10 @@ const PLANNING = { roleCode: 'planning', utilisateurId: 5 };
 const RH = { roleCode: 'rh', utilisateurId: 6 };
 
 function mockerBase(t) {
-  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (callback) => callback({}) }));
+  mockerUtilisateurs(t);
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => []);
+  t.mock.method(notificationService, 'creerNotifications', async () => {});
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async (_bd, entiteId, id) =>
     DEMANDES_EN_BASE.find((d) => d.entite_id === entiteId && d.id === id),
   );

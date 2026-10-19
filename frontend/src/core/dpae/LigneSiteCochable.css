@@ -1,0 +1,62 @@
+/* Sélecteurs doublés (.ligne-site-cochable.ligne-site-cochable) : doivent l'emporter sur la règle
+   « .page-demande-dpae .bloc-formulaire label » qui met tout label en colonne. */
+.ligne-site-cochable.ligne-site-cochable {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.25rem;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--couleur-texte);
+  cursor: pointer;
+}
+
+.ligne-site-cochable input {
+  flex: none;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.ligne-site-cochable__nom {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ligne-site-cochable__initiales {
+  flex: none;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.ligne-site-cochable:hover,
+.ligne-site-cochable:focus-within {
+  background-color: var(--couleur-back-office-clair);
+}
+
+.ligne-site-cochable.ligne-site-cochable--tuile {
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  font-size: 0.85rem;
+}
+
+.ligne-site-cochable.ligne-site-cochable--tuile:hover {
+  border-color: var(--couleur-back-office);
+  background-color: var(--couleur-back-office-clair);
+}
+
+.ligne-site-cochable.ligne-site-cochable--tuile.ligne-site-cochable--cochee {
+  border-color: var(--couleur-back-office);
+  background-color: var(--couleur-back-office-clair);
+  font-weight: 600;
+}

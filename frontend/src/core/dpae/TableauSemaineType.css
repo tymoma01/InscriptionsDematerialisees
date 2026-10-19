@@ -1,0 +1,53 @@
+/* Semaine type en lecture (TableauSemaineType.jsx), même style que TableauDemandesDpae.css : en-tête
+   léger, lignes séparées. Sous 768 px, le tableau défile horizontalement dans son bloc. */
+.tableau-semaine-type {
+  overflow-x: auto;
+}
+
+.tableau-semaine-type__table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+/* Largeurs en pourcentage : Jour 15 %, Horaires 20 %, Pause 12 %, Site(s) le reste (la largeur de la
+   colonne Pause revient à Site(s) quand elle est masquée, la dernière colonne n'ayant pas de largeur). */
+.tableau-semaine-type__col-jour {
+  width: 15%;
+}
+
+.tableau-semaine-type__col-horaires {
+  width: 20%;
+}
+
+.tableau-semaine-type__col-pause {
+  width: 12%;
+}
+
+.tableau-semaine-type__table th,
+.tableau-semaine-type__table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--couleur-bordure-legere);
+  text-align: left;
+  vertical-align: top;
+}
+
+.tableau-semaine-type__table thead th {
+  background-color: var(--couleur-back-office-clair);
+  color: var(--couleur-back-office);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Colonne Jour en gras. */
+.tableau-semaine-type__table tbody th {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .tableau-semaine-type__table {
+    min-width: 32rem;
+  }
+}

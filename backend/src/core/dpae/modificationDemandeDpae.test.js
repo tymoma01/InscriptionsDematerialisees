@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const siteAffectationRepository = require('./siteAffectationRepository');
 const demandeDpaeService = require('./demandeDpaeService');
@@ -68,6 +69,7 @@ function mockerBase(t, statut, { surcharges = {}, sitesEnBase = [10], sitesValid
     },
   }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase(statut, surcharges));
+  mockerUtilisateurs(t);
   t.mock.method(siteAffectationRepository, 'listerIdsSitesValides', async (_trx, _entiteId, ids) => ids.filter((id) => sitesValides.includes(id)));
   t.mock.method(siteAffectationRepository, 'listerSitesDemande', async () => sitesEnBase.map((id) => ({ id, nom: `Site ${id}`, initiales: 'S' })));
   const modifierMock = t.mock.method(demandeDpaeRepository, 'modifierDemande', async (trx, id, parametres) => {
@@ -146,7 +148,7 @@ test('modifierDemande : l’auteur Inspecteur Hôtellerie et l’Admin sont acce
 // ---------------------------------------------------------------------------------------------
 // Statuts : modifiable à « À traiter » et « En attente » seulement.
 // ---------------------------------------------------------------------------------------------
-test('modifierDemande : « À traiter » reste « À traiter », version incrémentée, aucune notification', async (t) => {
+test('modifierDemande : « À traiter » reste « À traiter », version incrémentée, parties notifiées', async (t) => {
   const { modifierMock, remplacerSitesMock, notificationsMock } = mockerBase(t, 'envoyee');
 
   const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE });
@@ -162,10 +164,10 @@ test('modifierDemande : « À traiter » reste « À traiter », version incrém
   // Les sites ne sont pas transmis à la mise à jour de la demande : ils ont leur propre écriture.
   assert.equal('sitesAffectationIds' in parametres.donnees, false);
   assert.deepEqual(remplacerSitesMock.mock.calls[0].arguments.slice(1), [7, [10]]);
-  assert.equal(notificationsMock.mock.calls.length, 0);
+  assert.equal(notificationsMock.mock.calls.length, 1);
 });
 
-test('modifierDemande : « En attente » reste « En attente » (statut jamais changé), aucune notification', async (t) => {
+test('modifierDemande : « En attente » reste « En attente » (statut jamais changé), parties notifiées', async (t) => {
   const { etat, modifierMock, notificationsMock } = mockerBase(t, 'en_attente');
 
   const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE });
@@ -175,8 +177,8 @@ test('modifierDemande : « En attente » reste « En attente » (statut jamais c
     { de: modifierMock.mock.calls[0].arguments[2].statutDepart, vers: modifierMock.mock.calls[0].arguments[2].statutArrivee },
     { de: 'en_attente', vers: 'en_attente' },
   );
-  assert.equal(notificationsMock.mock.calls.length, 0);
-  assert.equal(etat.ecritures.some(([genre]) => genre === 'notifications'), false);
+  assert.equal(notificationsMock.mock.calls.length, 1);
+  assert.equal(etat.ecritures.some(([genre]) => genre === 'notifications'), true);
 });
 
 test('modifierDemande : le statut ne change pour aucun rôle ni aucun statut de départ', async (t) => {
@@ -186,7 +188,7 @@ test('modifierDemande : le statut ne change pour aucun rôle ni aucun statut de 
       const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE, roleCode, utilisateurId });
       assert.equal(resultat.statut, statut, `${roleCode} ${statut}`);
       assert.equal(modifierMock.mock.calls[0].arguments[2].statutArrivee, statut, `${roleCode} ${statut}`);
-      assert.equal(notificationsMock.mock.calls.length, 0);
+      assert.equal(notificationsMock.mock.calls.length, 1);
     }
   }
 });
@@ -246,7 +248,7 @@ test('modifierDemande : site inexistant, inactif ou d’une autre entité -> 400
 test('modifierDemande : demande, sites, audit et note enregistrés dans la même transaction, sites remplacés', async (t) => {
   const { etat } = mockerBase(t, 'envoyee');
   await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: { ...DONNEES, sitesAffectationIds: [10, 11] }, ...CONTEXTE });
-  assert.deepEqual(etat.ecritures.map(([genre]) => genre), ['demande', 'sites', 'audit', 'note', 'audit']);
+  assert.deepEqual(etat.ecritures.map(([genre]) => genre), ['demande', 'sites', 'audit', 'note', 'audit', 'notifications']);
   assert.deepEqual(etat.ecritures[1], ['sites', 7, [10, 11]]);
 });
 
@@ -271,7 +273,7 @@ test('modifierDemande : audit « modification » avec le statut (inchangé) et N
   for (const valeur of ['Durand', '0612345678', 'Sophie']) assert.equal(texte.includes(valeur), false, valeur);
 });
 
-test('modifierDemande : une demande « À valider par le Planning » le reste, sans notification ; auteur, Planning et Admin peuvent la modifier', async (t) => {
+test('modifierDemande : une demande « À valider par le Planning » le reste, parties notifiées ; auteur, Planning et Admin peuvent la modifier', async (t) => {
   for (const [roleCode, utilisateurId] of [['inspecteur_hotellerie', AUTEUR_ID], ['planning', 2], ['admin', 1]]) {
     await t.test(roleCode, async (st) => {
       const { modifierMock, notificationsMock } = mockerBase(st, 'a_valider_planning');
@@ -279,12 +281,12 @@ test('modifierDemande : une demande « À valider par le Planning » le reste, s
       assert.equal(resultat.statut, 'a_valider_planning');
       assert.equal(resultat.version, VERSION + 1);
       assert.equal(modifierMock.mock.calls[0].arguments[2].statutArrivee, 'a_valider_planning');
-      assert.equal(notificationsMock.mock.calls.length, 0);
+      assert.equal(notificationsMock.mock.calls.length, 1);
     });
   }
 });
 
-test('modifierDemande : « Renvoyée à l’inspecteur » reste « Renvoyée à l’inspecteur » : plus de passage automatique au Planning, aucune notification', async (t) => {
+test('modifierDemande : « Renvoyée à l’inspecteur » reste « Renvoyée à l’inspecteur » : plus de passage automatique au Planning, Planning notifié', async (t) => {
   const { modifierMock, notificationsMock, auditMock, rolesDemandes } = mockerBase(t, 'renvoyee_inspecteur');
 
   const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES, ...CONTEXTE, roleCode: 'inspecteur_hotellerie' });
@@ -294,8 +296,8 @@ test('modifierDemande : « Renvoyée à l’inspecteur » reste « Renvoyée à 
     { de: modifierMock.mock.calls[0].arguments[2].statutDepart, vers: modifierMock.mock.calls[0].arguments[2].statutArrivee },
     { de: 'renvoyee_inspecteur', vers: 'renvoyee_inspecteur' },
   );
-  assert.deepEqual(rolesDemandes, []);
-  assert.equal(notificationsMock.mock.calls.length, 0);
+  assert.deepEqual(rolesDemandes, ['planning']);
+  assert.equal(notificationsMock.mock.calls.length, 1);
   assert.equal(auditMock.mock.calls[0].arguments[1].donnees.statut, 'renvoyee_inspecteur');
 });
 
@@ -308,16 +310,17 @@ test('modifierDemande : échec de l’audit -> aucune écriture enregistrée (de
   assert.deepEqual(etat.ecritures, []);
 });
 
-test('rejeter : la notification du demandeur ne contient aucun motif et renvoie aux notes', async (t) => {
+test('rejeter : la notification du demandeur ne contient aucun motif', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (callback) => callback({}) }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase('envoyee'));
+  mockerUtilisateurs(t);
   t.mock.method(demandeDpaeRepository, 'marquerTraitee', async () => 1);
   t.mock.method(journalAudit, 'enregistrerAction', async () => {});
   const notificationsMock = t.mock.method(notificationService, 'creerNotifications', async () => {});
 
   await demandeDpaeService.rejeter(ENTITE, 7, 42, { version: VERSION, adresseIp: 'x' });
 
-  assert.equal(notificationsMock.mock.calls[0].arguments[1][0].message, 'Votre demande DPAE n° 7 a été rejetée. Consultez les notes de la demande.');
+  assert.equal(notificationsMock.mock.calls[0].arguments[1][0].message, 'DPAE n° 7 – Sophie MARTIN : rejetée par Alice DURAND42 (Admin)');
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -368,7 +371,7 @@ test('modifierDemande : échec de la modification -> aucune note enregistrée', 
   assert.deepEqual(etat.ecritures, []);
 });
 
-test('modifierDemande : note sans aucun changement de la demande -> seule la note est enregistrée, sans nouvelle version ni notification', async (t) => {
+test('modifierDemande : note sans aucun changement de la demande -> seule la note est enregistrée, sans nouvelle version, parties notifiées de la note', async (t) => {
   for (const statut of ['a_valider_planning', 'envoyee', 'renvoyee_inspecteur', 'en_attente']) {
     const { etat, modifierMock, remplacerSitesMock, notificationsMock } = mockerBase(t, statut);
     const resultat = await demandeDpaeService.modifierDemande(ENTITE, 7, { donnees: DONNEES_SANS_CHANGEMENT, ...CONTEXTE, noteModification: 'Précision' });
@@ -376,8 +379,8 @@ test('modifierDemande : note sans aucun changement de la demande -> seule la not
     assert.deepEqual(resultat, { statut, version: VERSION, champsModifies: [], noteEnregistree: true }, statut);
     assert.equal(modifierMock.mock.calls.length, 0);
     assert.equal(remplacerSitesMock.mock.calls.length, 0);
-    assert.equal(notificationsMock.mock.calls.length, 0);
-    assert.deepEqual(etat.ecritures.map(([type]) => type), ['note', 'audit'], statut);
+    assert.equal(notificationsMock.mock.calls.length, 1);
+    assert.deepEqual(etat.ecritures.map(([type]) => type), ['note', 'audit', 'notifications'], statut);
   }
 });
 

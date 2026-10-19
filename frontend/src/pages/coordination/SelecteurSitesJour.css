@@ -104,28 +104,3 @@
   list-style: none;
   overflow-y: auto;
 }
-
-/* Ligne compacte (~32 px) : case à gauche, nom sur la même ligne aligné à gauche, ligne entière cliquable. */
-.selecteur-sites-jour__ligne {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.5rem;
-  box-sizing: border-box;
-  min-height: 32px;
-  padding: 0 0.6rem;
-  text-align: left;
-  font-size: 0.9rem;
-  color: var(--couleur-texte);
-  cursor: pointer;
-}
-
-.selecteur-sites-jour__ligne input {
-  flex: none;
-  margin: 0;
-}
-
-.selecteur-sites-jour__ligne:hover,
-.selecteur-sites-jour__ligne:focus-within {
-  background-color: var(--couleur-back-office-clair);
-}

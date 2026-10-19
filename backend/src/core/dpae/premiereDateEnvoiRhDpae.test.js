@@ -6,6 +6,7 @@ const db = require('../../db/knex');
 const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 
 // date_envoi_rh (départ des délais RH) : posée à la PREMIÈRE transmission seulement, jamais écrasée ensuite.
@@ -64,6 +65,7 @@ function creerBaseFactice(t, etatInitial) {
 
   t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (callback) => callback(trx) }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => ({ ...etat, entite_id: 1, demandeur_id: 16, salarie_nom: 'Martin', salarie_prenom: 'Sophie' }));
+  mockerUtilisateurs(t);
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => [3]);
   t.mock.method(journalAudit, 'enregistrerAction', async (_trx, entree) => {
     etat.audits.push({ action: entree.action, dateAction: maintenant() });

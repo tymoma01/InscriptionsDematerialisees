@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import LigneSiteCochable from '../../core/dpae/LigneSiteCochable';
 import './SelecteurSitesJour.css';
 
 // Hauteur maximale de la liste (défilement interne au-delà) et marge laissée au bord de l'écran.
@@ -97,9 +98,11 @@ export default function SelecteurSitesJour({ sites, selection, onChanger, libell
     cases[Math.min(Math.max(suivant, 0), cases.length - 1)]?.focus();
   };
 
-  // Le focus quitte le composant (Tab hors du panneau) : fermeture.
+  // Le focus passe sur un autre élément hors du composant (Tab hors du panneau) : fermeture. Sans cible
+  // (relatedTarget nul), c'est un clic sur du texte non focalisable, typiquement le NOM d'un site : le
+  // panneau reste ouvert, le clic à l'extérieur est géré par fermerSiExterieur.
   const surPerteFocus = (evenement) => {
-    if (conteneurRef.current && !conteneurRef.current.contains(evenement.relatedTarget)) setOuvert(false);
+    if (evenement.relatedTarget && conteneurRef.current && !conteneurRef.current.contains(evenement.relatedTarget)) setOuvert(false);
   };
 
   return (
@@ -139,12 +142,7 @@ export default function SelecteurSitesJour({ sites, selection, onChanger, libell
           <ul className="selecteur-sites-jour__liste" style={{ maxHeight: HAUTEUR_LISTE_MAX }}>
             {sites.map((site) => (
               <li key={site.id}>
-                <label className="selecteur-sites-jour__ligne" title={site.nom}>
-                  <input type="checkbox" checked={selection.includes(site.id)} onChange={() => basculer(site.id)} />
-                  <span>
-                    {site.nom} ({site.initiales})
-                  </span>
-                </label>
+                <LigneSiteCochable site={site} coche={selection.includes(site.id)} onBasculer={basculer} />
               </li>
             ))}
           </ul>

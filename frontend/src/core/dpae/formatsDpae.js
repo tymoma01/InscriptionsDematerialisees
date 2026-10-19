@@ -58,3 +58,25 @@ export function libelleTypeContrat(code) {
   if (!code) return null;
   return LIBELLE_PAR_TYPE_CONTRAT[code] ?? String(code).toUpperCase();
 }
+
+const JOURS_DE_LA_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const LIBELLE_JOUR = Object.fromEntries(JOURS_DE_LA_SEMAINE.map((jour) => [jour, jour.charAt(0).toUpperCase() + jour.slice(1)]));
+export const PAUSE_ABSENTE = '–';
+
+// Tableau de lecture de la semaine type (fiche) : un jour travaillé par ligne, dans l'ordre de la
+// semaine. Horaires « 09h30 – 16h30 », pause « 1h00 » ou « – », sites « NOM (INITIALES) » (liste, vide
+// pour une demande antérieure au site par jour). `avecPause` : faux si aucun jour n'a de pause (la
+// colonne n'est alors pas affichée). Même règle que le PDF (backend/src/core/dpae/pdfDemandeDpae.js).
+export function lignesSemaineType(semaineType, sitesAffectation) {
+  const lignes = (semaineType ?? [])
+    .filter((jour) => jour.statut === 'travail')
+    .sort((a, b) => JOURS_DE_LA_SEMAINE.indexOf(a.jour) - JOURS_DE_LA_SEMAINE.indexOf(b.jour))
+    .map((jour) => ({
+      cle: jour.jour,
+      jour: LIBELLE_JOUR[jour.jour] ?? jour.jour,
+      horaires: jour.heureDebut && jour.heureFin ? `${formaterHeure(jour.heureDebut)} – ${formaterHeure(jour.heureFin)}` : 'Non précisés',
+      pause: formaterPause(jour.pauseMinutes) || PAUSE_ABSENTE,
+      sites: libellesSitesJour(jour, sitesAffectation),
+    }));
+  return { lignes, avecPause: lignes.some((ligne) => ligne.pause !== PAUSE_ABSENTE) };
+}

@@ -7,6 +7,7 @@ const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const { PERMISSIONS } = require('../auth/permissions');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 const statutsDpae = require('./statutsDpae');
 
@@ -30,6 +31,7 @@ function mockerBase(t, statut) {
     },
   }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase(statut));
+  mockerUtilisateurs(t);
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => RH_IDS);
   const retransmettreMock = t.mock.method(demandeDpaeRepository, 'retransmettreALaRh', async (trx, id, parametres) => {
     trx.ecritures.push(['retransmission', id, parametres]);
@@ -69,7 +71,7 @@ test('transition : « En attente » -> « À traiter » seulement, jamais depuis
   assert.deepEqual([...PERMISSIONS.dpaeRetransmissionRhToutes].sort(), ['admin', 'planning']);
 });
 
-test('autorisée pour l’auteur, le Planning et l’Admin : statut « À traiter », RH notifiée « Demande complétée », audit sans motif', async (t) => {
+test('autorisée pour l’auteur, le Planning et l’Admin : statut « À traiter », RH et demandeur notifiés, audit sans motif', async (t) => {
   for (const [roleCode, utilisateurId] of [['inspecteur_hotellerie', AUTEUR_ID], ['planning', 8], ['admin', 1]]) {
     const { etat, retransmettreMock, auditMock, notificationsMock } = mockerBase(t, 'en_attente');
     await retransmettre(roleCode, utilisateurId);
@@ -82,10 +84,11 @@ test('autorisée pour l’auteur, le Planning et l’Admin : statut « À traite
       roleCode,
     );
     const notifications = notificationsMock.mock.calls[0].arguments[1];
-    assert.deepEqual(notifications.map((n) => n.utilisateurId), RH_IDS);
+    // L'auteur de l'action n'est jamais notifié : l'inspecteur auteur ne reçoit rien de sa propre retransmission.
+    assert.deepEqual(notifications.map((n) => n.utilisateurId), utilisateurId === AUTEUR_ID ? RH_IDS : [AUTEUR_ID, ...RH_IDS], roleCode);
     for (const notification of notifications) {
-      assert.equal(notification.type, 'demande_dpae_completee');
-      assert.match(notification.message, /^Demande complétée : .*Sophie Martin.*« À traiter »/);
+      assert.equal(notification.type, 'demande_dpae_transmise');
+      assert.match(notification.message, /^DPAE n° 7 – Sophie MARTIN : transmise à la RH par /);
       assert.equal(notification.lien, '/rh/dpae/7');
       assert.equal(notification.cibleId, 7);
     }

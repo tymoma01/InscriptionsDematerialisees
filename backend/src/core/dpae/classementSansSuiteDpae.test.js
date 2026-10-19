@@ -6,6 +6,7 @@ const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const { PERMISSIONS } = require('../auth/permissions');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 const statutsDpae = require('./statutsDpae');
 
@@ -28,6 +29,8 @@ function mockerBase(t, statut) {
     },
   }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase(statut));
+  mockerUtilisateurs(t);
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => []);
   const classerMock = t.mock.method(demandeDpaeRepository, 'classerSansSuite', async (trx, id, parametres) => {
     trx.ecritures.push(['classement', id, parametres]);
     return 1;

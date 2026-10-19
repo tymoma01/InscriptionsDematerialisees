@@ -8,8 +8,6 @@ import {
   marquerNotificationLue,
   marquerToutesNotificationsLues,
 } from '../../services/notificationService';
-import { listerDemandesRh } from '../../services/dpaeService';
-import { STATUT_INITIAL } from '../dpae/statutsDpae';
 import './NotificationsCloche.css';
 
 // Même intervalle que useRafraichissementAuto.js (core/dossier/) — pas ce hook lui-même,
@@ -19,38 +17,7 @@ import './NotificationsCloche.css';
 // d'horodatage, juste le total).
 const INTERVALLE_MS = 45_000;
 
-const TYPE_DEMANDE_COMPLETEE = 'demande_dpae_completee';
-
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-
-// Une demande DPAE à traiter devient une "notification" d'affichage — même forme que
-// notifications.routes.js (id/message/lien/lue/date_creation), pour réutiliser le même rendu
-// ci-dessous sans le dupliquer. `lue` toujours false : voir le commentaire de estRh plus bas.
-// `completee` : notification stockée « Demande complétée » (le demandeur a modifié une demande que la
-// RH avait mise en attente, voir demandeDpaeService.modifierDemande) — la demande est alors de nouveau
-// dans la file et s'y présente avec ce message plutôt que « Nouvelle demande ». Ce n'est pas une
-// notification de plus : la demande est déjà comptée par la file.
-function demandeVersNotification(demande, completee) {
-  const salarie = `${demande.salarie_prenom} ${demande.salarie_nom}`;
-  return {
-    id: demande.id,
-    notificationId: completee?.id ?? null,
-    message: completee ? `Demande complétée : ${salarie}.` : `Nouvelle demande DPAE : ${salarie}.`,
-    lien: `/rh/dpae/${demande.id}`,
-    lue: false,
-    date_creation: completee?.date_creation ?? demande.date_creation,
-  };
-}
-
-// File RH affichée dans le panneau : demandes au statut initial, avec le message « Demande complétée »
-// pour celles qui ont une notification non lue de ce type. Un échec de lecture des notifications
-// n'empêche jamais d'afficher la file.
-function listerFileRh() {
-  return Promise.all([listerDemandesRh(STATUT_INITIAL), listerNotifications().catch(() => [])]).then(([demandes, notifications]) => {
-    const completees = new Map(notifications.filter((n) => n.type === TYPE_DEMANDE_COMPLETEE && !n.lue).map((n) => [n.cible_id, n]));
-    return demandes.map((demande) => demandeVersNotification(demande, completees.get(demande.id)));
-  });
-}
 
 // Système de notifications internes (basique — module Demandes DPAE, 2026-09-28) : cloche avec
 // badge de compteur, dans l'en-tête back-office (voir EnTeteBackOffice.jsx). Purement in-app,
@@ -63,28 +30,13 @@ function listerFileRh() {
 // back-office (patron d'auto-gating inchangé, voir son propre commentaire) : le filtrage par rôle
 // reste entièrement local à CE composant, pas remonté à l'appelant.
 //
-// RH (simplification 2026-09-28, demande utilisateur explicite — revient sur un premier essai de
-// notifications stockées par destinataire à l'envoi, plus un rattrapage pour tout RH promu après
-// coup : trop compliqué, et un compte RH créé après une demande ne recevait quand même rien tant
-// que le rattrapage n'était pas déclenché) : pour ce rôle, la cloche n'interroge PAS
-// /api/notifications — elle affiche directement "toutes les demandes en cours" (GET /api/dpae,
-// STATUT_INITIAL, la même file que la page "Demandes DPAE"), toujours exact quel que
-// soit le moment où le compte a obtenu ce rôle, sans aucune notification à stocker ni à
-// synchroniser. Pas de "lue"/"tout marquer comme lu" dans ce mode : une demande disparaît d'elle-
-// même de la liste dès qu'elle est traitée (validée/rejetée), ce qui sert déjà de signal de
-// résolution.
+// Chaque action sur une demande DPAE crée une notification pour les parties concernées (voir
+// backend/src/core/dpae/notificationsDpae.js) : la cloche affiche ces notifications pour tous les rôles,
+// RH comprise.
 export default function NotificationsCloche() {
-  // chargementSession (pas le `chargement` local plus bas, propre au panneau déroulant) : tant
-  // que la session n'est pas résolue, `estRh` vaudrait à tort `false` (utilisateur encore null) —
-  // sans ce garde-fou, le tout premier rafraîchissement de CHAQUE montage (donc à chaque
-  // changement de page, ce composant étant remonté avec la page) interrogeait le mauvais
-  // endpoint (notifications personnelles au lieu de la file RH) le temps que cette session,
-  // strictement locale à ce composant (voir commentaire d'en-tête), se résolve à son tour —
-  // symptôme observé : la cloche affichait brièvement un badge/compteur erroné avant de se
-  // corriger un instant plus tard. On attend donc que la session soit résolue avant le tout
-  // premier appel réseau, plutôt que de tenter puis corriger.
+  // chargementSession (pas le `chargement` local plus bas, propre au panneau déroulant) : tant que la
+  // session n'est pas résolue, `visible` vaut faussement `false` — aucun appel réseau avant.
   const { utilisateur, chargement: chargementSession } = useSession();
-  const estRh = utilisateur?.roleCode === 'rh';
   const visible = peut(utilisateur, 'cloche');
 
   const [total, setTotal] = useState(0);
@@ -95,7 +47,7 @@ export default function NotificationsCloche() {
   const navigate = useNavigate();
 
   const rafraichirCompteur = () => {
-    (estRh ? listerDemandesRh(STATUT_INITIAL).then((demandes) => demandes.length) : compterNotificationsNonLues())
+    compterNotificationsNonLues()
       .then(setTotal)
       .catch(() => {});
   };
@@ -119,7 +71,7 @@ export default function NotificationsCloche() {
       document.removeEventListener('visibilitychange', verifier);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estRh, visible, chargementSession]);
+  }, [visible, chargementSession]);
 
   useEffect(() => {
     function surClicExterieur(evenement) {
@@ -135,7 +87,7 @@ export default function NotificationsCloche() {
     setOuvert((valeurPrecedente) => !valeurPrecedente);
     if (!ouvert) {
       setChargement(true);
-      (estRh ? listerFileRh() : listerNotifications())
+      listerNotifications()
         .then(setNotifications)
         .catch(() => setNotifications([]))
         .finally(() => setChargement(false));
@@ -143,11 +95,7 @@ export default function NotificationsCloche() {
   };
 
   const surClicNotification = async (notification) => {
-    if (estRh && notification.notificationId) {
-      // « Demande complétée » : vue, elle ne s'affichera plus avec ce message.
-      marquerNotificationLue(notification.notificationId).catch(() => {});
-    }
-    if (!estRh && !notification.lue) {
+    if (!notification.lue) {
       try {
         await marquerNotificationLue(notification.id);
         setTotal((valeurPrecedente) => Math.max(0, valeurPrecedente - 1));
@@ -186,13 +134,7 @@ export default function NotificationsCloche() {
         onClick={ouvrir}
         aria-haspopup="true"
         aria-expanded={ouvert}
-        aria-label={
-          estRh
-            ? `Demandes DPAE à traiter, ${total}`
-            : total > 0
-              ? `Notifications, ${total} non lue(s)`
-              : 'Notifications'
-        }
+        aria-label={total > 0 ? `Notifications, ${total} non lue(s)` : 'Notifications'}
       >
         🔔
         {total > 0 && <span className="notifications-cloche__badge">{total > 9 ? '9+' : total}</span>}
@@ -201,8 +143,8 @@ export default function NotificationsCloche() {
       {ouvert && (
         <div className="notifications-cloche__panneau" role="menu">
           <div className="notifications-cloche__entete">
-            <span>{estRh ? 'Demandes à traiter' : 'Notifications'}</span>
-            {!estRh && notifications.some((n) => !n.lue) && (
+            <span>Notifications</span>
+            {notifications.some((n) => !n.lue) && (
               <button type="button" onClick={toutMarquerLu}>
                 Tout marquer comme lu
               </button>
@@ -211,7 +153,7 @@ export default function NotificationsCloche() {
 
           {chargement && <p className="notifications-cloche__info">Chargement…</p>}
           {!chargement && notifications.length === 0 && (
-            <p className="notifications-cloche__info">{estRh ? 'Aucune demande à traiter.' : 'Aucune notification.'}</p>
+            <p className="notifications-cloche__info">Aucune notification.</p>
           )}
 
           <ul className="notifications-cloche__liste">

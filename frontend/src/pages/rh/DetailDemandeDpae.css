@@ -83,11 +83,6 @@
   font-weight: 600;
 }
 
-.page-detail-dpae__semaine-type {
-  margin: 0;
-  padding-left: 1.25rem;
-}
-
 .page-detail-dpae__actions {
   display: flex;
   justify-content: flex-end;

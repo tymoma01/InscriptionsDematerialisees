@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const notificationService = require('../notifications/notificationService');
 const siteAffectationRepository = require('./siteAffectationRepository');
 const journalAudit = require('../audit/journalAudit');
@@ -14,14 +15,14 @@ function mockerKnex(t) {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
 }
 
-// Aucune notification stockée à l'envoi (simplification 2026-09-28, demande utilisateur) : tout
-// RH voit "toutes les demandes en cours" directement via listerPourRh (consommé par
-// NotificationsCloche.jsx côté front pour ce rôle) — rien à créer/synchroniser ici.
-test('creerEtEnvoyer crée la demande et ne déclenche aucune notification', async (t) => {
+// Détail des destinataires par action : notificationsDpae.test.js.
+test('creerEtEnvoyer par un rôle sans circuit Planning : la RH est notifiée, pas l’auteur', async (t) => {
   mockerKnexTransaction(t);
   t.mock.method(siteAffectationRepository, 'listerIdsSitesValides', async () => [10]);
   t.mock.method(siteAffectationRepository, 'lierSitesDemande', async () => {});
   t.mock.method(demandeDpaeRepository, 'creerDemande', async () => 7);
+  mockerUtilisateurs(t);
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => [5, 8]);
   const creerNotificationsMock = t.mock.method(notificationService, 'creerNotifications', async () => {});
 
   const demandeId = await demandeDpaeService.creerEtEnvoyer(ENTITE_ACCECIT, 5, {
@@ -31,7 +32,9 @@ test('creerEtEnvoyer crée la demande et ne déclenche aucune notification', asy
   });
 
   assert.equal(demandeId, 7);
-  assert.equal(creerNotificationsMock.mock.calls.length, 0);
+  const notifications = creerNotificationsMock.mock.calls[0].arguments[1];
+  assert.deepEqual(notifications.map((n) => n.utilisateurId), [8]);
+  assert.equal(notifications[0].lien, '/rh/dpae/7');
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -54,6 +57,9 @@ function mockerSites(t, idsValidesEnBase) {
   );
   const lierMock = t.mock.method(siteAffectationRepository, 'lierSitesDemande', async () => {});
   const creerMock = t.mock.method(demandeDpaeRepository, 'creerDemande', async () => 7);
+  mockerUtilisateurs(t);
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => []);
+  t.mock.method(notificationService, 'creerNotifications', async () => {});
   return { listerMock, lierMock, creerMock };
 }
 
@@ -141,6 +147,7 @@ function mockerDemandeAuStatut(t, statut, { version = VERSION_LUE } = {}) {
     salarie_nom: 'Martin',
     salarie_prenom: 'Sophie',
   }));
+  mockerUtilisateurs(t);
   return {
     transactionMock,
     marquerEnAttenteMock: t.mock.method(demandeDpaeRepository, 'marquerEnAttente', async () => 1),
@@ -202,7 +209,7 @@ test('rejeter marque la demande rejetée sans motif, trace sans motif et notifie
   assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees, {});
   const [notification] = creerNotificationsMock.mock.calls[0].arguments[1];
   assert.equal(notification.type, 'demande_dpae_rejetee');
-  assert.equal(notification.message, 'Votre demande DPAE n° 7 a été rejetée. Consultez les notes de la demande.');
+  assert.equal(notification.message, 'DPAE n° 7 – Sophie MARTIN : rejetée par Alice DURAND42 (Admin)');
 });
 
 test('décision sans version (appel interne) -> refus, rien n’est lu ni écrit', async (t) => {
@@ -322,7 +329,7 @@ test('mettreEnAttente depuis « À traiter » : statut en attente sans motif, de
   const [notification] = creerNotificationsMock.mock.calls[0].arguments[1];
   assert.equal(notification.utilisateurId, 3);
   assert.equal(notification.type, 'demande_dpae_en_attente');
-  assert.equal(notification.message, 'Votre demande DPAE n° 7 a été mise en attente. Consultez les notes de la demande.');
+  assert.equal(notification.message, 'DPAE n° 7 – Sophie MARTIN : mise en attente par Alice DURAND42 (Admin)');
   assert.equal(auditMock.mock.calls[0].arguments[1].action, 'demande_dpae_mise_en_attente');
   assert.deepEqual(auditMock.mock.calls[0].arguments[1].donnees, {});
 });

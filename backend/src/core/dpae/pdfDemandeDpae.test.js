@@ -11,6 +11,7 @@ const {
   nomFichierPdf,
   dessinerBandeau,
   largeurMotAccecit,
+  lignesDeTableau,
 } = require('./pdfDemandeDpae');
 
 // Demande telle que la renvoie demandeDpaeService.obtenirDemande (colonnes `date` : Date à minuit
@@ -142,8 +143,8 @@ test('Sections conditionnelles : mêmes conditions que la fiche (attente, modifi
   assert.deepEqual(section(complete, 'Modifications demandées').lignes, [['Horaires', 'Oui']]);
   assert.deepEqual(section(complete, 'Gestion des jours').lignes, [['Type', 'Retirer des jours'], ['Jours concernés', '12/10/2026']]);
   assert.deepEqual(section(complete, 'Semaine type').tableau, [
-    ['Lundi', 'de 08h00 à 15h00', 'Non précisé'],
-    ['Samedi', 'Horaires non précisés', 'Non précisé'],
+    ['Lundi', 'de 08h00 à 15h00', '-', 'Non précisé'],
+    ['Samedi', 'Horaires non précisés', '-', 'Non précisé'],
   ]);
   assert.equal(section(complete, 'Autre chose à signaler').texte, 'Badge à prévoir');
 });
@@ -238,7 +239,7 @@ test('Une section sans aucune ligne n’est pas affichée (sections vides ignor�
   assert.ok(pages >= 2 && pages <= 4, `pages : ${pages}`);
 });
 
-test('Semaine type : colonne « Site » après « Horaires », tous les sites du jour au format « NOM (INITIALES) » ; « Non précisé » pour une demande sans site par jour', () => {
+test('Semaine type : colonne « Site » après « Horaires » et « Pause », tous les sites du jour au format « NOM (INITIALES) » ; « Non précisé » pour une demande sans site par jour', () => {
   const sites = [{ id: 51, nom: 'AIGLON', initiales: 'AIG' }, { id: 52, nom: 'ALBE', initiales: 'AL' }];
   const tableau = section(
     sectionsDemande(
@@ -257,10 +258,10 @@ test('Semaine type : colonne « Site » après « Horaires », tous les sites du
     'Semaine type',
   ).tableau;
   assert.deepEqual(tableau, [
-    ['Lundi', 'de 08h00 à 15h00', ['AIGLON (AIG)']],
-    ['Jeudi', 'de 09h00 à 17h00', ['ALBE (AL)', 'AIGLON (AIG)']],
-    ['Vendredi', 'de 09h00 à 17h00', 'Non précisé'],
-    ['Samedi', 'de 09h00 à 17h00', ['ALBE (AL)']],
+    ['Lundi', 'de 08h00 à 15h00', '-', ['AIGLON (AIG)']],
+    ['Jeudi', 'de 09h00 à 17h00', '-', ['ALBE (AL)', 'AIGLON (AIG)']],
+    ['Vendredi', 'de 09h00 à 17h00', '-', 'Non précisé'],
+    ['Samedi', 'de 09h00 à 17h00', '-', ['ALBE (AL)']],
   ]);
 });
 
@@ -315,12 +316,12 @@ test('Entité : « Hôtellerie », « Tertiaire », ou la précision pour « Aut
   assert.equal(entite({ division: null }), undefined);
 });
 
-test('Semaine type : la pause est affichée à côté des horaires ; à 0 ou absente (demande ancienne), rien', () => {
+test('Semaine type : colonne Pause dédiée, « 1h00 » ou « - » à 0 ou absente (demande ancienne), horaires sans pause dedans', () => {
   const tableau = section(
     sectionsDemande(
       demande({
         semaine_type: [
-          { jour: 'lundi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00', pauseMinutes: 60 },
+          { jour: 'lundi', statut: 'travail', heureDebut: '09:30', heureFin: '16:30', pauseMinutes: 60 },
           { jour: 'mardi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00', pauseMinutes: 0 },
           { jour: 'mercredi', statut: 'travail', heureDebut: '08:00', heureFin: '16:00' },
         ],
@@ -328,7 +329,48 @@ test('Semaine type : la pause est affichée à côté des horaires ; à 0 ou abs
     ),
     'Semaine type',
   ).tableau;
-  assert.deepEqual(tableau.map((ligne) => ligne[1]), ['de 08h00 à 16h00 (pause 1h00)', 'de 08h00 à 16h00', 'de 08h00 à 16h00']);
+  assert.deepEqual(tableau.map((ligne) => ligne.slice(1, 3)), [['de 09h30 à 16h30', '1h00'], ['de 08h00 à 16h00', '-'], ['de 08h00 à 16h00', '-']]);
+});
+
+// Rendu du tableau sur un vrai document pdfkit : textes dessinés (colonnes) et hauteur de chaque ligne.
+function dessinerTableau(tableau) {
+  const doc = new PDFDocument({ size: 'A4' });
+  const textes = [];
+  const texteOriginal = doc.text.bind(doc);
+  doc.text = (texte, ...reste) => {
+    textes.push(texte);
+    return texteOriginal(texte, ...reste);
+  };
+  const lignes = lignesDeTableau(doc, tableau, 480);
+  for (const ligne of lignes) ligne.dessiner(0, 0);
+  doc.end();
+  return { textes, hauteurs: lignes.map((ligne) => ligne.hauteur) };
+}
+
+const LIGNE_AVEC_PAUSE = ['Lundi', 'de 09h30 à 16h30', '1h00', ['MONGE (MG)']];
+const LIGNE_SANS_PAUSE = ['Mardi', 'de 08h00 à 16h00', '-', ['MONGE (MG)']];
+
+test('Tableau de la semaine type avec pause : colonnes Jour | Horaires | Pause | Site, pause « 1h00 » ou « - »', () => {
+  const { textes } = dessinerTableau([LIGNE_AVEC_PAUSE, LIGNE_SANS_PAUSE]);
+  assert.deepEqual(textes.slice(0, 4), ['Jour', 'Horaires', 'Pause', 'Site']);
+  assert.ok(textes.includes('1h00') && textes.includes('-'));
+  assert.ok(textes.includes('de 09h30 à 16h30'));
+});
+
+test('Tableau de la semaine type sans aucune pause : la colonne Pause n’est pas affichée', () => {
+  const { textes } = dessinerTableau([LIGNE_SANS_PAUSE, ['Mercredi', 'de 08h00 à 16h00', '-', 'Non précisé']]);
+  assert.deepEqual(textes.slice(0, 3), ['Jour', 'Horaires', 'Site']);
+  assert.equal(textes.includes('Pause'), false);
+  assert.equal(textes.includes('-'), false);
+});
+
+test('Tableau de la semaine type : trois sites sur un même jour, la ligne grandit pour son contenu', () => {
+  const troisSites = ['NOVOTEL PARIS GARE DE LYON (NGL)', 'IBIS STYLES BERCY (ISB)', 'MERCURE PORTE DE VERSAILLES EXPO (MPV)'];
+  const { hauteurs } = dessinerTableau([LIGNE_AVEC_PAUSE, ['Jeudi', 'de 09h00 à 17h00', '-', troisSites]]);
+  const [entete, simple, triple] = hauteurs;
+  assert.equal(entete, 17);
+  assert.ok(simple < 22, `hauteur ligne à 1 site : ${simple}`);
+  assert.ok(triple > simple + 15, `hauteur ligne à 3 sites : ${triple}`);
 });
 
 test('Contrat : « AVENANT » affiché tel quel, sans motif CDD ; nombre de jours seulement si le dernier jour est renseigné', () => {

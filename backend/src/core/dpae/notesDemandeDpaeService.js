@@ -7,6 +7,7 @@ const db = require('../../db/knex');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const demandeDpaeService = require('./demandeDpaeService');
+const notificationsDpae = require('./notificationsDpae');
 const { aPermission } = require('../auth/permissions');
 
 const { ErreurDemandeIntrouvable, ErreurModificationInterdite } = demandeDpaeService;
@@ -41,10 +42,20 @@ async function verifierDemandeAccessible(bd, entite, demandeId, { roleCode, util
 
 async function ajouterNote(entite, { demandeId, contenu, auteurId, roleCode }) {
   const bd = await db.obtenirKnex();
-  const demande = await verifierDemandeAccessible(bd, entite, demandeId, { roleCode, utilisateurId: auteurId });
-  if (!peutAjouterNote({ roleCode, utilisateurId: auteurId, demande })) throw new ErreurNoteInterdite();
-  const noteId = await notesDemandeDpaeRepository.ajouterNote(bd, { demandeId, auteurId, contenu });
-  return { noteId };
+  // Note et notifications dans une seule transaction : pas de note sans notification des parties.
+  return bd.transaction(async (trx) => {
+    const demande = await verifierDemandeAccessible(trx, entite, demandeId, { roleCode, utilisateurId: auteurId });
+    if (!peutAjouterNote({ roleCode, utilisateurId: auteurId, demande })) throw new ErreurNoteInterdite();
+    const noteId = await notesDemandeDpaeRepository.ajouterNote(trx, { demandeId, auteurId, contenu });
+    await notificationsDpae.notifierAction(trx, entite, demande, {
+      auteurId,
+      type: 'demande_dpae_note',
+      action: 'note ajoutée',
+      parties: notificationsDpae.TOUTES_LES_PARTIES,
+      note: contenu,
+    });
+    return { noteId };
+  });
 }
 
 // Du plus récent au plus ancien (voir notesDemandeDpaeRepository.listerNotesParDemande).

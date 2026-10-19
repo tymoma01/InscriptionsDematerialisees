@@ -6,6 +6,7 @@ const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const { PERMISSIONS } = require('../auth/permissions');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
 const notesDemandeDpaeService = require('./notesDemandeDpaeService');
@@ -30,6 +31,7 @@ function mockerBase(t, statut) {
     },
   }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase(statut));
+  mockerUtilisateurs(t);
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => PLANNING_IDS);
   const envoyerMock = t.mock.method(demandeDpaeRepository, 'envoyerAuPlanning', async (trx, id, parametres) => {
     trx.ecritures.push(['envoi', id, parametres]);
@@ -65,7 +67,7 @@ test('envoi au Planning : l’auteur Inspecteur Hôtellerie et l’Admin, « Ren
     );
     const notifications = notificationsMock.mock.calls[0].arguments[1];
     assert.deepEqual(notifications.map((n) => n.utilisateurId), PLANNING_IDS);
-    assert.match(notifications[0].message, /corrigée par l'inspecteur, à valider : Sophie Martin/);
+    assert.match(notifications[0].message, /^DPAE n° 7 – Sophie MARTIN : envoyée au Planning par /);
     assert.deepEqual(etat.ecritures.map(([type]) => type), ['envoi', 'audit', 'notifications']);
   }
 });
@@ -100,8 +102,11 @@ test('envoi au Planning : refusé (409) depuis tout autre statut que « Renvoyé
 // Notes sur tout statut.
 // ---------------------------------------------------------------------------------------------
 function mockerNotes(t, statut) {
-  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (callback) => callback({}) }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase(statut));
+  mockerUtilisateurs(t);
+  t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => []);
+  t.mock.method(notificationService, 'creerNotifications', async () => {});
   return t.mock.method(notesDemandeDpaeRepository, 'ajouterNote', async () => 55);
 }
 const ajouter = (roleCode, auteurId) => notesDemandeDpaeService.ajouterNote(ENTITE, { demandeId: 7, contenu: 'Précision', auteurId, roleCode });

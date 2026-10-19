@@ -278,7 +278,17 @@ async function listerIdsUtilisateursActifsParRole(trx, entiteId, roleCode) {
   return lignes.map((ligne) => ligne.id);
 }
 
+// Utilisateur de l'entité avec son rôle (auteur d'une action, demandeur) : nom affiché dans la notification.
+function trouverUtilisateurAvecRole(trx, entiteId, utilisateurId) {
+  return trx('utilisateurs')
+    .join('roles', 'roles.id', 'utilisateurs.role_id')
+    .where({ 'utilisateurs.entite_id': entiteId, 'utilisateurs.id': utilisateurId })
+    .select('utilisateurs.id', 'utilisateurs.prenom', 'utilisateurs.nom', 'utilisateurs.actif', 'roles.code as role_code', 'roles.libelle as role_libelle')
+    .first();
+}
+
 module.exports = {
+  trouverUtilisateurAvecRole,
   exclureClasseesNonTransmises,
   trouverDemandeParId,
   listerDemandesParDemandeur,

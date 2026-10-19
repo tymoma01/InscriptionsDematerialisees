@@ -6,6 +6,7 @@ const db = require('../../db/knex');
 const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 const siteAffectationRepository = require('./siteAffectationRepository');
 
@@ -17,9 +18,10 @@ const AUTEUR_ID = 16;
 const PLANNING_IDS = [8, 9];
 const RH_IDS = [3, 4];
 const IDS_PAR_ROLE = { planning: PLANNING_IDS, rh: RH_IDS };
+const UTILISATEURS = { [AUTEUR_ID]: { role_code: 'inspecteur_hotellerie', role_libelle: 'Inspecteur Hôtellerie' } };
 
 function demandeEnBase(statut, version = 2) {
-  return { id: 7, entite_id: 1, demandeur_id: AUTEUR_ID, statut, version, salarie_nom: 'Martin', salarie_prenom: 'Sophie' };
+  return { id: 7, entite_id: 1, demandeur_id: AUTEUR_ID, statut, version, date_envoi_rh: null, salarie_nom: 'Martin', salarie_prenom: 'Sophie' };
 }
 
 function mockerBase(t, statut, { version = 2 } = {}) {
@@ -33,6 +35,7 @@ function mockerBase(t, statut, { version = 2 } = {}) {
     },
   }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demandeEnBase(statut, version));
+  mockerUtilisateurs(t, UTILISATEURS);
   const rolesDemandes = [];
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async (_trx, _entiteId, roleCode) => {
     rolesDemandes.push(roleCode);
@@ -64,6 +67,7 @@ function mockerCreation(t) {
   t.mock.method(siteAffectationRepository, 'listerIdsSitesValides', async (_trx, _entiteId, ids) => ids);
   t.mock.method(siteAffectationRepository, 'lierSitesDemande', async () => {});
   const creerMock = t.mock.method(demandeDpaeRepository, 'creerDemande', async () => 7);
+  mockerUtilisateurs(t, UTILISATEURS);
   const rolesDemandes = [];
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async (_trx, _entiteId, roleCode) => {
     rolesDemandes.push(roleCode);
@@ -87,20 +91,24 @@ test('création par un Inspecteur Hôtellerie : statut « À valider par le Plan
   assert.deepEqual(notifications.map((n) => n.utilisateurId), PLANNING_IDS);
   for (const notification of notifications) {
     assert.equal(notification.type, 'demande_dpae_a_valider');
-    assert.match(notification.message, /Sophie Martin/);
+    assert.match(notification.message, /^DPAE n° 7 – Sophie MARTIN : demande créée par Alice DURAND16 \(Inspecteur Hôtellerie\)$/);
     assert.equal(notification.lien, '/rh/dpae/7');
     assert.equal(notification.cibleId, 7);
     assert.equal(notification.entiteId, 1);
   }
 });
 
-test('création par un autre rôle (Planning, Admin) : statut « À traiter », aucune notification', async (t) => {
-  const { creerMock, notificationsMock } = mockerCreation(t);
+test('création par un autre rôle (Planning, Admin) : statut « À traiter », RH notifiée (jamais le Planning)', async (t) => {
+  const { creerMock, rolesDemandes, notificationsMock } = mockerCreation(t);
   for (const roleCode of ['planning', 'admin']) {
     await demandeDpaeService.creerEtEnvoyer(ENTITE, 5, DONNEES, { roleCode });
   }
   assert.deepEqual(creerMock.mock.calls.map((appel) => appel.arguments[1].statut), ['envoyee', 'envoyee']);
-  assert.equal(notificationsMock.mock.calls.length, 0);
+  assert.deepEqual(rolesDemandes, ['rh', 'rh']);
+  for (const appel of notificationsMock.mock.calls) {
+    assert.deepEqual(appel.arguments[1].map((n) => n.utilisateurId), RH_IDS);
+    assert.equal(appel.arguments[1][0].type, 'demande_dpae_transmise');
+  }
 });
 
 test('creerDemande : une demande « À valider » n’a pas de date d’envoi à la RH ; « À traiter » l’a, posée à l’instant', async () => {
@@ -136,9 +144,8 @@ test('transmettre à la RH : « À valider » -> « À traiter », date d’envo
   assert.equal(entree.utilisateurId, 8);
   assert.equal(entree.adresseIp, '10.0.0.1');
   const notifications = notificationsMock.mock.calls[0].arguments[1];
-  assert.deepEqual(notifications.map((n) => n.utilisateurId), [...RH_IDS, AUTEUR_ID]);
-  assert.match(notifications[0].message, /Nouvelle demande DPAE à traiter : Sophie Martin/);
-  assert.match(notifications.at(-1).message, /transmise à la RH par le Planning/);
+  assert.deepEqual(notifications.map((n) => n.utilisateurId), [AUTEUR_ID, ...RH_IDS]);
+  for (const notification of notifications) assert.match(notification.message, /^DPAE n° 7 – Sophie MARTIN : transmise à la RH par Alice DURAND8 \(Admin\)$/);
   assert.equal(etat.ecritures.length, 3);
 });
 
@@ -154,7 +161,7 @@ test('renvoyer à l’inspecteur : « À valider » -> « Renvoyée », sans mot
   const notifications = notificationsMock.mock.calls[0].arguments[1];
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].utilisateurId, AUTEUR_ID);
-  assert.equal(notifications[0].message, 'Votre demande DPAE n° 7 a été renvoyée. Consultez les notes de la demande.');
+  assert.equal(notifications[0].message, 'DPAE n° 7 – Sophie MARTIN : renvoyée à l’inspecteur par Alice DURAND8 (Admin)');
 });
 
 test('transmettre ou renvoyer hors « À valider par le Planning » -> refus, rien n’est écrit ni notifié', async (t) => {

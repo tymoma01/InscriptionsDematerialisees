@@ -5,6 +5,7 @@ const db = require('../../db/knex');
 const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 const siteAffectationRepository = require('./siteAffectationRepository');
 const notesDemandeDpaeRepository = require('./notesDemandeDpaeRepository');
@@ -66,6 +67,7 @@ function creerBaseFactice(t, { statut = 'envoyee', version = 1, lecturesSimultan
   t.mock.method(siteAffectationRepository, 'remplacerSitesDemande', async () => {});
   t.mock.method(notesDemandeDpaeRepository, 'ajouterNote', async () => 55);
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async () => [3]);
+  mockerUtilisateurs(t);
 
   const empiler = (liste) => async (trx, valeur) => {
     liste.push(valeur);

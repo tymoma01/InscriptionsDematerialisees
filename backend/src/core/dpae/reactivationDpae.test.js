@@ -7,6 +7,7 @@ const journalAudit = require('../audit/journalAudit');
 const notificationService = require('../notifications/notificationService');
 const { PERMISSIONS } = require('../auth/permissions');
 const demandeDpaeRepository = require('./demandeDpaeRepository');
+const { mockerUtilisateurs } = require('./utilisateursDpaeFactices');
 const demandeDpaeService = require('./demandeDpaeService');
 const statutsDpae = require('./statutsDpae');
 
@@ -21,7 +22,7 @@ const IDS_PAR_ROLE = { planning: PLANNING_IDS, rh: RH_IDS };
 
 const demandeClassee = (classeeParRole, statutAvant, statut = 'classee_sans_suite') => ({
   id: 7, entite_id: 1, demandeur_id: AUTEUR_ID, statut, version: VERSION, classee_par_role: classeeParRole, statut_avant_classement: statutAvant,
-  date_envoi_rh: null, salarie_nom: 'Martin', salarie_prenom: 'Sophie',
+  date_envoi_rh: ['envoyee', 'en_attente'].includes(statutAvant) ? new Date('2026-10-01T10:00:00Z') : null, salarie_nom: 'Martin', salarie_prenom: 'Sophie',
 });
 
 // Placé en premier : les tests suivants remplacent plusieurs fois les mêmes méthodes dans des boucles.
@@ -71,6 +72,7 @@ function mockerBase(t, demande) {
     },
   }));
   t.mock.method(demandeDpaeRepository, 'trouverDemandeParId', async () => demande);
+  mockerUtilisateurs(t);
   const rolesDemandes = [];
   t.mock.method(demandeDpaeRepository, 'listerIdsUtilisateursActifsParRole', async (_trx, _entiteId, roleCode) => {
     rolesDemandes.push(roleCode);
@@ -119,11 +121,11 @@ test('journal_audit « demande_dpae_reactivation » avec le statut de retour ; n
 });
 
 test('notification de la personne qui reprend la main : auteur, Planning ou RH', async (t) => {
-  for (const [demande, rolesAttendus, utilisateursAttendus, type] of [
-    [demandeClassee('inspecteur_hotellerie', 'envoyee'), [], [AUTEUR_ID], 'demande_dpae_renvoyee'],
-    [demandeClassee('planning', 'envoyee'), ['planning'], PLANNING_IDS, 'demande_dpae_a_valider'],
-    [demandeClassee('admin', 'envoyee'), ['rh'], RH_IDS, 'demande_dpae_transmise'],
-    [demandeClassee('admin', 'en_attente'), ['rh'], RH_IDS, 'demande_dpae_transmise'],
+  for (const [demande, rolesAttendus, utilisateursAttendus] of [
+    [demandeClassee('inspecteur_hotellerie', 'envoyee'), [], [AUTEUR_ID]],
+    [demandeClassee('planning', 'envoyee'), ['planning'], [AUTEUR_ID, ...PLANNING_IDS]],
+    [demandeClassee('admin', 'envoyee'), ['rh'], [AUTEUR_ID, ...RH_IDS]],
+    [demandeClassee('admin', 'en_attente'), ['rh'], [AUTEUR_ID, ...RH_IDS]],
   ]) {
     const { rolesDemandes, notificationsMock } = mockerBase(t, demande);
     await reactiver();
@@ -131,12 +133,19 @@ test('notification de la personne qui reprend la main : auteur, Planning ou RH',
     assert.deepEqual(rolesDemandes, rolesAttendus);
     assert.deepEqual(notifications.map((n) => n.utilisateurId), utilisateursAttendus);
     for (const notification of notifications) {
-      assert.equal(notification.type, type);
+      assert.equal(notification.type, 'demande_dpae_reactivee');
       assert.equal(notification.lien, '/rh/dpae/7');
       assert.equal(notification.cibleId, 7);
       assert.match(notification.message, /réactivée/);
     }
   }
+});
+
+test('réactivation vers la RH d’une demande jamais transmise : la RH n’est pas notifiée', async (t) => {
+  const { rolesDemandes, notificationsMock } = mockerBase(t, { ...demandeClassee('admin', 'envoyee'), date_envoi_rh: null });
+  await reactiver();
+  assert.deepEqual(rolesDemandes, []);
+  assert.deepEqual(notificationsMock.mock.calls[0].arguments[1].map((n) => n.utilisateurId), [AUTEUR_ID]);
 });
 
 test('Planning, RH, inspecteur et autres rôles : refus (403), rien d’écrit ni notifié', async (t) => {
