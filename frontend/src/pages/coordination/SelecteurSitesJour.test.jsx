@@ -31,11 +31,11 @@ describe('SelecteurSitesJour', () => {
     expect(bouton.getAttribute('title')).toBe('AIGLON, GARE DE L’EST');
   });
 
-  it('panneau : une ligne par site au format « AIGLON (AIG) », liens Tout cocher / Tout décocher', () => {
+  it('panneau : une ligne par site avec nom et code du site, liens Tout cocher / Tout décocher', () => {
     afficher();
     fireEvent.click(screen.getByRole('button', { name: 'Sites du lundi' }));
-    expect(screen.getByText('AIGLON (AIG)')).toBeTruthy();
-    expect(screen.getByText('GARE DE L’EST (GDE)')).toBeTruthy();
+    expect(screen.getByText('AIGLON')).toBeTruthy();
+    expect(screen.getByText('GARE DE L’EST')).toBeTruthy();
     expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getByRole('button', { name: 'Tout cocher' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Tout décocher' })).toBeTruthy();
@@ -45,7 +45,7 @@ describe('SelecteurSitesJour', () => {
     const appels = [];
     afficher([3], (ids) => appels.push(ids));
     fireEvent.click(screen.getByRole('button', { name: 'Sites du lundi' }));
-    fireEvent.click(screen.getByLabelText('AIGLON (AIG)'));
+    fireEvent.click(screen.getByLabelText(/AIGLON/));
     fireEvent.click(screen.getByRole('button', { name: 'Tout cocher' }));
     fireEvent.click(screen.getByRole('button', { name: 'Tout décocher' }));
     expect(appels).toEqual([[1, 3], [1, 2, 3], []]);
@@ -55,10 +55,10 @@ describe('SelecteurSitesJour', () => {
     const appels = [];
     afficher([1], (ids) => appels.push(ids));
     fireEvent.click(screen.getByRole('button', { name: 'Sites du lundi' }));
-    fireEvent.click(screen.getByText('COLOMBES (COL)'));
-    fireEvent.click(screen.getByText('AIGLON (AIG)'));
+    fireEvent.click(screen.getByText('COLOMBES'));
+    fireEvent.click(screen.getByText('AIGLON'));
     expect(appels).toEqual([[1, 2], []]);
-    expect(screen.getByText('COLOMBES (COL)').closest('label').querySelector('input[type="checkbox"]')).toBeTruthy();
+    expect(screen.getByText('COLOMBES').closest('label').querySelector('input[type="checkbox"]')).toBeTruthy();
   });
 
   it('clic réel sur le NOM : la perte de focus de la case ne ferme pas le panneau, qui reste ouvert pour cocher plusieurs sites', () => {
@@ -73,9 +73,9 @@ describe('SelecteurSitesJour', () => {
     premiereCase.focus();
     // Navigateur : l'appui sur du texte non focalisable retire le focus de la case, sans nouvelle cible.
     fireEvent.blur(premiereCase, { relatedTarget: null });
-    fireEvent.click(screen.getByText('AIGLON (AIG)'));
+    fireEvent.click(screen.getByText('AIGLON'));
     expect(bouton.textContent).toContain('AIG');
-    fireEvent.click(screen.getByText('COLOMBES (COL)'));
+    fireEvent.click(screen.getByText('COLOMBES'));
     expect(screen.getByRole('group')).toBeTruthy();
     expect(bouton.textContent).toContain('AIG, COL');
     // Le focus qui part vers un élément extérieur ferme toujours le panneau.

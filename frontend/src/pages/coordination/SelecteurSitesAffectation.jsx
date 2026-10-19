@@ -219,7 +219,7 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
             par défaut), 4 colonnes en largeur bureau, 2 en tablette (voir le .css). */}
         <div className="selecteur-sites__grille">
           {sitesAffiches.map((site) => (
-            <LigneSiteCochable key={site.id} site={site} coche={selection.includes(site.id)} onBasculer={basculerSite} variante="tuile" afficherInitiales />
+            <LigneSiteCochable key={site.id} site={site} coche={selection.includes(site.id)} onBasculer={basculerSite} variante="tuile" />
           ))}
         </div>
 

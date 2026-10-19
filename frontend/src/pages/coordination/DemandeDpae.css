@@ -29,7 +29,7 @@
    candidat (même classe partagée, styles/blocFormulaire.css ; le CSS de toutes les pages est chargé
    globalement) — astérisques des champs obligatoires renvoyés à la ligne, cases à cocher et boutons
    radio placés au-dessus de leur texte. */
-.page-demande-dpae .bloc-formulaire label {
+.page-demande-dpae .bloc-formulaire label:not(.ligne-site-cochable) {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
