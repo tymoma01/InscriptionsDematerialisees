@@ -780,17 +780,29 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                     )}
                     {enTravail && donnees.horairesDifferentsParJour && (
                       <div className="page-demande-dpae__carte-jour-horaires">
+                        <label className="page-demande-dpae__carte-jour-etiquette" htmlFor={`heure-debut-${jour.jour}`}>
+                          Début
+                        </label>
                         <input
+                          id={`heure-debut-${jour.jour}`}
                           type="time"
                           value={jour.heureDebut}
                           onChange={(e) => definirJourSemaine(index, { heureDebut: e.target.value })}
                         />
+                        <label className="page-demande-dpae__carte-jour-etiquette" htmlFor={`heure-fin-${jour.jour}`}>
+                          Fin
+                        </label>
                         <input
+                          id={`heure-fin-${jour.jour}`}
                           type="time"
                           value={jour.heureFin}
                           onChange={(e) => definirJourSemaine(index, { heureFin: e.target.value })}
                         />
+                        <label className="page-demande-dpae__carte-jour-etiquette" htmlFor={`pause-heures-${jour.jour}`}>
+                          Pause
+                        </label>
                         <SelecteurPause
+                          idHeures={`pause-heures-${jour.jour}`}
                           minutes={jour.pauseMinutes}
                           onChanger={(minutes) => definirJourSemaine(index, { pauseMinutes: minutes })}
                           invalide={Boolean(messageErreur(`pause:${jour.jour}`))}

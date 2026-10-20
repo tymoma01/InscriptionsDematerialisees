@@ -172,6 +172,13 @@
   box-sizing: border-box;
 }
 
+.page-demande-dpae .bloc-formulaire label.page-demande-dpae__carte-jour-etiquette {
+  align-self: flex-start;
+  margin: 0;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
 .page-demande-dpae__actions {
   display: flex;
   justify-content: flex-end;
