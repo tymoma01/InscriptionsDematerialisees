@@ -13,13 +13,13 @@
   width: 100%;
   border-collapse: collapse;
   background-color: var(--couleur-fond);
-  /* Largeur fixe de la colonne "N°" — sert aussi de décalage (`left`) à la colonne "Candidat"
+  /* Largeur fixe de la colonne "Date d'inscription" — sert aussi de décalage (`left`) à la colonne "Candidat"
      figée juste derrière elle (.dossier-list__colonne-figee), même patron que
-     --planification-largeur-colonne-date (Planification.css). Assez large pour trois chiffres
-     sans jamais être coupée. */
-  --dossier-list-largeur-colonne-numero: 3rem;
+     --planification-largeur-colonne-date (Planification.css). Assez large pour que l'en-tête tienne sur
+     deux lignes (« DATE » / « D'INSCRIPTION ») sans déborder. */
+  --dossier-list-largeur-colonne-date: 9rem;
   /* Sélection multiple : colonne de case à cocher, première colonne figée (left: 0) quand elle
-     se rend — "N°" décalée d'autant derrière elle, même patron que
+     se rend — "Date d'inscription" décalée d'autant derrière elle, même patron que
      --planification-largeur-colonne-case (Planification.css). Juste la case et une fine marge
      (padding resserré, voir .dossier-list__colonne-case), pour laisser la place à "Candidat". */
   --dossier-list-largeur-colonne-case: 1.75rem;
@@ -111,15 +111,15 @@
    .table-utilisateurs__colonne-figee (Utilisateurs.css). */
 .dossier-list__colonne-figee {
   position: sticky;
-  /* Décalée de la largeur cumulée "case à cocher" (si présente) + "N°" — voir
-     --dossier-list-largeur-colonne-case/-numero, "N°" et "Candidat" forment ensemble un bloc figé
+  /* Décalée de la largeur cumulée "case à cocher" (si présente) + "Date d'inscription" — voir
+     --dossier-list-largeur-colonne-case/-numero, "Date d'inscription" et "Candidat" forment ensemble un bloc figé
      de colonnes, même patron que .planification__colonne-date/.planification__colonne-figee
      (Planification.css). Quand la sélection est absente (DossierList.jsx, `selectionActive`
      false), --dossier-list-largeur-colonne-case est ramenée à 0rem via `style` inline sur
      <table> (même mécanisme exact que Planification.jsx pour
      --planification-largeur-colonne-case) : ce calc() retombe alors sur la même valeur qu'avant
      l'introduction de la sélection (3rem), sans variante de règle séparée à maintenir. */
-  left: calc(var(--dossier-list-largeur-colonne-case) + var(--dossier-list-largeur-colonne-numero));
+  left: calc(var(--dossier-list-largeur-colonne-case) + var(--dossier-list-largeur-colonne-date));
   z-index: 1;
   background-color: var(--couleur-fond);
   /* Bordure + ombre légère sur le bord droit : signale que cette colonne est distincte du reste
@@ -137,19 +137,22 @@
   overflow-wrap: normal;
 }
 
-/* Colonne "N°", juste devant "Candidat" — sans elle, "Candidat" resterait figée à un `left` fixe
-   pendant que "N°" défilerait hors champ derrière elle, laissant un vide béant à gauche une fois
-   "N°" disparue (même raisonnement que .planification__colonne-date, Planification.css). Décalée
+/* Colonne "Date d'inscription", juste devant "Candidat" — sans elle, "Candidat" resterait figée à un `left` fixe
+   pendant que "Date d'inscription" défilerait hors champ derrière elle, laissant un vide béant à gauche une fois
+   "Date d'inscription" disparue (même raisonnement que .planification__colonne-date, Planification.css). Décalée
    de la largeur de la colonne de sélection (voir --dossier-list-largeur-colonne-case) plutôt que
    figée à `left: 0` en dur : "case à cocher" est désormais la première colonne figée quand elle
-   se rend (voir .dossier-list__colonne-case ci-dessous), "N°" glisse derrière elle — retombe sur
+   se rend (voir .dossier-list__colonne-case ci-dessous), "Date d'inscription" glisse derrière elle — retombe sur
    0 (donc l'ancien comportement) quand la sélection est absente, cette variable étant alors
    ramenée à 0rem par DossierList.jsx (même mécanisme que .dossier-list__colonne-figee ci-dessus). */
-.dossier-list__colonne-numero {
+.dossier-list__colonne-date {
   position: sticky;
   left: var(--dossier-list-largeur-colonne-case);
   z-index: 1;
-  width: var(--dossier-list-largeur-colonne-numero);
+  box-sizing: border-box;
+  width: var(--dossier-list-largeur-colonne-date);
+  min-width: var(--dossier-list-largeur-colonne-date);
+  max-width: var(--dossier-list-largeur-colonne-date);
   text-align: center;
   background-color: var(--couleur-fond);
 }
@@ -157,8 +160,8 @@
 /* Colonne de sélection multiple — première colonne figée (left: 0) quand elle se rend (voir
    DossierList.jsx, `selectionActive`), même patron exact que .planification__colonne-case
    (Planification.css). box-sizing + padding horizontal resserré : la largeur rendue doit égaler
-   --dossier-list-largeur-colonne-case, qui sert de décalage `left` à "N°" — avec le padding
-   standard des cellules, la colonne serait plus large que ce décalage et "N°" la chevaucherait. */
+   --dossier-list-largeur-colonne-case, qui sert de décalage `left` à "Date d'inscription" — avec le padding
+   standard des cellules, la colonne serait plus large que ce décalage et "Date d'inscription" la chevaucherait. */
 .dossier-list__colonne-case {
   position: sticky;
   left: 0;
@@ -172,12 +175,12 @@
 
 /* text-align: center ci-dessus reste sans effet sur les <td> (pas sur les <th>, déjà centrés par
    `.dossier-list th`, ligne 43) : `.dossier-list td` (une classe + un type, ligne 23) l'emporte
-   sur `.dossier-list__colonne-numero` seule (une classe) à spécificité égale de nombre de
+   sur `.dossier-list__colonne-date` seule (une classe) à spécificité égale de nombre de
    classes — le type ajouté par `td` fait pencher la balance vers `text-align: left`. Même bug de
    spécificité déjà rencontré et corrigé sur les colonnes figées de Planification.css
    (.planification__table td.planification__colonne-case/-numero) : qualifier ici aussi par
    `.dossier-list td` pour regagner la priorité. */
-.dossier-list td.dossier-list__colonne-numero,
+.dossier-list td.dossier-list__colonne-date,
 .dossier-list td.dossier-list__colonne-case {
   text-align: center;
 }
@@ -191,14 +194,14 @@
 }
 
 .dossier-list th.dossier-list__colonne-figee,
-.dossier-list th.dossier-list__colonne-numero,
+.dossier-list th.dossier-list__colonne-date,
 .dossier-list th.dossier-list__colonne-case {
   background-color: var(--couleur-fond-secondaire);
   z-index: 2;
 }
 
 .dossier-list tbody tr:hover td.dossier-list__colonne-figee,
-.dossier-list tbody tr:hover td.dossier-list__colonne-numero,
+.dossier-list tbody tr:hover td.dossier-list__colonne-date,
 .dossier-list tbody tr:hover td.dossier-list__colonne-case {
   /* Équivalent opaque du bleu de survol (voir --couleur-fond-survol-tableau-opaque,
      variables.css) : ces colonnes restent figées au défilement horizontal et doivent garder un
@@ -238,11 +241,10 @@
    DossierList.jsx (emailCoupable, après « @ » et avant « . »), plus jamais n'importe où
    (2026-10-02, voir .dossier-list__colonne-email). */
 .dossier-list__colonne-email {
-  /* 15rem (13rem auparavant) : élargie avec la place rendue par la colonne « Étudiant » (retirée le
-     2026-10-02). Plus de coupure n'importe où (overflow-wrap: anywhere) : l'adresse ne passe à la
+  /* 12.5rem : la place libérée compense la colonne « Date d'inscription ». Plus de coupure n'importe où (overflow-wrap: anywhere) : l'adresse ne passe à la
      ligne qu'après « @ », avant un « . » ou après un « - » (points de coupure insérés par
      DossierList.jsx, emailCoupable), jamais au milieu d'un mot. */
-  max-width: 15rem;
+  max-width: 12.5rem;
   overflow-wrap: normal;
   word-break: normal;
 }
@@ -454,4 +456,34 @@
   .dossier-list__entete-tri {
     padding: 0.75rem 0.6rem;
   }
+}
+
+/* Date sur une ligne, heure en dessous en plus petit et plus clair. */
+.dossier-list__date-inscription,
+.dossier-list__heure-inscription {
+  display: block;
+}
+
+.dossier-list__date-inscription {
+  white-space: nowrap;
+}
+
+.dossier-list__heure-inscription {
+  font-size: 0.8em;
+  color: var(--couleur-texte-secondaire, #6b7280);
+}
+
+/* Padding horizontal resserré : la largeur rendue doit égaler --dossier-list-largeur-colonne-date,
+   qui décale la colonne « Candidat » figée. */
+.dossier-list td.dossier-list__colonne-date {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+}
+
+/* Le padding de l'en-tête vit sur le bouton interne : resserré ici pour que « D'INSCRIPTION » reste
+   dans la colonne, quelle que soit la plage (y compris la plage tablette ci-dessus). */
+.dossier-list th.dossier-list__colonne-date .dossier-list__entete-tri {
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  text-align: center;
 }

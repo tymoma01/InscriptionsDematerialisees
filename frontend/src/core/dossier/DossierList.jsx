@@ -58,7 +58,42 @@ function emailCoupable(email) {
   return email.split(/(?=\.)|(?<=@)/).flatMap((partie, index) => (index === 0 ? [partie] : [<wbr key={index} />, partie]));
 }
 
+// Date d'inscription = dossiers.date_creation (déjà renvoyée par GET /api/dossiers). Date et heure
+// affichées à l'heure de Paris, quel que soit le fuseau de la tablette.
+const FORMAT_DATE_INSCRIPTION = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'Europe/Paris',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+});
+const FORMAT_HEURE_INSCRIPTION = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'Europe/Paris',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+// { date: '15/10/2026', heure: '14h32' }, ou null si la date est absente ou invalide.
+export function formaterDateInscription(valeur) {
+  if (!valeur) return null;
+  const date = new Date(valeur);
+  if (Number.isNaN(date.getTime())) return null;
+  const parties = FORMAT_HEURE_INSCRIPTION.formatToParts(date);
+  const heure = parties.find((partie) => partie.type === 'hour').value;
+  const minute = parties.find((partie) => partie.type === 'minute').value;
+  return { date: FORMAT_DATE_INSCRIPTION.format(date), heure: `${heure}h${minute}` };
+}
+
 const COLONNES = [
+  {
+    cle: 'date_creation',
+    libelle: "Date d'inscription",
+    // Dossiers sans date : regroupés en fin de tri croissant / début de tri décroissant.
+    extraire: (dossier) => {
+      const horodatage = new Date(dossier.date_creation).getTime();
+      return Number.isNaN(horodatage) ? 0 : horodatage;
+    },
+  },
   { cle: 'candidat_nom', libelle: 'Candidat', extraire: (dossier) => (dossier.candidat_nom ?? '').toLowerCase() },
   // Colonne « Étudiant » RETIRÉE le 2026-10-02 (décision de Florence) : remplacée par le filtre
   // « Étudiant » / « Non étudiant » sous Hôtellerie/Tertiaire (FiltreEtudiant.jsx).
@@ -193,7 +228,7 @@ export default function DossierList({
       if (precedent.colonne === colonne) {
         return { colonne, ordre: precedent.ordre === 'asc' ? 'desc' : 'asc' };
       }
-      return { colonne, ordre: colonne === 'date_maj' ? 'desc' : 'asc' };
+      return { colonne, ordre: colonne === 'date_maj' || colonne === 'date_creation' ? 'desc' : 'asc' };
     });
   };
 
@@ -211,7 +246,7 @@ export default function DossierList({
     <IndicateurDefilementHorizontal className="dossier-list__scroll">
       {/* --dossier-list-largeur-colonne-case ramenée à 0 quand la sélection ne se rend pas
           (selectionActive false) : cette variable pilote aussi le décalage (`left`) en cascade de
-          "N°"/"Candidat" (voir DossierList.css) — sans ce recalage, ces deux colonnes figées
+          "Date d'inscription"/"Candidat" (voir DossierList.css) — sans ce recalage, ces deux colonnes figées
           garderaient un vide à gauche correspondant à la largeur de la case à cocher absente,
           même mécanisme exact que Planification.css/--planification-largeur-colonne-case. */}
       <table className="dossier-list" style={selectionActive ? undefined : { '--dossier-list-largeur-colonne-case': '0rem' }}>
@@ -220,7 +255,7 @@ export default function DossierList({
             {/* Sélection multiple (barre d'actions groupées, TableauDeBordAccueil.jsx) — même
                 pattern que Planification.jsx (Suivi des tests) : case "tout sélectionner" dans
                 l'en-tête, première colonne figée au défilement horizontal (voir DossierList.css,
-                --dossier-list-largeur-colonne-case décale désormais "N°"/"Candidat"). */}
+                --dossier-list-largeur-colonne-case décale désormais "Date d'inscription"/"Candidat"). */}
             {selectionActive && (
               <th scope="col" className="dossier-list__colonne-case">
                 <input
@@ -231,15 +266,6 @@ export default function DossierList({
                 />
               </th>
             )}
-            {/* N° de dossier = dossier.id, identifiant métier déjà utilisé partout ailleurs dans
-                l'app (en-tête "Dossier #id" de Validation.jsx/Relances.jsx/VerificationPieces.jsx,
-                colonne "N° dossier" de TableauDossiersSelectionnes.jsx) — plus un simple rang
-                d'affichage recalculé à chaque tri (comportement précédent). Figée avec "Candidat"
-                (voir .dossier-list__colonne-numero) pour rester un repère constant même une fois
-                les colonnes suivantes défilées hors champ. */}
-            <th scope="col" className="dossier-list__colonne-numero">
-              N°
-            </th>
             {COLONNES.filter((colonne) => !COLONNES_MASQUEES.has(colonne.cle)).map((colonne) => {
               const actif = tri.colonne === colonne.cle;
               // Email/Poste resserrées avec retour à la ligne plutôt que de pousser le tableau en
@@ -247,6 +273,7 @@ export default function DossierList({
               // que la colonne figée "Candidat" ci-dessous, généralisée via une petite table plutôt
               // qu'un enchaînement de ternaires.
               const classeColonne = {
+                date_creation: 'dossier-list__colonne-date',
                 candidat_nom: 'dossier-list__colonne-figee',
                 candidat_email: 'dossier-list__colonne-email',
                 postes: 'dossier-list__colonne-poste',
@@ -297,7 +324,18 @@ export default function DossierList({
                   />
                 </td>
               )}
-              <td className="dossier-list__colonne-numero">{dossier.id}</td>
+              <td className="dossier-list__colonne-date">
+                {(() => {
+                  const inscription = formaterDateInscription(dossier.date_creation);
+                  if (!inscription) return '–';
+                  return (
+                    <>
+                      <span className="dossier-list__date-inscription">{inscription.date}</span>
+                      <span className="dossier-list__heure-inscription">{inscription.heure}</span>
+                    </>
+                  );
+                })()}
+              </td>
               <td className="dossier-list__colonne-figee">
                 {dossier.candidat_prenom} {dossier.candidat_nom}
               </td>
