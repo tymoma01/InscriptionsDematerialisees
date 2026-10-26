@@ -4,12 +4,12 @@ const { traduireErreurGraph } = require('../../integrations/stockage/erreursGrap
 const { uploaderFichier } = require('../../integrations/stockage/graphUploadFichier');
 
 // Même bibliothèque documentaire que les pièces justificatives (voir azureOneDriveConnector.js),
-// dans un dossier "Backups/neon" dédié pour ne jamais mélanger sauvegardes techniques de la base
+// dans un dossier "Backups/Neon/Inscriptions" dédié pour ne jamais mélanger sauvegardes techniques de la base
 // et documents candidats. Les sauvegardes ne sont pas propres à une entité (une seule base Neon
 // partagée, voir CLAUDE.md) : ce module n'utilise donc pas storageFactory.js/StorageConnector
 // (sélection par entité), il appelle directement Graph avec les mêmes credentials déjà en place.
 const NOM_BIBLIOTHEQUE = 'Inscriptions';
-const DOSSIER_SAUVEGARDES = 'Backups/neon';
+const DOSSIER_SAUVEGARDES = 'Backups/Neon/Inscriptions';
 
 let promesseDriveId;
 
@@ -40,7 +40,7 @@ function encoderChemin(chemin) {
 }
 
 /**
- * Téléverse le contenu chiffré d'une sauvegarde sous Backups/neon/{nomFichier}.
+ * Téléverse le contenu chiffré d'une sauvegarde sous Backups/Neon/Inscriptions/{nomFichier}.
  */
 async function uploaderSauvegarde(nomFichier, contenu) {
   const client = await graphClient.obtenirClientGraph();

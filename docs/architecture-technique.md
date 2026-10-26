@@ -177,7 +177,7 @@ Cette table est le résumé opérationnel de la contrainte de modularité de CLA
 
 ## 5. Sauvegarde de la base Neon
 
-Sauvegarde quotidienne (`pg_dump -Fc` chiffré AES-256-GCM, uploadé sur SharePoint `Backups/neon`,
+Sauvegarde quotidienne (`pg_dump -Fc` chiffré AES-256-GCM, uploadé sur SharePoint `Backups/Neon/Inscriptions`,
 rétention 30 jours), en complément du PITR natif Neon (limité à 6h sur le plan gratuit). Non
 spécifique à une entité (une seule base Neon partagée) : n'utilise donc pas `storageFactory.js`,
 appelle directement Microsoft Graph avec les credentials déjà en place pour les pièces

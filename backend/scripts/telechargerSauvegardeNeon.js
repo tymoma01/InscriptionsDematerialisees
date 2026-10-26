@@ -1,4 +1,4 @@
-// Télécharge une sauvegarde Neon depuis SharePoint (Backups/neon) et la déchiffre localement,
+// Télécharge une sauvegarde Neon depuis SharePoint (Backups/Neon/Inscriptions) et la déchiffre localement,
 // prête pour scripts/restaurerSauvegardeNeon.js — voir docs/sauvegarde-neon.md pour la procédure
 // complète de test de restauration.
 //
@@ -15,7 +15,7 @@ const { dechiffrerFichier } = require('../src/core/sauvegarde/chiffrementSauvega
 async function lister() {
   const sauvegardes = await stockageSauvegardeGraph.listerSauvegardes();
   if (sauvegardes.length === 0) {
-    console.log('Aucune sauvegarde trouvée dans Backups/neon.');
+    console.log('Aucune sauvegarde trouvée dans Backups/Neon/Inscriptions.');
     return;
   }
   console.log(`${sauvegardes.length} sauvegarde(s) disponible(s) (la plus récente en premier) :`);
@@ -29,7 +29,7 @@ async function telechargerEtDechiffrer(nomFichier, dossierSortie) {
   const sauvegardes = await stockageSauvegardeGraph.listerSauvegardes();
   const sauvegarde = sauvegardes.find((s) => s.nom === nomFichier);
   if (!sauvegarde) {
-    throw new Error(`Sauvegarde "${nomFichier}" introuvable dans Backups/neon (voir la liste sans argument).`);
+    throw new Error(`Sauvegarde "${nomFichier}" introuvable dans Backups/Neon/Inscriptions (voir la liste sans argument).`);
   }
 
   await fs.mkdir(dossierSortie, { recursive: true });

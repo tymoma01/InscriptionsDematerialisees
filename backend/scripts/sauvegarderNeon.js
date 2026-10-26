@@ -1,5 +1,5 @@
 // Exécute la sauvegarde quotidienne complète de la base Neon (pg_dump -Fc -> chiffrement
-// AES-256-GCM -> upload SharePoint/Backups/neon -> purge des 30 sauvegardes les plus récentes),
+// AES-256-GCM -> upload SharePoint/Backups/Neon/Inscriptions -> purge des 30 sauvegardes les plus récentes),
 // voir core/sauvegarde/sauvegardeService.js et docs/sauvegarde-neon.md pour le détail.
 //
 // Déclenché quotidiennement par .github/workflows/sauvegarde-neon.yml (GitHub Actions, cron) —

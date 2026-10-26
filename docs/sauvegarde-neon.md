@@ -1,7 +1,7 @@
 # Sauvegarde quotidienne de la base Neon
 
 Complément au PITR natif Neon (limité à 6h de fenêtre sur le plan gratuit, voir CLAUDE.md) : un
-`pg_dump` complet, chiffré, envoyé quotidiennement sur SharePoint (`Backups/neon`), avec une
+`pg_dump` complet, chiffré, envoyé quotidiennement sur SharePoint (`Backups/Neon/Inscriptions`), avec une
 rétention glissante de 30 jours.
 
 ## Vue d'ensemble
@@ -30,7 +30,7 @@ le job GitHub Actions se termine en échec (visible dans l'onglet Actions / noti
   ```
 - Les secrets `graph-client-id` / `graph-client-secret` / `graph-tenant-id` existent déjà (voir
   `graphClient.js`) et sont réutilisés tels quels — aucune permission Graph supplémentaire requise
-  (`Files.ReadWrite.All` couvre déjà l'écriture dans `Backups/neon`, un dossier de la même
+  (`Files.ReadWrite.All` couvre déjà l'écriture dans `Backups/Neon/Inscriptions`, un dossier de la même
   bibliothèque `Inscriptions`).
 
 ### GitHub Actions (Settings → Secrets and variables → Actions)
@@ -60,7 +60,7 @@ CLI sur le runner ; `DefaultAzureCredential` (voir `keyVaultClient.js`) la retro
 - Nom : `backup-{AAAA-MM-JJ}.dump.enc` (date Europe/Paris), ex. `backup-2026-08-19.dump.enc`.
 - Contenu : `IV (12 octets) || dump pg_dump -Fc chiffré || tag GCM (16 octets)`.
 - Emplacement : bibliothèque documentaire `Inscriptions` (même site SharePoint que les pièces
-  justificatives candidat), dossier `Backups/neon/`.
+  justificatives candidat), dossier `Backups/Neon/Inscriptions/`.
 
 ## Tester une restauration (à faire réellement, pas supposer que ça marche)
 
@@ -100,7 +100,7 @@ les objets existants de la base cible sont supprimés puis recréés à partir d
 
 ## Politique de rétention
 
-Chaque exécution réussie liste les sauvegardes déjà présentes dans `Backups/neon` et supprime celles
+Chaque exécution réussie liste les sauvegardes déjà présentes dans `Backups/Neon/Inscriptions` et supprime celles
 dont la date de création remonte à 30 jours ou plus (fenêtre glissante, pas un décompte des N plus
 récentes — voir `sauvegardeService.appliquerRetention`). Avec un dump par jour, la plus ancienne
 conservée sort de la fenêtre à son 30e jour et est purgée au run suivant : le nombre de dumps reste
