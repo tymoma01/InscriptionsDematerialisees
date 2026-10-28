@@ -27,7 +27,7 @@ const { ROLES } = require('../auth/rbac');
 // d'atteindre).
 async function cloturerRendezvousAvecTransition(
   entite,
-  { dossierId, rendezvousId, statutRendezvous, motifCodeRendezvous, transitions, utilisateurId, roleCode },
+  { dossierId, rendezvousId, statutRendezvous, motifCodeRendezvous, motifPrecisionRendezvous, transitions, utilisateurId, roleCode },
 ) {
   const bd = await db.obtenirKnex();
 
@@ -50,7 +50,7 @@ async function cloturerRendezvousAvecTransition(
   return bd.transaction(async (trx) => {
     const rendezvous = await rendezvousService.changerStatutRendezvous(
       entite,
-      { dossierId, rendezvousId, statut: statutRendezvous, motifCode: motifCodeRendezvous },
+      { dossierId, rendezvousId, statut: statutRendezvous, motifCode: motifCodeRendezvous, motifPrecision: motifPrecisionRendezvous },
       trx,
     );
 

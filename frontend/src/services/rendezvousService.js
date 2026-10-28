@@ -14,8 +14,8 @@ export async function listerRendezvous(dossierId) {
 // formulaire (voir GestionRendezvous.jsx) : la validation front est un confort, jamais la seule
 // garde-fou. 'absent' n'est plus un statut atteignable via cette route — voir
 // backend/src/api/routes/rendezvous.routes.js, statutBodySchema.
-export async function changerStatutRendezvous(dossierId, rendezvousId, { statut, motifCode }) {
-  const { data } = await api.patch(`/dossiers/${dossierId}/rendezvous/${rendezvousId}`, { statut, motifCode });
+export async function changerStatutRendezvous(dossierId, rendezvousId, { statut, motifCode, motifPrecision }) {
+  const { data } = await api.patch(`/dossiers/${dossierId}/rendezvous/${rendezvousId}`, { statut, motifCode, motifPrecision });
   return data;
 }
 

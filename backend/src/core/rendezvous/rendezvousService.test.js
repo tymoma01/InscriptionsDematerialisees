@@ -1621,3 +1621,102 @@ test('filtresListeRendezvousTestParRole : Admin, Accueil/Coordination et Plannin
     );
   }
 });
+
+// --- Motifs de désistement : ordre, motifs système, précision de « Autre motif » ---
+
+const MOTIFS_EN_BASE = [
+  { id: 7, code: 'ne_repond_plus', libelle: 'Ne répond plus' },
+  { id: 12, code: 'autre', libelle: 'Autre motif' },
+  { id: 8, code: 'indisponible', libelle: 'Finalement indisponible' },
+  { id: 24, code: 'test_non_realise', libelle: 'Test non réalisé (absence constatée au créneau)' },
+  { id: 32, code: 'annule_depuis_outlook', libelle: 'Annulé manuellement depuis le calendrier Outlook' },
+];
+
+test('listerMotifsDesistement : « Autre motif » en dernier quel que soit l\'ordre en base, motifs système retirés', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(motifRepository, 'listerMotifsParCategorie', async () => MOTIFS_EN_BASE);
+
+  const motifs = await rendezvousService.listerMotifsDesistement(ENTITE_FACTICE);
+
+  assert.deepEqual(
+    motifs.map((motif) => motif.code),
+    ['ne_repond_plus', 'indisponible', 'autre'],
+  );
+});
+
+function preparerChangementStatut(t, motif) {
+  t.mock.method(db, 'obtenirKnex', async () => creerBdFactice());
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 90,
+    statut_code: 'test_planifie',
+    statut_libelle: 'Test planifié',
+  }));
+  t.mock.method(rendezvousRepository, 'trouverRendezvousParId', async () => ({ id: 71, dossier_id: 90, statut: 'prevu' }));
+  t.mock.method(motifRepository, 'trouverMotifParCode', async () => motif);
+  return t.mock.method(rendezvousRepository, 'mettreAJourStatutRendezvous', async () => ({ id: 71, statut: 'annule' }));
+}
+
+test('changerStatutRendezvous : « Autre motif » sans précision (vide ou espaces) est rejeté', async (t) => {
+  const mettreAJour = preparerChangementStatut(t, { id: 12, code: 'autre' });
+
+  for (const motifPrecision of [undefined, '', '   ']) {
+    await assert.rejects(
+      () =>
+        rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, {
+          dossierId: 90,
+          rendezvousId: 71,
+          statut: 'annule',
+          motifCode: 'autre',
+          motifPrecision,
+        }),
+      (erreur) => erreur instanceof rendezvousService.ErreurMotifPrecision && /obligatoire/.test(erreur.message),
+    );
+  }
+  assert.equal(mettreAJour.mock.callCount(), 0);
+});
+
+test('changerStatutRendezvous : « Autre motif » au-delà de 200 caractères est rejeté, 200 exactement accepté', async (t) => {
+  const mettreAJour = preparerChangementStatut(t, { id: 12, code: 'autre' });
+  const base = { dossierId: 90, rendezvousId: 71, statut: 'annule', motifCode: 'autre' };
+
+  await assert.rejects(
+    () => rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, { ...base, motifPrecision: 'x'.repeat(201) }),
+    (erreur) => erreur instanceof rendezvousService.ErreurMotifPrecision && /200/.test(erreur.message),
+  );
+  await rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, { ...base, motifPrecision: 'x'.repeat(200) });
+  assert.equal(mettreAJour.mock.callCount(), 1);
+});
+
+test('changerStatutRendezvous : la précision nettoyée est enregistrée avec « Autre motif », ignorée pour un autre motif', async (t) => {
+  const mettreAJour = preparerChangementStatut(t, { id: 12, code: 'autre' });
+  await rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, {
+    dossierId: 90,
+    rendezvousId: 71,
+    statut: 'annule',
+    motifCode: 'autre',
+    motifPrecision: '  Garde d\'enfant  ',
+  });
+  assert.deepEqual(mettreAJour.mock.calls[0].arguments[2], { statut: 'annule', motifId: 12, motifPrecision: "Garde d'enfant" });
+
+  const mettreAJourAutre = preparerChangementStatut(t, { id: 8, code: 'indisponible' });
+  await rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, {
+    dossierId: 90,
+    rendezvousId: 71,
+    statut: 'annule',
+    motifCode: 'indisponible',
+    motifPrecision: 'ignorée',
+  });
+  assert.deepEqual(mettreAJourAutre.mock.calls[0].arguments[2], { statut: 'annule', motifId: 8, motifPrecision: null });
+});
+
+test('les motifs posés par les traitements automatiques restent acceptés par le service (bascule, Outlook)', async (t) => {
+  const mettreAJour = preparerChangementStatut(t, { id: 24, code: 'test_non_realise' });
+  await rendezvousService.changerStatutRendezvous(ENTITE_FACTICE, {
+    dossierId: 90,
+    rendezvousId: 71,
+    statut: 'absent',
+    motifCode: 'test_non_realise',
+  });
+  assert.equal(mettreAJour.mock.callCount(), 1);
+  assert.deepEqual(rendezvousService.CODES_MOTIFS_DESISTEMENT_SYSTEME, ['test_non_realise', 'annule_depuis_outlook']);
+});

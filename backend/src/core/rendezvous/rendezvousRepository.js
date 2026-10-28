@@ -298,6 +298,7 @@ function listerRendezvousParDossier(bd, dossierId) {
       'rendezvous.postes_selectionnes',
       'motifs.code as motif_code',
       'motifs.libelle as motif_libelle',
+      'rendezvous.motif_precision',
       'agent_planificateur.prenom as planifie_par_prenom',
       'agent_planificateur.nom as planifie_par_nom',
       'role_planificateur.libelle as planifie_par_role_libelle',
@@ -541,6 +542,7 @@ function listerHistoriqueRendezvousParDossiers(bd, entiteId, dossierIds) {
       'rendezvous.statut',
       'motifs.code as motif_code',
       'motifs.libelle as motif_libelle',
+      'rendezvous.motif_precision',
       'candidats.prenom as candidat_prenom',
       'candidats.nom as candidat_nom',
       'utilisateurs.prenom as formateur_prenom',
@@ -575,10 +577,10 @@ function trouverRendezvousTestActifDossier(bd, dossierId) {
     .first();
 }
 
-function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId }) {
+function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId, motifPrecision = null }) {
   return bd('rendezvous')
     .where({ id: rendezvousId })
-    .update({ statut, motif_id: motifId })
+    .update({ statut, motif_id: motifId, motif_precision: motifPrecision })
     .returning('*')
     .then(([rendezvous]) => rendezvous);
 }

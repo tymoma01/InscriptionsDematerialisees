@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import StatutBadge from '../../core/workflow/StatutBadge';
+import { libelleMotifRendezvous } from '../../core/referentiels/motifsDesistement';
 import { listerHistoriqueRendezvousDossiers } from '../../services/rendezvousService';
 import './PanneauHistoriqueRendezvous.css';
 
@@ -92,7 +93,7 @@ function tooltipDossierClos(rdv) {
 // ligne précise — affichées à part, une fois par candidat (voir notesParDossier plus bas, décision
 // utilisateur du 2026-08-13).
 function noteDuRendezvous(rdv) {
-  return rdv.evaluation_commentaire || rdv.motif_libelle || null;
+  return rdv.evaluation_commentaire || libelleMotifRendezvous(rdv);
 }
 
 // Colonne "Créé par" : seule trace disponible de l'agent Accueil/Coordination à l'origine du

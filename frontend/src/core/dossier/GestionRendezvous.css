@@ -196,6 +196,22 @@
   max-width: 20rem;
 }
 
+.gestion-rendezvous__formulaire-motif select,
+.gestion-rendezvous__formulaire-motif textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.gestion-rendezvous__formulaire-motif label textarea {
+  min-height: 0;
+}
+
+.gestion-rendezvous__compteur-precision {
+  align-self: flex-end;
+  color: var(--couleur-texte-secondaire);
+  font-size: 0.8rem;
+}
+
 .gestion-rendezvous__formulaire-motif select {
   padding: 0.5rem;
   border: 1px solid var(--couleur-bordure);

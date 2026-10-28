@@ -11,6 +11,12 @@ const { ROLES } = require('../auth/rbac');
 const env = require('../../config/env');
 
 const CATEGORIE_MOTIF_DESISTEMENT = 'desistement';
+// « Autre motif » : toujours proposé en dernier, et seul motif exigeant une précision libre.
+const CODE_MOTIF_AUTRE = 'autre';
+const PRECISION_MOTIF_LONGUEUR_MAX = 200;
+// Motifs posés uniquement par des traitements automatiques (bascule « test non réalisé »,
+// synchronisation Outlook, NSPP formateur) : jamais proposés ni acceptés pour une saisie manuelle.
+const CODES_MOTIFS_DESISTEMENT_SYSTEME = Object.freeze(['test_non_realise', 'annule_depuis_outlook']);
 
 // Un même formateur peut désormais évaluer jusqu'à 2 candidats sur un même créneau exact (ajout
 // métier — auparavant 1 seul) : constante simple plutôt que pilotée par la config d'entité, cette
@@ -142,6 +148,13 @@ class ErreurFormateurInvalide extends Error {
   }
 }
 
+class ErreurMotifPrecision extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ErreurMotifPrecision';
+  }
+}
+
 class ErreurCreneauPris extends Error {
   constructor(message) {
     super(message);
@@ -244,7 +257,7 @@ async function listerRendezvous(entite, dossierId) {
 // « systématiquement » n'est pas une option laissée à l'agent, c'est une règle imposée ici,
 // jamais contournable depuis le front (même principe que la revalidation serveur des autres
 // règles métier du projet — la validation front ne suffit jamais à elle seule).
-async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut, motifCode }, bdExistante = null) {
+async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut, motifCode, motifPrecision }, bdExistante = null) {
   if (!STATUTS_AUTORISES.includes(statut)) {
     throw new Error(`Statut de rendez-vous "${statut}" invalide (attendu : ${STATUTS_AUTORISES.join(', ')}).`);
   }
@@ -282,6 +295,7 @@ async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut
   }
 
   let motifId = null;
+  let precisionEnregistree = null;
   if (STATUTS_DESISTEMENT.includes(statut)) {
     if (!motifCode) {
       throw new Error(`Un motif de désistement est obligatoire pour passer un rendez-vous au statut "${statut}".`);
@@ -291,16 +305,42 @@ async function changerStatutRendezvous(entite, { dossierId, rendezvousId, statut
       throw new Error(`Motif de désistement "${motifCode}" non configuré pour l'entité « ${entite.code} ».`);
     }
     motifId = motif.id;
+    if (motif.code === CODE_MOTIF_AUTRE) {
+      precisionEnregistree = verifierPrecisionMotif(motifPrecision);
+    }
   }
   // Un statut hors désistement ('prevu'/'confirme') repart d'un motif nul : un motif de
   // désistement resterait trompeur si le rendez-vous est ensuite reprogrammé/reconfirmé.
 
-  return rendezvousRepository.mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId });
+  return rendezvousRepository.mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId, motifPrecision: precisionEnregistree });
+}
+
+// Précision exigée pour « Autre motif » : renvoie le texte nettoyé, ou lève ErreurMotifPrecision.
+function verifierPrecisionMotif(motifPrecision) {
+  const precision = typeof motifPrecision === 'string' ? motifPrecision.trim() : '';
+  if (!precision) {
+    throw new ErreurMotifPrecision('Précisez le motif : la précision est obligatoire pour « Autre motif ».');
+  }
+  if (precision.length > PRECISION_MOTIF_LONGUEUR_MAX) {
+    throw new ErreurMotifPrecision(`La précision du motif ne doit pas dépasser ${PRECISION_MOTIF_LONGUEUR_MAX} caractères.`);
+  }
+  return precision;
+}
+
+// Motifs proposés à un agent : sans les motifs réservés au système, « Autre motif » en dernier
+// (tri stable, l'ordre de la base est conservé pour les autres).
+function motifsDesistementSaisissables(motifs) {
+  const proposes = motifs.filter((motif) => !CODES_MOTIFS_DESISTEMENT_SYSTEME.includes(motif.code));
+  return [
+    ...proposes.filter((motif) => motif.code !== CODE_MOTIF_AUTRE),
+    ...proposes.filter((motif) => motif.code === CODE_MOTIF_AUTRE),
+  ];
 }
 
 async function listerMotifsDesistement(entite) {
   const bd = await db.obtenirKnex();
-  return motifRepository.listerMotifsParCategorie(bd, entite.id, CATEGORIE_MOTIF_DESISTEMENT);
+  const motifs = await motifRepository.listerMotifsParCategorie(bd, entite.id, CATEGORIE_MOTIF_DESISTEMENT);
+  return motifsDesistementSaisissables(motifs);
 }
 
 // Filtres imposés par le rôle sur GET /api/dossiers/rendezvous ("Suivi des tests") — sortis de
@@ -848,6 +888,12 @@ module.exports = {
   listerRendezvous,
   changerStatutRendezvous,
   listerMotifsDesistement,
+  motifsDesistementSaisissables,
+  CODE_MOTIF_AUTRE,
+  verifierPrecisionMotif,
+  CODES_MOTIFS_DESISTEMENT_SYSTEME,
+  PRECISION_MOTIF_LONGUEUR_MAX,
+  ErreurMotifPrecision,
   listerRendezvousTest,
   filtresListeRendezvousTestParRole,
   listerHistoriqueRendezvousDossiers,

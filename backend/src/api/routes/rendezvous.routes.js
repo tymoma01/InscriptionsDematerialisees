@@ -57,6 +57,8 @@ const statutBodySchema = z.object({
   // Obligatoire uniquement pour 'annule' — vérifié par rendezvousService, pas ici (c'est lui qui
   // connaît la règle "systématique", pas la couche de validation de forme).
   motifCode: z.string().trim().min(1).optional(),
+  // Précision libre, exigée par le service pour « Autre motif » seulement.
+  motifPrecision: z.string().optional(),
 });
 
 // typeRdv volontairement pas une enum figée ici (voir migration 018 : colonne string sans
@@ -286,7 +288,11 @@ router.patch('/:rendezvousId', requirePermission('gestionRendezvous'), async (re
   try {
     const dossierId = idPositifSchema.parse(req.params.dossierId);
     const rendezvousId = idPositifSchema.parse(req.params.rendezvousId);
-    const { statut, motifCode } = statutBodySchema.parse(req.body);
+    const { statut, motifCode, motifPrecision } = statutBodySchema.parse(req.body);
+    // Motifs réservés aux traitements automatiques : refusés ici même si l'appel contourne l'interface.
+    if (motifCode && rendezvousService.CODES_MOTIFS_DESISTEMENT_SYSTEME.includes(motifCode)) {
+      return res.status(400).json({ erreur: 'Ce motif est réservé au système et ne peut pas être choisi manuellement.' });
+    }
 
     // 'annule' compose désormais, dans la MÊME transaction que le changement de statut du
     // rendez-vous, la transition dossier test_planifie -> test_non_realise quand ce rendez-vous
@@ -307,6 +313,7 @@ router.patch('/:rendezvousId', requirePermission('gestionRendezvous'), async (re
       rendezvousId,
       statutRendezvous: statut,
       motifCodeRendezvous: motifCode,
+      motifPrecisionRendezvous: motifPrecision,
       transitions,
       utilisateurId: req.utilisateur.id,
       roleCode: req.utilisateur.roleCode,
@@ -320,7 +327,7 @@ router.patch('/:rendezvousId', requirePermission('gestionRendezvous'), async (re
       action: `rendezvous_statut_${statut}`,
       tableCible: 'rendezvous',
       cibleId: rendezvousId,
-      donnees: { dossierId, statut, motifCode },
+      donnees: { dossierId, statut, motifCode, ...(motifCode === rendezvousService.CODE_MOTIF_AUTRE && { motifPrecision: rendezvous.motif_precision }) },
       adresseIp: req.ip,
     });
 
@@ -364,6 +371,9 @@ router.patch('/:rendezvousId', requirePermission('gestionRendezvous'), async (re
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof ErreurRendezvousDossierClos) {
       return res.status(409).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof rendezvousService.ErreurMotifPrecision) {
+      return res.status(400).json({ erreur: erreur.message });
     }
     next(erreur);
   }

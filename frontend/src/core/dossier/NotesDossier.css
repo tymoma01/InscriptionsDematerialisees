@@ -65,7 +65,8 @@
   color: var(--couleur-texte);
 }
 
-.notes-dossier__formulaire textarea {
+.notes-dossier__formulaire textarea,
+.gestion-rendezvous__formulaire-motif textarea {
   padding: 0.5rem;
   border: 1px solid var(--couleur-bordure);
   border-radius: var(--rayon-bordure);

@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { useSession } from '../auth/useSession';
 import { peut } from '../auth/permissions';
 import StatutBadge from '../workflow/StatutBadge';
+import { CODE_MOTIF_AUTRE, PRECISION_MOTIF_LONGUEUR_MAX, libelleMotifRendezvous } from '../referentiels/motifsDesistement';
 import {
   listerRendezvous,
   changerStatutRendezvous,
   listerMotifsDesistement,
 } from '../../services/rendezvousService';
 import { useRafraichissementAuto } from './useRafraichissementAuto';
+// Le champ de précision du désistement reprend le style de la zone de texte des notes.
+import './NotesDossier.css';
 import './GestionRendezvous.css';
 
 // Trois formats distincts plutôt qu'un seul date+heure combiné (comportement précédent) : la
@@ -106,11 +109,12 @@ function titreRendezvous(rdv) {
 // seedMotifsDesistement.js), laissé tel quel sinon (les autres motifs de désistement — "Ne répond
 // plus", "Finalement indisponible"... — n'ont jamais porté ce préfixe).
 const PREFIXE_MOTIF_REDONDANT = 'Test non réalisé ';
-function libelleMotifAffiche(motifLibelle) {
-  if (motifLibelle?.startsWith(PREFIXE_MOTIF_REDONDANT)) {
-    return motifLibelle.slice(PREFIXE_MOTIF_REDONDANT.length);
+function libelleMotifAffiche(rdv) {
+  const libelle = libelleMotifRendezvous(rdv);
+  if (libelle?.startsWith(PREFIXE_MOTIF_REDONDANT)) {
+    return libelle.slice(PREFIXE_MOTIF_REDONDANT.length);
   }
-  return motifLibelle;
+  return libelle;
 }
 
 // Statuts de DOSSIER (pas de rendez-vous) au-delà desquels Confirmer la présence/Marquer annulé
@@ -189,11 +193,13 @@ export default function GestionRendezvous({
 
   const [rendezvous, setRendezvous] = useState([]);
   const [motifs, setMotifs] = useState([]);
+  const [erreurMotifs, setErreurMotifs] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
 
   const [desistementEnCours, setDesistementEnCours] = useState(null); // { rendezvousId, statutCible }
   const [motifChoisi, setMotifChoisi] = useState('');
+  const [precisionMotif, setPrecisionMotif] = useState('');
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
 
@@ -214,26 +220,28 @@ export default function GestionRendezvous({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dossierId, rafraichir]);
 
+  // `peutGererRendezvous` est dérivé de la session, résolue après le premier rendu : il doit rester
+  // une dépendance, sinon l'effet sort sur `false` au montage et ne recharge plus les motifs.
   useEffect(() => {
     let annule = false;
     // Motifs utiles aux seules actions (peutGererRendezvous) : jamais demandés pour un rôle en
-    // consultation, qui n'y a pas accès côté serveur (2026-10-01, Inspecteur Hôtellerie).
+    // consultation, qui n'y a pas accès côté serveur.
     if (!peutGererRendezvous) return undefined;
+    setErreurMotifs(null);
     listerMotifsDesistement()
       .then((valeur) => {
         if (annule) return;
         setMotifs(valeur);
-        if (valeur.length > 0) setMotifChoisi(valeur[0].code);
+        setMotifChoisi((courant) => courant || (valeur[0]?.code ?? ''));
       })
-      .catch(() => {
-        // Non bloquant : sans motifs configurés, marquer un désistement reste désactivé (voir
-        // bouton plus bas) mais la liste ci-dessus reste consultable.
+      .catch((erreur) => {
+        if (annule) return;
+        setErreurMotifs(erreur.response?.data?.erreur ?? 'Impossible de charger les motifs de désistement.');
       });
     return () => {
       annule = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dossierId]);
+  }, [dossierId, peutGererRendezvous]);
 
   // Rafraîchissement automatique : ne recharge que la liste des rendez-vous,
   // jamais les motifs (config statique, sans intérêt à repoller) ni `desistementEnCours`/
@@ -242,6 +250,7 @@ export default function GestionRendezvous({
 
   const ouvrirDesistement = (rendezvousId, statutCible) => {
     setDesistementEnCours({ rendezvousId, statutCible });
+    setPrecisionMotif('');
     setErreurEnvoi(null);
   };
 
@@ -250,15 +259,20 @@ export default function GestionRendezvous({
     setErreurEnvoi(null);
   };
 
+  // « Autre motif » exige une précision non vide (même contrôle côté serveur).
+  const precisionRequise = motifChoisi === CODE_MOTIF_AUTRE;
+  const precisionSaisie = precisionMotif.trim();
+
   const confirmerDesistement = async (evenement) => {
     evenement.preventDefault();
-    if (!motifChoisi) return;
+    if (!motifChoisi || (precisionRequise && !precisionSaisie)) return;
     setEnvoiEnCours(true);
     setErreurEnvoi(null);
     try {
       await changerStatutRendezvous(dossierId, desistementEnCours.rendezvousId, {
         statut: desistementEnCours.statutCible,
         motifCode: motifChoisi,
+        ...(precisionRequise && { motifPrecision: precisionSaisie }),
       });
       setDesistementEnCours(null);
       await chargerRendezvous();
@@ -378,8 +392,11 @@ export default function GestionRendezvous({
                   <div className="gestion-rendezvous__ligne">
                     <span className="gestion-rendezvous__type">{titreRendezvous(rdv)}</span>
                     <StatutBadge libelle={libelleAffiche(rdv)} variante={varianteAffichee(rdv)} />
-                    {rdv.motif_libelle && (
-                      <span className="gestion-rendezvous__motif">Motif : {libelleMotifAffiche(rdv.motif_libelle)}</span>
+                    {libelleMotifAffiche(rdv) && (
+                      <span className="gestion-rendezvous__motif">
+                        {rdv.motif_precision ? '' : 'Motif : '}
+                        {libelleMotifAffiche(rdv)}
+                      </span>
                     )}
                   </div>
 
@@ -465,13 +482,30 @@ export default function GestionRendezvous({
                         </select>
                       </label>
 
+                      {precisionRequise && (
+                        <label>
+                          <span>Précisez le motif (obligatoire)</span>
+                          <textarea
+                            rows={2}
+                            value={precisionMotif}
+                            maxLength={PRECISION_MOTIF_LONGUEUR_MAX}
+                            onChange={(evenement) => setPrecisionMotif(evenement.target.value)}
+                            required
+                          />
+                          <small className="gestion-rendezvous__compteur-precision">
+                            {precisionMotif.length}/{PRECISION_MOTIF_LONGUEUR_MAX}
+                          </small>
+                        </label>
+                      )}
+
+                      {erreurMotifs && <p role="alert">{erreurMotifs}</p>}
                       {erreurEnvoi && <p role="alert">{erreurEnvoi}</p>}
 
                       <div className="gestion-rendezvous__formulaire-motif-actions">
                         <button type="button" onClick={annulerDesistement} disabled={envoiEnCours}>
                           Annuler
                         </button>
-                        <button type="submit" disabled={envoiEnCours || motifs.length === 0}>
+                        <button type="submit" disabled={envoiEnCours || motifs.length === 0 || (precisionRequise && !precisionSaisie)}>
                           {envoiEnCours ? 'Enregistrement...' : 'Confirmer le désistement'}
                         </button>
                       </div>
