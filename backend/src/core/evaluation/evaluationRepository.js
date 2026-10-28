@@ -179,7 +179,12 @@ const SOUS_REQUETE_POSTES_CODES = `(
 // qu'égalité `->>`, même opérateur que statistiquesRepository.filtrerPosteDossier (donnees->
 // 'posteBureau'/'posteHotel'). `->`/`->>` doit rester du SQL (whereRaw), jamais un nom de colonne
 // littéral (bug 2026-08-10, voir statistiquesRepository.js) — même précaution ici.
-function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = null, creneau = null) {
+//
+// creneaux/jours (tableaux ou null) : à l'intérieur d'un groupe, une évaluation correspond si le
+// dossier a AU MOINS UN des choix demandés (opérateur jsonb `?|`, `\\?` = point d'interrogation
+// littéral pour knex) ; les deux groupes, le formateur et le typePoste se cumulent (ET). `jours` =
+// donnees -> 'joursDisponibles' (jours déclarés par le candidat à l'inscription).
+function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = null, creneaux = null, jours = null) {
   return bd('evaluations')
     .join('dossiers', 'dossiers.id', 'evaluations.dossier_id')
     .join('candidats', 'candidats.id', 'dossiers.candidat_id')
@@ -195,7 +200,8 @@ function listerEvaluationsParFormateur(bd, entiteId, formateurId, typePoste = nu
     .modify((requete) => {
       if (formateurId !== null) requete.where('evaluations.formateur_id', formateurId);
       if (typePoste !== null) requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [typePoste]);
-      if (creneau !== null) requete.whereRaw("bloc_disponibilites.donnees -> 'creneaux' @> ?::jsonb", [JSON.stringify([creneau])]);
+      if (creneaux?.length) requete.whereRaw("bloc_disponibilites.donnees -> 'creneaux' \\?| ?::text[]", [creneaux]);
+      if (jours?.length) requete.whereRaw("bloc_disponibilites.donnees -> 'joursDisponibles' \\?| ?::text[]", [jours]);
     })
     .select(
       'evaluations.id',

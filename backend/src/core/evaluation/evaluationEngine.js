@@ -562,10 +562,10 @@ async function enregistrerEvaluation(
 // d'en-tête d'evaluationRepository.js).
 // Admin avec `secteur` : tout le secteur, filtrable par évaluateur
 // (evaluations.formateur_id) — voir filtresEvaluationsParRole.
-async function listerHistorique(entite, formateurId, roleCode, creneau = null, { secteur, formateurIdDemande } = {}) {
+async function listerHistorique(entite, formateurId, roleCode, creneaux = null, { secteur, formateurIdDemande, jours = null } = {}) {
   const bd = await db.obtenirKnex();
   const filtres = filtresEvaluationsParRole({ roleCode, utilisateurId: formateurId, vue: 'historique', secteur, formateurIdDemande });
-  return evaluationRepository.listerEvaluationsParFormateur(bd, entite.id, filtres.formateurId, filtres.typePoste, creneau);
+  return evaluationRepository.listerEvaluationsParFormateur(bd, entite.id, filtres.formateurId, filtres.typePoste, creneaux, jours);
 }
 
 // Valeurs de "Créneaux souhaités" à proposer dans le select du même écran (audit 2026-09-17,
@@ -624,6 +624,7 @@ function construireDetailEvaluation(evaluation, lignes) {
       postesCodes: evaluation.postes_codes ?? [],
       commentaire: evaluation.commentaire,
       dateEvaluation: evaluation.date_evaluation,
+      dossierId: evaluation.dossier_id,
       candidatPrenom: evaluation.candidat_prenom,
       candidatNom: evaluation.candidat_nom,
     },

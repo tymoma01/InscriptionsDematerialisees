@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import StatutBadge from '../workflow/StatutBadge';
 import { normaliserTexte } from '../filtres/normaliserTexte';
-import { useParametreURL } from '../filtres/useParametreURL';
+import { useSearchParams } from 'react-router-dom';
+import { useParametreURL, useEnsembleURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
 import { listerHistoriqueEvaluations, listerCreneauxDisponibles } from '../../services/evaluationService';
 import SelecteurEvaluateurAdmin from './SelecteurEvaluateurAdmin';
 import { libellePoste } from '../referentiels/postes';
+import { varianteCreneau } from '../referentiels/creneaux';
 import './HistoriqueEvaluations.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -60,18 +62,35 @@ function trierCreneaux(creneaux) {
   });
 }
 
-// Palette "Créneau" — 3 variantes StatutBadge déjà
-// utilisées ailleurs dans l'app pour des besoins catégoriels (pas un jugement positif/négatif,
-// contrairement à 'echec'/'succes'/'vert-clair' déjà pris par la colonne "Résultat" de CE même
-// tableau, à ne pas réutiliser ici pour éviter toute confusion visuelle) : 'bleu'/'violet' déjà
-// utilisées pour des statuts neutres de planification (TableauDeBordAccueil.jsx, Planification.jsx,
-// PanneauHistoriqueRendezvous.jsx), 'dore' déjà utilisée pour des badges de poste (catégoriel, pas
-// un statut — voir Indicateurs.jsx, PREFIXE_POSTE). Indicateur emoji associé (voir le select plus
-// bas) : couleur la plus proche du badge rendu, un <option> natif ne pouvant pas porter de
-// background-color/pseudo-élément fiable cross-navigateur — un simple caractère Unicode coloré
-// fonctionne partout, contrairement à du CSS ciblant <option>.
-const CRENEAU_VARIANTES = { '6h-9h': 'bleu', '9h-18h': 'dore', '18h-21h': 'violet' };
-const CRENEAU_EMOJI = { '6h-9h': '🔵', '9h-18h': '🟤', '18h-21h': '🟣' };
+// Couleurs des créneaux (badges de la colonne « Créneau » et pastilles du filtre) : voir
+// core/referentiels/creneaux.js, par code de créneau.
+
+// Jours disponibles déclarés par le candidat à l'inscription (`joursDisponibles`, même liste que
+// BlocDisponibilites.schema.js).
+const JOURS_SEMAINE = [
+  { code: 'lundi', libelle: 'Lundi' },
+  { code: 'mardi', libelle: 'Mardi' },
+  { code: 'mercredi', libelle: 'Mercredi' },
+  { code: 'jeudi', libelle: 'Jeudi' },
+  { code: 'vendredi', libelle: 'Vendredi' },
+  { code: 'samedi', libelle: 'Samedi' },
+  { code: 'dimanche', libelle: 'Dimanche' },
+];
+
+// Pastille cliquable d'un groupe de filtres (sélection multiple) : couleurs de la variante au repos,
+// fond marron plein et texte blanc une fois cochée (même classe pour tous les groupes).
+function PastilleFiltre({ libelle, variante, active, onBasculer }) {
+  return (
+    <button
+      type="button"
+      className={`historique-evaluations__pastille${active ? ' historique-evaluations__pastille--active' : ''}`}
+      aria-pressed={active}
+      onClick={onBasculer}
+    >
+      <StatutBadge libelle={libelle} variante={variante} />
+    </button>
+  );
+}
 
 // Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) évalué(s), résultat) — même
 // principe que Dossiers candidats/Suivi des tests (filtrerDossiers.js/Planification.jsx) : toutes
@@ -185,6 +204,9 @@ const COLONNE_FORMATEUR = { ...COLONNE_INSPECTEUR, cle: 'formateur', libelle: 'F
 export default function HistoriqueEvaluations({ onSelectionner, afficherInspecteur = false, secteurVueAdmin }) {
   const [evaluations, setEvaluations] = useState([]);
   const [chargement, setChargement] = useState(true);
+  // Faux jusqu'à la première réponse : ensuite, un changement de filtre recharge la liste sans
+  // faire disparaître les filtres (sinon on ne pourrait pas cocher plusieurs pastilles à la suite).
+  const [dejaCharge, setDejaCharge] = useState(false);
   const [erreur, setErreur] = useState(null);
   const [tri, setTri] = useState({ colonne: 'date_evaluation', ordre: 'desc' });
 
@@ -201,21 +223,35 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   // de chargement plus bas), pas sur `evaluations` déjà reçu — même useParametreURL pour rester
   // cohérent (persisté dans l'URL, comme les autres), mais son changement redéclenche un appel
   // réseau au lieu d'un simple refiltrage de `evaluationsFiltrees`.
-  const [creneauFiltre, setCreneauFiltre] = useParametreURL('creneau', '');
+  // Sélection multiple (listes séparées par des virgules dans l'URL : `creneau` garde son nom, un
+  // ancien lien ?creneau=6h-9h reste valide) : un candidat correspond s'il a AU MOINS UN des choix
+  // cochés d'un groupe ; les groupes se cumulent entre eux et avec les autres filtres.
+  const [creneauxFiltre, basculerCreneau, remplacerCreneaux] = useEnsembleURL('creneau');
+  const [joursFiltre, basculerJour] = useEnsembleURL('jours');
+  const [, setSearchParams] = useSearchParams();
+  // Une seule mise à jour de l'adresse : deux appels successifs de useParametreURL dans le même clic
+  // s'écraseraient (chacun part de l'adresse courante).
+  const effacerCreneauxEtJours = () =>
+    setSearchParams(
+      (precedent) => {
+        const suivant = new URLSearchParams(precedent);
+        suivant.delete('creneau');
+        suivant.delete('jours');
+        return suivant;
+      },
+      { replace: true },
+    );
   const [evaluateurFiltre, setEvaluateurFiltre] = useParametreURL('evaluateur', '');
   const filtresAdmin = useMemo(
     () => (secteurVueAdmin ? { secteur: secteurVueAdmin, formateurId: evaluateurFiltre } : {}),
     [secteurVueAdmin, evaluateurFiltre],
   );
   const afficherEvaluateur = afficherInspecteur || Boolean(secteurVueAdmin);
-  // Options du select ci-dessus — valeurs réellement présentes en base pour l'utilisateur connecté
-  // (voir backend evaluationEngine.listerCreneauxDisponibles), jamais une liste codée en dur type
-  // CRENEAUX_BUREAU (BlocDisponibilites.schema.js) : ce fichier ne connaît pas le vocabulaire
-  // hôtel/bureau, seulement ce qui existe réellement dans l'historique visible par ce rôle.
-  // Chargées une seule fois (n'a pas besoin de suivre `evaluations`, qui lui-même change quand
-  // `creneauFiltre` change — sinon une sélection retirerait ses propres options de la liste).
-  // Uniquement côté Inspecteur (voir `afficherInspecteur`) : la vue Formateur n'affiche pas ce
-  // filtre, inutile d'appeler l'API pour elle.
+  // Créneaux proposés en pastilles — valeurs réellement présentes en base pour l'utilisateur connecté
+  // (voir backend evaluationEngine.listerCreneauxDisponibles), jamais une liste codée en dur : ce
+  // fichier ne connaît pas le vocabulaire hôtel/bureau. Chargées une seule fois par périmètre (elles
+  // ne suivent pas `evaluations`, qui change avec les filtres : une sélection retirerait ses propres
+  // options).
   const [optionsCreneaux, setOptionsCreneaux] = useState([]);
 
   // Colonnes "Créneau" puis "Inspecteur" insérées entre "Poste(s) évalué(s)" et "Date du test"
@@ -237,17 +273,13 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     return COLONNES_BASE;
   }, [afficherInspecteur, secteurVueAdmin]);
 
-  // Recharge à chaque changement de creneauFiltre (filtre serveur, voir son commentaire
-  // ci-dessus) — recherche/dates n'en font volontairement pas partie, filtrées côté client sur
-  // `evaluations` une fois reçu (voir evaluationsFiltrees plus bas). Repasse chargement à true à
-  // chaque changement de créneau, comme au montage initial : la ligne de filtres elle-même
-  // disparaît brièvement (voir `if (chargement)` plus bas) — simplification assumée plutôt qu'un
-  // rendu "ancienne liste + indicateur de chargement" non demandé ici.
+  // Recharge à chaque changement de créneaux ou de jours (filtres serveur) — recherche/dates, elles,
+  // sont filtrées côté client sur `evaluations` une fois reçu (voir evaluationsFiltrees plus bas).
   useEffect(() => {
     let annule = false;
     setChargement(true);
     setErreur(null);
-    listerHistoriqueEvaluations({ creneau: creneauFiltre, ...filtresAdmin })
+    listerHistoriqueEvaluations({ creneaux: [...creneauxFiltre], jours: [...joursFiltre], ...filtresAdmin })
       .then((valeur) => {
         if (!annule) setEvaluations(valeur);
       })
@@ -255,44 +287,41 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
         if (!annule) setErreur(erreur.response?.data?.erreur ?? "Impossible de récupérer l'historique des évaluations.");
       })
       .finally(() => {
-        if (!annule) setChargement(false);
+        if (!annule) {
+          setChargement(false);
+          setDejaCharge(true);
+        }
       });
     return () => {
       annule = true;
     };
-  }, [creneauFiltre, filtresAdmin]);
+  }, [creneauxFiltre, joursFiltre, filtresAdmin]);
 
-  // Options du select "Créneaux souhaités" — uniquement si affiché (voir `afficherInspecteur`),
-  // chargées une seule fois au montage (n'a pas à suivre creneauFiltre, voir son commentaire
-  // ci-dessus). Échec silencieux (voir catch vide) : une liste d'options vide ne fait que réduire
-  // le select à sa seule option "Tous", ce n'est pas une erreur bloquante pour la page comme
-  // l'échec du chargement de l'historique lui-même ci-dessus.
+  // Options des pastilles « Créneaux souhaités ». Échec silencieux : sans options, le groupe est
+  // simplement vide, ce n'est pas bloquant comme l'échec du chargement de l'historique.
   //
-  // Réinitialisation d'une valeur périmée : creneauFiltre est
-  // persisté dans l'URL (useParametreURL), donc un lien déjà partagé/en favori avec ?creneau=matin
-  // — valeur du vocabulaire hôtel, plus jamais proposée par le select depuis le correctif du filtre
-  // secteur ci-dessus — resterait sinon actif indéfiniment (0 résultat permanent, aucun moyen de le
-  // comprendre depuis l'écran). setCreneauFiltre est stable (useCallback, voir useParametreURL.js),
-  // sans risque de boucle avec l'effet de chargement ci-dessus (qui, lui, dépend de creneauFiltre).
+  // Valeurs périmées : `creneau` est persisté dans l'URL, un lien ancien (ex. ?creneau=matin pour un
+  // périmètre bureau) resterait sinon actif sans pastille correspondante (0 résultat permanent) —
+  // les créneaux cochés absents des options sont donc retirés. remplacerCreneaux est stable, sans
+  // risque de boucle avec l'effet de chargement ci-dessus.
   useEffect(() => {
-    if (!afficherInspecteur) return undefined;
     let annule = false;
     listerCreneauxDisponibles(filtresAdmin)
       .then((valeur) => {
         if (annule) return;
         setOptionsCreneaux(valeur);
-        if (creneauFiltre && !valeur.includes(creneauFiltre)) setCreneauFiltre('');
+        const valides = [...creneauxFiltre].filter((creneau) => valeur.includes(creneau));
+        if (valides.length !== creneauxFiltre.size) remplacerCreneaux(valides);
       })
       .catch(() => {});
     return () => {
       annule = true;
     };
-     
-    // des dépendances : ne doit tourner qu'au montage (voir commentaire ci-dessus), pas à chaque
-    // changement de filtre — seulement lire sa valeur courante au moment où les options arrivent.
-    // filtresAdmin : en vue Admin, les options suivent le formateur/inspecteur
-    // sélectionné (mêmes évaluations que la liste) ; constant ({}) hors vue Admin.
-  }, [afficherInspecteur, filtresAdmin]);
+    // Ne doit tourner qu'au changement de périmètre (filtresAdmin : en vue Admin, les options suivent
+    // le formateur/inspecteur sélectionné ; constant hors vue Admin), pas à chaque changement de
+    // filtre : creneauxFiltre n'est lu qu'à l'arrivée des options.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtresAdmin]);
 
   // Filtrage client (recherche + plage de date sur date_evaluation) sur la liste déjà reçue —
   // même bornage en heure locale que filtrerDossiers.js/Planification.jsx (dateDebutFiltre/
@@ -354,7 +383,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
     <SelecteurEvaluateurAdmin secteur={secteurVueAdmin} valeur={evaluateurFiltre} onChanger={setEvaluateurFiltre} />
   ) : null;
 
-  if (chargement) {
+  if (chargement && !dejaCharge) {
     return (
       <>
         {selecteurAdmin && <div className="historique-evaluations__filtres">{selecteurAdmin}</div>}
@@ -365,13 +394,12 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
   if (erreur) {
     return <p role="alert">{erreur}</p>;
   }
-  // !creneauFiltre : sans cette condition, un filtre "Créneaux souhaités" qui
-  // renvoie zéro évaluation (côté serveur, voir l'effet de chargement plus haut) afficherait à tort
-  // "Aucune évaluation soumise pour l'instant" — message réservé au cas où l'utilisateur n'a
-  // vraiment aucune évaluation, pas à un résultat vide dû à un filtre actif (voir le message dédié
-  // "Aucune évaluation ne correspond aux critères actuels" plus bas, evaluationsTriees.length === 0).
-  // !evaluateurFiltre : même raison que !creneauFiltre pour le filtre Admin.
-  if (evaluations.length === 0 && !creneauFiltre && !evaluateurFiltre) {
+  // aucunFiltreServeur : un filtre (créneaux, jours, évaluateur) qui renvoie zéro évaluation côté
+  // serveur ne doit pas afficher « Aucune évaluation soumise pour l'instant », réservé au cas où
+  // l'utilisateur n'a vraiment aucune évaluation (voir le message dédié « Aucune évaluation ne
+  // correspond aux critères actuels » plus bas).
+  const aucunFiltreServeur = creneauxFiltre.size === 0 && joursFiltre.size === 0 && !evaluateurFiltre;
+  if (evaluations.length === 0 && aucunFiltreServeur) {
     return (
       <>
         {selecteurAdmin && <div className="historique-evaluations__filtres">{selecteurAdmin}</div>}
@@ -394,27 +422,6 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
           />
         </label>
 
-        {/* "Créneaux souhaités" — uniquement côté
-            Inspecteur (voir `afficherInspecteur`), filtré EN BASE contrairement à Rechercher/Du/Au
-            (voir l'effet de chargement plus haut) : options = optionsCreneaux, jamais une liste
-            codée en dur. Indicateur emoji (audit 2026-09-18, demande utilisateur — même palette
-            CRENEAU_VARIANTES que la colonne "Créneau" du tableau, voir plus bas) : un <option>
-            natif ne peut pas porter de background-color/pseudo-élément CSS de façon fiable
-            cross-navigateur, un caractère Unicode coloré fonctionne partout. */}
-        {afficherInspecteur && (
-          <label className="historique-evaluations__filtre-creneau">
-            <span>Créneaux souhaités</span>
-            <select value={creneauFiltre} onChange={(evenement) => setCreneauFiltre(evenement.target.value)}>
-              <option value="">Tous</option>
-              {optionsCreneaux.map((creneau) => (
-                <option key={creneau} value={creneau}>
-                  {CRENEAU_EMOJI[creneau] ?? ''} {creneau}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
         {/* Même composant que Dossiers candidats/Suivi des tests (voir FiltrePlageDate.jsx) —
             filtre ici sur date_evaluation ("Date du test") plutôt que la date de dernière mise à
             jour du dossier ou du rendez-vous. */}
@@ -424,6 +431,44 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
           dateFinFiltre={dateFinFiltre}
           onChangerDateFinFiltre={setDateFinFiltre}
         />
+      </div>
+
+      {/* Seconde ligne : « Créneaux souhaités » à gauche, « Jours disponibles » à droite, filtrés
+          côté serveur (voir l'effet de chargement). Les créneaux proposés sont ceux réellement
+          présents dans l'historique visible par ce rôle (optionsCreneaux). */}
+      <div className="historique-evaluations__filtres-pastilles">
+        <div className="historique-evaluations__groupe-pastilles" role="group" aria-label="Créneaux souhaités">
+          <span className="historique-evaluations__groupe-titre">Créneaux souhaités</span>
+          {optionsCreneaux.map((creneau) => (
+            <PastilleFiltre
+              key={creneau}
+              libelle={creneau}
+              variante={varianteCreneau(creneau)}
+              active={creneauxFiltre.has(creneau)}
+              onBasculer={() => basculerCreneau(creneau)}
+            />
+          ))}
+        </div>
+        <div className="historique-evaluations__groupe-pastilles" role="group" aria-label="Jours disponibles">
+          <span className="historique-evaluations__groupe-titre">Jours disponibles</span>
+          {JOURS_SEMAINE.map((jour) => (
+            <PastilleFiltre
+              key={jour.code}
+              libelle={jour.libelle}
+              variante="etudiant"
+              active={joursFiltre.has(jour.code)}
+              onBasculer={() => basculerJour(jour.code)}
+            />
+          ))}
+          <button
+            type="button"
+            className="historique-evaluations__effacer"
+            disabled={creneauxFiltre.size === 0 && joursFiltre.size === 0}
+            onClick={effacerCreneauxEtJours}
+          >
+            Effacer
+          </button>
+        </div>
       </div>
 
       {evaluationsTriees.length === 0 ? (
@@ -469,7 +514,7 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
                       ) : (
                         <div className="historique-evaluations__badges">
                           {trierCreneaux(evaluation.creneaux).map((creneau) => (
-                            <StatutBadge key={creneau} libelle={creneau} variante={CRENEAU_VARIANTES[creneau] ?? 'neutre'} />
+                            <StatutBadge key={creneau} libelle={creneau} variante={varianteCreneau(creneau)} />
                           ))}
                         </div>
                       )}

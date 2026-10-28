@@ -99,6 +99,25 @@
   border-color: var(--statut-turquoise-bordure);
 }
 
+/* Teintes pastel des créneaux de l'Hôtellerie (voir --statut-jaune-pale-* etc., variables.css). */
+.statut-badge--jaune-pale {
+  background-color: var(--statut-jaune-pale-fond);
+  color: var(--statut-jaune-pale-texte);
+  border-color: var(--statut-jaune-pale-bordure);
+}
+
+.statut-badge--vert-eau {
+  background-color: var(--statut-vert-eau-fond);
+  color: var(--statut-vert-eau-texte);
+  border-color: var(--statut-vert-eau-bordure);
+}
+
+.statut-badge--lavande {
+  background-color: var(--statut-lavande-fond);
+  color: var(--statut-lavande-texte);
+  border-color: var(--statut-lavande-bordure);
+}
+
 /* Colonne "Expérience" (Dossiers candidats, audit 2026-09-02) — palette dédiée --experience-*
    (variables.css), volontairement séparée de --statut-* : même lien visuel direct que les badges
    de statut avec les badges du filtre correspondant (voir TableauDeBordAccueil.css,

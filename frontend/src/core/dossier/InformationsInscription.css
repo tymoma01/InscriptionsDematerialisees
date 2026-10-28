@@ -525,3 +525,10 @@
   padding-left: 1.25rem;
   color: var(--couleur-texte-secondaire);
 }
+
+/* Créneaux souhaités : une pastille colorée par créneau (voir core/referentiels/creneaux.js). */
+.informations-inscription__creneaux {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}

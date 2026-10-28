@@ -240,6 +240,22 @@
   --statut-turquoise-texte: #0b6e6e;
   --statut-turquoise-bordure: #9de0da;
 
+  /* Créneaux de l'Hôtellerie (matin / midi / soir) — pendant des créneaux du Tertiaire, qui lisent
+     --statut-bleu-* / --statut-dore-* / --statut-violet-* (association par code de créneau dans
+     core/referentiels/creneaux.js). Pastel sobre, texte foncé, bordure de la même teinte ;
+     contraste fond/texte >= 6,9:1 (WCAG AA : 4,5:1). Teintes : jaune pâle, vert d'eau, lavande. */
+  --statut-jaune-pale-fond: #fff6c4;
+  --statut-jaune-pale-texte: #5c4a00;
+  --statut-jaune-pale-bordure: #ecd96b;
+
+  --statut-vert-eau-fond: #d6f1e8;
+  --statut-vert-eau-texte: #0d5a45;
+  --statut-vert-eau-bordure: #9fd8c6;
+
+  --statut-lavande-fond: #e9e4fa;
+  --statut-lavande-texte: #463886;
+  --statut-lavande-bordure: #c4b9ee;
+
   /* Palette "Expérience" (audit 2026-09-02, filtre + colonne "Expérience" sur Dossiers
      candidats) — famille DISTINCTE de la palette de statuts ci-dessus (décision utilisateur
      explicite : éviter toute confusion visuelle entre les deux familles de filtre sur la même

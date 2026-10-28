@@ -8,6 +8,7 @@ import StatutBadge from '../workflow/StatutBadge';
 import BadgeEtudiant from './BadgeEtudiant';
 import { peut } from '../auth/permissions';
 import { LIBELLES_POSTE, POSTES_BUREAU, POSTES_HOTEL } from '../referentiels/postes';
+import { varianteCreneau } from '../referentiels/creneaux';
 import {
   CODE_PHOTO_IDENTITE,
   LIBELLES_CIVILITE,
@@ -79,11 +80,14 @@ import './InformationsInscription.css';
 // dossierId reçu en prop, pas de useParams() ici : ce composant ne connaît rien du routage, même
 // patron que HistoriqueRelances.jsx — à l'appelant de le lire depuis le paramètre de route.
 //
+// lectureSeule : masque « Modifier » même pour un rôle qui a le droit de modifier (ex. détail d'une
+// évaluation de l'historique : la modification se fait uniquement depuis la fiche dossier).
+//
 // Ordre et libellés du bloc « Pièces jointes » : MÊME source que le bloc « Pièces justificatives »
 // (CaptureTablette.jsx via VerificationPieces.jsx) — la configuration des pièces de l'entité,
 // table types_pieces, lue par useTypesPieces. Tant qu'elle n'est pas chargée (ou en cas d'échec),
 // les pièces restent affichées, avec le libellé du serveur (voir ordrePiecesRecues.js).
-export default function InformationsInscription({ dossierId }) {
+export default function InformationsInscription({ dossierId, lectureSeule = false }) {
   const { utilisateur } = useSession();
   const { typesPieces } = useTypesPieces();
   const [inscription, setInscription] = useState(null);
@@ -129,7 +133,7 @@ export default function InformationsInscription({ dossierId }) {
   // plus bas) — null tant qu'aucune session d'édition n'est en cours.
   const typePostePrecedentRef = useRef(null);
 
-  const peutModifier = peut(utilisateur, 'modificationInscription');
+  const peutModifier = !lectureSeule && peut(utilisateur, 'modificationInscription');
   // Pièces (dont la photo d'identité) : jamais demandées hors consultationPieces (2026-10-01,
   // Inspecteur Hôtellerie, sans accès aux pièces) — les informations d'inscription restent affichées.
   const peutVoirPieces = peut(utilisateur, 'consultationPieces');
@@ -462,7 +466,20 @@ export default function InformationsInscription({ dossierId }) {
                           « Étudiant » de Dossiers candidats (BadgeEtudiant.jsx), libellée « Oui »/« Non »
                           à côté de l'intitulé ; « — » pour un dossier antérieur à la question. */}
                       <Ligne libelle="Étudiant" valeur={<BadgeEtudiant estEtudiant={candidat?.estEtudiant} libelleOui="Oui" libelleNon="Non" />} />
-                      <Ligne libelle="Créneaux souhaités" valeur={libelleListe(LIBELLES_CRENEAU, disponibilites.creneaux)} />
+                      <Ligne
+                        libelle="Créneaux souhaités"
+                        valeur={
+                          (disponibilites.creneaux ?? []).length === 0 ? (
+                            '-'
+                          ) : (
+                            <span className="informations-inscription__creneaux">
+                              {disponibilites.creneaux.map((code) => (
+                                <StatutBadge key={code} libelle={libelle(LIBELLES_CRENEAU, code)} variante={varianteCreneau(code)} />
+                              ))}
+                            </span>
+                          )
+                        }
+                      />
                       <Ligne libelle="Langues parlées" valeur={languesValeur} />
                       <Ligne libelle="Comment nous a connu" valeur={commentConnuValeur} />
                       <Ligne libelle="Expérience" valeur={libelle(LIBELLES_EXPERIENCE, disponibilites.experience)} />

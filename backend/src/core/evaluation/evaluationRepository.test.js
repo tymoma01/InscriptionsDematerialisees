@@ -59,3 +59,32 @@ test('construireCreneauxDisponibles (typePoste null) ne restreint à aucun vocab
 
   assert.deepEqual(resultat, ['6h-9h', 'soir']);
 });
+
+// listerEvaluationsParFormateur — filtres « au moins un » par groupe (créneaux, jours), cumulés (ET)
+// entre eux. Requête construite hors connexion : on vérifie le SQL et les paramètres produits.
+const knexHorsConnexion = require('knex')({ client: 'pg' });
+
+function sqlHistorique(...filtres) {
+  return evaluationRepository.listerEvaluationsParFormateur(knexHorsConnexion, 1, null, 'bureau', ...filtres).toSQL().toNative();
+}
+
+test('listerEvaluationsParFormateur : sans créneaux ni jours, aucune condition sur ces deux champs', () => {
+  const { sql } = sqlHistorique(null, null);
+  assert.doesNotMatch(sql, /joursDisponibles/);
+  assert.doesNotMatch(sql, /\?\|/);
+  const vide = sqlHistorique([], []);
+  assert.doesNotMatch(vide.sql, /\?\|/);
+});
+
+test('listerEvaluationsParFormateur : plusieurs créneaux = un seul test « au moins un » (opérateur ?|)', () => {
+  const { sql, bindings } = sqlHistorique(['6h-9h', '18h-21h'], null);
+  assert.match(sql, /bloc_disponibilites\.donnees -> 'creneaux' \?\| \$\d+::text\[\]/);
+  assert.doesNotMatch(sql, /joursDisponibles/);
+  assert.deepEqual(bindings.at(-1), ['6h-9h', '18h-21h']);
+});
+
+test('listerEvaluationsParFormateur : créneaux et jours se cumulent, chacun sur son propre champ', () => {
+  const { sql, bindings } = sqlHistorique(['9h-18h'], ['lundi', 'samedi']);
+  assert.match(sql, /'creneaux' \?\| \$\d+::text\[\] and .*'joursDisponibles' \?\| \$\d+::text\[\]/);
+  assert.deepEqual(bindings.slice(-2), [['9h-18h'], ['lundi', 'samedi']]);
+});

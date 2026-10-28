@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { obtenirDetailEvaluation } from '../../services/evaluationService';
+import { useSession } from '../auth/useSession';
+import { peut } from '../auth/permissions';
+import InformationsInscription from '../dossier/InformationsInscription';
 import ContenuDetailEvaluation from './ContenuDetailEvaluation';
 import './DetailEvaluation.css';
 
@@ -17,6 +20,9 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
   const [detail, setDetail] = useState(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState(null);
+  const { utilisateur } = useSession();
+  // Même droit que la fiche dossier (GET /dossiers/:id/inscription, vérifié côté serveur).
+  const peutVoirInscription = peut(utilisateur, 'lectureInscription');
 
   useEffect(() => {
     let annule = false;
@@ -54,6 +60,11 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
   return (
     <div className="detail-evaluation">
       <ContenuDetailEvaluation detail={detail} />
+      {/* Section repliable « Voir les informations d'inscription complètes » de la fiche dossier,
+          réutilisée telle quelle, en lecture seule (la modification se fait depuis la fiche dossier). */}
+      {peutVoirInscription && detail.evaluation.dossierId && (
+        <InformationsInscription dossierId={detail.evaluation.dossierId} lectureSeule />
+      )}
       <div className="detail-evaluation__actions">
         <button type="button" onClick={onFermer}>
           Retour à l’historique

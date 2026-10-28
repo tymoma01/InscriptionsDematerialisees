@@ -13,6 +13,14 @@
   gap: var(--espace-moyen);
 }
 
+/* Bloc d'inscription (InformationsInscription) : ses marges automatiques et sa largeur maximale
+   propres le feraient rétrécir et se centrer dans cette colonne flex. Ici il prend toute la largeur
+   du détail, aligné à gauche comme les autres sections. */
+.detail-evaluation .informations-inscription {
+  max-width: none;
+  margin: 0;
+}
+
 .detail-evaluation h2 {
   margin: 0;
   color: var(--couleur-back-office);

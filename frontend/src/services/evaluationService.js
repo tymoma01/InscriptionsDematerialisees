@@ -52,9 +52,16 @@ export async function enregistrerEvaluation({ rendezvousId, resultatGlobal, orie
 // creneau (audit 2026-09-17, filtre "Créneaux souhaités", omis si vide) : filtré en base, jamais
 // côté client — voir backend evaluationRepository.listerEvaluationsParFormateur.
 // secteur/formateurId : voir listerRendezvousAEvaluer ci-dessus (Admin uniquement côté serveur).
-export async function listerHistoriqueEvaluations({ creneau, secteur, formateurId } = {}) {
+// creneaux/jours : tableaux (au moins un choix doit correspondre, filtré côté serveur), envoyés en
+// listes séparées par des virgules.
+export async function listerHistoriqueEvaluations({ creneaux = [], jours = [], secteur, formateurId } = {}) {
   const { data } = await api.get('/evaluations/historique', {
-    params: { creneau: creneau || undefined, secteur: secteur || undefined, formateurId: formateurId || undefined },
+    params: {
+      creneau: creneaux.length > 0 ? creneaux.join(',') : undefined,
+      jours: jours.length > 0 ? jours.join(',') : undefined,
+      secteur: secteur || undefined,
+      formateurId: formateurId || undefined,
+    },
   });
   return data;
 }

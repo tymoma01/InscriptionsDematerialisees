@@ -530,7 +530,7 @@ test('listerHistorique (Formateur) passe le formateurId de la session et aucun f
 
   await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'formateur');
 
-  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 5, null, null]);
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, 5, null, null, null]);
 });
 
 test("listerHistorique (Inspecteur) ignore l'identité connectée et filtre sur le secteur bureau (vue partagée entre tous les Inspecteurs)", async (t) => {
@@ -539,18 +539,24 @@ test("listerHistorique (Inspecteur) ignore l'identité connectée et filtre sur 
 
   await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'inspecteur');
 
-  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau', null]);
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau', null, null]);
 });
 
 // creneau (audit 2026-09-17, filtre "Créneaux souhaités") — indépendant du rôle, transmis tel quel
 // au repository en plus de formateurId/typePoste déjà résolus par rôle ci-dessus.
-test('listerHistorique transmet le filtre creneau reçu, combiné au filtre secteur déjà résolu pour un Inspecteur', async (t) => {
+test('listerHistorique transmet les filtres créneaux et jours reçus, combinés au filtre secteur déjà résolu pour un Inspecteur', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
   const listerMock = t.mock.method(evaluationRepository, 'listerEvaluationsParFormateur', async () => []);
 
-  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'inspecteur', '6h-9h');
+  await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'inspecteur', ['6h-9h', '18h-21h'], { jours: ['lundi', 'samedi'] });
 
-  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [ENTITE_ACCECIT.id, null, 'bureau', '6h-9h']);
+  assert.deepEqual(listerMock.mock.calls[0].arguments.slice(1), [
+    ENTITE_ACCECIT.id,
+    null,
+    'bureau',
+    ['6h-9h', '18h-21h'],
+    ['lundi', 'samedi'],
+  ]);
 });
 
 // listerCreneauxDisponibles — même résolution formateurId/typePoste par rôle
@@ -639,6 +645,7 @@ test('obtenirDetailEvaluationDossier reconstruit les questions (avec items pour 
   t.mock.method(db, 'obtenirKnex', async () => ({}));
   t.mock.method(evaluationRepository, 'trouverEvaluationParDossier', async () => ({
     id: 900,
+    dossier_id: 62,
     resultat_global: 'valide',
     orientation: 'envoi_formation',
     postes_codes: ['nettoyage'],
@@ -676,6 +683,7 @@ test('obtenirDetailEvaluationDossier reconstruit les questions (avec items pour 
       postesCodes: ['nettoyage'],
       commentaire: 'Bon candidat.',
       dateEvaluation: new Date('2026-09-01T10:00:00Z'),
+      dossierId: 62,
       candidatPrenom: 'Sophie',
       candidatNom: 'Martin',
     },
@@ -894,7 +902,7 @@ test("listerHistorique et listerCreneauxDisponibles : Admin + secteur transmis a
   await evaluationEngine.listerCreneauxDisponibles(ENTITE_ACCECIT, 1, 'admin', { secteur: 'tertiaire' });
   await evaluationEngine.listerHistorique(ENTITE_ACCECIT, 5, 'formateur', null, { secteur: 'tertiaire', formateurIdDemande: 7 });
 
-  assert.deepEqual(historiqueMock.mock.calls[0].arguments.slice(2), [7, 'bureau', null]);
+  assert.deepEqual(historiqueMock.mock.calls[0].arguments.slice(2), [7, 'bureau', null, null]);
   assert.deepEqual(creneauxMock.mock.calls[0].arguments.slice(2), [null, 'bureau']);
-  assert.deepEqual(historiqueMock.mock.calls[1].arguments.slice(2), [5, null, null]);
+  assert.deepEqual(historiqueMock.mock.calls[1].arguments.slice(2), [5, null, null, null]);
 });

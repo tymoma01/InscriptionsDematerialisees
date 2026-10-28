@@ -163,7 +163,19 @@ router.post('/:rendezvousId/presence', async (req, res, next) => {
 // formulaire d'inscription (BlocDisponibilites.jsx), un code qui ne correspond à rien de réel ne
 // filtre simplement aucune ligne côté evaluationRepository (whereRaw paramétré, aucun risque
 // d'injection), pas rejeté ici (voir Modularité, CLAUDE.md).
-const historiqueQuerySchema = z.object({ creneau: z.string().trim().min(1).optional() });
+// `creneau` et `jours` : listes séparées par des virgules (un seul choix = une valeur) ; à
+// l'intérieur d'une liste, au moins un choix doit correspondre. Jours : liste fermée.
+const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const listeSeparee = (schemaElement) =>
+  z
+    .string()
+    .optional()
+    .transform((valeur) => (valeur ?? '').split(',').map((element) => element.trim()).filter(Boolean))
+    .pipe(z.array(schemaElement));
+const historiqueQuerySchema = z.object({
+  creneau: listeSeparee(z.string().min(1)),
+  jours: listeSeparee(z.enum(JOURS_SEMAINE)),
+});
 
 // GET /api/evaluations/historique — évaluations déjà soumises. formateurId vient toujours de la
 // session, même principe que /a-faire ci-dessus. Formateur : ne voit que ses propres évaluations.
@@ -172,13 +184,13 @@ const historiqueQuerySchema = z.object({ creneau: z.string().trim().min(1).optio
 // formateurId quand roleCode === 'inspecteur'.
 router.get('/historique', async (req, res, next) => {
   try {
-    const { creneau } = historiqueQuerySchema.parse(req.query);
+    const { creneau, jours } = historiqueQuerySchema.parse(req.query);
     const historique = await evaluationEngine.listerHistorique(
       req.entite,
       req.utilisateur.id,
       req.utilisateur.roleCode,
-      creneau ?? null,
-      lireFiltresAdmin(req),
+      creneau.length > 0 ? creneau : null,
+      { ...lireFiltresAdmin(req), jours: jours.length > 0 ? jours : null },
     );
     res.json(historique);
   } catch (erreur) {

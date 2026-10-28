@@ -64,5 +64,8 @@ export function useEnsembleURL(nom, separateur = ',') {
     [ensemble, definirBrut, separateur],
   );
 
-  return [ensemble, basculer];
+  // `remplacer` : remplace tout l'ensemble d'un coup (liste vide = remise à zéro).
+  const remplacer = useCallback((valeurs) => definirBrut(valeurs.join(separateur)), [definirBrut, separateur]);
+
+  return [ensemble, basculer, remplacer];
 }
