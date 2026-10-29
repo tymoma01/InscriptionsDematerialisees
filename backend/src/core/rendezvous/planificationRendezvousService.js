@@ -3,6 +3,7 @@ const rendezvousService = require('./rendezvousService');
 const rendezvousRepository = require('./rendezvousRepository');
 const workflowEngine = require('../workflow/workflowEngine');
 const invitationTestService = require('./invitationTestService');
+const informationsPiecesService = require('../dossier/informationsPiecesService');
 
 // Levée par l'invariant a posteriori ci-dessous — distincte de
 // workflowEngine.ErreurTransitionInvalide (les transitions elles-mêmes se sont toutes appliquées
@@ -55,6 +56,8 @@ async function planifierRendezvousAvecTransitions(
     // création du rendez-vous : pas la peine de créer une ligne qui serait de toute façon annulée
     // par le rollback de la transaction si ce garde-fou lève une erreur.
     await rendezvousService.verifierDelaiAvantReplanification(entite, dossierId, transitions, trx);
+    // Pièce d'identité et RIB confirmés par l'accueil avant de valider la candidature (même principe).
+    await informationsPiecesService.verifierInformationsPiecesConfirmees(entite, dossierId, transitions, trx);
 
     const rendezvous = await rendezvousService.creerRendezvous(
       entite,

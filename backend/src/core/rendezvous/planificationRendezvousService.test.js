@@ -6,6 +6,7 @@ const rendezvousService = require('./rendezvousService');
 const rendezvousRepository = require('./rendezvousRepository');
 const workflowEngine = require('../workflow/workflowEngine');
 const invitationTestService = require('./invitationTestService');
+const informationsPiecesService = require('../dossier/informationsPiecesService');
 const planificationRendezvousService = require('./planificationRendezvousService');
 
 const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
@@ -17,6 +18,8 @@ const ENTITE_ACCECIT = { id: 1, code: 'accecit' };
 // qu'une erreur dans l'un empêche l'autre d'être considéré comme réussi côté appelant.
 const TRX_FACTICE = { estUnTrx: true };
 function mockerTransaction(t) {
+  // Contrôle testé à part (informationsPiecesService.test.js) : supposé satisfait ici.
+  t.mock.method(informationsPiecesService, 'verifierInformationsPiecesConfirmees', async () => {});
   t.mock.method(db, 'obtenirKnex', async () => ({
     transaction: async (callback) => callback(TRX_FACTICE),
   }));

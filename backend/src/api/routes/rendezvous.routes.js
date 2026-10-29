@@ -13,6 +13,7 @@ const {
 const planificationRendezvousService = require('../../core/rendezvous/planificationRendezvousService');
 const { cloturerRendezvousAvecTransition } = require('../../core/rendezvous/clotureRendezvousAvecTransitionService');
 const { ErreurTransitionInvalide } = require('../../core/workflow/workflowEngine');
+const { ErreurInformationsPiecesNonConfirmees } = require('../../core/dossier/informationsPiecesService');
 const invitationTestService = require('../../core/rendezvous/invitationTestService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -274,6 +275,10 @@ router.post('/avec-transitions', requirePermission('gestionRendezvous'), async (
     // ErreurTransitionInvalide ci-dessus), c'est leur combinaison avec CETTE création précise qui
     // ne l'est pas.
     if (erreur instanceof planificationRendezvousService.ErreurRendezvousNeutraliseParSesPropresTransitions) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
+    // Pièce d'identité ou RIB pas encore confirmés par l'accueil (rien n'a été écrit : rollback).
+    if (erreur instanceof ErreurInformationsPiecesNonConfirmees) {
       return res.status(409).json({ erreur: erreur.message });
     }
     next(erreur);

@@ -1,0 +1,73 @@
+/* Informations lues sur la pièce d'identité et le RIB, à confirmer par l'accueil : sous-bloc
+   rattaché à la ligne de la pièce, en retrait comme .capture-tablette__item-verso. */
+.confirmation-pieces {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-petit);
+  margin-top: var(--espace-petit);
+  padding: var(--espace-petit) var(--espace-moyen);
+  margin-left: calc(1.5rem + var(--espace-petit));
+  background: var(--couleur-fond-secondaire);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+}
+
+.confirmation-pieces__titre {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.confirmation-pieces__etat {
+  margin: 0;
+  color: var(--couleur-texte-secondaire);
+}
+
+.confirmation-pieces__etat--avertissement {
+  padding: var(--espace-petit);
+  color: var(--statut-attente-texte);
+  background: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  border-radius: var(--rayon-bordure);
+}
+
+.confirmation-pieces__champs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espace-petit) var(--espace-moyen);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.confirmation-pieces__champ {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: var(--largeur-champ-saisie);
+  max-width: 100%;
+}
+
+.confirmation-pieces__champ--large {
+  width: 24rem;
+}
+
+.confirmation-pieces__aide {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--couleur-texte-secondaire);
+}
+
+.confirmation-pieces__erreur {
+  margin: 0;
+  color: var(--couleur-erreur);
+}
+
+.confirmation-pieces__confirmee {
+  margin: 0;
+  color: var(--statut-succes-texte);
+  font-weight: 600;
+}
+
+.confirmation-pieces > .capture-tablette__bouton-action {
+  align-self: flex-start;
+}

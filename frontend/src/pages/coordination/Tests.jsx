@@ -15,6 +15,7 @@ import { obtenirDossier } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { STATUTS_TEST_NON_PLANIFIE } from '../../core/pieceJustificative/premierePlanificationTest';
 import { usePiecesObligatoiresCompletes } from '../../core/pieceJustificative/usePiecesObligatoiresCompletes';
+import { useInformationsPiecesConfirmees } from '../../core/pieceJustificative/useInformationsPiecesConfirmees';
 import { libellePoste } from '../../core/referentiels/postes';
 import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import './Tests.css';
@@ -106,6 +107,9 @@ export default function Tests() {
     // rôle en consultation sans accès aux pièces (Inspecteur Hôtellerie, 2026-10-01).
     { actif: peutPlanifierTest },
   );
+  // Pièce d'identité et RIB confirmés par l'accueil (onglet Pièces justificatives).
+  const { chargement: chargementInformations, toutesConfirmees: informationsPiecesConfirmees } =
+    useInformationsPiecesConfirmees(dossierId, { actif: peutPlanifierTest });
 
   // Panneau de planification du TOUT PREMIER test (distinct de panneauReplanificationOuvert plus
   // bas, qui rouvre le même composant ModalePlanificationTest mais avec CODE_ACTION_REPLANIFIER_TEST).
@@ -158,7 +162,12 @@ export default function Tests() {
   // fois, réutilisée à la fois pour le bouton lui-même et pour décider si le message
   // "Replanification indisponible..." doit encore s'afficher en dessous.
   const dossierPeutPlanifierTest =
-    dossierTestNonPlanifie && peutPlanifierTest && !chargementPieces && piecesObligatoiresCompletes;
+    dossierTestNonPlanifie &&
+    peutPlanifierTest &&
+    !chargementPieces &&
+    !chargementInformations &&
+    piecesObligatoiresCompletes &&
+    informationsPiecesConfirmees;
 
   return (
     <PageBackOffice>
@@ -226,9 +235,11 @@ export default function Tests() {
                   RBAC (peutPlanifierTest) ne concernent jamais l'agent qui les lit (un agent sans
                   droit de planification ne voit de toute façon aucun des deux boutons sur aucun
                   onglet). */}
-              {dossierTestNonPlanifie && peutPlanifierTest && !chargementPieces
-                ? 'Le test ne peut être planifié tant que les pièces obligatoires ne sont pas toutes chargées.'
-                : 'Replanification indisponible pour le statut actuel de ce dossier.'}
+              {!(dossierTestNonPlanifie && peutPlanifierTest && !chargementPieces && !chargementInformations)
+                ? 'Replanification indisponible pour le statut actuel de ce dossier.'
+                : !piecesObligatoiresCompletes
+                  ? 'Le test ne peut être planifié tant que les pièces obligatoires ne sont pas toutes chargées.'
+                  : 'Le test ne peut être planifié tant que la pièce d’identité et le RIB ne sont pas confirmés (onglet Pièces justificatives).'}
             </p>
           )}
 

@@ -48,6 +48,8 @@ const PERMISSIONS = {
   consultationPieces: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR],
   exportPieces: [...ACCUEIL, ADMIN, RH],
   exportPiecesGroupe: [...ACCUEIL, ADMIN],
+  // Pièce d'identité et RIB confirmés (IBAN en clair) : jamais Formateur/Inspecteur, comme l'export.
+  lectureInformationsPieces: [...ACCUEIL, ADMIN, RH],
 
   // --- Tests, relances, formation ---
   gestionRendezvous: [...ACCUEIL, ADMIN],

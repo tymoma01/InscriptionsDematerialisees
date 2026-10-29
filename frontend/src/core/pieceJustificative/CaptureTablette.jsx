@@ -1,13 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   listerPiecesJustificatives,
   uploaderPieceJustificative,
   supprimerPieceJustificative,
   renommerPieceJustificative,
 } from '../../services/pieceJustificativeService';
+import { obtenirInformationsPieces } from '../../services/informationsPiecesService';
 import { useSession } from '../auth/useSession';
+import { peut } from '../auth/permissions';
 import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
 import PanneauApercuPiece from './PanneauApercuPiece';
+import ConfirmationPieceIdentite from './ConfirmationPieceIdentite';
+import ConfirmationRib from './ConfirmationRib';
+import { prechargerOcr } from './ocr/ocr';
 import {
   STATUTS_TEST_NON_PLANIFIE,
   construirePiecesCapturees,
@@ -30,6 +35,11 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 // à ModalePlanificationTest (core/dossier/), composant générique partagé avec la replanification
 // depuis TableauDeBordAccueil.jsx (codeAction "replanifier_test").
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
+
+// Pièces lues par OCR à la capture (recto et verso pour la pièce d'identité), dont l'accueil
+// confirme ensuite les informations (ConfirmationPieceIdentite / ConfirmationRib).
+const CODE_PIECE_IDENTITE = 'carte_identite';
+const CODE_RIB = 'rib';
 
 // Statuts sous lesquels les pièces déjà capturées restent modifiables (reprise ou suppression) —
 // aligné sur STATUTS_SUPPRESSION_AUTORISES côté back (pieceJustificativeService.js), qui reste
@@ -108,6 +118,18 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   const [suppressionEnCours, setSuppressionEnCours] = useState(null); // type_piece_code en cours
   const [erreurSuppression, setErreurSuppression] = useState(null);
 
+  // Pièce d'identité et RIB déjà confirmés, avec l'identité du formulaire (null tant que non chargés).
+  const [informationsPieces, setInformationsPieces] = useState(null);
+  // Dernière photo capturée de chaque pièce lue par OCR : { fichier, verso, n }.
+  const [photosLues, setPhotosLues] = useState({ identite: null, rib: null });
+  // Ce qui est affiché dans chaque bloc de confirmation est-il exactement ce qui est enregistré ?
+  // Condition, avec les pièces obligatoires, pour valider la candidature (le serveur revérifie).
+  const [confirmations, setConfirmations] = useState({ identite: false, rib: false });
+  const confirmationIdentite = useCallback((identite) => setConfirmations((c) => ({ ...c, identite })), []);
+  const confirmationRib = useCallback((rib) => setConfirmations((c) => ({ ...c, rib })), []);
+  const lectureInformations = peut(utilisateur, 'lectureInformationsPieces');
+  const confirmationInformations = peut(utilisateur, 'gestionPieces');
+
   const [planificationOuverte, setPlanificationOuverte] = useState(false);
   const [planificationReussie, setPlanificationReussie] = useState(null); // { dateHeure, formateurNom }
 
@@ -143,6 +165,24 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     // typesPieces (prop stable pour la durée de vie de l'écran, voir VerificationPieces.jsx), pas
     // besoin de la lister ici : seul dossierId doit redéclencher ce chargement.
   }, [dossierId]);
+
+  useEffect(() => {
+    if (!lectureInformations) return undefined;
+    let annule = false;
+    // Moteur et modèles d'OCR (~6 Mo) téléchargés dès l'ouverture de l'écran, pas à la première photo.
+    if (confirmationInformations) prechargerOcr();
+    obtenirInformationsPieces(dossierId)
+      .then((informations) => {
+        if (!annule) setInformationsPieces(informations);
+      })
+      .catch(() => {
+        // Sans elles, la confirmation repart de champs vides : rien de bloquant pour la capture.
+        if (!annule) setInformationsPieces({ candidat: null, pieceIdentite: null, rib: null });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [dossierId, lectureInformations, confirmationInformations]);
 
   // Rechargement complet plutôt qu'une mise à jour optimiste (contrairement à gererEnvoiReussi
   // pour les types classiques, qui n'a besoin que de {id, type_piece_code}) : afficher chaque
@@ -182,8 +222,14 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     [typesEtVersos, typeApercu],
   );
 
-  const gererEnvoiReussi = (typePieceCode, pieceId, estMultiple) => {
+  const gererEnvoiReussi = (typePieceCode, pieceId, estMultiple, fichier) => {
     setTypeSelectionne(null);
+    const codeVersoIdentite = typesPieces.find((type) => type.code === CODE_PIECE_IDENTITE)?.codeVerso;
+    if (fichier && (typePieceCode === CODE_PIECE_IDENTITE || typePieceCode === codeVersoIdentite)) {
+      setPhotosLues((p) => ({ ...p, identite: { fichier, verso: typePieceCode === codeVersoIdentite, n: (p.identite?.n ?? 0) + 1 } }));
+    } else if (fichier && typePieceCode === CODE_RIB) {
+      setPhotosLues((p) => ({ ...p, rib: { fichier, n: (p.rib?.n ?? 0) + 1 } }));
+    }
     if (estMultiple) {
       // Jamais d'ajout optimiste ici : voir rafraichirPiecesMultiples ci-dessus pour la raison
       // (le nom réel du fichier n'est connu que du serveur à ce stade).
@@ -288,6 +334,10 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     piecesCapturees,
     typesPieces,
   );
+  const informationsAConfirmer = [
+    ...(confirmations.identite ? [] : ['les informations de la pièce d’identité']),
+    ...(confirmations.rib ? [] : ['les coordonnées bancaires']),
+  ];
 
   if (chargementSession) {
     return <p>Chargement de la session…</p>;
@@ -469,7 +519,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                   dossierId={dossierId}
                   type={typeCourant}
                   onAnnuler={() => setTypeSelectionne(null)}
-                  onEnvoiReussi={(pieceId) => gererEnvoiReussi(typeCourant.code, pieceId)}
+                  onEnvoiReussi={(pieceId, fichier) => gererEnvoiReussi(typeCourant.code, pieceId, false, fichier)}
                 />
               )}
 
@@ -543,7 +593,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                       dossierId={dossierId}
                       type={typeCourant}
                       onAnnuler={() => setTypeSelectionne(null)}
-                      onEnvoiReussi={(pieceId) => gererEnvoiReussi(typeCourant.code, pieceId)}
+                      onEnvoiReussi={(pieceId, fichier) => gererEnvoiReussi(typeCourant.code, pieceId, false, fichier)}
                     />
                   )}
 
@@ -556,6 +606,29 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                     />
                   )}
                 </div>
+              )}
+
+              {type.code === CODE_PIECE_IDENTITE && informationsPieces && (dejaCapturee || informationsPieces.pieceIdentite) && (
+                <ConfirmationPieceIdentite
+                  dossierId={dossierId}
+                  candidat={informationsPieces.candidat}
+                  enregistree={informationsPieces.pieceIdentite}
+                  photo={photosLues.identite}
+                  modifiable={confirmationInformations}
+                  onConfirmee={(pieceIdentite) => setInformationsPieces((i) => ({ ...i, pieceIdentite }))}
+                  onEtatConfirmation={confirmationIdentite}
+                />
+              )}
+
+              {type.code === CODE_RIB && informationsPieces && (dejaCapturee || informationsPieces.rib) && (
+                <ConfirmationRib
+                  dossierId={dossierId}
+                  enregistre={informationsPieces.rib}
+                  photo={photosLues.rib}
+                  modifiable={confirmationInformations}
+                  onConfirme={(rib) => setInformationsPieces((i) => ({ ...i, rib }))}
+                  onEtatConfirmation={confirmationRib}
+                />
               )}
             </li>
           );
@@ -592,7 +665,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
             <button
               type="button"
               onClick={() => setPlanificationOuverte(true)}
-              disabled={!piecesObligatoiresCompletes}
+              disabled={!piecesObligatoiresCompletes || informationsAConfirmer.length > 0}
             >
               Valider et planifier un test
             </button>
@@ -601,6 +674,11 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                 {nombrePiecesObligatoires === 1
                   ? 'Capturez la pièce obligatoire pour activer ce bouton.'
                   : `Capturez les ${nombrePiecesObligatoires} pièces obligatoires pour activer ce bouton.`}
+              </p>
+            )}
+            {piecesObligatoiresCompletes && informationsAConfirmer.length > 0 && (
+              <p className="capture-tablette__pied-indication">
+                Confirmez {informationsAConfirmer.join(' et ')} pour activer ce bouton.
               </p>
             )}
           </div>
@@ -746,7 +824,8 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
         nomFichier: captureEnCours.nomFichier,
       });
       URL.revokeObjectURL(captureEnCours.url);
-      onEnvoiReussi(resultat.pieceId);
+      // Le fichier lui-même reste lisible (seule son URL d'aperçu est libérée) : l'OCR le lit ensuite.
+      onEnvoiReussi(resultat.pieceId, captureEnCours.blob);
     } catch (erreur) {
       setErreurEnvoi(
         erreur.response

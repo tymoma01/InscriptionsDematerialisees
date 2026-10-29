@@ -11,6 +11,7 @@ const dossiersRoutes = require('./api/routes/dossiers.routes');
 const piecesRoutes = require('./api/routes/pieces.routes');
 const relancesRoutes = require('./api/routes/relances.routes');
 const notesRoutes = require('./api/routes/notes.routes');
+const informationsPiecesRoutes = require('./api/routes/informationsPieces.routes');
 const formationRoutes = require('./api/routes/formation.routes');
 const rendezvousRoutes = require('./api/routes/rendezvous.routes');
 const rendezvousDisponibilitesRoutes = require('./api/routes/rendezvousDisponibilites.routes');
@@ -65,11 +66,15 @@ async function creerApp() {
   // d'image cassée sans message d'erreur constatée en prod. blob: est local à cette
   // origine (créé à partir d'une réponse same-origin), pas un risque équivalent à autoriser un
   // domaine externe.
+  // 'wasm-unsafe-eval' : le moteur WebAssembly de l'OCR (tesseract.js, lecture de la pièce
+  // d'identité et du RIB à la tablette) ne peut pas démarrer sans lui. Il n'autorise que la
+  // compilation WebAssembly, jamais eval() ni new Function() en JavaScript.
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'script-src': ["'self'", "'wasm-unsafe-eval'"],
           'img-src': ["'self'", 'data:', 'blob:'],
           'frame-src': ["'self'", 'blob:'],
         },
@@ -124,6 +129,8 @@ async function creerApp() {
   // Journal de notes libres, indépendant des relances (voir notes.routes.js) — même patron que
   // le routeur relances ci-dessus.
   app.use('/api/dossiers/:dossierId/notes', notesRoutes);
+  // Pièce d'identité et RIB lus par OCR à la tablette, confirmés par l'accueil.
+  app.use('/api/dossiers/:dossierId/informations-pieces', informationsPiecesRoutes);
   // Historique de formation par dossier (onglet "Formation" de la fiche dossier, audit
   // 2026-08-28) — lecture seule, même patron que le routeur relances ci-dessus.
   app.use('/api/dossiers/:dossierId/formation', formationRoutes);

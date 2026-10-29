@@ -6,7 +6,7 @@ export default [
   { ignores: ['dist/'] },
   js.configs.recommended,
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,mjs}'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -21,7 +21,7 @@ export default [
     },
   },
   {
-    files: ['**/*.test.{js,jsx}', 'vite.config.js'],
+    files: ['**/*.test.{js,jsx}', 'vite.config.js', 'scripts/**'],
     languageOptions: { globals: { ...globals.node } },
   },
 ];
