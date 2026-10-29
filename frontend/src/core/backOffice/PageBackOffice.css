@@ -13,7 +13,7 @@
    principe que .page-inscription-tablette côté candidat, qui est transparent pour la même
    raison. */
 .page-back-office {
-  --hauteur-entete: 8rem;
+  --hauteur-entete: 4rem;
   /* Hauteur occupée par BarreNavigation (BarreNavigation.jsx/.css), elle-même en position: sticky
      juste sous l'en-tête ci-dessus (2026-08-17) — mesurée dans le navigateur (boîte + marge
      inférieure, une seule ligne de liens, largeur desktop) : sert aux quelques en-têtes propres à

@@ -15,7 +15,7 @@
    `<FiligraneFormulaire>` sont tous deux en `position: fixed` (voir plus bas / FiligraneFormulaire.css)
    donc hors du flux normal — ce passage en flex n'a aucun effet sur eux. */
 .page-inscription-tablette {
-  --hauteur-entete: 8rem;
+  --hauteur-entete: 4rem;
   /* Marges latérales réduites / contenu élargi : même traitement que .page-back-office
      (PageBackOffice.css) — redéfinit ici la variable globale --largeur-max-formulaire
      (styles/variables.css, 1100px) plutôt que de la changer globalement, pour que la cascade
@@ -85,16 +85,14 @@
 
 .page-inscription-tablette__logo {
   display: block;
-  height: 4.5rem;
+  height: 2.75rem;
   width: auto;
 }
 
-/* Logos des sous-marques empilés verticalement (plutôt que côte à côte), alignés à droite,
-   avec un espacement généreux entre les deux pour ne pas les coller l'un à l'autre. */
+/* Sous-marques côte à côte : empilées, elles doublaient la hauteur du bandeau. */
 .page-inscription-tablette__logos-marques {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--espace-grand);
 }
 
@@ -111,7 +109,7 @@
 
 .page-inscription-tablette__logo-marque-icone {
   display: block;
-  height: 2.75rem;
+  height: 2rem;
   width: auto;
 }
 
@@ -122,28 +120,31 @@
 
 .page-inscription-tablette__logo-marque-nom {
   color: #ffffff;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.28em;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .page-inscription-tablette__logo-marque-sous-nom {
   color: #d8e6f2;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   letter-spacing: 0.04em;
-  line-height: 1.3;
+  line-height: 1.2;
   border-top: 1px solid rgba(255, 255, 255, 0.55);
   margin-top: 0.15rem;
   padding-top: 0.15rem;
 }
 
-/* Téléphone : à pleine taille, logo principal + logos Hôtellerie/Tertiaire
-   demandent environ 455 px — en dessous, les deux sous-marques sortaient de l'en-tête (rognées
-   par son overflow: hidden, jusqu'à ~439 px). Sous 480 px seulement (tablette et bureau
-   inchangés) : logo principal limité à une largeur relative (hauteur auto, donc sans déformation),
-   sous-marques réduites (icône, texte, espacements), toujours empilées à droite. */
+/* Téléphone : côte à côte, logo principal + sous-marques ne tiennent pas en largeur. Sous
+   480 px seulement (tablette et bureau inchangés) : sous-marques réempilées à droite, bandeau
+   rehaussé en conséquence, logo principal limité à une largeur relative (hauteur auto, donc sans
+   déformation). */
 @media (max-width: 480px) {
+  .page-inscription-tablette {
+    --hauteur-entete: 6rem;
+  }
+
   .page-inscription-tablette__entete-contenu {
     gap: var(--espace-petit);
   }
@@ -153,10 +154,12 @@
     min-width: 0;
     max-width: 52%;
     height: auto;
-    max-height: 4.5rem;
+    max-height: 2.75rem;
   }
 
   .page-inscription-tablette__logos-marques {
+    flex-direction: column;
+    align-items: flex-end;
     flex-shrink: 0;
     gap: var(--espace-petit);
   }
