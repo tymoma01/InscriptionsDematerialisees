@@ -775,3 +775,20 @@
   margin: 0.35rem 0 0;
   padding-left: 1.25rem;
 }
+
+/* Bouton « Masquer / Afficher les filtres », à côté du titre. */
+.tableau-bord-accueil__bascule-filtres {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-back-office);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tableau-bord-accueil__bascule-filtres:focus-visible {
+  outline: 3px solid var(--couleur-back-office-hover);
+  outline-offset: 2px;
+}

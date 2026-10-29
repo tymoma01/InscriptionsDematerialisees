@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import DossierList from '../../core/dossier/DossierList';
 import FiltresStatut from '../../core/dossier/FiltresStatut';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
@@ -7,7 +7,8 @@ import FiltreEtudiant from '../../core/dossier/FiltreEtudiant';
 import FiltreMetier from '../../core/dossier/FiltreMetier';
 import { CODES_EXPERIENCE_ACCECIT, libelleExperience, varianteExperience } from '../../core/dossier/BadgeExperience';
 import FiltresRechercheDossiers from '../../core/dossier/FiltresRechercheDossiers';
-import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, filtrerDossiers } from '../../core/dossier/filtrerDossiers';
+import FiltresDisponibilites from '../../core/filtres/FiltresDisponibilites';
+import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, creneauxProposes, filtrerDossiers } from '../../core/dossier/filtrerDossiers';
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
@@ -22,6 +23,7 @@ import ModaleDisponibiliteEmbauche from './ModaleDisponibiliteEmbauche';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import api from '../../services/api';
 import { abreviationPoste, libellePoste } from '../../core/referentiels/postes';
+import { CRENEAUX_HOTEL } from '../../core/referentiels/creneaux';
 import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import {
   SEUIL_SELECTION_ACTIONS_GROUPEES,
@@ -105,6 +107,40 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // second clic sur la pastille active revient à tous les métiers.
   const [metierFiltre, setMetierFiltre] = useParametreURL('metier', '');
   const basculerMetierFiltre = (code) => setMetierFiltre(basculerChoixUnique(metierFiltre, code));
+
+  // Bloc des filtres repliable pour laisser la place au tableau. Masquer ne désactive aucun filtre :
+  // le bouton signale ceux qui restent appliqués (tout paramètre d'adresse autre que `filtres`).
+  const [filtresMasques, setFiltresMasques] = useParametreURL('filtres', '');
+  const filtresAffiches = filtresMasques !== 'masques';
+  // Filtres « Créneaux souhaités » / « Jours disponibles » : mêmes pastilles que l'historique des
+  // évaluations (FiltresDisponibilites.jsx), sélection multiple persistée dans l'URL. Créneaux
+  // proposés selon le secteur ou le métier sélectionné (creneauxProposes) ; l'Inspecteur
+  // Hôtellerie ne voit que ceux de l'hôtellerie. Un créneau coché qui n'est plus proposé (changement
+  // de secteur) reste dans l'URL mais ne filtre plus : il redevient actif si son secteur revient.
+  const [creneauxCoches, basculerCreneauFiltre] = useEnsembleURL('creneau');
+  const [joursFiltre, basculerJourFiltre] = useEnsembleURL('jours');
+  const optionsCreneaux = useMemo(
+    () => (estInspecteurHotellerie ? CRENEAUX_HOTEL : creneauxProposes({ entitesFiltre, metierFiltre })),
+    [estInspecteurHotellerie, entitesFiltre, metierFiltre],
+  );
+  const creneauxFiltre = useMemo(
+    () => new Set([...creneauxCoches].filter((creneau) => optionsCreneaux.includes(creneau))),
+    [creneauxCoches, optionsCreneaux],
+  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filtresActifs = [...searchParams.keys()].some((cle) => cle !== 'filtres');
+  // Une seule mise à jour de l'adresse : deux appels successifs de useEnsembleURL dans le même clic
+  // s'écraseraient (chacun part de l'adresse courante).
+  const effacerCreneauxEtJours = () =>
+    setSearchParams(
+      (precedent) => {
+        const suivant = new URLSearchParams(precedent);
+        suivant.delete('creneau');
+        suivant.delete('jours');
+        return suivant;
+      },
+      { replace: true },
+    );
 
   // Filtre "Expérience" — même mécanisme que le sélecteur "Poste" du tableau
   // de bord Indicateurs (Indicateurs.jsx) : un <select> simple, persistant dans l'URL comme les
@@ -287,11 +323,13 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        creneauxFiltre,
+        joursFiltre,
         metierFiltre,
         entitesFiltre: new Set(),
         etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, etudiantFiltre],
+    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, etudiantFiltre, creneauxFiltre, joursFiltre],
   );
 
   // Recherche/dates/entité, SANS le filtre « Étudiant » : base du compteur Étudiant,
@@ -304,10 +342,12 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        creneauxFiltre,
+        joursFiltre,
         metierFiltre,
         entitesFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre],
+    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, creneauxFiltre, joursFiltre],
   );
 
   // Recherche/dates/entité (ni statut ni expérience) : base commune aux DEUX familles de
@@ -323,11 +363,13 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        creneauxFiltre,
+        joursFiltre,
         metierFiltre,
         entitesFiltre,
         etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre],
+    [dossiers, recherche, codePostalFiltre, metierFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre, creneauxFiltre, joursFiltre],
   );
 
   // Recherche/dates/entité/expérience (pas encore le statut) : c'est cette liste, group par
@@ -579,10 +621,12 @@ export default function TableauDeBordAccueil({ vue = null }) {
         dateDebutFiltre,
         dateFinFiltre,
         libellePoste,
+        creneauxFiltre,
+        joursFiltre,
         entitesFiltre,
         etudiantFiltre,
       }),
-    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre],
+    [dossiers, recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, entitesFiltre, etudiantFiltre, creneauxFiltre, joursFiltre],
   );
   const compteursParMetier = useMemo(() => {
     const compte = {};
@@ -634,176 +678,199 @@ export default function TableauDeBordAccueil({ vue = null }) {
           {/* Bouton "Planification des tests" retiré (refonte navigation, 2026-08-17) : couvert
               par le lien "Suivi des tests" de la barre de navigation commune, voir
               BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
+          <button
+            type="button"
+            className="tableau-bord-accueil__bascule-filtres"
+            aria-expanded={filtresAffiches}
+            aria-controls="tableau-bord-accueil-filtres"
+            onClick={() => setFiltresMasques(filtresAffiches ? 'masques' : '')}
+          >
+            {filtresAffiches ? 'Masquer les filtres' : 'Afficher les filtres'}
+            {!filtresAffiches && filtresActifs && <strong> (filtres appliqués)</strong>}
+          </button>
           <EnTeteBackOffice />
         </header>
 
-        {/* Ordre des filtres : Tous/secteur/« Étudiant » à gauche et métiers à droite, puis statuts en
-            pleine largeur, enfin recherche/dates/expérience. */}
-        {/* Classe .filtres-statut reprise pour la mise en page de la ligne (colonne de gauche de
-            TableauDeBordAccueil.css) et le style des pastilles Tous/Secteur/Étudiant. « Tous »
-            (statut) reste en tête de la colonne, au-dessus du secteur. Conteneur transparent
-            (display: contents) : Tous, secteur et « Étudiant » sont les trois lignes de la colonne. */}
-        <div className="filtres-statut tableau-bord-accueil__ligne-metier">
-          <div className="filtres-statut__gauche">
-            <div className="filtres-statut__tous">
-              <button
-                type="button"
-                className={statutFiltre === null ? 'actif' : ''}
-                onClick={() => setStatutFiltre(null)}
+        {filtresAffiches && (
+          <div id="tableau-bord-accueil-filtres">
+            {/* Ordre des filtres : statuts en pleine largeur, puis Tous/secteur/« Étudiant » à gauche et
+                métiers à droite, enfin recherche/dates/disponibilités/expérience. */}
+            {/* Statuts en pleine largeur, au-dessus du bloc Tous/secteur/« Étudiant »/métiers. */}
+            <div className="tableau-bord-accueil__ligne-statuts">
+              <FiltresStatut
+                statuts={statutsFiltres}
+                statutFiltre={statutFiltre}
+                onChangerStatutFiltre={setStatutFiltre}
+                compteurTous={dossiersFiltresSansStatut.length}
+                compteurs={compteursParStatut}
+                afficherTous={false}
+              />
+            </div>
+
+            {/* Classe .filtres-statut reprise pour la mise en page de la ligne (colonne de gauche de
+                TableauDeBordAccueil.css) et le style des pastilles Tous/Secteur/Étudiant. « Tous »
+                (statut) reste en tête de la colonne, au-dessus du secteur. Conteneur transparent
+                (display: contents) : Tous, secteur et « Étudiant » sont les trois lignes de la colonne. */}
+            <div className="filtres-statut tableau-bord-accueil__ligne-metier">
+              <div className="filtres-statut__gauche">
+                <div className="filtres-statut__tous">
+                  <button
+                    type="button"
+                    className={statutFiltre === null ? 'actif' : ''}
+                    onClick={() => setStatutFiltre(null)}
+                  >
+                    Tous <strong>({dossiersFiltresSansStatut.length})</strong>
+                  </button>
+                </div>
+                <div className="tableau-bord-accueil__filtres-pastilles">
+                  {!estInspecteurHotellerie && (
+                    <FiltreEntite
+                      entitesFiltre={entitesFiltre}
+                      onBasculerEntite={basculerEntiteFiltre}
+                      compteurHotel={compteurHotel}
+                      compteurBureau={compteurBureau}
+                    />
+                  )}
+                  <FiltreEtudiant actif={etudiantFiltre === FILTRE_ETUDIANT} onBasculer={basculerEtudiantFiltre} compteur={compteurEtudiant} />
+                </div>
+              </div>
+              <FiltreMetier
+                metierFiltre={metierFiltre}
+                onBasculerMetier={basculerMetierFiltre}
+                compteurs={compteursParMetier}
+                secteurs={estInspecteurHotellerie ? ['hotel'] : undefined}
+              />
+            </div>
+
+            <FiltresRechercheDossiers
+              recherche={recherche}
+              onChangerRecherche={setRecherche}
+              codePostalFiltre={codePostalFiltre}
+              onChangerCodePostalFiltre={setCodePostalFiltre}
+              dateDebutFiltre={dateDebutFiltre}
+              onChangerDateDebutFiltre={setDateDebutFiltre}
+              dateFinFiltre={dateFinFiltre}
+              onChangerDateFinFiltre={setDateFinFiltre}
+            />
+            <FiltresDisponibilites
+              optionsCreneaux={optionsCreneaux}
+              creneauxFiltre={creneauxFiltre}
+              onBasculerCreneau={basculerCreneauFiltre}
+              joursFiltre={joursFiltre}
+              onBasculerJour={basculerJourFiltre}
+              onEffacer={effacerCreneauxEtJours}
+              compact
+            />
+            {/* Expérience + Disponibilité des candidats prêts à l'embauche, sur la même ligne (audit
+                2026-09-28, demande utilisateur explicite : "réduis sa largeur à son contenu. À sa
+                droite, sur la même ligne, un nouveau bloc") — Expérience réduite à son contenu
+                (voir TableauDeBordAccueil.css), le second bloc prend le reste de la largeur. */}
+            <div className="tableau-bord-accueil__ligne-experience-disponibilite">
+              {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
+                  disposition/composant visuel que la boîte de badges de statut (.filtres-statut__statuts,
+                  réutilisée telle quelle plutôt que dupliquée) : boîte ivoire, boutons pilule, compteur
+                  entre parenthèses. Comportement de sélection DÉLIBÉRÉMENT différent de FiltresStatut.jsx
+                  (pas de bouton "Tous" séparé) : cliquer le badge déjà actif le désactive (retour à
+                  experienceFiltre === ''), alors qu'un bouton de statut ne se désactive que via "Tous" —
+                  demande explicite, cohérente avec l'absence d'équivalent "Tous" pour ce filtre à 4
+                  valeurs seulement. data-experience (comme data-statut) : accroche de couleur par
+                  valeur, voir TableauDeBordAccueil.css. */}
+              <div
+                className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
+                role="group"
+                aria-label="Filtrer par expérience"
               >
-                Tous <strong>({dossiersFiltresSansStatut.length})</strong>
-              </button>
-            </div>
-            <div className="tableau-bord-accueil__filtres-pastilles">
-              {!estInspecteurHotellerie && (
-                <FiltreEntite
-                  entitesFiltre={entitesFiltre}
-                  onBasculerEntite={basculerEntiteFiltre}
-                  compteurHotel={compteurHotel}
-                  compteurBureau={compteurBureau}
-                />
-              )}
-              <FiltreEtudiant actif={etudiantFiltre === FILTRE_ETUDIANT} onBasculer={basculerEtudiantFiltre} compteur={compteurEtudiant} />
-            </div>
-          </div>
-          <FiltreMetier
-            metierFiltre={metierFiltre}
-            onBasculerMetier={basculerMetierFiltre}
-            compteurs={compteursParMetier}
-            secteurs={estInspecteurHotellerie ? ['hotel'] : undefined}
-          />
-        </div>
+                {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
+                    <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
+                    badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
+                    filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
+                    inventé ici. */}
+                <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
+                {/* Badges regroupés dans leur propre bloc flex — le titre reste
+                    calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
+                    bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
+                    TableauDeBordAccueil.css. */}
+                <div className="tableau-bord-accueil__filtres-experience-badges">
+                  {CODES_EXPERIENCE_ACCECIT.map((code) => (
+                    <button
+                      key={code}
+                      type="button"
+                      data-experience={code}
+                      className={experienceFiltre === code ? 'actif' : ''}
+                      onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
+                    >
+                      {libelleExperience(code)}
+                      <strong> ({compteursParExperience[code] ?? 0})</strong>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        {/* Statuts en pleine largeur, sous le bloc Tous/secteur/« Étudiant »/métiers. */}
-        <div className="tableau-bord-accueil__ligne-statuts">
-          <FiltresStatut
-            statuts={statutsFiltres}
-            statutFiltre={statutFiltre}
-            onChangerStatutFiltre={setStatutFiltre}
-            compteurTous={dossiersFiltresSansStatut.length}
-            compteurs={compteursParStatut}
-            afficherTous={false}
-          />
-        </div>
-
-        <FiltresRechercheDossiers
-          recherche={recherche}
-          onChangerRecherche={setRecherche}
-          codePostalFiltre={codePostalFiltre}
-          onChangerCodePostalFiltre={setCodePostalFiltre}
-          dateDebutFiltre={dateDebutFiltre}
-          onChangerDateDebutFiltre={setDateDebutFiltre}
-          dateFinFiltre={dateFinFiltre}
-          onChangerDateFinFiltre={setDateFinFiltre}
-        />
-        {/* Expérience + Disponibilité des candidats prêts à l'embauche, sur la même ligne (audit
-            2026-09-28, demande utilisateur explicite : "réduis sa largeur à son contenu. À sa
-            droite, sur la même ligne, un nouveau bloc") — Expérience réduite à son contenu
-            (voir TableauDeBordAccueil.css), le second bloc prend le reste de la largeur. */}
-        <div className="tableau-bord-accueil__ligne-experience-disponibilite">
-          {/* Filtre "Expérience" (audit 2026-09-02, refonte visuelle) — badges cliquables, même
-              disposition/composant visuel que la boîte de badges de statut (.filtres-statut__statuts,
-              réutilisée telle quelle plutôt que dupliquée) : boîte ivoire, boutons pilule, compteur
-              entre parenthèses. Comportement de sélection DÉLIBÉRÉMENT différent de FiltresStatut.jsx
-              (pas de bouton "Tous" séparé) : cliquer le badge déjà actif le désactive (retour à
-              experienceFiltre === ''), alors qu'un bouton de statut ne se désactive que via "Tous" —
-              demande explicite, cohérente avec l'absence d'équivalent "Tous" pour ce filtre à 4
-              valeurs seulement. data-experience (comme data-statut) : accroche de couleur par
-              valeur, voir TableauDeBordAccueil.css. */}
-          <div
-            className="filtres-statut__statuts tableau-bord-accueil__filtres-experience"
-            role="group"
-            aria-label="Filtrer par expérience"
-          >
-            {/* Titre visible à l'intérieur du cadre (audit 2026-09-02, régression signalée : le
-                <select> retiré portait le seul libellé "Expérience" existant, perdu au passage aux
-                badges) — même span nu, sans style dédié, que "Poste"/"Formateur" devant leurs propres
-                filtres (Indicateurs.jsx/Planification.jsx) : pas un nouveau traitement visuel
-                inventé ici. */}
-            <span className="tableau-bord-accueil__filtres-experience-titre">Expérience</span>
-            {/* Badges regroupés dans leur propre bloc flex — le titre reste
-                calé sur le bord gauche du cadre (premier item, largeur naturelle), tandis que ce
-                bloc prend le reste de la largeur (flex: 1) et centre les 4 badges en son sein, voir
-                TableauDeBordAccueil.css. */}
-            <div className="tableau-bord-accueil__filtres-experience-badges">
-              {CODES_EXPERIENCE_ACCECIT.map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  data-experience={code}
-                  className={experienceFiltre === code ? 'actif' : ''}
-                  onClick={() => setExperienceFiltre(experienceFiltre === code ? '' : code)}
-                >
-                  {libelleExperience(code)}
-                  <strong> ({compteursParExperience[code] ?? 0})</strong>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Filtre "Disponibilité des candidats prêts à l'embauche" — une
-              seule date ("À partir de", ex-"Du") + Appliquer/Effacer, dans le même style que les autres filtres de
-              cette page (boîte ivoire, voir TableauDeBordAccueil.css). Champ "Au" RETIRÉ le même
-              jour (demande utilisateur explicite, pour que la boîte tienne dans sa cellule en
-              prod). Côté back, cette date sert de comparaison PONCTUELLE des deux côtés — dateDebut
-              ET dateFin du candidat (voir dossierRepository.listerDossiers) : "qui est réellement
-              disponible à cette date", jamais "qui a une disponibilité qui commence un jour peu
-              importe quand" (un candidat dont la disponibilité commence après cette date
-              n'apparaît pas). La date de fin déclarée/corrigée d'un candidat reste affichée par
-              ailleurs (voir formaterDisponibiliteEffective/sousBadgeStatutDisponibilite plus bas),
-              ce filtre n'en tient simplement plus compte comme borne DISTINCTE, il compare
-              désormais les deux dates du candidat à cette même date filtrée. Filtrage SERVEUR (voir
-              l'effet de chargement plus haut) : `filtreDisponibiliteActif` ne pilote plus que CE
-              filtre (date/requête serveur) — le bouton "Dispo : ..." sous le badge "Validé - prêt
-              à l'embauche" (sousBadgeStatutDisponibilite plus bas), lui, s'affiche désormais pour
-              TOUT dossier à ce statut, que ce filtre soit actif ou non (ajustement 2026-09-28,
-              demande utilisateur explicite : "que le filtre de période soit actif ou non"). */}
-          <div
-            className="filtres-statut__statuts tableau-bord-accueil__filtre-disponibilite-embauche"
-            role="group"
-            aria-label="Filtrer par disponibilité des candidats prêts à l'embauche"
-          >
-            {/* Libellé raccourci (ajustement 2026-09-28, demande utilisateur explicite : le texte
-                complet touchait le bloc "Expérience" voisin) — aria-label du groupe ci-dessus
-                garde le texte complet et descriptif, seul le libellé VISIBLE est raccourci.
-                De nouveau sur UNE seule ligne (correctif interface 2026-09-28, remplace le <br />
-                de l'ajustement précédent) : white-space: nowrap côté CSS ; sur écran étroit, c'est
-                le bloc des champs qui passe sous le titre, jamais le titre qui se coupe. */}
-            <span className="tableau-bord-accueil__filtre-disponibilite-embauche-titre">
-              Disponibilité (prêts à l&apos;embauche)
-            </span>
-            <div className="tableau-bord-accueil__filtre-disponibilite-embauche-champs">
-              <label htmlFor="dispo-embauche-debut">
-                À partir de
-                <input
-                  id="dispo-embauche-debut"
-                  type="date"
-                  value={dispoDebutBrouillon}
-                  onChange={(evenement) => setDispoDebutBrouillon(evenement.target.value)}
-                />
-              </label>
-              <button type="button" onClick={appliquerFiltreDisponibilite} disabled={!dispoDebutBrouillon}>
-                Appliquer
-              </button>
-              {/* Désactivé quand il n'y a rien à effacer : aucun filtre appliqué ET champ déjà à
-                  la date du jour (préremplissage, correctif interface 2026-09-28 — le champ n'est
-                  plus jamais vide à l'ouverture). Historique :
-                  désactivé tant qu'aucune date n'est saisie NULLE PART (demande utilisateur
-                  explicite, ajustement de mise en page 2026-09-28) — ni dans le brouillon en
-                  cours de saisie, ni dans le filtre déjà appliqué : auparavant conditionné au
-                  seul filtre appliqué (filtreDisponibiliteActif), ce qui laissait "Effacer"
-                  cliquable-mais-inutile alors qu'aucune date n'était encore saisie, et
-                  inversement ne permettait pas de vider un brouillon non encore appliqué. */}
-              <button
-                type="button"
-                onClick={effacerFiltreDisponibilite}
-                disabled={dispoDebutBrouillon === dateDuJourParis() && !filtreDisponibiliteActif}
+              {/* Filtre "Disponibilité des candidats prêts à l'embauche" — une
+                  seule date ("À partir de", ex-"Du") + Appliquer/Effacer, dans le même style que les autres filtres de
+                  cette page (boîte ivoire, voir TableauDeBordAccueil.css). Champ "Au" RETIRÉ le même
+                  jour (demande utilisateur explicite, pour que la boîte tienne dans sa cellule en
+                  prod). Côté back, cette date sert de comparaison PONCTUELLE des deux côtés — dateDebut
+                  ET dateFin du candidat (voir dossierRepository.listerDossiers) : "qui est réellement
+                  disponible à cette date", jamais "qui a une disponibilité qui commence un jour peu
+                  importe quand" (un candidat dont la disponibilité commence après cette date
+                  n'apparaît pas). La date de fin déclarée/corrigée d'un candidat reste affichée par
+                  ailleurs (voir formaterDisponibiliteEffective/sousBadgeStatutDisponibilite plus bas),
+                  ce filtre n'en tient simplement plus compte comme borne DISTINCTE, il compare
+                  désormais les deux dates du candidat à cette même date filtrée. Filtrage SERVEUR (voir
+                  l'effet de chargement plus haut) : `filtreDisponibiliteActif` ne pilote plus que CE
+                  filtre (date/requête serveur) — le bouton "Dispo : ..." sous le badge "Validé - prêt
+                  à l'embauche" (sousBadgeStatutDisponibilite plus bas), lui, s'affiche désormais pour
+                  TOUT dossier à ce statut, que ce filtre soit actif ou non (ajustement 2026-09-28,
+                  demande utilisateur explicite : "que le filtre de période soit actif ou non"). */}
+              <div
+                className="filtres-statut__statuts tableau-bord-accueil__filtre-disponibilite-embauche"
+                role="group"
+                aria-label="Filtrer par disponibilité des candidats prêts à l'embauche"
               >
-                Effacer
-              </button>
+                {/* Libellé raccourci (ajustement 2026-09-28, demande utilisateur explicite : le texte
+                    complet touchait le bloc "Expérience" voisin) — aria-label du groupe ci-dessus
+                    garde le texte complet et descriptif, seul le libellé VISIBLE est raccourci.
+                    De nouveau sur UNE seule ligne (correctif interface 2026-09-28, remplace le <br />
+                    de l'ajustement précédent) : white-space: nowrap côté CSS ; sur écran étroit, c'est
+                    le bloc des champs qui passe sous le titre, jamais le titre qui se coupe. */}
+                <span className="tableau-bord-accueil__filtre-disponibilite-embauche-titre">
+                  Disponibilité (prêts à l&apos;embauche)
+                </span>
+                <div className="tableau-bord-accueil__filtre-disponibilite-embauche-champs">
+                  <label htmlFor="dispo-embauche-debut">
+                    À partir de
+                    <input
+                      id="dispo-embauche-debut"
+                      type="date"
+                      value={dispoDebutBrouillon}
+                      onChange={(evenement) => setDispoDebutBrouillon(evenement.target.value)}
+                    />
+                  </label>
+                  <button type="button" onClick={appliquerFiltreDisponibilite} disabled={!dispoDebutBrouillon}>
+                    Appliquer
+                  </button>
+                  {/* Désactivé quand il n'y a rien à effacer : aucun filtre appliqué ET champ déjà à
+                      la date du jour (préremplissage, correctif interface 2026-09-28 — le champ n'est
+                      plus jamais vide à l'ouverture). Historique :
+                      désactivé tant qu'aucune date n'est saisie NULLE PART (demande utilisateur
+                      explicite, ajustement de mise en page 2026-09-28) — ni dans le brouillon en
+                      cours de saisie, ni dans le filtre déjà appliqué : auparavant conditionné au
+                      seul filtre appliqué (filtreDisponibiliteActif), ce qui laissait "Effacer"
+                      cliquable-mais-inutile alors qu'aucune date n'était encore saisie, et
+                      inversement ne permettait pas de vider un brouillon non encore appliqué. */}
+                  <button
+                    type="button"
+                    onClick={effacerFiltreDisponibilite}
+                    disabled={dispoDebutBrouillon === dateDuJourParis() && !filtreDisponibiliteActif}
+                  >
+                    Effacer
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Barre d'actions groupées (audit 2026-08-24, seuil abaissé à 1 le 2026-08-25) — sticky
             en haut de la zone de contenu (voir TableauDeBordAccueil.css) : reste visible pendant

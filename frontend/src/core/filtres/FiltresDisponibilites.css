@@ -1,0 +1,88 @@
+/* Deux groupes de pastilles cliquables (sélection multiple) : créneaux à gauche, jours + « Effacer »
+   à droite. */
+.filtres-disponibilites {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espace-moyen) var(--espace-grand);
+  margin-bottom: var(--espace-moyen);
+}
+
+.filtres-disponibilites__groupe-pastilles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.filtres-disponibilites__groupe-titre {
+  color: var(--couleur-texte);
+  font-weight: 600;
+}
+
+/* Bouton sans habillage : c'est le StatutBadge qui porte la couleur de la pastille au repos. */
+.filtres-disponibilites__pastille {
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.filtres-disponibilites__pastille:hover .statut-badge {
+  filter: brightness(0.94);
+}
+
+/* Pastille cochée (créneaux comme jours) : tout le fond en marron du back-office, texte blanc ;
+   décochée, elle reprend sa couleur d'origine. */
+.filtres-disponibilites__pastille--active .statut-badge {
+  background-color: var(--couleur-back-office);
+  border-color: var(--couleur-back-office);
+  color: #ffffff;
+}
+
+.filtres-disponibilites__pastille:focus-visible {
+  outline: 3px solid var(--couleur-back-office-hover);
+  outline-offset: 2px;
+}
+
+.filtres-disponibilites__effacer {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-texte);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.filtres-disponibilites__effacer:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Variante compacte : une seule ligne, sans retour, groupes collés à gauche ; pastilles des jours
+   (initiale seule) rondes et de même largeur. */
+.filtres-disponibilites--compact {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: var(--espace-grand);
+}
+
+.filtres-disponibilites--compact .filtres-disponibilites__groupe-pastilles {
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+}
+
+.filtres-disponibilites--compact .filtres-disponibilites__groupe-titre {
+  white-space: nowrap;
+}
+
+.filtres-disponibilites--compact [aria-label='Jours disponibles'] .statut-badge {
+  min-width: 1.9rem;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  text-align: center;
+}

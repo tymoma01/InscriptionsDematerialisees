@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, correspondFiltreEtudiant, filtrerDossiers } from './filtrerDossiers';
+import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, correspondFiltreEtudiant, creneauxProposes, filtrerDossiers } from './filtrerDossiers';
 
 function dossier(valeurs) {
   return {
@@ -130,5 +130,52 @@ describe('filtrerDossiers — filtre Métier', () => {
 
   test('sans métier choisi, aucune restriction', () => {
     expect(filtrerDossiers(dossiers, { ...SANS_FILTRE, metierFiltre: '' }).map((d) => d.id)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('filtrerDossiers — filtres Créneaux souhaités / Jours disponibles', () => {
+  const dossiers = [
+    dossier({ id: 1, creneaux: ['matin'], joursDisponibles: ['lundi', 'samedi'] }),
+    dossier({ id: 2, creneaux: ['6h-9h', '18h-21h'], joursDisponibles: ['mardi'] }),
+    dossier({ id: 3, creneaux: [], joursDisponibles: [] }),
+  ];
+
+  test('au moins un des créneaux cochés suffit', () => {
+    const resultat = filtrerDossiers(dossiers, { ...SANS_FILTRE, creneauxFiltre: new Set(['matin', '18h-21h']) });
+    expect(resultat.map((d) => d.id)).toEqual([1, 2]);
+  });
+
+  test('les deux groupes se cumulent', () => {
+    const resultat = filtrerDossiers(dossiers, {
+      ...SANS_FILTRE,
+      creneauxFiltre: new Set(['matin', '6h-9h']),
+      joursFiltre: new Set(['mardi']),
+    });
+    expect(resultat.map((d) => d.id)).toEqual([2]);
+  });
+
+  test('aucun choix coché : aucune restriction, y compris pour un dossier sans disponibilités', () => {
+    const resultat = filtrerDossiers(dossiers, { ...SANS_FILTRE, creneauxFiltre: new Set(), joursFiltre: new Set() });
+    expect(resultat.map((d) => d.id)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('creneauxProposes', () => {
+  const HOTEL = ['matin', 'midi', 'soir'];
+  const BUREAU = ['6h-9h', '9h-18h', '18h-21h'];
+
+  test('selon le secteur sélectionné', () => {
+    expect(creneauxProposes({ entitesFiltre: new Set(['hotel']), metierFiltre: '' })).toEqual(HOTEL);
+    expect(creneauxProposes({ entitesFiltre: new Set(['bureau']), metierFiltre: '' })).toEqual(BUREAU);
+  });
+
+  test('aucun secteur ou les deux : créneaux des deux secteurs, Hôtellerie d’abord', () => {
+    expect(creneauxProposes({ entitesFiltre: new Set(), metierFiltre: '' })).toEqual([...HOTEL, ...BUREAU]);
+    expect(creneauxProposes({ entitesFiltre: new Set(['hotel', 'bureau']), metierFiltre: '' })).toEqual([...HOTEL, ...BUREAU]);
+  });
+
+  test('un métier choisi désigne son secteur, même si un autre secteur est sélectionné', () => {
+    expect(creneauxProposes({ entitesFiltre: new Set(), metierFiltre: 'vitrerie' })).toEqual(BUREAU);
+    expect(creneauxProposes({ entitesFiltre: new Set(['bureau']), metierFiltre: 'equipier' })).toEqual(HOTEL);
   });
 });

@@ -4,6 +4,7 @@ import { normaliserTexte } from '../filtres/normaliserTexte';
 import { useSearchParams } from 'react-router-dom';
 import { useParametreURL, useEnsembleURL } from '../filtres/useParametreURL';
 import FiltrePlageDate from '../filtres/FiltrePlageDate';
+import FiltresDisponibilites from '../filtres/FiltresDisponibilites';
 import { listerHistoriqueEvaluations, listerCreneauxDisponibles } from '../../services/evaluationService';
 import SelecteurEvaluateurAdmin from './SelecteurEvaluateurAdmin';
 import { libellePoste } from '../referentiels/postes';
@@ -64,33 +65,6 @@ function trierCreneaux(creneaux) {
 
 // Couleurs des créneaux (badges de la colonne « Créneau » et pastilles du filtre) : voir
 // core/referentiels/creneaux.js, par code de créneau.
-
-// Jours disponibles déclarés par le candidat à l'inscription (`joursDisponibles`, même liste que
-// BlocDisponibilites.schema.js).
-const JOURS_SEMAINE = [
-  { code: 'lundi', libelle: 'Lundi' },
-  { code: 'mardi', libelle: 'Mardi' },
-  { code: 'mercredi', libelle: 'Mercredi' },
-  { code: 'jeudi', libelle: 'Jeudi' },
-  { code: 'vendredi', libelle: 'Vendredi' },
-  { code: 'samedi', libelle: 'Samedi' },
-  { code: 'dimanche', libelle: 'Dimanche' },
-];
-
-// Pastille cliquable d'un groupe de filtres (sélection multiple) : couleurs de la variante au repos,
-// fond marron plein et texte blanc une fois cochée (même classe pour tous les groupes).
-function PastilleFiltre({ libelle, variante, active, onBasculer }) {
-  return (
-    <button
-      type="button"
-      className={`historique-evaluations__pastille${active ? ' historique-evaluations__pastille--active' : ''}`}
-      aria-pressed={active}
-      onClick={onBasculer}
-    >
-      <StatutBadge libelle={libelle} variante={variante} />
-    </button>
-  );
-}
 
 // Recherche élargie (nom/prénom du candidat, n° de dossier, poste(s) évalué(s), résultat) — même
 // principe que Dossiers candidats/Suivi des tests (filtrerDossiers.js/Planification.jsx) : toutes
@@ -436,40 +410,14 @@ export default function HistoriqueEvaluations({ onSelectionner, afficherInspecte
       {/* Seconde ligne : « Créneaux souhaités » à gauche, « Jours disponibles » à droite, filtrés
           côté serveur (voir l'effet de chargement). Les créneaux proposés sont ceux réellement
           présents dans l'historique visible par ce rôle (optionsCreneaux). */}
-      <div className="historique-evaluations__filtres-pastilles">
-        <div className="historique-evaluations__groupe-pastilles" role="group" aria-label="Créneaux souhaités">
-          <span className="historique-evaluations__groupe-titre">Créneaux souhaités</span>
-          {optionsCreneaux.map((creneau) => (
-            <PastilleFiltre
-              key={creneau}
-              libelle={creneau}
-              variante={varianteCreneau(creneau)}
-              active={creneauxFiltre.has(creneau)}
-              onBasculer={() => basculerCreneau(creneau)}
-            />
-          ))}
-        </div>
-        <div className="historique-evaluations__groupe-pastilles" role="group" aria-label="Jours disponibles">
-          <span className="historique-evaluations__groupe-titre">Jours disponibles</span>
-          {JOURS_SEMAINE.map((jour) => (
-            <PastilleFiltre
-              key={jour.code}
-              libelle={jour.libelle}
-              variante="etudiant"
-              active={joursFiltre.has(jour.code)}
-              onBasculer={() => basculerJour(jour.code)}
-            />
-          ))}
-          <button
-            type="button"
-            className="historique-evaluations__effacer"
-            disabled={creneauxFiltre.size === 0 && joursFiltre.size === 0}
-            onClick={effacerCreneauxEtJours}
-          >
-            Effacer
-          </button>
-        </div>
-      </div>
+      <FiltresDisponibilites
+        optionsCreneaux={optionsCreneaux}
+        creneauxFiltre={creneauxFiltre}
+        onBasculerCreneau={basculerCreneau}
+        joursFiltre={joursFiltre}
+        onBasculerJour={basculerJour}
+        onEffacer={effacerCreneauxEtJours}
+      />
 
       {evaluationsTriees.length === 0 ? (
         <p className="historique-evaluations__vide">Aucune évaluation ne correspond aux critères actuels.</p>

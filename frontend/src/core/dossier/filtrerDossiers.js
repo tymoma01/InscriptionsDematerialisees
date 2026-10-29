@@ -1,4 +1,6 @@
 import { normaliserTexte } from '../filtres/normaliserTexte';
+import { POSTES_BUREAU, POSTES_HOTEL } from '../referentiels/postes';
+import { CRENEAUX_BUREAU, CRENEAUX_HOTEL } from '../referentiels/creneaux';
 
 // Retire espaces et tirets pour comparer deux numéros de téléphone quel que soit leur formatage
 // de saisie (ex. "06 12 34 56 78" doit matcher "0612345678") — appliqué à la fois au champ de
@@ -77,6 +79,27 @@ export function correspondFiltreMetier(dossier, metierFiltre) {
   return [...(dossier.postesHotel ?? []), ...(dossier.postesBureau ?? [])].includes(metierFiltre);
 }
 
+// Filtres « Créneaux souhaités » / « Jours disponibles » (Set de codes, vide = aucune restriction) :
+// le dossier doit avoir déclaré AU MOINS UN des choix cochés — même règle que l'historique des
+// évaluations (evaluationRepository, opérateur `?|`).
+export function correspondAuMoinsUn(valeursDeclarees, choix) {
+  if (!choix || choix.size === 0) return true;
+  return (valeursDeclarees ?? []).some((valeur) => choix.has(valeur));
+}
+
+// Créneaux proposés selon le secteur visé : matin/midi/soir n'existent qu'en Hôtellerie, les plages
+// horaires qu'en Tertiaire. Un métier choisi désigne son secteur et l'emporte sur les pastilles de
+// secteur ; aucun secteur ou les deux : créneaux des deux secteurs, Hôtellerie d'abord.
+export function creneauxProposes({ entitesFiltre, metierFiltre }) {
+  if (POSTES_HOTEL.includes(metierFiltre)) return CRENEAUX_HOTEL;
+  if (POSTES_BUREAU.includes(metierFiltre)) return CRENEAUX_BUREAU;
+  const hotel = entitesFiltre?.has('hotel');
+  const bureau = entitesFiltre?.has('bureau');
+  if (hotel && !bureau) return CRENEAUX_HOTEL;
+  if (bureau && !hotel) return CRENEAUX_BUREAU;
+  return [...CRENEAUX_HOTEL, ...CRENEAUX_BUREAU];
+}
+
 // Pastille à bascule : un clic sélectionne, un second clic revient à la liste complète.
 export function basculerChoixUnique(actuel, choix) {
   return actuel === choix ? '' : choix;
@@ -84,7 +107,7 @@ export function basculerChoixUnique(actuel, choix) {
 
 export function filtrerDossiers(
   dossiers,
-  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre, etudiantFiltre = '', metierFiltre = '' },
+  { recherche, codePostalFiltre, dateDebutFiltre, dateFinFiltre, libellePoste, entitesFiltre, etudiantFiltre = '', metierFiltre = '', creneauxFiltre, joursFiltre },
 ) {
   // Code postal : champ de filtre séparé (comme Du/Au), plus intégré à `recherche` (voir
   // FiltresRechercheDossiers.jsx) — même comportement "commence par", null-safe, que l'ancien
@@ -174,6 +197,8 @@ export function filtrerDossiers(
     }
     if (!correspondFiltreEtudiant(dossier, etudiantFiltre)) return false;
     if (!correspondFiltreMetier(dossier, metierFiltre)) return false;
+    if (!correspondAuMoinsUn(dossier.creneaux, creneauxFiltre)) return false;
+    if (!correspondAuMoinsUn(dossier.joursDisponibles, joursFiltre)) return false;
     return true;
   });
 }

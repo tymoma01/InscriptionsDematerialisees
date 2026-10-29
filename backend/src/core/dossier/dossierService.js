@@ -563,6 +563,9 @@ async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null
       // Colonne "Expérience", même patron que postesBureau/postesHotel
       // ci-dessus : extrait du même bloc JSONB déjà joint, aucune requête supplémentaire.
       experience: donnees_disponibilites?.experience ?? null,
+      // Filtres « Créneaux souhaités » / « Jours disponibles » de Dossiers candidats.
+      creneaux: donnees_disponibilites?.creneaux ?? [],
+      joursDisponibles: donnees_disponibilites?.joursDisponibles ?? [],
       candidat_telephone: donnees_coordonnees?.telephone ?? null,
       candidat_email: donnees_coordonnees?.email ?? null,
       candidat_code_postal: donnees_coordonnees?.codePostal ?? null,
