@@ -1,7 +1,8 @@
 /* Pastilles « Métier » (FiltreMetier.jsx) — boîte ivoire de .filtres-statut__statuts
    (FiltresStatut.css). Exactement une ligne par secteur (pas de retour à la ligne), titrée de son
-   secteur ; les pastilles s'étirent pour remplir la ligne sans jamais devenir plus étroites que
-   leur libellé. Sélecteurs préfixés de `div` / doublés de classes : ils doivent l'emporter sur les
+   secteur ; les pastilles forment une grille de colonnes égales qui occupe toute la largeur restante
+   de la ligne : elles grandissent ensemble au zoom et leur libellé passe sur deux lignes plutôt que
+   de déborder du bloc. Sélecteurs préfixés de `div` / doublés de classes : ils doivent l'emporter sur les
    règles des pages qui stylent toutes leurs boîtes .filtres-statut__statuts (ex.
    `.tableau-bord-accueil .filtres-statut__statuts`). */
 div.filtre-metier.filtres-statut__statuts {
@@ -20,16 +21,20 @@ div.filtre-metier.filtres-statut__statuts {
 }
 
 .filtre-metier__groupe {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  display: grid;
+  /* Étiquette en première colonne, puis une colonne de largeur égale par pastille. */
+  grid-template-columns: 4.8rem;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  /* Pastilles étirées : toutes de la même hauteur dans la ligne, même si l'une passe sur deux
+     lignes de texte. */
+  align-items: stretch;
   gap: 0.3rem;
 }
 
 /* Largeur fixe : les pastilles des deux lignes démarrent au même endroit. */
 .filtre-metier__secteur {
-  flex-shrink: 0;
-  width: 4.8rem;
+  align-self: center;
   font-weight: 700;
   font-size: 0.8rem;
 }
@@ -44,10 +49,11 @@ div.filtre-metier.filtres-statut__statuts {
 
 /* Forme pilule + curseur posés ici : le bloc n'a pas toujours d'ancêtre .filtres-statut. */
 .filtre-metier.filtres-statut__statuts .filtre-metier__groupe button {
-  flex: 1 0 auto;
+  min-width: 0;
   padding: 0.3rem 0.45rem;
   font-size: 0.78rem;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
   border-radius: 999px;
   cursor: pointer;
 }

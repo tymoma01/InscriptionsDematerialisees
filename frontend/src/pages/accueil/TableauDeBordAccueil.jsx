@@ -637,19 +637,8 @@ export default function TableauDeBordAccueil({ vue = null }) {
           <EnTeteBackOffice />
         </header>
 
-        {/* Ordre des filtres : statuts en pleine largeur, puis Tous/secteur/« Étudiant » à gauche et
-            métiers à droite, enfin recherche/dates/expérience. */}
-        <div className="tableau-bord-accueil__ligne-statuts">
-          <FiltresStatut
-            statuts={statutsFiltres}
-            statutFiltre={statutFiltre}
-            onChangerStatutFiltre={setStatutFiltre}
-            compteurTous={dossiersFiltresSansStatut.length}
-            compteurs={compteursParStatut}
-            afficherTous={false}
-          />
-        </div>
-
+        {/* Ordre des filtres : Tous/secteur/« Étudiant » à gauche et métiers à droite, puis statuts en
+            pleine largeur, enfin recherche/dates/expérience. */}
         {/* Classe .filtres-statut reprise pour la mise en page de la ligne (colonne de gauche de
             TableauDeBordAccueil.css) et le style des pastilles Tous/Secteur/Étudiant. « Tous »
             (statut) reste en tête de la colonne, au-dessus du secteur. Conteneur transparent
@@ -682,6 +671,18 @@ export default function TableauDeBordAccueil({ vue = null }) {
             onBasculerMetier={basculerMetierFiltre}
             compteurs={compteursParMetier}
             secteurs={estInspecteurHotellerie ? ['hotel'] : undefined}
+          />
+        </div>
+
+        {/* Statuts en pleine largeur, sous le bloc Tous/secteur/« Étudiant »/métiers. */}
+        <div className="tableau-bord-accueil__ligne-statuts">
+          <FiltresStatut
+            statuts={statutsFiltres}
+            statutFiltre={statutFiltre}
+            onChangerStatutFiltre={setStatutFiltre}
+            compteurTous={dossiersFiltresSansStatut.length}
+            compteurs={compteursParStatut}
+            afficherTous={false}
           />
         </div>
 

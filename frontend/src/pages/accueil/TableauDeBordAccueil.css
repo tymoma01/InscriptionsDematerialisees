@@ -402,7 +402,7 @@
 /* Boîte des statuts resserrée : marges internes et pastilles plus compactes que les autres boîtes
    de filtres (.tableau-bord-accueil .filtres-statut__statuts, plus bas). */
 .tableau-bord-accueil__ligne-statuts div.filtres-statut__statuts {
-  gap: 0.3rem;
+  gap: 0.45rem 0.3rem;
   padding: 0.3rem var(--espace-petit);
 }
 
@@ -502,6 +502,9 @@
   ):not(.filtre-metier) {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  /* Pastilles étirées : même hauteur dans une ligne de la grille quand un libellé passe sur deux
+     lignes (au zoom). */
+  align-items: stretch;
 }
 
 /* white-space: normal (pas nowrap, hérité de .filtres-statut__statuts button générique) : un
