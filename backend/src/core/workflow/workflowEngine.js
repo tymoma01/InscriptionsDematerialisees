@@ -14,6 +14,7 @@ const { aPermission } = require('../auth/permissions');
 // fichier — voir forcerStatut plus bas). Seul point d'usage : la neutralisation générique ci-dessous
 // (appliquerTransition), jusqu'ici totalement silencieuse — voir son commentaire.
 const journalAudit = require('../audit/journalAudit');
+const informationsPiecesService = require('../dossier/informationsPiecesService');
 
 // Valeur de `rendezvous.statut` pour un rendez-vous neutralisé — même sentinel que
 // rendezvousService.STATUT_REMPLACE (core/rendezvous/rendezvousService.js), dupliquée ici plutôt
@@ -123,6 +124,15 @@ async function appliquerTransition(
   if (!autorisee) {
     throw new ErreurTransitionInvalide(`Rôle "${roleCode}" non autorisé pour l'action "${codeAction}".`);
   }
+
+  // Pièce d'identité et RIB confirmés avant « prêt à l'embauche » / « embauché », quel que soit le
+  // chemin (verdict du test, fin de formation, embauche) : un report ne suffit pas.
+  await informationsPiecesService.verifierInformationsPiecesConfirmeesPourEmbauche(
+    entite,
+    dossierId,
+    transition.statut_destination_code,
+    bd,
+  );
 
   let motifId = null;
   if (transition.motif_requis) {

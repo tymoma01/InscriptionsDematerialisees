@@ -22,6 +22,7 @@ function trouverTransition(bd, entiteId, statutOrigineId, codeAction) {
       'transitions_statut.id',
       'transitions_statut.statut_destination_id',
       'transitions_statut.motif_requis',
+      'statuts.code as statut_destination_code',
       'statuts.neutralise_rendezvous_actifs as statut_destination_neutralise_rendezvous_actifs',
     )
     .first();

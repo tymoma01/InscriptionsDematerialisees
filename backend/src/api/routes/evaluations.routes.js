@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const evaluationEngine = require('../../core/evaluation/evaluationEngine');
+const { ErreurInformationsPiecesNonConfirmees } = require('../../core/dossier/informationsPiecesService');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -276,6 +277,10 @@ router.post('/', async (req, res, next) => {
     // formation, audit 2026-09-29) : message métier explicite, jamais le 500 générique.
     if (erreur instanceof evaluationEngine.ErreurParcoursEvaluation) {
       return res.status(400).json({ erreur: erreur.message });
+    }
+    // Verdict positif refusé : pièce d'identité ou RIB seulement reportés (rien n'est écrit).
+    if (erreur instanceof ErreurInformationsPiecesNonConfirmees) {
+      return res.status(409).json({ erreur: erreur.message });
     }
     next(erreur);
   }

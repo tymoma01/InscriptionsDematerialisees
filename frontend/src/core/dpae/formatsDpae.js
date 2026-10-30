@@ -1,7 +1,8 @@
 // Formats d'affichage d'une demande DPAE (2026-10-02) — SOURCE UNIQUE côté frontend (fiche,
 // DetailDemandeDpae.jsx). MÊMES règles côté backend pour le PDF : backend/src/core/dpae/formatsDpae.js
 // (applications construites séparément, aucun fichier partageable) — toute modification doit être
-// reportée dans les deux fichiers.
+// reportée dans les deux fichiers, sauf le bloc « Propre à la fiche » en fin de fichier
+// (lignesSemaineType et ses constantes), sans équivalent backend : le PDF construit son propre tableau.
 
 // « 08:00:00 » ou « 8:00 » -> « 08h00 ». Valeur inattendue : renvoyée telle quelle (jamais masquée).
 export function formaterHeure(valeur) {
@@ -59,6 +60,7 @@ export function libelleTypeContrat(code) {
   return LIBELLE_PAR_TYPE_CONTRAT[code] ?? String(code).toUpperCase();
 }
 
+// --- Propre à la fiche : sans équivalent backend (non comparé par formatsDpae.test.js côté backend) ---
 const JOURS_DE_LA_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 const LIBELLE_JOUR = Object.fromEntries(JOURS_DE_LA_SEMAINE.map((jour) => [jour, jour.charAt(0).toUpperCase() + jour.slice(1)]));
 export const PAUSE_ABSENTE = '–';

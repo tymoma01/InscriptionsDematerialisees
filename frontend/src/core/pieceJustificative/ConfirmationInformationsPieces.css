@@ -72,38 +72,20 @@
   align-self: flex-start;
 }
 
-/* Bouton « Scanner » sous un champ : discret, une lecture ciblée sur ce seul champ. */
-.scan-champ {
+.confirmation-pieces__actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
 }
 
-.scan-champ__bouton {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.85rem;
-  color: var(--couleur-back-office);
-  background: transparent;
-  border: 1px solid var(--couleur-bordure-legere);
-  border-radius: var(--rayon-bordure);
-  cursor: pointer;
-}
-
-.scan-champ__bouton:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.scan-champ__message {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--couleur-texte-secondaire);
-}
-
-.scan-champ__message--avertissement {
+/* « À compléter » : informations reportées, à confirmer plus tard. */
+.confirmation-pieces__badge {
+  margin-left: var(--espace-petit);
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--statut-attente-texte);
+  background: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  border-radius: var(--rayon-bordure);
 }

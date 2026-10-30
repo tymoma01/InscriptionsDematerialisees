@@ -6,6 +6,7 @@ const dossierRepository = require('../dossier/dossierRepository');
 const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const motifRepository = require('../motifs/motifRepository');
 const workflowRepository = require('./workflowRepository');
+const informationsPiecesRepository = require('../dossier/informationsPiecesRepository');
 const journalAudit = require('../audit/journalAudit');
 const workflowEngine = require('./workflowEngine');
 
@@ -540,4 +541,65 @@ test("forcerStatut n'exige ni n'écrit dateEmbauche pour un forçage vers un aut
     }),
   );
   assert.equal(mettreAJourDateEmbaucheMock.mock.calls.length, 0);
+});
+
+// « Renseigner plus tard » : le moteur refuse « prêt à l'embauche » tant que les informations des
+// pièces ne sont pas confirmées, avant toute écriture.
+test("appliquerTransition vers valide_pret_embauche : informations de pièces reportées -> refus, rien d'écrit", async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 127, statut_id: 11 }));
+  t.mock.method(workflowRepository, 'trouverTransition', async () => ({
+    id: 1,
+    statut_destination_id: 18,
+    statut_destination_code: 'valide_pret_embauche',
+    statut_destination_neutralise_rendezvous_actifs: true,
+    motif_requis: false,
+  }));
+  t.mock.method(workflowRepository, 'transitionAutoriseePourRole', async () => true);
+  t.mock.method(informationsPiecesRepository, 'trouverParDossierId', async () => ({
+    candidatId: 5,
+    pieceIdentiteType: null,
+    ibanChiffre: null,
+    pieceIdentiteACompleter: true,
+    ribACompleter: true,
+  }));
+  const ecriture = t.mock.method(dossierRepository, 'enregistrerChangementStatut', async () => {});
+
+  await assert.rejects(
+    workflowEngine.appliquerTransition(
+      ENTITE_ACCECIT,
+      { dossierId: 127, codeAction: 'valider_pret_embauche', commentaire: 'Test validé.', utilisateurId: 9, roleCode: 'admin' },
+      { estUneTrxExistante: true },
+    ),
+    /à compléter avant de valider l’embauche/,
+  );
+  assert.equal(ecriture.mock.callCount(), 0);
+});
+
+test('appliquerTransition vers valide_pret_embauche : dossier ancien sans informations ni report -> transition appliquée', async (t) => {
+  mockerKnex(t);
+  t.mock.method(dossierRepository, 'trouverDossierParId', async () => ({ id: 127, statut_id: 11 }));
+  t.mock.method(workflowRepository, 'trouverTransition', async () => ({
+    id: 1,
+    statut_destination_id: 18,
+    statut_destination_code: 'valide_pret_embauche',
+    statut_destination_neutralise_rendezvous_actifs: false,
+    motif_requis: false,
+  }));
+  t.mock.method(workflowRepository, 'transitionAutoriseePourRole', async () => true);
+  t.mock.method(informationsPiecesRepository, 'trouverParDossierId', async () => ({
+    candidatId: 5,
+    pieceIdentiteType: null,
+    ibanChiffre: null,
+    pieceIdentiteACompleter: false,
+    ribACompleter: false,
+  }));
+  const ecriture = t.mock.method(dossierRepository, 'enregistrerChangementStatut', async () => {});
+
+  await workflowEngine.appliquerTransition(
+    ENTITE_ACCECIT,
+    { dossierId: 127, codeAction: 'valider_pret_embauche', commentaire: 'Test validé.', utilisateurId: 9, roleCode: 'admin' },
+    { estUneTrxExistante: true },
+  );
+  assert.equal(ecriture.mock.callCount(), 1);
 });

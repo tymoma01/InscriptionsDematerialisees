@@ -6,6 +6,7 @@ const { ErreurRendezvousDossierClos } = require('../../core/rendezvous/rendezvou
 const dossierRepository = require('../../core/dossier/dossierRepository');
 const { envoyerEmailFormationValidee } = require('../../core/dossier/notificationFormationValideeService');
 const embaucheService = require('../../core/dossier/embaucheService');
+const { ErreurInformationsPiecesNonConfirmees } = require('../../core/dossier/informationsPiecesService');
 const utilisateurRepository = require('../../core/auth/utilisateurRepository');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
 const journalAudit = require('../../core/audit/journalAudit');
@@ -238,6 +239,9 @@ router.post('/', requirePermission('gestionTransitions'), async (req, res, next)
     if (erreur instanceof workflowEngine.ErreurTransitionInvalide) {
       return res.status(400).json({ erreur: erreur.message });
     }
+    if (erreur instanceof ErreurInformationsPiecesNonConfirmees) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -381,6 +385,9 @@ router.post('/forcer-statut', requirePermission('forcerStatut'), async (req, res
     if (erreur instanceof workflowEngine.ErreurTransitionInvalide) {
       return res.status(400).json({ erreur: erreur.message });
     }
+    if (erreur instanceof ErreurInformationsPiecesNonConfirmees) {
+      return res.status(409).json({ erreur: erreur.message });
+    }
     next(erreur);
   }
 });
@@ -422,6 +429,9 @@ router.post('/marquer-embauche', requirePermission('marquerEmbauche'), async (re
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof workflowEngine.ErreurTransitionInvalide) {
       return res.status(400).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof ErreurInformationsPiecesNonConfirmees) {
+      return res.status(409).json({ erreur: erreur.message });
     }
     next(erreur);
   }

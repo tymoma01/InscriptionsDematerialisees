@@ -3,13 +3,18 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ConfirmationPieceIdentite from './ConfirmationPieceIdentite';
 import ConfirmationRib from './ConfirmationRib';
-import { lireChamp, lireMrz, lireRib, lireVerso } from './ocr/ocr';
-import { confirmerPieceIdentite, confirmerRib } from '../../services/informationsPiecesService';
+import { lireMrz, lireRib, lireVerso } from './ocr/ocr';
+import { confirmerPieceIdentite, confirmerRib, reporterPieceIdentite, reporterRib } from '../../services/informationsPiecesService';
 
 // L'OCR lui-même (tesseract.js) est testé sur ses analyses (ocr/*.test.js) : ici, seulement ce que
 // l'écran fait d'une lecture.
-vi.mock('./ocr/ocr', () => ({ lireMrz: vi.fn(), lireVerso: vi.fn(), lireRib: vi.fn(), lireChamp: vi.fn() }));
-vi.mock('../../services/informationsPiecesService', () => ({ confirmerPieceIdentite: vi.fn(), confirmerRib: vi.fn() }));
+vi.mock('./ocr/ocr', () => ({ lireMrz: vi.fn(), lireVerso: vi.fn(), lireRib: vi.fn() }));
+vi.mock('../../services/informationsPiecesService', () => ({
+  confirmerPieceIdentite: vi.fn(),
+  confirmerRib: vi.fn(),
+  reporterPieceIdentite: vi.fn(),
+  reporterRib: vi.fn(),
+}));
 
 beforeEach(() => vi.resetAllMocks());
 afterEach(cleanup);
@@ -151,41 +156,37 @@ test('pièce d’identité jamais confirmée : état « à confirmer », même u
   expect(onEtatConfirmation).not.toHaveBeenCalledWith(true);
 });
 
-// Photo rapprochée d'un seul champ (bouton « Scanner ») : saisie par le sélecteur de fichier caché.
-const scannerChamp = (conteneur, index = 0) => {
-  const entree = conteneur.querySelectorAll('input[type="file"]')[index];
-  fireEvent.change(entree, { target: { files: [new Blob(['x'], { type: 'image/jpeg' })] } });
-};
+test('pièce d’identité : « Renseigner plus tard » n’exige aucun champ et signale le report', async () => {
+  reporterPieceIdentite.mockResolvedValue();
+  const onReportee = vi.fn();
+  render(<ConfirmationPieceIdentite dossierId={7} candidat={CANDIDAT} enregistree={null} modifiable onConfirmee={() => {}} onReportee={onReportee} />);
 
-test('scan d’un champ : la valeur lue remplit le champ, sans requête réseau ni enregistrement', async () => {
-  const fetchEspion = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.reject(new Error('réseau')));
-  lireChamp.mockResolvedValue('FR76 3000 6000 0112 3456 7890 189');
-  const { container } = render(<RibAvecParent dossierId={7} photo={null} modifiable />);
-
-  scannerChamp(container, 0);
-
-  expect(await screen.findByDisplayValue('FR76 3000 6000 0112 3456 7890 189')).toBeTruthy();
-  expect(screen.getByText(/Lu sur la photo, vérifiez avant de confirmer/)).toBeTruthy();
-  expect(lireChamp).toHaveBeenCalledWith(expect.any(Blob), 'iban');
-  expect(fetchEspion).not.toHaveBeenCalled();
-  expect(confirmerRib).not.toHaveBeenCalled();
-  fetchEspion.mockRestore();
+  fireEvent.click(screen.getByText('Renseigner plus tard'));
+  await vi.waitFor(() => expect(onReportee).toHaveBeenCalled());
+  expect(reporterPieceIdentite).toHaveBeenCalledWith(7);
+  expect(confirmerPieceIdentite).not.toHaveBeenCalled();
+  expect(screen.queryByText(/obligatoire/)).toBeNull();
 });
 
-test('scan d’un champ : lecture échouée, le champ reste inchangé et un message le dit', async () => {
-  lireChamp.mockResolvedValue(null);
-  const { container } = render(
-    <PieceAvecParent dossierId={7} candidat={CANDIDAT} photo={null} modifiable onConfirmee={vi.fn()} />,
-  );
-  fireEvent.change(screen.getByLabelText('Numéro'), { target: { value: 'AB12345' } });
-
-  scannerChamp(container, 0);
-
-  expect(await screen.findByText(/Information illisible, rapprochez-vous/)).toBeTruthy();
-  expect(screen.getByLabelText('Numéro').value).toBe('AB12345');
+test('pièce d’identité reportée : badge « À compléter », valeurs saisies conservées, confirmation toujours possible', () => {
+  render(<ConfirmationPieceIdentite dossierId={7} candidat={CANDIDAT} enregistree={null} aCompleter modifiable onConfirmee={() => {}} />);
+  expect(screen.getByText('À compléter')).toBeTruthy();
+  expect(screen.getByText('Confirmer ces informations')).toBeTruthy();
+  expect(screen.queryByText('Renseigner plus tard')).toBeNull();
 });
 
-test('pièce d’identité : un bouton Scanner par champ lisible, aucun pour le type de pièce', () => {
-  render(<PieceAvecParent dossierId={7} candidat={CANDIDAT} photo={null} modifiable onConfirmee={vi.fn()} />);
-  expect(screen.getAllByRole('button', { name: /Scanner/ })).toHaveLength(3);
+test('pièce d’identité : pas de « Renseigner plus tard » en lecture seule', () => {
+  render(<ConfirmationPieceIdentite dossierId={7} candidat={CANDIDAT} enregistree={null} modifiable={false} onConfirmee={() => {}} />);
+  expect(screen.queryByText('Renseigner plus tard')).toBeNull();
+});
+
+test('RIB : « Renseigner plus tard » puis badge, et le bouton de confirmation reste disponible', async () => {
+  reporterRib.mockResolvedValue();
+  const { rerender } = render(<ConfirmationRib dossierId={7} enregistre={null} modifiable onConfirme={() => {}} onReporte={() => {}} />);
+  fireEvent.click(screen.getByText('Renseigner plus tard'));
+  await vi.waitFor(() => expect(reporterRib).toHaveBeenCalledWith(7));
+
+  rerender(<ConfirmationRib dossierId={7} enregistre={null} aCompleter modifiable onConfirme={() => {}} onReporte={() => {}} />);
+  expect(screen.getByText('À compléter')).toBeTruthy();
+  expect(screen.getByText('Confirmer ces informations')).toBeTruthy();
 });

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { confirmerRib } from '../../services/informationsPiecesService';
+import { confirmerRib, reporterRib } from '../../services/informationsPiecesService';
 import { nomBanque } from './ocr/banques';
 import { compacterIban, formaterIban, ibanValide } from './ocr/iban';
 import { lireRib } from './ocr/ocr';
-import ScanChamp from './ScanChamp';
 import './ConfirmationInformationsPieces.css';
 
 const BIC = /^[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/;
@@ -24,9 +23,10 @@ export function erreursRib({ iban, bic }) {
  * (voir ocr/rib.js) ; un PDF ou une photo illisible laissent la saisie manuelle.
  *
  * photo : { fichier, n } — dernière photo capturée du RIB (n change à chaque capture).
+ * aCompleter / onReporte : « Renseigner plus tard », comme pour ConfirmationPieceIdentite.
  * onEtatConfirmation(bool) : comme pour ConfirmationPieceIdentite.
  */
-export default function ConfirmationRib({ dossierId, enregistre, photo, modifiable, onConfirme, onEtatConfirmation }) {
+export default function ConfirmationRib({ dossierId, enregistre, aCompleter = false, photo, modifiable, onConfirme, onReporte, onEtatConfirmation }) {
   const [brouillon, setBrouillon] = useState(() => versBrouillon(enregistre));
   // aucune | en_cours | lue | illisible
   const [lecture, setLecture] = useState('aucune');
@@ -68,12 +68,6 @@ export default function ConfirmationRib({ dossierId, enregistre, photo, modifiab
 
   const changer = (cle) => (evenement) => setBrouillon((b) => ({ ...b, [cle]: evenement.target.value }));
 
-  // Valeur lue par « Scanner » : remplace le champ, qui reste modifiable.
-  const remplir = (cle) => (valeur) => {
-    setBrouillon((b) => ({ ...b, [cle]: valeur }));
-    setErreurs((e) => ({ ...e, [cle]: undefined }));
-  };
-
   const confirmer = async () => {
     const trouvees = erreursRib(brouillon);
     setErreurs(trouvees);
@@ -91,9 +85,25 @@ export default function ConfirmationRib({ dossierId, enregistre, photo, modifiab
     }
   };
 
+  const reporter = async () => {
+    setErreurEnvoi(null);
+    setEnvoi(true);
+    try {
+      await reporterRib(dossierId);
+      onReporte?.();
+    } catch (erreur) {
+      setErreurEnvoi(erreur.response?.data?.erreur ?? 'Impossible d’enregistrer ce report. Merci de réessayer.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   return (
     <div className="confirmation-pieces">
-      <h3 className="confirmation-pieces__titre">Coordonnées bancaires</h3>
+      <h3 className="confirmation-pieces__titre">
+        Coordonnées bancaires
+        {aCompleter && !enregistre && <span className="confirmation-pieces__badge">À compléter</span>}
+      </h3>
 
       {lecture === 'en_cours' && (
         <p className="confirmation-pieces__etat" role="status">
@@ -115,13 +125,11 @@ export default function ConfirmationRib({ dossierId, enregistre, photo, modifiab
         <div className="confirmation-pieces__champ confirmation-pieces__champ--large">
           <label htmlFor="rib-iban">IBAN</label>
           <input id="rib-iban" autoComplete="off" autoCapitalize="characters" value={brouillon.iban} onChange={changer('iban')} />
-          <ScanChamp nature="iban" onValeur={remplir('iban')} />
           {erreurs.iban && <p role="alert" className="confirmation-pieces__erreur">{erreurs.iban}</p>}
         </div>
         <div className="confirmation-pieces__champ">
           <label htmlFor="rib-bic">BIC</label>
           <input id="rib-bic" autoComplete="off" autoCapitalize="characters" value={brouillon.bic} onChange={changer('bic')} />
-          <ScanChamp nature="bic" onValeur={remplir('bic')} />
           {banque && <p className="confirmation-pieces__aide">{banque}</p>}
           {erreurs.bic && <p role="alert" className="confirmation-pieces__erreur">{erreurs.bic}</p>}
         </div>
@@ -134,14 +142,26 @@ export default function ConfirmationRib({ dossierId, enregistre, photo, modifiab
         </p>
       ) : (
         modifiable && (
-          <button
-            type="button"
-            className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
-            onClick={confirmer}
-            disabled={envoi || lecture === 'en_cours'}
-          >
-            {envoi ? 'Enregistrement…' : 'Confirmer ces informations'}
-          </button>
+          <div className="confirmation-pieces__actions">
+            <button
+              type="button"
+              className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
+              onClick={confirmer}
+              disabled={envoi || lecture === 'en_cours'}
+            >
+              {envoi ? 'Enregistrement…' : 'Confirmer ces informations'}
+            </button>
+            {!enregistre && !aCompleter && (
+              <button
+                type="button"
+                className="capture-tablette__bouton-action capture-tablette__bouton-action--secondaire capture-tablette__bouton-action--compacte"
+                onClick={reporter}
+                disabled={envoi}
+              >
+                Renseigner plus tard
+              </button>
+            )}
+          </div>
         )
       )}
     </div>

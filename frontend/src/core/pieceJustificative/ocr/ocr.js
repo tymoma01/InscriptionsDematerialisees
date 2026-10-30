@@ -14,7 +14,6 @@ import urlModeleTexte from '@tesseract.js-data/fra/4.0.0_best_int/fra.traineddat
 import { analyserMrz } from './mrz';
 import { analyserRib } from './rib';
 import { analyserVerso } from './verso';
-import { extraireChamp } from './champ';
 
 /** Image décodée (ImageBitmap, ou <img> pour les navigateurs où createImageBitmap échoue). */
 async function decoderPhoto(photo) {
@@ -230,37 +229,6 @@ async function lectureRib(photo) {
   }
 }
 
-// Découpages essayés pour un champ isolé : bloc de texte, puis ligne unique.
-const LECTURES_CHAMP = ['6', '7'];
-
-/**
- * Valeur d'un seul champ lue sur une photo prise de près (voir extraireChamp), ou null. La photo ne
- * sort pas du navigateur : décodée, lue puis libérée (bitmap fermé, canvas vidé), rien n'est
- * conservé ni journalisé.
- */
-async function lectureChamp(photo, nature) {
-  let image;
-  try {
-    image = await decoderPhoto(photo);
-    for (const psm of LECTURES_CHAMP) {
-      const canvas = preparer(image, { largeur: 1600 });
-      try {
-        const valeur = extraireChamp(nature, await reconnaitre(workerTexte, psm, canvas));
-        if (valeur) return valeur;
-      } finally {
-        canvas.width = 0;
-        canvas.height = 0;
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  } finally {
-    image?.close?.();
-  }
-}
-
-export const lireChamp = (photo, nature) => avecDelai(lectureChamp(photo, nature), null);
 export const lireMrz = (photo) => avecDelai(lectureMrz(photo), null);
 export const lireVerso = (photo) => avecDelai(lectureVerso(photo), null);
 export const lireRib = (photo) => avecDelai(lectureRib(photo), { iban: null, bic: null });

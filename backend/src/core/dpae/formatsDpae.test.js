@@ -27,10 +27,18 @@ test('Heures par mois : « 120 h », virgule française s’il y a une décimale
 
 // Fichiers dupliqués backend/frontend (applications construites séparément) : ce test échoue si
 // l'une des deux copies change sans l'autre. Ignoré si le frontend est absent (image du backend).
+// Le bloc « Propre à la fiche » du frontend (lignesSemaineType et ses constantes) n'a pas
+// d'équivalent backend : il est exclu de la comparaison.
 const FRONTEND = path.join(__dirname, '../../../../frontend/src');
 
 test('Formats : la copie frontend (frontend/src/core/dpae/formatsDpae.js) contient les mêmes fonctions', { skip: !fs.existsSync(FRONTEND) }, () => {
-  const corps = (source) => source.slice(source.indexOf('// « 08:00:00 »')).replace(/^export /gm, '').replace(/\nmodule\.exports[\s\S]*$/, '').trim();
+  const corps = (source) =>
+    source
+      .slice(source.indexOf('// « 08:00:00 »'))
+      .replace(/\n\/\/ --- Propre à la fiche[\s\S]*$/, '')
+      .replace(/^export /gm, '')
+      .replace(/\nmodule\.exports[\s\S]*$/, '')
+      .trim();
   const back = fs.readFileSync(path.join(__dirname, 'formatsDpae.js'), 'utf8');
   const front = fs.readFileSync(path.join(FRONTEND, 'core/dpae/formatsDpae.js'), 'utf8');
   assert.equal(corps(front), corps(back));

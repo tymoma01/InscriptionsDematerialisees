@@ -1,4 +1,4 @@
-// Informations de la pièce d'identité et du RIB du candidat d'un dossier (migration 088). Scopé
+// Informations de la pièce d'identité et du RIB du candidat d'un dossier (migrations 088 et 090). Scopé
 // par entiteId comme trouverDossierParId : undefined si le dossier n'appartient pas à l'entité.
 // Dates rendues en AAAA-MM-JJ par la base : un DATE lu par pg devient un Date à minuit heure
 // locale, que toISOString décalerait d'un jour.
@@ -20,6 +20,8 @@ async function trouverParDossierId(bd, entiteId, dossierId) {
       'candidats.iban as ibanChiffre',
       'candidats.iban_iv as ibanIv',
       'candidats.bic',
+      'candidats.piece_identite_a_completer as pieceIdentiteACompleter',
+      'candidats.rib_a_completer as ribACompleter',
     )
     .first();
 }
@@ -30,11 +32,20 @@ function mettreAJourPieceIdentite(bd, candidatId, { type, numero, delivreeLe, ex
     piece_identite_numero: numero,
     piece_identite_delivree_le: delivreeLe,
     piece_identite_expire_le: expireLe,
+    piece_identite_a_completer: false,
   });
 }
 
 function mettreAJourRib(bd, candidatId, { ibanChiffre, ibanIv, bic }) {
-  return bd('candidats').where({ id: candidatId }).update({ iban: ibanChiffre, iban_iv: ibanIv, bic });
+  return bd('candidats').where({ id: candidatId }).update({ iban: ibanChiffre, iban_iv: ibanIv, bic, rib_a_completer: false });
 }
 
-module.exports = { trouverParDossierId, mettreAJourPieceIdentite, mettreAJourRib };
+function reporterPieceIdentite(bd, candidatId) {
+  return bd('candidats').where({ id: candidatId }).update({ piece_identite_a_completer: true });
+}
+
+function reporterRib(bd, candidatId) {
+  return bd('candidats').where({ id: candidatId }).update({ rib_a_completer: true });
+}
+
+module.exports = { trouverParDossierId, mettreAJourPieceIdentite, mettreAJourRib, reporterPieceIdentite, reporterRib };

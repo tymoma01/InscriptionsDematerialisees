@@ -109,6 +109,29 @@ router.put('/rib', requirePermission('gestionPieces'), async (req, res, next) =>
   }
 });
 
+// PUT /api/dossiers/:dossierId/informations-pieces/piece-identite/plus-tard et /rib/plus-tard —
+// « Renseigner plus tard » : aucun champ exigé, la pièce passe à « informations à compléter ».
+function routeReport(chemin, reporter) {
+  router.put(`${chemin}/plus-tard`, requirePermission('gestionPieces'), async (req, res, next) => {
+    try {
+      const dossierId = idPositifSchema.parse(req.params.dossierId);
+      if (!(await reporter(req.entite, dossierId, { utilisateurId: req.utilisateur.id, adresseIp: req.ip }))) {
+        return res.status(404).json({ erreur: MESSAGE_DOSSIER_INTROUVABLE });
+      }
+      res.json({ aCompleter: true });
+    } catch (erreur) {
+      if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+      if (erreur instanceof informationsPiecesService.ErreurInformationsPiecesDejaConfirmees) {
+        return res.status(409).json({ erreur: erreur.message });
+      }
+      next(erreur);
+    }
+  });
+}
+
+routeReport('/piece-identite', informationsPiecesService.reporterPieceIdentite);
+routeReport('/rib', informationsPiecesService.reporterRib);
+
 module.exports = router;
 module.exports.pieceIdentiteBodySchema = pieceIdentiteBodySchema;
 module.exports.ribBodySchema = ribBodySchema;

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { confirmerPieceIdentite } from '../../services/informationsPiecesService';
+import { confirmerPieceIdentite, reporterPieceIdentite } from '../../services/informationsPiecesService';
 import { TYPES_PIECE_IDENTITE } from '../referentiels/typesPieceIdentite';
 import { ecarts } from './ocr/mrz';
 import { lireMrz, lireVerso } from './ocr/ocr';
-import ScanChamp from './ScanChamp';
 import './ConfirmationInformationsPieces.css';
 
 const PIECE_VIDE = { type: '', numero: '', delivreeLe: '', expireLe: '' };
@@ -42,10 +41,22 @@ async function lirePhoto({ fichier, verso }) {
  * de naissance différents du formulaire sont signalés sans rien bloquer.
  *
  * photo : { fichier, verso, n } — dernière photo capturée de la pièce (n change à chaque capture).
+ * aCompleter : l'accueil a choisi « Renseigner plus tard » (rien d'exigé, valeurs saisies conservées) ;
+ * onReportee() : appelée une fois le report enregistré.
  * onEtatConfirmation(bool) : vrai quand ce qui est affiché est exactement ce qui est enregistré
  * (une nouvelle lecture ou une correction non encore confirmée le repasse à faux).
  */
-export default function ConfirmationPieceIdentite({ dossierId, candidat, enregistree, photo, modifiable, onConfirmee, onEtatConfirmation }) {
+export default function ConfirmationPieceIdentite({
+  dossierId,
+  candidat,
+  enregistree,
+  aCompleter = false,
+  photo,
+  modifiable,
+  onConfirmee,
+  onReportee,
+  onEtatConfirmation,
+}) {
   const [brouillon, setBrouillon] = useState(() => versBrouillon(enregistree));
   // aucune | en_cours | lue | illisible
   const [lecture, setLecture] = useState({ etat: 'aucune', mrz: null });
@@ -114,24 +125,33 @@ export default function ConfirmationPieceIdentite({ dossierId, candidat, enregis
     }
   };
 
-  // Valeur lue par « Scanner » : remplace le champ, qui reste modifiable.
-  const remplir = (cle) => (valeur) => {
-    setBrouillon((b) => ({ ...b, [cle]: valeur }));
-    setErreurs((e) => ({ ...e, [cle]: undefined }));
+  const reporter = async () => {
+    setErreurEnvoi(null);
+    setEnvoi(true);
+    try {
+      await reporterPieceIdentite(dossierId);
+      onReportee?.();
+    } catch (erreur) {
+      setErreurEnvoi(erreur.response?.data?.erreur ?? 'Impossible d’enregistrer ce report. Merci de réessayer.');
+    } finally {
+      setEnvoi(false);
+    }
   };
 
-  const champ = (cle, libelle, saisie, natureScan) => (
+  const champ = (cle, libelle, saisie) => (
     <div className="confirmation-pieces__champ">
       <label htmlFor={`piece-identite-${cle}`}>{libelle}</label>
       {saisie}
-      {natureScan && <ScanChamp nature={natureScan} onValeur={remplir(cle)} />}
       {erreurs[cle] && <p role="alert" className="confirmation-pieces__erreur">{erreurs[cle]}</p>}
     </div>
   );
 
   return (
     <div className="confirmation-pieces">
-      <h3 className="confirmation-pieces__titre">Informations de la pièce</h3>
+      <h3 className="confirmation-pieces__titre">
+        Informations de la pièce
+        {aCompleter && !enregistree && <span className="confirmation-pieces__badge">À compléter</span>}
+      </h3>
 
       {lecture.etat === 'en_cours' && (
         <p className="confirmation-pieces__etat" role="status">
@@ -173,19 +193,16 @@ export default function ConfirmationPieceIdentite({ dossierId, candidat, enregis
           'numero',
           'Numéro',
           <input id="piece-identite-numero" autoComplete="off" autoCapitalize="characters" value={brouillon.numero} onChange={changer('numero')} />,
-          'numero',
         )}
         {champ(
           'delivreeLe',
           'Délivrée le (facultatif)',
           <input id="piece-identite-delivreeLe" type="date" value={brouillon.delivreeLe} onChange={changer('delivreeLe')} />,
-          'delivree_le',
         )}
         {champ(
           'expireLe',
           'Expire le',
           <input id="piece-identite-expireLe" type="date" value={brouillon.expireLe} onChange={changer('expireLe')} />,
-          'expire_le',
         )}
       </fieldset>
 
@@ -196,14 +213,26 @@ export default function ConfirmationPieceIdentite({ dossierId, candidat, enregis
         </p>
       ) : (
         modifiable && (
-          <button
-            type="button"
-            className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
-            onClick={confirmer}
-            disabled={envoi || lecture.etat === 'en_cours'}
-          >
-            {envoi ? 'Enregistrement…' : 'Confirmer ces informations'}
-          </button>
+          <div className="confirmation-pieces__actions">
+            <button
+              type="button"
+              className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire capture-tablette__bouton-action--compacte"
+              onClick={confirmer}
+              disabled={envoi || lecture.etat === 'en_cours'}
+            >
+              {envoi ? 'Enregistrement…' : 'Confirmer ces informations'}
+            </button>
+            {!enregistree && !aCompleter && (
+              <button
+                type="button"
+                className="capture-tablette__bouton-action capture-tablette__bouton-action--secondaire capture-tablette__bouton-action--compacte"
+                onClick={reporter}
+                disabled={envoi}
+              >
+                Renseigner plus tard
+              </button>
+            )}
+          </div>
         )
       )}
     </div>

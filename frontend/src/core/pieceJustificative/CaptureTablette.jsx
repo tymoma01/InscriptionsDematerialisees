@@ -178,7 +178,7 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
       })
       .catch(() => {
         // Sans elles, la confirmation repart de champs vides : rien de bloquant pour la capture.
-        if (!annule) setInformationsPieces({ candidat: null, pieceIdentite: null, rib: null });
+        if (!annule) setInformationsPieces({ candidat: null, pieceIdentite: null, rib: null, aCompleter: { pieceIdentite: false, rib: false } });
       });
     return () => {
       annule = true;
@@ -335,9 +335,10 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
     piecesCapturees,
     typesPieces,
   );
+  const aCompleter = informationsPieces?.aCompleter ?? { pieceIdentite: false, rib: false };
   const informationsAConfirmer = [
-    ...(confirmations.identite ? [] : ['les informations de la pièce d’identité']),
-    ...(confirmations.rib ? [] : ['les coordonnées bancaires']),
+    ...(confirmations.identite || aCompleter.pieceIdentite ? [] : ['les informations de la pièce d’identité']),
+    ...(confirmations.rib || aCompleter.rib ? [] : ['les coordonnées bancaires']),
   ];
 
   if (chargementSession) {
@@ -452,6 +453,10 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                       ce composant. */}
                   {type.obligatoire && <span className="champ-obligatoire"> *</span>}
                   {!type.obligatoire && <span className="capture-tablette__optionnel"> (optionnel)</span>}
+                  {((type.code === CODE_PIECE_IDENTITE && aCompleter.pieceIdentite && !informationsPieces?.pieceIdentite) ||
+                    (type.code === CODE_RIB && aCompleter.rib && !informationsPieces?.rib)) && (
+                    <span className="confirmation-pieces__badge">À compléter</span>
+                  )}
                 </span>
                 {dejaCapturee ? (
                   // Boutons toujours affichés à l'identique, y compris une fois le dossier
@@ -614,9 +619,13 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                   dossierId={dossierId}
                   candidat={informationsPieces.candidat}
                   enregistree={informationsPieces.pieceIdentite}
+                  aCompleter={aCompleter.pieceIdentite}
                   photo={photosLues.identite}
                   modifiable={confirmationInformations}
-                  onConfirmee={(pieceIdentite) => setInformationsPieces((i) => ({ ...i, pieceIdentite }))}
+                  onConfirmee={(pieceIdentite) =>
+                    setInformationsPieces((i) => ({ ...i, pieceIdentite, aCompleter: { ...i.aCompleter, pieceIdentite: false } }))
+                  }
+                  onReportee={() => setInformationsPieces((i) => ({ ...i, aCompleter: { ...i.aCompleter, pieceIdentite: true } }))}
                   onEtatConfirmation={confirmationIdentite}
                 />
               )}
@@ -625,9 +634,11 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
                 <ConfirmationRib
                   dossierId={dossierId}
                   enregistre={informationsPieces.rib}
+                  aCompleter={aCompleter.rib}
                   photo={photosLues.rib}
                   modifiable={confirmationInformations}
-                  onConfirme={(rib) => setInformationsPieces((i) => ({ ...i, rib }))}
+                  onConfirme={(rib) => setInformationsPieces((i) => ({ ...i, rib, aCompleter: { ...i.aCompleter, rib: false } }))}
+                  onReporte={() => setInformationsPieces((i) => ({ ...i, aCompleter: { ...i.aCompleter, rib: true } }))}
                   onEtatConfirmation={confirmationRib}
                 />
               )}

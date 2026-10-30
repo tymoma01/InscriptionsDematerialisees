@@ -17,3 +17,12 @@ export async function confirmerRib(dossierId, rib) {
   const { data } = await api.put(`/dossiers/${dossierId}/informations-pieces/rib`, rib);
   return data.rib;
 }
+
+// « Renseigner plus tard » : la pièce passe à « informations à compléter », rien n'est exigé.
+export async function reporterPieceIdentite(dossierId) {
+  await api.put(`/dossiers/${dossierId}/informations-pieces/piece-identite/plus-tard`);
+}
+
+export async function reporterRib(dossierId) {
+  await api.put(`/dossiers/${dossierId}/informations-pieces/rib/plus-tard`);
+}
