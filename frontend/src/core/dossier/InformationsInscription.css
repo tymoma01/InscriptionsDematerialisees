@@ -321,8 +321,18 @@
   white-space: nowrap;
 }
 
-.informations-inscription__piece-action:hover {
+.informations-inscription__piece-action:hover,
+.informations-inscription__piece-action--ouverte {
   text-decoration: underline;
+}
+
+.informations-inscription__piece-action--ouverte {
+  font-weight: 700;
+}
+
+/* Aperçu sous sa ligne : occupe toute la largeur de la grille (défilement géré dans le .jsx). */
+.informations-inscription__piece-apercu {
+  grid-column: 1 / -1;
 }
 
 /* Vignette "Photo d'identité" en tête du groupe "Informations personnelles" (mode édition

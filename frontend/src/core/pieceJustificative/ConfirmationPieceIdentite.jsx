@@ -3,6 +3,7 @@ import { confirmerPieceIdentite } from '../../services/informationsPiecesService
 import { TYPES_PIECE_IDENTITE } from '../referentiels/typesPieceIdentite';
 import { ecarts } from './ocr/mrz';
 import { lireMrz, lireVerso } from './ocr/ocr';
+import ScanChamp from './ScanChamp';
 import './ConfirmationInformationsPieces.css';
 
 const PIECE_VIDE = { type: '', numero: '', delivreeLe: '', expireLe: '' };
@@ -113,10 +114,17 @@ export default function ConfirmationPieceIdentite({ dossierId, candidat, enregis
     }
   };
 
-  const champ = (cle, libelle, saisie) => (
+  // Valeur lue par « Scanner » : remplace le champ, qui reste modifiable.
+  const remplir = (cle) => (valeur) => {
+    setBrouillon((b) => ({ ...b, [cle]: valeur }));
+    setErreurs((e) => ({ ...e, [cle]: undefined }));
+  };
+
+  const champ = (cle, libelle, saisie, natureScan) => (
     <div className="confirmation-pieces__champ">
       <label htmlFor={`piece-identite-${cle}`}>{libelle}</label>
       {saisie}
+      {natureScan && <ScanChamp nature={natureScan} onValeur={remplir(cle)} />}
       {erreurs[cle] && <p role="alert" className="confirmation-pieces__erreur">{erreurs[cle]}</p>}
     </div>
   );
@@ -165,16 +173,19 @@ export default function ConfirmationPieceIdentite({ dossierId, candidat, enregis
           'numero',
           'Numéro',
           <input id="piece-identite-numero" autoComplete="off" autoCapitalize="characters" value={brouillon.numero} onChange={changer('numero')} />,
+          'numero',
         )}
         {champ(
           'delivreeLe',
           'Délivrée le (facultatif)',
           <input id="piece-identite-delivreeLe" type="date" value={brouillon.delivreeLe} onChange={changer('delivreeLe')} />,
+          'delivree_le',
         )}
         {champ(
           'expireLe',
           'Expire le',
           <input id="piece-identite-expireLe" type="date" value={brouillon.expireLe} onChange={changer('expireLe')} />,
+          'expire_le',
         )}
       </fieldset>
 

@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ConfirmationPieceIdentite from './ConfirmationPieceIdentite';
 import ConfirmationRib from './ConfirmationRib';
-import { lireMrz, lireRib, lireVerso } from './ocr/ocr';
+import { lireChamp, lireMrz, lireRib, lireVerso } from './ocr/ocr';
 import { confirmerPieceIdentite, confirmerRib } from '../../services/informationsPiecesService';
 
 // L'OCR lui-même (tesseract.js) est testé sur ses analyses (ocr/*.test.js) : ici, seulement ce que
 // l'écran fait d'une lecture.
-vi.mock('./ocr/ocr', () => ({ lireMrz: vi.fn(), lireVerso: vi.fn(), lireRib: vi.fn() }));
+vi.mock('./ocr/ocr', () => ({ lireMrz: vi.fn(), lireVerso: vi.fn(), lireRib: vi.fn(), lireChamp: vi.fn() }));
 vi.mock('../../services/informationsPiecesService', () => ({ confirmerPieceIdentite: vi.fn(), confirmerRib: vi.fn() }));
 
 beforeEach(() => vi.resetAllMocks());
@@ -149,4 +149,43 @@ test('pièce d’identité jamais confirmée : état « à confirmer », même u
   );
   expect(await screen.findByDisplayValue('X4RTBPFW4')).toBeTruthy();
   expect(onEtatConfirmation).not.toHaveBeenCalledWith(true);
+});
+
+// Photo rapprochée d'un seul champ (bouton « Scanner ») : saisie par le sélecteur de fichier caché.
+const scannerChamp = (conteneur, index = 0) => {
+  const entree = conteneur.querySelectorAll('input[type="file"]')[index];
+  fireEvent.change(entree, { target: { files: [new Blob(['x'], { type: 'image/jpeg' })] } });
+};
+
+test('scan d’un champ : la valeur lue remplit le champ, sans requête réseau ni enregistrement', async () => {
+  const fetchEspion = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.reject(new Error('réseau')));
+  lireChamp.mockResolvedValue('FR76 3000 6000 0112 3456 7890 189');
+  const { container } = render(<RibAvecParent dossierId={7} photo={null} modifiable />);
+
+  scannerChamp(container, 0);
+
+  expect(await screen.findByDisplayValue('FR76 3000 6000 0112 3456 7890 189')).toBeTruthy();
+  expect(screen.getByText(/Lu sur la photo, vérifiez avant de confirmer/)).toBeTruthy();
+  expect(lireChamp).toHaveBeenCalledWith(expect.any(Blob), 'iban');
+  expect(fetchEspion).not.toHaveBeenCalled();
+  expect(confirmerRib).not.toHaveBeenCalled();
+  fetchEspion.mockRestore();
+});
+
+test('scan d’un champ : lecture échouée, le champ reste inchangé et un message le dit', async () => {
+  lireChamp.mockResolvedValue(null);
+  const { container } = render(
+    <PieceAvecParent dossierId={7} candidat={CANDIDAT} photo={null} modifiable onConfirmee={vi.fn()} />,
+  );
+  fireEvent.change(screen.getByLabelText('Numéro'), { target: { value: 'AB12345' } });
+
+  scannerChamp(container, 0);
+
+  expect(await screen.findByText(/Information illisible, rapprochez-vous/)).toBeTruthy();
+  expect(screen.getByLabelText('Numéro').value).toBe('AB12345');
+});
+
+test('pièce d’identité : un bouton Scanner par champ lisible, aucun pour le type de pièce', () => {
+  render(<PieceAvecParent dossierId={7} candidat={CANDIDAT} photo={null} modifiable onConfirmee={vi.fn()} />);
+  expect(screen.getAllByRole('button', { name: /Scanner/ })).toHaveLength(3);
 });

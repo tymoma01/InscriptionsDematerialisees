@@ -59,3 +59,15 @@ export function analyserVerso(texteReconnu, aujourdhui = new Date().toISOString(
   }
   return expiration || delivrance ? { expire_le: expiration, delivree_le: delivrance } : null;
 }
+
+/**
+ * Date d'une photo prise de près sur ce seul champ (« 26.12.2034 »), au même contrôle de
+ * vraisemblance que le verso ; null si elle est absente, impossible ou ambiguë (plusieurs dates).
+ */
+export function analyserDate(texteReconnu, nature, aujourdhui = new Date().toISOString().slice(0, 10)) {
+  const lues = [...new Set(dates(texteReconnu))];
+  if (lues.length !== 1 || lues[0] === null) return null;
+  const [date] = lues;
+  if (nature === 'delivree_le') return date >= PREMIERE_DELIVRANCE && date <= aujourdhui ? date : null;
+  return date > PREMIERE_DELIVRANCE ? date : null;
+}

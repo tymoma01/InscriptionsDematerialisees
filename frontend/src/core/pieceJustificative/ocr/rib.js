@@ -99,3 +99,13 @@ export function analyserRib(texteReconnu) {
   const lu = iban(texte.replace(/[^A-Z0-9]/g, ''));
   return { iban: lu, bic: lu ? bic(texte, lu.slice(0, 2)) : null };
 }
+
+/**
+ * BIC d'une photo prise de près sur ce seul champ : le seul mot au format dont le pays est de la zone
+ * SEPA, null sinon (aucune valeur devinée).
+ */
+export function analyserBic(texteReconnu) {
+  const texte = recoller(texteReconnu.toUpperCase());
+  const mots = [...new Set(texte.split(/[^A-Z0-9]+/).filter((mot) => LONGUEURS[BIC.exec(mot)?.[1]]))];
+  return mots.length === 1 ? mots[0] : null;
+}

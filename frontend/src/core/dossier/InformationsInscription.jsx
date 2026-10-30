@@ -113,6 +113,48 @@ export default function InformationsInscription({ dossierId, lectureSeule = fals
   // que reconstruit ici. Cette section restant strictement en lecture seule (voir peutModifier),
   // aucune action de suppression/remplacement n'est jamais proposée depuis ce panneau.
   const [pieceEnApercu, setPieceEnApercu] = useState(null);
+  const apercuRef = useRef(null);
+  const ligneOuverteRef = useRef(null);
+
+  // Après le rendu complet (pièce précédente repliée, nouvel aperçu inséré), ramène la LIGNE de la
+  // pièce cliquée juste sous les barres collées en haut (en-tête fixe, navigation, onglets), sauf
+  // si la ligne et le haut de l'aperçu sont déjà visibles. Dépend du seul id : le chargement de
+  // l'image ou du PDF ne redéclenche aucun défilement.
+  const idPieceEnApercu = pieceEnApercu?.id;
+  useEffect(() => {
+    if (!idPieceEnApercu) return undefined;
+    let raf2;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const ligne = ligneOuverteRef.current;
+        const apercu = apercuRef.current;
+        if (!ligne || !apercu) return;
+        // Hauteur réelle de la pile de barres fixes/collées, mesurée maintenant (varie avec le
+        // zoom et la largeur).
+        const barres = document.querySelectorAll(
+          '.page-back-office__entete, .barre-navigation, .navigation-fiche-dossier, .page-verification-pieces__entete',
+        );
+        let decalage = 0;
+        barres.forEach((barre) => {
+          const { position } = getComputedStyle(barre);
+          if (position === 'fixed' || position === 'sticky') {
+            decalage = Math.max(decalage, barre.getBoundingClientRect().bottom);
+          }
+        });
+        const marge = 8;
+        const haut = ligne.getBoundingClientRect().top;
+        const hautApercu = apercu.getBoundingClientRect().top;
+        const ligneVisible = haut >= decalage + marge;
+        const hautApercuVisible = hautApercu + 48 <= window.innerHeight;
+        if (ligneVisible && hautApercuVisible) return;
+        window.scrollBy({ top: haut - decalage - marge, behavior: 'auto' });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [idPieceEnApercu]);
 
   // Mode édition (voir Champ/GroupeCases ci-dessus) : `brouillon` est un objet plat, exactement à
   // la forme attendue par dossierService.modifierInscription (back, modificationInscriptionSchema)
@@ -903,6 +945,7 @@ export default function InformationsInscription({ dossierId, lectureSeule = fals
                             normal côté .css, voir son commentaire). */}
                         <span
                           className={`informations-inscription__piece-nom${verso ? ' informations-inscription__piece-nom--verso' : ''}`}
+                          ref={pieceEnApercu?.id === piece.id ? ligneOuverteRef : null}
                         >
                           {libelle}
                         </span>
@@ -920,23 +963,27 @@ export default function InformationsInscription({ dossierId, lectureSeule = fals
                             lecture seule, contrairement à l'écran de capture. */}
                         <button
                           type="button"
-                          className="informations-inscription__piece-action"
-                          onClick={() => setPieceEnApercu({ ...piece, libelleApercu })}
+                          className={`informations-inscription__piece-action${pieceEnApercu?.id === piece.id ? ' informations-inscription__piece-action--ouverte' : ''}`}
+                          aria-expanded={pieceEnApercu?.id === piece.id}
+                          onClick={() => setPieceEnApercu(pieceEnApercu?.id === piece.id ? null : { ...piece, libelleApercu })}
                         >
                           Voir
                         </button>
+                        {/* Accordéon : l'aperçu s'insère sous sa propre ligne (une seule pièce
+                            ouverte à la fois, voir pieceEnApercu). */}
+                        {pieceEnApercu?.id === piece.id && (
+                          <div className="informations-inscription__piece-apercu" ref={apercuRef}>
+                            <PanneauApercuPiece
+                              dossierId={dossierId}
+                              libelle={pieceEnApercu.libelleApercu ?? pieceEnApercu.type_piece_libelle}
+                              piece={pieceEnApercu}
+                              onFermer={() => setPieceEnApercu(null)}
+                            />
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
-                )}
-
-                {pieceEnApercu && (
-                  <PanneauApercuPiece
-                    dossierId={dossierId}
-                    libelle={pieceEnApercu.libelleApercu ?? pieceEnApercu.type_piece_libelle}
-                    piece={pieceEnApercu}
-                    onFermer={() => setPieceEnApercu(null)}
-                  />
                 )}
               </div>
 

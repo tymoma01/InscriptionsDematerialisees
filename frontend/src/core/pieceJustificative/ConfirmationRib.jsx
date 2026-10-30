@@ -3,6 +3,7 @@ import { confirmerRib } from '../../services/informationsPiecesService';
 import { nomBanque } from './ocr/banques';
 import { compacterIban, formaterIban, ibanValide } from './ocr/iban';
 import { lireRib } from './ocr/ocr';
+import ScanChamp from './ScanChamp';
 import './ConfirmationInformationsPieces.css';
 
 const BIC = /^[A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/;
@@ -67,6 +68,12 @@ export default function ConfirmationRib({ dossierId, enregistre, photo, modifiab
 
   const changer = (cle) => (evenement) => setBrouillon((b) => ({ ...b, [cle]: evenement.target.value }));
 
+  // Valeur lue par « Scanner » : remplace le champ, qui reste modifiable.
+  const remplir = (cle) => (valeur) => {
+    setBrouillon((b) => ({ ...b, [cle]: valeur }));
+    setErreurs((e) => ({ ...e, [cle]: undefined }));
+  };
+
   const confirmer = async () => {
     const trouvees = erreursRib(brouillon);
     setErreurs(trouvees);
@@ -108,11 +115,13 @@ export default function ConfirmationRib({ dossierId, enregistre, photo, modifiab
         <div className="confirmation-pieces__champ confirmation-pieces__champ--large">
           <label htmlFor="rib-iban">IBAN</label>
           <input id="rib-iban" autoComplete="off" autoCapitalize="characters" value={brouillon.iban} onChange={changer('iban')} />
+          <ScanChamp nature="iban" onValeur={remplir('iban')} />
           {erreurs.iban && <p role="alert" className="confirmation-pieces__erreur">{erreurs.iban}</p>}
         </div>
         <div className="confirmation-pieces__champ">
           <label htmlFor="rib-bic">BIC</label>
           <input id="rib-bic" autoComplete="off" autoCapitalize="characters" value={brouillon.bic} onChange={changer('bic')} />
+          <ScanChamp nature="bic" onValeur={remplir('bic')} />
           {banque && <p className="confirmation-pieces__aide">{banque}</p>}
           {erreurs.bic && <p role="alert" className="confirmation-pieces__erreur">{erreurs.bic}</p>}
         </div>
