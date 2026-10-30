@@ -46,11 +46,21 @@ const LONGUEURS = {
   VA: 22,
 };
 
-// Clé de l'IBAN (positions 3 et 4) : chiffres que l'OCR lit parfois comme des lettres.
+// Chiffres que l'OCR lit parfois comme des lettres (« 02 » lu « O2 »…).
 const CHIFFRES = { O: '0', D: '0', Q: '0', I: '1', L: '1', Z: '2', S: '5', B: '8' };
 
-function corrigerCle(candidat) {
-  return candidat.slice(0, 2) + candidat.slice(2, 4).replace(/[A-Z]/g, (c) => CHIFFRES[c] ?? c) + candidat.slice(4);
+// Positions [début, fin[ qui ne peuvent être que des chiffres : la clé de l'IBAN (3 et 4) partout ;
+// pour un IBAN français (et monégasque, même structure), aussi le code banque, le code guichet et la
+// clé RIB finale. Le numéro de compte, lui, peut contenir des lettres : jamais corrigé.
+const POSITIONS_CHIFFRES = { FR: [[2, 14], [25, 27]], MC: [[2, 14], [25, 27]] };
+const POSITIONS_CLE = [[2, 4]];
+
+function corrigerChiffres(candidat) {
+  const caracteres = [...candidat];
+  for (const [debut, fin] of POSITIONS_CHIFFRES[candidat.slice(0, 2)] ?? POSITIONS_CLE) {
+    for (let i = debut; i < Math.min(fin, caracteres.length); i++) caracteres[i] = CHIFFRES[caracteres[i]] ?? caracteres[i];
+  }
+  return caracteres.join('');
 }
 
 /** Premier IBAN valide du texte. Les blocs de 4 sont recollés : on teste chaque position. */
@@ -58,7 +68,7 @@ function iban(compact) {
   for (let i = 0; i < compact.length; i++) {
     const longueur = LONGUEURS[compact.slice(i, i + 2)];
     if (!longueur) continue;
-    const candidat = corrigerCle(compact.slice(i, i + longueur));
+    const candidat = corrigerChiffres(compact.slice(i, i + longueur));
     if (candidat.length === longueur && ibanValide(candidat)) return candidat;
   }
   return null;

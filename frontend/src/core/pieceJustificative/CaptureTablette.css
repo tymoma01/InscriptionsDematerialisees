@@ -298,14 +298,68 @@
   opacity: 0;
 }
 
-/* Dimensions réelles de la capture pilotées par videoWidth/videoHeight au moment de la photo
-   (voir capturerPhoto dans CaptureTablette.jsx) — ici uniquement le gabarit d'affichage. */
-.capture-tablette__video {
+/* Hauteur fixée : le cadre se dimensionne sur la largeur et la hauteur du viseur (unités cqw/cqh).
+   La vidéo y est en « contain », ce que suppose la mesure du cadre (voir cadre.js). */
+.capture-tablette__viseur {
+  position: relative;
   width: 100%;
-  max-width: 480px;
+  max-width: 720px;
+  height: min(60vh, 540px);
+  overflow: hidden;
+  container-type: size;
   border-radius: var(--rayon-bordure);
   border: 1px solid var(--couleur-bordure);
   background-color: #000000;
+}
+
+/* Dimensions réelles de la capture pilotées par la photo prise (voir capturerPhoto dans
+   CaptureTablette.jsx) — ici uniquement le gabarit d'affichage. */
+.capture-tablette__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* La photo est rognée sur ce cadre, au format du document ; l'extérieur est assombri. */
+.capture-tablette__cadre {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+}
+
+/* Bornés en largeur et en hauteur pour tenir dans le viseur quel que soit son format. */
+.capture-tablette__cadre--paysage {
+  width: min(90cqw, 80cqh * 1.59);
+  aspect-ratio: 1.59;
+}
+
+.capture-tablette__cadre--portrait {
+  height: min(80cqh, 90cqw * 1.41);
+  aspect-ratio: 1 / 1.41;
+}
+
+/* Repère du sens de prise : posé au-dessus du cadre, hors de la zone rognée. */
+.capture-tablette__cadre-haut {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.2rem;
+  white-space: nowrap;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-shadow: 0 1px 3px #000000;
+}
+
+.capture-tablette__consigne {
+  margin: var(--espace-petit) 0 0;
+  font-size: 0.9rem;
 }
 
 .capture-tablette__apercu-image {

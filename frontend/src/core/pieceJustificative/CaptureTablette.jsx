@@ -12,6 +12,7 @@ import ModalePlanificationTest from '../dossier/ModalePlanificationTest';
 import PanneauApercuPiece from './PanneauApercuPiece';
 import ConfirmationPieceIdentite from './ConfirmationPieceIdentite';
 import ConfirmationRib from './ConfirmationRib';
+import { formatCadre, fractionCadre, zoneSurImage } from './cadre';
 import { prechargerOcr } from './ocr/ocr';
 import {
   STATUTS_TEST_NON_PLANIFIE,
@@ -704,12 +705,66 @@ export default function CaptureTablette({ dossierId, typesPieces, statutCode, po
   );
 }
 
+const DELAI_PHOTO_MS = 5000;
+
+/**
+ * Photo à la pleine résolution du capteur (ImageCapture, Chrome Android), bien plus fine qu'une
+ * image de la vidéo : l'OCR lit mieux. `null` si le navigateur ne le permet pas (Safari) ou tarde
+ * trop : on se rabat alors sur l'image de la vidéo.
+ */
+async function photoPleineResolution(flux) {
+  const piste = flux?.getVideoTracks()[0];
+  if (!piste || typeof window.ImageCapture !== 'function') return null;
+  try {
+    const delai = new Promise((resoudre) => setTimeout(() => resoudre(null), DELAI_PHOTO_MS));
+    const blob = await Promise.race([new window.ImageCapture(piste).takePhoto(), delai]);
+    return blob ? await createImageBitmap(blob) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Copie de la source (vidéo ou image) dans un canvas. */
+function versCanvas(source, largeur, hauteur) {
+  const canvas = document.createElement('canvas');
+  canvas.width = largeur;
+  canvas.height = hauteur;
+  canvas.getContext('2d').drawImage(source, 0, 0, largeur, hauteur);
+  return canvas;
+}
+
+/**
+ * Format (largeur / hauteur) de la vidéo telle qu'elle s'affiche. Safari peut décrire le flux en
+ * portrait alors que l'écran, tourné, l'affiche en paysage : on suit le sens de l'écran.
+ */
+function ratioAffiche(video) {
+  const ratio = video.videoWidth / video.videoHeight;
+  const ecranPaysage = window.innerWidth > window.innerHeight;
+  return ecranPaysage === ratio > 1 ? ratio : 1 / ratio;
+}
+
+/**
+ * Partie du canvas sous le cadre du viseur (`mesure` : voir cadre.js). Image dans l'autre sens que
+ * l'affichage (voir ratioAffiche) : gardée entière plutôt que rognée au mauvais endroit.
+ */
+function rognerSurCadre(canvas, { fraction, ratio }) {
+  if (canvas.width > canvas.height !== ratio > 1) return canvas;
+  const zone = zoneSurImage(fraction, ratio, canvas.width, canvas.height);
+  const rognee = document.createElement('canvas');
+  rognee.width = zone.largeur;
+  rognee.height = zone.hauteur;
+  rognee.getContext('2d').drawImage(canvas, zone.x, zone.y, zone.largeur, zone.hauteur, 0, 0, zone.largeur, zone.hauteur);
+  return rognee;
+}
+
 // Panneau de capture pour une seule pièce à la fois : choix caméra/fichier -> aperçu -> envoi.
 // Composant local (non exporté, non enregistré dans un registre) : contrairement aux blocs du
 // formulaire d'inscription, une pièce justificative n'est pas un type extensible piloté par
 // config — seule la liste des pièces l'est (typesPieces), pas la façon de les capturer.
 function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   const videoRef = useRef(null);
+  const cadreRef = useRef(null);
+  const format = formatCadre(type.code);
   const streamRef = useRef(null);
 
   // Pas de scrollIntoView ici (retiré le 2026-08-20) : le panneau est rendu juste sous la pièce
@@ -720,6 +775,7 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
   const [modeCamera, setModeCamera] = useState(false);
   const [erreurCamera, setErreurCamera] = useState(null);
   const [captureEnCours, setCaptureEnCours] = useState(null); // { blob, url, nomFichier }
+  const [priseEnCours, setPriseEnCours] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [erreurEnvoi, setErreurEnvoi] = useState(null);
 
@@ -742,7 +798,11 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
       return;
     }
     try {
-      const flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      // 4K demandée : le navigateur donne la meilleure résolution que la caméra sait fournir (sans
+      // contrainte, souvent 640 × 480, trop peu pour lire un IBAN une fois la photo rognée).
+      const flux = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 3840 }, height: { ideal: 2160 } },
+      });
       streamRef.current = flux;
       // srcObject n'est jamais assigné ici : <video> n'est monté que si modeCamera est vrai
       // (voir le rendu plus bas), donc videoRef.current vaudrait encore null à cet instant — le
@@ -774,20 +834,30 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
     setModeCamera(false);
   };
 
-  // Fige l'image courante du flux vidéo sur un canvas hors-écran, puis l'exporte en JPEG —
-  // la caméra est relâchée immédiatement après (plus besoin du flux une fois la photo figée).
-  const capturerPhoto = () => {
+  // Prend la photo (pleine résolution si possible, sinon l'image courante de la vidéo), la rogne sur
+  // le cadre et l'exporte en JPEG — la caméra est relâchée dès la photo prise.
+  const capturerPhoto = async () => {
     const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    if (!video?.videoWidth) return;
+    // Mesuré avant tout : le cadre et la vidéo à l'écran au moment de l'appui.
+    const ratio = ratioAffiche(video);
+    const mesure = cadreRef.current
+      ? { fraction: fractionCadre(cadreRef.current.getBoundingClientRect(), video.getBoundingClientRect(), ratio), ratio }
+      : null;
+    setPriseEnCours(true);
+    const pleineResolution = await photoPleineResolution(streamRef.current);
+    // Image de la vidéo copiée avant de couper la caméra : un flux arrêté ne donne plus qu'une image noire.
+    const photo = pleineResolution
+      ? versCanvas(pleineResolution, pleineResolution.width, pleineResolution.height)
+      : versCanvas(video, video.videoWidth, video.videoHeight);
+    pleineResolution?.close();
+    arreterCamera();
+    const canvas = mesure ? rognerSurCadre(photo, mesure) : photo;
     canvas.toBlob(
       (blob) => {
-        if (!blob) return;
-        arreterCamera();
+        setPriseEnCours(false);
         setModeCamera(false);
+        if (!blob) return;
         setCaptureEnCours({ blob, url: URL.createObjectURL(blob), nomFichier: `${type.code}.jpg` });
       },
       'image/jpeg',
@@ -884,19 +954,36 @@ function PanneauCapture({ dossierId, type, onAnnuler, onEnvoiReussi }) {
               de forcer la vidéo en plein écran natif. autoPlay : filet de sécurité en plus de
               l'appel explicite à video.play() dans l'effet ci-dessus — sans effet indésirable
               ici puisque srcObject n'est de toute façon assigné qu'après le montage. */}
-          <video ref={videoRef} className="capture-tablette__video" autoPlay playsInline muted />
+          <div className="capture-tablette__viseur">
+            <video ref={videoRef} className="capture-tablette__video" autoPlay playsInline muted />
+            {/* La photo est rognée sur ce cadre (voir cadre.js). */}
+            {format && (
+              <div ref={cadreRef} className={`capture-tablette__cadre capture-tablette__cadre--${format}`}>
+                <span className="capture-tablette__cadre-haut">▲ Haut du document</span>
+              </div>
+            )}
+          </div>
+          {format && (
+            <p className="capture-tablette__consigne">
+              {format === 'paysage'
+                ? 'Placez la carte à plat dans le cadre, à l’horizontale, texte à l’endroit.'
+                : 'Placez le document à plat dans le cadre, le haut de la page vers le haut de l’écran, en entier.'}
+            </p>
+          )}
           <div className="capture-tablette__camera-actions">
             <button
               type="button"
               className="capture-tablette__bouton-action capture-tablette__bouton-action--primaire"
               onClick={capturerPhoto}
+              disabled={priseEnCours}
             >
-              Capturer la photo
+              {priseEnCours ? 'Photo en cours…' : 'Capturer la photo'}
             </button>
             <button
               type="button"
               className="capture-tablette__bouton-action capture-tablette__bouton-action--secondaire"
               onClick={annulerCamera}
+              disabled={priseEnCours}
             >
               Annuler
             </button>

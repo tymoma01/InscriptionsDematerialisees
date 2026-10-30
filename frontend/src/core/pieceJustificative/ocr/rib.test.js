@@ -22,6 +22,18 @@ describe('analyserRib', () => {
     expect(analyserRib('IBAN : FRI4 2004 1010 0505 0001 3M02 606').iban).toBe('FR1420041010050500013M02606');
   });
 
+  it('corrige la clé RIB finale lue comme des lettres (« Y02 » lu « Yo2 »)', () => {
+    // Texte reconnu sur une photo de RIB La Banque Postale ; le compte se termine par une lettre.
+    const texte = 'IBAN - Identifiant international de compte\nFR20 1001 1000 2075 6196 7989 Yo2 k [';
+    expect(analyserRib(texte).iban).toBe('FR2010011000207561967989Y02');
+  });
+
+  it('ne corrige jamais le numéro de compte, qui peut contenir des lettres', () => {
+    // « Y » du compte laissé tel quel, le « O » du code guichet corrigé.
+    expect(analyserRib('FR20 1001 1OOO 2075 6196 7989 Y02').iban).toBe('FR2010011000207561967989Y02');
+    expect(analyserRib('FR20 1001 1000 2075 6196 7989 YO2').iban).toBe('FR2010011000207561967989Y02');
+  });
+
   it('recolle un BIC écrit lettre par lettre, comme dans le texte de certains PDF', () => {
     const pdf = `BIC (Identifiant international de l'établissement)
 Relevé d'identité
