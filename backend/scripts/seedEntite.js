@@ -19,6 +19,7 @@ async function seedEntite(codeEntite) {
     // explicite avant insert/update, knex ne le fait pas lui-même pour une colonne jsonb.
     // Défaut '{}' si absent du fichier de config (entité sans SmartOF actif, voir migration 050).
     const smartofConfig = JSON.stringify(config.smartof_config ?? {});
+    const pegaseConfig = JSON.stringify(config.pegase_config ?? {});
 
     if (existante) {
       await bd('entites').where({ code: config.code }).update({
@@ -28,13 +29,15 @@ async function seedEntite(codeEntite) {
         canal_rappel: config.canal_rappel,
         smartof_actif: config.smartof_actif,
         smartof_config: smartofConfig,
+        pegase_actif: config.pegase_actif ?? false,
+        pegase_config: pegaseConfig,
         duree_conservation_mois: config.duree_conservation_mois,
         actif: config.actif,
       });
       console.log(`Entité « ${config.code} » déjà présente (id=${existante.id}) — mise à jour ✔`);
     } else {
       const [inseree] = await bd('entites')
-        .insert({ ...config, smartof_config: smartofConfig })
+        .insert({ ...config, smartof_config: smartofConfig, pegase_config: pegaseConfig })
         .returning('id');
       console.log(`Entité « ${config.code} » créée (id=${inseree.id}) ✔`);
     }

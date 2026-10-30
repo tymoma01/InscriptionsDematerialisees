@@ -4,6 +4,7 @@ const { z } = require('zod');
 // (pieces.routes.js, voir son commentaire).
 const { ZipArchive } = require('archiver');
 const demandeDpaeService = require('../../core/dpae/demandeDpaeService');
+const pegaseSalarieService = require('../../integrations/pegase/pegaseSalarieService');
 const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService');
 const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
@@ -498,7 +499,32 @@ router.get('/:id', requirePermission('dpaeConsultation'), async (req, res, next)
       return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
     }
 
-    res.json(demande);
+    res.json({ ...demande, pegase: await pegaseSalarieService.suiviPourDemande(req.entite, demande) });
+  } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
+      return res.status(404).json({ erreur: erreur.message });
+    }
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    next(erreur);
+  }
+});
+
+// POST /api/dpae/:id/pegase/relancer — relance la création du salarié dans Pégase (ou l'envoi des
+// pièces restantes) d'une demande validée dont l'envoi n'a pas abouti. Réponse immédiate (202) :
+// le résultat apparaît sur la fiche (GET /:id, champ `pegase`).
+router.post('/:id/pegase/relancer', requirePermission('dpaeRelancePegase'), async (req, res, next) => {
+  try {
+    const id = idPositifSchema.parse(req.params.id);
+    const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
+    if (!demandeDpaeService.peutConsulterDemande({ roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id, demande })) {
+      return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
+    }
+    const suivi = await pegaseSalarieService.suiviPourDemande(req.entite, demande);
+    if (!suivi?.relancePossible) {
+      return res.status(409).json({ erreur: 'Aucun envoi vers Pégase à relancer pour cette demande.' });
+    }
+    void pegaseSalarieService.creerSalarieDepuisDemande(req.entite, id);
+    res.status(202).end();
   } catch (erreur) {
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });

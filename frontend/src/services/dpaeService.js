@@ -68,6 +68,12 @@ export async function validerDemande(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/valider`, { version });
 }
 
+// Relance de la création du salarié dans Pégase après un échec : le serveur répond tout de suite
+// (202), le résultat apparaît ensuite sur la fiche (champ `pegase`).
+export async function relancerEnvoiPegase(demandeId) {
+  await api.post(`/dpae/${demandeId}/pegase/relancer`);
+}
+
 // Aucune de ces actions ne porte de motif : la raison se consigne dans les notes de la demande.
 export async function rejeterDemande(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/rejeter`, { version });

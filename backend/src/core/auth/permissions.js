@@ -71,6 +71,8 @@ const PERMISSIONS = {
   // --- DPAE (Accueil/Coordination n'a aucun accès) ---
   dpaeCreation: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE],
   dpaeTraitementRh: [RH, ADMIN],
+  // Relance de la création du salarié dans Pégase (et de l'envoi de ses pièces) après un échec.
+  dpaeRelancePegase: [RH, ADMIN],
   dpaeConsultation: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
   // Parmi eux, qui voit TOUTES les demandes de l'entité (les autres : seulement les leurs).
   dpaeConsultationToutes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],

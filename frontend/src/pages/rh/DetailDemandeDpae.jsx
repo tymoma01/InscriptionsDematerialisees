@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
@@ -25,6 +25,7 @@ import { formaterHeure, formaterHeuresParMois, libelleTypeContrat, libelleDivisi
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import TableauSemaineType from '../../core/dpae/TableauSemaineType';
 import PastilleUrgenceDpae from '../../core/dpae/PastilleUrgenceDpae';
+import SuiviPegase from '../../core/dpae/SuiviPegase';
 import {
   obtenirDemande,
   validerDemande,
@@ -137,6 +138,15 @@ export default function DetailDemandeDpae() {
       .catch(() => setErreur('Impossible de récupérer cette demande.'))
       .finally(() => setChargement(false));
   };
+
+  // Suivi de l'envoi vers Pégase : la fiche est relue sans afficher l'écran de chargement.
+  const rechargerSansAttente = useCallback(
+    () =>
+      obtenirDemande(demandeId)
+        .then(setDemande)
+        .catch(() => {}),
+    [demandeId],
+  );
 
   useEffect(() => {
     charger();
@@ -382,6 +392,8 @@ export default function DetailDemandeDpae() {
             <p>{demande.autre_chose_signaler}</p>
           </section>
         )}
+
+        <SuiviPegase pegase={demande.pegase} demandeId={demande.id} utilisateur={utilisateur} onRecharger={rechargerSansAttente} />
 
         <NotesDossier
           cibleId={demande.id}

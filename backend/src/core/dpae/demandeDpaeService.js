@@ -12,6 +12,7 @@ const journalAudit = require('../audit/journalAudit');
 const statutsDpae = require('./statutsDpae');
 const { champsModifies } = require('./champsDemandeDpae');
 const { aPermission } = require('../auth/permissions');
+const pegaseSalarieService = require('../../integrations/pegase/pegaseSalarieService');
 
 class ErreurDemandeIntrouvable extends Error {}
 // Transition refusée : la demande n'est pas (ou plus) dans un statut qui l'autorise.
@@ -321,8 +322,10 @@ const { PARTIE_DEMANDEUR, PARTIE_PLANNING, PARTIE_RH, TOUTES_LES_PARTIES } = not
 
 // `version` : version de la demande lue par l'appelant (verrouillage optimiste, voir
 // appliquerTransition). `adresseIp` : tracée dans journal_audit.
+// Une fois la validation enregistrée, le salarié est créé dans Pégase sans attendre la fin de
+// l'envoi (voir pegaseSalarieService : n'échoue jamais, résultat affiché sur la fiche).
 async function valider(entite, demandeId, traitantId, { version, adresseIp, roleCode } = {}) {
-  return appliquerTransition(entite, demandeId, {
+  await appliquerTransition(entite, demandeId, {
     action: statutsDpae.ACTION_VALIDER,
     version,
     roleCode,
@@ -338,6 +341,7 @@ async function valider(entite, demandeId, traitantId, { version, adresseIp, role
     tracer: { action: 'demande_dpae_validation', donnees: {} },
     notifier: notifierParties(entite, traitantId, { type: 'demande_dpae_validee', action: 'validée', parties: [PARTIE_DEMANDEUR, PARTIE_PLANNING] }),
   });
+  void pegaseSalarieService.creerSalarieDepuisDemande(entite, demandeId);
 }
 
 // Rejet : aucun motif saisi — la raison se consigne dans les notes de la demande (voir

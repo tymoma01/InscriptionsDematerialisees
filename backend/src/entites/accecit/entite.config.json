@@ -11,6 +11,25 @@
       "inspecteur": "ENT-0002"
     }
   },
+  "pegase_actif": true,
+  "pegase_config": {
+    "base_par_type_poste": {
+      "bureau": "tertiaire",
+      "hotel": "hotellerie"
+    },
+    "bases": {
+      "hotellerie": {
+        "secret": "pegase-token",
+        "agence": "1",
+        "code_type_document": "DS1"
+      },
+      "tertiaire": {
+        "secret": "pegase-token-tertiaire",
+        "agence": "1",
+        "code_type_document": "AGE"
+      }
+    }
+  },
   "duree_conservation_mois": 12,
   "actif": true
 }

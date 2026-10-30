@@ -44,6 +44,15 @@ export const MINUTES_PAUSE = [0, 15, 30, 45];
 
 export const TYPES_CONTRAT = ['cdd', 'cdi', 'avenant'];
 
+// Entité (division) d'un candidat choisi dans la recherche : celle de son type de poste recherché à
+// l'inscription, qui désigne aussi sa base Pégase (pegase_config.base_par_type_poste côté serveur).
+// Type inconnu : l'Entité déjà saisie est gardée.
+const DIVISION_PAR_TYPE_POSTE = { bureau: 'tertiaire', hotel: 'hotellerie' };
+
+export function divisionDuCandidat(candidat, divisionActuelle) {
+  return DIVISION_PAR_TYPE_POSTE[candidat?.type_poste] ?? divisionActuelle;
+}
+
 export function semaineTypeInitiale() {
   return JOURS_SEMAINE.map(({ code }) => ({ jour: code, statut: 'repos', heureDebut: '', heureFin: '', pauseMinutes: 0 }));
 }

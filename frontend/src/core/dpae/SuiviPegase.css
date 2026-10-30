@@ -1,0 +1,29 @@
+.suivi-pegase {
+  border-left-width: 4px;
+}
+
+.suivi-pegase--cree,
+.suivi-pegase--doublon {
+  border-left-color: var(--couleur-succes);
+}
+
+.suivi-pegase--erreur {
+  border-left-color: var(--couleur-erreur);
+}
+
+.suivi-pegase--attente {
+  border-left-color: var(--couleur-texte-secondaire);
+}
+
+.suivi-pegase p {
+  margin: 0 0 var(--espace-petit);
+}
+
+.suivi-pegase__message {
+  color: var(--couleur-erreur);
+}
+
+.suivi-pegase__liste {
+  margin: 0 0 var(--espace-petit);
+  padding-left: var(--espace-grand);
+}

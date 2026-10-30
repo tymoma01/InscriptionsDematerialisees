@@ -4,6 +4,7 @@ import {
   affecterSitesSemaine,
   analyserHeuresParMois,
   donneesFormulaireDepuisDemande,
+  divisionDuCandidat,
   donneesInitiales,
   joursPrivesDeSite,
   validerFormulaire,
@@ -293,5 +294,17 @@ describe('Heures/mois', () => {
     for (const saisie of ['135,678', '-5', '0', 'abc', '1e3']) expect(analyserHeuresParMois(saisie), saisie).toBeNaN();
     expect(champsEnErreur(formulaireValide({ heuresParMois: '135,678' }))).toEqual(['heuresParMois']);
     expect(champsEnErreur(formulaireValide({ heuresParMois: '135,67' }))).toEqual([]);
+  });
+});
+
+describe('divisionDuCandidat', () => {
+  it("prend l'Entité du type de poste recherché par le candidat", () => {
+    expect(divisionDuCandidat({ type_poste: 'bureau' }, '')).toBe('tertiaire');
+    expect(divisionDuCandidat({ type_poste: 'hotel' }, 'tertiaire')).toBe('hotellerie');
+  });
+
+  it("garde l'Entité saisie quand le type de poste est inconnu", () => {
+    expect(divisionDuCandidat({ type_poste: null }, 'autre')).toBe('autre');
+    expect(divisionDuCandidat({}, '')).toBe('');
   });
 });

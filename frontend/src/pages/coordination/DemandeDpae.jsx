@@ -11,6 +11,7 @@ import {
   affecterSitesSemaine,
   analyserHeuresParMois,
   donneesFormulaireDepuisDemande,
+  divisionDuCandidat,
   donneesInitiales,
   joursPrivesDeSite,
   validerFormulaire,
@@ -118,6 +119,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
       candidatId: candidat.id,
       salarieNom: candidat.nom,
       salariePrenom: candidat.prenom,
+      division: divisionDuCandidat(candidat, precedent.division),
     }));
   };
 
