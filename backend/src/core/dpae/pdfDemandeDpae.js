@@ -96,7 +96,8 @@ function texteReception(demande) {
 
 // Les quatre cases de l'encadré récapitulatif : [libellé, valeur] (valeur vide : « Non renseigné »).
 function recapitulatif(demande) {
-  const poste = demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste];
+  const libellePoste = demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste];
+  const poste = libellePoste && demande.echelon ? `${libellePoste} (échelon ${demande.echelon})` : libellePoste;
   return [
     ['Salarié', `${demande.salarie_prenom} ${demande.salarie_nom}`],
     ['Poste', poste || 'Non renseigné'],
@@ -177,6 +178,7 @@ function sectionsDemande(demande) {
       ligne('Raison du surcroît', demande.raison_surcroit),
       ligne('Entité', libelleDivision(demande.division, demande.division_autre)),
       ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste]),
+      ligne('Échelon', demande.echelon),
       ...lignesDates(demande),
       ligne('Heure d’arrivée jour 1', formaterHeure(demande.heure_arrivee_j1)),
       ligne('Heures/mois', formaterHeuresParMois(demande.heures_par_mois)),

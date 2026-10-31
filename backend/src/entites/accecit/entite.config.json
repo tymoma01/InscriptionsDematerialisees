@@ -30,6 +30,15 @@
       }
     }
   },
+  "dpae_config": {
+    "postes_tous_echelons": ["autre"],
+    "echelons_par_poste": {
+      "femme_valet_chambre": ["AS"],
+      "equipier": ["AS", "ATQS"],
+      "gouvernant": ["CE1", "CE2", "CE3", "MP1"],
+      "cafetier": ["AS"]
+    }
+  },
   "duree_conservation_mois": 12,
   "actif": true
 }

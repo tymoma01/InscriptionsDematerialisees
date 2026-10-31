@@ -163,6 +163,8 @@ test('Encadré récapitulatif : salarié, poste, type de contrat, premier jour ;
   const incomplet = recapitulatif(demande({ poste: null, type_contrat: null, date_debut: null }));
   assert.deepEqual(incomplet.slice(1).map(([, valeur]) => valeur), ['Non renseigné', 'Non renseigné', 'Non renseigné']);
   assert.equal(recapitulatif(demande({ poste: 'autre', poste_autre: 'Voiturier' }))[1][1], 'Voiturier');
+  assert.equal(recapitulatif(demande({ poste: 'equipier', echelon: 'ATQS' }))[1][1], 'Équipier (échelon ATQS)');
+  assert.equal(recapitulatif(demande({ poste: 'equipier', echelon: null }))[1][1], 'Équipier');
 });
 
 test('Nom de fichier : « DPAE <n°> - <NOM> <Prénom>.pdf », « / » et « \\ » remplacés comme dans l’export ZIP des pièces', () => {

@@ -5,7 +5,9 @@ import {
   analyserHeuresParMois,
   donneesFormulaireDepuisDemande,
   divisionDuCandidat,
+  donneesApresChangementPoste,
   donneesInitiales,
+  echelonsDuPoste,
   joursPrivesDeSite,
   validerFormulaire,
 } from './formulaireDemandeDpae';
@@ -306,5 +308,45 @@ describe('divisionDuCandidat', () => {
   it("garde l'Entité saisie quand le type de poste est inconnu", () => {
     expect(divisionDuCandidat({ type_poste: null }, 'autre')).toBe('autre');
     expect(divisionDuCandidat({}, '')).toBe('');
+  });
+});
+
+describe('Échelon selon le poste', () => {
+  const ECHELONS = {
+    autre: ['AS', 'ATQS', 'CE1', 'CE2', 'CE3', 'MP1'],
+    femme_valet_chambre: ['AS'],
+    equipier: ['AS', 'ATQS'],
+    gouvernant: ['CE1', 'CE2', 'CE3', 'MP1'],
+    cafetier: ['AS'],
+  };
+  const base = { ...donneesInitiales(), salarieDejaEmploye: true, sitesAffectationIds: [1], typeContrat: 'cdi', dateDebut: '2026-10-12' };
+  const champs = (donnees) => validerFormulaire(donnees, ECHELONS).map(({ champ }) => champ);
+
+  it('liste les échelons de chaque poste, aucun pour les autres', () => {
+    expect(echelonsDuPoste(ECHELONS, 'gouvernant')).toEqual(['CE1', 'CE2', 'CE3', 'MP1']);
+    expect(echelonsDuPoste(ECHELONS, 'autre')).toHaveLength(6);
+    expect(echelonsDuPoste(ECHELONS, 'plongeur')).toEqual([]);
+    expect(echelonsDuPoste(undefined, 'equipier')).toEqual([]);
+  });
+
+  it('présélectionne l\'échelon unique et réinitialise sinon', () => {
+    expect(donneesApresChangementPoste({ ...base, echelon: 'CE2' }, 'cafetier', ECHELONS).echelon).toBe('AS');
+    expect(donneesApresChangementPoste({ ...base, echelon: 'AS' }, 'equipier', ECHELONS).echelon).toBe('');
+    expect(donneesApresChangementPoste({ ...base, echelon: 'AS' }, 'autre', ECHELONS).echelon).toBe('');
+    expect(donneesApresChangementPoste({ ...base, echelon: 'AS' }, 'plongeur', ECHELONS).echelon).toBe('');
+  });
+
+  it('exige un échelon de la liste quand le poste en a, rien sinon', () => {
+    expect(champs({ ...base, poste: 'gouvernant' })).toEqual(['echelon']);
+    expect(champs({ ...base, poste: 'equipier', echelon: 'CE1' })).toEqual(['echelon']);
+    expect(champs({ ...base, poste: 'equipier', echelon: 'ATQS' })).toEqual([]);
+    expect(champs({ ...base, poste: 'autre' })).toEqual(['echelon']);
+    expect(champs({ ...base, poste: 'autre', echelon: 'MP1' })).toEqual([]);
+    expect(champs({ ...base, poste: 'plongeur' })).toEqual([]);
+  });
+
+  it('relit l\'échelon d\'une demande, vide pour une demande sans échelon', () => {
+    expect(donneesFormulaireDepuisDemande({ ...DEMANDE, echelon: 'CE3' }).echelon).toBe('CE3');
+    expect(donneesFormulaireDepuisDemande(DEMANDE).echelon).toBe('');
   });
 });

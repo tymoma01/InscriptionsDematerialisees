@@ -6,7 +6,7 @@ import { useSession } from '../../core/auth/useSession';
 import { listerNotesDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
 
 vi.mock('../../core/auth/useSession', () => ({ useSession: vi.fn() }));
-vi.mock('../../services/dpaeService', () => ({ creerDemande: vi.fn(), modifierDemande: vi.fn(), obtenirDemande: vi.fn(), listerNotesDemande: vi.fn() }));
+vi.mock('../../services/dpaeService', () => ({ creerDemande: vi.fn(), modifierDemande: vi.fn(), obtenirDemande: vi.fn(), listerNotesDemande: vi.fn(), obtenirConfigurationDpae: vi.fn().mockResolvedValue({ echelonsParPoste: {} }) }));
 vi.mock('../../services/siteAffectationService', () => ({
   listerSitesAffectation: vi.fn().mockResolvedValue([{ id: 10, nom: 'AIGLON', initiales: 'AIG', actif: true }]),
   creerSiteAffectation: vi.fn(),

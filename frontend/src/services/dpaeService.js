@@ -11,6 +11,12 @@ export async function creerDemande(demande) {
   return data;
 }
 
+// Configuration de l'entité pour le formulaire : { echelonsParPoste } (poste -> liste d'échelons).
+export async function obtenirConfigurationDpae() {
+  const { data } = await api.get('/dpae/configuration');
+  return data;
+}
+
 // Modification d'une demande non décidée : la demande COMPLÈTE (mêmes champs que la création) plus
 // `version`, la version lue. Le serveur répond 409 si la demande a changé entre-temps ou n'est plus
 // modifiable, 403 sans le droit ; { statut, version } sinon, avec `aucuneModification: true` quand rien

@@ -31,6 +31,7 @@ const CHAMPS = [
   { champ: 'divisionAutre', colonne: 'division_autre', nature: 'texte', valeur: (d) => nullSiVide(d.divisionAutre) },
   { champ: 'poste', colonne: 'poste', nature: 'texte', valeur: (d) => nullSiVide(d.poste) },
   { champ: 'posteAutre', colonne: 'poste_autre', nature: 'texte', valeur: (d) => nullSiVide(d.posteAutre) },
+  { champ: 'echelon', colonne: 'echelon', nature: 'texte', valeur: (d) => nullSiVide(d.echelon) },
   { champ: 'dateDebut', colonne: 'date_debut', nature: 'date', valeur: (d) => nullSiVide(d.dateDebut) },
   { champ: 'dateFin', colonne: 'date_fin', nature: 'date', valeur: (d) => nullSiVide(d.dateFin) },
   { champ: 'heureArriveeJ1', colonne: 'heure_arrivee_j1', nature: 'heure', valeur: (d) => nullSiVide(d.heureArriveeJ1) },

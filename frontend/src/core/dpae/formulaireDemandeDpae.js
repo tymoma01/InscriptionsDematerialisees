@@ -105,6 +105,7 @@ export function donneesInitiales() {
     divisionAutre: '',
     poste: '',
     posteAutre: '',
+    echelon: '',
     dateDebut: '',
     dateFin: '',
     heureArriveeJ1: '',
@@ -190,6 +191,7 @@ export function donneesFormulaireDepuisDemande(demande) {
     divisionAutre: demande.division_autre ?? '',
     poste: demande.poste ?? '',
     posteAutre: demande.poste_autre ?? '',
+    echelon: demande.echelon ?? '',
     dateDebut: jourPourChamp(demande.date_debut),
     dateFin: jourPourChamp(demande.date_fin),
     heureArriveeJ1: heurePourChamp(demande.heure_arrivee_j1),
@@ -216,13 +218,24 @@ export function donneesFormulaireDepuisDemande(demande) {
   };
 }
 
+// Échelons proposés pour un poste, d'après la configuration de l'entité (GET /api/dpae/configuration).
+export function echelonsDuPoste(echelonsParPoste, poste) {
+  return echelonsParPoste?.[poste] ?? [];
+}
+
+// Changer de poste réinitialise l'échelon ; un poste n'ayant qu'un échelon le présélectionne.
+export function donneesApresChangementPoste(donnees, poste, echelonsParPoste) {
+  const echelons = echelonsDuPoste(echelonsParPoste, poste);
+  return { ...donnees, poste, echelon: echelons.length === 1 ? echelons[0] : '' };
+}
+
 // Contrôles du formulaire avant envoi, MÊMES règles et mêmes messages que le serveur (schéma
 // demandeBaseSchema et verifierReglesDemande, backend/src/api/routes/dpae.routes.js), qui reste seul
 // juge. Renvoie les erreurs DANS L'ORDRE DU FORMULAIRE : [{ champ, message }] ; la première reçoit le
-// défilement. Clés de champ : 'salarieDejaEmploye', 'sites', 'typeContrat', 'motifCdd', 'poste',
+// défilement. Clés de champ : 'salarieDejaEmploye', 'sites', 'typeContrat', 'motifCdd', 'poste', 'echelon',
 // 'dateDebut', 'dateFin', et 'semaine:<jour>' pour le site d'un jour travaillé. Les champs du CDD ne sont
 // contrôlés que pour un CDD.
-export function validerFormulaire(donnees) {
+export function validerFormulaire(donnees, echelonsParPoste = {}) {
   const erreurs = [];
   const refuser = (champ, message) => erreurs.push({ champ, message });
 
@@ -232,6 +245,8 @@ export function validerFormulaire(donnees) {
   const estCdd = donnees.typeContrat === 'cdd';
   if (estCdd && !donnees.motifCdd) refuser('motifCdd', 'La raison du CDD est obligatoire.');
   if (!donnees.poste) refuser('poste', 'Le poste est obligatoire.');
+  const echelons = echelonsDuPoste(echelonsParPoste, donnees.poste);
+  if (echelons.length > 0 && !echelons.includes(donnees.echelon)) refuser('echelon', "L'échelon est obligatoire pour ce poste.");
   if (!donnees.dateDebut.trim()) refuser('dateDebut', 'Le premier jour est obligatoire.');
   if (estCdd && !donnees.dateFin) refuser('dateFin', 'Le dernier jour est obligatoire pour un CDD.');
   // Avenant : dernier jour facultatif, mais s'il est renseigné il ne peut pas précéder le premier.

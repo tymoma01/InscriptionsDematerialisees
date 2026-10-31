@@ -5,14 +5,16 @@ import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import RechercheCandidatSalarie from '../../core/dossier/RechercheCandidatSalarie';
 import { useSession } from '../../core/auth/useSession';
 import { peut } from '../../core/auth/permissions';
-import { creerDemande, listerNotesDemande, modifierDemande, obtenirDemande } from '../../services/dpaeService';
+import { creerDemande, listerNotesDemande, modifierDemande, obtenirConfigurationDpae, obtenirDemande } from '../../services/dpaeService';
 import {
   JOURS_SEMAINE,
   affecterSitesSemaine,
   analyserHeuresParMois,
+  donneesApresChangementPoste,
   donneesFormulaireDepuisDemande,
   divisionDuCandidat,
   donneesInitiales,
+  echelonsDuPoste,
   joursPrivesDeSite,
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
@@ -102,6 +104,15 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
   // sélecteur, plus ceux déjà liés à la demande modifiée (un site désactivé depuis reste affiché).
   const [sitesChargees, setSitesChargees] = useState([]);
 
+  // Correspondance poste -> échelons (configuration de l'entité). Tant qu'elle n'est pas chargée,
+  // aucun échelon n'est demandé ; le serveur reste seul juge.
+  const [echelonsParPoste, setEchelonsParPoste] = useState({});
+  useEffect(() => {
+    obtenirConfigurationDpae()
+      .then((configuration) => setEchelonsParPoste(configuration.echelonsParPoste ?? {}))
+      .catch(() => setEchelonsParPoste({}));
+  }, []);
+
   const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
 
   // `candidat` nul : soit une nouvelle saisie libre efface la sélection au fil de la frappe (voir
@@ -171,7 +182,8 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
   const sitesSelectionnes = donnees.sitesAffectationIds.map((id) => sitesConnus.get(id)).filter(Boolean);
   const plusieursSites = donnees.sitesAffectationIds.length > 1;
 
-  const erreurs = useMemo(() => validerFormulaire(donnees), [donnees]);
+  const erreurs = useMemo(() => validerFormulaire(donnees, echelonsParPoste), [donnees, echelonsParPoste]);
+  const echelonsPoste = echelonsDuPoste(echelonsParPoste, donnees.poste);
   const messageErreur = (champ) => {
     const visible = tentativeEnvoi || (semaineSignalee && champ.startsWith('semaine:'));
     return visible ? erreurs.find((erreur) => erreur.champ === champ)?.message : undefined;
@@ -502,7 +514,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                 <span>
                   Poste <span className="champ-obligatoire">*</span>
                 </span>
-                <select value={donnees.poste} onChange={(e) => definir('poste', e.target.value)}>
+                <select value={donnees.poste} onChange={(e) => setDonnees((precedent) => donneesApresChangementPoste(precedent, e.target.value, echelonsParPoste))}>
                   <option value="">Choisir…</option>
                   {POSTES_HOTEL.map((poste) => (
                     <option key={poste.code} value={poste.code}>
@@ -518,6 +530,23 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                 <span>Préciser le poste</span>
                 <input type="text" value={donnees.posteAutre} onChange={(e) => definir('posteAutre', e.target.value)} />
               </label>
+            )}
+
+            {echelonsPoste.length > 0 && (
+              <div ref={refChamp('echelon')}>
+                <fieldset>
+                  <legend>
+                    Échelon <span className="champ-obligatoire">*</span>
+                  </legend>
+                  {echelonsPoste.map((echelon) => (
+                    <label key={echelon} className="champ-inline">
+                      <input type="radio" name="echelon" checked={donnees.echelon === echelon} onChange={() => definir('echelon', echelon)} />
+                      {echelon}
+                    </label>
+                  ))}
+                </fieldset>
+                {erreurChamp('echelon')}
+              </div>
             )}
 
             <div ref={refChamp('dateDebut')}>

@@ -346,6 +346,7 @@ export default function DetailDemandeDpae() {
           {ligne('Raison du surcroît', demande.raison_surcroit)}
           {ligne('Entité', libelleDivision(demande.division, demande.division_autre))}
           {ligne('Poste', demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste])}
+          {ligne('Échelon', demande.echelon ?? '–')}
           {ligne('Premier jour', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut)))}
           {ligne('Dernier jour', demande.date_fin && FORMAT_DATE.format(new Date(demande.date_fin)))}
           {/* Calculé, jamais stocké : premier et dernier jour inclus, sauf CDI (sans dernier jour). */}

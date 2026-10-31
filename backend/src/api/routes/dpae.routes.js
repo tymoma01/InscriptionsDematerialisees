@@ -9,6 +9,7 @@ const notesDemandeDpaeService = require('../../core/dpae/notesDemandeDpaeService
 const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeService');
 const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
 const statutsDpae = require('../../core/dpae/statutsDpae');
+const echelonsDpae = require('../../core/dpae/echelonsDpae');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -141,6 +142,8 @@ const demandeBaseSchema = z.object({
   divisionAutre: z.string().trim().optional(),
   poste: z.preprocess((valeur) => valeur ?? '', z.string().trim().min(1, 'Le poste est obligatoire.')),
   posteAutre: z.string().trim().optional(),
+  // Obligatoire selon le poste (configuration de l'entité) : voir appliquerEchelon.
+  echelon: z.string().trim().optional(),
   // Premier jour : obligatoire pour tous les types de demande (le formulaire l'affiche sans
   // distinction de typeDemande, voir DemandeDpae.jsx) — absent ou vide refusé avec le même
   // message que côté front.
@@ -241,6 +244,15 @@ function normaliserDemande(demande) {
   return donnees;
 }
 
+// L'échelon dépend du poste ET de la configuration de l'entité, d'où un contrôle hors du schéma :
+// refus 400 (même forme que les autres erreurs de validation) ; échelon null si le poste n'en a pas.
+function appliquerEchelon(entite, donnees) {
+  const problemes = [];
+  const resultat = echelonsDpae.normaliserEchelon(entite, donnees, (path, message) => problemes.push({ code: 'custom', path, message }));
+  if (problemes.length > 0) throw new z.ZodError(problemes);
+  return resultat;
+}
+
 // Création : la demande complète.
 const demandeBodySchema = demandeBaseSchema.superRefine(verifierReglesDemande);
 
@@ -302,7 +314,7 @@ function repondreErreurValidation(res, erreurZod) {
 // de la requête — même principe que relances.routes.js.
 router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
-    const donnees = normaliserDemande(demandeBodySchema.parse(req.body));
+    const donnees = appliquerEchelon(req.entite, normaliserDemande(demandeBodySchema.parse(req.body)));
     const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees, { roleCode: req.utilisateur.roleCode });
 
     const bd = await obtenirKnex();
@@ -326,6 +338,12 @@ router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
     }
     next(erreur);
   }
+});
+
+// GET /api/dpae/configuration — correspondance poste -> échelons de l'entité, pour le formulaire
+// (création et modification).
+router.get('/configuration', requirePermission('dpaeConsultation'), (req, res) => {
+  res.json({ echelonsParPoste: echelonsDpae.echelonsParPoste(req.entite) });
 });
 
 // GET /api/dpae/suivi?perimetre=toutes|mes — page « Suivi des demandes DPAE » (remplace
@@ -583,7 +601,7 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
 router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_MODIFIER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    const { version, noteModification, ...donnees } = normaliserDemande(modificationBodySchema.parse(req.body));
+    const { version, noteModification, ...donnees } = appliquerEchelon(req.entite, normaliserDemande(modificationBodySchema.parse(req.body)));
     const { statut, version: nouvelleVersion, noteEnregistree } = await demandeDpaeService.modifierDemande(req.entite, id, {
       donnees,
       version,
@@ -812,6 +830,7 @@ module.exports = router;
 module.exports.demandeBodySchema = demandeBodySchema;
 module.exports.demandeBaseSchema = demandeBaseSchema;
 module.exports.normaliserDemande = normaliserDemande;
+module.exports.appliquerEchelon = appliquerEchelon;
 module.exports.modificationBodySchema = modificationBodySchema;
 // Filtres du tableau de bord exposés pour dpae.routes.test.js (même raison que ci-dessus).
 module.exports.filtresTableauDeBordSchema = filtresTableauDeBordSchema;

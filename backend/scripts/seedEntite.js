@@ -20,6 +20,7 @@ async function seedEntite(codeEntite) {
     // Défaut '{}' si absent du fichier de config (entité sans SmartOF actif, voir migration 050).
     const smartofConfig = JSON.stringify(config.smartof_config ?? {});
     const pegaseConfig = JSON.stringify(config.pegase_config ?? {});
+    const dpaeConfig = JSON.stringify(config.dpae_config ?? {});
 
     if (existante) {
       await bd('entites').where({ code: config.code }).update({
@@ -31,13 +32,14 @@ async function seedEntite(codeEntite) {
         smartof_config: smartofConfig,
         pegase_actif: config.pegase_actif ?? false,
         pegase_config: pegaseConfig,
+        dpae_config: dpaeConfig,
         duree_conservation_mois: config.duree_conservation_mois,
         actif: config.actif,
       });
       console.log(`Entité « ${config.code} » déjà présente (id=${existante.id}) — mise à jour ✔`);
     } else {
       const [inseree] = await bd('entites')
-        .insert({ ...config, smartof_config: smartofConfig, pegase_config: pegaseConfig })
+        .insert({ ...config, smartof_config: smartofConfig, pegase_config: pegaseConfig, dpae_config: dpaeConfig })
         .returning('id');
       console.log(`Entité « ${config.code} » créée (id=${inseree.id}) ✔`);
     }

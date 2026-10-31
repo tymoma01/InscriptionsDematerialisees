@@ -25,6 +25,7 @@ const COLONNES_DEMANDE = [
   'demandes_dpae.division_autre',
   'demandes_dpae.poste',
   'demandes_dpae.poste_autre',
+  'demandes_dpae.echelon',
   'demandes_dpae.date_debut',
   'demandes_dpae.date_fin',
   'demandes_dpae.heure_arrivee_j1',
