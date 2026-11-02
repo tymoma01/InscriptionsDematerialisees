@@ -36,6 +36,20 @@ describe('SuiviPegase', () => {
     expect(screen.queryByRole('button')).toBeNull();
   });
 
+  it('affiche l’id retrouvé d’un salarié déjà employé, et propose de relancer une recherche échouée', () => {
+    const retrouve = { ...SUIVI, recherche: true, statut: 'retrouve', pegasePersonnelId: '4963', avertissements: [], piecesEnvoyees: [], message: 'Salarié retrouvé.' };
+    render(<SuiviPegase pegase={retrouve} demandeId={1} utilisateur={RH} onRecharger={() => {}} />);
+    expect(screen.getByText('Salarié retrouvé dans Pégase')).toBeTruthy();
+    expect(screen.getByText('Identifiant Pégase : 4963')).toBeTruthy();
+    expect(screen.queryByText(/Pièces justificatives envoyées/)).toBeNull();
+    cleanup();
+
+    const echec = { ...retrouve, statut: 'erreur', pegasePersonnelId: null, message: 'Aucun salarié à ce nom.', relancePossible: true };
+    render(<SuiviPegase pegase={echec} demandeId={1} utilisateur={RH} onRecharger={() => {}} />);
+    expect(screen.getByText('Échec de la recherche dans Pégase')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Relancer la recherche dans Pégase' })).toBeTruthy();
+  });
+
   it('propose la relance d’un échec à la RH seulement', async () => {
     const echec = { ...SUIVI, statut: 'erreur', pegasePersonnelId: null, message: 'Token Pégase refusé (419).', relancePossible: true };
     const onRecharger = vi.fn(async () => {});

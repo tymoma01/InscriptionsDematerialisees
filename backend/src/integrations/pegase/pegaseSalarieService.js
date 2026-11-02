@@ -9,29 +9,28 @@ const pegaseClient = require('./pegaseClient');
 const pegaseSalarieRepository = require('./pegaseSalarieRepository');
 const pegaseMapper = require('./pegaseMapper');
 
-// Création du salarié dans Pégase quand la RH valide une demande DPAE de nouvelle embauche, puis
-// envoi de ses pièces justificatives.
-//
-// Seules les nouvelles embauches d'une personne qui n'a jamais travaillé chez ACCECIT sont
-// concernées : un salarié « déjà employé » ou une demande d'avenant existe déjà dans Pégase.
+// Salarié Pégase d'une demande DPAE, à sa validation par la RH :
+// - nouvelle embauche d'une personne qui n'a jamais travaillé chez ACCECIT : création du salarié,
+//   puis envoi de ses pièces justificatives ;
+// - salarié « déjà employé » ou avenant : il existe déjà dans Pégase, seul son id est recherché et
+//   mémorisé (rien n'est écrit dans Pégase).
 //
 // Module optionnel par entité (pegase_actif) qui n'échoue jamais vers son appelant : un incident
-// Pégase ne doit pas bloquer la validation de la DPAE. Le résultat (créé, doublon, erreur) est
-// enregistré dans pegase_salaries et affiché sur la fiche de la demande, d'où la RH peut relancer.
+// Pégase ne doit pas bloquer la validation de la DPAE. Le résultat (créé, doublon, retrouvé, erreur)
+// est enregistré dans pegase_salaries et affiché sur la fiche de la demande, d'où la RH peut relancer.
 //
 // Idempotent : un salarié déjà créé n'est jamais recréé ; une relance ne renvoie que les pièces
 // qui n'ont pas encore été transmises.
 
 const STATUT_CREE = 'cree';
 const STATUT_DOUBLON = 'doublon';
+const STATUT_RETROUVE = 'retrouve';
 const STATUT_ERREUR = 'erreur';
 
 // Une demande à la fois : une relance pendant l'envoi automatique ne doit pas créer deux salariés.
 const demandesEnCours = new Set();
 
-function estConcernee(demande) {
-  return demande.type_demande === 'nouvelle_embauche' && !demande.salarie_deja_employe;
-}
+const estCreation = (demande) => demande.type_demande === 'nouvelle_embauche' && !demande.salarie_deja_employe;
 
 const LIBELLE_TYPE_POSTE = { bureau: 'Bureau', hotel: 'Hôtel' };
 
@@ -61,6 +60,18 @@ function choisirBase(entite, demande, suivi, typePoste) {
     throw new pegaseClient.ErreurPegase(`Base Pégase « ${code} » pas encore configurée (agence ou type de document manquant).`);
   }
   return { code, ...base };
+}
+
+// Base d'un salarié déjà employé : celle du type de poste de son dossier s'il en a un, sinon celle
+// de l'Entité de la demande (la plupart des avenants n'ont pas de dossier candidat lié).
+function choisirBaseSalarieExistant(entite, demande, typePoste) {
+  const config = entite.pegase_config ?? {};
+  if (config.base_par_type_poste?.[typePoste]) return choisirBase(entite, demande, null, typePoste);
+  const base = config.bases?.[demande.division];
+  if (!base?.secret) {
+    throw new pegaseClient.ErreurPegase('Entité de la demande (Hôtellerie / Tertiaire) absente : base Pégase du salarié impossible à déterminer.');
+  }
+  return { code: demande.division, ...base };
 }
 
 async function dechiffrerNir(bd, entite, dossierId) {
@@ -155,6 +166,46 @@ async function traiter(bd, entite, demande) {
   });
 }
 
+// Salarié déjà employé : identité du dossier candidat lié (NIR, date de naissance), sinon nom et
+// prénom saisis sur la demande.
+async function retrouverSalarie(bd, entite, demande) {
+  const suivi = await pegaseSalarieRepository.trouverSuivi(bd, demande.id);
+  if (suivi?.statut === STATUT_RETROUVE) return;
+
+  let identite = { nir: '', nom: demande.salarie_nom, prenom: demande.salarie_prenom };
+  let typePoste = null;
+  if (demande.candidat_id) {
+    const dossier = await pegaseSalarieRepository.trouverDernierDossierCandidat(bd, entite.id, demande.candidat_id);
+    if (dossier) {
+      const inscription = await dossierRepository.trouverInscriptionCompleteParDossierId(bd, entite.id, dossier.id);
+      identite = { nir: await dechiffrerNir(bd, entite, dossier.id), ...inscription.candidat };
+      typePoste = dossier.type_poste;
+    }
+  }
+
+  const base = choisirBaseSalarieExistant(entite, demande, typePoste);
+  const session = await pegaseClient.ouvrirSession(base);
+  const resultat = pegaseMapper.trouverSalarieExistant(await pegaseClient.listerSalaries(session), identite);
+  const libelleBase = libelleDivision(base.code);
+
+  if (resultat?.salarie) {
+    await pegaseSalarieRepository.enregistrerSuivi(bd, demande.id, {
+      statut: STATUT_RETROUVE,
+      base: base.code,
+      pegasePersonnelId: String(resultat.salarie.id),
+      message: `Salarié retrouvé dans la base Pégase ${libelleBase} (${resultat.motif}).`,
+    });
+    return;
+  }
+  await pegaseSalarieRepository.enregistrerSuivi(bd, demande.id, {
+    statut: STATUT_ERREUR,
+    base: base.code,
+    message: resultat?.homonymes
+      ? `${resultat.homonymes} salariés portent ces nom et prénom dans la base Pégase ${libelleBase} : identifiant à relever dans Pégase.`
+      : `Aucun salarié à ce nom dans la base Pégase ${libelleBase} : vérifier le nom, le prénom et l'Entité de la demande, puis relancer.`,
+  });
+}
+
 // Appelée après la validation d'une demande DPAE (sans attendre : la RH n'a pas à patienter
 // pendant l'envoi) et par la relance manuelle. Ne lève jamais d'exception.
 async function creerSalarieDepuisDemande(entite, demandeId) {
@@ -164,8 +215,8 @@ async function creerSalarieDepuisDemande(entite, demandeId) {
   try {
     bd = await db.obtenirKnex();
     const demande = await demandeDpaeRepository.trouverDemandeParId(bd, entite.id, demandeId);
-    if (!demande || !estConcernee(demande)) return;
-    await traiter(bd, entite, demande);
+    if (!demande) return;
+    await (estCreation(demande) ? traiter(bd, entite, demande) : retrouverSalarie(bd, entite, demande));
   } catch (erreur) {
     console.error(`Pégase : échec de la création du salarié pour la demande DPAE n° ${demandeId}.`, erreur);
     try {
@@ -195,14 +246,16 @@ function relancePossible(suivi) {
   return suivi.statut === STATUT_ERREUR || (suivi.statut === STATUT_CREE && suivi.pieces_en_erreur.length > 0);
 }
 
-// État de l'envoi affiché sur la fiche d'une demande ; null quand la demande n'est pas concernée.
+// État de l'envoi affiché sur la fiche d'une demande validée ; null avant la validation.
+// `recherche` : salarié déjà employé, dont seul l'id est recherché.
 // Jamais de donnée personnelle : statut, id Pégase, messages et codes de types de pièces.
 async function suiviPourDemande(entite, demande) {
-  if (!entite.pegase_actif || demande.statut !== statutsDpae.STATUT_VALIDEE || !estConcernee(demande)) return null;
+  if (!entite.pegase_actif || demande.statut !== statutsDpae.STATUT_VALIDEE) return null;
   const bd = await db.obtenirKnex();
   const suivi = await pegaseSalarieRepository.trouverSuivi(bd, demande.id);
   const enCours = demandesEnCours.has(demande.id);
   return {
+    recherche: !estCreation(demande),
     statut: suivi?.statut ?? null,
     base: suivi?.base ?? null,
     pegasePersonnelId: suivi?.pegase_personnel_id ?? null,

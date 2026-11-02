@@ -98,6 +98,16 @@ function construireReferentiels(salaries) {
   return { nationalites, idFrance };
 }
 
+// Fiche créée par l'application : son nom (« # POSTE PRÉNOM NOM ») se termine par le prénom et le nom.
+function memesNomEtPrenom(salarie, { nom, prenom }) {
+  const nomSalarie = normaliserTexte(salarie.nom);
+  if (String(salarie.nom ?? '').trim().startsWith('#')) {
+    const prenomNom = normaliserTexte(`${prenom} ${nom}`);
+    return nomSalarie === prenomNom || nomSalarie.endsWith(` ${prenomNom}`);
+  }
+  return nomSalarie === normaliserTexte(nom) && normaliserTexte(salarie.prenom) === normaliserTexte(prenom);
+}
+
 // Salarié déjà présent dans Pégase : même NIR (13 premiers chiffres), ou à défaut mêmes nom,
 // prénom et date de naissance (NIR absent ou mal saisi d'un côté ou de l'autre).
 function trouverDoublon(salaries, { nir, nom, prenom, dateNaissance }) {
@@ -106,15 +116,21 @@ function trouverDoublon(salaries, { nir, nom, prenom, dateNaissance }) {
     const memeNir = salaries.find((salarie) => racineNir(salarie.numeroSS) === racine);
     if (memeNir) return { salarie: memeNir, motif: 'même n° de sécurité sociale' };
   }
-  // Fiche créée par l'application : son nom (« # POSTE PRÉNOM NOM ») se termine par le prénom et le nom.
-  const prenomNom = normaliserTexte(`${prenom} ${nom}`);
-  const memeIdentite = salaries.find((salarie) => {
-    if (dateIso(salarie.dateNaissance) !== dateIso(dateNaissance)) return false;
-    const nomSalarie = normaliserTexte(salarie.nom);
-    if (String(salarie.nom ?? '').trim().startsWith('#')) return nomSalarie === prenomNom || nomSalarie.endsWith(` ${prenomNom}`);
-    return nomSalarie === normaliserTexte(nom) && normaliserTexte(salarie.prenom) === normaliserTexte(prenom);
-  });
+  const date = dateIso(dateNaissance);
+  const memeIdentite = date && salaries.find((salarie) => dateIso(salarie.dateNaissance) === date && memesNomEtPrenom(salarie, { nom, prenom }));
   return memeIdentite ? { salarie: memeIdentite, motif: 'mêmes nom, prénom et date de naissance' } : null;
+}
+
+// Salarié déjà employé, dont on cherche l'id Pégase : comme trouverDoublon, puis à défaut sur nom et
+// prénom seuls (une demande sans dossier candidat n'a ni NIR ni date de naissance), à condition
+// qu'un seul salarié les porte. Renvoie { salarie, motif }, { homonymes } ou null.
+function trouverSalarieExistant(salaries, { nir, nom, prenom, dateNaissance }) {
+  const doublon = trouverDoublon(salaries, { nir, nom, prenom, dateNaissance });
+  if (doublon) return doublon;
+
+  const memesNomPrenom = salaries.filter((salarie) => memesNomEtPrenom(salarie, { nom, prenom }));
+  if (memesNomPrenom.length === 1) return { salarie: memesNomPrenom[0], motif: 'mêmes nom et prénom' };
+  return memesNomPrenom.length > 1 ? { homonymes: memesNomPrenom.length } : null;
 }
 
 // Fiche salarié à créer. `candidat` : forme de dossierRepository.trouverInscriptionCompleteParDossierId ;
@@ -178,6 +194,7 @@ module.exports = {
   departementNaissance,
   construireReferentiels,
   trouverDoublon,
+  trouverSalarieExistant,
   nomPegase,
   construireSalariePegase,
 };

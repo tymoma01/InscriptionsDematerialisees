@@ -3,7 +3,8 @@
 }
 
 .suivi-pegase--cree,
-.suivi-pegase--doublon {
+.suivi-pegase--doublon,
+.suivi-pegase--retrouve {
   border-left-color: var(--couleur-succes);
 }
 

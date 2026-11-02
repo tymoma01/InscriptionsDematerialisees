@@ -93,18 +93,65 @@ test('un salarié déjà dans Pégase (même NIR) n’est pas recréé', async (
   assert.equal(suivi().pegase_personnel_id, '12');
 });
 
-test('ignore un salarié déjà employé, un avenant et une entité sans Pégase', async (t) => {
-  for (const [entite, demande] of [
-    [ENTITE, { ...DEMANDE, salarie_deja_employe: true }],
-    [ENTITE, { ...DEMANDE, type_demande: 'prolongation' }],
-    [{ ...ENTITE, pegase_actif: false }, DEMANDE],
+test('ignore une entité sans Pégase', async (t) => {
+  const { enregistrer, ouvrirSession } = preparer(t);
+  await pegaseSalarieService.creerSalarieDepuisDemande({ ...ENTITE, pegase_actif: false }, 42);
+  assert.equal(ouvrirSession.mock.calls.length, 0);
+  assert.equal(enregistrer.mock.calls.length, 0);
+});
+
+const SALARIE_EXISTANT = { id: '4963', nom: 'MARTIN', prenom: 'Julie', dateNaissance: '1990-05-12', numeroSS: '2900575123456-78' };
+
+test('un salarié déjà employé est retrouvé par son NIR, sans rien créer ni envoyer', async (t) => {
+  const { creer, ajouterDocument, suivi } = preparer(t, { demande: { ...DEMANDE, salarie_deja_employe: true }, salaries: [SALARIE_EXISTANT] });
+
+  await pegaseSalarieService.creerSalarieDepuisDemande(ENTITE, 42);
+
+  assert.equal(creer.mock.calls.length, 0);
+  assert.equal(ajouterDocument.mock.calls.length, 0);
+  assert.equal(suivi().statut, 'retrouve');
+  assert.equal(suivi().pegase_personnel_id, '4963');
+  assert.equal(suivi().base, 'hotellerie');
+  assert.match(suivi().message, /même n° de sécurité sociale/);
+});
+
+test("un avenant sans dossier candidat est retrouvé par nom et prénom, dans la base de l'Entité de la demande", async (t) => {
+  const { ouvrirSession, suivi } = preparer(t, {
+    demande: { ...DEMANDE, type_demande: 'prolongation', candidat_id: null, division: 'tertiaire', salarie_nom: 'martin', salarie_prenom: 'JULIE' },
+    salaries: [SALARIE_EXISTANT, { id: '8', nom: 'MARTIN', prenom: 'Paul' }],
+  });
+
+  await pegaseSalarieService.creerSalarieDepuisDemande(ENTITE, 42);
+
+  assert.equal(ouvrirSession.mock.calls[0].arguments[0].secret, 'pegase-token-tertiaire');
+  assert.equal(suivi().statut, 'retrouve');
+  assert.equal(suivi().pegase_personnel_id, '4963');
+  assert.match(suivi().message, /mêmes nom et prénom/);
+});
+
+test("des homonymes ou un salarié introuvable sont signalés à la RH sans id retenu", async (t) => {
+  const demande = { ...DEMANDE, salarie_deja_employe: true, candidat_id: null, salarie_nom: 'Martin', salarie_prenom: 'Julie' };
+  for (const [salaries, attendu] of [
+    [[SALARIE_EXISTANT, { ...SALARIE_EXISTANT, id: '5', dateNaissance: '1970-01-01' }], /2 salariés portent ces nom et prénom/],
+    [[], /Aucun salarié à ce nom/],
   ]) {
-    const { enregistrer, creer } = preparer(t, { demande });
-    await pegaseSalarieService.creerSalarieDepuisDemande(entite, 42);
-    assert.equal(creer.mock.calls.length, 0);
-    assert.equal(enregistrer.mock.calls.length, 0);
+    const { suivi } = preparer(t, { demande, salaries });
+    await pegaseSalarieService.creerSalarieDepuisDemande(ENTITE, 42);
+    assert.equal(suivi().statut, 'erreur');
+    assert.equal(suivi().pegase_personnel_id, null);
+    assert.match(suivi().message, attendu);
     t.mock.restoreAll();
   }
+});
+
+test("un salarié déjà employé sans dossier ni Entité arrête la recherche sans appel à Pégase", async (t) => {
+  const { ouvrirSession, suivi } = preparer(t, { demande: { ...DEMANDE, salarie_deja_employe: true, candidat_id: null, division: null } });
+
+  await pegaseSalarieService.creerSalarieDepuisDemande(ENTITE, 42);
+
+  assert.equal(ouvrirSession.mock.calls.length, 0);
+  assert.equal(suivi().statut, 'erreur');
+  assert.match(suivi().message, /Entité de la demande/);
 });
 
 test('une erreur Pégase est enregistrée sans être propagée', async (t) => {

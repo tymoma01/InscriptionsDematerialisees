@@ -29,6 +29,15 @@ test('trouverDoublon reconnaît une fiche déjà créée par l’application («
   assert.equal(pegaseMapper.trouverDoublon(salaries, { nir: '', nom: 'Martin', prenom: 'Paul', dateNaissance: '1985-05-02' }), null);
 });
 
+test('trouverSalarieExistant retombe sur nom et prénom seuls, si un seul salarié les porte', () => {
+  const salaries = [...SALARIES, { id: '20', nom: '# F/VDC PAUL MARTIN', prenom: 'Paul' }, { id: '21', nom: 'Dupont', prenom: 'Marie' }];
+  assert.deepEqual(pegaseMapper.trouverSalarieExistant(salaries, { nom: 'Martin', prenom: 'Paul' }), { salarie: salaries[2], motif: 'mêmes nom et prénom' });
+  assert.deepEqual(pegaseMapper.trouverSalarieExistant(salaries, { nom: 'dupont', prenom: 'marie' }), { homonymes: 2 });
+  assert.equal(pegaseMapper.trouverSalarieExistant(salaries, { nom: 'Inconnu', prenom: 'Paul' }), null);
+  // NIR connu : il départage les homonymes.
+  assert.equal(pegaseMapper.trouverSalarieExistant(salaries, { nir: '290057512345678', nom: 'Dupont', prenom: 'Marie' }).salarie.id, '10');
+});
+
 test('nomPegase : « # POSTE PRÉNOM NOM », poste de la DPAE en majuscules', () => {
   const candidat = { civilite: 'monsieur', prenom: 'Léa', nom: 'Dupont' };
   assert.equal(pegaseMapper.nomPegase({ demande: { poste: 'femme_valet_chambre' }, candidat }), '# F/VDC LÉA DUPONT');
