@@ -115,30 +115,36 @@ test('report : dossier d’une autre entité -> false', async (t) => {
   assert.equal(await reporterRib(ENTITE, 62, CONTEXTE), false);
 });
 
-test('prêt à l’embauche : informations seulement reportées -> refus avec message clair', async (t) => {
+test('prêt à l’embauche : informations reportées -> autorisé (seule l’embauche bloque)', async (t) => {
+  const lecture = dossier(t, { pieceIdentiteACompleter: true, ribACompleter: true });
+  await verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'valide_pret_embauche', TRX);
+  assert.equal(lecture.mock.callCount(), 0);
+});
+
+test('embauche : informations seulement reportées -> refus avec message clair', async (t) => {
   dossier(t, { pieceIdentiteACompleter: true, ribACompleter: true });
   await assert.rejects(
-    verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'valide_pret_embauche', TRX),
-    /Informations de la pièce d’identité et du RIB à compléter avant de valider l’embauche\./,
+    verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'embauche', TRX),
+    /Informations de la pièce d’identité et du RIB à compléter avant de marquer l’embauche\./,
   );
 });
 
-test('prêt à l’embauche : seul le RIB reporté -> refus qui ne nomme que le RIB', async (t) => {
+test('embauche : seul le RIB reporté -> refus qui ne nomme que le RIB', async (t) => {
   dossier(t, { ribACompleter: true });
   await assert.rejects(
     verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'embauche', TRX),
-    /Informations du RIB à compléter avant de valider l’embauche\./,
+    /Informations du RIB à compléter avant de marquer l’embauche\./,
   );
 });
 
-test('prêt à l’embauche : dossier ancien sans informations ni report -> autorisé', async (t) => {
+test('embauche : dossier ancien sans informations ni report -> autorisé', async (t) => {
   dossier(t, { ...NON_SAISI, pieceIdentiteACompleter: false, ribACompleter: false });
-  await verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'valide_pret_embauche', TRX);
+  await verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'embauche', TRX);
 });
 
-test('prêt à l’embauche : informations confirmées après report (indicateurs remis à faux) -> autorisé', async (t) => {
+test('embauche : informations confirmées après report (indicateurs remis à faux) -> autorisé', async (t) => {
   dossier(t, { pieceIdentiteACompleter: false, ribACompleter: false });
-  await verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'valide_pret_embauche', TRX);
+  await verifierInformationsPiecesConfirmeesPourEmbauche(ENTITE, 62, 'embauche', TRX);
 });
 
 test('autres statuts d’arrivée : aucun contrôle', async (t) => {

@@ -153,6 +153,8 @@ function trouverDossierAvecStatutParId(trx, entiteId, dossierId) {
       'candidats.nom as candidat_nom',
       'candidats.prenom as candidat_prenom',
       'candidats.civilite as candidat_civilite',
+      'candidats.piece_identite_a_completer',
+      'candidats.rib_a_completer',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       trx.raw("dernier_changement_statut.action = 'changement_statut_force' as statut_force"),
       'dernier_changement_statut.date_action as statut_force_le',
@@ -358,6 +360,8 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut, perimetre = null
       'statuts.est_final as statut_est_final',
       // « Êtes-vous étudiant ? » (2026-10-01, migration 074) : null si non renseigné.
       'dossiers.est_etudiant',
+      'candidats.piece_identite_a_completer',
+      'candidats.rib_a_completer',
       'bloc_disponibilites.donnees as donnees_disponibilites',
       'bloc_coordonnees.donnees as donnees_coordonnees',
       'rendezvous_actif.date_heure as rendezvous_test_date_heure',

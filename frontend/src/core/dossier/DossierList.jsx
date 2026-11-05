@@ -402,6 +402,11 @@ export default function DossierList({
                     </span>
                   )}
                 </span>
+                {dossier.statut_code === 'valide_pret_embauche' && dossier.piecesACompleter && (
+                  <div className="dossier-list__sous-badge-statut">
+                    <StatutBadge libelle="Pièces à compléter" variante="alerte" />
+                  </div>
+                )}
                 {sousBadge && <div className="dossier-list__sous-badge-statut">{sousBadge}</div>}
               </td>
               {/* Colonne "Dernière mise à jour" retirée du visuel (demande utilisateur

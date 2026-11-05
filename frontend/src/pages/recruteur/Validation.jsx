@@ -437,6 +437,7 @@ export default function Validation() {
                     </>
                   )}
                 </span>
+                {dossier.piecesACompleter && <StatutBadge libelle="Pièces à compléter" variante="alerte" />}
               </div>
             )}
           </div>

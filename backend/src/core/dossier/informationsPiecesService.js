@@ -10,9 +10,9 @@ const { chiffrer, dechiffrer } = require('../securite/nirCipher');
 // tard »). Pas la replanification (replanifier_test) : le dossier a déjà passé ce contrôle.
 const CODE_ACTION_PLANIFIER_TEST = 'planifier_test';
 
-// Statuts d'arrivée refusés tant que des informations sont explicitement reportées : le dossier
-// devient « prêt à l'embauche », puis embauché.
-const STATUTS_EXIGEANT_INFORMATIONS_CONFIRMEES = ['valide_pret_embauche', 'embauche'];
+// Statut d'arrivée refusé tant que des informations sont explicitement reportées : seule
+// l'embauche l'exige. Le verdict du test et la fin de formation ne sont jamais bloqués.
+const STATUTS_EXIGEANT_INFORMATIONS_CONFIRMEES = ['embauche'];
 
 class ErreurInformationsPiecesNonConfirmees extends Error {
   constructor(message) {
@@ -158,7 +158,7 @@ async function verifierInformationsPiecesConfirmees(entite, dossierId, transitio
 }
 
 /**
- * Refuse de passer le dossier à « prêt à l'embauche » (ou « embauché ») tant que la pièce
+ * Refuse de passer le dossier à « embauché » tant que la pièce
  * d'identité ou le RIB est explicitement reporté (« Renseigner plus tard »). Un dossier sans
  * informations et sans report (antérieur à l'OCR) n'est pas bloqué. Appelée par le moteur de
  * workflow pour toute transition, avec le code du statut d'arrivée : sans effet pour les autres.
@@ -175,7 +175,7 @@ async function verifierInformationsPiecesConfirmeesPourEmbauche(entite, dossierI
   ];
   if (acompleter.length > 0) {
     throw new ErreurInformationsPiecesNonConfirmees(
-      `Informations ${acompleter.join(' et ')} à compléter avant de valider l’embauche.`,
+      `Informations ${acompleter.join(' et ')} à compléter avant de marquer l’embauche.`,
     );
   }
 }

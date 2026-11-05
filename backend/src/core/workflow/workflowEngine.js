@@ -125,8 +125,8 @@ async function appliquerTransition(
     throw new ErreurTransitionInvalide(`Rôle "${roleCode}" non autorisé pour l'action "${codeAction}".`);
   }
 
-  // Pièce d'identité et RIB confirmés avant « prêt à l'embauche » / « embauché », quel que soit le
-  // chemin (verdict du test, fin de formation, embauche) : un report ne suffit pas.
+  // Pièce d'identité et RIB confirmés avant « embauché » : un report (« Renseigner plus tard »)
+  // ne bloque ni le verdict du test ni la fin de formation.
   await informationsPiecesService.verifierInformationsPiecesConfirmeesPourEmbauche(
     entite,
     dossierId,

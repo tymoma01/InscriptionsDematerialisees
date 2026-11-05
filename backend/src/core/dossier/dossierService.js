@@ -546,6 +546,8 @@ async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null
     ({
       donnees_disponibilites,
       donnees_coordonnees,
+      piece_identite_a_completer,
+      rib_a_completer,
       rendezvous_test_date_heure,
       rendezvous_test_formateur_prenom,
       rendezvous_test_formateur_nom,
@@ -558,6 +560,7 @@ async function listerDossiers(entite, { statutCode, dispoDebut, perimetre = null
       ...reste
     }) => ({
       ...reste,
+      piecesACompleter: piece_identite_a_completer === true || rib_a_completer === true,
       postesBureau: donnees_disponibilites?.posteBureau ?? [],
       postesHotel: donnees_disponibilites?.posteHotel ?? [],
       // Colonne "Expérience", même patron que postesBureau/postesHotel
@@ -694,9 +697,11 @@ async function obtenirDossier(entite, dossierId) {
   const bd = await obtenirKnex();
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier) return dossier;
-  const { donnees_disponibilites, statut_force, ...reste } = dossier;
+  const { donnees_disponibilites, statut_force, piece_identite_a_completer, rib_a_completer, ...reste } = dossier;
   return {
     ...reste,
+    // Badge « Pièces à compléter » : informations reportées (« Renseigner plus tard »).
+    piecesACompleter: piece_identite_a_completer === true || rib_a_completer === true,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],
     postesHotel: donnees_disponibilites?.posteHotel ?? [],
     // Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54, Validation.jsx) —
