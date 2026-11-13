@@ -1,0 +1,12 @@
+/* Texte de toutes les pastilles de filtre en semi-gras : une seule règle pour les statuts, « Tous »,
+   les secteurs, « Étudiant », les métiers, l'expérience, les créneaux et les jours disponibles.
+   Couleurs et tailles restent celles de chaque famille de pastilles. */
+.filtres-statut button,
+.filtres-statut__tous button,
+.filtres-statut__statuts button,
+.filtre-entite button,
+.filtre-etudiant button,
+.filtre-metier__groupe button,
+.filtres-disponibilites__pastille {
+  font-weight: 600;
+}

@@ -59,7 +59,7 @@ export default function DetailEvaluation({ evaluationId, onFermer }) {
 
   return (
     <div className="detail-evaluation">
-      <ContenuDetailEvaluation detail={detail} />
+      <ContenuDetailEvaluation detail={detail} avecBlacklist />
       {/* Section repliable « Voir les informations d'inscription complètes » de la fiche dossier,
           réutilisée telle quelle, en lecture seule (la modification se fait depuis la fiche dossier). */}
       {peutVoirInscription && detail.evaluation.dossierId && (

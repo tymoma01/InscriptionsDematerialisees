@@ -219,6 +219,8 @@ test('Liste des dossiers : filtre Hôtellerie + 5 statuts appliqué EN BASE pour
   const bd = knex({ client: 'pg' });
   const sqlAvec = dossierRepository.listerDossiers(bd, 1, { perimetre: perimetreDossiers.perimetreDossiersPourRole(IH) }).toString();
   assert.match(sqlAvec, /"statuts"\."code" in \('test_planifie', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche', 'invalide'\)/);
+  // Un dossier blacklisté depuis un statut du périmètre reste dans le périmètre.
+  assert.match(sqlAvec, /"statuts"\."code" = 'blackliste' and "dossiers"\."statut_avant_blacklist_id" in \(select "statuts_avant"\."id" from "statuts" as "statuts_avant" where "statuts_avant"\."code" in \('test_planifie'/);
   assert.match(sqlAvec, /bloc_disponibilites\.donnees ->> 'typePoste' = 'hotel'/);
   const sqlSans = dossierRepository.listerDossiers(bd, 1, {}).toString();
   assert.doesNotMatch(sqlSans, /->> 'typePoste' = 'hotel'/);
@@ -251,12 +253,12 @@ test('GET /api/dossiers : le service reçoit le périmètre de l’Inspecteur H�
   assert.equal(lister.mock.calls[1].arguments[1].perimetre, null);
 });
 
-test('GET /api/dossiers/statuts : seuls les 5 statuts du périmètre sont renvoyés à l’Inspecteur Hôtellerie', async (t) => {
+test('GET /api/dossiers/statuts : la même liste complète de statuts est renvoyée à l’Inspecteur Hôtellerie (le périmètre ne restreint que les dossiers)', async (t) => {
   const tous = ['nouveau', 'test_planifie', 'test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche', 'formation_non_validee'];
   t.mock.method(dossierService, 'listerStatuts', async () => tous.map((code) => ({ code })));
   const res = reponseFactice();
   await gestionnaire('dossiers', 'get', '/statuts')({ query: {}, entite: ENTITE, utilisateur: { id: 9, roleCode: IH } }, res, assert.fail);
-  assert.deepEqual(res.corps.map((s) => s.code).sort(), ['embauche', 'invalide', 'test_planifie', 'valide_envoi_formation', 'valide_pret_embauche']);
+  assert.deepEqual(res.corps.map((s) => s.code), tous);
 });
 
 test('Indicateurs : secteur Hôtellerie IMPOSÉ côté serveur pour l’Inspecteur Hôtellerie, même s’il demande Tertiaire', async (t) => {
@@ -314,6 +316,8 @@ test('Périmètre en base : dossier de l’entité, statut parmi les 5 ET typePo
   assert.match(sql, /"dossiers"\."entite_id" = 1/);
   assert.match(sql, /"statuts"\."code" in \('test_planifie', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche', 'invalide'\)/);
   assert.match(sql, /bloc_disponibilites\.donnees ->> 'typePoste' = 'hotel'/);
+  // Blacklisté depuis un statut du périmètre : toujours dans le périmètre (fiche accessible).
+  assert.match(sql, /"statuts"\."code" = 'blackliste' and "dossiers"\."statut_avant_blacklist_id" in \(select "statuts_avant"\."id"/);
 });
 
 // --- Onglet Admin « Vue Inspecteur Hôtellerie » : paramètre `vue`, Admin uniquement ------------------
@@ -341,7 +345,7 @@ test('GET /api/dossiers?vue=inspecteur_hotellerie : l’Admin ne reçoit que l�
   assert.deepEqual(perimetres.slice(1), [null, null, null]);
 });
 
-test('GET /api/dossiers/statuts?vue=inspecteur_hotellerie : 5 statuts pour l’Admin, tous pour un autre rôle', async (t) => {
+test('GET /api/dossiers/statuts?vue=inspecteur_hotellerie : tous les statuts pour l’Admin comme pour un autre rôle', async (t) => {
   const tous = ['nouveau', 'test_planifie', 'test_non_realise', 'invalide', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche'];
   t.mock.method(dossierService, 'listerStatuts', async () => tous.map((code) => ({ code })));
   const appeler = async (roleCode) => {
@@ -349,6 +353,6 @@ test('GET /api/dossiers/statuts?vue=inspecteur_hotellerie : 5 statuts pour l’A
     await gestionnaire('dossiers', 'get', '/statuts')({ query: { vue: IH }, entite: ENTITE, utilisateur: { id: 9, roleCode } }, res, assert.fail);
     return res.corps.map((s) => s.code);
   };
-  assert.deepEqual((await appeler(ROLES.ADMIN)).sort(), ['embauche', 'invalide', 'test_planifie', 'valide_envoi_formation', 'valide_pret_embauche']);
+  assert.deepEqual(await appeler(ROLES.ADMIN), tous);
   assert.deepEqual(await appeler(ROLES.RH), tous);
 });

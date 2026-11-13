@@ -1,5 +1,6 @@
 // Accès données pour candidats/dossiers/données de bloc — uniquement des requêtes,
 // aucune règle métier ici (orchestrée par dossierService.js).
+const perimetreDossiers = require('../auth/perimetreDossiers');
 
 async function insererCandidat(
   trx,
@@ -255,6 +256,56 @@ function enregistrerChangementStatut(trx, { dossierId, statutId, utilisateurId, 
   });
 }
 
+// Dernier passage du dossier au statut donné : date et auteur (pour le message « déjà blacklisté »).
+function trouverDernierPassageAuStatut(bd, dossierId, codeStatut) {
+  return bd('historique_statuts')
+    .join('statuts', 'statuts.id', 'historique_statuts.statut_id')
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'historique_statuts.utilisateur_id')
+    .where({ 'historique_statuts.dossier_id': dossierId, 'statuts.code': codeStatut })
+    .orderBy([
+      { column: 'historique_statuts.date_changement', order: 'desc' },
+      { column: 'historique_statuts.id', order: 'desc' },
+    ])
+    .select('historique_statuts.date_changement', 'utilisateurs.prenom as auteur_prenom', 'utilisateurs.nom as auteur_nom')
+    .first();
+}
+
+function trouverStatutParId(trx, entiteId, statutId) {
+  return trx('statuts').where({ entite_id: entiteId, id: statutId }).first();
+}
+
+// Statut d'avant le blacklistage (null pour l'effacer au retrait) : restitué tel quel au retrait.
+function memoriserStatutAvantBlacklist(trx, { dossierId, statutId }) {
+  return trx('dossiers').where({ id: dossierId }).update({ statut_avant_blacklist_id: statutId });
+}
+
+// Dossiers blacklistés d'un AUTRE candidat (ou d'un autre dossier) qui correspondent à celui-ci : même
+// empreinte de NIR, ou à défaut même nom, prénom et date de naissance (insensible à la casse et aux
+// espaces de bord). `critere` indique la correspondance la plus forte. Lecture seule : aucune
+// décision automatique n'en découle.
+function trouverDossiersBlacklistesCorrespondants(bd, entiteId, dossierId, codeStatutBlackliste) {
+  return bd
+    .raw(
+      `SELECT d2.id AS dossier_id,
+              CASE WHEN c.nir_hash IS NOT NULL AND c2.nir_hash = c.nir_hash THEN 'nir' ELSE 'identite' END AS critere
+       FROM dossiers d
+       JOIN candidats c ON c.id = d.candidat_id
+       JOIN dossiers d2 ON d2.entite_id = d.entite_id AND d2.id <> d.id
+       JOIN candidats c2 ON c2.id = d2.candidat_id
+       JOIN statuts s2 ON s2.id = d2.statut_id AND s2.code = ?
+       WHERE d.id = ? AND d.entite_id = ?
+         AND (
+           (c.nir_hash IS NOT NULL AND c2.nir_hash = c.nir_hash)
+           OR (lower(btrim(c2.nom)) = lower(btrim(c.nom))
+               AND lower(btrim(c2.prenom)) = lower(btrim(c.prenom))
+               AND c2.date_naissance = c.date_naissance)
+         )
+       ORDER BY d2.id DESC`,
+      [codeStatutBlackliste, dossierId, entiteId],
+    )
+    .then((resultat) => resultat.rows.map((ligne) => ({ dossierId: ligne.dossier_id, critere: ligne.critere })));
+}
+
 // Date d'embauche (migration 057, audit 2026-08-31) — écrite par embaucheService.marquerEmbauche
 // dans la MÊME transaction que la transition de statut vers 'embauche' (voir son commentaire
 // d'en-tête) : jamais appelée seule en dehors de ce flux.
@@ -383,7 +434,7 @@ function listerDossiers(bd, entiteId, { statutCode, dispoDebut, perimetre = null
     .orderBy('dossiers.date_maj', 'desc');
 
   if (perimetre) {
-    requete.whereIn('statuts.code', perimetre.statutsCodes);
+    perimetreDossiers.restreindreAuxStatutsDuPerimetre(requete, bd, perimetre);
     requete.whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [perimetre.typePoste]);
   }
   if (statutCode) {
@@ -992,6 +1043,10 @@ module.exports = {
   trouverUtilisateurSysteme,
   enregistrerChangementStatut,
   mettreAJourDateEmbauche,
+  trouverStatutParId,
+  trouverDernierPassageAuStatut,
+  memoriserStatutAvantBlacklist,
+  trouverDossiersBlacklistesCorrespondants,
   listerDossiers,
   listerSuiviFormation,
   listerHistoriqueFormation,

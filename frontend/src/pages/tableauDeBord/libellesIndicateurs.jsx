@@ -25,6 +25,7 @@ const VARIANTE_PAR_CODE_STATUT_ACCECIT = {
   // Statut terminal "Embauché" : 'vert-fonce', même variante que partout
   // ailleurs dans l'app (voir variables.css, StatutBadge.css).
   embauche: 'vert-fonce',
+  blackliste: 'blackliste',
 };
 export function varianteStatut(code) {
   return VARIANTE_PAR_CODE_STATUT_ACCECIT[code] ?? 'neutre';

@@ -624,6 +624,13 @@
   color: var(--statut-vert-fonce-texte);
 }
 
+/* Statut « Blacklisté » : pastille rouge, comme son badge (--statut-blackliste-*). */
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='blackliste']:not(.actif) {
+  background-color: var(--statut-blackliste-fond);
+  border-color: var(--statut-blackliste-bordure);
+  color: var(--statut-blackliste-texte);
+}
+
 /* Survol : léger renforcement (audit 2026-09-27, demande utilisateur — "À planifier" et,
    cohérence oblige, tous les filtres colorés de ce bloc) — un seul assombrissement léger et
    uniforme (filter: brightness), quelle que soit la teinte de fond active à ce moment (claire ou,

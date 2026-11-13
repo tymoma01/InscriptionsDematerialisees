@@ -66,3 +66,20 @@ export async function marquerEmbauche(dossierId, { commentaire, dateEmbauche }) 
   const { data } = await api.post(`/dossiers/${dossierId}/transitions/marquer-embauche`, { commentaire, dateEmbauche });
   return data;
 }
+
+// Blacklistage (voir ModaleBlacklist.jsx) : catégories de motif configurées, puis blacklistage et
+// retrait. L'auteur et son rôle viennent de la session serveur, jamais du corps de la requête.
+export async function listerCategoriesBlacklist(dossierId) {
+  const { data } = await api.get(`/dossiers/${dossierId}/transitions/blacklister/motifs`);
+  return data;
+}
+
+export async function blacklisterDossier(dossierId, { motifCode, commentaire }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/transitions/blacklister`, { motifCode, commentaire });
+  return data;
+}
+
+export async function retirerBlacklistDossier(dossierId, { commentaire }) {
+  const { data } = await api.post(`/dossiers/${dossierId}/transitions/retirer-blacklist`, { commentaire });
+  return data;
+}

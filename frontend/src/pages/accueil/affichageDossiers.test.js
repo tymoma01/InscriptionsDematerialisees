@@ -1,5 +1,12 @@
 import { expect, test } from 'vitest';
-import { codesPourFiltreStatut, formaterDisponibiliteEffective, infoBulleStatut, varianteStatut } from './affichageDossiers';
+import {
+  CODES_STATUTS_FILTRES_ACCUEIL,
+  codesPourFiltreStatut,
+  correspondFiltreStatut,
+  formaterDisponibiliteEffective,
+  infoBulleStatut,
+  varianteStatut,
+} from './affichageDossiers';
 
 test('disponibilité affichée selon les dates connues', () => {
   expect(formaterDisponibiliteEffective({ nonRenseignee: true })).toBe('Dispo : non renseignée');
@@ -31,4 +38,24 @@ test('filtres regroupés : un filtre peut couvrir plusieurs statuts', () => {
 
 test('statut inconnu : couleur neutre', () => {
   expect(varianteStatut('statut_inconnu')).toBe('neutre');
+});
+
+// Blacklisté : exclu de « Tous » et des autres filtres, visible par son seul filtre.
+test('« Tous » exclut les dossiers blacklistés ; seul le filtre dédié les montre', () => {
+  const dossiers = [
+    { id: 1, statut_code: 'test_planifie' },
+    { id: 2, statut_code: 'embauche' },
+    { id: 3, statut_code: 'blackliste' },
+  ];
+  expect(dossiers.filter((d) => correspondFiltreStatut(d, null)).map((d) => d.id)).toEqual([1, 2]);
+  expect(dossiers.filter((d) => correspondFiltreStatut(d, 'blackliste')).map((d) => d.id)).toEqual([3]);
+  expect(dossiers.filter((d) => correspondFiltreStatut(d, 'test_planifie')).map((d) => d.id)).toEqual([1]);
+  // Les filtres agrégés ne ramènent jamais un blacklisté.
+  expect(dossiers.filter((d) => correspondFiltreStatut(d, 'test_realise')).map((d) => d.id)).toEqual([2]);
+  expect(dossiers.filter((d) => correspondFiltreStatut(d, 'a_planifier'))).toEqual([]);
+});
+
+test('le filtre « Blacklisté » existe parmi les pastilles de statut, avec la variante rouge', () => {
+  expect(CODES_STATUTS_FILTRES_ACCUEIL).toContain('blackliste');
+  expect(varianteStatut('blackliste')).toBe('blackliste');
 });

@@ -48,6 +48,7 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   valide_envoi_formation: 'succes',
   valide_pret_embauche: 'vert-clair',
   formation_non_validee: 'echec-fort',
+  blackliste: 'blackliste',
 };
 // Libellé de badge : le libellé officiel est repris pour CHAQUE statut, SAUF celui-ci (correctif
 // 2026-09-28, demande utilisateur — revient sur l'audit 2026-08-28 qui imposait explicitement le

@@ -213,6 +213,12 @@
   --statut-rose-texte: #a3195b;
   --statut-rose-bordure: #eec0da;
 
+  /* Statut « Blacklisté » : rouge franc, plus saturé que 'echec' et 'echec-fort' pour ne jamais être
+     confondu avec un simple refus. Texte blanc sur fond rouge foncé (contraste > 7:1). */
+  --statut-blackliste-fond: #b3261e;
+  --statut-blackliste-texte: #ffffff;
+  --statut-blackliste-bordure: #7f1510;
+
   /* Vert soutenu (audit 2026-08-31, statut terminal "Embauché") — troisième teinte de la famille
      verte de ce funnel (succes=vert moyen pour "Validé - envoyé en formation", vert-clair=menthe
      pâle pour "Validé - prêt à l'embauche"), les trois pouvant apparaître ensemble sur "Dossiers

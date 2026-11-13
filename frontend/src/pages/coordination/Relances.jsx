@@ -41,6 +41,7 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   formation_non_validee: 'echec-fort',
   // Statut terminal "Embauché" : 'vert-fonce', voir variables.css.
   embauche: 'vert-fonce',
+  blackliste: 'blackliste',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';

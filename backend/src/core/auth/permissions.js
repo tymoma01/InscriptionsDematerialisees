@@ -39,6 +39,11 @@ const PERMISSIONS = {
   // Forçage de statut : mêmes droits pour Admin, Planning et RH (mêmes statuts cibles, mêmes effets).
   forcerStatut: [ADMIN, PLANNING, RH],
   marquerEmbauche: [...ACCUEIL, ADMIN],
+  // Blacklistage : tout le back-office ; retrait : l'Admin seulement.
+  blacklister: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
+  // Candidat déjà embauché : blacklistage réservé à ces trois rôles.
+  blacklisterEmbauche: [PLANNING, RH, ADMIN],
+  retirerBlacklist: [ADMIN],
   // Notes d'un dossier : la RH les lit et en ajoute comme le Planning (jamais de modification ni suppression).
   ajoutNotesDossier: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR],
   lectureNotesDossier: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],

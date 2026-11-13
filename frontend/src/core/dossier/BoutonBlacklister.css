@@ -1,0 +1,41 @@
+/* Aligné à droite de la ligne de titre / de la barre d'onglets (margin-left: auto). */
+.bouton-blacklister {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--espace-petit);
+  margin-left: auto;
+}
+
+.bouton-blacklister__action {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--statut-blackliste-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--statut-blackliste-fond);
+  color: var(--statut-blackliste-texte);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bouton-blacklister__action:hover {
+  filter: brightness(0.9);
+}
+
+.bouton-blacklister__action--retrait {
+  background-color: var(--couleur-fond);
+  color: var(--statut-blackliste-fond);
+}
+
+/* Ligne de titre d'un écran de détail : titre à gauche, bouton à droite. */
+.entete-detail-candidat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace-petit);
+}
+
+.entete-detail-candidat > h2 {
+  margin: 0;
+}

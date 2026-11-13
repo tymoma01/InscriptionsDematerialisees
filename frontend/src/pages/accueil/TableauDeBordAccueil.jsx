@@ -34,7 +34,7 @@ import {
   CODES_STATUTS_TEST_REALISE_ACCECIT,
   CODE_A_PLANIFIER,
   CODES_STATUTS_A_PLANIFIER_ACCECIT,
-  codesPourFiltreStatut,
+  correspondFiltreStatut,
 } from './affichageDossiers';
 import './TableauDeBordAccueil.css';
 
@@ -61,9 +61,9 @@ export default function TableauDeBordAccueil({ vue = null }) {
   const peutExporterPiecesGroupe = peut(utilisateur, 'exportPiecesGroupe');
   const peutActionsGroupeesSuivi = peut(utilisateur, 'gestionRendezvous');
   const selectionMultipleDisponible = peutExporterPiecesGroupe || peutActionsGroupeesSuivi;
-  // Inspecteur Hôtellerie : le serveur ne lui renvoie que les dossiers Hôtellerie de ses
-  // 5 statuts (et ces seuls statuts) — pastilles réduites à ces statuts + « Tous », sans « À
-  // planifier » ni pastilles de secteur ; aucune case à cocher (selectionMultipleDisponible faux).
+  // Inspecteur Hôtellerie : le serveur ne lui renvoie que les dossiers Hôtellerie de son périmètre ;
+  // mêmes pastilles de statut que les autres rôles (compteurs à 0 hors périmètre), sans pastilles de
+  // secteur ; aucune case à cocher (selectionMultipleDisponible faux).
   const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE || vue === ROLE_INSPECTEUR_HOTELLERIE;
   const navigate = useNavigate();
 
@@ -384,10 +384,14 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // dossiersFiltresSansStatut ci-dessus, pour les compteurs des badges "Expérience" (audit
   // 2026-09-02) — chaque badge doit lui aussi refléter le statut déjà sélectionné.
   const dossiersFiltresSansExperience = useMemo(() => {
-    if (!statutFiltre) return dossiersFiltresBase;
-    const codes = codesPourFiltreStatut(statutFiltre);
-    return dossiersFiltresBase.filter((dossier) => codes.includes(dossier.statut_code));
+    return dossiersFiltresBase.filter((dossier) => correspondFiltreStatut(dossier, statutFiltre));
   }, [dossiersFiltresBase, statutFiltre]);
+
+  // « Tous » : les dossiers blacklistés n'y comptent pas (ils ont leur propre pastille).
+  const compteurTous = useMemo(
+    () => dossiersFiltresSansStatut.filter((dossier) => correspondFiltreStatut(dossier, null)).length,
+    [dossiersFiltresSansStatut],
+  );
 
   const compteursParExperience = useMemo(() => {
     const compte = {};
@@ -591,7 +595,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // Étudiant (2026-10-02, factorisée plutôt que dupliquée).
   const correspondStatutEtExperience = useCallback(
     (dossier) =>
-      (!statutFiltre || codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code)) &&
+      correspondFiltreStatut(dossier, statutFiltre) &&
       (!experienceFiltre || dossier.experience === experienceFiltre),
     [statutFiltre, experienceFiltre],
   );
@@ -650,14 +654,13 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // `statuts` (cas limite, jamais rencontré en pratique).
   const statutsFiltres = useMemo(() => {
     const filtres = statuts.filter((statut) => CODES_STATUTS_FILTRES_ACCUEIL.includes(statut.code));
-    if (estInspecteurHotellerie) return filtres;
     const entreeAPlanifier = { code: CODE_A_PLANIFIER, libelle: 'À planifier' };
     const indexApresEnAttentePieces = filtres.findIndex((statut) => statut.code === 'en_attente_pieces') + 1;
     if (indexApresEnAttentePieces === 0) {
       return [entreeAPlanifier, ...filtres];
     }
     return [...filtres.slice(0, indexApresEnAttentePieces), entreeAPlanifier, ...filtres.slice(indexApresEnAttentePieces)];
-  }, [statuts, estInspecteurHotellerie]);
+  }, [statuts]);
 
   // Session sans objet à vérifier ici (RouteProtegee, App.jsx, redirige déjà vers /connexion avant
   // même de monter cette page en l'absence de session) — `!utilisateur` ne couvre plus qu'un très
@@ -701,7 +704,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
                 statuts={statutsFiltres}
                 statutFiltre={statutFiltre}
                 onChangerStatutFiltre={setStatutFiltre}
-                compteurTous={dossiersFiltresSansStatut.length}
+                compteurTous={compteurTous}
                 compteurs={compteursParStatut}
                 afficherTous={false}
               />
@@ -719,7 +722,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
                     className={statutFiltre === null ? 'actif' : ''}
                     onClick={() => setStatutFiltre(null)}
                   >
-                    Tous <strong>({dossiersFiltresSansStatut.length})</strong>
+                    Tous <strong>({compteurTous})</strong>
                   </button>
                 </div>
                 <div className="tableau-bord-accueil__filtres-pastilles">

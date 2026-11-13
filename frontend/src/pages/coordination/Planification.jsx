@@ -28,6 +28,7 @@ import {
   codeStatutAffiche,
   STATUTS_FILTRABLES_RENDEZVOUS,
   codeGroupeStatutDossier,
+  correspondFiltreStatutDossier,
   libelleGroupeStatutDossier,
   varianteGroupeStatutDossier,
   libelleAuteurStatutForce,
@@ -332,7 +333,7 @@ export default function Planification() {
       rendezvousParCandidat.filter(
         (rdv) =>
           (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
-          (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre) &&
+          correspondFiltreStatutDossier(rdv, statutDossierFiltre) &&
           (!experienceFiltre || rdv.experience === experienceFiltre),
       ).length,
     [rendezvousParCandidat, statutRdvFiltre, statutDossierFiltre, experienceFiltre],
@@ -342,7 +343,7 @@ export default function Planification() {
       rendezvousParCandidat.filter(
         (rdv) =>
           (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
-          (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre) &&
+          correspondFiltreStatutDossier(rdv, statutDossierFiltre) &&
           (!experienceFiltre || rdv.experience === experienceFiltre) &&
           (rdv.postesHotel ?? []).length > 0,
       ).length,
@@ -353,7 +354,7 @@ export default function Planification() {
       rendezvousParCandidat.filter(
         (rdv) =>
           (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
-          (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre) &&
+          correspondFiltreStatutDossier(rdv, statutDossierFiltre) &&
           (!experienceFiltre || rdv.experience === experienceFiltre) &&
           (rdv.postesBureau ?? []).length > 0,
       ).length,
@@ -391,8 +392,7 @@ export default function Planification() {
   // actuelle ne peut produire (ex. "Réalisé" avec "À venir uniquement" coché) affiche fidèlement
   // "(0)", jamais masqué.
   const rendezvousParCandidatAvantStatutRdv = useMemo(() => {
-    if (!statutDossierFiltre) return rendezvousParCandidatAvantStatuts;
-    return rendezvousParCandidatAvantStatuts.filter((rdv) => codeGroupeStatutDossier(rdv) === statutDossierFiltre);
+    return rendezvousParCandidatAvantStatuts.filter((rdv) => correspondFiltreStatutDossier(rdv, statutDossierFiltre));
   }, [rendezvousParCandidatAvantStatuts, statutDossierFiltre]);
 
   const compteursParStatutRdv = useMemo(() => {
@@ -432,7 +432,7 @@ export default function Planification() {
     return rendezvousParCandidatAvantStatuts.filter(
       (rdv) =>
         (!statutRdvFiltre || codeStatutAffiche(rdv) === statutRdvFiltre) &&
-        (!statutDossierFiltre || codeGroupeStatutDossier(rdv) === statutDossierFiltre),
+        correspondFiltreStatutDossier(rdv, statutDossierFiltre),
     );
   }, [rendezvousParCandidatAvantStatuts, statutRdvFiltre, statutDossierFiltre]);
 
@@ -725,7 +725,7 @@ export default function Planification() {
                 statutFiltre={statutDossierFiltre}
                 onChangerStatutFiltre={setStatutDossierFiltre}
                 ariaLabel="Filtrer par statut de dossier"
-                compteurTous={rendezvousParCandidatAvantStatutDossier.length}
+                compteurTous={rendezvousParCandidatAvantStatutDossier.filter((rdv) => correspondFiltreStatutDossier(rdv, null)).length}
                 compteurs={compteursParStatutDossier}
               />
             </div>

@@ -18,7 +18,7 @@ import ContenuDetailEvaluation from '../../core/evaluation/ContenuDetailEvaluati
 import { forcerStatut, marquerEmbauche } from '../../services/transitionService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import api from '../../services/api';
-import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
+import { STATUTS_REPLANIFIABLES, CODE_STATUT_BLACKLISTE } from '../../core/referentiels/statutsDossier';
 import './Validation.css';
 
 // Rôles autorisés pour le changement de statut manuel/forcé (Admin, Planning, RH) — miroir de forcerStatut
@@ -64,6 +64,7 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   // funnel après 'succes' (valide_envoi_formation) et 'vert-clair' (valide_pret_embauche) — voir
   // variables.css pour le détail du choix.
   embauche: 'vert-fonce',
+  blackliste: 'blackliste',
 };
 function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
@@ -450,6 +451,25 @@ export default function Validation() {
             à l'autre écran sans repasser par le tableau de bord. */}
         <NavigationFicheDossier dossierId={dossierId} pageActuelle="validation" />
 
+        {/* Réinscription : un dossier blacklisté correspond à ce candidat (même empreinte de NIR, ou à
+            défaut mêmes nom, prénom et date de naissance). Information seule, aucun refus. */}
+        {dossier?.blacklistsCorrespondants?.length > 0 && (
+          <div className="page-validation__alerte-blacklist" role="alert">
+            <strong>Candidat précédemment blacklisté</strong>
+            <span>
+              {dossier.blacklistsCorrespondants.map((correspondance, index) => (
+                <span key={correspondance.dossierId}>
+                  {index > 0 && ', '}
+                  <Link to={`/recruteur/dossiers/${correspondance.dossierId}/validation`}>
+                    Dossier #{correspondance.dossierId}
+                  </Link>{' '}
+                  ({correspondance.critere === 'nir' ? 'même numéro de sécurité sociale' : 'mêmes nom, prénom et date de naissance'})
+                </span>
+              ))}
+            </span>
+          </div>
+        )}
+
         {/* Repositionnée juste sous le titre/statut —
             auparavant tout en bas de la fiche, après Pièces/Rendez-vous/Relances/Notes : composant
             partagé (core/dossier/InformationsInscription.jsx), même emplacement appliqué sur
@@ -672,7 +692,7 @@ export default function Validation() {
             transitions normales de `transitions_statut` (une seule origine possible chacune),
             alors que le changement de statut forcé doit pouvoir cibler N'IMPORTE QUEL statut
             indépendamment du statut courant — un besoin structurellement différent. */}
-        {peutForcerStatut && (
+        {peutForcerStatut && dossier?.statut_code !== CODE_STATUT_BLACKLISTE && (
           <ErrorBoundary key={`forcer-statut-${dossierId}`} titre="Changement de statut manuel/forcé">
             <section className="page-validation__forcer-statut">
               <div className="page-validation__forcer-statut-entete">

@@ -42,6 +42,7 @@ import {
 } from '../../services/dpaeService';
 import { useSession } from '../../core/auth/useSession';
 import { peut } from '../../core/auth/permissions';
+import BoutonBlacklister from '../../core/dossier/BoutonBlacklister';
 import './DetailDemandeDpae.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -294,6 +295,8 @@ export default function DetailDemandeDpae() {
                   Voir la fiche candidat
                 </Link>
               )}
+              {/* Même composant que sur tout détail de candidat : seulement si le salarié est un candidat connu. */}
+              {demande.dossier_id && <BoutonBlacklister dossierId={demande.dossier_id} />}
             </div>
           </div>
           <EnTeteBackOffice />

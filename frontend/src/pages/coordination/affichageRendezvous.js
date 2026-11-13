@@ -3,6 +3,7 @@
 // sans état React — testées dans affichageRendezvous.test.js.
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
 import { libellePoste } from '../../core/referentiels/postes';
+import { CODE_STATUT_BLACKLISTE } from '../../core/referentiels/statutsDossier';
 
 export const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
   day: '2-digit',
@@ -215,6 +216,7 @@ const GROUPE_TEST_NON_PLANIFIE = 'test_non_planifie';
 const GROUPE_TEST_PLANIFIE = 'test_planifie';
 const GROUPE_TEST_REALISE = 'test_realise';
 const GROUPE_TEST_NON_REALISE = 'test_non_realise';
+const GROUPE_BLACKLISTE = CODE_STATUT_BLACKLISTE;
 
 const GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT = {
   nouveau: GROUPE_TEST_NON_PLANIFIE,
@@ -236,6 +238,8 @@ const GROUPE_STATUT_DOSSIER_PAR_CODE_ACCECIT = {
   embauche: GROUPE_TEST_REALISE,
 
   test_non_realise: GROUPE_TEST_NON_REALISE,
+
+  [CODE_STATUT_BLACKLISTE]: GROUPE_BLACKLISTE,
 };
 
 // Libellé/couleur par groupe STABLE (pas par code de statut dossier brut) — une seule couleur pour
@@ -248,12 +252,14 @@ const LIBELLE_PAR_GROUPE_STATUT_DOSSIER = {
   [GROUPE_TEST_PLANIFIE]: 'Test planifié',
   [GROUPE_TEST_REALISE]: 'Test réalisé',
   [GROUPE_TEST_NON_REALISE]: 'Test non réalisé',
+  [GROUPE_BLACKLISTE]: 'Blacklisté',
 };
 const VARIANTE_PAR_GROUPE_STATUT_DOSSIER = {
   [GROUPE_TEST_NON_PLANIFIE]: 'rose',
   [GROUPE_TEST_PLANIFIE]: 'bleu',
   [GROUPE_TEST_REALISE]: 'violet',
   [GROUPE_TEST_NON_REALISE]: 'alerte',
+  [GROUPE_BLACKLISTE]: 'blackliste',
 };
 
 // Code de groupe STABLE (pour le filtre, jamais affiché tel quel) — undefined pour tout code
@@ -271,7 +277,8 @@ export function libelleGroupeStatutDossier(rdv) {
 }
 export function varianteGroupeStatutDossier(rdv) {
   const groupe = codeGroupeStatutDossier(rdv);
-  return groupe ? VARIANTE_PAR_GROUPE_STATUT_DOSSIER[groupe] : 'neutre';
+  if (groupe) return VARIANTE_PAR_GROUPE_STATUT_DOSSIER[groupe];
+  return rdv.dossier_statut_code === CODE_STATUT_BLACKLISTE ? 'blackliste' : 'neutre';
 }
 
 // Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54 : deux dossiers affichés
@@ -332,7 +339,15 @@ export const STATUTS_FILTRABLES_DOSSIER = [
   { code: GROUPE_TEST_PLANIFIE, libelle: 'Test planifié' },
   { code: GROUPE_TEST_REALISE, libelle: 'Test réalisé' },
   { code: GROUPE_TEST_NON_REALISE, libelle: 'Test non réalisé' },
+  { code: GROUPE_BLACKLISTE, libelle: 'Blacklisté' },
 ];
+
+// Un candidat correspond au filtre « Statut » ? Sans filtre (« Tous »), les dossiers blacklistés
+// sont exclus : ils n'apparaissent que sous leur propre filtre.
+export function correspondFiltreStatutDossier(rdv, filtre) {
+  if (!filtre) return rdv.dossier_statut_code !== CODE_STATUT_BLACKLISTE;
+  return codeGroupeStatutDossier(rdv) === filtre;
+}
 
 // Barre "Secteur" (redesign 2026-09-28, demande utilisateur : "Une section avec soit tous, soit
 // hôtellerie, soit tertiaire") — choix exclusif à 3 valeurs (Tous/Hôtellerie/Tertiaire), même

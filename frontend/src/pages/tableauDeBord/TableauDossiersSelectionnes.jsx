@@ -4,6 +4,7 @@ import StatutBadge from '../../core/workflow/StatutBadge';
 import FiltreEntite from '../../core/dossier/FiltreEntite';
 import { useSession } from '../../core/auth/useSession';
 import { ROLE_INSPECTEUR_HOTELLERIE, STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE } from '../../core/auth/permissions';
+import { CODE_STATUT_BLACKLISTE } from '../../core/referentiels/statutsDossier';
 import './TableauDossiersSelectionnes.css';
 
 // Colonnes triables — même patron que DossierList.jsx/
@@ -430,7 +431,9 @@ export default function TableauDossiersSelectionnes({
   const { utilisateur } = useSession();
   const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE;
   const ficheAccessible = (dossier) =>
-    !estInspecteurHotellerie || STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE.includes(dossier.statut_code);
+    !estInspecteurHotellerie ||
+    STATUTS_PERIMETRE_INSPECTEUR_HOTELLERIE.includes(dossier.statut_code) ||
+    dossier.statut_code === CODE_STATUT_BLACKLISTE;
   const [entitesFiltre, setEntitesFiltre] = useState(new Set());
   const basculerEntiteFiltre = (valeur) => {
     setEntitesFiltre((precedent) => {

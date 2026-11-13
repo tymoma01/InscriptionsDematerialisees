@@ -6,6 +6,7 @@ const { ErreurRendezvousDossierClos } = require('../../core/rendezvous/rendezvou
 const dossierRepository = require('../../core/dossier/dossierRepository');
 const { envoyerEmailFormationValidee } = require('../../core/dossier/notificationFormationValideeService');
 const embaucheService = require('../../core/dossier/embaucheService');
+const blacklistService = require('../../core/dossier/blacklistService');
 const { ErreurInformationsPiecesNonConfirmees } = require('../../core/dossier/informationsPiecesService');
 const utilisateurRepository = require('../../core/auth/utilisateurRepository');
 const graphCalendarService = require('../../integrations/calendrier/graphCalendarService');
@@ -434,6 +435,71 @@ router.post('/marquer-embauche', requirePermission('marquerEmbauche'), async (re
       return res.status(409).json({ erreur: erreur.message });
     }
     next(erreur);
+  }
+});
+
+// POST /api/dossiers/:dossierId/transitions/blacklister — blacklistage depuis n'importe quel statut,
+// tout le back-office (permission blacklister). Catégorie de motif + commentaire factuel obligatoires ;
+// note du dossier, historique et journal d'audit écrits atomiquement (blacklistService). Aucun
+// rendez-vous n'est refermé : l'agent en est prévenu côté fiche et décide lui-même.
+// Corps volontairement permissif : le service valide catégorie et commentaire et renvoie un message
+// explicite (400) que l'interface affiche tel quel.
+const blacklisterBodySchema = z.object({
+  motifCode: z.string().optional(),
+  commentaire: z.string().optional(),
+});
+const retirerBlacklistBodySchema = z.object({ commentaire: z.string().optional() });
+
+function repondreErreurBlacklist(erreur, res, next) {
+  if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+  if (erreur instanceof blacklistService.ErreurBlacklist) return res.status(erreur.statutHttp).json({ erreur: erreur.message });
+  return next(erreur);
+}
+
+// GET /api/dossiers/:dossierId/transitions/blacklister/motifs — catégories de la fenêtre « Blacklister »
+// (permission blacklister : la route générique de motifs est fermée au Formateur et à l'Inspecteur).
+router.get('/blacklister/motifs', requirePermission('blacklister'), async (req, res, next) => {
+  try {
+    res.json(await workflowEngine.listerMotifsPourAction(req.entite, blacklistService.CATEGORIE_MOTIF_BLACKLIST));
+  } catch (erreur) {
+    next(erreur);
+  }
+});
+
+// Rôle vérifié par le service (message explicite), comme pour le retrait.
+router.post('/blacklister', async (req, res, next) => {
+  try {
+    const dossierId = idPositifSchema.parse(req.params.dossierId);
+    const { motifCode, commentaire } = blacklisterBodySchema.parse(req.body);
+    const resultat = await blacklistService.blacklister(req.entite, {
+      dossierId,
+      motifCode,
+      commentaire,
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+      adresseIp: req.ip,
+    });
+    res.status(201).json(resultat);
+  } catch (erreur) {
+    repondreErreurBlacklist(erreur, res, next);
+  }
+});
+
+// Pas de requirePermission ici : le service refuse tout rôle autre qu'Admin avec un message explicite.
+router.post('/retirer-blacklist', async (req, res, next) => {
+  try {
+    const dossierId = idPositifSchema.parse(req.params.dossierId);
+    const { commentaire } = retirerBlacklistBodySchema.parse(req.body);
+    const resultat = await blacklistService.retirerDeLaBlacklist(req.entite, {
+      dossierId,
+      commentaire,
+      utilisateurId: req.utilisateur.id,
+      roleCode: req.utilisateur.roleCode,
+      adresseIp: req.ip,
+    });
+    res.status(201).json(resultat);
+  } catch (erreur) {
+    repondreErreurBlacklist(erreur, res, next);
   }
 });
 

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const db = require('../../db/knex');
 const dossierRepository = require('./dossierRepository');
 const workflowRepository = require('../workflow/workflowRepository');
+const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const dossierService = require('./dossierService');
 
 // inscrireCandidat appelle `bd.transaction(...)` : `obtenirKnex` étant déstructuré dans
@@ -422,6 +423,13 @@ test('listerDossiers renvoie rendezvousTestActif à null pour un dossier sans re
   assert.equal(dossier.rendezvousTestActif, null);
 });
 
+// obtenirDossier complète le dossier par les rendez-vous actifs et les dossiers blacklistés correspondants.
+function mockerComplementsObtenirDossier(t, { rendezvousActifs = [], correspondants = [], statutAvant = null } = {}) {
+  t.mock.method(rendezvousRepository, 'listerRendezvousActifsDossier', async () => rendezvousActifs);
+  t.mock.method(dossierRepository, 'trouverDossiersBlacklistesCorrespondants', async () => correspondants);
+  t.mock.method(dossierRepository, 'trouverStatutParId', async () => statutAvant);
+}
+
 // Badge "Statut forcé manuellement" (audit 2026-09-22, dossiers #16/#54, étendu à Validation.jsx
 // section "Changement de statut manuel/forcé") — même coercition que
 // rendezvousService.listerRendezvousTest : `statut_force` brut (dossierRepository.
@@ -429,6 +437,7 @@ test('listerDossiers renvoie rendezvousTestActif à null pour un dossier sans re
 // tracé pour ce dossier, jamais mis en front sans normalisation.
 test('obtenirDossier expose statutForce=true quand le dernier changement de statut du dossier est un forçage', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
+  mockerComplementsObtenirDossier(t);
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
     id: 16,
     statut_force: true,
@@ -448,6 +457,7 @@ test('obtenirDossier expose statutForce=true quand le dernier changement de stat
 
 test("obtenirDossier expose statutForce=false (jamais null) quand le dossier n'a aucun changement de statut forcé tracé", async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({}));
+  mockerComplementsObtenirDossier(t);
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
     id: 108,
     statut_force: null,
@@ -461,6 +471,42 @@ test("obtenirDossier expose statutForce=false (jamais null) quand le dossier n'a
   const dossier = await dossierService.obtenirDossier(ENTITE, 108);
 
   assert.equal(dossier.statutForce, false);
+});
+
+test('obtenirDossier signale les rendez-vous actifs et les dossiers blacklistés correspondants (réinscription)', async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 200,
+    statut_code: 'test_planifie',
+    statut_force: null,
+    donnees_disponibilites: null,
+  }));
+  mockerComplementsObtenirDossier(t, {
+    rendezvousActifs: [{ id: 7, type_rdv: 'test', date_heure: '2026-11-20T09:00:00Z', statut: 'prevu' }],
+    correspondants: [{ dossierId: 12, critere: 'nir' }],
+  });
+
+  const dossier = await dossierService.obtenirDossier(ENTITE, 200);
+
+  assert.deepEqual(dossier.rendezvousActifs, [{ id: 7, type: 'test', dateHeure: '2026-11-20T09:00:00Z', statut: 'prevu' }]);
+  assert.deepEqual(dossier.blacklistsCorrespondants, [{ dossierId: 12, critere: 'nir' }]);
+  assert.equal(dossier.statutAvantBlacklist, null);
+});
+
+test("obtenirDossier expose le statut d'avant le blacklistage d'un dossier blacklisté", async (t) => {
+  t.mock.method(db, 'obtenirKnex', async () => ({}));
+  t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => ({
+    id: 201,
+    statut_code: 'blackliste',
+    statut_avant_blacklist_id: 11,
+    statut_force: null,
+    donnees_disponibilites: null,
+  }));
+  mockerComplementsObtenirDossier(t, { statutAvant: { code: 'test_planifie', libelle: 'Test planifié' } });
+
+  const dossier = await dossierService.obtenirDossier(ENTITE, 201);
+
+  assert.deepEqual(dossier.statutAvantBlacklist, { code: 'test_planifie', libelle: 'Test planifié' });
 });
 
 // calculerDisponibiliteEffective (audit 2026-09-28, filtre "Disponibilité des candidats prêts à

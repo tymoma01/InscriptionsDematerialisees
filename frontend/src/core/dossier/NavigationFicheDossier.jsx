@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
 import { peut } from '../auth/permissions';
+import BoutonBlacklister from './BoutonBlacklister';
 import './NavigationFicheDossier.css';
+
 
 // Bandeau d'accès rapide entre les écrans d'un même dossier — patch léger (décision utilisateur,
 // 2026-08-21) : chaque écran (Validation.jsx/VerificationPieces.jsx/Relances.jsx) reste une route
@@ -31,7 +33,7 @@ const ONGLETS = [
   { cle: 'formation', libelle: 'Formation', vers: (dossierId) => `/coordination/dossiers/${dossierId}/formation`, permission: 'lectureFormation' },
 ];
 
-export default function NavigationFicheDossier({ dossierId, pageActuelle }) {
+export default function NavigationFicheDossier({ dossierId, pageActuelle, apresChangement }) {
   const { utilisateur } = useSession();
   // `permission` absente : onglet visible pour tous.
   const onglets = ONGLETS.filter((onglet) => !onglet.permission || peut(utilisateur, onglet.permission));
@@ -52,6 +54,7 @@ export default function NavigationFicheDossier({ dossierId, pageActuelle }) {
           </Link>
         ),
       )}
+      <BoutonBlacklister dossierId={dossierId} apresChangement={apresChangement} />
     </nav>
   );
 }

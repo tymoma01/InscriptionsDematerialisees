@@ -4,7 +4,25 @@ import NotesDossier from '../dossier/NotesDossier';
 import InformationsInscription from '../dossier/InformationsInscription';
 import ChecklistInspection from './ChecklistInspection';
 import { libellePoste } from '../referentiels/postes';
+import BoutonBlacklister from '../dossier/BoutonBlacklister';
 import './GrilleEvaluation.css';
+
+// Titre de l'écran, avec le bouton de blacklistage à droite. Blacklister pendant une évaluation
+// abandonne la saisie non enregistrée et ramène à la liste des évaluations à venir.
+function TitreEvaluation({ rendezvous, onAbandon }) {
+  return (
+    <div className="entete-detail-candidat">
+      <h2 className="grille-evaluation__titre">
+        Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
+      </h2>
+      <BoutonBlacklister
+        dossierId={rendezvous.dossier_id}
+        avertissement="L’évaluation en cours, non enregistrée, sera abandonnée : vous reviendrez à la liste des évaluations à venir."
+        apresChangement={onAbandon}
+      />
+    </div>
+  );
+}
 
 // Échelle de notation d'une question 'grille_qcu' (voir backend evaluationEngine.js,
 // ACQUIS_AUTORISEES) — pas une donnée de configuration par entité comme les questions
@@ -455,9 +473,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
   if (aucunPosteDeclare) {
     return (
       <>
-        <h2 className="grille-evaluation__titre">
-          Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-        </h2>
+        <TitreEvaluation rendezvous={rendezvous} onAbandon={onAnnuler} />
 
         {/* Section repliable "Voir les informations d'inscription complètes" (déjà utilisée sur la
             fiche dossier back-office, Validation.jsx/Relances.jsx) — ajoutée ici pour Formateur/
@@ -493,9 +509,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
       // lieu de s'étendre en dessous sur toute la largeur, comme sur VerificationPieces.jsx/
       // Relances.jsx/Validation.jsx.
       <>
-        <h2 className="grille-evaluation__titre">
-          Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-        </h2>
+        <TitreEvaluation rendezvous={rendezvous} onAbandon={onAnnuler} />
 
         {/* Section repliable "Voir les informations d'inscription complètes" — voir le commentaire
             équivalent de l'écran bloquant ci-dessus (aucunPosteDeclare). Repositionnée juste sous
@@ -578,9 +592,7 @@ export default function GrilleEvaluation({ rendezvous, roleCode, onTermine, onAn
     // pour l'ajout d'une note (voir son en-tête de fichier) — un <form> imbriqué dans un autre
     // n'est pas valide en HTML, il doit rester un frère du <form> d'évaluation, pas un enfant.
     <>
-      <h2 className="grille-evaluation__titre">
-        Évaluation - {rendezvous.candidat_prenom} {rendezvous.candidat_nom}
-      </h2>
+      <TitreEvaluation rendezvous={rendezvous} onAbandon={onAnnuler} />
 
       {/* Voir le commentaire équivalent plus haut (écrans de sélection de poste ci-dessus) : même
           section "Voir les informations d'inscription complètes", strictement en lecture seule

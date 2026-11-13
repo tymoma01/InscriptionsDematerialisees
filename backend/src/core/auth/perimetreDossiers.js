@@ -16,6 +16,22 @@ const PERIMETRE_PAR_ROLE = Object.freeze({
   }),
 });
 
+const CODE_STATUT_BLACKLISTE = 'blackliste';
+
+// Restreint une requête portant sur `statuts` et `dossiers` au périmètre : statut dans la liste, ou
+// blacklisté depuis un statut de cette liste (un dossier blacklisté reste dans le périmètre de
+// celui qui le suivait, il apparaît sous son filtre « Blacklisté »).
+function restreindreAuxStatutsDuPerimetre(requete, bd, perimetre) {
+  return requete.where(function statutsDuPerimetre() {
+    this.whereIn('statuts.code', perimetre.statutsCodes).orWhere(function blacklisteDuPerimetre() {
+      this.where('statuts.code', CODE_STATUT_BLACKLISTE).whereIn(
+        'dossiers.statut_avant_blacklist_id',
+        bd('statuts as statuts_avant').select('statuts_avant.id').whereIn('statuts_avant.code', perimetre.statutsCodes),
+      );
+    });
+  });
+}
+
 // null = aucune restriction (tous les autres rôles, comportement inchangé).
 function perimetreDossiersPourRole(roleCode) {
   return PERIMETRE_PAR_ROLE[roleCode] ?? null;
@@ -39,8 +55,8 @@ function requeteDossierDansPerimetre(bd, entiteId, dossierId, perimetre) {
       this.on('bloc_disponibilites.dossier_id', '=', 'dossiers.id').andOn('bloc_disponibilites.bloc_code', '=', bd.raw('?', ['disponibilites']));
     })
     .where({ 'dossiers.id': dossierId, 'dossiers.entite_id': entiteId })
-    .whereIn('statuts.code', perimetre.statutsCodes)
     .whereRaw("bloc_disponibilites.donnees ->> 'typePoste' = ?", [perimetre.typePoste])
+    .modify((requete) => restreindreAuxStatutsDuPerimetre(requete, bd, perimetre))
     .select('dossiers.id');
 }
 
@@ -78,6 +94,7 @@ module.exports = {
   perimetreDossiersPourRole,
   perimetreDossiersPourRequete,
   requeteDossierDansPerimetre,
+  restreindreAuxStatutsDuPerimetre,
   dossierDansPerimetre,
   verifierPerimetreDossier,
 };

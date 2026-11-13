@@ -144,10 +144,9 @@ router.get('/suivi-formation', requirePermission('suiviFormation'), async (req, 
 // dur côté front (voir core/workflow/StatutBadge.jsx, pages/accueil/TableauDeBordAccueil.jsx).
 router.get('/statuts', requirePermission('listeDossiers'), async (req, res, next) => {
   try {
-    const statuts = await dossierService.listerStatuts(req.entite);
-    // Rôle à périmètre restreint : seulement les statuts de son périmètre (aucun autre renvoyé).
-    const perimetre = perimetreDossiersPourRequete(req.utilisateur.roleCode, req.query.vue);
-    res.json(perimetre ? statuts.filter((statut) => perimetre.statutsCodes.includes(statut.code)) : statuts);
+    // Même liste de statuts pour tous les rôles : le périmètre restreint les dossiers (et donc les
+    // compteurs), pas les filtres proposés.
+    res.json(await dossierService.listerStatuts(req.entite));
   } catch (erreur) {
     next(erreur);
   }

@@ -577,6 +577,16 @@ function trouverRendezvousTestActifDossier(bd, dossierId) {
     .first();
 }
 
+// Tous les rendez-vous encore actifs ('prevu'/'confirme') d'un dossier, quel que soit leur type —
+// lecture seule, pour signaler à l'agent ce qu'un changement de statut laisserait en place.
+function listerRendezvousActifsDossier(bd, dossierId) {
+  return bd('rendezvous')
+    .where({ dossier_id: dossierId })
+    .whereIn('statut', ['prevu', 'confirme'])
+    .orderBy('date_heure', 'asc')
+    .select('id', 'type_rdv', 'date_heure', 'statut');
+}
+
 function mettreAJourStatutRendezvous(bd, rendezvousId, { statut, motifId, motifPrecision = null }) {
   return bd('rendezvous')
     .where({ id: rendezvousId })
@@ -831,6 +841,7 @@ module.exports = {
   mettreAJourDateHeureRendezvous,
   compterRendezvousFormateurAuCreneau,
   trouverRendezvousTestActifDossier,
+  listerRendezvousActifsDossier,
   neutraliserRendezvousActifsDossier,
   creerRendezvous,
   listerRendezvousParLieu,

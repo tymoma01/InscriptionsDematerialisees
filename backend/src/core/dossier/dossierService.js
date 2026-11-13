@@ -2,6 +2,8 @@ const { z } = require('zod');
 const { obtenirKnex } = require('../../db/knex');
 const { chiffrer, hasherNirPourUnicite } = require('../securite/nirCipher');
 const dossierRepository = require('./dossierRepository');
+const blacklistService = require('./blacklistService');
+const rendezvousRepository = require('../rendezvous/rendezvousRepository');
 const workflowRepository = require('../workflow/workflowRepository');
 const { TYPES_POSTE, POSTES_BUREAU, POSTES_HOTEL } = require('./postesConstantes');
 
@@ -698,8 +700,31 @@ async function obtenirDossier(entite, dossierId) {
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier) return dossier;
   const { donnees_disponibilites, statut_force, piece_identite_a_completer, rib_a_completer, ...reste } = dossier;
+  const estBlackliste = dossier.statut_code === blacklistService.CODE_STATUT_BLACKLISTE;
+  const statutAvantBlacklist =
+    estBlackliste && dossier.statut_avant_blacklist_id
+      ? await dossierRepository.trouverStatutParId(bd, entite.id, dossier.statut_avant_blacklist_id)
+      : null;
   return {
     ...reste,
+    // Fenêtre « Blacklister » : rendez-vous encore actifs, qui NE sont PAS refermés par le blacklistage.
+    rendezvousActifs: (await rendezvousRepository.listerRendezvousActifsDossier(bd, dossierId)).map((rdv) => ({
+      id: rdv.id,
+      type: rdv.type_rdv,
+      dateHeure: rdv.date_heure,
+      statut: rdv.statut,
+    })),
+    statutAvantBlacklist: statutAvantBlacklist
+      ? { code: statutAvantBlacklist.code, libelle: statutAvantBlacklist.libelle }
+      : null,
+    // Bandeau « Candidat précédemment blacklisté » : dossiers blacklistés correspondants (NIR, à défaut
+    // identité). Information seule, aucun refus automatique.
+    blacklistsCorrespondants: await dossierRepository.trouverDossiersBlacklistesCorrespondants(
+      bd,
+      entite.id,
+      dossierId,
+      blacklistService.CODE_STATUT_BLACKLISTE,
+    ),
     // Badge « Pièces à compléter » : informations reportées (« Renseigner plus tard »).
     piecesACompleter: piece_identite_a_completer === true || rib_a_completer === true,
     postesBureau: donnees_disponibilites?.posteBureau ?? [],

@@ -1,3 +1,5 @@
+import { CODE_STATUT_BLACKLISTE } from '../../core/referentiels/statutsDossier';
+
 // Affichage de la liste « Dossiers candidats » (TableauDeBordAccueil.jsx) : couleurs de statut,
 // infobulles, disponibilités et regroupements de filtres — fonctions pures, testées dans
 // affichageDossiers.test.js.
@@ -50,6 +52,7 @@ const VARIANTE_PAR_CODE_ACCECIT = {
   // Statut terminal "Embauché" : 'vert-fonce', voir variables.css pour le
   // détail (troisième teinte verte de ce funnel, distincte de 'succes'/'vert-clair' ci-dessus).
   embauche: 'vert-fonce',
+  blackliste: 'blackliste',
 };
 export function varianteStatut(code) {
   return VARIANTE_PAR_CODE_ACCECIT[code] ?? 'neutre';
@@ -175,6 +178,8 @@ export const CODES_STATUTS_FILTRES_ACCUEIL = [
   // ci-dessus — sans cette entrée, les dossiers embauchés restent visibles via "Tous" mais
   // impossibles à isoler par filtre dédié.
   'embauche',
+  // « Blacklisté » : exclu de « Tous » et des autres compteurs, visible par ce seul filtre.
+  CODE_STATUT_BLACKLISTE,
 ];
 
 // Codes agrégés sous le bouton "Test réalisé" : à la
@@ -226,4 +231,11 @@ export function codesPourFiltreStatut(code) {
   if (code === 'test_realise') return CODES_STATUTS_TEST_REALISE_ACCECIT;
   if (code === CODE_A_PLANIFIER) return CODES_STATUTS_A_PLANIFIER_ACCECIT;
   return [code];
+}
+
+// Un dossier correspond au filtre de statut actif ? Sans filtre (« Tous »), les dossiers blacklistés
+// sont exclus : ils n'apparaissent que sous leur propre filtre.
+export function correspondFiltreStatut(dossier, statutFiltre) {
+  if (!statutFiltre) return dossier.statut_code !== CODE_STATUT_BLACKLISTE;
+  return codesPourFiltreStatut(statutFiltre).includes(dossier.statut_code);
 }

@@ -44,6 +44,9 @@ const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
 // embaucheService.REGEX_DATE_ISO (dupliquée, jamais importée : ce fichier n'a aucune dépendance
 // vers un service métier, voir son en-tête).
 const CODE_STATUT_EMBAUCHE = 'embauche';
+
+// Un dossier blacklisté ne sort de cet état que par le retrait de la blacklist (Admin, motif tracé).
+const CODE_STATUT_BLACKLISTE = 'blackliste';
 const REGEX_DATE_EMBAUCHE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Erreur métier distincte d'une Error générique (500 opaque) — même principe que
@@ -227,6 +230,8 @@ async function listerMotifsPourAction(entite, codeAction) {
 // validation serveur après coup).
 // `valide`/`rejete` : même cas (ancien circuit recruteur, 0 dossier aujourd'hui).
 const STATUTS_EXCLUS_FORCAGE = [
+  // Blacklistage : uniquement via l'action « Blacklister » (note, motif et audit obligatoires).
+  'blackliste',
   'en_attente_verification',
   'en_attente_verdict',
   'verdict_positif',
@@ -297,6 +302,10 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEm
   const dossier = await dossierRepository.trouverDossierAvecStatutParId(bd, entite.id, dossierId);
   if (!dossier) {
     throw new ErreurTransitionInvalide(`Dossier "${dossierId}" introuvable pour l'entité « ${entite.code} ».`);
+  }
+
+  if (dossier.statut_code === CODE_STATUT_BLACKLISTE) {
+    throw new ErreurTransitionInvalide('Ce dossier est blacklisté : seul le retrait de la blacklist (Admin) peut changer son statut.');
   }
 
   const statutCible = await dossierRepository.trouverStatutParCode(bd, entite.id, statutCode);

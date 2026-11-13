@@ -1,5 +1,6 @@
 import StatutBadge from '../workflow/StatutBadge';
 import { libellePoste } from '../referentiels/postes';
+import BoutonBlacklister from '../dossier/BoutonBlacklister';
 import './DetailEvaluation.css';
 
 const FORMAT_DATE = new Intl.DateTimeFormat('fr-FR', {
@@ -65,14 +66,17 @@ function varianteResultat(evaluation) {
 // consommateur qui ajoute lui-même le chargement/l'erreur/le bouton "Retour à l'historique" autour
 // de ce contenu — aucun des deux n'a de sens pour Validation.jsx, qui affiche ce contenu inline,
 // jamais comme un écran à part avec un retour.
-export default function ContenuDetailEvaluation({ detail }) {
+export default function ContenuDetailEvaluation({ detail, avecBlacklist = false }) {
   const { evaluation, questions } = detail;
 
   return (
     <>
-      <h2>
-        Évaluation - {evaluation.candidatPrenom} {evaluation.candidatNom}
-      </h2>
+      <div className="entete-detail-candidat">
+        <h2>
+          Évaluation - {evaluation.candidatPrenom} {evaluation.candidatNom}
+        </h2>
+        {avecBlacklist && evaluation.dossierId && <BoutonBlacklister dossierId={evaluation.dossierId} />}
+      </div>
 
       <dl className="detail-evaluation__meta">
         <div>
