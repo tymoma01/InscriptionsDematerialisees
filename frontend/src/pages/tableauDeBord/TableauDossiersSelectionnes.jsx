@@ -512,7 +512,7 @@ export default function TableauDossiersSelectionnes({
           autres écrans) — ici, sans "Tous" ni boîte de statuts à côté, rien ne le contraint sans
           ce conteneur dédié ; les deux boutons s'étireraient sinon sur toute la largeur du
           tableau. */}
-      {!estInspecteurHotellerie && (
+      {!estInspecteurHotellerie && !utilisateur?.secteurImpose && (
       <div className="tableau-dossiers-selectionnes__filtre-entite">
         <FiltreEntite
           entitesFiltre={entitesFiltre}

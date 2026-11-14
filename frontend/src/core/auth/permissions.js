@@ -9,6 +9,8 @@ export function peut(utilisateur, cle) {
 // Code du rôle Inspecteur (affiché « Inspecteur », code technique distinct de 'inspecteur') —
 // utilisé pour adapter l'affichage à son périmètre, jamais pour décider d'un droit.
 export const ROLE_INSPECTEUR_HOTELLERIE = 'inspecteur_hotellerie';
+// Vue de l'Admin sur les dossiers du Planning Tertiaire (périmètre Tertiaire appliqué côté serveur).
+export const ROLE_PLANNING_TERTIAIRE = 'planning_tertiaire';
 
 // Statuts de son périmètre — miroir de backend/src/core/auth/perimetreDossiers.js (serveur seul
 // juge) : sert uniquement à ne pas afficher de lien vers une fiche que le serveur refuserait.

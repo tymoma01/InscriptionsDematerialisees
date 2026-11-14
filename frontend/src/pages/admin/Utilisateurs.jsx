@@ -46,6 +46,8 @@ const VARIANTE_PAR_ROLE = {
   // (Utilisateurs.css, [data-statut='planning']) — les deux endroits doivent porter EXACTEMENT la
   // même couleur.
   planning: 'turquoise',
+  // Planning Tertiaire : même famille que le Planning Hôtellerie, teinte voisine (vert d'eau) pour les distinguer.
+  planning_tertiaire: 'vert-eau',
   formateur: 'violet',
   inspecteur: 'neutre-fort',
   admin: 'dore',

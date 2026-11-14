@@ -50,7 +50,7 @@ const envoyer = (roleCode, utilisateurId) =>
   demandeDpaeService.envoyerAuPlanning(ENTITE, 7, utilisateurId, { version: VERSION, adresseIp: '10.0.0.1', roleCode });
 
 test('permissions : envoi au Planning pour l’Inspecteur Hôtellerie et l’Admin ; toutes les demandes pour l’Admin seulement', () => {
-  assert.deepEqual([...PERMISSIONS.dpaeEnvoiPlanning].sort(), ['admin', 'inspecteur_hotellerie']);
+  assert.deepEqual([...PERMISSIONS.dpaeEnvoiPlanning].sort(), ['admin', 'inspecteur', 'inspecteur_hotellerie']);
   assert.deepEqual([...PERMISSIONS.dpaeEnvoiPlanningToutes], ['admin']);
 });
 
@@ -112,8 +112,8 @@ function mockerNotes(t, statut) {
 const ajouter = (roleCode, auteurId) => notesDemandeDpaeService.ajouterNote(ENTITE, { demandeId: 7, contenu: 'Précision', auteurId, roleCode });
 
 test('permissions : notes pour Admin, RH, Planning et Inspecteur Hôtellerie ; sur toute demande pour les trois premiers', () => {
-  assert.deepEqual([...PERMISSIONS.dpaeNotes].sort(), ['admin', 'inspecteur_hotellerie', 'planning', 'rh']);
-  assert.deepEqual([...PERMISSIONS.dpaeNotesToutes].sort(), ['admin', 'planning', 'rh']);
+  assert.deepEqual([...PERMISSIONS.dpaeNotes].sort(), ['admin', 'inspecteur', 'inspecteur_hotellerie', 'planning', 'planning_tertiaire', 'rh']);
+  assert.deepEqual([...PERMISSIONS.dpaeNotesToutes].sort(), ['admin', 'planning', 'planning_tertiaire', 'rh']);
 });
 
 test('ajout de note possible sur tout statut, statuts finaux compris, pour Admin, Planning, RH et l’inspecteur auteur', async (t) => {
@@ -148,6 +148,8 @@ test('peutAjouterNote : fonction pure', () => {
   const demande = { demandeur_id: 5 };
   assert.equal(peutAjouterNote({ roleCode: 'inspecteur_hotellerie', utilisateurId: 5, demande }), true);
   assert.equal(peutAjouterNote({ roleCode: 'inspecteur_hotellerie', utilisateurId: 6, demande }), false);
-  for (const roleCode of ['admin', 'planning', 'rh']) assert.equal(peutAjouterNote({ roleCode, utilisateurId: 99, demande }), true, roleCode);
-  for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur']) assert.equal(peutAjouterNote({ roleCode, utilisateurId: 5, demande }), false, roleCode);
+  for (const roleCode of ['admin', 'planning', 'planning_tertiaire', 'rh']) assert.equal(peutAjouterNote({ roleCode, utilisateurId: 99, demande }), true, roleCode);
+  assert.equal(peutAjouterNote({ roleCode: 'inspecteur', utilisateurId: 5, demande }), true);
+  assert.equal(peutAjouterNote({ roleCode: 'inspecteur', utilisateurId: 6, demande }), false);
+  for (const roleCode of ['accueil_coordination', 'formateur']) assert.equal(peutAjouterNote({ roleCode, utilisateurId: 5, demande }), false, roleCode);
 });

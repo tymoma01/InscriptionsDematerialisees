@@ -44,6 +44,35 @@ export const MINUTES_PAUSE = [0, 15, 30, 45];
 
 export const TYPES_CONTRAT = ['cdd', 'cdi', 'avenant'];
 
+// Postes proposés par entité — mêmes codes/libellés que BlocDisponibilites.jsx (hôtel) ; « Autre » en
+// dernier. Les postes du Tertiaire peuvent être restreints par la configuration de l'entité
+// (`postesTertiaire`, GET /api/dpae/configuration) ; le serveur reste seul juge.
+export const POSTES_HOTELLERIE = [
+  { code: 'femme_valet_chambre', libelle: 'Femme/Valet de chambre' },
+  { code: 'cafetier', libelle: 'Cafetier' },
+  { code: 'equipier', libelle: 'Équipier' },
+  { code: 'gouvernant', libelle: 'Gouvernant(e)' },
+  { code: 'autre', libelle: 'Autre' },
+];
+export const POSTES_TERTIAIRE = [
+  { code: 'nettoyage', libelle: 'Nettoyage' },
+  { code: 'vitrerie', libelle: 'Vitrerie' },
+  { code: 'machiniste', libelle: 'Machiniste' },
+  { code: 'chef_equipe', libelle: "Chef d'équipe" },
+  { code: 'autre', libelle: 'Autre' },
+];
+
+export function postesProposes(division, postesTertiaire = null) {
+  if (division !== 'tertiaire') return POSTES_HOTELLERIE;
+  return postesTertiaire ? POSTES_TERTIAIRE.filter((poste) => postesTertiaire.includes(poste.code)) : POSTES_TERTIAIRE;
+}
+
+// Correspondance poste -> échelons de l'entité choisie : celle du Tertiaire (vide tant que la configuration
+// n'en définit pas, la section « Échelon » est alors masquée) ou celle de l'Hôtellerie.
+export function echelonsDeLaDivision(configuration, division) {
+  return (division === 'tertiaire' ? configuration?.echelonsParPosteTertiaire : configuration?.echelonsParPoste) ?? {};
+}
+
 // Entité (division) d'un candidat choisi dans la recherche : celle de son type de poste recherché à
 // l'inscription, qui désigne aussi sa base Pégase (pegase_config.base_par_type_poste côté serveur).
 // Type inconnu : l'Entité déjà saisie est gardée.

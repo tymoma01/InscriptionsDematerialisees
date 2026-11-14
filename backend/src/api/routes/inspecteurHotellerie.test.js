@@ -160,10 +160,9 @@ test("'inspecteur' et 'inspecteur_hotellerie' ne sont jamais confondus : codes d
     assert.equal(passeLesGardes(routeur, methode, chemin, ROLES.INSPECTEUR).autorise, true, `inspecteur ${chemin}`);
     assert.equal(passeLesGardes(routeur, methode, chemin, IH).autorise, false, `inspecteur_hotellerie ${chemin}`);
   }
-  // … et inversement (DPAE, tableau de bord) : l'Inspecteur n'y gagne rien.
+  // … et inversement (tableau de bord, liste des dossiers) : l'Inspecteur n'y gagne rien. (Le Formateur
+  // Tertiaire a, lui, ses propres demandes DPAE : voir entiteDpaeTertiaire.test.js.)
   for (const [routeur, methode, chemin] of [
-    ['dpae', 'post', '/'],
-    ['dpae', 'get', '/suivi'],
     ['statistiques', 'get', '/kpi'],
     ['dossiers', 'get', '/'],
   ]) {
@@ -186,7 +185,8 @@ test('Droits de Formateur et Inspecteur inchangés sur les routes touchées par 
     'notes get /': [true, true],
     'notes post /': [true, true],
     'statistiques get /kpi': [false, false],
-    'dpae post /': [false, false],
+    // Le Formateur Tertiaire crée ses propres demandes DPAE.
+    'dpae post /': [false, true],
     'dpae get /tableau-de-bord': [false, false],
     'evaluations get /a-faire': [true, true],
   };

@@ -2,6 +2,8 @@ const { Router } = require('express');
 const utilisateurService = require('../../core/auth/utilisateurService');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requirePermission } = require('../middlewares/rbac.middleware');
+const entiteDpae = require('../../core/dpae/entiteDpae');
+const { ENTITES, ROLES } = require('../../core/auth/rbac');
 
 // Monté sur '/api/formateurs' (voir app.js) — top-level, distinct de '/api/utilisateurs' (gestion
 // des comptes, admin uniquement) : un agent Accueil/Coordination doit pouvoir lister les
@@ -23,7 +25,9 @@ router.use(requirePermission('lectureFormateurs'));
 router.get('/', async (req, res, next) => {
   try {
     const formateurs = await utilisateurService.listerFormateursEtInspecteurs(req.entite);
-    res.json(formateurs);
+    // Rôle limité au Tertiaire : seuls les formateurs du Tertiaire (code « inspecteur ») sont proposés.
+    const tertiaire = entiteDpae.entiteDuRole(req.utilisateur.roleCode) === ENTITES.TERTIAIRE;
+    res.json(tertiaire ? formateurs.filter((formateur) => formateur.role_code === ROLES.INSPECTEUR) : formateurs);
   } catch (erreur) {
     next(erreur);
   }

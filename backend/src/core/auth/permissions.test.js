@@ -30,8 +30,16 @@ test('Planning a toutes les permissions d’Accueil/Coordination', () => {
   }
 });
 
-test('forçage de statut : Admin, Planning et RH uniquement', () => {
-  assert.deepEqual([...PERMISSIONS.forcerStatut].sort(), [ROLES.ADMIN, ROLES.PLANNING, ROLES.RH].sort());
+test('forçage de statut : Admin, Planning (Hôtellerie et Tertiaire) et RH uniquement', () => {
+  assert.deepEqual([...PERMISSIONS.forcerStatut].sort(), [ROLES.ADMIN, ROLES.PLANNING, ROLES.PLANNING_TERTIAIRE, ROLES.RH].sort());
+});
+
+test('Planning Tertiaire a les mêmes permissions que Planning Hôtellerie, en plus du traitement des DPAE du Tertiaire', () => {
+  const planning = new Set(permissionsDuRole(ROLES.PLANNING));
+  const tertiaire = new Set(permissionsDuRole(ROLES.PLANNING_TERTIAIRE));
+  // Seule différence en moins : « Suivi des formations » (aucun dossier Tertiaire ne passe en formation).
+  assert.deepEqual([...planning].filter((cle) => !tertiaire.has(cle)), ['suiviFormation']);
+  assert.deepEqual([...tertiaire].filter((cle) => !planning.has(cle)).sort(), ['dpaeRelancePegase', 'dpaeTraitementRh']);
 });
 
 test('Accueil/Coordination n’a aucun accès DPAE', () => {

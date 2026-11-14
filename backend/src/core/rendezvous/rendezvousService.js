@@ -357,7 +357,8 @@ function filtresListeRendezvousTestParRole({ roleCode, utilisateurId, formateurI
   const estFormateurOuInspecteur = [ROLES.FORMATEUR, ROLES.INSPECTEUR].includes(roleCode);
   return {
     formateurId: estFormateurOuInspecteur ? utilisateurId : formateurIdDemande,
-    typePoste: roleCode === ROLES.INSPECTEUR ? 'bureau' : null,
+    // Formateur Tertiaire et Planning Tertiaire : secteur Tertiaire uniquement.
+    typePoste: [ROLES.INSPECTEUR, ROLES.PLANNING_TERTIAIRE].includes(roleCode) ? 'bureau' : null,
   };
 }
 

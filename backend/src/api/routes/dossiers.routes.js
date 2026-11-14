@@ -11,10 +11,11 @@ const workflowEngine = require('../../core/workflow/workflowEngine');
 const pieceJustificativeService = require('../../core/dossier/pieceJustificativeService');
 const evaluationEngine = require('../../core/evaluation/evaluationEngine');
 const journalAudit = require('../../core/audit/journalAudit');
-const { obtenirKnex } = require('../../db/knex');
+const db = require('../../db/knex');
+const { obtenirKnex } = db;
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requirePermission } = require('../middlewares/rbac.middleware');
-const { perimetreDossiersPourRequete } = require('../../core/auth/perimetreDossiers');
+const { perimetreDossiersPourRequete, perimetreDossiersPourRole, messageRefusListeDossiers } = require('../../core/auth/perimetreDossiers');
 
 // Monté sur '/api/dossiers' (voir app.js) — distinct du routeur pièces justificatives, monté
 // lui sur '/api/dossiers/:dossierId/pieces' (pieces.routes.js) : les deux coexistent sans
@@ -216,6 +217,9 @@ function nettoyerSegmentChemin(valeur) {
 router.get('/pieces/export-zip-groupe', requirePermission('exportPiecesGroupe'), async (req, res, next) => {
   try {
     const { dossierIds } = exportZipGroupeQuerySchema.parse(req.query);
+    // Rôle limité à une entité : un dossier hors périmètre dans la sélection refuse tout l'export.
+    const refus = await messageRefusListeDossiers(await db.obtenirKnex(), req.entite.id, dossierIds, perimetreDossiersPourRole(req.utilisateur.roleCode));
+    if (refus) return res.status(403).json({ erreur: refus });
     const resumes = await dossierService.listerResumesParIds(req.entite, dossierIds);
     const resumeParId = new Map(resumes.map((resume) => [resume.id, resume]));
 
@@ -399,6 +403,8 @@ const historiqueRendezvousQuerySchema = z.object({
 router.get('/rendezvous/historique', requirePermission('consultationDossiers'), async (req, res, next) => {
   try {
     const { dossierIds } = historiqueRendezvousQuerySchema.parse(req.query);
+    const refus = await messageRefusListeDossiers(await db.obtenirKnex(), req.entite.id, dossierIds, perimetreDossiersPourRole(req.utilisateur.roleCode));
+    if (refus) return res.status(403).json({ erreur: refus });
     const historique = await rendezvousService.listerHistoriqueRendezvousDossiers(req.entite, dossierIds);
     res.json(historique);
   } catch (erreur) {

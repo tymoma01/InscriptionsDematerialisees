@@ -123,3 +123,23 @@ test('compteurs mis à jour après un changement de statut, sans rechargement de
   expect(listerDossiers).toHaveBeenCalledTimes(2);
   expect(rerender).toBeTruthy();
 });
+
+test('Planning Tertiaire : aucune pastille « Hôtellerie », métiers du Tertiaire seulement, créneaux du Tertiaire', async () => {
+  etat.utilisateur = { roleCode: 'planning_tertiaire', secteurImpose: 'bureau', permissions: ['listeDossiers'] };
+  etat.dossiers = [dossier(1, 'test_planifie')];
+  afficher();
+  await screen.findByText('Nom1', { exact: false });
+  expect(screen.queryByRole('button', { name: /^Hôtellerie/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Tertiaire/ })).toBeNull();
+  // Métiers : seule la ligne du Tertiaire.
+  expect(screen.queryByRole('button', { name: /Équipier/ })).toBeNull();
+  expect(screen.getByRole('button', { name: /Nettoyage/ })).toBeTruthy();
+});
+
+test('Rôle sans secteur imposé : les pastilles Hôtellerie et Tertiaire restent proposées', async () => {
+  etat.utilisateur = { roleCode: 'planning', secteurImpose: null, permissions: ['listeDossiers'] };
+  afficher();
+  await screen.findByText('Nom1', { exact: false });
+  expect(screen.getByRole('button', { name: /^Hôtellerie/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: /^Tertiaire/ })).toBeTruthy();
+});

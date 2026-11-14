@@ -69,8 +69,8 @@ test('POST /api/sites-affectation : Planning et Admin autorisés', () => {
 });
 
 // Accueil/Coordination n'a plus aucun accès DPAE depuis le 2026-09-30 (voir rbac.js).
-test('POST /api/sites-affectation : rôle non autorisé (Accueil/Coordination, Formateur, Inspecteur, RH) -> 403', () => {
-  for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur', 'rh']) {
+test('POST /api/sites-affectation : rôle non autorisé (Accueil/Coordination, Formateur Hôtellerie, RH) -> 403', () => {
+  for (const roleCode of ['accueil_coordination', 'formateur', 'rh']) {
     const { nextAppele, statut } = appelerGardeRole(roleCode);
     assert.equal(nextAppele, false, roleCode);
     assert.equal(statut, 403, roleCode);

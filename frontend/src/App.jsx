@@ -20,7 +20,7 @@ import TableauDeBordDpae from './pages/coordination/TableauDeBordDpae';
 import TraitementDpae from './pages/rh/TraitementDpae';
 import DetailDemandeDpae from './pages/rh/DetailDemandeDpae';
 import RouteProtegee from './core/auth/RouteProtegee';
-import { ROLE_INSPECTEUR_HOTELLERIE } from './core/auth/permissions';
+import { ROLE_INSPECTEUR_HOTELLERIE, ROLE_PLANNING_TERTIAIRE } from './core/auth/permissions';
 
 // Table de routes minimale : inscription (candidat, sans authentification), connexion (agent) et
 // les écrans internes — tableau de bord, vérification des pièces justificatives, relances,
@@ -117,6 +117,15 @@ export default function App() {
           element={
             <RouteProtegee permission="administration">
               <TableauDeBordAccueil key="vue-inspecteur-hotellerie" vue={ROLE_INSPECTEUR_HOTELLERIE} />
+            </RouteProtegee>
+          }
+        />
+        {/* Vue Admin « Planning Tertiaire » : même écran, périmètre Tertiaire appliqué côté serveur. */}
+        <Route
+          path="/vue-planning-tertiaire/dossiers"
+          element={
+            <RouteProtegee permission="administration">
+              <TableauDeBordAccueil key="vue-planning-tertiaire" vue={ROLE_PLANNING_TERTIAIRE} />
             </RouteProtegee>
           }
         />
@@ -219,7 +228,7 @@ export default function App() {
             </RouteProtegee>
           }
         />
-        {/* Tableau de bord DPAE (onglet RH, 2026-09-30) — mêmes rôles que le suivi (Admin, RH,
+        {/* Tableau de bord DPAE (onglet DPAE, 2026-09-30) — mêmes rôles que le suivi (Admin, RH,
             Planning), contrôlés aussi côté serveur (dpae.routes.js, GET /tableau-de-bord). */}
         <Route
           path="/coordination/dpae/tableau-de-bord"

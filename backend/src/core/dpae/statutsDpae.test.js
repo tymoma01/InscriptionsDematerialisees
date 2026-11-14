@@ -22,7 +22,7 @@ test('statuts à traiter par la RH : À traiter et En attente seulement ; statut
   assert.deepEqual([...statutsDpae.STATUTS_AVANT_RH], ['a_valider_planning', 'renvoyee_inspecteur']);
 });
 
-test('table des transitions : exactement les vingt et une transitions autorisées', () => {
+test('table des transitions : exactement les vingt-quatre transitions autorisées', () => {
   const transitions = statutsDpae.TRANSITIONS.map(({ action, de, vers }) => `${action}:${de}->${vers}`).sort();
   assert.deepEqual(transitions, [
     'classer_sans_suite:a_valider_planning->classee_sans_suite',
@@ -30,6 +30,7 @@ test('table des transitions : exactement les vingt et une transitions autorisée
     'classer_sans_suite:envoyee->classee_sans_suite',
     'classer_sans_suite:renvoyee_inspecteur->classee_sans_suite',
     'envoyer_au_planning:renvoyee_inspecteur->a_valider_planning',
+    'envoyer_au_planning:renvoyee_inspecteur->envoyee',
     'mettre_en_attente:envoyee->en_attente',
     'modifier:a_valider_planning->a_valider_planning',
     'modifier:en_attente->en_attente',
@@ -42,6 +43,8 @@ test('table des transitions : exactement les vingt et une transitions autorisée
     'rejeter:en_attente->rejetee',
     'rejeter:envoyee->rejetee',
     'renvoyer_inspecteur:a_valider_planning->renvoyee_inspecteur',
+    'renvoyer_inspecteur:en_attente->renvoyee_inspecteur',
+    'renvoyer_inspecteur:envoyee->renvoyee_inspecteur',
     'retransmettre_rh:en_attente->envoyee',
     'transmettre_rh:a_valider_planning->envoyee',
     'valider:en_attente->validee',
@@ -53,16 +56,21 @@ test('passage par le Planning : transmettre et renvoyer depuis « À valider » 
   for (const action of [statutsDpae.ACTION_TRANSMETTRE_RH, statutsDpae.ACTION_RENVOYER_INSPECTEUR]) {
     assert.equal(statutsDpae.permissionPourAction(action), 'dpaeValidationPlanning');
     assert.ok(statutsDpae.trouverTransition(action, 'a_valider_planning'));
-    for (const statut of ['renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']) {
-      assert.equal(statutsDpae.trouverTransition(action, statut), undefined, `${action} depuis ${statut}`);
-    }
+  }
+  // Transmettre à la RH : depuis « À valider » seulement. Renvoyer : aussi depuis « À traiter » et « En attente »
+  // (Tertiaire, réservé par le service aux demandes du Formateur Tertiaire).
+  for (const statut of ['renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']) {
+    assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_TRANSMETTRE_RH, statut), undefined, `transmettre depuis ${statut}`);
+  }
+  for (const statut of ['renvoyee_inspecteur', 'validee', 'rejetee']) {
+    assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_RENVOYER_INSPECTEUR, statut), undefined, `renvoyer depuis ${statut}`);
   }
   for (const statut of statutsDpae.STATUTS_AVANT_RH) {
     for (const action of [statutsDpae.ACTION_VALIDER, statutsDpae.ACTION_REJETER, statutsDpae.ACTION_METTRE_EN_ATTENTE]) {
       assert.equal(statutsDpae.trouverTransition(action, statut), undefined, `${action} depuis ${statut}`);
     }
   }
-  assert.deepEqual(PERMISSIONS.dpaeValidationPlanning, ['planning', 'admin']);
+  assert.deepEqual([...PERMISSIONS.dpaeValidationPlanning].sort(), ['admin', 'planning', 'planning_tertiaire']);
 });
 
 test('transition non autorisée : aucune depuis un statut final, ni mise en attente depuis En attente', () => {

@@ -56,22 +56,27 @@ function trouverCandidatParEmail(trx, entiteId, email) {
 // uniquement) : suffisant pour un premier jet, extension possible via l'extension Postgres
 // `unaccent` si la recherche s'avère trop stricte à l'usage. `type_poste` (bureau / hotel) : celui du
 // dossier le plus récent, le même que retient l'envoi Pégase, pour pré-remplir l'Entité de la DPAE.
-function rechercherCandidatsParNom(trx, entiteId, texte, limite = 8) {
+const TYPE_POSTE_DERNIER_DOSSIER = `(SELECT bloc.donnees ->> 'typePoste'
+                  FROM dossiers
+                  JOIN dossier_donnees_formulaire AS bloc ON bloc.dossier_id = dossiers.id AND bloc.bloc_code = 'disponibilites'
+                 WHERE dossiers.candidat_id = candidats.id
+                 ORDER BY dossiers.id DESC
+                 LIMIT 1)`;
+
+function rechercherCandidatsParNom(trx, entiteId, texte, limite = 8, typePoste = null) {
   const motif = `%${texte}%`;
   return trx('candidats')
     .where({ entite_id: entiteId })
     .andWhere((constructeur) => constructeur.whereILike('nom', motif).orWhereILike('prenom', motif))
+    .modify((requete) => {
+      if (typePoste) requete.whereRaw(`${TYPE_POSTE_DERNIER_DOSSIER} = ?`, [typePoste]);
+    })
     .select(
       'id',
       'nom',
       'prenom',
       'date_naissance',
-      trx.raw(`(SELECT bloc.donnees ->> 'typePoste'
-                  FROM dossiers
-                  JOIN dossier_donnees_formulaire AS bloc ON bloc.dossier_id = dossiers.id AND bloc.bloc_code = 'disponibilites'
-                 WHERE dossiers.candidat_id = candidats.id
-                 ORDER BY dossiers.id DESC
-                 LIMIT 1) AS type_poste`),
+      trx.raw(`${TYPE_POSTE_DERNIER_DOSSIER} AS type_poste`),
     )
     .orderBy('nom')
     .limit(limite);

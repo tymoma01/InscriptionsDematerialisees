@@ -16,6 +16,7 @@ import {
   ACTION_RENVOYER_INSPECTEUR,
   ACTION_TRANSMETTRE_RH,
   ACTION_VALIDER,
+  estDemandeTertiaire,
   libelleStatutDpae,
   transitionPossible,
   varianteStatutDpae,
@@ -107,8 +108,15 @@ const ACTIONS_CONFIRMATION = {
   reactivation: { titre: 'Réactiver la demande ?', variante: 'reactivation' },
   retransmission: { titre: 'Transmettre la demande à la RH ?', variante: 'validation' },
   envoiPlanning: { titre: 'Envoyer la demande au Planning ?', variante: 'validation' },
+  renvoiFormateur: { titre: 'Renvoyer la demande au formateur ?', variante: 'attente' },
   classement: { titre: 'Classer la demande sans suite ?', variante: 'classement' },
 };
+
+// Titre de la fenêtre de confirmation ; une demande du Tertiaire s'adresse au Planning Tertiaire et non à la RH.
+function titreModale(action, tertiaire) {
+  if (tertiaire && (action === 'envoiPlanning' || action === 'retransmission')) return 'Renvoyer la demande au Planning Tertiaire ?';
+  return ACTIONS_CONFIRMATION[action].titre;
+}
 
 export default function DetailDemandeDpae() {
   const { demandeId } = useParams();
@@ -116,7 +124,7 @@ export default function DetailDemandeDpae() {
   const peutTraiter = peut(utilisateur, 'dpaeTraitementRh');
   const peutValiderPlanning = peut(utilisateur, 'dpaeValidationPlanning');
   // Retour vers la liste d'où l'on vient selon le rôle : file RH pour la RH, suivi pour les autres.
-  const cheminListe = utilisateur?.roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
+  const cheminListe = ['rh', 'planning_tertiaire'].includes(utilisateur?.roleCode) ? '/rh/dpae' : '/coordination/dpae/suivi';
   const navigate = useNavigate();
   // Message de confirmation transmis par le formulaire de modification après l'enregistrement.
   const confirmation = useLocation().state?.confirmation;
@@ -131,12 +139,14 @@ export default function DetailDemandeDpae() {
   // null | 'validation' | 'rejet' | 'attente' | 'renvoi' | 'transmission' | 'retransmission' | 'reactivation' | 'envoiPlanning' | 'classement' — la même fenêtre de
   // confirmation (ModaleConfirmationDpae) pour toutes les actions.
   const [modaleOuverte, setModaleOuverte] = useState(null);
+  const [motifRenvoi, setMotifRenvoi] = useState('');
 
   const charger = () => {
     setChargement(true);
     return obtenirDemande(demandeId)
       .then(setDemande)
-      .catch(() => setErreur('Impossible de récupérer cette demande.'))
+      // Refus du serveur (ex. demande d'une autre entité, 403) : son message est affiché tel quel.
+      .catch((erreurRequete) => setErreur(erreurRequete.response?.data?.erreur ?? 'Impossible de récupérer cette demande.'))
       .finally(() => setChargement(false));
   };
 
@@ -195,6 +205,10 @@ export default function DetailDemandeDpae() {
 
   const renvoyer = () => decider(() => renvoyerDemandeAInspecteur(demandeId, demande.version), "Impossible de renvoyer cette demande à l'inspecteur.");
 
+  // Renvoi au formateur (Tertiaire) : même action, avec le motif saisi dans la fenêtre de confirmation.
+  const renvoyerAuFormateur = () =>
+    decider(() => renvoyerDemandeAInspecteur(demandeId, demande.version, motifRenvoi), "Impossible de renvoyer cette demande au formateur.");
+
   const recharger = () => {
     setErreurAction(null);
     setConflit(false);
@@ -202,6 +216,7 @@ export default function DetailDemandeDpae() {
   };
 
   const fermerModale = () => {
+    setMotifRenvoi('');
     setModaleOuverte(null);
     setErreurAction(null);
   };
@@ -231,6 +246,11 @@ export default function DetailDemandeDpae() {
   // Hôtellerie seulement sur ses propres demandes (le serveur revérifie).
   const peutAjouterNote = peut(utilisateur, 'dpaeNotes') && (peut(utilisateur, 'dpaeNotesToutes') || demande.demandeur_id === utilisateur?.id);
   const actionsPlanning = peutValiderPlanning && transitionPossible(ACTION_TRANSMETTRE_RH, demande.statut);
+  const tertiaire = estDemandeTertiaire(demande);
+  // « Renvoyer au formateur » : demande du Tertiaire créée par le Formateur Tertiaire, depuis « À traiter » ou
+  // « En attente » (jamais sur une demande créée par le Planning Tertiaire ; le serveur revérifie).
+  const peutRenvoyerAuFormateur =
+    tertiaire && peutValiderPlanning && demande.demandeur_role_code === 'inspecteur' && transitionPossible(ACTION_RENVOYER_INSPECTEUR, demande.statut);
   // « Envoyer au Planning » : l'auteur Inspecteur Hôtellerie (ou l'Admin) renvoie sa demande corrigée.
   const actionsEnvoiPlanning =
     peut(utilisateur, 'dpaeEnvoiPlanning') &&
@@ -268,7 +288,7 @@ export default function DetailDemandeDpae() {
             </h1>
             <div className="page-detail-dpae__badges">
               <StatutBadge
-                libelle={libelleStatutDpae(demande.statut)}
+                libelle={libelleStatutDpae(demande.statut, demande.division)}
                 variante={varianteStatutDpae(demande.statut)}
               />
               {/* Pastille d'urgence, à côté du statut — « À traiter »/« En attente » seulement
@@ -411,7 +431,7 @@ export default function DetailDemandeDpae() {
 
         {/* Une seule rangée d'actions : « Classer sans suite » seul à gauche (l'auteur Inspecteur Hôtellerie, ou
             Planning et Admin pour toute demande ; le serveur revérifie), les autres actions à droite. */}
-        {(peutClasser || peutReactiver || actionsEnvoiPlanning || actionsRetransmission || actionsPlanning || actionsRh) && (
+        {(peutClasser || peutReactiver || actionsEnvoiPlanning || actionsRetransmission || actionsPlanning || actionsRh || peutRenvoyerAuFormateur) && (
           <section className="page-detail-dpae__actions">
             <div className="page-detail-dpae__actions-gauche">
               {peutClasser && (
@@ -433,12 +453,17 @@ export default function DetailDemandeDpae() {
             )}
             {actionsEnvoiPlanning && (
               <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('envoiPlanning')} disabled={actionEnCours}>
-                Envoyer au Planning
+                {tertiaire ? 'Renvoyer au Planning Tertiaire' : 'Envoyer au Planning'}
               </button>
             )}
             {actionsRetransmission && (
               <button type="button" className="page-detail-dpae__valider" onClick={() => setModaleOuverte('retransmission')} disabled={actionEnCours}>
-                Transmettre à la RH
+                {tertiaire ? 'Renvoyer au Planning Tertiaire' : 'Transmettre à la RH'}
+              </button>
+            )}
+            {peutRenvoyerAuFormateur && (
+              <button type="button" className="page-detail-dpae__mettre-en-attente" onClick={() => setModaleOuverte('renvoiFormateur')} disabled={actionEnCours}>
+                Renvoyer au formateur
               </button>
             )}
             {actionsPlanning && (
@@ -479,10 +504,11 @@ export default function DetailDemandeDpae() {
         {/* Une seule fenêtre de confirmation pour toutes les actions (titre et couleur selon l'action). */}
         {modaleOuverte && (
           <ModaleConfirmationDpae
-            titre={ACTIONS_CONFIRMATION[modaleOuverte].titre}
+            titre={titreModale(modaleOuverte, tertiaire)}
+            champMotif={modaleOuverte === 'renvoiFormateur' ? { libelle: 'Motif du renvoi (obligatoire)', valeur: motifRenvoi, onChanger: setMotifRenvoi } : null}
             description={modaleOuverte === 'reactivation' ? `Elle repartira ${DESTINATION_REACTIVATION[demande.statut_retour_reactivation] ?? 'au Planning'}.` : undefined}
             variante={ACTIONS_CONFIRMATION[modaleOuverte].variante}
-            onConfirmer={{ validation: valider, rejet: rejeter, attente: mettreEnAttente, renvoi: renvoyer, transmission: transmettre, envoiPlanning: envoyerAuPlanning, retransmission: retransmettre, reactivation: reactiver, classement: classerSansSuite }[modaleOuverte]}
+            onConfirmer={{ validation: valider, rejet: rejeter, attente: mettreEnAttente, renvoi: renvoyer, renvoiFormateur: renvoyerAuFormateur, transmission: transmettre, envoiPlanning: envoyerAuPlanning, retransmission: retransmettre, reactivation: reactiver, classement: classerSansSuite }[modaleOuverte]}
             onAnnuler={fermerModale}
             enCours={actionEnCours}
             erreur={erreurAction}

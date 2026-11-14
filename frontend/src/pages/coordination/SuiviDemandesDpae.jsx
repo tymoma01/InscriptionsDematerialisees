@@ -78,7 +78,7 @@ export default function SuiviDemandesDpae() {
     <PageBackOffice>
       <div className="page-suivi-dpae">
         <header className="page-suivi-dpae__entete">
-          <h1>Suivi des demandes DPAE</h1>
+          <h1>{peutFiltrer ? 'Suivi des demandes DPAE' : 'Mes demandes DPAE'}</h1>
           <EnTeteBackOffice />
         </header>
 

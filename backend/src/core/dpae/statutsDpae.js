@@ -66,6 +66,11 @@ const TRANSITIONS = Object.freeze(
     // obligatoire). Il ne peut pas la rejeter : seul le rejet RH existe, depuis les statuts RH.
     { action: ACTION_TRANSMETTRE_RH, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_ENVOYEE, permission: 'dpaeValidationPlanning' },
     { action: ACTION_RENVOYER_INSPECTEUR, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_RENVOYEE_INSPECTEUR, permission: 'dpaeValidationPlanning' },
+    // Tertiaire : le Planning Tertiaire traite la demande jusqu'au bout et peut la renvoyer au formateur
+    // auteur depuis « À traiter » ou « En attente » (mêmes statut d'arrivée et permission que le renvoi du
+    // Planning Hôtellerie). Réservé aux demandes du Formateur Tertiaire : demandeDpaeService.renvoyerAInspecteur.
+    { action: ACTION_RENVOYER_INSPECTEUR, de: STATUT_ENVOYEE, vers: STATUT_RENVOYEE_INSPECTEUR, permission: 'dpaeValidationPlanning' },
+    { action: ACTION_RENVOYER_INSPECTEUR, de: STATUT_EN_ATTENTE, vers: STATUT_RENVOYEE_INSPECTEUR, permission: 'dpaeValidationPlanning' },
     // Classement sans suite : depuis tout statut où la RH n'a pas encore décidé, jamais depuis un statut
     // final. Droit par demande (auteur pour l'Inspecteur Hôtellerie, toutes pour Planning et Admin) :
     // demandeDpaeService.peutClasserSansSuite.
@@ -87,7 +92,9 @@ const TRANSITIONS = Object.freeze(
     // Renvoi de l'inspecteur au Planning, après correction : action explicite (la sauvegarde d'une
     // modification ne change jamais le statut). Droit par demande (auteur, ou Admin) :
     // demandeDpaeService.peutEnvoyerAuPlanning.
+    // Tertiaire : la demande corrigée retourne directement au Planning Tertiaire (« À traiter »).
     { action: ACTION_ENVOYER_AU_PLANNING, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_A_VALIDER_PLANNING, permission: 'dpaeEnvoiPlanning' },
+    { action: ACTION_ENVOYER_AU_PLANNING, de: STATUT_RENVOYEE_INSPECTEUR, vers: STATUT_ENVOYEE, permission: 'dpaeEnvoiPlanning' },
     // Modification par le demandeur : le statut ne change JAMAIS (les changements de statut passent par
     // les actions ci-dessus). Droit par demande (auteur, Planning, Admin) : demandeDpaeService.peutModifierDemande.
     { action: ACTION_MODIFIER, de: STATUT_A_VALIDER_PLANNING, vers: STATUT_A_VALIDER_PLANNING, permission: 'dpaeModification' },
@@ -119,7 +126,10 @@ function trouverTransition(action, statutDepart, statutArrivee) {
 // Statut où repart une demande réactivée, selon le rôle qui l'avait classée : Inspecteur Hôtellerie -> renvoyée
 // à l'inspecteur ; Planning -> à valider par le Planning ; Admin -> le statut qu'elle avait avant le classement.
 // Informations absentes (demande classée non reconstituée) ou incohérentes -> à valider par le Planning.
+// Tertiaire : une demande classée par le Planning Tertiaire ou le Formateur Tertiaire repart chez le Planning
+// Tertiaire (« À traiter »).
 function statutRetourReactivation({ classee_par_role: classeeParRole, statut_avant_classement: statutAvantClassement } = {}) {
+  if (classeeParRole === 'planning_tertiaire' || classeeParRole === 'inspecteur') return STATUT_ENVOYEE;
   if (classeeParRole === 'inspecteur_hotellerie') return STATUT_RENVOYEE_INSPECTEUR;
   if (classeeParRole === 'planning') return STATUT_A_VALIDER_PLANNING;
   if (classeeParRole === 'admin' && trouverTransition(ACTION_REACTIVER, STATUT_CLASSEE_SANS_SUITE, statutAvantClassement)) return statutAvantClassement;

@@ -477,12 +477,14 @@ async function verifierDisponibilite(entite, champ, valeurBrute) {
 // Autocomplétion "nom du salarié" (module Demandes DPAE, GET /api/candidats/recherche) — texte
 // trop court (1 caractère) volontairement ignoré : évite de renvoyer une bonne partie de la base
 // candidats à la première frappe.
-async function rechercherCandidats(entite, texte) {
+// `typePoste` : limite la recherche aux candidats d'un secteur (Planning Tertiaire et Formateur Tertiaire :
+// 'bureau') ; absent = tous les candidats.
+async function rechercherCandidats(entite, texte, { typePoste = null } = {}) {
   const valeur = texte.trim();
   if (valeur.length < 2) return [];
 
   const bd = await obtenirKnex();
-  return dossierRepository.rechercherCandidatsParNom(bd, entite.id, valeur);
+  return dossierRepository.rechercherCandidatsParNom(bd, entite.id, valeur, 8, typePoste);
 }
 
 // Disponibilité EFFECTIVE (audit 2026-09-28, filtre "Disponibilité des candidats prêts à

@@ -5,14 +5,17 @@
 //   - demandeur : l'utilisateur qui l'a créée ;
 //   - Planning  : tous les comptes actifs du rôle Planning, si la demande suit le circuit Planning ;
 //   - RH        : tous les comptes actifs du rôle RH, si la demande leur a été envoyée (date_envoi_rh).
+// Demande du Tertiaire : elle ne passe jamais par la RH, c'est le Planning Tertiaire qui la traite ; les
+// parties « Planning » et « RH » désignent alors toutes deux les comptes actifs du Planning Tertiaire.
 // Règles communes : l'auteur de l'action n'est jamais notifié, un utilisateur ne reçoit qu'une
 // notification par action, et la RH n'est jamais notifiée d'une demande qu'elle ne peut pas voir.
 
 const demandeDpaeRepository = require('./demandeDpaeRepository');
 const notificationService = require('../notifications/notificationService');
 const statutsDpae = require('./statutsDpae');
-const { ROLES } = require('../auth/rbac');
+const { ROLES, ENTITES } = require('../auth/rbac');
 const { aPermission } = require('../auth/permissions');
+const entiteDpae = require('./entiteDpae');
 
 const PARTIE_DEMANDEUR = 'demandeur';
 const PARTIE_PLANNING = 'planning';
@@ -66,11 +69,15 @@ async function construireNotifications(trx, entite, demande, { auteurId, type, a
     demandeDpaeRepository.trouverUtilisateurAvecRole(trx, entite.id, auteurId),
     demandeDpaeRepository.trouverUtilisateurAvecRole(trx, entite.id, demande.demandeur_id),
   ]);
-  const dansLeCircuit = circuitPlanning ?? suitCircuitPlanning({ roleDemandeur: demandeur?.role_code, demande });
-  const envoyeeALaRh = rhConcernee || Boolean(demande.date_envoi_rh);
+  const entiteDemande = entiteDpae.entiteDeLaDemande(demande);
+  const tertiaire = entiteDemande === ENTITES.TERTIAIRE;
+  const dansLeCircuit = tertiaire || (circuitPlanning ?? suitCircuitPlanning({ roleDemandeur: demandeur?.role_code, demande }));
+  const envoyeeALaRh = tertiaire || rhConcernee || Boolean(demande.date_envoi_rh);
 
-  const idsPlanning = parties.includes(PARTIE_PLANNING) && dansLeCircuit ? await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.PLANNING) : [];
-  const idsRh = parties.includes(PARTIE_RH) && envoyeeALaRh ? await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, ROLES.RH) : [];
+  const rolePlanning = entiteDpae.roleDePlanningDeLEntite(entiteDemande);
+  const roleTraitement = tertiaire ? rolePlanning : ROLES.RH;
+  const idsPlanning = parties.includes(PARTIE_PLANNING) && dansLeCircuit ? await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, rolePlanning) : [];
+  const idsRh = parties.includes(PARTIE_RH) && envoyeeALaRh ? await demandeDpaeRepository.listerIdsUtilisateursActifsParRole(trx, entite.id, roleTraitement) : [];
 
   const destinataires = choisirDestinataires({ parties, auteurId, demandeur, circuitPlanning: dansLeCircuit, envoyeeALaRh, idsPlanning, idsRh });
   const message = composerMessage({ demande, action, auteur, note });

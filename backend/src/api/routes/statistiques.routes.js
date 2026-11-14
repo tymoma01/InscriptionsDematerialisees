@@ -26,6 +26,16 @@ function typePosteImpose(req, typePosteDemande) {
   return perimetreDossiersPourRole(req.utilisateur.roleCode)?.typePoste ?? typePosteDemande;
 }
 
+// Rôle dont le périmètre porte un refus explicite (Planning Tertiaire) : demander le secteur ou un poste
+// de l'autre entité est refusé (403, message clair) au lieu d'être ignoré.
+function refusHorsPerimetre(req, { typePoste, poste }) {
+  const perimetre = perimetreDossiersPourRole(req.utilisateur.roleCode);
+  if (!perimetre?.refusDonnees) return null;
+  const autre = perimetre.typePoste === 'bureau' ? POSTES_HOTEL : POSTES_BUREAU;
+  const typePosteInterdit = typePoste && typePoste !== perimetre.typePoste;
+  return typePosteInterdit || (poste && autre.includes(poste)) ? perimetre.refusDonnees : null;
+}
+
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 // Champs communs aux deux routes ci-dessous (agrégats et liste de dossiers) — extrait pour éviter
@@ -76,6 +86,8 @@ const dossiersQuerySchema = champsCommunsSchema
 router.get('/kpi', async (req, res, next) => {
   try {
     const { dateDebut, dateFin, typePoste, poste } = kpiQuerySchema.parse(req.query);
+    const refus = refusHorsPerimetre(req, { typePoste, poste });
+    if (refus) return res.status(403).json({ erreur: refus });
     const indicateurs = await statistiquesService.obtenirIndicateursKpi(req.entite, {
       dateDebut,
       dateFin,
@@ -107,6 +119,8 @@ router.get('/kpi', async (req, res, next) => {
 router.get('/kpi/dossiers', async (req, res, next) => {
   try {
     const { dateDebut, dateFin, typePoste: typePosteDemande, poste, indicateurs } = dossiersQuerySchema.parse(req.query);
+    const refus = refusHorsPerimetre(req, { typePoste: typePosteDemande, poste });
+    if (refus) return res.status(403).json({ erreur: refus });
     const typePoste = typePosteImpose(req, typePosteDemande);
     const dossiers = await statistiquesService.listerDossiersParIndicateurs(req.entite, {
       dateDebut,

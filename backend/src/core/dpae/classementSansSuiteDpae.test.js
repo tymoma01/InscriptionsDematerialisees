@@ -62,8 +62,8 @@ test('classement possible depuis les quatre statuts non traités, jamais depuis 
 });
 
 test('permissions : Inspecteur Hôtellerie, Planning et Admin ; toutes les demandes pour Planning et Admin seulement', () => {
-  assert.deepEqual([...PERMISSIONS.dpaeClassementSansSuite].sort(), ['admin', 'inspecteur_hotellerie', 'planning']);
-  assert.deepEqual([...PERMISSIONS.dpaeClassementSansSuiteToutes].sort(), ['admin', 'planning']);
+  assert.deepEqual([...PERMISSIONS.dpaeClassementSansSuite].sort(), ['admin', 'inspecteur', 'inspecteur_hotellerie', 'planning', 'planning_tertiaire']);
+  assert.deepEqual([...PERMISSIONS.dpaeClassementSansSuiteToutes].sort(), ['admin', 'planning', 'planning_tertiaire']);
   assert.equal(statutsDpae.permissionPourAction(statutsDpae.ACTION_CLASSER_SANS_SUITE), 'dpaeClassementSansSuite');
 });
 
@@ -72,8 +72,10 @@ test('peutClasserSansSuite : l’Inspecteur Hôtellerie seulement sur SES demand
   const demande = { demandeur_id: 5 };
   assert.equal(peutClasserSansSuite({ roleCode: 'inspecteur_hotellerie', utilisateurId: 5, demande }), true);
   assert.equal(peutClasserSansSuite({ roleCode: 'inspecteur_hotellerie', utilisateurId: 6, demande }), false);
-  for (const roleCode of ['planning', 'admin']) assert.equal(peutClasserSansSuite({ roleCode, utilisateurId: 99, demande }), true, roleCode);
-  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+  for (const roleCode of ['planning', 'planning_tertiaire', 'admin']) assert.equal(peutClasserSansSuite({ roleCode, utilisateurId: 99, demande }), true, roleCode);
+  assert.equal(peutClasserSansSuite({ roleCode: 'inspecteur', utilisateurId: 5, demande }), true);
+  assert.equal(peutClasserSansSuite({ roleCode: 'inspecteur', utilisateurId: 6, demande }), false);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur']) {
     assert.equal(peutClasserSansSuite({ roleCode, utilisateurId: 5, demande }), false, roleCode);
   }
 });

@@ -72,7 +72,7 @@ export default function Planification() {
   // Inspecteur seul : le serveur ne lui renvoie plus que des rendez-vous
   // Tertiaire (typePoste 'bureau', voir rendezvousService.filtresListeRendezvousTestParRole) — le
   // groupe "Secteur" n'a donc plus rien à filtrer pour lui et est masqué (voir le panneau plus bas).
-  const estInspecteur = utilisateur?.roleCode === 'inspecteur';
+  const estInspecteur = utilisateur?.roleCode === 'inspecteur' || utilisateur?.secteurImpose === 'bureau';
 
   const [rendezvous, setRendezvous] = useState([]);
   const [chargement, setChargement] = useState(true);

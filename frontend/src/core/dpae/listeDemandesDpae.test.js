@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
   VALEUR_NON_RENSEIGNEE,
   appliquerRechercheFiltresTri,
+  libelleEntiteDemande,
   filtreEstActif,
   filtrerParColonnes,
   rechercherDemandes,
@@ -295,3 +296,27 @@ describe('Colonne « Site(s) d’affectation » condensée', () => {
   });
 });
 
+
+describe('colonne « Entité » (Hôtellerie / Tertiaire)', () => {
+  const demandes = [
+    { id: 1, statut: 'envoyee', division: 'tertiaire' },
+    { id: 2, statut: 'envoyee', division: 'hotellerie' },
+    { id: 3, statut: 'envoyee', division: null },
+    { id: 4, statut: 'renvoyee_inspecteur', division: 'tertiaire' },
+  ];
+
+  test('une demande est Tertiaire si sa division l’est, Hôtellerie sinon (division vide ou « autre » comprises)', () => {
+    expect(demandes.map(libelleEntiteDemande)).toEqual(['Tertiaire', 'Hôtellerie', 'Hôtellerie', 'Tertiaire']);
+  });
+
+  test('filtrable par entité : un filtre « Tertiaire » ne garde que les demandes du Tertiaire', () => {
+    const resultat = filtrerParColonnes(demandes, { entite: { valeurs: ['Tertiaire'] } });
+    expect(resultat.map((demande) => demande.id)).toEqual([1, 4]);
+    expect(filtreEstActif('entite', { valeurs: ['Tertiaire'] })).toBe(true);
+    expect(valeursPresentes(demandes, 'entite').sort()).toEqual(['Hôtellerie', 'Tertiaire']);
+  });
+
+  test('le statut « Renvoyée à l’inspecteur » est libellé « Renvoyée au formateur » pour le Tertiaire dans le filtre de statut', () => {
+    expect(valeursPresentes(demandes, 'statut')).toContain('Renvoyée au formateur');
+  });
+});

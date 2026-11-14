@@ -66,3 +66,17 @@
   flex-direction: column;
   gap: 0.2rem;
 }
+
+.page-traitement-dpae__nouvelle {
+  display: inline-block;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-back-office);
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.page-traitement-dpae__nouvelle:hover {
+  background-color: var(--couleur-back-office-hover);
+}

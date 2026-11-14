@@ -10,6 +10,8 @@ const tableauDeBordDpaeService = require('../../core/dpae/tableauDeBordDpaeServi
 const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
 const statutsDpae = require('../../core/dpae/statutsDpae');
 const echelonsDpae = require('../../core/dpae/echelonsDpae');
+const entiteDpae = require('../../core/dpae/entiteDpae');
+const { ENTITES } = require('../../core/auth/rbac');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
@@ -248,9 +250,25 @@ function normaliserDemande(demande) {
 // refus 400 (même forme que les autres erreurs de validation) ; échelon null si le poste n'en a pas.
 function appliquerEchelon(entite, donnees) {
   const problemes = [];
+  if (donnees.division === entiteDpae.DIVISION_TERTIAIRE) {
+    const postes = echelonsDpae.postesTertiaire(entite);
+    if (postes && !postes.includes(donnees.poste)) problemes.push({ code: 'custom', path: ['poste'], message: 'Ce poste n’est pas proposé pour le Tertiaire.' });
+  }
   const resultat = echelonsDpae.normaliserEchelon(entite, donnees, (path, message) => problemes.push({ code: 'custom', path, message }));
   if (problemes.length > 0) throw new z.ZodError(problemes);
   return resultat;
+}
+
+// Entité d'une demande à la création : fixée par le rôle (Formateur Tertiaire et Planning Tertiaire : Tertiaire,
+// non modifiable), jamais celle d'une autre entité pour un rôle limité à l'Hôtellerie ; libre pour l'Admin.
+// Le client ne peut donc ni choisir ni contourner l'entité de son rôle.
+function appliquerEntiteDuRole(roleCode, donnees) {
+  const entiteRole = entiteDpae.entiteDuRole(roleCode);
+  if (entiteRole === ENTITES.TERTIAIRE) return { ...donnees, division: entiteDpae.DIVISION_TERTIAIRE, divisionAutre: undefined };
+  if (entiteRole === ENTITES.HOTELLERIE && donnees.division === entiteDpae.DIVISION_TERTIAIRE) {
+    throw new z.ZodError([{ code: 'custom', path: ['division'], message: 'Votre rôle ne permet pas de créer une demande pour l’entité Tertiaire.' }]);
+  }
+  return donnees;
 }
 
 // Création : la demande complète.
@@ -272,6 +290,9 @@ const modificationBodySchema = demandeBaseSchema
 // demande lue par le client : absente ou invalide -> 400. Aucun motif n'est attendu : un champ `motif`
 // envoyé par un ancien client est ignoré (la raison se consigne dans les notes de la demande).
 const validationBodySchema = z.object({ version: versionSchema });
+// Renvoi : le motif n'est exigé que pour une demande du Tertiaire (vérifié par le service, qui connaît
+// l'entité de la demande) ; mis en forme ici, 1 000 caractères au plus.
+const renvoiBodySchema = validationBodySchema.extend({ motif: z.string().max(1000, 'Le motif du renvoi ne peut pas dépasser 1 000 caractères.').optional() });
 
 // Réponses d'erreur communes aux décisions et à la modification : demande d'une autre entité ou
 // inexistante 404, droit insuffisant 403, transition non autorisée depuis le statut courant ou
@@ -289,7 +310,11 @@ function repondreErreurDecision(res, erreur) {
     res.status(403).json({ erreur: erreur.message });
     return true;
   }
-  if (erreur instanceof demandeDpaeService.ErreurSitesAffectationInvalides || erreur instanceof demandeDpaeService.ErreurNoteModificationObligatoire) {
+  if (
+    erreur instanceof demandeDpaeService.ErreurSitesAffectationInvalides ||
+    erreur instanceof demandeDpaeService.ErreurNoteModificationObligatoire ||
+    erreur instanceof demandeDpaeService.ErreurMotifRenvoiObligatoire
+  ) {
     res.status(400).json({ erreur: erreur.message });
     return true;
   }
@@ -314,7 +339,7 @@ function repondreErreurValidation(res, erreurZod) {
 // de la requête — même principe que relances.routes.js.
 router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
-    const donnees = appliquerEchelon(req.entite, normaliserDemande(demandeBodySchema.parse(req.body)));
+    const donnees = appliquerEchelon(req.entite, appliquerEntiteDuRole(req.utilisateur.roleCode, normaliserDemande(demandeBodySchema.parse(req.body))));
     const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees, { roleCode: req.utilisateur.roleCode });
 
     const bd = await obtenirKnex();
@@ -343,7 +368,13 @@ router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
 // GET /api/dpae/configuration — correspondance poste -> échelons de l'entité, pour le formulaire
 // (création et modification).
 router.get('/configuration', requirePermission('dpaeConsultation'), (req, res) => {
-  res.json({ echelonsParPoste: echelonsDpae.echelonsParPoste(req.entite) });
+  res.json({
+    echelonsParPoste: echelonsDpae.echelonsParPoste(req.entite),
+    echelonsParPosteTertiaire: echelonsDpae.echelonsParPoste(req.entite, entiteDpae.DIVISION_TERTIAIRE),
+    postesTertiaire: echelonsDpae.postesTertiaire(req.entite),
+    // Entité imposée au rôle (division non modifiable dans le formulaire) ; null = libre (Admin).
+    entiteImposee: entiteDpae.entiteDuRole(req.utilisateur.roleCode),
+  });
 });
 
 // GET /api/dpae/suivi?perimetre=toutes|mes — page « Suivi des demandes DPAE » (remplace
@@ -380,6 +411,8 @@ const filtresTableauDeBordSchema = z.object({
   siteId: z.preprocess(videVersIndefini, z.union([z.literal('non_reference'), idPositifSchema]).optional()),
   typeContrat: enumOptionnel(TYPES_CONTRAT),
   statut: enumOptionnel(statutsDpae.CODES_STATUTS_DPAE),
+  // Entité (Hôtellerie / Tertiaire) : filtre facultatif, sans effet pour un rôle déjà limité à une entité.
+  entite: enumOptionnel([ENTITES.HOTELLERIE, ENTITES.TERTIAIRE]),
 });
 
 // dpaeTableauDeBord : Admin, RH, Planning — l'Inspecteur Hôtellerie, bien que
@@ -391,7 +424,7 @@ router.get('/tableau-de-bord', requirePermission('dpaeTableauDeBord'), async (re
     // envoi à la RH : exclues de tous les indicateurs.
     const statutsExclus = demandeDpaeService.statutsMasquesPour(req.utilisateur.roleCode);
     const masquerClasseesNonTransmises = demandeDpaeService.masqueClasseesNonTransmises(req.utilisateur.roleCode);
-    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres, new Date(), null, { statutsExclus, masquerClasseesNonTransmises }));
+    res.json(await tableauDeBordDpaeService.calculerTableauDeBord(req.entite, filtres, new Date(), null, { statutsExclus, masquerClasseesNonTransmises, entiteDpae: entiteDpae.entiteDuRole(req.utilisateur.roleCode) ?? filtres.entite ?? null }));
   } catch (erreur) {
     if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
     if (erreur instanceof tableauDeBordDpaeService.ErreurFiltresTableauDeBord) {
@@ -486,7 +519,7 @@ router.post('/export-pdf', requirePermission('dpaeConsultation'), async (req, re
 // (dpaeValidationPlanning). Déclarée AVANT GET /:id.
 router.get('/a-valider', requirePermission('dpaeValidationPlanning'), async (req, res, next) => {
   try {
-    res.json(await demandeDpaeService.listerAValider(req.entite));
+    res.json(await demandeDpaeService.listerAValider(req.entite, { roleCode: req.utilisateur.roleCode }));
   } catch (erreur) {
     next(erreur);
   }
@@ -497,7 +530,7 @@ router.get('/a-valider', requirePermission('dpaeValidationPlanning'), async (req
 router.get('/', requirePermission('dpaeTraitementRh'), async (req, res, next) => {
   try {
     const statut = req.query.statut === 'tous' ? null : req.query.statut || statutsDpae.STATUT_INITIAL;
-    const demandes = await demandeDpaeService.listerPourRh(req.entite, statut);
+    const demandes = await demandeDpaeService.listerPourRh(req.entite, statut, { roleCode: req.utilisateur.roleCode });
     res.json(demandes);
   } catch (erreur) {
     next(erreur);
@@ -513,12 +546,16 @@ router.get('/:id', requirePermission('dpaeConsultation'), async (req, res, next)
     const id = idPositifSchema.parse(req.params.id);
     const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
 
+    demandeDpaeService.verifierEntiteAccessible(req.utilisateur.roleCode, demande);
     if (!demandeDpaeService.peutConsulterDemande({ roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id, demande })) {
       return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
     }
 
     res.json({ ...demande, pegase: await pegaseSalarieService.suiviPourDemande(req.entite, demande) });
   } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurEntiteHorsPerimetre) {
+      return res.status(403).json({ erreur: erreur.message });
+    }
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
     }
@@ -534,6 +571,7 @@ router.post('/:id/pegase/relancer', requirePermission('dpaeRelancePegase'), asyn
   try {
     const id = idPositifSchema.parse(req.params.id);
     const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
+    demandeDpaeService.verifierEntiteAccessible(req.utilisateur.roleCode, demande);
     if (!demandeDpaeService.peutConsulterDemande({ roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id, demande })) {
       return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
     }
@@ -544,6 +582,9 @@ router.post('/:id/pegase/relancer', requirePermission('dpaeRelancePegase'), asyn
     void pegaseSalarieService.creerSalarieDepuisDemande(req.entite, id);
     res.status(202).end();
   } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurEntiteHorsPerimetre) {
+      return res.status(403).json({ erreur: erreur.message });
+    }
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
     }
@@ -561,6 +602,7 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
     const id = idPositifSchema.parse(req.params.id);
     const demande = await demandeDpaeService.obtenirDemande(req.entite, id);
 
+    demandeDpaeService.verifierEntiteAccessible(req.utilisateur.roleCode, demande);
     if (!demandeDpaeService.peutConsulterDemande({ roleCode: req.utilisateur.roleCode, utilisateurId: req.utilisateur.id, demande })) {
       return res.status(403).json({ erreur: 'Rôle insuffisant pour cette action.' });
     }
@@ -582,6 +624,9 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
     res.type('application/pdf');
     res.send(contenu);
   } catch (erreur) {
+    if (erreur instanceof demandeDpaeService.ErreurEntiteHorsPerimetre) {
+      return res.status(403).json({ erreur: erreur.message });
+    }
     if (erreur instanceof demandeDpaeService.ErreurDemandeIntrouvable) {
       return res.status(404).json({ erreur: erreur.message });
     }
@@ -655,8 +700,8 @@ router.patch(
   async (req, res, next) => {
     try {
       const id = idPositifSchema.parse(req.params.id);
-      const { version } = validationBodySchema.parse(req.body);
-      await demandeDpaeService.renvoyerAInspecteur(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode });
+      const { version, motif } = renvoiBodySchema.parse(req.body);
+      await demandeDpaeService.renvoyerAInspecteur(req.entite, id, req.utilisateur.id, { version, adresseIp: req.ip, roleCode: req.utilisateur.roleCode, ...(motif === undefined ? {} : { motif }) });
       res.status(204).end();
     } catch (erreur) {
       if (!repondreErreurDecision(res, erreur)) next(erreur);

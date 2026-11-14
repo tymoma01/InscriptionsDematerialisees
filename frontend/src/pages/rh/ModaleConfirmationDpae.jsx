@@ -9,7 +9,8 @@ import './ModaleConfirmationDpae.css';
 // s'affiche ici, la fenêtre restant ouverte.
 // `variante` : 'rejet' (rouge) | 'attente' (violet) | 'validation' (vert) | 'classement' (ambre) | 'reactivation' (bleu) — couleur du bouton.
 // `description` : phrase facultative sous le titre (ex. où repart une demande réactivée).
-export default function ModaleConfirmationDpae({ titre, description, onConfirmer, onAnnuler, enCours, erreur, variante = 'validation' }) {
+// `champMotif` facultatif : { libelle, valeur, onChanger } — zone de saisie du motif (renvoi au formateur).
+export default function ModaleConfirmationDpae({ titre, description, onConfirmer, onAnnuler, enCours, erreur, variante = 'validation', champMotif = null }) {
   useEffect(() => {
     const surTouche = (evenement) => {
       if (evenement.key === 'Escape' && !enCours) onAnnuler();
@@ -36,6 +37,13 @@ export default function ModaleConfirmationDpae({ titre, description, onConfirmer
         <h2 id="titre-confirmation-dpae">{titre}</h2>
         <form onSubmit={confirmer}>
           {description && <p className="modale-confirmation-dpae__description">{description}</p>}
+
+          {champMotif && (
+            <label className="modale-confirmation-dpae__motif">
+              <span>{champMotif.libelle}</span>
+              <textarea rows={4} maxLength={1000} value={champMotif.valeur} onChange={(evenement) => champMotif.onChanger(evenement.target.value)} disabled={enCours} />
+            </label>
+          )}
 
           {erreur && <p role="alert">{erreur}</p>}
 

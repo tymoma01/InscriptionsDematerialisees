@@ -35,18 +35,26 @@ describe('statutsDpae (miroir du serveur)', () => {
     expect(STATUTS_A_DECIDER).toEqual(['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'en_attente']);
   });
 
-  it('le Planning transmet ou renvoie depuis « À valider par le Planning » seulement, et ne rejette pas', () => {
+  it('le Planning transmet depuis « À valider par le Planning » seulement ; le renvoi existe aussi depuis « À traiter » et « En attente » (Tertiaire) ; il ne rejette pas', () => {
     expect(transitionPossible(ACTION_TRANSMETTRE_RH, 'a_valider_planning')).toBe(true);
     expect(transitionPossible(ACTION_RENVOYER_INSPECTEUR, 'a_valider_planning')).toBe(true);
     for (const statut of ['renvoyee_inspecteur', 'envoyee', 'en_attente', 'validee', 'rejetee']) {
       expect(transitionPossible(ACTION_TRANSMETTRE_RH, statut)).toBe(false);
-      expect(transitionPossible(ACTION_RENVOYER_INSPECTEUR, statut)).toBe(false);
     }
+    for (const statut of ['envoyee', 'en_attente']) expect(transitionPossible(ACTION_RENVOYER_INSPECTEUR, statut)).toBe(true);
+    for (const statut of ['renvoyee_inspecteur', 'validee', 'rejetee']) expect(transitionPossible(ACTION_RENVOYER_INSPECTEUR, statut)).toBe(false);
     for (const statut of STATUTS_AVANT_RH) {
       for (const action of [ACTION_VALIDER, ACTION_REJETER, ACTION_METTRE_EN_ATTENTE]) {
         expect(transitionPossible(action, statut)).toBe(false);
       }
     }
+  });
+
+  it('le statut « Renvoyée à l’inspecteur » s’affiche « Renvoyée au formateur » pour une demande du Tertiaire seulement', () => {
+    expect(libelleStatutDpae('renvoyee_inspecteur', 'tertiaire')).toBe('Renvoyée au formateur');
+    expect(libelleStatutDpae('renvoyee_inspecteur', 'hotellerie')).toBe('Renvoyée à l\'inspecteur');
+    expect(libelleStatutDpae('renvoyee_inspecteur')).toBe('Renvoyée à l\'inspecteur');
+    expect(libelleStatutDpae('validee', 'tertiaire')).toBe('Validée');
   });
 
   it('la RH ne se voit proposer aucun statut d’avant l’envoi à la RH', () => {

@@ -228,15 +228,15 @@ test('transmettre : si l’écriture gardée ne touche aucune ligne (décision c
 // ---------------------------------------------------------------------------------------------
 test('permissions : transmettre/renvoyer réservés au Planning et à l’Admin ; création soumise au Planning pour l’Inspecteur Hôtellerie seul', () => {
   const { aPermission } = require('../auth/permissions');
-  for (const roleCode of ['planning', 'admin']) assert.equal(aPermission(roleCode, 'dpaeValidationPlanning'), true, roleCode);
+  for (const roleCode of ['planning', 'planning_tertiaire', 'admin']) assert.equal(aPermission(roleCode, 'dpaeValidationPlanning'), true, roleCode);
   for (const roleCode of ['rh', 'inspecteur_hotellerie', 'accueil_coordination', 'formateur', 'inspecteur']) {
     assert.equal(aPermission(roleCode, 'dpaeValidationPlanning'), false, roleCode);
   }
   assert.equal(aPermission('inspecteur_hotellerie', 'dpaeCreationSoumiseAuPlanning'), true);
   for (const roleCode of ['planning', 'admin', 'rh']) assert.equal(aPermission(roleCode, 'dpaeCreationSoumiseAuPlanning'), false, roleCode);
   // Cloche : Planning et Inspecteur Hôtellerie en plus de l'Admin et de la RH.
-  for (const roleCode of ['admin', 'rh', 'planning', 'inspecteur_hotellerie']) assert.equal(aPermission(roleCode, 'cloche'), true, roleCode);
-  for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur']) assert.equal(aPermission(roleCode, 'cloche'), false, roleCode);
+  for (const roleCode of ['admin', 'rh', 'planning', 'planning_tertiaire', 'inspecteur_hotellerie', 'inspecteur']) assert.equal(aPermission(roleCode, 'cloche'), true, roleCode);
+  for (const roleCode of ['accueil_coordination', 'formateur']) assert.equal(aPermission(roleCode, 'cloche'), false, roleCode);
 });
 
 // ---------------------------------------------------------------------------------------------

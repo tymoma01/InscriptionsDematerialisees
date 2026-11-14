@@ -1,7 +1,13 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
 import { peut } from '../auth/permissions';
+import { ROLES_VUES, SECTEURS_VUES } from '../referentiels/rolesVues';
 import './BarreNavigation.css';
+
+// Rôles dont la page « Demandes DPAE » est la file de traitement (la RH pour l'Hôtellerie, le Planning
+// Tertiaire pour le Tertiaire) ; les autres arrivent sur le suivi des demandes.
+const ouvreLaFileDeTraitementDpae = (roleCode) => roleCode === 'rh' || roleCode === 'planning_tertiaire';
 
 // Catalogue des destinations back-office (refonte navigation, 2026-08-17 ; fusion de "Back-
 // office recruteur" dans "Dossiers candidats", voir App.jsx ; étendu au parcours Formateur/
@@ -88,62 +94,29 @@ const ELEMENTS_NAVIGATION = [
     // /suivi-formation (suiviFormation), et App.jsx (garde de route équivalente).
     permission: 'suiviFormation',
   },
-  // Vues Formateur / Inspecteur de l'Admin — ouvrent
-  // l'espace EXISTANT du rôle (mêmes routes, mêmes pages, mêmes composants), l'Admin y voyant tout
-  // le secteur (voir secteurVueAdmin dans pages/evaluation). `sousOnglets` : clés
-  // des entrées de CETTE liste à reprendre comme sous-onglets de l'espace, résolues avec
-  // `roleEspace` (même fonction `chemin(roleCode)` que pour un vrai Formateur/Inspecteur) —
-  // aucune route ni libellé dupliqué. Onglet actif = toute route de l'espace.
-  {
-    cle: 'vue-formateur',
-    libelle: 'Formateur Hôtellerie',
-    chemin: '/formateur/evaluations',
-    estActif: (chemin) => chemin.startsWith('/formateur/'),
-    permission: 'administration',
-    roleEspace: 'formateur',
-    sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
-  },
-  {
-    cle: 'vue-inspecteur',
-    libelle: 'Formateur Tertiaire',
-    chemin: '/inspecteur/evaluations',
-    estActif: (chemin) => chemin.startsWith('/inspecteur/'),
-    permission: 'administration',
-    roleEspace: 'inspecteur',
-    sousOnglets: ['historique-evaluations', 'evaluations-a-venir'],
-  },
-  {
-    // Onglet Admin : Dossiers candidats avec le périmètre de l'Inspecteur Hôtellerie
-    // (Hôtellerie, 5 statuts), appliqué côté serveur (paramètre `vue`, Admin uniquement).
-    cle: 'vue-inspecteur-hotellerie',
-    libelle: 'Inspecteur',
-    chemin: '/vue-inspecteur-hotellerie/dossiers',
-    estActif: (chemin) => chemin.startsWith('/vue-inspecteur-hotellerie/'),
-    permission: 'administration',
-  },
   {
     cle: 'rh',
-    // Onglet « RH » — remplace l'onglet « Demandes DPAE », à la
+    // Onglet « DPAE » — remplace l'onglet « Demandes DPAE », à la
     // MÊME position (avant « Comptes utilisateurs » : l'ordre de ce tableau pilote l'ordre des
     // onglets). Espace à sous-onglets, même mécanisme que « Vue Formateur »/« Vue Inspecteur »
     // ci-dessus : « Tableau de bord DPAE » puis « Demandes DPAE » (ordre inversé le 2026-10-02,
     // demande utilisateur). Pas de `roleEspace` : les sous-onglets calculent leur chemin avec le
-    // rôle CONNECTÉ (la RH garde sa file comme destination). Un clic sur « RH » ouvre « Tableau de
+    // rôle CONNECTÉ (la RH garde sa file comme destination). Un clic sur « DPAE » ouvre « Tableau de
     // bord DPAE », ou « Demandes DPAE » pour un rôle qui n'y a pas accès (Inspecteur). Actif sur TOUTES les pages DPAE
     // (suivi, nouvelle demande, tableau de bord sous /coordination/dpae/ ; file RH et fiche sous
     // /rh/dpae) — aucune adresse existante modifiée.
-    libelle: 'RH',
+    libelle: 'DPAE',
     chemin: (roleCode, utilisateur) => {
       if (peut(utilisateur, 'dpaeTableauDeBord')) {
         return '/coordination/dpae/tableau-de-bord';
       }
-      return roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi';
+      return ouvreLaFileDeTraitementDpae(roleCode) ? '/rh/dpae' : '/coordination/dpae/suivi';
     },
     estActif: (chemin) => chemin.startsWith('/rh/dpae') || chemin.startsWith('/coordination/dpae/'),
     permission: 'dpaeConsultation',
     sousOnglets: ['dpae-tableau-de-bord', 'dpae-a-valider', 'dpae-demandes'],
   },
-  // Sous-onglets de l'espace « RH » — `sousOngletSeulement` : jamais affichés dans la barre
+  // Sous-onglets de l'espace « DPAE » — `sousOngletSeulement` : jamais affichés dans la barre
   // principale, seulement dans la barre de sous-onglets de leur espace.
   {
     cle: 'dpae-tableau-de-bord',
@@ -167,7 +140,7 @@ const ELEMENTS_NAVIGATION = [
     cle: 'dpae-demandes',
     libelle: 'Demandes DPAE',
     // Page de suivi ; file RH conservée comme destination pour le rôle RH (inchangé).
-    chemin: (roleCode) => (roleCode === 'rh' ? '/rh/dpae' : '/coordination/dpae/suivi'),
+    chemin: (roleCode) => (ouvreLaFileDeTraitementDpae(roleCode) ? '/rh/dpae' : '/coordination/dpae/suivi'),
     // Suivi, nouvelle demande, file RH et fiche d'une demande — tout sauf le tableau de bord.
     estActif: (chemin) =>
       chemin.startsWith('/rh/dpae') ||
@@ -186,6 +159,125 @@ const ELEMENTS_NAVIGATION = [
   },
 ];
 
+// Vue d'un rôle (voir core/referentiels/rolesVues.js) -> élément de navigation : réservée à l'Admin, reprend
+// les routes et les sous-onglets de l'espace du rôle. Hors de la barre principale : listée dans « Vues ».
+function elementDeVue(roleVue) {
+  return {
+    cle: `vue-${roleVue.code}`,
+    libelle: roleVue.libelle,
+    secteur: roleVue.secteur,
+    chemin: roleVue.vue.chemin,
+    estActif: roleVue.vue.estActif,
+    permission: 'administration',
+    roleEspace: roleVue.vue.roleEspace,
+    sousOnglets: roleVue.vue.sousOnglets,
+    dansMenuVues: true,
+  };
+}
+
+// Menu déroulant « Vues » : un bouton, un menu aligné sur son bord droit (il s'ouvre vers la gauche), les vues
+// groupées par secteur. Se ferme au clic extérieur, avec Échap, et à Tab ; flèches haut/bas, Début et Fin
+// naviguent entre les vues.
+function MenuVues({ vues, vueActive }) {
+  const [ouvert, setOuvert] = useState(false);
+  const conteneur = useRef(null);
+  const bouton = useRef(null);
+  const options = () => [...(conteneur.current?.querySelectorAll('[role="menuitem"]') ?? [])];
+
+  useEffect(() => {
+    if (!ouvert) return undefined;
+    const clicExterieur = (evenement) => {
+      if (!conteneur.current?.contains(evenement.target)) setOuvert(false);
+    };
+    document.addEventListener('mousedown', clicExterieur);
+    return () => document.removeEventListener('mousedown', clicExterieur);
+  }, [ouvert]);
+
+  const fermer = (rendreLeFocus) => {
+    setOuvert(false);
+    if (rendreLeFocus) bouton.current?.focus();
+  };
+
+  const ouvrir = (indexInitial) => {
+    setOuvert(true);
+    // Le menu est rendu au prochain cycle : le focus est posé ensuite.
+    setTimeout(() => {
+      const liste = options();
+      liste.at(indexInitial === 'dernier' ? -1 : 0)?.focus();
+    }, 0);
+  };
+
+  const surToucheBouton = (evenement) => {
+    if (evenement.key === 'ArrowDown' || evenement.key === 'Enter' || evenement.key === ' ') {
+      evenement.preventDefault();
+      ouvrir('premier');
+    } else if (evenement.key === 'ArrowUp') {
+      evenement.preventDefault();
+      ouvrir('dernier');
+    } else if (evenement.key === 'Escape') {
+      fermer(false);
+    }
+  };
+
+  const surToucheMenu = (evenement) => {
+    const liste = options();
+    const index = liste.indexOf(document.activeElement);
+    const aller = (cible) => {
+      evenement.preventDefault();
+      liste.at(cible % liste.length)?.focus();
+    };
+    if (evenement.key === 'ArrowDown') aller(index + 1);
+    else if (evenement.key === 'ArrowUp') aller(index <= 0 ? liste.length - 1 : index - 1);
+    else if (evenement.key === 'Home') aller(0);
+    else if (evenement.key === 'End') aller(liste.length - 1);
+    else if (evenement.key === 'Escape') {
+      evenement.preventDefault();
+      fermer(true);
+    } else if (evenement.key === 'Tab') fermer(false);
+  };
+
+  const groupes = SECTEURS_VUES.map((secteur) => ({ ...secteur, vues: vues.filter((vue) => vue.secteur === secteur.code) })).filter((groupe) => groupe.vues.length > 0);
+
+  return (
+    <div className="barre-navigation__vues" ref={conteneur}>
+      <button
+        type="button"
+        ref={bouton}
+        className={`barre-navigation__lien barre-navigation__vues-bouton${vueActive ? ' barre-navigation__lien--actif' : ''}`}
+        aria-haspopup="menu"
+        aria-expanded={ouvert}
+        onClick={() => (ouvert ? fermer(false) : setOuvert(true))}
+        onKeyDown={surToucheBouton}
+      >
+        {vueActive ? `Vues : ${vueActive.libelle}` : 'Vues'} <span aria-hidden="true">▾</span>
+      </button>
+      {ouvert && (
+        <div className="barre-navigation__vues-menu" role="menu" aria-label="Vues par rôle" onKeyDown={surToucheMenu}>
+          {groupes.map((groupe) => (
+            <div key={groupe.code} role="group" aria-label={groupe.libelle} className="barre-navigation__vues-groupe">
+              <p className="barre-navigation__vues-secteur" aria-hidden="true">
+                {groupe.libelle}
+              </p>
+              {groupe.vues.map((vue) => (
+                <Link
+                  key={vue.cle}
+                  to={vue.chemin}
+                  role="menuitem"
+                  className={`barre-navigation__vues-option${vue.estActifVue ? ' barre-navigation__vues-option--actif' : ''}`}
+                  aria-current={vue.estActifVue ? 'page' : undefined}
+                  onClick={() => setOuvert(false)}
+                >
+                  {vue.libelle}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Barre de navigation commune aux écrans back-office (refonte 2026-08-17 ; étendue à Formateur/
 // Inspecteur le 2026-08-20 — Historique des évaluations/Évaluations à venir/Suivi des tests,
 // jusque-là des boutons de retour ad hoc propres à chaque page, voir Evaluation.jsx/
@@ -195,7 +287,8 @@ const ELEMENTS_NAVIGATION = [
 // useSession()). Ne rend rien tant que la session n'est pas résolue, si personne n'est connecté
 // (masquée sur /connexion, cohérent avec EnTeteBackOffice.jsx) ou si le rôle connecté n'a accès à
 // aucune des destinations ci-dessus.
-export default function BarreNavigation() {
+// `rolesVues` : définition des rôles dont la vue est proposée à l'Admin (par défaut core/referentiels/rolesVues.js).
+export default function BarreNavigation({ rolesVues = ROLES_VUES }) {
   const { utilisateur, chargement } = useSession();
   const { pathname } = useLocation();
 
@@ -208,10 +301,15 @@ export default function BarreNavigation() {
   const estVisible = (element) =>
     !element.sousOngletSeulement &&
     (element.permission ? peut(utilisateur, element.permission) : element.roles.includes(utilisateur.roleCode));
-  const elementsVisibles = ELEMENTS_NAVIGATION.filter(estVisible);
+  const elements = [...ELEMENTS_NAVIGATION, ...rolesVues.filter((roleVue) => roleVue.vue).map(elementDeVue)];
+  const elementsVisibles = elements.filter(estVisible);
   if (elementsVisibles.length === 0) {
     return null;
   }
+  // Barre principale : tout sauf les vues par rôle, regroupées dans le menu « Vues » (placé en dernier).
+  const elementsPrincipaux = elementsVisibles.filter((element) => !element.dansMenuVues);
+  const vues = elementsVisibles.filter((element) => element.dansMenuVues).map((element) => ({ ...element, estActifVue: element.estActif(pathname) }));
+  const vueActive = vues.find((vue) => vue.estActifVue) ?? null;
 
   // Sous-onglets de l'espace actif (vues Admin, voir `sousOnglets` ci-dessus) — dans une barre
   // SÉPARÉE, non collante, sous la barre principale : celle-ci est sticky et sa hauteur sert de
@@ -220,7 +318,7 @@ export default function BarreNavigation() {
   // celui que voit un vrai Formateur/Inspecteur.
   const espaceActif = elementsVisibles.find((element) => element.sousOnglets && element.estActif(pathname));
   const sousOnglets = espaceActif
-    ? ELEMENTS_NAVIGATION.filter(
+    ? elements.filter(
         (element) =>
           espaceActif.sousOnglets.includes(element.cle) &&
           (!element.permissionSousOnglet || peut(utilisateur, element.permissionSousOnglet)),
@@ -234,10 +332,10 @@ export default function BarreNavigation() {
           sur une ligne en largeur bureau — sa hauteur sur une ligne sert de référence aux autres
           éléments collants (--hauteur-barre-navigation). Aucun changement pour les autres rôles. */}
       <nav
-        className={`barre-navigation${elementsVisibles.length > 6 ? ' barre-navigation--dense' : ''}`}
+        className={`barre-navigation${elementsPrincipaux.length + (vues.length > 0 ? 1 : 0) > 6 ? ' barre-navigation--dense' : ''}`}
         aria-label="Navigation back-office"
       >
-        {elementsVisibles.map((element) => {
+        {elementsPrincipaux.map((element) => {
           const actif = element.estActif(pathname);
           const chemin = typeof element.chemin === 'function' ? element.chemin(utilisateur.roleCode, utilisateur) : element.chemin;
           return (
@@ -251,12 +349,13 @@ export default function BarreNavigation() {
             </Link>
           );
         })}
+        {vues.length > 0 && <MenuVues vues={vues} vueActive={vueActive} />}
       </nav>
       {sousOnglets.length > 0 && (
         <nav className="barre-navigation-sous-onglets" aria-label={`Navigation ${espaceActif.libelle}`}>
           {sousOnglets.map((element) => {
             // Rôle de l'espace s'il en a un (Vue Formateur/Inspecteur de l'Admin), sinon rôle connecté
-            // (espace « RH », 2026-09-30). Actif : règle propre du sous-onglet (plusieurs pages pour
+            // (espace « DPAE », 2026-09-30). Actif : règle propre du sous-onglet (plusieurs pages pour
             // « Demandes DPAE »), identique pour les sous-onglets Formateur/Inspecteur.
             const roleChemin = espaceActif.roleEspace ?? utilisateur.roleCode;
             const chemin = typeof element.chemin === 'function' ? element.chemin(roleChemin, utilisateur) : element.chemin;

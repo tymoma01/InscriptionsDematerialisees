@@ -7,6 +7,7 @@ import FiltresStatut from '../../core/dossier/FiltresStatut';
 import { listerDemandesRh } from '../../services/dpaeService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
 import { STATUTS_DPAE, STATUTS_AVANT_RH, STATUT_INITIAL, libelleStatutDpae, varianteStatutDpae } from '../../core/dpae/statutsDpae';
+import { libelleEntiteDemande } from '../../core/dpae/listeDemandesDpae';
 import {
   ActionTelechargementPdfDpae,
   CaseDemandeDpae,
@@ -22,6 +23,8 @@ import {
   SitesDemandeDpae,
   useFiltresListeDpae,
 } from '../../core/dpae/FiltresListeDpae';
+import { useSession } from '../../core/auth/useSession';
+import { peut } from '../../core/auth/permissions';
 import IndicateurDefilementHorizontal from '../../core/backOffice/IndicateurDefilementHorizontal';
 import './TraitementDpae.css';
 
@@ -52,6 +55,9 @@ export default function TraitementDpae() {
   // Téléchargement PDF : cases à cocher et action groupée (ZIP), voir
   // core/dpae/TelechargementPdfDpae.jsx. « Tout cocher » ne porte que sur le filtre affiché.
   const peutTelechargerPdf = usePeutTelechargerPdfDpae();
+  // « + Nouvelle demande » : les rôles qui traitent cette file et peuvent aussi créer (Planning Tertiaire).
+  const { utilisateur } = useSession();
+  const peutCreer = peut(utilisateur, 'dpaeCreation');
 
   // Ordre d'affichage : tri par défaut commun avec le Suivi des demandes DPAE (groupes de statut ;
   // échéance croissante et retards en tête pour « À traiter »/« En attente » ; plus récentes
@@ -102,6 +108,11 @@ export default function TraitementDpae() {
       <div className="page-traitement-dpae">
         <header className="page-traitement-dpae__entete">
           <h1>Demandes DPAE</h1>
+          {peutCreer && (
+            <Link to="/coordination/dpae/nouvelle" className="page-traitement-dpae__nouvelle">
+              + Nouvelle demande
+            </Link>
+          )}
           <EnTeteBackOffice />
         </header>
 
@@ -136,6 +147,7 @@ export default function TraitementDpae() {
                   <EnTeteColonneDpae etat={etatFiltres} cle="date_demande" libelle="Reçue le" />
                   <EnTeteColonneDpae etat={etatFiltres} cle="type_demande" libelle="Type" className="filtres-liste-dpae__colonne-type" />
                   <EnTeteColonneDpae etat={etatFiltres} cle="salarie" libelle="Salarié" />
+                  <EnTeteColonneDpae etat={etatFiltres} cle="entite" libelle="Entité" />
                   <EnTeteColonneDpae etat={etatFiltres} cle="premier_jour" libelle="Premier jour" />
                   <EnTeteColonneDpae
                     etat={etatFiltres}
@@ -153,7 +165,7 @@ export default function TraitementDpae() {
               <tbody>
                 {demandesAffichees.length === 0 && (
                   <tr>
-                    <td colSpan={peutTelechargerPdf ? 9 : 8} className="filtres-liste-dpae__aucune">
+                    <td colSpan={peutTelechargerPdf ? 10 : 9} className="filtres-liste-dpae__aucune">
                       Aucune demande ne correspond à la recherche ou aux filtres.
                     </td>
                   </tr>
@@ -171,6 +183,7 @@ export default function TraitementDpae() {
                     <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--salarie">
                       {demande.salarie_prenom} {demande.salarie_nom}
                     </td>
+                    <td>{libelleEntiteDemande(demande)}</td>
                     <td>{formaterJour(demande.date_debut)}</td>
                     <td className="filtres-liste-dpae__colonne-sites">
                       <SitesDemandeDpae demande={demande} />
@@ -182,7 +195,7 @@ export default function TraitementDpae() {
                       {/* Statut et pastille d'urgence (« À traiter »/« En attente » seulement) toujours
                           côte à côte (core/dpae/PastilleUrgenceDpae.jsx). */}
                       <div className="filtres-liste-dpae__statut">
-                        <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />
+                        <StatutBadge libelle={libelleStatutDpae(demande.statut, demande.division)} variante={varianteStatutDpae(demande.statut)} />
                         <PastilleUrgenceDpae demande={demande} />
                       </div>
                     </td>

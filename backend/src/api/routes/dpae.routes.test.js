@@ -185,29 +185,29 @@ test('DPAE : Accueil/Coordination reçoit 403 sur la création, la liste, la fic
   }
 });
 
-test('DPAE : création réservée à Planning et Admin (RH, Formateur, Inspecteur refusés)', () => {
+test('DPAE : création réservée aux Planning, à l’Admin et au Formateur Tertiaire (RH, Formateur Hôtellerie, Accueil refusés)', () => {
   const garde = gardeRoute('post', '/');
-  for (const roleCode of ['planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
-  for (const roleCode of ['rh', 'formateur', 'inspecteur', 'accueil_coordination']) {
+  for (const roleCode of ['planning', 'planning_tertiaire', 'admin', 'inspecteur']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'formateur', 'accueil_coordination']) {
     assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
   }
 });
 
-test('DPAE : liste de suivi et fiche ouvertes à Admin, RH et Planning ; fermées aux autres rôles', () => {
+test('DPAE : liste de suivi et fiche ouvertes à Admin, RH, Planning et Formateur Tertiaire ; fermées aux autres rôles', () => {
   for (const chemin of ['/suivi', '/:id']) {
     const garde = gardeRoute('get', chemin);
-    for (const roleCode of ['admin', 'rh', 'planning']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
-    for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur']) {
+    for (const roleCode of ['admin', 'rh', 'planning', 'planning_tertiaire', 'inspecteur']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
+    for (const roleCode of ['accueil_coordination', 'formateur']) {
       assert.equal(executerGarde(garde, roleCode).statut, 403, `${chemin} ${roleCode}`);
     }
   }
 });
 
-test('DPAE : traitement RH (file, validation, rejet) réservé à RH et Admin', () => {
+test('DPAE : traitement (file, validation, rejet) réservé à la RH, au Planning Tertiaire et à l’Admin', () => {
   for (const [methode, chemin] of [['get', '/'], ['patch', '/:id/valider'], ['patch', '/:id/rejeter']]) {
     const garde = gardeRoute(methode, chemin);
-    for (const roleCode of ['rh', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
-    for (const roleCode of ['planning', 'accueil_coordination', 'formateur']) {
+    for (const roleCode of ['rh', 'admin', 'planning_tertiaire']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${chemin} ${roleCode}`);
+    for (const roleCode of ['planning', 'accueil_coordination', 'formateur', 'inspecteur']) {
       assert.equal(executerGarde(garde, roleCode).statut, 403, `${chemin} ${roleCode}`);
     }
   }
@@ -217,10 +217,10 @@ test('DPAE : traitement RH (file, validation, rejet) réservé à RH et Admin', 
 // Modification (PUT /:id) — garde de rôle, validation identique à la création, réponses d'erreur.
 // Le droit par demande (auteur) et le statut sont vérifiés par le service (modificationDemandeDpae.test.js).
 // ---------------------------------------------------------------------------------------------
-test('PUT /:id : Planning, Admin et Inspecteur Hôtellerie passent la garde ; RH, Accueil/Coordination, Formateur et Inspecteur -> 403', () => {
+test('PUT /:id : Planning, Admin, Inspecteur Hôtellerie et Formateur Tertiaire passent la garde ; RH, Accueil/Coordination et Formateur Hôtellerie -> 403', () => {
   const garde = gardeRoute('put', '/:id');
-  for (const roleCode of ['planning', 'admin', 'inspecteur_hotellerie']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
-  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+  for (const roleCode of ['planning', 'planning_tertiaire', 'admin', 'inspecteur_hotellerie', 'inspecteur']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur']) {
     assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
   }
 });
@@ -501,7 +501,6 @@ test('Décisions : un motif envoyé par un ancien client est ignoré, jamais tra
   for (const [chemin, methodeService, roleCode] of [
     ['/:id/rejeter', 'rejeter', 'rh'],
     ['/:id/mettre-en-attente', 'mettreEnAttente', 'rh'],
-    ['/:id/renvoyer-inspecteur', 'renvoyerAInspecteur', 'planning'],
   ]) {
     const serviceMock = t.mock.method(demandeDpaeService, methodeService, async () => {});
     const { res } = await appelerGestionnaire('patch', chemin, { params: { id: '7' }, body: { motif: 'Ancien motif', motifRejet: 'Ancien motif', version: 2 }, roleCode, utilisateurId: 9 });
@@ -517,11 +516,11 @@ test('Filtre Statut du tableau de bord : « en_attente » accepté', () => {
 // ---------------------------------------------------------------------------------------------
 // Notes d'une demande DPAE.
 // ---------------------------------------------------------------------------------------------
-test('Notes (GET et POST /:id/notes) : Admin, RH et Planning autorisés ; Accueil/Coordination, Formateur, Inspecteur -> 403', () => {
+test('Notes (GET et POST /:id/notes) : Admin, RH, Planning et Formateur Tertiaire autorisés ; Accueil/Coordination, Formateur Hôtellerie -> 403', () => {
   for (const methode of ['get', 'post']) {
     const garde = gardeRoute(methode, '/:id/notes');
-    for (const roleCode of ['admin', 'rh', 'planning']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${methode} ${roleCode}`);
-    for (const roleCode of ['accueil_coordination', 'formateur', 'inspecteur']) {
+    for (const roleCode of ['admin', 'rh', 'planning', 'planning_tertiaire', 'inspecteur']) assert.equal(executerGarde(garde, roleCode).autorise, true, `${methode} ${roleCode}`);
+    for (const roleCode of ['accueil_coordination', 'formateur']) {
       assert.equal(executerGarde(garde, roleCode).statut, 403, `${methode} ${roleCode}`);
     }
   }
@@ -596,8 +595,8 @@ test('Notes d’une demande d’une autre entité : 404 en lecture comme en ajou
 const { PassThrough } = require('node:stream');
 const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
 
-const ROLES_CONSULTATION_DPAE = ['admin', 'rh', 'planning', 'inspecteur_hotellerie'];
-const ROLES_SANS_DPAE = ['accueil_coordination', 'formateur', 'inspecteur'];
+const ROLES_CONSULTATION_DPAE = ['admin', 'rh', 'planning', 'planning_tertiaire', 'inspecteur_hotellerie', 'inspecteur'];
+const ROLES_SANS_DPAE = ['accueil_coordination', 'formateur'];
 
 function demandeFiche(id, surcharges = {}) {
   return {
@@ -697,7 +696,8 @@ test('Téléchargement PDF : mêmes rôles que la fiche GET /:id (garde identiqu
 test('GET /:id/pdf autorisé : PDF « DPAE <n°> - <NOM> <Prénom>.pdf », téléchargement tracé dans journal_audit', async (t) => {
   const audit = mockerAudit(t);
   t.mock.method(demandeDpaeService, 'obtenirDemande', async (_entite, id) => demandeFiche(id));
-  for (const roleCode of ROLES_CONSULTATION_DPAE) {
+  // Demande de l'Hôtellerie : les rôles limités au Tertiaire sont refusés (voir entiteDpaeTertiaire.test.js).
+  for (const roleCode of ROLES_CONSULTATION_DPAE.filter((role) => !['planning_tertiaire', 'inspecteur'].includes(role))) {
     audit.mock.resetCalls();
     const { res, erreurTransmise } = await telecharger('get', '/:id/pdf', { params: { id: '36' }, roleCode, utilisateurId: 4 });
     assert.equal(erreurTransmise, null);
@@ -817,7 +817,7 @@ test('POST /export-pdf : au-delà de 50 demandes -> 400 avec un message clair ; 
 // ---------------------------------------------------------------------------------------------
 test('GET /a-valider : Planning et Admin autorisés ; RH, Inspecteur Hôtellerie et les autres rôles -> 403 ; déclarée AVANT GET /:id', () => {
   const garde = gardeRoute('get', '/a-valider');
-  for (const roleCode of ['planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['planning', 'planning_tertiaire', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
   for (const roleCode of ['rh', 'inspecteur_hotellerie', 'accueil_coordination', 'formateur', 'inspecteur']) {
     assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
   }
@@ -968,10 +968,10 @@ test('PUT /:id sans note de modification : 400 (note toujours obligatoire)', asy
   assert.equal(res.statut, 400);
 });
 
-test('PATCH /:id/envoyer-au-planning : Inspecteur Hôtellerie et Admin passent la garde ; Planning, RH et les autres -> 403', () => {
+test('PATCH /:id/envoyer-au-planning : Inspecteur Hôtellerie, Formateur Tertiaire et Admin passent la garde ; Planning, RH et les autres -> 403', () => {
   const garde = gardeRoute('patch', '/:id/envoyer-au-planning');
-  for (const roleCode of ['inspecteur_hotellerie', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
-  for (const roleCode of ['planning', 'rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+  for (const roleCode of ['inspecteur_hotellerie', 'inspecteur', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['planning', 'planning_tertiaire', 'rh', 'accueil_coordination', 'formateur']) {
     assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
   }
 });
@@ -1206,8 +1206,8 @@ test('Semaine type : demande existante sans site par jour acceptée avec un seul
 // ---------------------------------------------------------------------------------------------
 test('PATCH /:id/classer-sans-suite : Inspecteur Hôtellerie, Planning et Admin passent la garde ; RH et les autres -> 403', () => {
   const garde = gardeRoute('patch', '/:id/classer-sans-suite');
-  for (const roleCode of ['inspecteur_hotellerie', 'planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
-  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+  for (const roleCode of ['inspecteur_hotellerie', 'inspecteur', 'planning', 'planning_tertiaire', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur']) {
     const resultat = executerGarde(garde, roleCode);
     assert.equal(resultat.statut, 403, roleCode);
   }
@@ -1241,8 +1241,8 @@ test('PATCH /:id/classer-sans-suite : version obligatoire (400), sinon 204 ; dem
 
 test('PATCH /:id/retransmettre-rh : Inspecteur Hôtellerie, Planning et Admin passent la garde ; RH et les autres -> 403', () => {
   const garde = gardeRoute('patch', '/:id/retransmettre-rh');
-  for (const roleCode of ['inspecteur_hotellerie', 'planning', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
-  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
+  for (const roleCode of ['inspecteur_hotellerie', 'inspecteur', 'planning', 'planning_tertiaire', 'admin']) assert.equal(executerGarde(garde, roleCode).autorise, true, roleCode);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur']) assert.equal(executerGarde(garde, roleCode).statut, 403, roleCode);
 });
 
 test('PATCH /:id/retransmettre-rh : version obligatoire (400), sinon 204 ; autre auteur -> 403 avec message clair ; autre statut -> 409', async (t) => {

@@ -53,6 +53,9 @@ export const TRANSITIONS_DPAE = [
   // Passage par le Planning.
   { action: ACTION_TRANSMETTRE_RH, de: 'a_valider_planning', vers: 'envoyee' },
   { action: ACTION_RENVOYER_INSPECTEUR, de: 'a_valider_planning', vers: 'renvoyee_inspecteur' },
+  // Tertiaire : le Planning Tertiaire renvoie au formateur depuis « À traiter » ou « En attente ».
+  { action: ACTION_RENVOYER_INSPECTEUR, de: 'envoyee', vers: 'renvoyee_inspecteur' },
+  { action: ACTION_RENVOYER_INSPECTEUR, de: 'en_attente', vers: 'renvoyee_inspecteur' },
   // Classement sans suite : depuis tout statut non décidé par la RH, jamais depuis un statut final.
   { action: ACTION_CLASSER_SANS_SUITE, de: 'a_valider_planning', vers: 'classee_sans_suite' },
   { action: ACTION_CLASSER_SANS_SUITE, de: 'renvoyee_inspecteur', vers: 'classee_sans_suite' },
@@ -68,6 +71,8 @@ export const TRANSITIONS_DPAE = [
   { action: ACTION_RETRANSMETTRE_RH, de: 'en_attente', vers: 'envoyee' },
   // Renvoi de l'inspecteur au Planning, après correction : action explicite.
   { action: ACTION_ENVOYER_AU_PLANNING, de: 'renvoyee_inspecteur', vers: 'a_valider_planning' },
+  // Tertiaire : la demande corrigée revient directement au Planning Tertiaire (« À traiter »).
+  { action: ACTION_ENVOYER_AU_PLANNING, de: 'renvoyee_inspecteur', vers: 'envoyee' },
   // Modification par le demandeur : le statut ne change JAMAIS.
   { action: ACTION_MODIFIER, de: 'a_valider_planning', vers: 'a_valider_planning' },
   { action: ACTION_MODIFIER, de: 'renvoyee_inspecteur', vers: 'renvoyee_inspecteur' },
@@ -87,5 +92,12 @@ export const transitionPossible = (action, statut) => TRANSITIONS_DPAE.some((tra
 const PAR_CODE = Object.fromEntries(STATUTS_DPAE.map((statut) => [statut.code, statut]));
 
 // Code inconnu (statut ajouté côté serveur sans mise à jour ici) : code brut, badge neutre.
-export const libelleStatutDpae = (code) => PAR_CODE[code]?.libelle ?? code;
+// Entité Tertiaire : « Renvoyée à l'inspecteur » s'affiche « Renvoyée au formateur » (même statut en base).
+const LIBELLES_TERTIAIRE = { renvoyee_inspecteur: 'Renvoyée au formateur' };
+const LIBELLES_PLURIEL_TERTIAIRE = { renvoyee_inspecteur: 'Renvoyées au formateur' };
+export const estDemandeTertiaire = (demande) => demande?.division === 'tertiaire';
+export const libelleStatutDpae = (code, division) => (division === 'tertiaire' ? LIBELLES_TERTIAIRE[code] : undefined) ?? PAR_CODE[code]?.libelle ?? code;
+export const libellePlurielStatutDpae = (code, division) =>
+  (division === 'tertiaire' ? LIBELLES_PLURIEL_TERTIAIRE[code] : undefined) ?? PAR_CODE[code]?.libellePluriel ?? code;
+
 export const varianteStatutDpae = (code) => PAR_CODE[code]?.variante ?? 'neutre';

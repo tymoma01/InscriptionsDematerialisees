@@ -90,8 +90,9 @@ export async function transmettreDemandeALaRh(demandeId, version) {
   await api.patch(`/dpae/${demandeId}/transmettre-rh`, { version });
 }
 
-export async function renvoyerDemandeAInspecteur(demandeId, version) {
-  await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, { version });
+// `motif` : exigé par le serveur pour une demande du Tertiaire (renvoi au formateur) ; ignoré sinon.
+export async function renvoyerDemandeAInspecteur(demandeId, version, motif) {
+  await api.patch(`/dpae/${demandeId}/renvoyer-inspecteur`, motif === undefined ? { version } : { version, motif });
 }
 
 // « Renvoyée à l'inspecteur » -> « À valider par le Planning », une fois la demande corrigée.

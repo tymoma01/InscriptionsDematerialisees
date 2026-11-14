@@ -116,3 +116,77 @@
 .barre-navigation-sous-onglets__lien--actif {
   border-bottom-color: var(--couleur-back-office);
 }
+
+/* Menu déroulant « Vues » (Admin) : dernier élément de la barre, menu aligné sur le bord DROIT du bouton
+   (il s'ouvre vers la gauche, sans déborder de l'écran). */
+.barre-navigation__vues {
+  position: relative;
+}
+
+.barre-navigation__vues-bouton {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.barre-navigation__vues-bouton.barre-navigation__lien--actif {
+  background-color: var(--couleur-back-office);
+}
+
+.barre-navigation__vues-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 6;
+  min-width: 14rem;
+  padding: var(--espace-petit);
+  background-color: var(--couleur-fond);
+  border: 1px solid var(--couleur-bordure-legere);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 6px 18px rgba(46, 32, 19, 0.18);
+}
+
+.barre-navigation__vues-groupe + .barre-navigation__vues-groupe {
+  margin-top: var(--espace-petit);
+  padding-top: var(--espace-petit);
+  border-top: 1px solid var(--couleur-bordure-legere);
+}
+
+.barre-navigation__vues-secteur {
+  margin: 0 0 0.25rem;
+  padding: 0 0.75rem;
+  color: var(--couleur-texte-secondaire, var(--couleur-texte));
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.barre-navigation__vues-option {
+  display: block;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--rayon-bordure);
+  color: var(--couleur-back-office);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.barre-navigation__vues-option:hover,
+.barre-navigation__vues-option:focus-visible {
+  background-color: var(--couleur-fond-secondaire);
+}
+
+.barre-navigation__vues-option--actif {
+  background-color: var(--couleur-back-office-clair);
+}
+
+/* À partir de 1280 px : toute la barre sur UNE seule ligne, dans le même bloc ; en dessous, le retour à la
+   ligne actuel reste en place. */
+@media (min-width: 1280px) {
+  .barre-navigation {
+    flex-wrap: nowrap;
+  }
+}

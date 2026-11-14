@@ -10,8 +10,10 @@ const notificationsDpae = require('./notificationsDpae');
 const siteAffectationRepository = require('./siteAffectationRepository');
 const journalAudit = require('../audit/journalAudit');
 const statutsDpae = require('./statutsDpae');
+const entiteDpae = require('./entiteDpae');
 const { champsModifies } = require('./champsDemandeDpae');
 const { aPermission } = require('../auth/permissions');
+const { ENTITES, ROLES } = require('../auth/rbac');
 const pegaseSalarieService = require('../../integrations/pegase/pegaseSalarieService');
 
 class ErreurDemandeIntrouvable extends Error {}
@@ -58,12 +60,32 @@ class ErreurClassementInterdit extends ErreurModificationInterdite {
     this.message = 'Vous ne pouvez classer sans suite que vos propres demandes.';
   }
 }
+// Accès à une demande d'une autre entité (Hôtellerie / Tertiaire) : 403 avec un message précisant qui la
+// traite (voir entiteDpae.messageRefusEntite).
+class ErreurEntiteHorsPerimetre extends ErreurModificationInterdite {
+  constructor(message) {
+    super();
+    this.message = message;
+  }
+}
+// Renvoi au formateur sans motif (traduit en 400, message affiché tel quel).
+class ErreurMotifRenvoiObligatoire extends Error {
+  constructor() {
+    super('Le motif du renvoi est obligatoire.');
+  }
+}
 // Site(s) d'affectation inexistant(s), inactif(s) ou d'une autre entité (voir creerEtEnvoyer) —
 // traduit en 400 avec son message par dpae.routes.js.
 class ErreurSitesAffectationInvalides extends Error {}
 // Export PDF groupé : au moins une demande de la sélection hors périmètre — toute la
 // requête est refusée (403 dans dpae.routes.js), jamais de ZIP partiel.
 class ErreurExportDemandesRefuse extends Error {}
+
+// Refuse (403) une demande hors du périmètre d'entité du rôle, avant tout autre contrôle.
+function verifierEntiteAccessible(roleCode, demande) {
+  const message = entiteDpae.messageRefusEntite(roleCode, demande);
+  if (message) throw new ErreurEntiteHorsPerimetre(message);
+}
 
 async function verifierDemandeExiste(bd, entite, demandeId) {
   const demande = await demandeDpaeRepository.trouverDemandeParId(bd, entite.id, demandeId);
@@ -99,28 +121,32 @@ async function creerEtEnvoyer(entite, demandeurId, donnees, { roleCode } = {}) {
   const bd = await db.obtenirKnex();
   const { sitesAffectationIds = [], ...champsDemande } = donnees;
   const soumiseAuPlanning = aPermission(roleCode, 'dpaeCreationSoumiseAuPlanning');
+  // Demande du Tertiaire : elle arrive directement chez le Planning Tertiaire (« À traiter »), sans RH.
+  const tertiaire = entiteDpae.entiteDeLaDivision(champsDemande.division) === ENTITES.TERTIAIRE;
+  const statut = soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL;
   return bd.transaction(async (trx) => {
     await verifierSitesValides(trx, entite, sitesAffectationIds);
     const demandeId = await demandeDpaeRepository.creerDemande(trx, {
       ...champsDemande,
       entiteId: entite.id,
       demandeurId,
-      statut: soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL,
+      statut,
     });
     await siteAffectationRepository.lierSitesDemande(trx, demandeId, sitesAffectationIds);
     const demandeCreee = {
       id: demandeId,
-      statut: soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL,
+      statut,
       demandeur_id: demandeurId,
       salarie_prenom: champsDemande.salariePrenom,
       salarie_nom: champsDemande.salarieNom,
+      division: champsDemande.division,
       date_envoi_rh: null,
     };
     await notificationsDpae.notifierAction(trx, entite, demandeCreee, {
       auteurId: demandeurId,
-      type: soumiseAuPlanning ? 'demande_dpae_a_valider' : 'demande_dpae_transmise',
+      type: soumiseAuPlanning || tertiaire ? 'demande_dpae_a_valider' : 'demande_dpae_transmise',
       action: 'demande créée',
-      parties: [soumiseAuPlanning ? notificationsDpae.PARTIE_PLANNING : notificationsDpae.PARTIE_RH],
+      parties: [soumiseAuPlanning || tertiaire ? notificationsDpae.PARTIE_PLANNING : notificationsDpae.PARTIE_RH],
       rhConcernee: !soumiseAuPlanning,
     });
     return demandeId;
@@ -158,6 +184,7 @@ function masqueClasseesNonTransmises(roleCode) {
 
 // Visibilité d'une demande donnée pour un rôle : son statut, puis le cas des classées non transmises.
 function peutVoirDemande(roleCode, demande) {
+  if (!entiteDpae.demandeDansLePerimetre(roleCode, demande)) return false;
   if (!peutVoirStatut(roleCode, demande.statut)) return false;
   return !(demande.statut === statutsDpae.STATUT_CLASSEE_SANS_SUITE && !demande.date_envoi_rh && masqueClasseesNonTransmises(roleCode));
 }
@@ -194,16 +221,16 @@ async function listerSuivi(entite, { utilisateurId, roleCode, perimetreDemande }
   const perimetre = perimetreSuivi({ roleCode, perimetreDemande });
   const demandes =
     perimetre === 'toutes'
-      ? await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, null, statutsMasquesPour(roleCode), masqueClasseesNonTransmises(roleCode))
-      : await demandeDpaeRepository.listerDemandesParDemandeur(bd, entite.id, utilisateurId, statutsMasquesPour(roleCode), masqueClasseesNonTransmises(roleCode));
+      ? await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, null, statutsMasquesPour(roleCode), masqueClasseesNonTransmises(roleCode), entiteDpae.entiteDuRole(roleCode))
+      : await demandeDpaeRepository.listerDemandesParDemandeur(bd, entite.id, utilisateurId, statutsMasquesPour(roleCode), masqueClasseesNonTransmises(roleCode), entiteDpae.entiteDuRole(roleCode));
   return ajouterSites(bd, demandes);
 }
 
 // File des demandes que le Planning doit valider (« À valider par le Planning », puis « Renvoyée à
 // l'inspecteur »), sites d'affectation inclus. L'accès (dpaeValidationPlanning) est vérifié par la route.
-async function listerAValider(entite) {
+async function listerAValider(entite, { roleCode } = {}) {
   const bd = await db.obtenirKnex();
-  return ajouterSites(bd, await demandeDpaeRepository.listerDemandesAValider(bd, entite.id));
+  return ajouterSites(bd, await demandeDpaeRepository.listerDemandesAValider(bd, entite.id, entiteDpae.entiteDuRole(roleCode)));
 }
 
 // statut par défaut : statut initial (file à traiter) — un appelant qui veut l'historique complet
@@ -212,9 +239,9 @@ async function listerAValider(entite) {
 // forme que listerSuivi.
 // La file RH ne contient jamais les demandes encore chez le Planning, même pour l'Admin : elles ont
 // leur propre file (listerAValider).
-async function listerPourRh(entite, statut = statutsDpae.STATUT_INITIAL) {
+async function listerPourRh(entite, statut = statutsDpae.STATUT_INITIAL, { roleCode } = {}) {
   const bd = await db.obtenirKnex();
-  const demandes = await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut, statutsDpae.STATUTS_AVANT_RH, true);
+  const demandes = await demandeDpaeRepository.listerDemandesPourRh(bd, entite.id, statut, statutsDpae.STATUTS_AVANT_RH, true, entiteDpae.entiteDuRole(roleCode));
   return ajouterSites(bd, demandes);
 }
 
@@ -249,6 +276,8 @@ async function obtenirDemandesPourExport(entite, demandeIds, { roleCode, utilisa
       }
       throw erreur;
     }
+    const refusEntite = entiteDpae.messageRefusEntite(roleCode, demande);
+    if (refusEntite) throw new ErreurExportDemandesRefuse(`Demande DPAE n° ${demandeId} : ${refusEntite} Aucun fichier n'a été généré.`);
     if (!module.exports.peutConsulterDemande({ roleCode, utilisateurId, demande })) {
       throw new ErreurExportDemandesRefuse(`Demande DPAE n° ${demandeId} hors de votre périmètre : aucun fichier n'a été généré.`);
     }
@@ -280,6 +309,8 @@ async function appliquerTransition(entite, demandeId, { action, version, utilisa
   const bd = await db.obtenirKnex();
   return bd.transaction(async (trx) => {
     const demande = await verifierDemandeExiste(trx, entite, demandeId);
+    // Demande d'une autre entité (Hôtellerie / Tertiaire) : refus 403 avec le message de l'entité.
+    verifierEntiteAccessible(roleCode, demande);
     // Une demande que le rôle n'a pas le droit de voir (la RH, avant l'envoi à la RH) : refus 403
     // identique à la consultation, avant toute autre vérification — aucune information sur le statut.
     if (!peutVoirDemande(roleCode, demande)) throw new ErreurModificationInterdite();
@@ -395,6 +426,11 @@ async function transmettreALaRh(entite, demandeId, utilisateurId, { version, adr
     roleCode,
     utilisateurId,
     adresseIp,
+    verifierDroit: (demande) => {
+      if (entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE) {
+        throw new ErreurDemandeDejaTraitee('Les demandes du Tertiaire ne passent pas par la RH : le Planning Tertiaire les traite.');
+      }
+    },
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.transmettreALaRh(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
     tracer: { action: 'demande_dpae_transmission_rh', donnees: {} },
@@ -402,22 +438,47 @@ async function transmettreALaRh(entite, demandeId, utilisateurId, { version, adr
   });
 }
 
-// Renvoi à l'inspecteur auteur : aucun motif saisi (voir rejeter) ; l'inspecteur est notifié.
-async function renvoyerAInspecteur(entite, demandeId, utilisateurId, { version, adresseIp, roleCode } = {}) {
+// Renvoi à l'inspecteur auteur. Circuit Hôtellerie : « À valider par le Planning » -> « Renvoyée à l'inspecteur »,
+// aucun motif saisi (la raison se consigne dans les notes). Circuit Tertiaire : le Planning Tertiaire (ou
+// l'Admin) renvoie au Formateur Tertiaire, depuis « À traiter » ou « En attente », avec un motif OBLIGATOIRE,
+// enregistré comme note de la demande et tracé dans l'audit ; réservé aux demandes créées par le Formateur
+// Tertiaire (jamais celles du Planning Tertiaire). L'auteur est notifié.
+async function renvoyerAInspecteur(entite, demandeId, utilisateurId, { version, adresseIp, roleCode, motif } = {}) {
+  const motifNettoye = typeof motif === 'string' ? motif.trim() : '';
   return appliquerTransition(entite, demandeId, {
     action: statutsDpae.ACTION_RENVOYER_INSPECTEUR,
     version,
     roleCode,
     utilisateurId,
     adresseIp,
-    ecrire: (trx, demande, transition) =>
-      demandeDpaeRepository.renvoyerAInspecteur(trx, demandeId, {
+    verifierDroit: (demande) => {
+      const tertiaire = entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE;
+      if (!tertiaire && demande.statut !== statutsDpae.STATUT_A_VALIDER_PLANNING) {
+        throw new ErreurDemandeDejaTraitee(`Demande DPAE "${demandeId}" : action « renvoyer » impossible depuis le statut « ${demande.statut} ».`);
+      }
+      if (tertiaire && !motifNettoye) throw new ErreurMotifRenvoiObligatoire();
+    },
+    ecrire: async (trx, demande, transition) => {
+      if (entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE) {
+        const demandeur = await demandeDpaeRepository.trouverUtilisateurAvecRole(trx, entite.id, demande.demandeur_id);
+        if (demandeur?.role_code !== ROLES.INSPECTEUR) {
+          throw new ErreurDemandeDejaTraitee('Cette demande a été créée par le Planning Tertiaire : elle ne peut pas être renvoyée au formateur.');
+        }
+        await notesDemandeDpaeRepository.ajouterNote(trx, { demandeId, auteurId: utilisateurId, contenu: `Motif du renvoi : ${motifNettoye}` });
+      }
+      return demandeDpaeRepository.renvoyerAInspecteur(trx, demandeId, {
         statutDepart: demande.statut,
         version: demande.version,
         statut: transition.vers,
-      }),
-    tracer: { action: 'demande_dpae_renvoi_inspecteur', donnees: {} },
-    notifier: notifierParties(entite, utilisateurId, { type: 'demande_dpae_renvoyee', action: 'renvoyée à l’inspecteur', parties: [PARTIE_DEMANDEUR] }),
+      });
+    },
+    tracer: (demande) => ({ action: 'demande_dpae_renvoi_inspecteur', donnees: entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE ? { motif: motifNettoye } : {} }),
+    notifier: (demande, trx) =>
+      notifierParties(entite, utilisateurId, {
+        type: 'demande_dpae_renvoyee',
+        action: entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE ? 'renvoyée au formateur' : 'renvoyée à l’inspecteur',
+        parties: [PARTIE_DEMANDEUR],
+      })(demande, trx),
   });
 }
 
@@ -491,6 +552,8 @@ async function envoyerAuPlanning(entite, demandeId, utilisateurId, { version, ad
     verifierDroit: (demande) => {
       if (!module.exports.peutEnvoyerAuPlanning({ roleCode, utilisateurId, demande })) throw new ErreurEnvoiPlanningInterdit();
     },
+    // Tertiaire : la demande corrigée revient chez le Planning Tertiaire (« À traiter »).
+    statutArrivee: (demande) => (entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE ? statutsDpae.STATUT_ENVOYEE : statutsDpae.STATUT_A_VALIDER_PLANNING),
     ecrire: (trx, demande, transition) =>
       demandeDpaeRepository.envoyerAuPlanning(trx, demandeId, { statutDepart: demande.statut, version: demande.version, statut: transition.vers }),
     tracer: { action: 'demande_dpae_envoi_planning', donnees: {} },
@@ -576,6 +639,7 @@ async function modifierDemande(entite, demandeId, { donnees, version, utilisateu
   const bd = await db.obtenirKnex();
   return bd.transaction(async (trx) => {
     const demande = await verifierDemandeExiste(trx, entite, demandeId);
+    verifierEntiteAccessible(roleCode, demande);
     if (!module.exports.peutModifierDemande({ roleCode, utilisateurId, demande })) throw new ErreurModificationInterdite();
     if (demande.version !== version) throw new ErreurDemandeModifiee();
 
@@ -634,6 +698,7 @@ async function modifierDemande(entite, demandeId, { donnees, version, utilisateu
 }
 
 module.exports = {
+  verifierEntiteAccessible,
   creerEtEnvoyer,
   perimetreSuivi,
   statutsMasquesPour,
@@ -668,6 +733,8 @@ module.exports = {
   ErreurEnvoiPlanningInterdit,
   ErreurRetransmissionInterdite,
   ErreurSitesAffectationInvalides,
+  ErreurEntiteHorsPerimetre,
+  ErreurMotifRenvoiObligatoire,
   ErreurNoteModificationObligatoire,
   ErreurExportDemandesRefuse,
 };

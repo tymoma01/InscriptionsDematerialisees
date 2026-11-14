@@ -37,6 +37,11 @@
       "equipier": ["AS", "ATQS"],
       "gouvernant": ["CE1", "CE2", "CE3", "MP1"],
       "cafetier": ["AS"]
+    },
+    "tertiaire": {
+      "postes": ["nettoyage", "vitrerie", "machiniste", "chef_equipe", "autre"],
+      "echelons_par_poste": {},
+      "postes_tous_echelons": []
     }
   },
   "duree_conservation_mois": 12,

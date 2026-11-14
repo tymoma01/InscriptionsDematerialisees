@@ -67,8 +67,8 @@ test('transition : « En attente » -> « À traiter » seulement, jamais depuis
   for (const statut of ['a_valider_planning', 'renvoyee_inspecteur', 'envoyee', 'validee', 'rejetee', 'classee_sans_suite']) {
     assert.equal(statutsDpae.trouverTransition(statutsDpae.ACTION_RETRANSMETTRE_RH, statut), undefined, statut);
   }
-  assert.deepEqual([...PERMISSIONS.dpaeRetransmissionRh].sort(), ['admin', 'inspecteur_hotellerie', 'planning']);
-  assert.deepEqual([...PERMISSIONS.dpaeRetransmissionRhToutes].sort(), ['admin', 'planning']);
+  assert.deepEqual([...PERMISSIONS.dpaeRetransmissionRh].sort(), ['admin', 'inspecteur', 'inspecteur_hotellerie', 'planning', 'planning_tertiaire']);
+  assert.deepEqual([...PERMISSIONS.dpaeRetransmissionRhToutes].sort(), ['admin', 'planning', 'planning_tertiaire']);
 });
 
 test('autorisée pour l’auteur, le Planning et l’Admin : statut « À traiter », RH et demandeur notifiés, audit sans motif', async (t) => {

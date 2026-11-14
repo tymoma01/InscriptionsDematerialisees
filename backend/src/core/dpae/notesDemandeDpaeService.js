@@ -36,6 +36,7 @@ async function verifierDemandeAccessible(bd, entite, demandeId, { roleCode, util
   if (!demande) {
     throw new ErreurDemandeIntrouvable(`Demande DPAE "${demandeId}" introuvable pour l'entité « ${entite.code} ».`);
   }
+  demandeDpaeService.verifierEntiteAccessible(roleCode, demande);
   if (!demandeDpaeService.peutConsulterDemande({ roleCode, utilisateurId, demande })) throw new ErreurModificationInterdite();
   return demande;
 }

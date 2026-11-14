@@ -7,7 +7,9 @@ import {
   divisionDuCandidat,
   donneesApresChangementPoste,
   donneesInitiales,
+  echelonsDeLaDivision,
   echelonsDuPoste,
+  postesProposes,
   joursPrivesDeSite,
   validerFormulaire,
 } from './formulaireDemandeDpae';
@@ -348,5 +350,28 @@ describe('Échelon selon le poste', () => {
   it('relit l\'échelon d\'une demande, vide pour une demande sans échelon', () => {
     expect(donneesFormulaireDepuisDemande({ ...DEMANDE, echelon: 'CE3' }).echelon).toBe('CE3');
     expect(donneesFormulaireDepuisDemande(DEMANDE).echelon).toBe('');
+  });
+});
+
+describe('postes et échelons par entité (Hôtellerie / Tertiaire)', () => {
+  it('postes du Tertiaire : Nettoyage, Vitrerie, Machiniste, Chef d’équipe, Autre ; ceux de l’Hôtellerie pour toute autre entité', () => {
+    expect(postesProposes('tertiaire').map((poste) => poste.libelle)).toEqual(['Nettoyage', 'Vitrerie', 'Machiniste', "Chef d'équipe", 'Autre']);
+    for (const division of ['hotellerie', 'autre', '', undefined]) {
+      expect(postesProposes(division).map((poste) => poste.code)).toEqual(['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant', 'autre']);
+    }
+  });
+
+  it('la configuration de l’entité peut restreindre les postes du Tertiaire', () => {
+    expect(postesProposes('tertiaire', ['nettoyage', 'autre']).map((poste) => poste.code)).toEqual(['nettoyage', 'autre']);
+  });
+
+  it('échelons du Tertiaire : liste vide tant que la configuration n’en définit pas ; ceux de l’Hôtellerie sinon', () => {
+    const configuration = { echelonsParPoste: { equipier: ['AS'] }, echelonsParPosteTertiaire: {} };
+    expect(echelonsDeLaDivision(configuration, 'tertiaire')).toEqual({});
+    expect(echelonsDuPoste(echelonsDeLaDivision(configuration, 'tertiaire'), 'nettoyage')).toEqual([]);
+    expect(echelonsDeLaDivision(configuration, 'hotellerie')).toEqual({ equipier: ['AS'] });
+    expect(echelonsDeLaDivision(undefined, 'tertiaire')).toEqual({});
+    // Complétable sans toucher au code : un échelon ajouté à la configuration apparaît.
+    expect(echelonsDuPoste(echelonsDeLaDivision({ echelonsParPosteTertiaire: { nettoyage: ['N1'] } }, 'tertiaire'), 'nettoyage')).toEqual(['N1']);
   });
 });

@@ -111,3 +111,19 @@
 .modale-confirmation-dpae__description {
   margin: 0;
 }
+
+.modale-confirmation-dpae__motif {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.modale-confirmation-dpae__motif textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  resize: vertical;
+}

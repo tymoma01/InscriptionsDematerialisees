@@ -21,7 +21,7 @@ import { libelleStatutDpae, statutsVisibles, varianteStatutDpae } from '../../co
 import { useSession } from '../../core/auth/useSession';
 import { peut } from '../../core/auth/permissions';
 
-// « Tableau de bord DPAE » (onglet RH > Tableau de bord DPAE, 2026-09-30). Indicateurs calculés côté
+// « Tableau de bord DPAE » (onglet DPAE > Tableau de bord DPAE, 2026-09-30). Indicateurs calculés côté
 // serveur (GET /api/dpae/tableau-de-bord, en base, heure de Paris) ; cette page ne fait qu'afficher.
 // Style et graphiques du « Tableau de bord » existant (Indicateurs.css : filtres, tuiles, blocs
 // graphiques ; mêmes composants recharts), réutilisés tels quels plutôt que redessinés.
@@ -85,7 +85,7 @@ function ListeDemandes({ demandes, colonneDate, libelleDate, vide, marquer, sans
               {libelleDate} {formaterJour(demande[colonneDate])}
             </span>
             {marquer?.(demande)}
-            {!sansStatut && <StatutBadge libelle={libelleStatutDpae(demande.statut)} variante={varianteStatutDpae(demande.statut)} />}
+            {!sansStatut && <StatutBadge libelle={libelleStatutDpae(demande.statut, demande.division)} variante={varianteStatutDpae(demande.statut)} />}
           </button>
         </li>
       ))}
@@ -203,6 +203,10 @@ export default function TableauDeBordDpae() {
   const [siteId, setSiteId] = useParametreURL('site', '');
   const [typeContrat, setTypeContrat] = useParametreURL('contrat', '');
   const [statut, setStatut] = useParametreURL('statut', '');
+  // Entité (Hôtellerie / Tertiaire) : filtre proposé aux rôles qui voient les deux (Admin) ; les autres sont
+  // limités à la leur par le serveur.
+  const [entite, setEntite] = useParametreURL('entite', '');
+  const { utilisateur } = useSession();
 
   const [donnees, setDonnees] = useState(null);
   const [chargement, setChargement] = useState(true);
@@ -212,7 +216,7 @@ export default function TableauDeBordDpae() {
     let annule = false;
     setChargement(true);
     setErreur(null);
-    obtenirTableauDeBordDpae({ debut, fin, siteId, typeContrat, statut })
+    obtenirTableauDeBordDpae({ debut, fin, siteId, typeContrat, statut, entite })
       .then((valeur) => {
         if (!annule) setDonnees(valeur);
       })
@@ -225,7 +229,7 @@ export default function TableauDeBordDpae() {
     return () => {
       annule = true;
     };
-  }, [debut, fin, siteId, typeContrat, statut]);
+  }, [debut, fin, siteId, typeContrat, statut, entite]);
 
   const reinitialiser = () => {
     setDebut('');
@@ -233,13 +237,13 @@ export default function TableauDeBordDpae() {
     setSiteId('');
     setTypeContrat('');
     setStatut('');
+    setEntite('');
   };
 
   const t = donnees;
   // Statuts proposés (filtre, tuiles, graphique) : la RH ne voit pas les demandes encore chez le
   // Planning (le serveur les exclut aussi de tous les indicateurs) ; l'Admin et le Planning ont en plus
   // la tuile « À valider par le Planning ».
-  const { utilisateur } = useSession();
   const statutsAffiches = statutsVisibles(peut(utilisateur, 'dpaeVoitFilePlanning'));
   // Demandes distinctes (une demande dans les deux listes compte une fois), calculé côté serveur.
   const nombrePriorites = t ? t.priorite.nombre : 0;
@@ -352,6 +356,16 @@ export default function TableauDeBordDpae() {
               <option value="avenant">AVENANT</option>
             </select>
           </label>
+          {peut(utilisateur, 'dpaeToutesEntites') && (
+            <label className="indicateurs__filtre">
+              <span>Entité</span>
+              <select value={entite} onChange={(e) => setEntite(e.target.value)}>
+                <option value="">Toutes</option>
+                <option value="hotellerie">Hôtellerie</option>
+                <option value="tertiaire">Tertiaire</option>
+              </select>
+            </label>
+          )}
           <label className="indicateurs__filtre">
             <span>Statut</span>
             <select value={statut} onChange={(e) => setStatut(e.target.value)}>

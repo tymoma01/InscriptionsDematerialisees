@@ -12,7 +12,7 @@ import { FILTRE_ETUDIANT, basculerChoixUnique, compterEtudiants, creneauxPropose
 import { useParametreURL, useEnsembleURL } from '../../core/filtres/useParametreURL';
 import EnTeteBackOffice from '../../core/auth/EnTeteBackOffice';
 import { useSession } from '../../core/auth/useSession';
-import { peut, ROLE_INSPECTEUR_HOTELLERIE } from '../../core/auth/permissions';
+import { peut, ROLE_INSPECTEUR_HOTELLERIE, ROLE_PLANNING_TERTIAIRE } from '../../core/auth/permissions';
 import PageBackOffice from '../../core/backOffice/PageBackOffice';
 import { listerDossiers, listerStatuts, corrigerDisponibiliteEmbauche } from '../../services/dossierService';
 import { useRafraichissementAuto } from '../../core/dossier/useRafraichissementAuto';
@@ -23,7 +23,7 @@ import ModaleDisponibiliteEmbauche from './ModaleDisponibiliteEmbauche';
 import { listerPiecesJustificatives } from '../../services/pieceJustificativeService';
 import api from '../../services/api';
 import { abreviationPoste, libellePoste } from '../../core/referentiels/postes';
-import { CRENEAUX_HOTEL } from '../../core/referentiels/creneaux';
+import { CRENEAUX_BUREAU, CRENEAUX_HOTEL } from '../../core/referentiels/creneaux';
 import { STATUTS_REPLANIFIABLES } from '../../core/referentiels/statutsDossier';
 import {
   SEUIL_SELECTION_ACTIONS_GROUPEES,
@@ -53,6 +53,8 @@ import './TableauDeBordAccueil.css';
 // `vue` : 'inspecteur_hotellerie' pour l'onglet Admin « Vue Inspecteur Hôtellerie » (voir
 // App.jsx) — mêmes dossiers (périmètre appliqué côté serveur, Admin seulement), mêmes pastilles et
 // filtres que ce rôle ; l'Admin garde ses actions et sa fiche complète.
+const TITRES_VUE = { [ROLE_INSPECTEUR_HOTELLERIE]: 'Dossiers candidats - Inspecteur', [ROLE_PLANNING_TERTIAIRE]: 'Dossiers candidats - Planning Tertiaire' };
+
 export default function TableauDeBordAccueil({ vue = null }) {
   const { utilisateur, chargement: chargementSession } = useSession();
   // Actions groupées : chacune affichée seulement aux rôles que le serveur accepte
@@ -65,6 +67,9 @@ export default function TableauDeBordAccueil({ vue = null }) {
   // mêmes pastilles de statut que les autres rôles (compteurs à 0 hors périmètre), sans pastilles de
   // secteur ; aucune case à cocher (selectionMultipleDisponible faux).
   const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE || vue === ROLE_INSPECTEUR_HOTELLERIE;
+  // Secteur auquel le rôle est limité par le serveur (Inspecteur Hôtellerie : hôtel ; Planning Tertiaire :
+  // bureau) : pas de pastille de secteur, métiers et créneaux de ce seul secteur.
+  const secteurImpose = estInspecteurHotellerie ? 'hotel' : vue === ROLE_PLANNING_TERTIAIRE ? 'bureau' : (utilisateur?.secteurImpose ?? null);
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState([]);
@@ -120,8 +125,8 @@ export default function TableauDeBordAccueil({ vue = null }) {
   const [creneauxCoches, basculerCreneauFiltre] = useEnsembleURL('creneau');
   const [joursFiltre, basculerJourFiltre] = useEnsembleURL('jours');
   const optionsCreneaux = useMemo(
-    () => (estInspecteurHotellerie ? CRENEAUX_HOTEL : creneauxProposes({ entitesFiltre, metierFiltre })),
-    [estInspecteurHotellerie, entitesFiltre, metierFiltre],
+    () => (secteurImpose ? (secteurImpose === 'bureau' ? CRENEAUX_BUREAU : CRENEAUX_HOTEL) : creneauxProposes({ entitesFiltre, metierFiltre })),
+    [secteurImpose, entitesFiltre, metierFiltre],
   );
   const creneauxFiltre = useMemo(
     () => new Set([...creneauxCoches].filter((creneau) => optionsCreneaux.includes(creneau))),
@@ -677,7 +682,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
     <PageBackOffice>
       <div className="tableau-bord-accueil">
         <header className="tableau-bord-accueil__entete">
-          <h1>{vue === ROLE_INSPECTEUR_HOTELLERIE ? 'Dossiers candidats - Inspecteur' : 'Dossiers candidats'}</h1>
+          <h1>{TITRES_VUE[vue] ?? 'Dossiers candidats'}</h1>
           {/* Bouton "Planification des tests" retiré (refonte navigation, 2026-08-17) : couvert
               par le lien "Suivi des tests" de la barre de navigation commune, voir
               BarreNavigation.jsx (montée dans PageBackOffice.jsx). */}
@@ -726,7 +731,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
                   </button>
                 </div>
                 <div className="tableau-bord-accueil__filtres-pastilles">
-                  {!estInspecteurHotellerie && (
+                  {!secteurImpose && (
                     <FiltreEntite
                       entitesFiltre={entitesFiltre}
                       onBasculerEntite={basculerEntiteFiltre}
@@ -741,7 +746,7 @@ export default function TableauDeBordAccueil({ vue = null }) {
                 metierFiltre={metierFiltre}
                 onBasculerMetier={basculerMetierFiltre}
                 compteurs={compteursParMetier}
-                secteurs={estInspecteurHotellerie ? ['hotel'] : undefined}
+                secteurs={secteurImpose ? [secteurImpose] : undefined}
               />
             </div>
 

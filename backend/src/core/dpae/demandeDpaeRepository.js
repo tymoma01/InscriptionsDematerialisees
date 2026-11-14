@@ -60,6 +60,8 @@ const COLONNES_DEMANDE = [
   'demandeur.id as demandeur_id',
   'demandeur.nom as demandeur_nom',
   'demandeur.prenom as demandeur_prenom',
+  // Rôle du demandeur : le renvoi au formateur n'existe que pour les demandes du Formateur Tertiaire.
+  'demandeur_role.code as demandeur_role_code',
   'traitant.id as traite_par_utilisateur_id',
   'traitant.nom as traitant_nom',
   'traitant.prenom as traitant_prenom',
@@ -85,6 +87,7 @@ const COLONNES_DEMANDE = [
 function requeteDemandesAvecJointures(trx) {
   return trx('demandes_dpae')
     .join('utilisateurs as demandeur', 'demandeur.id', 'demandes_dpae.demandeur_id')
+    .leftJoin('roles as demandeur_role', 'demandeur_role.id', 'demandeur.role_id')
     .leftJoin('utilisateurs as traitant', 'traitant.id', 'demandes_dpae.traite_par_utilisateur_id')
     .leftJoin('dossiers', function jointureDossier() {
       this.on('dossiers.candidat_id', '=', 'demandes_dpae.candidat_id').andOn(
@@ -106,10 +109,19 @@ function exclureClasseesNonTransmises(requete, alias = 'demandes_dpae') {
   return requete.whereNot((condition) => condition.where(`${alias}.statut`, STATUT_CLASSEE_SANS_SUITE).whereNull(`${alias}.date_envoi_rh`));
 }
 
+// Limite la requête aux demandes d'une entité (voir entiteDpae.js) : « tertiaire » = division tertiaire,
+// « hotellerie » = toute autre division (y compris vide). Sans entité : aucune limite.
+function restreindreEntiteDpae(requete, entiteDpae, alias = 'demandes_dpae') {
+  if (entiteDpae === 'tertiaire') requete.where(`${alias}.division`, 'tertiaire');
+  else if (entiteDpae === 'hotellerie') requete.whereRaw(`${alias}.division IS DISTINCT FROM 'tertiaire'`);
+  return requete;
+}
+
 // statutsExclus : statuts à ne jamais renvoyer (demandes que le rôle de l'appelant n'a pas le droit
 // de voir, voir demandeDpaeService.statutsMasquesPour).
-function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = [], masquerClasseesNonTransmises = false) {
+function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = [], masquerClasseesNonTransmises = false, entiteDpae = null) {
   const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId, 'demandes_dpae.demandeur_id': demandeurId });
+  restreindreEntiteDpae(requete, entiteDpae);
   if (statutsExclus.length > 0) requete.whereNotIn('demandes_dpae.statut', statutsExclus);
   if (masquerClasseesNonTransmises) exclureClasseesNonTransmises(requete);
   return requete.orderBy([
@@ -121,8 +133,9 @@ function listerDemandesParDemandeur(trx, entiteId, demandeurId, statutsExclus = 
 
 // statut optionnel : la file RH filtre par défaut sur 'envoyee' (voir demandeDpaeService), mais
 // peut aussi lister l'historique complet (traitées incluses) sans ce filtre.
-function listerDemandesPourRh(trx, entiteId, statut, statutsExclus = [], masquerClasseesNonTransmises = false) {
+function listerDemandesPourRh(trx, entiteId, statut, statutsExclus = [], masquerClasseesNonTransmises = false, entiteDpae = null) {
   const requete = requeteDemandesAvecJointures(trx).where({ 'demandes_dpae.entite_id': entiteId });
+  restreindreEntiteDpae(requete, entiteDpae);
   if (statut) requete.andWhere({ 'demandes_dpae.statut': statut });
   if (statutsExclus.length > 0) requete.whereNotIn('demandes_dpae.statut', statutsExclus);
   if (masquerClasseesNonTransmises) exclureClasseesNonTransmises(requete);
@@ -136,11 +149,12 @@ function listerDemandesPourRh(trx, entiteId, statut, statutsExclus = [], masquer
 // File « Demandes à valider » du Planning : « À valider par le Planning » puis « Renvoyée à
 // l'inspecteur » (ordre de STATUTS_AVANT_RH), premier jour le plus proche d'abord, sans premier jour
 // en fin de groupe.
-function listerDemandesAValider(trx, entiteId) {
+function listerDemandesAValider(trx, entiteId, entiteDpae = null) {
   const rang = STATUTS_AVANT_RH.map((code, index) => `WHEN '${code}' THEN ${index}`).join(' ');
   return requeteDemandesAvecJointures(trx)
     .where({ 'demandes_dpae.entite_id': entiteId })
     .whereIn('demandes_dpae.statut', STATUTS_AVANT_RH)
+    .modify((requete) => restreindreEntiteDpae(requete, entiteDpae))
     .orderByRaw(`CASE demandes_dpae.statut ${rang} END`)
     .orderByRaw('demandes_dpae.date_debut ASC NULLS LAST')
     .orderBy([
@@ -289,6 +303,7 @@ function trouverUtilisateurAvecRole(trx, entiteId, utilisateurId) {
 }
 
 module.exports = {
+  restreindreEntiteDpae,
   trouverUtilisateurAvecRole,
   exclureClasseesNonTransmises,
   trouverDemandeParId,

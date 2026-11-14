@@ -1,5 +1,5 @@
 import { normaliserTexte } from '../filtres/normaliserTexte.js';
-import { STATUTS_DPAE, libelleStatutDpae } from './statutsDpae.js';
+import { STATUTS_DPAE, estDemandeTertiaire, libelleStatutDpae } from './statutsDpae.js';
 import { STATUTS_AVEC_URGENCE, echeanceDemande, trierParEcheance } from './urgenceDpae.js';
 import {
   libelleDemandeur,
@@ -33,11 +33,18 @@ function jourLocal(valeur) {
 
 const tempsOuNull = (valeur) => (valeur ? new Date(valeur).getTime() : null);
 const ou = (valeurs) => (valeurs.length > 0 ? valeurs : [VALEUR_NON_RENSEIGNEE]);
+// Entité d'une demande : Tertiaire si sa division l'est, sinon Hôtellerie (voir backend core/dpae/entiteDpae.js).
+export const libelleEntiteDemande = (demande) => (estDemandeTertiaire(demande) ? 'Tertiaire' : 'Hôtellerie');
 const RANG_STATUT = Object.fromEntries(STATUTS_DPAE.map((statut, rang) => [statut.code, rang]));
 
 // Colonnes filtrables/triables. filtre : 'periode' (du … au …), 'valeurs' (cases à cocher parmi les
 // valeurs présentes) ou 'texte'. cleTri : valeur comparée au tri (null : toujours en fin de liste).
 export const COLONNES_DPAE = {
+  entite: {
+    filtre: 'valeurs',
+    valeurs: (demande) => [libelleEntiteDemande(demande)],
+    cleTri: (demande) => libelleEntiteDemande(demande),
+  },
   date_demande: {
     filtre: 'periode',
     jour: (demande) => jourLocal(demande.date_creation),
@@ -76,7 +83,7 @@ export const COLONNES_DPAE = {
   },
   statut: {
     filtre: 'valeurs',
-    valeurs: (demande) => [libelleStatutDpae(demande.statut)],
+    valeurs: (demande) => [libelleStatutDpae(demande.statut, demande.division)],
     // Ordre du cycle de vie (À traiter, En attente, Validée, Rejetée), pas l'ordre alphabétique.
     cleTri: (demande) => RANG_STATUT[demande.statut] ?? null,
   },

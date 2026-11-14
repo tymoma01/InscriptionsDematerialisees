@@ -61,9 +61,12 @@ export default function Indicateurs() {
   // Inspecteur Hôtellerie : indicateurs limités à l'Hôtellerie — imposé côté serveur
   // (statistiques.routes.js), reflété ici (Entité figée sur Hôtellerie, sélecteur masqué).
   const estInspecteurHotellerie = utilisateur?.roleCode === ROLE_INSPECTEUR_HOTELLERIE;
+  // Secteur imposé par le serveur au rôle (Hôtellerie pour l'Inspecteur Hôtellerie, Tertiaire pour le Planning
+  // Tertiaire) : Entité figée, sélecteur masqué.
+  const secteurImpose = estInspecteurHotellerie ? 'hotel' : (utilisateur?.secteurImpose ?? null);
   useEffect(() => {
-    if (estInspecteurHotellerie) setTypePoste('hotel');
-  }, [estInspecteurHotellerie]);
+    if (secteurImpose) setTypePoste(secteurImpose);
+  }, [secteurImpose]);
   const [poste, setPoste] = useState(''); // '' = tous les postes
 
   const [indicateurs, setIndicateurs] = useState(null);
@@ -348,7 +351,7 @@ export default function Indicateurs() {
               onChange={(evenement) => setPeriode((precedent) => ({ ...precedent, dateFin: evenement.target.value }))}
             />
           </label>
-          {!estInspecteurHotellerie && (
+          {!secteurImpose && (
           <label className="indicateurs__filtre">
             <span>Entité</span>
             <select value={typePoste} onChange={(evenement) => setTypePoste(evenement.target.value)}>

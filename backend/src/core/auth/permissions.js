@@ -9,11 +9,10 @@
 // Les permissions d'écran (suffixe implicite « page… », ex. suiviTests, nouvelleInscription) ne
 // gardent aucune route API : elles décident seulement de l'affichage d'un onglet ou d'un bouton.
 // La sécurité reste portée par les permissions d'API de la page elle-même.
-const { ROLES } = require('./rbac');
+const { ROLES, ROLES_PLANNING } = require('./rbac');
 
 const {
   ACCUEIL_COORDINATION,
-  PLANNING,
   FORMATEUR,
   INSPECTEUR,
   INSPECTEUR_HOTELLERIE,
@@ -21,8 +20,10 @@ const {
   RH,
 } = ROLES;
 
-// Planning a tous les droits d'Accueil/Coordination (plus le forçage de statut).
-const ACCUEIL = [ACCUEIL_COORDINATION, PLANNING];
+// Les Planning (Hôtellerie et Tertiaire) ont tous les droits d'Accueil/Coordination (plus le forçage
+// de statut) : une seule définition, leur périmètre (entité) est appliqué à part.
+const PLANNINGS = [...ROLES_PLANNING];
+const ACCUEIL = [ACCUEIL_COORDINATION, ...PLANNINGS];
 
 const PERMISSIONS = {
   // --- Administration ---
@@ -37,12 +38,12 @@ const PERMISSIONS = {
   toutBackOffice: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
   gestionTransitions: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
   // Forçage de statut : mêmes droits pour Admin, Planning et RH (mêmes statuts cibles, mêmes effets).
-  forcerStatut: [ADMIN, PLANNING, RH],
+  forcerStatut: [ADMIN, ...PLANNINGS, RH],
   marquerEmbauche: [...ACCUEIL, ADMIN],
   // Blacklistage : tout le back-office ; retrait : l'Admin seulement.
   blacklister: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
   // Candidat déjà embauché : blacklistage réservé à ces trois rôles.
-  blacklisterEmbauche: [PLANNING, RH, ADMIN],
+  blacklisterEmbauche: [...PLANNINGS, RH, ADMIN],
   retirerBlacklist: [ADMIN],
   // Notes d'un dossier : la RH les lit et en ajoute comme le Planning (jamais de modification ni suppression).
   ajoutNotesDossier: [...ACCUEIL, ADMIN, RH, FORMATEUR, INSPECTEUR],
@@ -66,60 +67,69 @@ const PERMISSIONS = {
   gestionRelances: [...ACCUEIL, ADMIN],
   lectureRelances: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
   evaluation: [ADMIN, FORMATEUR, INSPECTEUR],
-  // Aucun dossier Tertiaire (secteur de l'Inspecteur) ne passe en formation.
-  suiviFormation: [...ACCUEIL, ADMIN, FORMATEUR],
+  // Aucun dossier Tertiaire (secteur de l'Inspecteur et du Planning Tertiaire) ne passe en formation.
+  suiviFormation: [ACCUEIL_COORDINATION, ROLES.PLANNING, ADMIN, FORMATEUR],
   lectureFormation: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR, INSPECTEUR_HOTELLERIE],
 
   // --- Tableau de bord ---
   statistiques: [...ACCUEIL, ADMIN, RH, INSPECTEUR_HOTELLERIE],
 
   // --- DPAE (Accueil/Coordination n'a aucun accès) ---
-  dpaeCreation: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE],
-  dpaeTraitementRh: [RH, ADMIN],
+  // Le Formateur Tertiaire (INSPECTEUR) crée et suit SES demandes du Tertiaire ; le périmètre d'entité de
+  // chaque rôle (Hôtellerie / Tertiaire) est appliqué par core/dpae/entiteDpae.js.
+  dpaeCreation: [...PLANNINGS, ADMIN, INSPECTEUR_HOTELLERIE, INSPECTEUR],
+  // Traitement d'une demande envoyée (valider, rejeter, mettre en attente) : la RH pour l'Hôtellerie, le
+  // Planning Tertiaire pour le Tertiaire (jamais l'inverse : refus par entité), l'Admin pour les deux.
+  dpaeTraitementRh: [RH, ADMIN, ROLES.PLANNING_TERTIAIRE],
   // Relance de la création du salarié dans Pégase (et de l'envoi de ses pièces) après un échec.
-  dpaeRelancePegase: [RH, ADMIN],
-  dpaeConsultation: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
-  // Parmi eux, qui voit TOUTES les demandes de l'entité (les autres : seulement les leurs).
-  dpaeConsultationToutes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
+  dpaeRelancePegase: [RH, ADMIN, ROLES.PLANNING_TERTIAIRE],
+  dpaeConsultation: [ADMIN, RH, ...PLANNINGS, INSPECTEUR_HOTELLERIE, INSPECTEUR],
+  // Parmi eux, qui voit TOUTES les demandes de son entité (les autres : seulement les leurs).
+  dpaeConsultationToutes: [ADMIN, RH, ...PLANNINGS, INSPECTEUR_HOTELLERIE],
   // Modification d'une demande encore « À traiter » ou « En attente » : les rôles qui peuvent
   // modifier au moins leurs propres demandes (comme la création)…
-  dpaeModification: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE],
+  dpaeModification: [...PLANNINGS, ADMIN, INSPECTEUR_HOTELLERIE, INSPECTEUR],
   // … et, parmi eux, ceux qui peuvent modifier la demande de n'importe quel auteur (les autres :
   // seulement les leurs). Règle par demande : demandeDpaeService.peutModifierDemande.
-  dpaeModificationToutes: [PLANNING, ADMIN],
+  dpaeModificationToutes: [...PLANNINGS, ADMIN],
   // Passage par le Planning : un Inspecteur Hôtellerie soumet ses demandes au Planning (qui les
-  // transmet à la RH ou les lui renvoie) ; les autres rôles créateurs les envoient directement à la RH.
+  // transmet à la RH ou les lui renvoie) ; les autres rôles créateurs les envoient directement à la RH
+  // (Hôtellerie) ou au Planning Tertiaire (Tertiaire).
   dpaeCreationSoumiseAuPlanning: [INSPECTEUR_HOTELLERIE],
-  dpaeValidationPlanning: [PLANNING, ADMIN],
+  // Planning : transmettre à la RH (Hôtellerie) et renvoyer à l'auteur (Hôtellerie : Planning Hôtellerie ;
+  // Tertiaire : Planning Tertiaire).
+  dpaeValidationPlanning: [...PLANNINGS, ADMIN],
   // Voir les demandes « À valider par le Planning » et « Renvoyée à l'inspecteur » : tous les rôles
   // de consultation sauf la RH, qui n'en a connaissance qu'une fois la demande transmise.
-  dpaeVoitFilePlanning: [ADMIN, PLANNING, INSPECTEUR_HOTELLERIE],
+  dpaeVoitFilePlanning: [ADMIN, ...PLANNINGS, INSPECTEUR_HOTELLERIE, INSPECTEUR],
   // Classer une demande sans suite (avant toute décision de la RH) : les rôles qui peuvent le faire sur
   // leurs propres demandes… et, parmi eux, ceux qui le peuvent sur celles de n'importe quel auteur.
-  dpaeClassementSansSuite: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
-  dpaeClassementSansSuiteToutes: [PLANNING, ADMIN],
-  dpaeTableauDeBord: [ADMIN, RH, PLANNING],
-  // Renvoyer une demande corrigée au Planning (« Renvoyée à l'inspecteur » -> « À valider par le Planning ») :
-  // l'Inspecteur Hôtellerie auteur, ou l'Admin pour toute demande.
-  dpaeEnvoiPlanning: [INSPECTEUR_HOTELLERIE, ADMIN],
+  dpaeClassementSansSuite: [INSPECTEUR_HOTELLERIE, INSPECTEUR, ...PLANNINGS, ADMIN],
+  dpaeClassementSansSuiteToutes: [...PLANNINGS, ADMIN],
+  dpaeTableauDeBord: [ADMIN, RH, ...PLANNINGS],
+  // Renvoyer une demande corrigée au Planning (« Renvoyée à l'inspecteur » -> « À valider par le Planning »,
+  // ou « À traiter » pour le Tertiaire) : l'auteur (Inspecteur Hôtellerie, Formateur Tertiaire), ou l'Admin.
+  dpaeEnvoiPlanning: [INSPECTEUR_HOTELLERIE, INSPECTEUR, ADMIN],
   dpaeEnvoiPlanningToutes: [ADMIN],
-  // Renvoyer à la RH une demande « En attente » une fois complétée : l'auteur (Inspecteur Hôtellerie), ou le
-  // Planning et l'Admin pour toute demande.
-  dpaeRetransmissionRh: [INSPECTEUR_HOTELLERIE, PLANNING, ADMIN],
-  dpaeRetransmissionRhToutes: [PLANNING, ADMIN],
+  // Renvoyer à la RH une demande « En attente » une fois complétée : l'auteur, ou le Planning et
+  // l'Admin pour toute demande.
+  dpaeRetransmissionRh: [INSPECTEUR_HOTELLERIE, INSPECTEUR, ...PLANNINGS, ADMIN],
+  dpaeRetransmissionRhToutes: [...PLANNINGS, ADMIN],
   // Réactiver une demande classée sans suite : l'Admin seulement.
   dpaeReactivation: [ADMIN],
-  // Notes d'une demande : tous les rôles de consultation ; l'Inspecteur Hôtellerie seulement sur ses propres
+  // Notes d'une demande : tous les rôles de consultation ; l'auteur seulement sur ses propres
   // demandes (dpaeNotesToutes pour les autres).
-  dpaeNotes: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
-  dpaeNotesToutes: [ADMIN, RH, PLANNING],
+  dpaeNotes: [ADMIN, RH, ...PLANNINGS, INSPECTEUR_HOTELLERIE, INSPECTEUR],
+  dpaeNotesToutes: [ADMIN, RH, ...PLANNINGS],
+  // Voir et filtrer les demandes des deux entités (Hôtellerie et Tertiaire) : les autres rôles sont limités à la leur.
+  dpaeToutesEntites: [ADMIN],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.
-  rechercheCandidats: [PLANNING, ADMIN, INSPECTEUR_HOTELLERIE, RH],
+  rechercheCandidats: [...PLANNINGS, ADMIN, INSPECTEUR_HOTELLERIE, INSPECTEUR, RH],
 
   // --- Permissions d'écran (aucune route API associée) ---
   nouvelleInscription: [...ACCUEIL, ADMIN],
   suiviTests: [...ACCUEIL, ADMIN, FORMATEUR, INSPECTEUR],
-  cloche: [ADMIN, RH, PLANNING, INSPECTEUR_HOTELLERIE],
+  cloche: [ADMIN, RH, ...PLANNINGS, INSPECTEUR_HOTELLERIE, INSPECTEUR],
 };
 
 for (const cle of Object.keys(PERMISSIONS)) Object.freeze(PERMISSIONS[cle]);

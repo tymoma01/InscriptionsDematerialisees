@@ -101,7 +101,7 @@ function mockerBase(t, statut, { surcharges = {}, sitesEnBase = [10], sitesValid
 // Droit de modification : chaque rôle.
 // ---------------------------------------------------------------------------------------------
 test('peutModifierDemande : Planning et Admin modifient la demande de n’importe quel auteur', () => {
-  for (const roleCode of ['planning', 'admin']) {
+  for (const roleCode of ['planning', 'planning_tertiaire', 'admin']) {
     assert.equal(demandeDpaeService.peutModifierDemande({ roleCode, utilisateurId: 1, demande: { demandeur_id: 99 } }), true, roleCode);
   }
 });
@@ -112,8 +112,10 @@ test('peutModifierDemande : l’Inspecteur Hôtellerie modifie seulement SES dem
   assert.equal(peutModifierDemande({ roleCode: 'inspecteur_hotellerie', utilisateurId: 5, demande: { demandeur_id: 6 } }), false);
 });
 
-test('peutModifierDemande : RH, Accueil/Coordination, Formateur et Inspecteur ne modifient rien, même comme auteur', () => {
-  for (const roleCode of ['rh', 'accueil_coordination', 'formateur', 'inspecteur']) {
+test('peutModifierDemande : le Formateur Tertiaire modifie seulement SES demandes ; RH, Accueil/Coordination et Formateur Hôtellerie ne modifient rien, même comme auteur', () => {
+  assert.equal(demandeDpaeService.peutModifierDemande({ roleCode: 'inspecteur', utilisateurId: 5, demande: { demandeur_id: 5 } }), true);
+  assert.equal(demandeDpaeService.peutModifierDemande({ roleCode: 'inspecteur', utilisateurId: 5, demande: { demandeur_id: 6 } }), false);
+  for (const roleCode of ['rh', 'accueil_coordination', 'formateur']) {
     assert.equal(demandeDpaeService.peutModifierDemande({ roleCode, utilisateurId: 5, demande: { demandeur_id: 5 } }), false, roleCode);
   }
 });

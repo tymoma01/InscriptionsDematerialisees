@@ -5,6 +5,7 @@ import { libelleStatutDpae, varianteStatutDpae } from './statutsDpae';
 import { CaseDemandeDpae, CaseToutCocherDpae } from './TelechargementPdfDpae';
 import PastilleUrgenceDpae from './PastilleUrgenceDpae';
 import { formaterJour, libelleTypeContrat } from './affichageDpae';
+import { libelleEntiteDemande } from './listeDemandesDpae';
 import { EnTeteColonneDpae, SitesDemandeDpae } from './FiltresListeDpae';
 import './TableauDemandesDpae.css';
 
@@ -37,6 +38,7 @@ export default function TableauDemandesDpae({ etatFiltres, selectionDemandes = n
             {/* Titres cliquables : tri et filtre de la colonne (core/dpae/FiltresListeDpae.jsx). */}
             <EnTeteColonneDpae etat={etatFiltres} cle="date_demande" libelle="Date de la demande" />
             <EnTeteColonneDpae etat={etatFiltres} cle="salarie" libelle="Salarié" />
+            <EnTeteColonneDpae etat={etatFiltres} cle="entite" libelle="Entité" />
             <EnTeteColonneDpae
               etat={etatFiltres}
               cle="sites"
@@ -52,7 +54,7 @@ export default function TableauDemandesDpae({ etatFiltres, selectionDemandes = n
         <tbody>
           {demandesAffichees.length === 0 && (
             <tr>
-              <td colSpan={avecCases ? 8 : 7} className="filtres-liste-dpae__aucune">
+              <td colSpan={avecCases ? 9 : 8} className="filtres-liste-dpae__aucune">
                 Aucune demande ne correspond à la recherche ou aux filtres.
               </td>
             </tr>
@@ -77,6 +79,7 @@ export default function TableauDemandesDpae({ etatFiltres, selectionDemandes = n
               <td className="filtres-liste-dpae__nom filtres-liste-dpae__nom--salarie">
                 {demande.salarie_nom} {demande.salarie_prenom}
               </td>
+              <td>{libelleEntiteDemande(demande)}</td>
               <td className="filtres-liste-dpae__colonne-sites">
                 <SitesDemandeDpae demande={demande} />
               </td>
@@ -90,7 +93,7 @@ export default function TableauDemandesDpae({ etatFiltres, selectionDemandes = n
                     côte à côte (core/dpae/PastilleUrgenceDpae.jsx). */}
                 <div className="filtres-liste-dpae__statut">
                   <StatutBadge
-                    libelle={libelleStatutDpae(demande.statut)}
+                    libelle={libelleStatutDpae(demande.statut, demande.division)}
                     variante={varianteStatutDpae(demande.statut)}
                   />
                   <PastilleUrgenceDpae demande={demande} />

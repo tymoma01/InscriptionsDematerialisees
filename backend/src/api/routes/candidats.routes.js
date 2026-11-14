@@ -3,15 +3,17 @@ const { z } = require('zod');
 const {
   inscrireCandidat,
   verifierDisponibilite,
-  rechercherCandidats,
   ErreurInscriptionConflit,
 } = require('../../core/dossier/dossierService');
+const dossierService = require('../../core/dossier/dossierService');
 const formulaireService = require('../../core/formulaire/formulaireService');
 const { limiteurVerificationDisponibilite } = require('../middlewares/rateLimiter');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { requirePermission } = require('../middlewares/rbac.middleware');
+const entiteDpae = require('../../core/dpae/entiteDpae');
+const { ENTITES } = require('../../core/auth/rbac');
 
 const router = Router();
 
@@ -37,7 +39,9 @@ router.get('/formulaire-config', async (req, res, next) => {
 router.get('/recherche', requireAuth, requirePermission('rechercheCandidats'), async (req, res, next) => {
   try {
     const texte = typeof req.query.q === 'string' ? req.query.q : '';
-    const candidats = await rechercherCandidats(req.entite, texte);
+    // Planning Tertiaire et Formateur Tertiaire ne retrouvent que les candidats du Tertiaire.
+    const typePoste = entiteDpae.entiteDuRole(req.utilisateur.roleCode) === ENTITES.TERTIAIRE ? 'bureau' : null;
+    const candidats = await dossierService.rechercherCandidats(req.entite, texte, { typePoste });
     res.json(candidats);
   } catch (erreur) {
     next(erreur);

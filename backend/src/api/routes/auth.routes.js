@@ -6,6 +6,7 @@ const { obtenirKnex } = require('../../db/knex');
 const { limiteurConnexion } = require('../middlewares/rateLimiter');
 const { requireAuth } = require('../middlewares/auth.middleware');
 const { permissionsDuRole } = require('../../core/auth/permissions');
+const { perimetreDossiersPourRole } = require('../../core/auth/perimetreDossiers');
 
 const router = Router();
 
@@ -13,7 +14,9 @@ const router = Router();
 // chaque réponse, jamais stocké en session — un changement de droits s'applique donc sans
 // reconnexion. Le front s'en sert uniquement pour l'affichage ; les routes revérifient tout.
 function utilisateurPourClient(utilisateur) {
-  return { ...utilisateur, permissions: permissionsDuRole(utilisateur.roleCode) };
+  // `secteurImpose` : secteur ('hotel' | 'bureau') auquel le rôle est limité (périmètre de dossiers), null
+  // sinon ; le front n'y lit que quoi masquer (pastilles de secteur, métiers), le serveur reste seul juge.
+  return { ...utilisateur, permissions: permissionsDuRole(utilisateur.roleCode), secteurImpose: perimetreDossiersPourRole(utilisateur.roleCode)?.typePoste ?? null };
 }
 
 const connexionSchema = z.object({

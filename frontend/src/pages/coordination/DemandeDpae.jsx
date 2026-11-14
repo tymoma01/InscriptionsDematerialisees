@@ -14,8 +14,10 @@ import {
   donneesFormulaireDepuisDemande,
   divisionDuCandidat,
   donneesInitiales,
+  echelonsDeLaDivision,
   echelonsDuPoste,
   joursPrivesDeSite,
+  postesProposes,
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
@@ -34,16 +36,6 @@ const TYPES_DEMANDE = [
   { code: 'changement_horaires_affectation', libelle: 'Avenant' },
 ];
 
-// Postes hôtel — mêmes codes/libellés que BlocDisponibilites.jsx (POSTES_HOTEL), dupliqués ici
-// plutôt que partagés (même convention). Réutilise le catalogue déjà en place plutôt que d'en
-// inventer un nouveau (voir postesConstantes.js côté back).
-const POSTES_HOTEL = [
-  { code: 'femme_valet_chambre', libelle: 'Femme/Valet de chambre' },
-  { code: 'cafetier', libelle: 'Cafetier' },
-  { code: 'equipier', libelle: 'Équipier' },
-  { code: 'gouvernant', libelle: 'Gouvernant(e)' },
-  { code: 'autre', libelle: 'Autre' },
-];
 
 // Formulaire "Nouvelle demande DPAE" (module Demandes DPAE, 2026-09-28) — reprend les sections de
 // la maquette d'origine (voir le plan) avec le style de l'outil (PageBackOffice/EnTeteBackOffice,
@@ -82,7 +74,6 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
   }, [modification, demande?.id]);
   const navigate = useNavigate();
   const { utilisateur } = useSession();
-  const libelleEnvoi = peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
   const [donnees, setDonnees] = useState(() => (demande ? donneesFormulaireDepuisDemande(demande) : donneesInitiales()));
   // Vrai quand le serveur a refusé l'enregistrement (409) : la demande a changé depuis son
   // chargement. La saisie reste à l'écran ; recharger la remplace par la version à jour.
@@ -106,12 +97,33 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
 
   // Correspondance poste -> échelons (configuration de l'entité). Tant qu'elle n'est pas chargée,
   // aucun échelon n'est demandé ; le serveur reste seul juge.
-  const [echelonsParPoste, setEchelonsParPoste] = useState({});
+  const [configuration, setConfiguration] = useState({});
   useEffect(() => {
     obtenirConfigurationDpae()
-      .then((configuration) => setEchelonsParPoste(configuration.echelonsParPoste ?? {}))
-      .catch(() => setEchelonsParPoste({}));
+      .then(setConfiguration)
+      .catch(() => setConfiguration({}));
   }, []);
+  // Entité imposée au rôle (Formateur Tertiaire, Planning Tertiaire : Tertiaire, non modifiable ; rôles de
+  // l'Hôtellerie : pas de Tertiaire) ; libre pour l'Admin.
+  const entiteImposee = configuration.entiteImposee ?? null;
+  const echelonsParPoste = echelonsDeLaDivision(configuration, donnees.division);
+  const postes = postesProposes(donnees.division, configuration.postesTertiaire ?? null);
+  const libelleEnvoi =
+    donnees.division === 'tertiaire' ? 'Envoyer au Planning Tertiaire' : peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
+
+  // Entité imposée : appliquée au formulaire dès que la configuration est connue (candidat choisi compris).
+  useEffect(() => {
+    if (entiteImposee === 'tertiaire' && donnees.division !== 'tertiaire') {
+      setDonnees((precedent) => ({ ...precedent, division: 'tertiaire', divisionAutre: '' }));
+    }
+  }, [entiteImposee, donnees.division]);
+
+  // Un poste qui n'existe pas dans l'entité choisie est effacé (avec son échelon).
+  useEffect(() => {
+    if (donnees.poste && !postes.some((poste) => poste.code === donnees.poste)) {
+      setDonnees((precedent) => ({ ...precedent, poste: '', posteAutre: '', echelon: '' }));
+    }
+  }, [donnees.poste, postes]);
 
   const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
 
@@ -495,11 +507,11 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
 
             <label>
               <span>Entité</span>
-              <select value={donnees.division} onChange={(e) => definir('division', e.target.value)}>
-                <option value="">Choisir…</option>
-                <option value="hotellerie">Hôtellerie</option>
-                <option value="tertiaire">Tertiaire</option>
-                <option value="autre">Autre</option>
+              <select value={donnees.division} onChange={(e) => definir('division', e.target.value)} disabled={entiteImposee === 'tertiaire'}>
+                {entiteImposee !== 'tertiaire' && <option value="">Choisir…</option>}
+                {entiteImposee !== 'tertiaire' && <option value="hotellerie">Hôtellerie</option>}
+                {entiteImposee !== 'hotellerie' && <option value="tertiaire">Tertiaire</option>}
+                {entiteImposee !== 'tertiaire' && <option value="autre">Autre</option>}
               </select>
             </label>
             {donnees.division === 'autre' && (
@@ -516,7 +528,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
                 </span>
                 <select value={donnees.poste} onChange={(e) => setDonnees((precedent) => donneesApresChangementPoste(precedent, e.target.value, echelonsParPoste))}>
                   <option value="">Choisir…</option>
-                  {POSTES_HOTEL.map((poste) => (
+                  {postes.map((poste) => (
                     <option key={poste.code} value={poste.code}>
                       {poste.libelle}
                     </option>

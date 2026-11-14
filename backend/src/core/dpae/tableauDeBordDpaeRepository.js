@@ -15,7 +15,7 @@
 // (jours calendaires saisis tels quels), comparées directement à ces jours parisiens.
 
 const { STATUTS_DPAE, STATUTS_A_TRAITER_RH, STATUT_VALIDEE, STATUT_REJETEE, STATUT_CLASSEE_SANS_SUITE, listeSql } = require('./statutsDpae');
-const { exclureClasseesNonTransmises } = require('./demandeDpaeRepository');
+const { exclureClasseesNonTransmises, restreindreEntiteDpae } = require('./demandeDpaeRepository');
 
 const FUSEAU = 'Europe/Paris';
 
@@ -36,6 +36,7 @@ function requeteBase(bd, entiteId, filtres) {
   if (filtres.statut) requete.where('d.statut', filtres.statut);
   if (filtres.statutsExclus?.length > 0) requete.whereNotIn('d.statut', filtres.statutsExclus);
   if (filtres.masquerClasseesNonTransmises) exclureClasseesNonTransmises(requete, 'd');
+  if (filtres.entiteDpae) restreindreEntiteDpae(requete, filtres.entiteDpae, 'd');
   if (filtres.siteId === 'non_reference') {
     requete.whereNotExists(bd('demandes_dpae_sites as l').whereRaw('l.demande_dpae_id = d.id'));
   } else if (filtres.siteId) {
@@ -54,7 +55,7 @@ async function executerSurBase(bd, entiteId, filtres, selectSql, parametres = []
 
 const IDS = 'array_agg(base.id ORDER BY base.id)';
 
-const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.statut, base.type_contrat,
+const COLONNES_LISTE = `base.id, base.salarie_nom, base.salarie_prenom, base.statut, base.type_contrat, base.division,
   base.date_creation, base.date_traitement, base.date_debut, base.date_fin`;
 
 // --- 1. À traiter en priorité ---------------------------------------------------------------------
