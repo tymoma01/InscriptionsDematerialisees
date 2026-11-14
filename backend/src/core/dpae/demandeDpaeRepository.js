@@ -21,6 +21,8 @@ const COLONNES_DEMANDE = [
   'demandes_dpae.salarie_remplace_nom',
   'demandes_dpae.date_fin_absence',
   'demandes_dpae.raison_surcroit',
+  'demandes_dpae.motif_absence',
+  'demandes_dpae.categorie_qualification',
   'demandes_dpae.division',
   'demandes_dpae.division_autre',
   'demandes_dpae.poste',

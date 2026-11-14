@@ -17,9 +17,14 @@ export function formaterJour(valeur) {
 
 // Sites liés (référentiel, « NOM (INITIALES) »), un libellé par site ; à défaut, ancien texte libre
 // d'une demande antérieure au référentiel (colonne `hotel`). Tableau vide : aucun site renseigné.
+// « NOM (INITIALES) » ; un site du Tertiaire n'a pas d'initiales : son nom seul.
+export const libelleSite = (site) => (site.initiales ? `${site.nom} (${site.initiales})` : site.nom);
+// Code court d'un site pour les colonnes condensées : ses initiales, ou son nom s'il n'en a pas.
+export const codeSite = (site) => site.initiales || site.nom;
+
 export function libellesSites(demande) {
   const sites = demande.sites_affectation ?? [];
-  if (sites.length > 0) return sites.map((site) => `${site.nom} (${site.initiales})`);
+  if (sites.length > 0) return sites.map(libelleSite);
   return demande.hotel ? [demande.hotel] : [];
 }
 
@@ -34,7 +39,7 @@ export function sitesCondenses(demande) {
   const sites = demande.sites_affectation ?? [];
   if (sites.length === 0) return { texte: demande.hotel || '', reste: 0 };
   return {
-    texte: sites.slice(0, SITES_AFFICHES).map((site) => site.initiales).join(', '),
+    texte: sites.slice(0, SITES_AFFICHES).map(codeSite).join(', '),
     reste: Math.max(sites.length - SITES_AFFICHES, 0),
   };
 }

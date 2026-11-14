@@ -310,10 +310,9 @@ test('PDF généré avec la colonne Site et le nombre de jours : document valide
   assert.equal(pdf.subarray(0, 5).toString('latin1'), '%PDF-');
 });
 
-test('Entité : « Hôtellerie », « Tertiaire », ou la précision pour « Autre » ; aucune ligne si absente', () => {
+test('Entité : « Hôtellerie », ou la précision pour « Autre » ; aucune ligne si absente (le Tertiaire a sa propre fiche)', () => {
   const entite = (surcharges) => section(sectionsDemande(demande(surcharges)), 'Contrat').lignes.find(([libelle]) => libelle === 'Entité');
   assert.deepEqual(entite({ division: 'hotellerie' }), ['Entité', 'Hôtellerie']);
-  assert.deepEqual(entite({ division: 'tertiaire' }), ['Entité', 'Tertiaire']);
   assert.deepEqual(entite({ division: 'autre', division_autre: 'Siège' }), ['Entité', 'Siège']);
   assert.equal(entite({ division: null }), undefined);
 });

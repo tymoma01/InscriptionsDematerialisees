@@ -10,7 +10,7 @@ export default function LigneSiteCochable({ site, coche, onBasculer, variante = 
     <label className={classes} title={site.nom}>
       <input type="checkbox" checked={coche} onChange={() => onBasculer(site.id)} />
       <span className="ligne-site-cochable__nom">{site.nom}</span>
-      <span className="ligne-site-cochable__initiales">{site.initiales}</span>
+      <span className="ligne-site-cochable__initiales">{site.initiales || ''}</span>
     </label>
   );
 }

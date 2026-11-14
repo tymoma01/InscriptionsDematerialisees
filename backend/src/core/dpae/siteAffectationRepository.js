@@ -2,13 +2,14 @@
 // liens avec les demandes DPAE (table `demandes_dpae_sites`). Toutes les fonctions prennent `trx`
 // (instance knex ou transaction) en premier argument, même convention que demandeDpaeRepository.js.
 
-const COLONNES_SITE = ['sites_affectation.id', 'sites_affectation.nom', 'sites_affectation.initiales'];
+const COLONNES_SITE = ['sites_affectation.id', 'sites_affectation.nom', 'sites_affectation.initiales', 'sites_affectation.adresse'];
 
 // Sites proposés dans le formulaire DPAE : actifs uniquement, triés par nom sans tenir compte des
 // majuscules (même règle que l'unicité, voir migration 069).
-function listerSitesActifs(trx, entiteId) {
+// `secteur` : 'hotellerie' (liste historique, défaut) ou 'tertiaire' (sites créés par les demandeurs du Tertiaire).
+function listerSitesActifs(trx, entiteId, secteur = 'hotellerie') {
   return trx('sites_affectation')
-    .where({ entite_id: entiteId, actif: true })
+    .where({ entite_id: entiteId, actif: true, secteur })
     .select(COLONNES_SITE)
     .orderByRaw('lower(sites_affectation.nom) asc');
 }
@@ -25,15 +26,45 @@ function listerSitesEnConflit(trx, entiteId, { nom, initiales }) {
     .select(COLONNES_SITE);
 }
 
-async function creerSite(trx, { entiteId, nom, initiales }) {
-  const [site] = await trx('sites_affectation').insert({ entite_id: entiteId, nom, initiales }).returning(['id', 'nom', 'initiales']);
+async function creerSite(trx, { entiteId, nom, initiales = null, secteur = 'hotellerie', adresse = null, creeParId = null }) {
+  const [site] = await trx('sites_affectation')
+    .insert({ entite_id: entiteId, nom, initiales, secteur, adresse, cree_par_id: creeParId })
+    .returning(['id', 'nom', 'initiales', 'adresse']);
   return site;
+}
+
+// Tous les sites d'un secteur, actifs ou non (détection des noms identiques ou proches), avec leur auteur.
+function listerSitesGestion(trx, entiteId, secteur) {
+  return trx('sites_affectation')
+    .leftJoin('utilisateurs', 'utilisateurs.id', 'sites_affectation.cree_par_id')
+    .where({ 'sites_affectation.entite_id': entiteId, 'sites_affectation.secteur': secteur })
+    .select(
+      'sites_affectation.id',
+      'sites_affectation.nom',
+      'sites_affectation.initiales',
+      'sites_affectation.adresse',
+      'sites_affectation.actif',
+      'sites_affectation.date_creation',
+      'utilisateurs.prenom as cree_par_prenom',
+      'utilisateurs.nom as cree_par_nom',
+    )
+    .orderByRaw('lower(sites_affectation.nom) asc');
+}
+
+function trouverSite(trx, entiteId, id) {
+  return trx('sites_affectation').where({ entite_id: entiteId, id }).first();
+}
+
+function mettreAJourSite(trx, entiteId, id, valeurs) {
+  return trx('sites_affectation')
+    .where({ entite_id: entiteId, id })
+    .update({ ...valeurs, date_maj: trx.fn.now() });
 }
 
 // Parmi `ids`, ceux qui existent, sont actifs ET appartiennent à l'entité — sert à refuser toute
 // demande DPAE qui référence un site absent de cette liste (voir demandeDpaeService.creerEtEnvoyer).
-async function listerIdsSitesValides(trx, entiteId, ids) {
-  const lignes = await trx('sites_affectation').where({ entite_id: entiteId, actif: true }).whereIn('id', ids).select('id');
+async function listerIdsSitesValides(trx, entiteId, ids, secteur = 'hotellerie') {
+  const lignes = await trx('sites_affectation').where({ entite_id: entiteId, actif: true, secteur }).whereIn('id', ids).select('id');
   return lignes.map((ligne) => ligne.id);
 }
 
@@ -75,6 +106,9 @@ module.exports = {
   listerSitesParDemandes,
   listerSitesActifs,
   listerSitesEnConflit,
+  listerSitesGestion,
+  trouverSite,
+  mettreAJourSite,
   creerSite,
   listerIdsSitesValides,
   lierSitesDemande,

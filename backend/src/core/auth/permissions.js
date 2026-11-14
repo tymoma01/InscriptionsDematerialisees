@@ -121,6 +121,8 @@ const PERMISSIONS = {
   // demandes (dpaeNotesToutes pour les autres).
   dpaeNotes: [ADMIN, RH, ...PLANNINGS, INSPECTEUR_HOTELLERIE, INSPECTEUR],
   dpaeNotesToutes: [ADMIN, RH, ...PLANNINGS],
+  // Renommer les sites d'affectation du Tertiaire depuis le formulaire (leur création est ouverte aux demandeurs).
+  gestionSitesTertiaire: [ROLES.PLANNING_TERTIAIRE, ADMIN],
   // Voir et filtrer les demandes des deux entités (Hôtellerie et Tertiaire) : les autres rôles sont limités à la leur.
   dpaeToutesEntites: [ADMIN],
   // Recherche d'un candidat pour le champ « Nom » d'une demande.

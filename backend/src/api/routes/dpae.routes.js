@@ -11,6 +11,7 @@ const pdfDemandeDpae = require('../../core/dpae/pdfDemandeDpae');
 const statutsDpae = require('../../core/dpae/statutsDpae');
 const echelonsDpae = require('../../core/dpae/echelonsDpae');
 const entiteDpae = require('../../core/dpae/entiteDpae');
+const formulaireTertiaire = require('../../core/dpae/formulaireTertiaire');
 const { ENTITES } = require('../../core/auth/rbac');
 const journalAudit = require('../../core/audit/journalAudit');
 const { obtenirKnex } = require('../../db/knex');
@@ -138,6 +139,8 @@ const demandeBaseSchema = z.object({
   ),
   motifCdd: enumOptionnel(['remplacement_absent', 'surcroit_activite']),
   salarieRemplaceNom: z.string().trim().optional(),
+  // Motif d'absence d'un remplacement (demandes du Tertiaire) ; la longueur maximale vient de la configuration.
+  motifAbsence: z.string().trim().optional(),
   dateFinAbsence: z.string().trim().optional(),
   raisonSurcroit: z.string().trim().optional(),
   division: enumOptionnel(['hotellerie', 'tertiaire', 'autre']),
@@ -186,7 +189,10 @@ const enMinutes = (heure) => Number(heure.slice(0, 2)) * 60 + Number(heure.slice
 function verifierReglesDemande(demande, ctx) {
   const refuser = (path, message) => ctx.addIssue({ code: 'custom', path, message });
 
-  if (demande.typeContrat === 'cdd') {
+  // Demande du Tertiaire : règles du contrat (CDD, remplacement, dates) propres à son formulaire, contrôlées
+  // par formulaireTertiaire.verifierDemandeTertiaire (messages dédiés, pilotés par la configuration).
+  const tertiaire = demande.division === 'tertiaire';
+  if (!tertiaire && demande.typeContrat === 'cdd') {
     if (!demande.motifCdd) refuser(['motifCdd'], 'La raison du CDD est obligatoire.');
     if (!demande.dateFin) refuser(['dateFin'], 'Le dernier jour est obligatoire pour un CDD.');
     if (demande.motifCdd === 'remplacement_absent' && !demande.salarieRemplaceNom) {
@@ -196,6 +202,7 @@ function verifierReglesDemande(demande, ctx) {
   // Dates « AAAA-MM-JJ » : la comparaison de chaînes suit l'ordre chronologique. Pour un avenant, le
   // dernier jour est facultatif mais, renseigné, reste soumis à la même règle.
   if (
+    !tertiaire &&
     (demande.typeContrat === 'cdd' || demande.typeContrat === 'avenant') &&
     FORMAT_JOUR.test(demande.dateFin ?? '') &&
     FORMAT_JOUR.test(demande.dateDebut) &&
@@ -248,11 +255,17 @@ function normaliserDemande(demande) {
 
 // L'échelon dépend du poste ET de la configuration de l'entité, d'où un contrôle hors du schéma :
 // refus 400 (même forme que les autres erreurs de validation) ; échelon null si le poste n'en a pas.
+// Refus des règles propres au Tertiaire (400, message affiché tel quel).
+class ErreurRegleTertiaire extends Error {}
+
 function appliquerEchelon(entite, donnees) {
   const problemes = [];
   if (donnees.division === entiteDpae.DIVISION_TERTIAIRE) {
-    const postes = echelonsDpae.postesTertiaire(entite);
-    if (postes && !postes.includes(donnees.poste)) problemes.push({ code: 'custom', path: ['poste'], message: 'Ce poste n’est pas proposé pour le Tertiaire.' });
+    // Règles du formulaire du Tertiaire, pilotées par la configuration de l'entité (qualification, motif du
+    // CDD, remplacement, dates).
+    const refus = formulaireTertiaire.verifierDemandeTertiaire(entite, donnees);
+    if (refus) throw new ErreurRegleTertiaire(refus);
+    return formulaireTertiaire.normaliserDemandeTertiaire(donnees);
   }
   const resultat = echelonsDpae.normaliserEchelon(entite, donnees, (path, message) => problemes.push({ code: 'custom', path, message }));
   if (problemes.length > 0) throw new z.ZodError(problemes);
@@ -318,6 +331,10 @@ function repondreErreurDecision(res, erreur) {
     res.status(400).json({ erreur: erreur.message });
     return true;
   }
+  if (erreur instanceof ErreurRegleTertiaire) {
+    res.status(400).json({ erreur: erreur.message });
+    return true;
+  }
   if (erreur instanceof z.ZodError) {
     repondreErreurValidation(res, erreur);
     return true;
@@ -330,16 +347,20 @@ const noteBodySchema = z.object({
   contenu: z.string().trim().min(1).max(1000),
 });
 
-function repondreErreurValidation(res, erreurZod) {
-  res.status(400).json({ erreur: 'Données invalides.', details: erreurZod.flatten() });
+// `messageClair` (demandes du Tertiaire) : le premier message de validation est renvoyé comme erreur, affiché tel quel.
+function repondreErreurValidation(res, erreurZod, messageClair = false) {
+  res.status(400).json({ erreur: messageClair ? (erreurZod.issues[0]?.message ?? 'Données invalides.') : 'Données invalides.', details: erreurZod.flatten() });
 }
+
+// Demande du Tertiaire (rôle limité au Tertiaire, ou Admin qui l'indique) : messages de validation clairs.
+const demandeDuTertiaire = (req) => entiteDpae.entiteDuRole(req.utilisateur.roleCode) === ENTITES.TERTIAIRE || req.body?.division === entiteDpae.DIVISION_TERTIAIRE;
 
 // POST /api/dpae — crée une demande (pas de brouillon, voir demandeDpaeService.creerEtEnvoyer) : un
 // Inspecteur Hôtellerie la soumet au Planning, les autres rôles l'envoient directement à la RH. utilisateurId toujours pris de la session, jamais du corps
 // de la requête — même principe que relances.routes.js.
 router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
   try {
-    const donnees = appliquerEchelon(req.entite, appliquerEntiteDuRole(req.utilisateur.roleCode, normaliserDemande(demandeBodySchema.parse(req.body))));
+    const donnees = appliquerEchelon(req.entite, normaliserDemande(demandeBodySchema.parse(appliquerEntiteDuRole(req.utilisateur.roleCode, req.body ?? {}))));
     const demandeId = await demandeDpaeService.creerEtEnvoyer(req.entite, req.utilisateur.id, donnees, { roleCode: req.utilisateur.roleCode });
 
     const bd = await obtenirKnex();
@@ -355,7 +376,8 @@ router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
 
     res.status(201).json({ demandeId });
   } catch (erreur) {
-    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur);
+    if (erreur instanceof ErreurRegleTertiaire) return res.status(400).json({ erreur: erreur.message });
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur, demandeDuTertiaire(req));
     // Site inexistant, inactif ou d'une autre entité : refus de toute la demande (rien n'a été
     // enregistré, voir demandeDpaeService.creerEtEnvoyer), message explicite plutôt qu'un 500.
     if (erreur instanceof demandeDpaeService.ErreurSitesAffectationInvalides) {
@@ -370,8 +392,9 @@ router.post('/', requirePermission('dpaeCreation'), async (req, res, next) => {
 router.get('/configuration', requirePermission('dpaeConsultation'), (req, res) => {
   res.json({
     echelonsParPoste: echelonsDpae.echelonsParPoste(req.entite),
-    echelonsParPosteTertiaire: echelonsDpae.echelonsParPoste(req.entite, entiteDpae.DIVISION_TERTIAIRE),
-    postesTertiaire: echelonsDpae.postesTertiaire(req.entite),
+    // Formulaire du Tertiaire : libellé de la date d'embauche, types de contrat, motifs de CDD, longueur des
+    // textes et qualifications (catégories et échelons), tels que configurés pour l'entité.
+    tertiaire: formulaireTertiaire.configurationTertiaire(req.entite),
     // Entité imposée au rôle (division non modifiable dans le formulaire) ; null = libre (Admin).
     entiteImposee: entiteDpae.entiteDuRole(req.utilisateur.roleCode),
   });
@@ -646,7 +669,10 @@ router.get('/:id/pdf', requirePermission('dpaeConsultation'), async (req, res, n
 router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpae.ACTION_MODIFIER)), async (req, res, next) => {
   try {
     const id = idPositifSchema.parse(req.params.id);
-    const { version, noteModification, ...donnees } = appliquerEchelon(req.entite, normaliserDemande(modificationBodySchema.parse(req.body)));
+    const { version, noteModification, ...donnees } = appliquerEchelon(
+      req.entite,
+      normaliserDemande(modificationBodySchema.parse(appliquerEntiteDuRole(req.utilisateur.roleCode, req.body ?? {}))),
+    );
     const { statut, version: nouvelleVersion, noteEnregistree } = await demandeDpaeService.modifierDemande(req.entite, id, {
       donnees,
       version,
@@ -657,6 +683,7 @@ router.put('/:id', requirePermission(statutsDpae.permissionPourAction(statutsDpa
     });
     res.json({ statut, version: nouvelleVersion, noteEnregistree: Boolean(noteEnregistree) });
   } catch (erreur) {
+    if (erreur instanceof z.ZodError) return repondreErreurValidation(res, erreur, demandeDuTertiaire(req));
     if (!repondreErreurDecision(res, erreur)) next(erreur);
   }
 });

@@ -39,9 +39,22 @@
       "cafetier": ["AS"]
     },
     "tertiaire": {
-      "postes": ["nettoyage", "vitrerie", "machiniste", "chef_equipe", "autre"],
-      "echelons_par_poste": {},
-      "postes_tous_echelons": []
+      "formulaire": {
+        "libelle_date_debut": "Date d’embauche (ou journée de doublon)",
+        "types_demande": [{ "code": "nouvelle_embauche", "libelle": "Nouvelle embauche" }],
+        "types_contrat": ["cdd", "cdi"],
+        "motifs_cdd": [
+          { "code": "surcroit_activite", "libelle": "Surcroît d’activité" },
+          { "code": "remplacement_absent", "libelle": "Remplacement d’un salarié" }
+        ],
+        "limite_texte": 100
+      },
+      "qualifications": [
+        { "code": "agent_service", "libelle": "Agent de service", "echelons": ["AS1", "AS2", "AS3"] },
+        { "code": "laveur_vitres_machiniste", "libelle": "Laveur de vitres - Machiniste", "echelons": ["AQS1", "AQS2", "AQS3", "ATQS1", "ATQS2"] },
+        { "code": "chef_equipe", "libelle": "Chef d’équipe", "echelons": ["CE1", "CE2", "CE3"] },
+        { "code": "agent_maitrise", "libelle": "Agent de maîtrise", "echelons": ["MP1", "MP2", "MP3"] }
+      ]
     }
   },
   "duree_conservation_mois": 12,

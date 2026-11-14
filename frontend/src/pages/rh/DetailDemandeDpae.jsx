@@ -22,6 +22,7 @@ import {
   varianteStatutDpae,
 } from '../../core/dpae/statutsDpae';
 import { BoutonTelechargerPdfDemande } from '../../core/dpae/TelechargementPdfDpae';
+import { libelleSite } from '../../core/dpae/affichageDpae';
 import { formaterHeure, formaterHeuresParMois, libelleTypeContrat, libelleDivision } from '../../core/dpae/formatsDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import TableauSemaineType from '../../core/dpae/TableauSemaineType';
@@ -79,6 +80,9 @@ function ligne(libelle, valeur) {
     </p>
   );
 }
+
+// Ligne de la fiche du Tertiaire : « – » quand la valeur est absente (ancienne demande sans ces champs).
+const ligneTiret = (libelle, valeur) => ligne(libelle, valeur === null || valeur === undefined || valeur === '' ? '–' : valeur);
 
 // Détail d'une demande DPAE (module Demandes DPAE, 2026-09-28). Depuis le 2026-09-30, fiche commune
 // à tous les rôles de consultation (Admin, RH, Planning — voir App.jsx, dpaeConsultation),
@@ -345,6 +349,8 @@ export default function DetailDemandeDpae() {
             ligne('Mise en attente le', FORMAT_DATE_HEURE.format(new Date(demande.date_mise_en_attente)))}
         </section>
 
+        {!tertiaire && (
+        <>
         <section className="page-detail-dpae__bloc">
           <h2>Salarié</h2>
           {ligne('Téléphone', demande.salarie_telephone)}
@@ -355,7 +361,7 @@ export default function DetailDemandeDpae() {
           {(demande.sites_affectation ?? []).length > 0
             ? ligne(
                 "Sites d'affectation",
-                demande.sites_affectation.map((site) => `${site.nom} (${site.initiales})`).join(', '),
+                demande.sites_affectation.map(libelleSite).join(', '),
               )
             : ligne("Site d'affectation", demande.hotel)}
         </section>
@@ -405,10 +411,38 @@ export default function DetailDemandeDpae() {
           </section>
         )}
 
+        </>
+        )}
+
+        {/* Demande du Tertiaire : mêmes sections, dans l'ordre de son formulaire (« – » quand une ancienne demande n'a pas le champ). */}
+        {tertiaire && (
+          <section className="page-detail-dpae__bloc">
+            <h2>Salarié et contrat</h2>
+            {ligneTiret('Nom', demande.salarie_nom)}
+            {ligneTiret('Prénom', demande.salarie_prenom)}
+            {ligneTiret(demande.libelle_date_debut ?? 'Date d’embauche', demande.date_debut && FORMAT_DATE.format(new Date(demande.date_debut)))}
+            {ligneTiret('Date de fin', demande.type_contrat === 'cdi' ? null : demande.date_fin && FORMAT_DATE.format(new Date(demande.date_fin)))}
+            {ligneTiret('Type de contrat', libelleTypeContrat(demande.type_contrat))}
+            {demande.type_contrat === 'cdd' &&
+              ligneTiret(
+                'Motif du CDD',
+                demande.motif_cdd === 'remplacement_absent'
+                  ? `Remplacement de ${demande.salarie_remplace_nom || '–'} - ${demande.motif_absence || '–'}`
+                  : demande.motif_cdd_libelle,
+              )}
+            {ligneTiret('Catégorie - Échelon', demande.qualification_libelle)}
+            {ligneTiret(
+              'Site(s) d’affectation',
+              (demande.sites_affectation ?? []).length > 0 ? demande.sites_affectation.map(libelleSite).join(', ') : demande.hotel,
+            )}
+          </section>
+        )}
+
         <section className="page-detail-dpae__bloc">
-          <h2>Semaine type</h2>
+          <h2>{tertiaire ? 'Répartition des jours, horaires et temps de pause' : 'Semaine type'}</h2>
           <TableauSemaineType semaineType={demande.semaine_type} sitesAffectation={demande.sites_affectation} />
         </section>
+
 
         {demande.autre_chose_signaler && (
           <section className="page-detail-dpae__bloc">

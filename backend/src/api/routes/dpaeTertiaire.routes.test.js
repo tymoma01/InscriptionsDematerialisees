@@ -9,13 +9,14 @@ const dpaeRouter = require('./dpae.routes');
 
 // DPAE du Tertiaire sur les VRAIS gestionnaires de routes (services mockés) : entité imposée à la
 // création, postes du Tertiaire, refus 403 par entité avec leur message, motif du renvoi.
+const { CONFIG_TERTIAIRE } = require('../../db/migrations/096_formulaire_dpae_tertiaire');
 const ENTITE = {
   id: 1,
   code: 'accecit',
   dpae_config: {
     echelons_par_poste: { equipier: ['AS', 'ATQS'] },
     postes_tous_echelons: ['autre'],
-    tertiaire: { postes: ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autre'], echelons_par_poste: {}, postes_tous_echelons: [] },
+    tertiaire: CONFIG_TERTIAIRE,
   },
 };
 
@@ -25,7 +26,8 @@ const DEMANDE = {
   salariePrenom: 'Léa',
   salarieDejaEmploye: false,
   sitesAffectationIds: [10],
-  poste: 'nettoyage',
+  poste: 'agent_service',
+  echelon: 'AS1',
   typeContrat: 'cdi',
   dateDebut: '2026-10-12',
   verifBesoinHotel: true,
@@ -79,18 +81,25 @@ test('Création : le Formateur Tertiaire et le Planning Tertiaire créent pour l
   }
 });
 
-test('Création Tertiaire : seuls les postes du Tertiaire sont acceptés (Nettoyage, Vitrerie, Machiniste, Chef d’équipe, Autre) ; pas d’échelon', async (t) => {
+test('Création Tertiaire : la qualification (catégorie + échelon) doit appartenir aux listes de l’entité ; hors liste -> 400 avec message', async (t) => {
   mockerBase(t);
   const creer = t.mock.method(demandeDpaeService, 'creerEtEnvoyer', async () => 41);
-  for (const poste of ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autre']) {
-    const { res } = await appeler('post', '/', { body: { ...DEMANDE, poste, echelon: 'AS' }, roleCode: 'planning_tertiaire' });
-    assert.equal(res.statut, 201, poste);
-    assert.equal(creer.mock.calls.at(-1).arguments[2].echelon, null, `${poste} : l’échelon du Tertiaire reste vide tant qu’il n’est pas configuré`);
+  for (const [poste, echelon] of [['agent_service', 'AS3'], ['chef_equipe', 'CE2'], ['laveur_vitres_machiniste', 'ATQS2'], ['agent_maitrise', 'MP1']]) {
+    const { res } = await appeler('post', '/', { body: { ...DEMANDE, poste, echelon }, roleCode: 'planning_tertiaire' });
+    assert.equal(res.statut, 201, `${poste} ${echelon}`);
+    assert.equal(creer.mock.calls.at(-1).arguments[2].categorieQualification, poste);
   }
   creer.mock.resetCalls();
-  for (const poste of ['equipier', 'gouvernant', 'femme_valet_chambre']) {
-    const { res } = await appeler('post', '/', { body: { ...DEMANDE, poste }, roleCode: 'inspecteur' });
-    assert.equal(res.statut, 400, poste);
+  const refus = [
+    [{ poste: 'equipier', echelon: 'AS' }, 'Cette catégorie de qualification n’existe pas pour le Tertiaire.'],
+    [{ poste: 'nettoyage', echelon: '' }, 'Cette catégorie de qualification n’existe pas pour le Tertiaire.'],
+    [{ poste: 'agent_service', echelon: 'CE1' }, 'Cet échelon n’existe pas pour cette catégorie de qualification.'],
+    [{ poste: 'chef_equipe', echelon: '' }, 'L’échelon est obligatoire pour cette catégorie de qualification.'],
+  ];
+  for (const [champs, message] of refus) {
+    const { res } = await appeler('post', '/', { body: { ...DEMANDE, ...champs }, roleCode: 'inspecteur' });
+    assert.equal(res.statut, 400, JSON.stringify(champs));
+    assert.deepEqual(res.corps, { erreur: message }, JSON.stringify(champs));
   }
   assert.equal(creer.mock.callCount(), 0);
 });
@@ -113,8 +122,9 @@ test('Configuration du formulaire : entité imposée, postes et échelons du Ter
   mockerBase(t);
   const tertiaire = await appeler('get', '/configuration', { roleCode: 'inspecteur' });
   assert.equal(tertiaire.res.corps.entiteImposee, 'tertiaire');
-  assert.deepEqual(tertiaire.res.corps.postesTertiaire, ['nettoyage', 'vitrerie', 'machiniste', 'chef_equipe', 'autre']);
-  assert.deepEqual(tertiaire.res.corps.echelonsParPosteTertiaire, {});
+  assert.deepEqual(tertiaire.res.corps.tertiaire.qualifications.map((q) => q.libelle), ['Agent de service', 'Laveur de vitres - Machiniste', 'Chef d’équipe', 'Agent de maîtrise']);
+  assert.equal(tertiaire.res.corps.tertiaire.libelleDateDebut, 'Date d’embauche (ou journée de doublon)');
+  assert.deepEqual(tertiaire.res.corps.tertiaire.typesContrat, ['cdd', 'cdi']);
   assert.deepEqual(tertiaire.res.corps.echelonsParPoste.equipier, ['AS', 'ATQS']);
   assert.equal((await appeler('get', '/configuration', { roleCode: 'planning' })).res.corps.entiteImposee, 'hotellerie');
   assert.equal((await appeler('get', '/configuration', { roleCode: 'admin' })).res.corps.entiteImposee, null);

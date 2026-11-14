@@ -10,6 +10,9 @@ import {
   echelonsDeLaDivision,
   echelonsDuPoste,
   postesProposes,
+  qualificationsTertiaire,
+  champsPropresRenseignes,
+  donneesApresChangementEntite,
   joursPrivesDeSite,
   validerFormulaire,
 } from './formulaireDemandeDpae';
@@ -353,25 +356,104 @@ describe('Échelon selon le poste', () => {
   });
 });
 
-describe('postes et échelons par entité (Hôtellerie / Tertiaire)', () => {
-  it('postes du Tertiaire : Nettoyage, Vitrerie, Machiniste, Chef d’équipe, Autre ; ceux de l’Hôtellerie pour toute autre entité', () => {
-    expect(postesProposes('tertiaire').map((poste) => poste.libelle)).toEqual(['Nettoyage', 'Vitrerie', 'Machiniste', "Chef d'équipe", 'Autre']);
-    for (const division of ['hotellerie', 'autre', '', undefined]) {
-      expect(postesProposes(division).map((poste) => poste.code)).toEqual(['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant', 'autre']);
-    }
+describe('qualification du Tertiaire et postes de l’Hôtellerie', () => {
+  const configuration = {
+    echelonsParPoste: { equipier: ['AS'] },
+    tertiaire: {
+      qualifications: [
+        { code: 'agent_service', libelle: 'Agent de service', echelons: ['AS1', 'AS2', 'AS3'] },
+        { code: 'chef_equipe', libelle: 'Chef d’équipe', echelons: ['CE1', 'CE2', 'CE3'] },
+      ],
+    },
+  };
+
+  it('postes de l’Hôtellerie inchangés', () => {
+    expect(postesProposes('hotellerie').map((poste) => poste.code)).toEqual(['femme_valet_chambre', 'cafetier', 'equipier', 'gouvernant', 'autre']);
   });
 
-  it('la configuration de l’entité peut restreindre les postes du Tertiaire', () => {
-    expect(postesProposes('tertiaire', ['nettoyage', 'autre']).map((poste) => poste.code)).toEqual(['nettoyage', 'autre']);
-  });
-
-  it('échelons du Tertiaire : liste vide tant que la configuration n’en définit pas ; ceux de l’Hôtellerie sinon', () => {
-    const configuration = { echelonsParPoste: { equipier: ['AS'] }, echelonsParPosteTertiaire: {} };
-    expect(echelonsDeLaDivision(configuration, 'tertiaire')).toEqual({});
-    expect(echelonsDuPoste(echelonsDeLaDivision(configuration, 'tertiaire'), 'nettoyage')).toEqual([]);
+  it('Tertiaire : catégories et échelons lus dans la configuration de l’entité ; Hôtellerie : échelons des postes', () => {
+    expect(qualificationsTertiaire(configuration).map((q) => q.libelle)).toEqual(['Agent de service', 'Chef d’équipe']);
+    expect(echelonsDuPoste(echelonsDeLaDivision(configuration, 'tertiaire'), 'chef_equipe')).toEqual(['CE1', 'CE2', 'CE3']);
     expect(echelonsDeLaDivision(configuration, 'hotellerie')).toEqual({ equipier: ['AS'] });
-    expect(echelonsDeLaDivision(undefined, 'tertiaire')).toEqual({});
-    // Complétable sans toucher au code : un échelon ajouté à la configuration apparaît.
-    expect(echelonsDuPoste(echelonsDeLaDivision({ echelonsParPosteTertiaire: { nettoyage: ['N1'] } }, 'tertiaire'), 'nettoyage')).toEqual(['N1']);
+    // Configuration vide : aucune catégorie, section « Échelon » masquée.
+    expect(qualificationsTertiaire({})).toEqual([]);
+    expect(echelonsDeLaDivision({}, 'tertiaire')).toEqual({});
+  });
+
+  it('complétable sans toucher au code : un échelon ajouté à la configuration est proposé', () => {
+    const etendue = { tertiaire: { qualifications: [{ code: 'agent_service', libelle: 'Agent de service', echelons: ['AS1', 'AS4'] }] } };
+    expect(echelonsDuPoste(echelonsDeLaDivision(etendue, 'tertiaire'), 'agent_service')).toEqual(['AS1', 'AS4']);
+  });
+});
+
+describe('validerFormulaire : formulaire du Tertiaire', () => {
+  const echelons = { agent_service: ['AS1', 'AS2'], chef_equipe: ['CE1'] };
+  const base = () => ({ ...donneesInitiales(), salarieNom: 'Martin', salariePrenom: 'Léa', salarieDejaEmploye: false, sitesAffectationIds: [4], typeContrat: 'cdi', dateDebut: '2026-11-02', poste: 'agent_service', echelon: 'AS1' });
+  const champs = (donnees) => validerFormulaire(donnees, echelons, { tertiaire: true }).map((erreur) => erreur.champ);
+
+  it('CDI complet : sans date de fin ni motif', () => {
+    expect(champs(base())).toEqual([]);
+  });
+
+  it('CDD : date de fin et motif obligatoires, date de fin pas avant l’embauche', () => {
+    expect(champs({ ...base(), typeContrat: 'cdd' })).toEqual(['dateFin', 'motifCdd']);
+    const surcroit = { ...base(), typeContrat: 'cdd', motifCdd: 'surcroit_activite', dateFin: '2026-12-02' };
+    expect(champs(surcroit)).toEqual([]);
+    expect(champs({ ...surcroit, dateFin: '2026-11-01' })).toEqual(['dateFin']);
+  });
+
+  it('remplacement : nom du salarié remplacé ET motif d’absence obligatoires, 100 caractères au plus', () => {
+    const remplacement = { ...base(), typeContrat: 'cdd', motifCdd: 'remplacement_absent', dateFin: '2026-12-02' };
+    expect(champs(remplacement)).toEqual(['salarieRemplaceNom', 'motifAbsence']);
+    expect(champs({ ...remplacement, salarieRemplaceNom: 'Paul', motifAbsence: 'Congé' })).toEqual([]);
+    expect(champs({ ...remplacement, salarieRemplaceNom: 'x'.repeat(101), motifAbsence: 'y'.repeat(101) })).toEqual(['salarieRemplaceNom', 'motifAbsence']);
+  });
+
+  it('site obligatoire, catégorie obligatoire puis échelon obligatoire (si la catégorie en a)', () => {
+    expect(champs({ ...base(), sitesAffectationIds: [] })).toEqual(['sites']);
+    expect(champs({ ...base(), poste: '', echelon: '' })).toEqual(['poste']);
+    expect(champs({ ...base(), echelon: '' })).toEqual(['echelon']);
+    expect(champs({ ...base(), poste: 'chef_equipe', echelon: 'AS1' })).toEqual(['echelon']);
+  });
+
+  it('le formulaire de l’Hôtellerie garde ses règles (avenant accepté, question « déjà employé » obligatoire)', () => {
+    const hotel = { ...donneesInitiales(), sitesAffectationIds: [4], typeContrat: 'avenant', dateDebut: '2026-11-02', poste: 'equipier', salarieDejaEmploye: null };
+    expect(validerFormulaire(hotel, {}).map((e) => e.champ)).toEqual(['salarieDejaEmploye']);
+  });
+});
+
+describe('changement d’entité', () => {
+  const rempli = () => ({
+    ...donneesInitiales(),
+    salarieNom: 'Martin',
+    salariePrenom: 'Léa',
+    dateDebut: '2026-11-02',
+    typeDemande: 'prolongation',
+    typeContrat: 'cdd',
+    motifCdd: 'remplacement_absent',
+    salarieRemplaceNom: 'Paul',
+    motifAbsence: 'Congé',
+    poste: 'equipier',
+    echelon: 'AS',
+    sitesAffectationIds: [4, 5],
+    semaineType: donneesInitiales().semaineType.map((jour, index) => (index === 0 ? { ...jour, statut: 'travail', heureDebut: '08:00', heureFin: '16:00', siteIds: [4] } : jour)),
+  });
+
+  it('formulaire vierge : rien de propre à l’entité renseigné (pas de confirmation) ; dès qu’un champ l’est : confirmation', () => {
+    expect(champsPropresRenseignes({ ...donneesInitiales(), salarieNom: 'Martin', dateDebut: '2026-11-02' })).toBe(false);
+    for (const champ of [{ typeDemande: 'prolongation' }, { typeContrat: 'cdi' }, { poste: 'equipier' }, { sitesAffectationIds: [4] }]) {
+      expect(champsPropresRenseignes({ ...donneesInitiales(), ...champ }), JSON.stringify(champ)).toBe(true);
+    }
+    // Type de demande imposé (Tertiaire) : prérempli, il ne compte pas comme saisie.
+    expect(champsPropresRenseignes({ ...donneesInitiales(), typeDemande: 'nouvelle_embauche' }, true)).toBe(false);
+  });
+
+  it('réinitialise type de demande, contrat et motifs, poste/qualification, échelon et sites ; garde identité, dates et horaires', () => {
+    const resultat = donneesApresChangementEntite(rempli(), 'tertiaire');
+    expect(resultat).toMatchObject({ division: 'tertiaire', typeDemande: '', typeContrat: '', motifCdd: '', salarieRemplaceNom: '', motifAbsence: '', poste: '', echelon: '', sitesAffectationIds: [] });
+    expect(resultat).toMatchObject({ salarieNom: 'Martin', salariePrenom: 'Léa', dateDebut: '2026-11-02' });
+    const lundi = resultat.semaineType[0];
+    expect(lundi).toMatchObject({ statut: 'travail', heureDebut: '08:00', heureFin: '16:00' });
+    expect(lundi.siteIds).toBeUndefined();
   });
 });

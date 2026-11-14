@@ -44,9 +44,9 @@ export const MINUTES_PAUSE = [0, 15, 30, 45];
 
 export const TYPES_CONTRAT = ['cdd', 'cdi', 'avenant'];
 
-// Postes proposés par entité — mêmes codes/libellés que BlocDisponibilites.jsx (hôtel) ; « Autre » en
-// dernier. Les postes du Tertiaire peuvent être restreints par la configuration de l'entité
-// (`postesTertiaire`, GET /api/dpae/configuration) ; le serveur reste seul juge.
+// Postes proposés à une demande de l'Hôtellerie — mêmes codes/libellés que BlocDisponibilites.jsx (hôtel) ;
+// « Autre » en dernier. Une demande du Tertiaire n'a pas de poste : sa qualification (catégorie puis échelon)
+// vient de la configuration de l'entité (GET /api/dpae/configuration, `tertiaire.qualifications`).
 export const POSTES_HOTELLERIE = [
   { code: 'femme_valet_chambre', libelle: 'Femme/Valet de chambre' },
   { code: 'cafetier', libelle: 'Cafetier' },
@@ -54,23 +54,20 @@ export const POSTES_HOTELLERIE = [
   { code: 'gouvernant', libelle: 'Gouvernant(e)' },
   { code: 'autre', libelle: 'Autre' },
 ];
-export const POSTES_TERTIAIRE = [
-  { code: 'nettoyage', libelle: 'Nettoyage' },
-  { code: 'vitrerie', libelle: 'Vitrerie' },
-  { code: 'machiniste', libelle: 'Machiniste' },
-  { code: 'chef_equipe', libelle: "Chef d'équipe" },
-  { code: 'autre', libelle: 'Autre' },
-];
 
-export function postesProposes(division, postesTertiaire = null) {
-  if (division !== 'tertiaire') return POSTES_HOTELLERIE;
-  return postesTertiaire ? POSTES_TERTIAIRE.filter((poste) => postesTertiaire.includes(poste.code)) : POSTES_TERTIAIRE;
+// Postes proposés selon l'entité : ceux de l'Hôtellerie (le Tertiaire choisit une catégorie de qualification, ci-dessous).
+export const postesProposes = () => POSTES_HOTELLERIE;
+
+// Catégories de qualification du Tertiaire : [{ code, libelle, echelons }], telles que configurées.
+export function qualificationsTertiaire(configuration) {
+  return configuration?.tertiaire?.qualifications ?? [];
 }
 
-// Correspondance poste -> échelons de l'entité choisie : celle du Tertiaire (vide tant que la configuration
-// n'en définit pas, la section « Échelon » est alors masquée) ou celle de l'Hôtellerie.
+// Correspondance catégorie/poste -> échelons de l'entité choisie : celle de chaque catégorie de qualification du
+// Tertiaire, ou celle des postes de l'Hôtellerie.
 export function echelonsDeLaDivision(configuration, division) {
-  return (division === 'tertiaire' ? configuration?.echelonsParPosteTertiaire : configuration?.echelonsParPoste) ?? {};
+  if (division !== 'tertiaire') return configuration?.echelonsParPoste ?? {};
+  return Object.fromEntries(qualificationsTertiaire(configuration).map((qualification) => [qualification.code, qualification.echelons ?? []]));
 }
 
 // Entité (division) d'un candidat choisi dans la recherche : celle de son type de poste recherché à
@@ -128,6 +125,7 @@ export function donneesInitiales() {
     typeContrat: '',
     motifCdd: '',
     salarieRemplaceNom: '',
+    motifAbsence: '',
     dateFinAbsence: '',
     raisonSurcroit: '',
     division: '',
@@ -214,6 +212,7 @@ export function donneesFormulaireDepuisDemande(demande) {
     typeContrat: demande.type_contrat ?? '',
     motifCdd: demande.motif_cdd ?? '',
     salarieRemplaceNom: demande.salarie_remplace_nom ?? '',
+    motifAbsence: demande.motif_absence ?? '',
     dateFinAbsence: jourPourChamp(demande.date_fin_absence),
     raisonSurcroit: demande.raison_surcroit ?? '',
     division: demande.division ?? '',
@@ -264,7 +263,8 @@ export function donneesApresChangementPoste(donnees, poste, echelonsParPoste) {
 // défilement. Clés de champ : 'salarieDejaEmploye', 'sites', 'typeContrat', 'motifCdd', 'poste', 'echelon',
 // 'dateDebut', 'dateFin', et 'semaine:<jour>' pour le site d'un jour travaillé. Les champs du CDD ne sont
 // contrôlés que pour un CDD.
-export function validerFormulaire(donnees, echelonsParPoste = {}) {
+export function validerFormulaire(donnees, echelonsParPoste = {}, options = {}) {
+  if (options.tertiaire) return validerFormulaireTertiaire(donnees, echelonsParPoste, options);
   const erreurs = [];
   const refuser = (champ, message) => erreurs.push({ champ, message });
 
@@ -303,4 +303,85 @@ export function validerFormulaire(donnees, echelonsParPoste = {}) {
     if (aUnJourTravaille && duree !== null && donnees.pauseCommuneMinutes > 0 && donnees.pauseCommuneMinutes >= duree) refuser('pause', messagePause);
   }
   return erreurs;
+}
+
+// Formulaire du Tertiaire : mêmes règles que le serveur (formulaireTertiaire.verifierDemandeTertiaire) — date
+// d'embauche, date de fin d'un CDD, type de contrat CDD/CDI, motif du CDD, remplacement (nom du salarié remplacé
+// et motif d'absence), site d'affectation, catégorie de qualification puis échelon. `options.limiteTexte` :
+// longueur maximale des textes du remplacement (configuration de l'entité).
+function validerFormulaireTertiaire(donnees, echelonsParPoste, { limiteTexte = 100 } = {}) {
+  const erreurs = [];
+  const refuser = (champ, message) => erreurs.push({ champ, message });
+  const estCdd = donnees.typeContrat === 'cdd';
+
+  if (!donnees.dateDebut.trim()) refuser('dateDebut', 'La date d’embauche est obligatoire.');
+  if (estCdd && !donnees.dateFin) refuser('dateFin', 'La date de fin est obligatoire pour un CDD.');
+  if (estCdd && donnees.dateFin && donnees.dateDebut && donnees.dateFin < donnees.dateDebut) refuser('dateFin', 'La date de fin ne peut pas précéder la date d’embauche.');
+  if (!['cdd', 'cdi'].includes(donnees.typeContrat)) refuser('typeContrat', 'Le type de contrat est obligatoire.');
+  if (estCdd && !donnees.motifCdd) refuser('motifCdd', 'Le motif du CDD est obligatoire.');
+  if (estCdd && donnees.motifCdd === 'remplacement_absent') {
+    if (!donnees.salarieRemplaceNom.trim()) refuser('salarieRemplaceNom', 'Le nom du salarié remplacé est obligatoire pour un remplacement.');
+    else if (donnees.salarieRemplaceNom.length > limiteTexte) refuser('salarieRemplaceNom', `Le nom du salarié remplacé ne peut pas dépasser ${limiteTexte} caractères.`);
+    if (!donnees.motifAbsence.trim()) refuser('motifAbsence', 'Le motif d’absence est obligatoire pour un remplacement.');
+    else if (donnees.motifAbsence.length > limiteTexte) refuser('motifAbsence', `Le motif d’absence ne peut pas dépasser ${limiteTexte} caractères.`);
+  }
+  if (donnees.sitesAffectationIds.length === 0) refuser('sites', 'Sélectionnez au moins un site d’affectation avant d’envoyer la demande.');
+  if (donnees.sitesAffectationIds.length > 1) {
+    for (const jour of donnees.semaineType) {
+      if (jour.statut === 'travail' && !(jour.siteIds ?? []).some((id) => donnees.sitesAffectationIds.includes(id))) {
+        refuser(`semaine:${jour.jour}`, 'Au moins un site est obligatoire pour ce jour.');
+      }
+    }
+  }
+  const messagePause = 'La pause doit être inférieure à la durée de la journée.';
+  if (donnees.horairesDifferentsParJour) {
+    for (const jour of donnees.semaineType) {
+      const duree = jour.statut === 'travail' ? dureeJournee(jour.heureDebut, jour.heureFin) : null;
+      if (duree !== null && jour.pauseMinutes > 0 && jour.pauseMinutes >= duree) refuser(`pause:${jour.jour}`, messagePause);
+    }
+  } else {
+    const duree = dureeJournee(donnees.heureDebutCommune, donnees.heureFinCommune);
+    if (donnees.semaineType.some((jour) => jour.statut === 'travail') && duree !== null && donnees.pauseCommuneMinutes > 0 && donnees.pauseCommuneMinutes >= duree) refuser('pause', messagePause);
+  }
+  if (!donnees.poste) refuser('poste', 'La catégorie de qualification est obligatoire.');
+  const echelons = echelonsDuPoste(echelonsParPoste, donnees.poste);
+  if (donnees.poste && echelons.length > 0 && !echelons.includes(donnees.echelon)) refuser('echelon', 'L’échelon est obligatoire pour cette catégorie.');
+  return erreurs;
+}
+
+// Champs propres à une entité (type de demande, contrat et motif, qualification ou poste et échelon, sites) :
+// vrai dès que l'un d'eux a été renseigné — le changement d'entité demande alors une confirmation.
+export function champsPropresRenseignes(donnees, typeDemandeImpose = false) {
+  return Boolean(
+    (!typeDemandeImpose && donnees.typeDemande) ||
+      donnees.typeContrat ||
+      donnees.motifCdd ||
+      donnees.poste ||
+      donnees.echelon ||
+      donnees.sitesAffectationIds.length > 0,
+  );
+}
+
+// Changement d'entité : les champs propres à l'entité sont réinitialisés (type de demande, contrat et motifs,
+// poste/qualification, échelon, sites et sites de la semaine type) ; l'identité du salarié, les dates, les
+// horaires et la note restent.
+export function donneesApresChangementEntite(donnees, division) {
+  const vierge = donneesInitiales();
+  return {
+    ...donnees,
+    division,
+    divisionAutre: '',
+    typeDemande: vierge.typeDemande,
+    typeContrat: vierge.typeContrat,
+    motifCdd: vierge.motifCdd,
+    salarieRemplaceNom: vierge.salarieRemplaceNom,
+    motifAbsence: vierge.motifAbsence,
+    dateFinAbsence: vierge.dateFinAbsence,
+    raisonSurcroit: vierge.raisonSurcroit,
+    poste: vierge.poste,
+    posteAutre: vierge.posteAutre,
+    echelon: vierge.echelon,
+    sitesAffectationIds: [],
+    semaineType: affecterSitesSemaine(donnees.semaineType, []),
+  };
 }

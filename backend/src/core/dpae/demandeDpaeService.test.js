@@ -73,7 +73,7 @@ test("creerEtEnvoyer avec un site : demande créée et site lié, dans la transa
 
   assert.equal(demandeId, 7);
   assert.equal(transactionMock.mock.calls.length, 1);
-  assert.deepEqual(listerMock.mock.calls[0].arguments, [TRX_FACTICE, ENTITE_ACCECIT.id, [10]]);
+  assert.deepEqual(listerMock.mock.calls[0].arguments, [TRX_FACTICE, ENTITE_ACCECIT.id, [10], 'hotellerie']);
   assert.equal(creerMock.mock.calls[0].arguments[0], TRX_FACTICE);
   assert.equal('sitesAffectationIds' in creerMock.mock.calls[0].arguments[1], false);
   assert.deepEqual(lierMock.mock.calls[0].arguments, [TRX_FACTICE, 7, [10]]);

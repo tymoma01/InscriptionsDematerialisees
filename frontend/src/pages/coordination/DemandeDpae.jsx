@@ -15,15 +15,19 @@ import {
   divisionDuCandidat,
   donneesInitiales,
   echelonsDeLaDivision,
+  champsPropresRenseignes,
+  donneesApresChangementEntite,
   echelonsDuPoste,
   joursPrivesDeSite,
   postesProposes,
+  qualificationsTertiaire,
   validerFormulaire,
 } from '../../core/dpae/formulaireDemandeDpae';
 import { libelleNombreJours, nombreJoursCalendaires } from '../../core/dpae/joursCalendaires';
 import SelecteurPause from './SelecteurPause';
 import SelecteurSitesJour from './SelecteurSitesJour';
 import SelecteurSitesAffectation from './SelecteurSitesAffectation';
+import ModaleConfirmationDpae from '../rh/ModaleConfirmationDpae';
 import './DemandeDpae.css';
 
 // Types de demande — mêmes valeurs que demandeBodySchema (backend/src/api/routes/dpae.routes.js,
@@ -106,10 +110,21 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
   // Entité imposée au rôle (Formateur Tertiaire, Planning Tertiaire : Tertiaire, non modifiable ; rôles de
   // l'Hôtellerie : pas de Tertiaire) ; libre pour l'Admin.
   const entiteImposee = configuration.entiteImposee ?? null;
+  // Tant que la configuration n'est pas lue, l'entité du rôle est inconnue : rien n'est proposé.
+  const configurationChargee = 'entiteImposee' in configuration;
+  // Formulaire du Tertiaire (modèle papier) : tout vient de la configuration de l'entité.
+  const tertiaire = donnees.division === 'tertiaire';
+  const configTertiaire = configuration.tertiaire ?? {};
+  const qualifications = qualificationsTertiaire(configuration);
+  const typesDemandeTertiaire = configTertiaire.typesDemande ?? [];
+  const typeUniqueTertiaire = tertiaire && typesDemandeTertiaire.length === 1 ? typesDemandeTertiaire[0] : null;
+  useEffect(() => {
+    if (typeUniqueTertiaire && donnees.typeDemande !== typeUniqueTertiaire.code) setDonnees((precedent) => ({ ...precedent, typeDemande: typeUniqueTertiaire.code }));
+  }, [typeUniqueTertiaire, donnees.typeDemande]);
   const echelonsParPoste = echelonsDeLaDivision(configuration, donnees.division);
-  const postes = postesProposes(donnees.division, configuration.postesTertiaire ?? null);
+  const postes = postesProposes(donnees.division);
   const libelleEnvoi =
-    donnees.division === 'tertiaire' ? 'Envoyer au Planning Tertiaire' : peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
+    tertiaire ? 'Envoyer au Planning Tertiaire' : peut(utilisateur, 'dpaeCreationSoumiseAuPlanning') ? 'Envoyer au Planning' : 'Envoyer à la RH';
 
   // Entité imposée : appliquée au formulaire dès que la configuration est connue (candidat choisi compris).
   useEffect(() => {
@@ -118,12 +133,29 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
     }
   }, [entiteImposee, donnees.division]);
 
-  // Un poste qui n'existe pas dans l'entité choisie est effacé (avec son échelon).
+  // Un poste (ou une catégorie de qualification) qui n'existe pas dans l'entité choisie est effacé, avec son échelon.
+  const codesPostes = tertiaire ? qualifications.map((qualification) => qualification.code) : postes.map((poste) => poste.code);
+  const qualificationsChargees = !tertiaire || qualifications.length > 0;
   useEffect(() => {
-    if (donnees.poste && !postes.some((poste) => poste.code === donnees.poste)) {
+    if (qualificationsChargees && donnees.poste && !codesPostes.includes(donnees.poste)) {
       setDonnees((precedent) => ({ ...precedent, poste: '', posteAutre: '', echelon: '' }));
     }
-  }, [donnees.poste, postes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [donnees.poste, tertiaire, qualificationsChargees]);
+
+  // Le formulaire du Tertiaire ne pose pas ces questions : valeurs neutres, jamais cochées à la place du demandeur.
+  useEffect(() => {
+    if (tertiaire && donnees.salarieDejaEmploye !== false) setDonnees((precedent) => ({ ...precedent, salarieDejaEmploye: false }));
+  }, [tertiaire, donnees.salarieDejaEmploye]);
+
+  // Changement d'entité (Admin) : appliqué tout de suite si rien de propre à l'entité n'est renseigné, sinon après
+  // confirmation (les champs propres à l'entité sont réinitialisés).
+  const [entiteEnAttente, setEntiteEnAttente] = useState(null);
+  const demanderChangementEntite = (nouvelle) => {
+    if (nouvelle === (tertiaire ? 'tertiaire' : 'hotellerie')) return;
+    if (champsPropresRenseignes(donnees, Boolean(typeUniqueTertiaire))) setEntiteEnAttente(nouvelle);
+    else setDonnees((precedent) => donneesApresChangementEntite(precedent, nouvelle));
+  };
 
   const definir = (champ, valeur) => setDonnees((precedent) => ({ ...precedent, [champ]: valeur }));
 
@@ -194,7 +226,10 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
   const sitesSelectionnes = donnees.sitesAffectationIds.map((id) => sitesConnus.get(id)).filter(Boolean);
   const plusieursSites = donnees.sitesAffectationIds.length > 1;
 
-  const erreurs = useMemo(() => validerFormulaire(donnees, echelonsParPoste), [donnees, echelonsParPoste]);
+  const erreurs = useMemo(
+    () => validerFormulaire(donnees, echelonsParPoste, tertiaire ? { tertiaire: true, limiteTexte: configTertiaire.limiteTexte } : {}),
+    [donnees, echelonsParPoste, tertiaire, configTertiaire.limiteTexte],
+  );
   const echelonsPoste = echelonsDuPoste(echelonsParPoste, donnees.poste);
   const messageErreur = (champ) => {
     const visible = tentativeEnvoi || (semaineSignalee && champ.startsWith('semaine:'));
@@ -229,10 +264,8 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
     donnees.typeDemande &&
     donnees.salarieNom.trim() &&
     donnees.salariePrenom.trim() &&
-    (!estCddRemplacement || donnees.salarieRemplaceNom.trim()) &&
-    donnees.verifBesoinHotel &&
-    donnees.verifTousJoursInclus &&
-    donnees.verifNonPlanification &&
+    (!estCddRemplacement || tertiaire || donnees.salarieRemplaceNom.trim()) &&
+    (tertiaire || (donnees.verifBesoinHotel && donnees.verifTousJoursInclus && donnees.verifNonPlanification)) &&
     (!modification || noteModification.trim());
 
   const envoyer = async (evenement) => {
@@ -268,7 +301,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
       // CDI : motif, dernier jour et champs du CDD ne sont pas envoyés (champs masqués). Avenant : ni
       // motif ni remplacement, dernier jour facultatif.
       const estCdd = donnees.typeContrat === 'cdd';
-      const aDernierJour = estCdd || donnees.typeContrat === 'avenant';
+      const aDernierJour = estCdd || (!tertiaire && donnees.typeContrat === 'avenant');
       const corps = {
         ...reste,
         candidatId: candidatId || undefined,
@@ -277,6 +310,7 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
         dateFinAbsence: estCdd ? reste.dateFinAbsence : undefined,
         raisonSurcroit: estCdd ? reste.raisonSurcroit : undefined,
         salarieRemplaceNom: estCddRemplacement ? reste.salarieRemplaceNom : undefined,
+        motifAbsence: tertiaire && estCddRemplacement ? reste.motifAbsence : undefined,
         heuresParMois: analyserHeuresParMois(heuresParMois) ?? undefined,
         semaineType,
         joursConcernes: donnees.joursConcernes.filter((jour) => jour.date),
@@ -307,23 +341,50 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
         </header>
 
         <form onSubmit={envoyer}>
+          {/* Premier choix de la page : le reste du formulaire s'adapte à l'entité. Rôle à entité fixe : simple
+              mention en lecture seule ; Admin : choix Hôtellerie / Tertiaire (confirmation si le formulaire est
+              déjà commencé, car les champs propres à l'entité sont réinitialisés). */}
+          {configurationChargee && entiteImposee !== null && (
+            <p className="page-demande-dpae__entite-fixe">Entité : {entiteImposee === 'tertiaire' ? 'Tertiaire' : 'Hôtellerie'}</p>
+          )}
+          {configurationChargee && entiteImposee === null && (
+            <fieldset className="bloc-formulaire page-demande-dpae__choix-entite">
+              <legend>Entité de la demande</legend>
+              <label className="champ-inline">
+                <input type="radio" name="entiteDemande" checked={!tertiaire} onChange={() => demanderChangementEntite('hotellerie')} />
+                Hôtellerie
+              </label>
+              <label className="champ-inline">
+                <input type="radio" name="entiteDemande" checked={tertiaire} onChange={() => demanderChangementEntite('tertiaire')} />
+                Tertiaire
+              </label>
+            </fieldset>
+          )}
+
           <fieldset className="bloc-formulaire">
             <legend>Informations de saisie</legend>
             <label>
               <span>
                 Il s&rsquo;agit de… <span className="champ-obligatoire">*</span>
               </span>
-              <select value={donnees.typeDemande} onChange={(e) => definir('typeDemande', e.target.value)} required>
-                <option value="">Choisir…</option>
-                {TYPES_DEMANDE.map((type) => (
-                  <option key={type.code} value={type.code}>
-                    {type.libelle}
-                  </option>
-                ))}
-              </select>
+              {typeUniqueTertiaire ? (
+                // Tertiaire : un seul type de demande (configuration de l'entité), prérempli et en lecture seule.
+                <input type="text" value={typeUniqueTertiaire.libelle} readOnly />
+              ) : (
+                <select value={donnees.typeDemande} onChange={(e) => definir('typeDemande', e.target.value)} required>
+                  <option value="">Choisir…</option>
+                  {TYPES_DEMANDE.map((type) => (
+                    <option key={type.code} value={type.code}>
+                      {type.libelle}
+                    </option>
+                  ))}
+                </select>
+              )}
             </label>
           </fieldset>
 
+          {!tertiaire && (
+          <>
           <fieldset className="bloc-formulaire">
             <legend>Données du salarié</legend>
             <label>
@@ -507,11 +568,10 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
 
             <label>
               <span>Entité</span>
-              <select value={donnees.division} onChange={(e) => definir('division', e.target.value)} disabled={entiteImposee === 'tertiaire'}>
-                {entiteImposee !== 'tertiaire' && <option value="">Choisir…</option>}
-                {entiteImposee !== 'tertiaire' && <option value="hotellerie">Hôtellerie</option>}
-                {entiteImposee !== 'hotellerie' && <option value="tertiaire">Tertiaire</option>}
-                {entiteImposee !== 'tertiaire' && <option value="autre">Autre</option>}
+              <select value={donnees.division} onChange={(e) => definir('division', e.target.value)}>
+                <option value="">Choisir…</option>
+                <option value="hotellerie">Hôtellerie</option>
+                <option value="autre">Autre</option>
               </select>
             </label>
             {donnees.division === 'autre' && (
@@ -741,8 +801,162 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
             </fieldset>
           )}
 
+          </>
+          )}
+
+          {tertiaire && (
+            <fieldset className="bloc-formulaire">
+              <legend>Salarié et contrat</legend>
+              <label>
+                <span>
+                  Nom <span className="champ-obligatoire">*</span>
+                </span>
+                <RechercheCandidatSalarie
+                  valeur={donnees.salarieNom}
+                  onChanger={(valeur) => {
+                    definir('salarieNom', valeur);
+                    if (donnees.candidatId) definir('candidatId', null);
+                  }}
+                  onSelectionnerCandidat={selectionnerCandidat}
+                  candidatId={donnees.candidatId}
+                />
+              </label>
+              <label>
+                <span>
+                  Prénom <span className="champ-obligatoire">*</span>
+                </span>
+                <input type="text" value={donnees.salariePrenom} onChange={(e) => definir('salariePrenom', e.target.value)} required />
+              </label>
+
+              <div ref={refChamp('dateDebut')}>
+                <label>
+                  <span>
+                    {configTertiaire.libelleDateDebut ?? 'Date d’embauche (ou journée de doublon)'} <span className="champ-obligatoire">*</span>
+                  </span>
+                  <input type="date" value={donnees.dateDebut} onChange={(e) => definir('dateDebut', e.target.value)} />
+                </label>
+                {erreurChamp('dateDebut')}
+              </div>
+
+              {/* Date de fin : obligatoire pour un CDD, absente pour un CDI. */}
+              {donnees.typeContrat !== 'cdi' && (
+                <div ref={refChamp('dateFin')}>
+                  <label>
+                    <span>
+                      Date de fin {donnees.typeContrat === 'cdd' && <span className="champ-obligatoire">*</span>}
+                    </span>
+                    <input type="date" value={donnees.dateFin} min={donnees.dateDebut || undefined} onChange={(e) => definir('dateFin', e.target.value)} />
+                  </label>
+                  {erreurChamp('dateFin')}
+                </div>
+              )}
+
+              <div ref={refChamp('typeContrat')}>
+                <fieldset>
+                  <legend>
+                    Type de contrat <span className="champ-obligatoire">*</span>
+                  </legend>
+                  {(configTertiaire.typesContrat ?? []).map((type) => (
+                    <label key={type} className="champ-inline">
+                      <input type="radio" name="typeContrat" checked={donnees.typeContrat === type} onChange={() => definir('typeContrat', type)} />
+                      {type.toUpperCase()}
+                    </label>
+                  ))}
+                </fieldset>
+                {erreurChamp('typeContrat')}
+              </div>
+
+              {donnees.typeContrat === 'cdd' && (
+                <>
+                  <div ref={refChamp('motifCdd')}>
+                    <fieldset>
+                      <legend>
+                        Motif du CDD <span className="champ-obligatoire">*</span>
+                      </legend>
+                      {(configTertiaire.motifsCdd ?? []).map((motif) => (
+                        <label key={motif.code} className="champ-inline">
+                          <input type="radio" name="motifCdd" checked={donnees.motifCdd === motif.code} onChange={() => definir('motifCdd', motif.code)} />
+                          {motif.libelle}
+                        </label>
+                      ))}
+                    </fieldset>
+                    {erreurChamp('motifCdd')}
+                  </div>
+                  {estCddRemplacement && (
+                    <>
+                      <div ref={refChamp('salarieRemplaceNom')}>
+                        <label>
+                          <span>
+                            Nom du salarié remplacé <span className="champ-obligatoire">*</span>
+                          </span>
+                          <input type="text" value={donnees.salarieRemplaceNom} maxLength={configTertiaire.limiteTexte} onChange={(e) => definir('salarieRemplaceNom', e.target.value)} />
+                        </label>
+                        {erreurChamp('salarieRemplaceNom')}
+                      </div>
+                      <div ref={refChamp('motifAbsence')}>
+                        <label>
+                          <span>
+                            Motif d&rsquo;absence <span className="champ-obligatoire">*</span>
+                          </span>
+                          <input type="text" value={donnees.motifAbsence} maxLength={configTertiaire.limiteTexte} onChange={(e) => definir('motifAbsence', e.target.value)} />
+                        </label>
+                        {erreurChamp('motifAbsence')}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              <div ref={refChamp('poste')}>
+                <label>
+                  <span>
+                    Catégorie <span className="champ-obligatoire">*</span>
+                  </span>
+                  <select value={donnees.poste} onChange={(e) => setDonnees((precedent) => donneesApresChangementPoste(precedent, e.target.value, echelonsParPoste))}>
+                    <option value="">Choisir…</option>
+                    {qualifications.map((qualification) => (
+                      <option key={qualification.code} value={qualification.code}>
+                        {qualification.libelle}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {erreurChamp('poste')}
+              </div>
+              {echelonsPoste.length > 0 && (
+                <div ref={refChamp('echelon')}>
+                  <fieldset>
+                    <legend>
+                      Échelon <span className="champ-obligatoire">*</span>
+                    </legend>
+                    {echelonsPoste.map((echelon) => (
+                      <label key={echelon} className="champ-inline">
+                        <input type="radio" name="echelon" checked={donnees.echelon === echelon} onChange={() => definir('echelon', echelon)} />
+                        {echelon}
+                      </label>
+                    ))}
+                  </fieldset>
+                  {erreurChamp('echelon')}
+                </div>
+              )}
+
+              <div ref={refChamp('sites')}>
+                <SelecteurSitesAffectation
+                  secteur="tertiaire"
+                  peutRenommer={peut(utilisateur, 'gestionSitesTertiaire')}
+                  selection={donnees.sitesAffectationIds}
+                  onChangerSelection={changerSites}
+                  ouvert={sitesOuverts}
+                  onChangerOuvert={setSitesOuverts}
+                  onSitesCharges={setSitesChargees}
+                />
+                {erreurChamp('sites')}
+              </div>
+            </fieldset>
+          )}
+
           <fieldset className="bloc-formulaire">
-            <legend>Semaine type</legend>
+            <legend>{tertiaire ? 'Répartition des jours, horaires et temps de pause' : 'Semaine type'}</legend>
             <label className="champ-inline">
               <input
                 type="checkbox"
@@ -861,7 +1075,9 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
           </fieldset>
 
           <fieldset className="bloc-formulaire">
-            <legend>Validation avant envoi</legend>
+            <legend>{tertiaire ? 'Envoi' : 'Validation avant envoi'}</legend>
+            {!tertiaire && (
+            <>
             <label>
               <span>Autre chose à signaler ?</span>
               <textarea
@@ -898,6 +1114,8 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
               />
               Je m&rsquo;engage à ne pas planifier avant validation RH <span className="champ-obligatoire">*</span>
             </label>
+            </>
+            )}
 
             {erreur && <p role="alert">{erreur}</p>}
             {conflit && (
@@ -958,6 +1176,21 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
             </div>
           </fieldset>
         </form>
+
+        {entiteEnAttente && (
+          <ModaleConfirmationDpae
+            titre="Changer l’entité de la demande ?"
+            description="Les champs propres à l’entité (type de demande, contrat, qualification ou poste et échelon, sites) seront réinitialisés."
+            variante="attente"
+            onConfirmer={() => {
+              setDonnees((precedent) => donneesApresChangementEntite(precedent, entiteEnAttente));
+              setEntiteEnAttente(null);
+            }}
+            onAnnuler={() => setEntiteEnAttente(null)}
+            enCours={false}
+            erreur={null}
+          />
+        )}
       </div>
     </PageBackOffice>
   );

@@ -160,3 +160,96 @@
 .selecteur-sites__valider:hover {
   background-color: var(--couleur-back-office-hover);
 }
+
+/* Petite fenêtre d'ajout d'un site du Tertiaire (nom et adresse). */
+.selecteur-sites__modale-fond {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--espace-moyen);
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.selecteur-sites__modale {
+  display: flex;
+  flex-direction: column;
+  gap: var(--espace-moyen);
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.5rem;
+  background-color: var(--couleur-fond);
+  border-radius: var(--rayon-bordure);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.selecteur-sites__modale h3 {
+  margin: 0;
+  color: var(--couleur-back-office);
+}
+
+.selecteur-sites__proches {
+  padding: var(--espace-petit) var(--espace-moyen);
+  background-color: var(--statut-attente-fond);
+  border: 1px solid var(--statut-attente-bordure);
+  border-radius: var(--rayon-bordure);
+}
+
+.selecteur-sites__proches p {
+  margin: 0 0 var(--espace-petit);
+}
+
+.selecteur-sites__proches ul {
+  margin: 0 0 var(--espace-petit);
+  padding-left: 1.25rem;
+}
+
+/* Bouton « + Ajouter un site » du Tertiaire : libellé complet, largeur au contenu. */
+.selecteur-sites__bouton-ajout--libelle {
+  width: auto;
+  padding: 0 1rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* Renommage d'un site du Tertiaire dans la liste : crayon à côté de la ligne, puis champ + ✓ / ✕. */
+.selecteur-sites__site-renommable {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.selecteur-sites__site-renommable > .ligne-site-cochable {
+  flex: 1;
+  min-width: 0;
+}
+
+.selecteur-sites__crayon,
+.selecteur-sites__edition button {
+  flex: 0 0 auto;
+  padding: 0 0.5rem;
+  border: 1px solid var(--couleur-bordure);
+  border-radius: var(--rayon-bordure);
+  background-color: var(--couleur-fond);
+  color: var(--couleur-back-office);
+  font: inherit;
+  cursor: pointer;
+}
+
+.selecteur-sites__edition {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.selecteur-sites__edition input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+}

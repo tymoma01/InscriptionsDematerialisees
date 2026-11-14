@@ -12,7 +12,7 @@ const CODES_VISIBLES = 2;
 // virgules, avec « +N » au-delà de deux. Fonction pure, testée (SelecteurSitesJour.test.js).
 export function resumeSelectionSites(sitesChoisis) {
   if (sitesChoisis.length === 0) return 'Choisir les sites';
-  const codes = sitesChoisis.slice(0, CODES_VISIBLES).map((site) => site.initiales).join(', ');
+  const codes = sitesChoisis.slice(0, CODES_VISIBLES).map((site) => site.initiales || site.nom).join(', ');
   const reste = sitesChoisis.length - CODES_VISIBLES;
   return reste > 0 ? `${codes} +${reste}` : codes;
 }

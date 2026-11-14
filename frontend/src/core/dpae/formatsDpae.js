@@ -32,7 +32,7 @@ export function libellesSitesJour(jour, sitesAffectation) {
   return ids
     .map((id) => (sitesAffectation ?? []).find((site) => site.id === id))
     .filter(Boolean)
-    .map((site) => `${site.nom} (${site.initiales})`);
+    .map((site) => (site.initiales ? `${site.nom} (${site.initiales})` : site.nom));
 }
 
 // Libellé de la liste « Entité » d'une demande : « Hôtellerie » ou « Tertiaire » (codes stockés

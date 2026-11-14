@@ -86,7 +86,7 @@ function ligne(libelle, valeur) {
 // Mêmes sites et même forme « NOM (INITIALES) » que la fiche, mais un site par ligne (la fiche les
 // sépare par des virgules) : à l'impression, un nom de site n'est jamais coupé entre deux lignes.
 function texteSitesAffectation(demande) {
-  return (demande.sites_affectation ?? []).map((site) => `${site.nom} (${site.initiales})`).join('\n');
+  return (demande.sites_affectation ?? []).map((site) => (site.initiales ? `${site.nom} (${site.initiales})` : site.nom)).join('\n');
 }
 
 // « Reçue le JJ/MM/AAAA à HH:MM » (heure de Paris), à droite de la pastille de statut.
@@ -97,7 +97,13 @@ function texteReception(demande) {
 // Les quatre cases de l'encadré récapitulatif : [libellé, valeur] (valeur vide : « Non renseigné »).
 function recapitulatif(demande) {
   const libellePoste = demande.poste === 'autre' ? demande.poste_autre : LIBELLE_PAR_POSTE[demande.poste];
-  const poste = libellePoste && demande.echelon ? `${libellePoste} (échelon ${demande.echelon})` : libellePoste;
+  // Demande du Tertiaire : « Catégorie - Échelon » (libellé résolu par la configuration de l'entité).
+  const poste =
+    demande.division === 'tertiaire'
+      ? demande.qualification_libelle
+      : libellePoste && demande.echelon
+        ? `${libellePoste} (échelon ${demande.echelon})`
+        : libellePoste;
   return [
     ['Salarié', `${demande.salarie_prenom} ${demande.salarie_nom}`],
     ['Poste', poste || 'Non renseigné'],
@@ -129,11 +135,36 @@ function lignesDates(demande) {
   return lignes;
 }
 
+// Section « Semaine type » (tableau Jour | Horaires | Pause | Site(s)), commune aux deux entités.
+function sectionSemaineType(demande) {
+  const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
+  return {
+    titre: 'Semaine type',
+    lignes: [],
+    ...(semaineTravaillee.length === 0
+      ? { texte: 'Aucun jour de travail renseigné.' }
+      : {
+          // Tableau « Jour | Horaires | Pause | Site(s) » : un jour travaillé par ligne, « de 10h00 à 12h00 »,
+          // la pause (« 1h00 », « - » sans pause) puis la LISTE des sites du jour, [« AIGLON (AIG) », …]
+          // (« Non précisé » pour une demande antérieure au site par jour). La colonne Pause n'est
+          // dessinée que si un jour au moins a une pause — mise en forme par lignesDeTableau.
+          tableau: semaineTravaillee.map((jour) => [
+            JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour,
+            jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés',
+            formaterPause(jour.pauseMinutes) || SANS_PAUSE,
+            libellesSitesJour(jour, demande.sites_affectation).length > 0 ? libellesSitesJour(jour, demande.sites_affectation) : 'Non précisé',
+          ]),
+        }),
+  };
+
+}
+
 // Sections de la fiche, dans l'ordre de DetailDemandeDpae.jsx : [{ titre, lignes: [[libellé,
 // valeur]], texte?, tableau? }]. Fonction pure, testable sans PDF. Une section conditionnelle de la
 // fiche (Modifications demandées, Gestion des jours, Autre chose à signaler) n'apparaît que dans
 // les mêmes conditions.
 function sectionsDemande(demande) {
+  if (demande.division === 'tertiaire') return sectionsDemandeTertiaire(demande);
   const sections = [];
   const garder = (lignes) => lignes.filter(Boolean);
 
@@ -216,30 +247,55 @@ function sectionsDemande(demande) {
     });
   }
 
-  const semaineTravaillee = (demande.semaine_type ?? []).filter((jour) => jour.statut === 'travail');
-  sections.push({
-    titre: 'Semaine type',
-    lignes: [],
-    ...(semaineTravaillee.length === 0
-      ? { texte: 'Aucun jour de travail renseigné.' }
-      : {
-          // Tableau « Jour | Horaires | Pause | Site(s) » : un jour travaillé par ligne, « de 10h00 à 12h00 »,
-          // la pause (« 1h00 », « - » sans pause) puis la LISTE des sites du jour, [« AIGLON (AIG) », …]
-          // (« Non précisé » pour une demande antérieure au site par jour). La colonne Pause n'est
-          // dessinée que si un jour au moins a une pause — mise en forme par lignesDeTableau.
-          tableau: semaineTravaillee.map((jour) => [
-            JOURS_SEMAINE_LIBELLE[jour.jour] ?? jour.jour,
-            jour.heureDebut && jour.heureFin ? `de ${formaterHeure(jour.heureDebut)} à ${formaterHeure(jour.heureFin)}` : 'Horaires non précisés',
-            formaterPause(jour.pauseMinutes) || SANS_PAUSE,
-            libellesSitesJour(jour, demande.sites_affectation).length > 0 ? libellesSitesJour(jour, demande.sites_affectation) : 'Non précisé',
-          ]),
-        }),
-  });
+  sections.push(sectionSemaineType(demande));
 
   if (demande.autre_chose_signaler) {
     sections.push({ titre: 'Autre chose à signaler', lignes: [], texte: demande.autre_chose_signaler });
   }
 
+  return sections;
+}
+
+// Valeur d'une ligne de la fiche du Tertiaire : « – » quand elle est absente (ancienne demande sans ces champs).
+const TIRET = '–';
+const ligneTertiaire = (libelle, valeur) => [libelle, valeur === null || valeur === undefined || valeur === '' ? TIRET : String(valeur)];
+
+// « Remplacement de [Nom] - [Motif d'absence] » pour un CDD de remplacement ; sinon le motif du CDD.
+function texteMotifTertiaire(demande) {
+  if (demande.motif_cdd === 'remplacement_absent') {
+    const nom = demande.salarie_remplace_nom || TIRET;
+    return `Remplacement de ${nom} - ${demande.motif_absence || TIRET}`;
+  }
+  return demande.motif_cdd_libelle ?? (demande.motif_cdd ? demande.motif_cdd : null);
+}
+
+// Fiche d'une demande du Tertiaire : mêmes sections que le formulaire, dans le même ordre (type de demande,
+// salarié, dates, contrat et motif, qualification, sites, répartition des jours). Fonction pure.
+function sectionsDemandeTertiaire(demande) {
+  const sections = [];
+  sections.push({
+    titre: 'Demande',
+    lignes: [
+      ligneTertiaire('Type', LIBELLE_PAR_TYPE[demande.type_demande] ?? demande.type_demande),
+      ligneTertiaire('Reçue le', formaterDateHeure(demande.date_creation)),
+      ligneTertiaire('Demandée par', `${demande.demandeur_prenom} ${demande.demandeur_nom}`),
+      ...(demande.date_traitement ? [ligneTertiaire('Traitée le', `${formaterDateHeure(demande.date_traitement)} par ${demande.traitant_prenom} ${demande.traitant_nom}`)] : []),
+    ],
+  });
+  sections.push({
+    titre: 'Salarié et contrat',
+    lignes: [
+      ligneTertiaire('Nom', demande.salarie_nom),
+      ligneTertiaire('Prénom', demande.salarie_prenom),
+      ligneTertiaire(demande.libelle_date_debut ?? 'Date d’embauche', demande.date_debut && formaterDate(demande.date_debut)),
+      ligneTertiaire('Date de fin', demande.type_contrat === 'cdi' ? null : demande.date_fin && formaterDate(demande.date_fin)),
+      ligneTertiaire('Type de contrat', libelleTypeContrat(demande.type_contrat)),
+      ...(demande.type_contrat === 'cdd' ? [ligneTertiaire('Motif du CDD', texteMotifTertiaire(demande))] : []),
+      ligneTertiaire('Catégorie - Échelon', demande.qualification_libelle),
+      ligneTertiaire('Site(s) d’affectation', (demande.sites_affectation ?? []).length > 0 ? texteSitesAffectation(demande) : demande.hotel),
+    ],
+  });
+  sections.push(sectionSemaineType(demande));
   return sections;
 }
 

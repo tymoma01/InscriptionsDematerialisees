@@ -17,6 +17,7 @@ import {
 } from '../../core/dpae/indicateursTableauDeBordDpae';
 import '../tableauDeBord/Indicateurs.css';
 import './TableauDeBordDpae.css';
+import { libelleSite } from '../../core/dpae/affichageDpae';
 import { libelleStatutDpae, statutsVisibles, varianteStatutDpae } from '../../core/dpae/statutsDpae';
 import { useSession } from '../../core/auth/useSession';
 import { peut } from '../../core/auth/permissions';
@@ -64,7 +65,7 @@ function defilerJusquA(element) {
 
 function libelleSites(demande) {
   const sites = demande.sites_affectation ?? [];
-  return sites.length ? sites.map((site) => `${site.nom} (${site.initiales})`).join(', ') : 'Non référencé';
+  return sites.length ? sites.map(libelleSite).join(', ') : 'Non référencé';
 }
 
 // Liste cliquable (priorités, déclarations tardives, anticipation) : chaque ligne ouvre la fiche de
@@ -341,7 +342,7 @@ export default function TableauDeBordDpae() {
               <option value="">Tous</option>
               {(t?.optionsSites ?? []).map((site) => (
                 <option key={site.id} value={String(site.id)}>
-                  {site.nom} ({site.initiales})
+                  {libelleSite(site)}
                 </option>
               ))}
               <option value="non_reference">Non référencé</option>
@@ -533,7 +534,7 @@ export default function TableauDeBordDpae() {
                 cleActive={selection}
                 onChoisir={choisirIndicateur}
                 donnees={[
-                  ...t.repartition.sites.map((site) => ({ cle: `site:${site.id}`, libelle: `${site.nom} (${site.initiales})`, valeur: site.nombre })),
+                  ...t.repartition.sites.map((site) => ({ cle: `site:${site.id}`, libelle: libelleSite(site), valeur: site.nombre })),
                   ...(t.repartition.nonReferencees > 0
                     ? [{ cle: 'site:non_reference', libelle: 'Non référencé', valeur: t.repartition.nonReferencees }]
                     : []),

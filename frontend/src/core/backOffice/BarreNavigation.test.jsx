@@ -89,6 +89,8 @@ describe('BarreNavigation : Planning Tertiaire', () => {
       ['Demandes à valider', '/coordination/dpae/a-valider'],
       ['Demandes DPAE', '/rh/dpae'],
     ]);
+    // Plus de sous-onglet de gestion des sites : le renommage se fait dans le formulaire.
+    expect(libellesOnglets('Navigation DPAE').map(([libelle]) => libelle)).not.toContain('Sites du Tertiaire');
   });
 });
 

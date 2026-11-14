@@ -150,3 +150,54 @@ describe('Fiche d’une demande du Tertiaire', () => {
     expect((await screen.findByRole('alert')).textContent).toBe("Cette demande concerne l'entité Tertiaire : elle est traitée par le Planning Tertiaire.");
   });
 });
+
+describe('Fiche d’une demande du Tertiaire : contenu', () => {
+  const valeurDe = (libelle) => screen.getByText(libelle, { selector: '.page-detail-dpae__libelle' }).nextSibling.textContent;
+
+  const complete = {
+    type_contrat: 'cdd',
+    motif_cdd: 'remplacement_absent',
+    salarie_remplace_nom: 'Paul DURAND',
+    motif_absence: 'Congé maladie',
+    date_fin: '2026-12-02T00:00:00Z',
+    qualification_libelle: 'Chef d’équipe - CE2',
+    libelle_date_debut: 'Date d’embauche (ou journée de doublon)',
+    sites_affectation: [{ id: 3, nom: 'Tour Horizon', initiales: null }],
+  };
+
+  it('sections dans l’ordre du formulaire, qualification « Catégorie - Échelon », remplacement détaillé, site sans initiales', async () => {
+    afficher(PLANNING_TERTIAIRE, complete);
+    await screen.findByText('Salarié et contrat');
+    const titres = [...document.querySelectorAll('.page-detail-dpae__bloc h2')].map((titre) => titre.textContent);
+    expect(titres.slice(0, 3)).toEqual(['Demande', 'Salarié et contrat', 'Répartition des jours, horaires et temps de pause']);
+    const libelles = [...screen.getByText('Salarié et contrat').closest('section').querySelectorAll('.page-detail-dpae__libelle')].map((l) => l.textContent);
+    expect(libelles).toEqual(['Nom', 'Prénom', 'Date d’embauche (ou journée de doublon)', 'Date de fin', 'Type de contrat', 'Motif du CDD', 'Catégorie - Échelon', 'Site(s) d’affectation']);
+    expect(valeurDe('Catégorie - Échelon')).toBe('Chef d’équipe - CE2');
+    expect(valeurDe('Motif du CDD')).toBe('Remplacement de Paul DURAND - Congé maladie');
+    expect(valeurDe('Date d’embauche (ou journée de doublon)')).toBe('12/10/2026');
+    expect(valeurDe('Site(s) d’affectation')).toBe('Tour Horizon');
+    // Rien de propre à l'Hôtellerie.
+    expect(screen.queryByText('A déjà travaillé chez nous')).toBeNull();
+    expect(screen.queryByText('Poste')).toBeNull();
+  });
+
+  it('CDD pour surcroît d’activité : motif de la configuration ; CDI : pas de motif, date de fin « – »', async () => {
+    afficher(PLANNING_TERTIAIRE, { ...complete, motif_cdd: 'surcroit_activite', motif_cdd_libelle: 'Surcroît d’activité', salarie_remplace_nom: null, motif_absence: null });
+    await screen.findByText('Salarié et contrat');
+    expect(valeurDe('Motif du CDD')).toBe('Surcroît d’activité');
+    cleanup();
+    afficher(PLANNING_TERTIAIRE, { ...complete, type_contrat: 'cdi', motif_cdd: null, date_fin: null });
+    await screen.findByText('Salarié et contrat');
+    expect(valeurDe('Date de fin')).toBe('–');
+    expect(screen.queryByText('Motif du CDD')).toBeNull();
+  });
+
+  it('ancienne demande du Tertiaire sans ces champs : « – » sans erreur', async () => {
+    afficher(PLANNING_TERTIAIRE, { type_contrat: 'cdd', motif_cdd: null, qualification_libelle: null, sites_affectation: [], hotel: null, poste: 'nettoyage', echelon: null, date_fin: null });
+    await screen.findByText('Salarié et contrat');
+    expect(valeurDe('Catégorie - Échelon')).toBe('–');
+    expect(valeurDe('Motif du CDD')).toBe('–');
+    expect(valeurDe('Site(s) d’affectation')).toBe('–');
+    expect(valeurDe('Date de fin')).toBe('–');
+  });
+});

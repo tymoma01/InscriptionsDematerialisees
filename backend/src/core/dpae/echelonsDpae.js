@@ -10,12 +10,17 @@
 // clé : postes proposés aux demandes du Tertiaire.
 function configurationDivision(entite, division) {
   const config = entite?.dpae_config ?? {};
-  return division === 'tertiaire' ? config.tertiaire ?? {} : config;
+  if (division !== 'tertiaire') return config;
+  // Tertiaire : les échelons de chaque catégorie de qualification (`qualifications`) tiennent lieu de
+  // correspondance poste -> échelons ; le « poste » d'une demande du Tertiaire est sa catégorie.
+  const qualifications = config.tertiaire?.qualifications ?? [];
+  return { echelons_par_poste: Object.fromEntries(qualifications.map((qualification) => [qualification.code, qualification.echelons ?? []])) };
 }
 
-// Postes proposés à une demande du Tertiaire ; null = liste non restreinte par la configuration.
+// Catégories de qualification d'une demande du Tertiaire ; null = non configurées.
 function postesTertiaire(entite) {
-  return configurationDivision(entite, 'tertiaire').postes ?? null;
+  const qualifications = entite?.dpae_config?.tertiaire?.qualifications;
+  return qualifications ? qualifications.map((qualification) => qualification.code) : null;
 }
 
 function tousLesEchelons(parPoste) {

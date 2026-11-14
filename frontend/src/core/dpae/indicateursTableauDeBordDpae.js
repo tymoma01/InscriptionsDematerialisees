@@ -1,4 +1,5 @@
 import { STATUTS_DPAE, libelleStatutDpae } from './statutsDpae.js';
+import { libelleSite } from './affichageDpae.js';
 
 // Indicateurs CLIQUABLES du Tableau de bord DPAE (2026-10-02) : clic sur une tuile, une barre ou une
 // part de graphique -> liste des demandes concernées. Pour chaque indicateur : une clé stable (état
@@ -69,7 +70,7 @@ export function indicateursCliquables(t) {
   ajouter('emploi:nouveaux', 'nouveaux salariés', t.repartition.nouveauxSalaries, t.repartition.idsNouveauxSalaries);
   ajouter('emploi:deja', 'déjà travaillé chez nous', t.repartition.dejaTravailleChezNous, t.repartition.idsDejaTravailleChezNous);
   for (const site of t.repartition.sites) {
-    ajouter(`site:${site.id}`, `site ${site.nom} (${site.initiales})`, site.nombre, site.ids);
+    ajouter(`site:${site.id}`, `site ${libelleSite(site)}`, site.nombre, site.ids);
   }
   ajouter('site:non_reference', 'site non référencé', t.repartition.nonReferencees, t.repartition.idsNonReferencees);
   for (const poste of t.repartition.postes) {

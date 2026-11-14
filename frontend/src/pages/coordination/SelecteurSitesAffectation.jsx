@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import LigneSiteCochable from '../../core/dpae/LigneSiteCochable';
 import { normaliserTexte } from '../../core/filtres/normaliserTexte';
-import { listerSitesAffectation, creerSiteAffectation } from '../../services/siteAffectationService';
+import { listerSitesAffectation, creerSiteAffectation, creerSiteTertiaire, renommerSiteTertiaire } from '../../services/siteAffectationService';
 import './SelecteurSitesAffectation.css';
 
 // Nombre de sites cités en toutes lettres dans le résumé du bloc replié, au-delà : « et N autres ».
@@ -9,7 +9,8 @@ const NOMBRE_SITES_RESUME = 3;
 
 const comparerParNom = (a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' });
 
-const libelleSite = (site) => `${site.nom} (${site.initiales})`;
+// Un site du Tertiaire n'a pas d'initiales : son nom seul.
+const libelleSite = (site) => (site.initiales ? `${site.nom} (${site.initiales})` : site.nom);
 
 // « AIGLON (AIG), ALBE (AL), AVALON (AVA) et 2 autres » — ordre alphabétique, celui de la grille.
 function resumerSelection(sitesSelectionnes) {
@@ -24,7 +25,7 @@ function correspondRecherche(site, rechercheNormalisee) {
   if (!rechercheNormalisee) return true;
   return (
     normaliserTexte(site.nom.toLowerCase()).includes(rechercheNormalisee) ||
-    normaliserTexte(site.initiales.toLowerCase()).includes(rechercheNormalisee)
+    normaliserTexte((site.initiales ?? '').toLowerCase()).includes(rechercheNormalisee)
   );
 }
 
@@ -52,7 +53,46 @@ function messageErreurAjout(erreur) {
 // `selection` : ids sélectionnés (tenus par le formulaire parent, envoyés tels quels au serveur
 // comme sitesAffectationIds) ; `onChangerSelection(ids)` les remplace. `onSitesCharges(sites)` (facultatif)
 // reçoit les sites actifs chargés.
-export default function SelecteurSitesAffectation({ selection, onChangerSelection, ouvert, onChangerOuvert, onSitesCharges }) {
+// `secteur="tertiaire"` : sites du Tertiaire (recherche par nom, ajout d'un site avec nom et adresse dans une
+// petite fenêtre, avec signalement d'un nom déjà existant ou proche) ; sans lui, liste historique de l'Hôtellerie.
+export default function SelecteurSitesAffectation({ selection, onChangerSelection, ouvert, onChangerOuvert, onSitesCharges, secteur, peutRenommer = false }) {
+  const tertiaire = secteur === 'tertiaire';
+  // Renommage d'un site directement dans la liste (Tertiaire, profils habilités seulement) : crayon, saisie du
+  // nouveau nom, Entrée ou ✓ pour valider, Échap pour annuler. Le serveur contrôle le droit et les doublons.
+  const renommable = tertiaire && peutRenommer;
+  const [siteEnEdition, setSiteEnEdition] = useState(null);
+  const [nomEdite, setNomEdite] = useState('');
+  const [erreurRenommage, setErreurRenommage] = useState(null);
+  const [renommageEnCours, setRenommageEnCours] = useState(false);
+
+  const ouvrirRenommage = (site) => {
+    setSiteEnEdition(site.id);
+    setNomEdite(site.nom);
+    setErreurRenommage(null);
+  };
+  const annulerRenommage = () => {
+    setSiteEnEdition(null);
+    setErreurRenommage(null);
+  };
+  const validerRenommage = async (site) => {
+    if (renommageEnCours) return;
+    const nom = nomEdite.trim();
+    if (!nom) {
+      setErreurRenommage('Le nom du site est obligatoire.');
+      return;
+    }
+    setRenommageEnCours(true);
+    setErreurRenommage(null);
+    try {
+      await renommerSiteTertiaire(site.id, nom);
+      setSites((precedents) => precedents.map((courant) => (courant.id === site.id ? { ...courant, nom } : courant)));
+      setSiteEnEdition(null);
+    } catch (erreur) {
+      setErreurRenommage(messageErreurAjout(erreur));
+    } finally {
+      setRenommageEnCours(false);
+    }
+  };
   const [sites, setSites] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [erreurChargement, setErreurChargement] = useState(null);
@@ -61,12 +101,15 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvellesInitiales, setNouvellesInitiales] = useState('');
+  const [nouvelleAdresse, setNouvelleAdresse] = useState('');
+  // Sites existants au nom identique ou proche, signalés avant toute création (Tertiaire).
+  const [proches, setProches] = useState(null);
   const [ajoutEnCours, setAjoutEnCours] = useState(false);
   const [erreurAjout, setErreurAjout] = useState(null);
 
   useEffect(() => {
     let annule = false;
-    listerSitesAffectation()
+    listerSitesAffectation({ secteur })
       .then((liste) => {
         if (!annule) setSites(liste);
       })
@@ -79,7 +122,7 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
     return () => {
       annule = true;
     };
-  }, []);
+  }, [secteur]);
 
   // Le formulaire a besoin du nom des sites sélectionnés (liste « site par jour » de la semaine type) :
   // il reçoit la liste chargée, site ajouté via « + » compris.
@@ -104,15 +147,26 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
     setAjoutOuvert(false);
     setNouveauNom('');
     setNouvellesInitiales('');
+    setNouvelleAdresse('');
+    setProches(null);
     setErreurAjout(null);
   };
 
-  const enregistrerSite = async () => {
+  // Site existant choisi à la place d'un nouveau (nom identique ou proche) : ajouté à la sélection.
+  const choisirSiteExistant = (site) => {
+    if (!selection.includes(site.id)) onChangerSelection([...selection, site.id]);
+    setRecherche('');
+    fermerAjout();
+  };
+
+  const enregistrerSite = async (confirmerProche = false) => {
     if (ajoutEnCours) return;
     setAjoutEnCours(true);
     setErreurAjout(null);
     try {
-      const site = await creerSiteAffectation({ nom: nouveauNom.trim(), initiales: nouvellesInitiales.trim() });
+      const site = tertiaire
+        ? await creerSiteTertiaire({ nom: nouveauNom.trim(), adresse: nouvelleAdresse.trim(), confirmerProche, secteur })
+        : await creerSiteAffectation({ nom: nouveauNom.trim(), initiales: nouvellesInitiales.trim() });
       setSites((precedents) => [...precedents, site]);
       // Ajouté à la sélection en cours, sans remplacer les sites déjà choisis.
       onChangerSelection([...selection, site.id]);
@@ -120,7 +174,13 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
       setRecherche('');
       fermerAjout();
     } catch (erreur) {
-      setErreurAjout(messageErreurAjout(erreur));
+      const sitesProches = erreur.response?.data?.sitesProches;
+      if (tertiaire && erreur.response?.status === 409 && sitesProches?.length > 0) {
+        // Rien n'est créé : le demandeur choisit le site existant, ou confirme la création si le nom est seulement proche.
+        setProches({ sites: sitesProches, identique: Boolean(erreur.response.data.identique), message: erreur.response.data.erreur });
+      } else {
+        setErreurAjout(messageErreurAjout(erreur));
+      }
     } finally {
       setAjoutEnCours(false);
     }
@@ -162,21 +222,82 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
             onKeyDown={(evenement) => {
               if (evenement.key === 'Enter') evenement.preventDefault();
             }}
-            placeholder="Rechercher un site (nom ou initiales)"
+            placeholder={tertiaire ? 'Rechercher un site par son nom' : 'Rechercher un site (nom ou initiales)'}
             aria-label="Rechercher un site d'affectation"
           />
           <button
             type="button"
-            className="selecteur-sites__bouton-ajout"
+            className={`selecteur-sites__bouton-ajout${tertiaire ? ' selecteur-sites__bouton-ajout--libelle' : ''}`}
             onClick={() => (ajoutOuvert ? fermerAjout() : setAjoutOuvert(true))}
             aria-expanded={ajoutOuvert}
             title="Ajouter un site"
           >
-            +
+            {tertiaire ? '+ Ajouter un site' : '+'}
           </button>
         </div>
 
-        {ajoutOuvert && (
+        {ajoutOuvert && tertiaire && (
+          <div className="selecteur-sites__modale-fond">
+            <div className="selecteur-sites__modale" role="dialog" aria-modal="true" aria-labelledby="titre-ajout-site-tertiaire">
+              <h3 id="titre-ajout-site-tertiaire">Ajouter un site</h3>
+              <label>
+                <span>
+                  Nom du site <span className="champ-obligatoire">*</span>
+                </span>
+                <input
+                  type="text"
+                  value={nouveauNom}
+                  maxLength={100}
+                  onChange={(evenement) => {
+                    setNouveauNom(evenement.target.value);
+                    setProches(null);
+                  }}
+                  onKeyDown={gererToucheAjout}
+                  autoFocus
+                />
+              </label>
+              <label>
+                <span>Adresse (facultative)</span>
+                <input type="text" value={nouvelleAdresse} maxLength={200} onChange={(evenement) => setNouvelleAdresse(evenement.target.value)} onKeyDown={gererToucheAjout} />
+              </label>
+              {proches && (
+                <div className="selecteur-sites__proches" role="alert">
+                  <p>{proches.message}</p>
+                  <ul>
+                    {proches.sites.map((site) => (
+                      <li key={site.id}>
+                        {site.nom}{' '}
+                        <button type="button" onClick={() => choisirSiteExistant(site)}>
+                          Choisir ce site
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {!proches.identique && (
+                    <button type="button" className="selecteur-sites__bouton-secondaire" onClick={() => enregistrerSite(true)} disabled={ajoutEnCours}>
+                      Créer quand même
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="selecteur-sites__ajout-actions">
+                <button type="button" onClick={() => enregistrerSite(false)} disabled={ajoutEnCours || !nouveauNom.trim()}>
+                  Enregistrer
+                </button>
+                <button type="button" className="selecteur-sites__bouton-secondaire" onClick={fermerAjout} disabled={ajoutEnCours}>
+                  Annuler
+                </button>
+              </div>
+              {erreurAjout && (
+                <p role="alert" className="selecteur-sites__erreur">
+                  {erreurAjout}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {ajoutOuvert && !tertiaire && (
           <div className="selecteur-sites__ajout" role="group" aria-label="Ajouter un site d'affectation">
             <label>
               <span>Nom du site</span>
@@ -194,7 +315,7 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
               />
             </label>
             <div className="selecteur-sites__ajout-actions">
-              <button type="button" onClick={enregistrerSite} disabled={ajoutEnCours || !nouveauNom.trim() || !nouvellesInitiales.trim()}>
+              <button type="button" onClick={() => enregistrerSite()} disabled={ajoutEnCours || !nouveauNom.trim() || !nouvellesInitiales.trim()}>
                 Enregistrer
               </button>
               <button type="button" className="selecteur-sites__bouton-secondaire" onClick={fermerAjout} disabled={ajoutEnCours}>
@@ -218,9 +339,55 @@ export default function SelecteurSitesAffectation({ selection, onChangerSelectio
         {/* Grille : ordre alphabétique de lecture ligne par ligne, de gauche à droite (flux de grille
             par défaut), 4 colonnes en largeur bureau, 2 en tablette (voir le .css). */}
         <div className="selecteur-sites__grille">
-          {sitesAffiches.map((site) => (
-            <LigneSiteCochable key={site.id} site={site} coche={selection.includes(site.id)} onBasculer={basculerSite} variante="tuile" />
-          ))}
+          {sitesAffiches.map((site) =>
+            renommable ? (
+              <div key={site.id} className="selecteur-sites__site-renommable">
+                {siteEnEdition === site.id ? (
+                  <div className="selecteur-sites__edition">
+                    <input
+                      type="text"
+                      value={nomEdite}
+                      maxLength={100}
+                      autoFocus
+                      aria-label={`Nouveau nom du site ${site.nom}`}
+                      onChange={(evenement) => setNomEdite(evenement.target.value)}
+                      onKeyDown={(evenement) => {
+                        // Ce champ vit dans le formulaire DPAE : Entrée valide le renommage, jamais la demande.
+                        if (evenement.key === 'Enter') {
+                          evenement.preventDefault();
+                          validerRenommage(site);
+                        } else if (evenement.key === 'Escape') {
+                          evenement.preventDefault();
+                          evenement.stopPropagation();
+                          annulerRenommage();
+                        }
+                      }}
+                    />
+                    <button type="button" aria-label="Valider le nouveau nom" title="Valider" onClick={() => validerRenommage(site)} disabled={renommageEnCours}>
+                      ✓
+                    </button>
+                    <button type="button" aria-label="Annuler le renommage" title="Annuler" onClick={annulerRenommage} disabled={renommageEnCours}>
+                      ✕
+                    </button>
+                    {erreurRenommage && (
+                      <p role="alert" className="selecteur-sites__erreur">
+                        {erreurRenommage}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <LigneSiteCochable site={site} coche={selection.includes(site.id)} onBasculer={basculerSite} variante="tuile" />
+                    <button type="button" className="selecteur-sites__crayon" aria-label={`Modifier le nom du site ${site.nom}`} title="Modifier le nom" onClick={() => ouvrirRenommage(site)}>
+                      ✎
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : (
+              <LigneSiteCochable key={site.id} site={site} coche={selection.includes(site.id)} onBasculer={basculerSite} variante="tuile" />
+            ),
+          )}
         </div>
 
         <div className="selecteur-sites__pied">

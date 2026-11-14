@@ -39,7 +39,7 @@ test('Planning Tertiaire a les mêmes permissions que Planning Hôtellerie, en p
   const tertiaire = new Set(permissionsDuRole(ROLES.PLANNING_TERTIAIRE));
   // Seule différence en moins : « Suivi des formations » (aucun dossier Tertiaire ne passe en formation).
   assert.deepEqual([...planning].filter((cle) => !tertiaire.has(cle)), ['suiviFormation']);
-  assert.deepEqual([...tertiaire].filter((cle) => !planning.has(cle)).sort(), ['dpaeRelancePegase', 'dpaeTraitementRh']);
+  assert.deepEqual([...tertiaire].filter((cle) => !planning.has(cle)).sort(), ['dpaeRelancePegase', 'dpaeTraitementRh', 'gestionSitesTertiaire']);
 });
 
 test('Accueil/Coordination n’a aucun accès DPAE', () => {

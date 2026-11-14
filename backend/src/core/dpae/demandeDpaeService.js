@@ -11,6 +11,7 @@ const siteAffectationRepository = require('./siteAffectationRepository');
 const journalAudit = require('../audit/journalAudit');
 const statutsDpae = require('./statutsDpae');
 const entiteDpae = require('./entiteDpae');
+const formulaireTertiaire = require('./formulaireTertiaire');
 const { champsModifies } = require('./champsDemandeDpae');
 const { aPermission } = require('../auth/permissions');
 const { ENTITES, ROLES } = require('../auth/rbac');
@@ -97,12 +98,15 @@ async function verifierDemandeExiste(bd, entite, demandeId) {
 
 // Chaque id doit exister, être actif et appartenir à l'entité : un seul id invalide refuse toute
 // la demande (création comme modification) AVANT la moindre écriture.
-async function verifierSitesValides(trx, entite, sitesAffectationIds) {
-  const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds);
+// Demande du Tertiaire : sites du Tertiaire uniquement (`secteur`), sinon liste historique de l'Hôtellerie.
+async function verifierSitesValides(trx, entite, sitesAffectationIds, secteur = 'hotellerie') {
+  const idsValides = await siteAffectationRepository.listerIdsSitesValides(trx, entite.id, sitesAffectationIds, secteur);
   const idsInvalides = sitesAffectationIds.filter((id) => !idsValides.includes(id));
   if (idsInvalides.length > 0) {
     throw new ErreurSitesAffectationInvalides(
-      `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
+      secteur === 'tertiaire'
+        ? `Site(s) d'affectation introuvable(s), inactif(s) ou hors des sites du Tertiaire : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`
+        : `Site(s) d'affectation introuvable(s), inactif(s) ou d'une autre entité : ${idsInvalides.join(', ')}. La demande n'a pas été enregistrée.`,
     );
   }
 }
@@ -125,7 +129,7 @@ async function creerEtEnvoyer(entite, demandeurId, donnees, { roleCode } = {}) {
   const tertiaire = entiteDpae.entiteDeLaDivision(champsDemande.division) === ENTITES.TERTIAIRE;
   const statut = soumiseAuPlanning ? statutsDpae.STATUT_A_VALIDER_PLANNING : statutsDpae.STATUT_INITIAL;
   return bd.transaction(async (trx) => {
-    await verifierSitesValides(trx, entite, sitesAffectationIds);
+    await verifierSitesValides(trx, entite, sitesAffectationIds, tertiaire ? 'tertiaire' : 'hotellerie');
     const demandeId = await demandeDpaeRepository.creerDemande(trx, {
       ...champsDemande,
       entiteId: entite.id,
@@ -254,7 +258,17 @@ async function obtenirDemande(entite, demandeId) {
   const sitesAffectation = await siteAffectationRepository.listerSitesDemande(bd, demandeId);
   // Demande classée sans suite : où repartirait sa réactivation (affiché dans la fenêtre de confirmation).
   const statutRetour = demande.statut === statutsDpae.STATUT_CLASSEE_SANS_SUITE ? statutsDpae.statutRetourReactivation(demande) : null;
-  return { ...demande, sites_affectation: sitesAffectation, statut_retour_reactivation: statutRetour };
+  // Demande du Tertiaire : libellés issus de la configuration de l'entité (qualification « Catégorie - Échelon »,
+  // motif du CDD, libellé de la date d'embauche) ; null pour une ancienne demande qui n'a pas ces champs.
+  const tertiaire = entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE;
+  const complementTertiaire = tertiaire
+    ? {
+        qualification_libelle: formulaireTertiaire.libelleQualification(entite, demande),
+        motif_cdd_libelle: formulaireTertiaire.libelleMotifCdd(entite, demande.motif_cdd),
+        libelle_date_debut: formulaireTertiaire.configurationTertiaire(entite).libelleDateDebut,
+      }
+    : {};
+  return { ...demande, sites_affectation: sitesAffectation, statut_retour_reactivation: statutRetour, ...complementTertiaire };
 }
 
 // Demandes d'un export PDF groupé (ZIP, 2026-10-02) — MÊMES règles que la fiche (GET /:id) :
@@ -650,7 +664,7 @@ async function modifierDemande(entite, demandeId, { donnees, version, utilisateu
 
     if (!note) throw new ErreurNoteModificationObligatoire();
 
-    await verifierSitesValides(trx, entite, sitesAffectationIds);
+    await verifierSitesValides(trx, entite, sitesAffectationIds, entiteDpae.entiteDeLaDemande(demande) === ENTITES.TERTIAIRE ? 'tertiaire' : 'hotellerie');
     const anciensSites = (await siteAffectationRepository.listerSitesDemande(trx, demandeId)).map((site) => site.id);
     const sitesModifies = anciensSites.length !== sitesAffectationIds.length || anciensSites.some((id) => !sitesAffectationIds.includes(id));
     const champs = [...champsModifies(demande, champsDemande), ...(sitesModifies ? ['sitesAffectationIds'] : [])];
