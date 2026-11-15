@@ -1,8 +1,9 @@
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import BarreNavigation from './BarreNavigation';
+import BarreNavigation, { decalageMenuVues } from './BarreNavigation';
 import { ROLES_VUES } from '../referentiels/rolesVues';
 import { useSession } from '../auth/useSession';
 
@@ -169,19 +170,50 @@ describe('BarreNavigation : menu « Vues » de l’Admin', () => {
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
-  test('navigation au clavier : flèche bas ouvre et place le focus sur la première vue, flèches et Fin parcourent le menu', async () => {
+  test('navigation au clavier : flèche bas ouvre et place le focus sur la première vue ; haut/bas dans une colonne, gauche/droite d’une colonne à l’autre', async () => {
     afficher(sessionDe('admin'));
     const bouton = screen.getByRole('button', { name: /^Vues/ });
     fireEvent.keyDown(bouton, { key: 'ArrowDown' });
     await waitFor(() => expect(document.activeElement?.textContent).toBe('Formateur Hôtellerie'));
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' });
+    const menu = () => screen.getByRole('menu');
+    fireEvent.keyDown(menu(), { key: 'ArrowDown' });
     expect(document.activeElement.textContent).toBe('Inspecteur Hôtellerie');
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'End' });
-    expect(document.activeElement.textContent).toBe('Planning Tertiaire');
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' });
+    // Bas depuis la dernière vue de la colonne : retour en haut de la MÊME colonne.
+    fireEvent.keyDown(menu(), { key: 'ArrowDown' });
     expect(document.activeElement.textContent).toBe('Formateur Hôtellerie');
-    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' });
+    fireEvent.keyDown(menu(), { key: 'ArrowUp' });
+    expect(document.activeElement.textContent).toBe('Inspecteur Hôtellerie');
+    fireEvent.keyDown(menu(), { key: 'Home' });
+    expect(document.activeElement.textContent).toBe('Formateur Hôtellerie');
+    fireEvent.keyDown(menu(), { key: 'End' });
+    expect(document.activeElement.textContent).toBe('Inspecteur Hôtellerie');
+    // Droite : colonne du Tertiaire, même rang ; gauche : retour.
+    fireEvent.keyDown(menu(), { key: 'ArrowRight' });
     expect(document.activeElement.textContent).toBe('Planning Tertiaire');
+    fireEvent.keyDown(menu(), { key: 'ArrowLeft' });
+    expect(document.activeElement.textContent).toBe('Inspecteur Hôtellerie');
+    fireEvent.keyDown(menu(), { key: 'Home' });
+    fireEvent.keyDown(menu(), { key: 'ArrowRight' });
+    expect(document.activeElement.textContent).toBe('Formateur Tertiaire');
+  });
+
+  test('deux colonnes côte à côte : Hôtellerie puis Tertiaire, chaque titre aux couleurs de son secteur (data-secteur)', () => {
+    afficher(sessionDe('admin'));
+    fireEvent.click(screen.getByRole('button', { name: /^Vues/ }));
+    const groupes = within(screen.getByRole('menu')).getAllByRole('group');
+    expect(groupes.map((groupe) => groupe.getAttribute('aria-label'))).toEqual(['Hôtellerie', 'Tertiaire']);
+    expect(groupes.map((groupe) => groupe.querySelector('.barre-navigation__vues-secteur').dataset.secteur)).toEqual(['hotellerie', 'tertiaire']);
+    expect(groupes[0].textContent).toContain('Formateur Hôtellerie');
+    expect(groupes[1].textContent).toContain('Planning Tertiaire');
+  });
+
+  test('vue active : mise en évidence dans la colonne de son secteur', () => {
+    afficher(sessionDe('admin'), '/vue-planning-tertiaire/dossiers');
+    fireEvent.click(screen.getByRole('button', { name: /^Vues/ }));
+    const actif = within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Planning Tertiaire' });
+    expect(actif.className).toContain('barre-navigation__vues-option--actif');
+    expect(actif.closest('[role="group"]').getAttribute('aria-label')).toBe('Tertiaire');
+    expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Formateur Hôtellerie' }).className).not.toContain('--actif');
   });
 
   test('les autres rôles ne voient pas « Vues »', () => {
@@ -199,5 +231,54 @@ describe('BarreNavigation : menu « Vues » de l’Admin', () => {
       expect(entreesBarre(), roleCode).not.toContain('RH');
       cleanup();
     }
+  });
+});
+
+describe('Position du menu « Vues »', () => {
+  const css = readFileSync('src/core/backOffice/BarreNavigation.css', 'utf8');
+
+  test('bord gauche aligné sur le bouton : left 0 par défaut, jamais ancré à droite', () => {
+    const regle = css.slice(css.indexOf('.barre-navigation__vues-menu {'), css.indexOf('}', css.indexOf('.barre-navigation__vues-menu {')));
+    expect(regle).toMatch(/left:\s*0;/);
+    expect(regle).not.toMatch(/right:/);
+    expect(regle).toMatch(/top:\s*calc\(100% \+ 4px\)/);
+  });
+
+  test('titres de secteur : variables CSS des pastilles de la liste des dossiers (FiltreEntite.css), pas de couleur en dur', () => {
+    const filtre = readFileSync('src/core/dossier/FiltreEntite.css', 'utf8');
+    const titre = (secteur) => css.slice(css.indexOf(`.barre-navigation__vues-secteur[data-secteur='${secteur}']`)).split('}')[0];
+    for (const variable of ['--couleur-primaire-clair', '--couleur-primaire', '--statut-dore-fond', '--statut-dore-bordure', '--statut-dore-texte']) {
+      expect(filtre).toContain(variable);
+      expect(titre(variable.startsWith('--statut-dore') ? 'tertiaire' : 'hotellerie')).toContain(variable);
+    }
+    expect(css).toMatch(/\.barre-navigation__vues-secteur \{[^}]*font-weight:\s*600/);
+    expect(css).toMatch(/\.barre-navigation__vues-secteur \{[^}]*border-radius:/);
+  });
+
+  test('la classe des titres de secteur est réutilisée par le choix d’entité du formulaire : pastille en ligne, option choisie en évidence', () => {
+    expect(css).toMatch(/\.barre-navigation__vues-secteur\[data-actif\] \{[^}]*display:\s*inline-flex/);
+    expect(css).toMatch(/\.barre-navigation__vues-secteur\[data-actif='true'\] \{[^}]*border-color:\s*currentColor/);
+    // Aucune classe supplémentaire pour les secteurs.
+    expect(css.match(/\.barre-navigation__vues-secteur[^\s{[:]/g) ?? []).toEqual([]);
+  });
+
+  test('colonnes : flex côte à côte, séparation verticale, libellés sans retour à la ligne', () => {
+    expect(css).toMatch(/\.barre-navigation__vues-menu \{[^}]*display:\s*flex/);
+    expect(css).toMatch(/\.barre-navigation__vues-menu \{[^}]*width:\s*max-content/);
+    expect(css).toMatch(/\.barre-navigation__vues-groupe \+ \.barre-navigation__vues-groupe \{[^}]*border-left:/);
+    expect(css).toMatch(/\.barre-navigation__vues-option \{[^}]*white-space:\s*nowrap/);
+  });
+
+  test('décalage : aucun si le menu tient (1920 px), juste ce qu’il faut vers la gauche sinon (1280 px), jamais au-delà du bord gauche', () => {
+    // Bouton « Vues : Planning Tertiaire ▾ » à droite de la barre, menu de 440 px.
+    expect(decalageMenuVues({ gaucheBouton: 1000, largeurMenu: 440, largeurFenetre: 1920 })).toBe(0);
+    expect(decalageMenuVues({ gaucheBouton: 1000, largeurMenu: 440, largeurFenetre: 1280 })).toBe(-(1000 + 440 - (1280 - 8)));
+    // Tient exactement : pas de décalage.
+    expect(decalageMenuVues({ gaucheBouton: 832, largeurMenu: 440, largeurFenetre: 1280 })).toBe(0);
+    // Après décalage, le menu reste entièrement visible.
+    const decalage = decalageMenuVues({ gaucheBouton: 1000, largeurMenu: 440, largeurFenetre: 1280 });
+    expect(1000 + decalage + 440).toBeLessThanOrEqual(1280 - 8);
+    // Fenêtre plus étroite que le menu : s'arrête à la marge gauche.
+    expect(1000 + decalageMenuVues({ gaucheBouton: 1000, largeurMenu: 440, largeurFenetre: 300 })).toBe(8);
   });
 });

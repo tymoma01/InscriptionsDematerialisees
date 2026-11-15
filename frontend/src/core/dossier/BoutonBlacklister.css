@@ -25,7 +25,7 @@
 
 .bouton-blacklister__action--retrait {
   background-color: var(--couleur-fond);
-  color: var(--statut-blackliste-fond);
+  color: var(--statut-blackliste-texte);
 }
 
 /* Ligne de titre d'un écran de détail : titre à gauche, bouton à droite. */

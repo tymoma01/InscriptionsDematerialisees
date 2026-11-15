@@ -24,7 +24,7 @@
 
 .modale-blacklist h2 {
   margin: 0 0 0.5rem;
-  color: var(--statut-blackliste-fond);
+  color: var(--statut-blackliste-texte);
 }
 
 .modale-blacklist > p {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/useSession';
 import { peut } from '../auth/permissions';
@@ -175,13 +175,27 @@ function elementDeVue(roleVue) {
   };
 }
 
-// Menu déroulant « Vues » : un bouton, un menu aligné sur son bord droit (il s'ouvre vers la gauche), les vues
-// groupées par secteur. Se ferme au clic extérieur, avec Échap, et à Tab ; flèches haut/bas, Début et Fin
-// naviguent entre les vues.
+// Marge laissée au bord de la fenêtre quand le menu « Vues » est décalé pour rester visible.
+const MARGE_FENETRE = 8;
+
+// Décalage horizontal (px, négatif ou nul) du menu « Vues » : le menu démarre au bord gauche du bouton et ne
+// bouge que de ce qu'il faut vers la gauche pour tenir entièrement dans la fenêtre (jamais au-delà du bord gauche).
+export function decalageMenuVues({ gaucheBouton, largeurMenu, largeurFenetre, marge = MARGE_FENETRE }) {
+  const depassement = gaucheBouton + largeurMenu - (largeurFenetre - marge);
+  if (depassement <= 0) return 0;
+  return -Math.min(depassement, Math.max(gaucheBouton - marge, 0));
+}
+
+// Menu déroulant « Vues » : un bouton, un menu juste dessous dont le bord gauche est aligné sur celui du bouton
+// (décalé vers la gauche seulement s'il déborderait de la fenêtre), les secteurs côte à côte en deux colonnes.
+// Se ferme au clic extérieur, avec Échap et à Tab ; flèches haut/bas dans une colonne, gauche/droite d'une
+// colonne à l'autre, Début et Fin en haut et en bas de la colonne.
 function MenuVues({ vues, vueActive }) {
   const [ouvert, setOuvert] = useState(false);
   const conteneur = useRef(null);
   const bouton = useRef(null);
+  const menu = useRef(null);
+  const [decalage, setDecalage] = useState(0);
   const options = () => [...(conteneur.current?.querySelectorAll('[role="menuitem"]') ?? [])];
 
   useEffect(() => {
@@ -191,6 +205,18 @@ function MenuVues({ vues, vueActive }) {
     };
     document.addEventListener('mousedown', clicExterieur);
     return () => document.removeEventListener('mousedown', clicExterieur);
+  }, [ouvert]);
+
+  // Position mesurée une fois le menu affiché (avant la peinture) : aligné à gauche du bouton, décalé au besoin.
+  useLayoutEffect(() => {
+    if (!ouvert || !menu.current || !bouton.current) return;
+    setDecalage(
+      decalageMenuVues({
+        gaucheBouton: bouton.current.getBoundingClientRect().left,
+        largeurMenu: menu.current.getBoundingClientRect().width,
+        largeurFenetre: window.innerWidth,
+      }),
+    );
   }, [ouvert]);
 
   const fermer = (rendreLeFocus) => {
@@ -220,20 +246,33 @@ function MenuVues({ vues, vueActive }) {
   };
 
   const surToucheMenu = (evenement) => {
-    const liste = options();
-    const index = liste.indexOf(document.activeElement);
-    const aller = (cible) => {
-      evenement.preventDefault();
-      liste.at(cible % liste.length)?.focus();
-    };
-    if (evenement.key === 'ArrowDown') aller(index + 1);
-    else if (evenement.key === 'ArrowUp') aller(index <= 0 ? liste.length - 1 : index - 1);
-    else if (evenement.key === 'Home') aller(0);
-    else if (evenement.key === 'End') aller(liste.length - 1);
-    else if (evenement.key === 'Escape') {
+    if (evenement.key === 'Escape') {
       evenement.preventDefault();
       fermer(true);
-    } else if (evenement.key === 'Tab') fermer(false);
+      return;
+    }
+    if (evenement.key === 'Tab') {
+      fermer(false);
+      return;
+    }
+    const colonnes = [...(conteneur.current?.querySelectorAll('[role="group"]') ?? [])].map((groupe) => [...groupe.querySelectorAll('[role="menuitem"]')]);
+    const colonne = colonnes.findIndex((items) => items.includes(document.activeElement));
+    if (colonne === -1) return;
+    const ligne = colonnes[colonne].indexOf(document.activeElement);
+    const aller = (cible) => {
+      evenement.preventDefault();
+      cible?.focus();
+    };
+    const items = colonnes[colonne];
+    if (evenement.key === 'ArrowDown') aller(items[(ligne + 1) % items.length]);
+    else if (evenement.key === 'ArrowUp') aller(items[(ligne - 1 + items.length) % items.length]);
+    else if (evenement.key === 'Home') aller(items[0]);
+    else if (evenement.key === 'End') aller(items.at(-1));
+    else if (evenement.key === 'ArrowRight' || evenement.key === 'ArrowLeft') {
+      // Colonne voisine (circulaire), même rang ou le dernier si elle est plus courte.
+      const voisine = colonnes[(colonne + (evenement.key === 'ArrowRight' ? 1 : colonnes.length - 1)) % colonnes.length];
+      aller(voisine[Math.min(ligne, voisine.length - 1)]);
+    }
   };
 
   const groupes = SECTEURS_VUES.map((secteur) => ({ ...secteur, vues: vues.filter((vue) => vue.secteur === secteur.code) })).filter((groupe) => groupe.vues.length > 0);
@@ -252,10 +291,17 @@ function MenuVues({ vues, vueActive }) {
         {vueActive ? `Vues : ${vueActive.libelle}` : 'Vues'} <span aria-hidden="true">▾</span>
       </button>
       {ouvert && (
-        <div className="barre-navigation__vues-menu" role="menu" aria-label="Vues par rôle" onKeyDown={surToucheMenu}>
+        <div
+          ref={menu}
+          className="barre-navigation__vues-menu"
+          role="menu"
+          aria-label="Vues par rôle"
+          style={{ left: decalage }}
+          onKeyDown={surToucheMenu}
+        >
           {groupes.map((groupe) => (
             <div key={groupe.code} role="group" aria-label={groupe.libelle} className="barre-navigation__vues-groupe">
-              <p className="barre-navigation__vues-secteur" aria-hidden="true">
+              <p className="barre-navigation__vues-secteur" data-secteur={groupe.code} aria-hidden="true">
                 {groupe.libelle}
               </p>
               {groupe.vues.map((vue) => (

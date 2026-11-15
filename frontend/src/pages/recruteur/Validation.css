@@ -431,7 +431,7 @@ button.page-validation__action--danger:hover:not(:disabled) {
   border: 2px solid var(--statut-blackliste-bordure);
   border-radius: var(--rayon-bordure);
   background-color: var(--statut-echec-fond);
-  color: var(--statut-blackliste-fond);
+  color: var(--statut-blackliste-texte);
 }
 
 .page-validation__alerte-blacklist a {

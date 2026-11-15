@@ -339,7 +339,8 @@ export const STATUTS_FILTRABLES_DOSSIER = [
   { code: GROUPE_TEST_PLANIFIE, libelle: 'Test planifié' },
   { code: GROUPE_TEST_REALISE, libelle: 'Test réalisé' },
   { code: GROUPE_TEST_NON_REALISE, libelle: 'Test non réalisé' },
-  { code: GROUPE_BLACKLISTE, libelle: 'Blacklisté' },
+  // `variante` : mêmes couleurs que la pastille de statut et le filtre de la liste des dossiers (--statut-blackliste-*).
+  { code: GROUPE_BLACKLISTE, libelle: 'Blacklisté', variante: 'blackliste' },
 ];
 
 // Un candidat correspond au filtre « Statut » ? Sans filtre (« Tous »), les dossiers blacklistés

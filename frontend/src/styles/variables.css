@@ -213,11 +213,13 @@
   --statut-rose-texte: #a3195b;
   --statut-rose-bordure: #eec0da;
 
-  /* Statut « Blacklisté » : rouge franc, plus saturé que 'echec' et 'echec-fort' pour ne jamais être
-     confondu avec un simple refus. Texte blanc sur fond rouge foncé (contraste > 7:1). */
-  --statut-blackliste-fond: #b3261e;
-  --statut-blackliste-texte: #ffffff;
-  --statut-blackliste-bordure: #7f1510;
+  /* Statut « Blacklisté » : rouge adouci mais plus soutenu que 'echec' et 'echec-fort', pour rester repérable
+     au premier coup d'œil sans être agressif. Fond rouge clair, bordure rouge moyen, texte rouge foncé
+     (contraste texte/fond > 6:1). Une seule définition : pastille de filtre, badge de statut (avec sa
+     pulsation douce), bouton et fenêtre de blacklistage, bandeau d'alerte. */
+  --statut-blackliste-fond: #f8b4b4;
+  --statut-blackliste-texte: #7f1d1d;
+  --statut-blackliste-bordure: #e57373;
 
   /* Vert soutenu (audit 2026-08-31, statut terminal "Embauché") — troisième teinte de la famille
      verte de ce funnel (succes=vert moyen pour "Validé - envoyé en formation", vert-clair=menthe

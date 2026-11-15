@@ -64,6 +64,34 @@ describe('Formulaire de demande DPAE : choix de l’entité', () => {
     expect(screen.getByRole('radio', { name: 'Hôtellerie' }).checked).toBe(true);
   });
 
+  it('choix de l’entité (Admin) : pastilles de secteur du menu « Vues » (même classe), radio devant le libellé, option choisie mise en évidence', async () => {
+    afficher('admin', null);
+    const hotel = (await screen.findByRole('radio', { name: 'Hôtellerie' }, { timeout: 4000 })).closest('label');
+    const tertiaire = screen.getByRole('radio', { name: 'Tertiaire' }).closest('label');
+    for (const [pastille, secteur] of [[hotel, 'hotellerie'], [tertiaire, 'tertiaire']]) {
+      expect(pastille.classList.contains('barre-navigation__vues-secteur')).toBe(true);
+      expect(pastille.dataset.secteur).toBe(secteur);
+      // Le bouton radio est devant le libellé.
+      expect(pastille.firstElementChild.type).toBe('radio');
+    }
+    expect(hotel.dataset.actif).toBe('true');
+    expect(tertiaire.dataset.actif).toBe('false');
+    fireEvent.click(screen.getByRole('radio', { name: 'Tertiaire' }));
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Tertiaire' }).closest('label').dataset.actif).toBe('true'));
+    expect(screen.getByRole('radio', { name: 'Hôtellerie' }).closest('label').dataset.actif).toBe('false');
+  });
+
+  it('mention en lecture seule : même mise en forme, aux couleurs de l’entité (Planning Tertiaire, Inspecteur Hôtellerie)', async () => {
+    afficher('planning_tertiaire', 'tertiaire');
+    const mention = await screen.findByText('Entité : Tertiaire', {}, { timeout: 4000 });
+    expect(mention.classList.contains('barre-navigation__vues-secteur')).toBe(true);
+    expect(mention.dataset.secteur).toBe('tertiaire');
+    cleanup();
+    afficher('inspecteur_hotellerie', 'hotellerie');
+    const hotellerie = await screen.findByText('Entité : Hôtellerie', {}, { timeout: 4000 });
+    expect(hotellerie.dataset.secteur).toBe('hotellerie');
+  });
+
   it.each([
     ['planning_tertiaire', 'tertiaire', 'Entité : Tertiaire'],
     ['inspecteur', 'tertiaire', 'Entité : Tertiaire'],

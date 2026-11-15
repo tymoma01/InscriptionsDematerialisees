@@ -345,16 +345,20 @@ function FormulaireDemandeDpae({ demande, onRecharger }) {
               mention en lecture seule ; Admin : choix Hôtellerie / Tertiaire (confirmation si le formulaire est
               déjà commencé, car les champs propres à l'entité sont réinitialisés). */}
           {configurationChargee && entiteImposee !== null && (
-            <p className="page-demande-dpae__entite-fixe">Entité : {entiteImposee === 'tertiaire' ? 'Tertiaire' : 'Hôtellerie'}</p>
+            // Même mise en forme que les titres de secteur du menu « Vues » (classe de BarreNavigation.css).
+            <p className="barre-navigation__vues-secteur" data-secteur={entiteImposee} data-actif="true">
+              Entité : {entiteImposee === 'tertiaire' ? 'Tertiaire' : 'Hôtellerie'}
+            </p>
           )}
           {configurationChargee && entiteImposee === null && (
             <fieldset className="bloc-formulaire page-demande-dpae__choix-entite">
               <legend>Entité de la demande</legend>
-              <label className="champ-inline">
+              {/* Mêmes pastilles de secteur que les titres du menu « Vues » ; l'option choisie est mise en évidence. */}
+              <label className="champ-inline barre-navigation__vues-secteur" data-secteur="hotellerie" data-actif={String(!tertiaire)}>
                 <input type="radio" name="entiteDemande" checked={!tertiaire} onChange={() => demanderChangementEntite('hotellerie')} />
                 Hôtellerie
               </label>
-              <label className="champ-inline">
+              <label className="champ-inline barre-navigation__vues-secteur" data-secteur="tertiaire" data-actif={String(tertiaire)}>
                 <input type="radio" name="entiteDemande" checked={tertiaire} onChange={() => demanderChangementEntite('tertiaire')} />
                 Tertiaire
               </label>

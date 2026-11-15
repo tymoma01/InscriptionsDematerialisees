@@ -624,7 +624,13 @@
   color: var(--statut-vert-fonce-texte);
 }
 
-/* Statut « Blacklisté » : pastille rouge, comme son badge (--statut-blackliste-*). */
+/* Statut « Blacklisté » : pastille rouge adouci, comme son badge (--statut-blackliste-*). Placée sur la
+   troisième ligne de la grille, dans la DERNIÈRE colonne, sous « Embauché » (même grille et même largeur que
+   les autres pastilles). */
+.tableau-bord-accueil .filtres-statut__statuts button[data-statut='blackliste'] {
+  grid-column: 6;
+}
+
 .tableau-bord-accueil .filtres-statut__statuts button[data-statut='blackliste']:not(.actif) {
   background-color: var(--statut-blackliste-fond);
   border-color: var(--statut-blackliste-bordure);
