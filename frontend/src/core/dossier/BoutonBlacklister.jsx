@@ -85,10 +85,10 @@ export default function BoutonBlacklister({ dossierId, avertissement, apresChang
   return (
     <>
       <span className="bouton-blacklister">
-        {(affichage === 'blackliste' || affichage === 'retirer') && <StatutBadge libelle="Blacklisté" variante="blackliste" />}
+        {(affichage === 'blackliste' || affichage === 'retirer') && <StatutBadge libelle="Refus définitif" variante="blackliste" />}
         {affichage === 'blacklister' && (
           <button type="button" className="bouton-blacklister__action" onClick={() => setModale('blacklister')}>
-            Blacklister
+            Refus définitif
           </button>
         )}
         {affichage === 'retirer' && (
@@ -97,7 +97,7 @@ export default function BoutonBlacklister({ dossierId, avertissement, apresChang
             className="bouton-blacklister__action bouton-blacklister__action--retrait"
             onClick={() => setModale('retirer')}
           >
-            Retirer de la blacklist
+            Lever le refus définitif
           </button>
         )}
       </span>

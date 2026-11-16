@@ -455,7 +455,7 @@ export default function Validation() {
             défaut mêmes nom, prénom et date de naissance). Information seule, aucun refus. */}
         {dossier?.blacklistsCorrespondants?.length > 0 && (
           <div className="page-validation__alerte-blacklist" role="alert">
-            <strong>Candidat précédemment blacklisté</strong>
+            <strong>Candidat ayant fait l'objet d'un refus définitif</strong>
             <span>
               {dossier.blacklistsCorrespondants.map((correspondance, index) => (
                 <span key={correspondance.dossierId}>

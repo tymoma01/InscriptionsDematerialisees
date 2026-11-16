@@ -709,7 +709,7 @@ async function obtenirDossier(entite, dossierId) {
       : null;
   return {
     ...reste,
-    // Fenêtre « Blacklister » : rendez-vous encore actifs, qui NE sont PAS refermés par le blacklistage.
+    // Fenêtre « Refus définitif » : rendez-vous encore actifs, qui NE sont PAS refermés par le blacklistage.
     rendezvousActifs: (await rendezvousRepository.listerRendezvousActifsDossier(bd, dossierId)).map((rdv) => ({
       id: rdv.id,
       type: rdv.type_rdv,
@@ -719,7 +719,7 @@ async function obtenirDossier(entite, dossierId) {
     statutAvantBlacklist: statutAvantBlacklist
       ? { code: statutAvantBlacklist.code, libelle: statutAvantBlacklist.libelle }
       : null,
-    // Bandeau « Candidat précédemment blacklisté » : dossiers blacklistés correspondants (NIR, à défaut
+    // Bandeau « Candidat ayant fait l'objet d'un refus définitif » : dossiers blacklistés correspondants (NIR, à défaut
     // identité). Information seule, aucun refus automatique.
     blacklistsCorrespondants: await dossierRepository.trouverDossiersBlacklistesCorrespondants(
       bd,

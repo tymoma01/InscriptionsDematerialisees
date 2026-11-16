@@ -1,6 +1,6 @@
 // Statuts de dossier ACCECIT partagés par plusieurs écrans.
 
-// Statut « Blacklisté » : exclu de « Tous » et des compteurs de la liste des dossiers, visible
+// Statut « Refus définitif » : exclu de « Tous » et des compteurs de la liste des dossiers, visible
 // seulement par son filtre dédié.
 export const CODE_STATUT_BLACKLISTE = 'blackliste';
 

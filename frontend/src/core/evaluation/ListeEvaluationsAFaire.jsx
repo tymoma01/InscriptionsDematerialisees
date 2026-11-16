@@ -327,7 +327,7 @@ export default function ListeEvaluationsAFaire({
                 </span>
               )}
               <StatutBadge libelle={LIBELLES_STATUT[rdv.statut] ?? rdv.statut} variante={varianteStatutRendezvous(rdv.statut)} />
-              {rdv.dossier_statut_code === 'blackliste' && <StatutBadge libelle="Blacklisté" variante="blackliste" />}
+              {rdv.dossier_statut_code === 'blackliste' && <StatutBadge libelle="Refus définitif" variante="blackliste" />}
               {/* "Présent(e)" — premier bouton de la ligne (ordre demandé :
                   Présent(e), Évaluer, NSPP) : constate la présence du candidat sans toucher au
                   badge ci-dessus ni retirer la ligne de la liste, voir marquerPresent. Le clic

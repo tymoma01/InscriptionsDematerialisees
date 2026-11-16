@@ -316,7 +316,7 @@ test('Périmètre en base : dossier de l’entité, statut parmi les 5 ET typePo
   assert.match(sql, /"dossiers"\."entite_id" = 1/);
   assert.match(sql, /"statuts"\."code" in \('test_planifie', 'valide_envoi_formation', 'valide_pret_embauche', 'embauche', 'invalide'\)/);
   assert.match(sql, /bloc_disponibilites\.donnees ->> 'typePoste' = 'hotel'/);
-  // Blacklisté depuis un statut du périmètre : toujours dans le périmètre (fiche accessible).
+  // Refus définitif depuis un statut du périmètre : toujours dans le périmètre (fiche accessible).
   assert.match(sql, /"statuts"\."code" = 'blackliste' and "dossiers"\."statut_avant_blacklist_id" in \(select "statuts_avant"\."id"/);
 });
 

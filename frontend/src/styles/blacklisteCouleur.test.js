@@ -18,27 +18,25 @@ const contraste = (a, b) => {
   const [clair, fonce] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (clair + 0.05) / (fonce + 0.05);
 };
-const saturation = (hex) => {
-  const [r, g, b] = rvb(hex).map((valeur) => valeur / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  return max === min ? 0 : (max - min) / (1 - Math.abs(2 * l - 1));
-};
 
-describe('Couleur du statut « Blacklisté »', () => {
-  test('rouge adouci : fond clair, bordure moyenne, texte foncé lisible', () => {
-    expect(couleur('statut-blackliste-fond')).toBe('#f8b4b4');
-    expect(couleur('statut-blackliste-bordure')).toBe('#e57373');
-    expect(couleur('statut-blackliste-texte')).toBe('#7f1d1d');
+describe('Couleur du statut « Refus définitif »', () => {
+  test('jaune doux : fond clair, bordure moyenne, texte foncé lisible', () => {
+    expect(couleur('statut-blackliste-fond')).toBe('#fde9a8');
+    expect(couleur('statut-blackliste-bordure')).toBe('#e0b84a');
+    expect(couleur('statut-blackliste-texte')).toBe('#664a00');
     expect(contraste(couleur('statut-blackliste-fond'), couleur('statut-blackliste-texte'))).toBeGreaterThan(4.5);
   });
 
-  test('reste plus marquée que « Invalidé » et « Formation non validée » (fond plus soutenu, bordure plus foncée)', () => {
-    for (const autre of ['statut-echec', 'statut-echec-fort']) {
-      expect(luminance(couleur('statut-blackliste-fond'))).toBeLessThan(luminance(couleur(`${autre}-fond`)));
-      expect(luminance(couleur('statut-blackliste-bordure'))).toBeLessThan(luminance(couleur(`${autre}-bordure`)));
-      expect(saturation(couleur('statut-blackliste-fond'))).toBeGreaterThan(saturation(couleur(`${autre}-fond`)));
+  test('plus de rouge : teinte jaune/dorée, distincte de « En attente de pièces » et du créneau « matin »', () => {
+    const [r, g, b] = rvb(couleur('statut-blackliste-fond'));
+    expect(r).toBeGreaterThan(240);
+    expect(g).toBeGreaterThan(200);
+    expect(b).toBeLessThan(g - 40);
+    for (const autre of ['statut-attente', 'statut-jaune-pale']) {
+      expect(couleur('statut-blackliste-fond')).not.toBe(couleur(`${autre}-fond`));
+      expect(couleur('statut-blackliste-bordure')).not.toBe(couleur(`${autre}-bordure`));
+      const ecart = rvb(couleur('statut-blackliste-fond')).reduce((somme, v, i) => somme + Math.abs(v - rvb(couleur(`${autre}-fond`))[i]), 0);
+      expect(ecart).toBeGreaterThanOrEqual(30);
     }
   });
 
@@ -58,10 +56,11 @@ describe('Couleur du statut « Blacklisté »', () => {
   });
 });
 
-describe('Position du filtre « Blacklisté »', () => {
-  test('dernière colonne de la grille à 6 colonnes, sous « Embauché » (troisième ligne), même grille que les autres pastilles', () => {
-    expect(accueil).toMatch(/grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
-    const regle = accueil.slice(accueil.indexOf(".filtres-statut__statuts button[data-statut='blackliste'] {"));
-    expect(regle.split('}')[0]).toMatch(/grid-column:\s*6;/);
+describe('Position du filtre « Refus définitif »', () => {
+  test('grille de 7 colonnes égales dès 1280 px ; « Refus définitif » reste le dernier filtre, sans colonne forcée', () => {
+    expect(accueil).toMatch(/@media \(min-width: 1280px\)[\s\S]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
+    expect(accueil).not.toMatch(/repeat\(6, minmax/);
+    const regle = accueil.slice(accueil.indexOf(".filtres-statut__statuts button[data-statut='blackliste']:not(.actif)"));
+    expect(regle.split('}')[0]).not.toMatch(/grid-column/);
   });
 });

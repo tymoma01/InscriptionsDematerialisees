@@ -186,9 +186,9 @@
   border-color: var(--non-etudiant-bordure);
 }
 
-/* Statut « Blacklisté » : rouge adouci avec une pulsation lente (cycle de 2,4 s, soit moins d'une
+/* Statut « Refus définitif » : jaune doux avec une pulsation lente (cycle de 2,4 s, soit moins d'une
    pulsation par seconde, très en deçà de 3 par seconde). Désactivée si l'utilisateur limite les
-   animations : la pastille reste alors rouge, fixe. */
+   animations : la pastille reste alors jaune, fixe. */
 .statut-badge--blackliste {
   background-color: var(--statut-blackliste-fond);
   color: var(--statut-blackliste-texte);
@@ -200,11 +200,11 @@
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(229, 115, 115, 0.55);
+    box-shadow: 0 0 0 0 var(--statut-blackliste-halo);
   }
   50% {
     opacity: 0.8;
-    box-shadow: 0 0 0 5px rgba(229, 115, 115, 0);
+    box-shadow: 0 0 0 5px var(--statut-blackliste-halo-nul);
   }
 }
 

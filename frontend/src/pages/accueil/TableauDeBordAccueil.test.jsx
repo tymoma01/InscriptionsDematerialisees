@@ -1,5 +1,5 @@
 // Liste « Dossiers candidats » et vue Inspecteur Hôtellerie : même composant, mêmes pastilles de
-// statut ; « Blacklisté » exclu de « Tous » et des autres compteurs.
+// statut ; « Refus définitif » exclu de « Tous » et des autres compteurs.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -31,7 +31,7 @@ const STATUTS = [
   ['valide_pret_embauche', "Validé - prêt à l'embauche"],
   ['formation_non_validee', 'Formation non validée'],
   ['embauche', 'Embauché'],
-  ['blackliste', 'Blacklisté'],
+  ['blackliste', 'Refus définitif'],
 ].map(([code, libelle], index) => ({ code, libelle, ordre: (index + 1) * 10 }));
 
 const dossier = (id, statut) => ({
@@ -86,22 +86,22 @@ test('même liste et même ordre de pastilles de statut pour Accueil et pour la 
   afficher();
   await screen.findByText('Nom1', { exact: false });
   expect(libellesPastillesStatut()).toEqual(pastillesAccueil);
-  expect(pastillesAccueil).toContain('Blacklisté');
+  expect(pastillesAccueil).toContain('Refus définitif');
   expect(pastillesAccueil).toContain('À planifier');
   expect(compteurDe('Inscrit')).toBe(0);
   expect(accueil).toBeTruthy();
 });
 
-test('vue Inspecteur : le dossier blacklisté est exclu de « Tous » et visible via « Blacklisté »', async () => {
+test('vue Inspecteur : le dossier blacklisté est exclu de « Tous » et visible via « Refus définitif »', async () => {
   etat.utilisateur = { roleCode: 'inspecteur_hotellerie', permissions: ['listeDossiers'] };
   afficher();
   await screen.findByText('Nom1', { exact: false });
-  expect(compteurDe('Blacklisté')).toBe(1);
+  expect(compteurDe('Refus définitif')).toBe(1);
   expect(compteurDe('Test planifié')).toBe(2);
   expect(screen.getByRole('button', { name: /^Tous/ }).textContent).toContain('(2)');
   expect(screen.queryByText('Nom3', { exact: false })).toBeNull();
 
-  fireEvent.click(screen.getByRole('button', { name: /^Blacklisté/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Refus définitif/ }));
   await waitFor(() => expect(screen.getByText('Nom3', { exact: false })).toBeTruthy());
   expect(screen.queryByText('Nom1', { exact: false })).toBeNull();
 });
@@ -110,14 +110,14 @@ test('compteurs mis à jour après un changement de statut, sans rechargement de
   etat.utilisateur = { roleCode: 'accueil_coordination', permissions: ['listeDossiers'] };
   const { rerender } = afficher();
   await screen.findByText('Nom1', { exact: false });
-  expect(compteurDe('Blacklisté')).toBe(1);
+  expect(compteurDe('Refus définitif')).toBe(1);
 
   // Blacklistage du dossier 1 : le rafraîchissement automatique recharge la liste.
   const { useRafraichissementAuto } = await import('../../core/dossier/useRafraichissementAuto');
   const rafraichir = useRafraichissementAuto.mock.calls.at(-1)[0];
   etat.dossiers = [dossier(1, 'blackliste'), dossier(2, 'test_planifie'), dossier(3, 'blackliste')];
   rafraichir();
-  await waitFor(() => expect(compteurDe('Blacklisté')).toBe(2));
+  await waitFor(() => expect(compteurDe('Refus définitif')).toBe(2));
   expect(compteurDe('Test planifié')).toBe(1);
   expect(screen.getByRole('button', { name: /^Tous/ }).textContent).toContain('(1)');
   expect(listerDossiers).toHaveBeenCalledTimes(2);

@@ -45,7 +45,7 @@ const CODE_MOTIF_NEUTRALISE_PAR_FORCAGE = 'neutralise_par_forcage';
 // vers un service métier, voir son en-tête).
 const CODE_STATUT_EMBAUCHE = 'embauche';
 
-// Un dossier blacklisté ne sort de cet état que par le retrait de la blacklist (Admin, motif tracé).
+// Un dossier blacklisté ne sort de cet état que par la levée du refus définitif (Admin, motif tracé).
 const CODE_STATUT_BLACKLISTE = 'blackliste';
 const REGEX_DATE_EMBAUCHE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -230,7 +230,7 @@ async function listerMotifsPourAction(entite, codeAction) {
 // validation serveur après coup).
 // `valide`/`rejete` : même cas (ancien circuit recruteur, 0 dossier aujourd'hui).
 const STATUTS_EXCLUS_FORCAGE = [
-  // Blacklistage : uniquement via l'action « Blacklister » (note, motif et audit obligatoires).
+  // Blacklistage : uniquement via l'action « Refus définitif » (note, motif et audit obligatoires).
   'blackliste',
   'en_attente_verification',
   'en_attente_verdict',
@@ -305,7 +305,7 @@ async function forcerStatut(entite, { dossierId, statutCode, commentaire, dateEm
   }
 
   if (dossier.statut_code === CODE_STATUT_BLACKLISTE) {
-    throw new ErreurTransitionInvalide('Ce dossier est blacklisté : seul le retrait de la blacklist (Admin) peut changer son statut.');
+    throw new ErreurTransitionInvalide('Ce dossier fait l’objet d’un refus définitif : seule la levée du refus définitif (Admin) peut changer son statut.');
   }
 
   const statutCible = await dossierRepository.trouverStatutParCode(bd, entite.id, statutCode);

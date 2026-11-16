@@ -13,7 +13,7 @@ const workflowEngine = require('../workflow/workflowEngine');
 const blacklistService = require('./blacklistService');
 
 const ENTITE = { id: 1, code: 'accecit' };
-const STATUT_BLACKLISTE = { id: 99, code: 'blackliste', libelle: 'Blacklisté' };
+const STATUT_BLACKLISTE = { id: 99, code: 'blackliste', libelle: 'Refus définitif' };
 const MOTIF = { id: 5, code: 'absence_repetee', libelle: 'Absence répétée sans prévenir' };
 const COMMENTAIRE = 'Absent à trois rendez-vous sans prévenir.';
 const TRX = { estUnTrx: true };
@@ -94,7 +94,7 @@ test('blacklister inscrit la catégorie et le commentaire dans une note du dossi
   const note = m.note.mock.calls[0].arguments[1];
   assert.equal(note.dossierId, 50);
   assert.equal(note.auteurId, 9);
-  assert.match(note.contenu, /Blacklisté/);
+  assert.match(note.contenu, /Refus définitif/);
   assert.match(note.contenu, /Absence répétée sans prévenir/);
   assert.match(note.contenu, /Absent à trois rendez-vous/);
 });
@@ -161,7 +161,7 @@ test("retrait : l'Admin rétablit le statut d'avant, avec note et audit ; la mé
   assert.equal(resultat.statutRetabliCode, 'test_planifie');
   assert.equal(m.changement.mock.calls[0].arguments[1].statutId, 11);
   assert.deepEqual(m.memoire.mock.calls[0].arguments[1], { dossierId: 50, statutId: null });
-  assert.match(m.note.mock.calls[0].arguments[1].contenu, /Retrait de la blacklist/);
+  assert.match(m.note.mock.calls[0].arguments[1].contenu, /Levée du refus définitif/);
   assert.equal(m.audit.mock.calls[0].arguments[1].action, 'dossier_blacklist_retrait');
   assert.equal(m.audit.mock.calls[0].arguments[1].donnees.roleCode, ROLES.ADMIN);
 });
@@ -191,7 +191,7 @@ test('permissions : blacklister pour tout le back-office, retirerBlacklist pour 
   assert.deepEqual([...PERMISSIONS.retirerBlacklist], [ROLES.ADMIN]);
 });
 
-test('forcerStatut ne peut ni cibler « Blacklisté » ni sortir un dossier blacklisté', async (t) => {
+test('forcerStatut ne peut ni cibler « Refus définitif » ni sortir un dossier blacklisté', async (t) => {
   t.mock.method(db, 'obtenirKnex', async () => ({ transaction: async (cb) => cb(TRX) }));
   t.mock.method(dossierRepository, 'trouverStatutParCode', async () => STATUT_BLACKLISTE);
 
@@ -206,7 +206,7 @@ test('forcerStatut ne peut ni cibler « Blacklisté » ni sortir un dossier blac
   t.mock.method(dossierRepository, 'trouverDossierAvecStatutParId', async () => dossierAuStatut('blackliste'));
   await assert.rejects(
     workflowEngine.forcerStatut(ENTITE, { dossierId: 50, statutCode: 'nouveau', commentaire: 'x', utilisateurId: 1, roleCode: ROLES.ADMIN }),
-    /blacklisté/,
+    /refus définitif/,
   );
 });
 
@@ -233,7 +233,7 @@ test('message 403 : dossier embauché, rôle non autorisé', async (t) => {
   for (const role of [ROLES.ACCUEIL_COORDINATION, ROLES.FORMATEUR, ROLES.INSPECTEUR, ROLES.INSPECTEUR_HOTELLERIE]) {
     await assert.rejects(
       blacklistService.blacklister(ENTITE, appel(role)),
-      (e) => e.statutHttp === 403 && e.message === 'Ce candidat est embauché : seuls les rôles Planning, RH et Admin peuvent le blacklister.',
+      (e) => e.statutHttp === 403 && e.message === 'Ce candidat est embauché : seuls les rôles Planning, RH et Admin peuvent prononcer son refus définitif.',
       role,
     );
   }
@@ -257,7 +257,7 @@ test('message 409 : déjà blacklisté, avec la date et l’auteur', async (t) =
   mocker(t, { dossier: dossierAuStatut('blackliste') });
   await assert.rejects(
     blacklistService.blacklister(ENTITE, appel(ROLES.ADMIN)),
-    (e) => e.statutHttp === 409 && e.message === 'Ce candidat est déjà blacklisté depuis le 03/11/2026 par Jeanne Dupont.',
+    (e) => e.statutHttp === 409 && e.message === 'Ce candidat fait déjà l’objet d’un refus définitif depuis le 03/11/2026 par Jeanne Dupont.',
   );
 });
 
@@ -268,12 +268,12 @@ test('message 400 : motif manquant ou trop court', async (t) => {
   await assert.rejects(blacklistService.blacklister(ENTITE, appel(ROLES.ADMIN, { motifCode: '' })), (e) => e.statutHttp === 400 && e.message === attendu);
 });
 
-test('message 403 : retrait de la blacklist par un rôle autre que l’Admin', async (t) => {
+test('message 403 : levée du refus définitif par un rôle autre que l’Admin', async (t) => {
   mocker(t, { dossier: { ...dossierAuStatut('blackliste', 99), statut_avant_blacklist_id: 11 } });
   for (const role of ROLES_BACK_OFFICE.filter((r) => r !== ROLES.ADMIN)) {
     await assert.rejects(
       blacklistService.retirerDeLaBlacklist(ENTITE, { dossierId: 50, commentaire: COMMENTAIRE, utilisateurId: 3, roleCode: role, adresseIp: 'x' }),
-      (e) => e.statutHttp === 403 && e.message === 'Seul un administrateur peut retirer un candidat de la blacklist.',
+      (e) => e.statutHttp === 403 && e.message === 'Seul un administrateur peut lever le refus définitif d’un candidat.',
       role,
     );
   }

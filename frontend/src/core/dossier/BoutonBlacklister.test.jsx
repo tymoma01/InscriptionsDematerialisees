@@ -45,7 +45,7 @@ test('candidat embauché : visible seulement pour Planning, RH et Admin', () => 
   }
 });
 
-test('candidat blacklisté : pastille pour tous, « Retirer de la blacklist » pour l’Admin seul', () => {
+test('candidat blacklisté : pastille pour tous, « Lever le refus définitif » pour l’Admin seul', () => {
   for (const role of BACK_OFFICE) {
     expect(affichageBlacklistPourDossier(utilisateurRole(role), 'blackliste'), role).toBe(role === 'admin' ? 'retirer' : 'blackliste');
   }
@@ -64,17 +64,17 @@ test('rendu : bouton pour un rôle autorisé, rien pour un formateur sur un doss
   expect(screen.queryByRole('button')).toBeNull();
   cleanup();
   await afficher('planning', 'embauche');
-  expect(screen.getByRole('button', { name: 'Blacklister' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Refus définitif' })).toBeTruthy();
 });
 
-test('rendu : dossier blacklisté, pastille « Blacklisté » sans bouton pour un non-Admin, avec retrait pour l’Admin', async () => {
+test('rendu : dossier blacklisté, pastille « Refus définitif » sans bouton pour un non-Admin, avec retrait pour l’Admin', async () => {
   await afficher('rh', 'blackliste');
-  expect(screen.getByText('Blacklisté')).toBeTruthy();
+  expect(screen.getByText('Refus définitif')).toBeTruthy();
   expect(screen.queryByRole('button')).toBeNull();
   cleanup();
   await afficher('admin', 'blackliste');
-  expect(screen.getByText('Blacklisté')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Retirer de la blacklist' })).toBeTruthy();
+  expect(screen.getByText('Refus définitif')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Lever le refus définitif' })).toBeTruthy();
 });
 
 test('fiche du dossier : le bouton est dans la barre d’onglets, pour chaque rôle et chaque onglet', async () => {
@@ -83,7 +83,7 @@ test('fiche du dossier : le bouton est dans la barre d’onglets, pour chaque r�
       etat.utilisateur = { ...utilisateurRole(role), permissions: [...utilisateurRole(role).permissions, 'gestionPieces', 'lectureRendezvous', 'lectureRelances', 'lectureFormation'] };
       etat.dossier = dossierAu('test_planifie');
       render(<MemoryRouter><NavigationFicheDossier dossierId="5" pageActuelle={page} /></MemoryRouter>);
-      const bouton = await screen.findByRole('button', { name: 'Blacklister' });
+      const bouton = await screen.findByRole('button', { name: 'Refus définitif' });
       expect(bouton.closest('nav')?.getAttribute('aria-label'), `${role}/${page}`).toBe('Sections du dossier');
       cleanup();
     }
@@ -91,10 +91,10 @@ test('fiche du dossier : le bouton est dans la barre d’onglets, pour chaque r�
 });
 
 const MESSAGES = [
-  ['blacklister', 'Ce candidat est embauché : seuls les rôles Planning, RH et Admin peuvent le blacklister.'],
-  ['blacklister', 'Ce candidat est déjà blacklisté depuis le 03/11/2026 par Jeanne Dupont.'],
+  ['blacklister', 'Ce candidat est embauché : seuls les rôles Planning, RH et Admin peuvent prononcer son refus définitif.'],
+  ['blacklister', 'Ce candidat fait déjà l’objet d’un refus définitif depuis le 03/11/2026 par Jeanne Dupont.'],
   ['blacklister', "Le motif est obligatoire : choisissez une catégorie et saisissez un commentaire d'au moins 10 caractères."],
-  ['retirer', 'Seul un administrateur peut retirer un candidat de la blacklist.'],
+  ['retirer', 'Seul un administrateur peut lever le refus définitif d’un candidat.'],
 ];
 
 for (const [action, message] of MESSAGES) {
@@ -105,10 +105,10 @@ for (const [action, message] of MESSAGES) {
     etat.dossier = dossierAu(action === 'retirer' ? 'blackliste' : 'test_planifie');
 
     render(<BoutonBlacklister dossierId="5" apresChangement={() => {}} />);
-    fireEvent.click(await screen.findByRole('button', { name: action === 'retirer' ? 'Retirer de la blacklist' : 'Blacklister' }));
+    fireEvent.click(await screen.findByRole('button', { name: action === 'retirer' ? 'Lever le refus définitif' : 'Refus définitif' }));
     if (action === 'blacklister') fireEvent.click(await screen.findByLabelText('Autre'));
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Commentaire factuel suffisant.' } });
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: action === 'retirer' ? 'Retirer de la blacklist' : 'Confirmer le blacklistage' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: action === 'retirer' ? 'Lever le refus définitif' : 'Confirmer le refus définitif' }));
 
     expect((await screen.findByText(message)).textContent).toBe(message);
     expect(screen.getByRole('dialog')).toBeTruthy();
@@ -116,10 +116,10 @@ for (const [action, message] of MESSAGES) {
 }
 
 async function blacklister(rendu) {
-  fireEvent.click(await screen.findByRole('button', { name: 'Blacklister' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Refus définitif' }));
   fireEvent.click(await screen.findByLabelText('Autre'));
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Absent trois fois sans prévenir.' } });
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmer le blacklistage' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmer le refus définitif' }));
   await waitFor(() => expect(blacklisterDossier).toHaveBeenCalled());
   return rendu;
 }
@@ -129,7 +129,7 @@ test('évaluation en cours : la fenêtre prévient de l’abandon, puis retour �
   etat.dossier = dossierAu('test_planifie');
   const retourListe = vi.fn();
   render(<BoutonBlacklister dossierId="5" avertissement="L’évaluation en cours, non enregistrée, sera abandonnée." apresChangement={retourListe} />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Blacklister' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Refus définitif' }));
   expect(screen.getByText(/sera abandonnée/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
   await blacklister();

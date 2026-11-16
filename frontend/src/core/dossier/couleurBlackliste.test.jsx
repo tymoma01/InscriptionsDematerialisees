@@ -7,7 +7,7 @@ import StatutBadge from '../workflow/StatutBadge';
 import { STATUTS_FILTRABLES_DOSSIER } from '../../pages/coordination/affichageRendezvous';
 import { varianteStatut } from '../../pages/accueil/affichageDossiers';
 
-// « Blacklisté » a UNE seule couleur (--statut-blackliste-fond / -texte / -bordure, styles/variables.css) :
+// « Refus définitif » a UNE seule couleur (--statut-blackliste-fond / -texte / -bordure, styles/variables.css) :
 // ce test échoue dès qu'un composant l'affiche sans cette variable (couleur en dur, variante locale, filtre
 // laissé en blanc).
 function fichiers(dossier) {
@@ -21,14 +21,14 @@ const lire = (chemin) => readFileSync(chemin, 'utf8');
 
 afterEach(cleanup);
 
-describe('Couleur unique de « Blacklisté »', () => {
-  test('tout libellé « Blacklisté » affiché en pastille (filtre ou badge) porte la variante blackliste', () => {
+describe('Couleur unique de « Refus définitif »', () => {
+  test('tout libellé « Refus définitif » affiché en pastille (filtre ou badge) porte la variante blackliste', () => {
     const fautifs = [];
     for (const chemin of sources.filter((c) => /\.jsx?$/.test(c))) {
       lire(chemin)
         .split('\n')
         .forEach((ligne, index) => {
-          if (/libelle[:=]\s*['"{]*\s*['"]Blacklisté['"]/.test(ligne) && !/variante[:=]\s*['"{]*\s*['"]blackliste['"]/.test(ligne)) fautifs.push(`${chemin}:${index + 1}`);
+          if (/libelle[:=]\s*['"{]*\s*['"]Refus définitif['"]/.test(ligne) && !/variante[:=]\s*['"{]*\s*['"]blackliste['"]/.test(ligne)) fautifs.push(`${chemin}:${index + 1}`);
         });
     }
     expect(fautifs).toEqual([]);
@@ -61,11 +61,11 @@ describe('Couleur unique de « Blacklisté »', () => {
     for (const nom of ['fond', 'texte', 'bordure']) expect(variables.match(new RegExp(`--statut-blackliste-${nom}:`, 'g'))).toHaveLength(1);
   });
 
-  test('filtre « Blacklisté » de « Suivi des tests » : mêmes couleurs communes que la liste des dossiers, sélection renforcée comme les autres filtres', () => {
+  test('filtre « Refus définitif » de « Suivi des tests » : mêmes couleurs communes que la liste des dossiers, sélection renforcée comme les autres filtres', () => {
     const blackliste = STATUTS_FILTRABLES_DOSSIER.find((statut) => statut.code === 'blackliste');
     expect(blackliste.variante).toBe('blackliste');
     render(<FiltresStatut statuts={STATUTS_FILTRABLES_DOSSIER} statutFiltre="blackliste" onChangerStatutFiltre={() => {}} compteurs={{ blackliste: 0 }} />);
-    const bouton = screen.getByRole('button', { name: /Blacklisté/ });
+    const bouton = screen.getByRole('button', { name: /Refus définitif/ });
     expect(bouton.dataset.variante).toBe('blackliste');
     expect(bouton.getAttribute('style')).toContain('var(--statut-blackliste-fond)');
     expect(bouton.getAttribute('style')).toContain('var(--statut-blackliste-bordure)');
@@ -77,8 +77,8 @@ describe('Couleur unique de « Blacklisté »', () => {
   });
 
   test('la pastille de statut d’un dossier blacklisté garde son clignotement doux', () => {
-    render(<StatutBadge libelle="Blacklisté" variante="blackliste" />);
-    expect(screen.getByText('Blacklisté').className).toContain('statut-badge--blackliste');
+    render(<StatutBadge libelle="Refus définitif" variante="blackliste" />);
+    expect(screen.getByText('Refus définitif').className).toContain('statut-badge--blackliste');
     const badge = lire('src/core/workflow/StatutBadge.css');
     expect(badge).toMatch(/\.statut-badge--blackliste \{[^}]*animation:\s*statut-badge-blackliste-pulsation 2\.4s/);
     expect(badge).toMatch(/prefers-reduced-motion: reduce\) \{\s*\.statut-badge--blackliste \{\s*animation: none/);

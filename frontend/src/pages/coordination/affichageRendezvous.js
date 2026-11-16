@@ -252,7 +252,7 @@ const LIBELLE_PAR_GROUPE_STATUT_DOSSIER = {
   [GROUPE_TEST_PLANIFIE]: 'Test planifié',
   [GROUPE_TEST_REALISE]: 'Test réalisé',
   [GROUPE_TEST_NON_REALISE]: 'Test non réalisé',
-  [GROUPE_BLACKLISTE]: 'Blacklisté',
+  [GROUPE_BLACKLISTE]: 'Refus définitif',
 };
 const VARIANTE_PAR_GROUPE_STATUT_DOSSIER = {
   [GROUPE_TEST_NON_PLANIFIE]: 'rose',
@@ -340,7 +340,7 @@ export const STATUTS_FILTRABLES_DOSSIER = [
   { code: GROUPE_TEST_REALISE, libelle: 'Test réalisé' },
   { code: GROUPE_TEST_NON_REALISE, libelle: 'Test non réalisé' },
   // `variante` : mêmes couleurs que la pastille de statut et le filtre de la liste des dossiers (--statut-blackliste-*).
-  { code: GROUPE_BLACKLISTE, libelle: 'Blacklisté', variante: 'blackliste' },
+  { code: GROUPE_BLACKLISTE, libelle: 'Refus définitif', variante: 'blackliste' },
 ];
 
 // Un candidat correspond au filtre « Statut » ? Sans filtre (« Tous »), les dossiers blacklistés

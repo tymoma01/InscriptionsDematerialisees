@@ -15,7 +15,7 @@ const FORMAT_DATE_HEURE = new Intl.DateTimeFormat('fr-FR', {
 
 const LIBELLE_TYPE_RDV = { test: 'test', formation: 'formation' };
 
-// Fenêtre de confirmation de « Blacklister » (mode 'blacklister') et de « Retirer de la blacklist »
+// Fenêtre de confirmation de « Refus définitif » (mode 'blacklister') et de « Lever le refus définitif »
 // (mode 'retirer'). Dans les deux cas, un commentaire de 10 à 500 caractères est obligatoire ; le
 // blacklistage exige en plus une catégorie (`categories`, configurée en base).
 //
@@ -36,7 +36,7 @@ export default function ModaleBlacklist({ mode, dossier, categories = [], averti
     onConfirmer({ motifCode: estRetrait ? undefined : motifCode, commentaire: commentaire.trim() });
   };
 
-  const titre = estRetrait ? 'Retirer de la blacklist' : 'Blacklister le candidat';
+  const titre = estRetrait ? 'Lever le refus définitif' : 'Refus définitif du candidat';
 
   return (
     <div className="modale-blacklist__fond">
@@ -50,7 +50,7 @@ export default function ModaleBlacklist({ mode, dossier, categories = [], averti
 
         {estRetrait ? (
           <p className="modale-blacklist__information">
-            Le dossier retrouvera son statut d&rsquo;avant le blacklistage :{' '}
+            Le dossier retrouvera son statut d&rsquo;avant le refus définitif :{' '}
             <strong>{dossier.statutAvantBlacklist?.libelle ?? 'introuvable'}</strong>.
           </p>
         ) : (
@@ -67,7 +67,7 @@ export default function ModaleBlacklist({ mode, dossier, categories = [], averti
                   </li>
                 ))}
               </ul>
-              <span>Le blacklistage ne l&rsquo;annule pas : pensez à l&rsquo;annuler ou à prévenir le formateur.</span>
+              <span>Le refus définitif ne l&rsquo;annule pas : pensez à l&rsquo;annuler ou à prévenir le formateur.</span>
             </div>
           )
         )}
@@ -117,7 +117,7 @@ export default function ModaleBlacklist({ mode, dossier, categories = [], averti
               Annuler
             </button>
             <button type="submit" disabled={enCours || !formulaireValide}>
-              {enCours ? 'Enregistrement...' : estRetrait ? 'Retirer de la blacklist' : 'Confirmer le blacklistage'}
+              {enCours ? 'Enregistrement...' : estRetrait ? 'Lever le refus définitif' : 'Confirmer le refus définitif'}
             </button>
           </div>
         </form>

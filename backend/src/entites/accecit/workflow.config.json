@@ -11,7 +11,7 @@
     { "code": "invalide", "libelle": "Invalidé", "ordre": 130, "estInitial": false, "estFinal": false, "neutraliseRendezvousActifs": true },
     { "code": "formation_non_validee", "libelle": "Formation non validée", "ordre": 140, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
     { "code": "embauche", "libelle": "Embauché", "ordre": 150, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": true },
-    { "code": "blackliste", "libelle": "Blacklisté", "ordre": 160, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": false }
+    { "code": "blackliste", "libelle": "Refus définitif", "ordre": 160, "estInitial": false, "estFinal": true, "neutraliseRendezvousActifs": false }
   ],
   "transitions": [
     {

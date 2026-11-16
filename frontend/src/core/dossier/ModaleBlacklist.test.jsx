@@ -1,4 +1,4 @@
-// Fenêtre « Blacklister » / « Retirer de la blacklist » : motif obligatoire, compteur, rendez-vous signalés.
+// Fenêtre « Refus définitif » / « Lever le refus définitif » : motif obligatoire, compteur, rendez-vous signalés.
 import { afterEach, expect, test, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import ModaleBlacklist from './ModaleBlacklist';
@@ -21,7 +21,7 @@ function ouvrir(props = {}) {
   return onConfirmer;
 }
 
-const boutonConfirmer = () => screen.getByRole('button', { name: 'Confirmer le blacklistage' });
+const boutonConfirmer = () => screen.getByRole('button', { name: 'Confirmer le refus définitif' });
 const zoneCommentaire = () => screen.getByRole('textbox');
 
 test('les cinq catégories configurées sont proposées', () => {
@@ -81,7 +81,7 @@ test('retrait : pas de catégorie, motif obligatoire, statut rétabli annoncé',
   );
   expect(screen.queryAllByRole('radio')).toHaveLength(0);
   expect(screen.getByText('Test planifié')).toBeTruthy();
-  const bouton = screen.getByRole('button', { name: 'Retirer de la blacklist' });
+  const bouton = screen.getByRole('button', { name: 'Lever le refus définitif' });
   expect(bouton.disabled).toBe(true);
   fireEvent.change(zoneCommentaire(), { target: { value: 'Homonyme, erreur de dossier.' } });
   expect(bouton.disabled).toBe(false);
@@ -89,7 +89,7 @@ test('retrait : pas de catégorie, motif obligatoire, statut rétabli annoncé',
   expect(onConfirmer).toHaveBeenCalledWith({ motifCode: undefined, commentaire: 'Homonyme, erreur de dossier.' });
 });
 
-test('la pastille « Blacklisté » respecte prefers-reduced-motion (animation lente, désactivée sinon)', async () => {
+test('la pastille « Refus définitif » respecte prefers-reduced-motion (animation lente, désactivée sinon)', async () => {
   const { readFileSync } = await import('node:fs');
   const css = readFileSync('src/core/workflow/StatutBadge.css', 'utf8');
   const duree = /\.statut-badge--blackliste\s*{[^}]*animation:[^;]*?(\d+(?:\.\d+)?)s/.exec(css);

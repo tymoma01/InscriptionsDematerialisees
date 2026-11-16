@@ -112,16 +112,16 @@ test('infobulle basculée sous la cellule quand la place manque au-dessus', () =
   expect(conteneur.classList.contains('planification__rdv-conteneur--infobulle-en-dessous')).toBe(true);
 });
 
-describe('filtre « Statut » du dossier : Blacklisté', () => {
+describe('filtre « Statut » du dossier : Refus définitif', () => {
   const rdv = (code) => ({ dossier_statut_code: code });
 
-  test('le filtre Blacklisté est proposé, et « Tous » exclut les dossiers blacklistés', () => {
+  test('le filtre Refus définitif est proposé, et « Tous » exclut les dossiers blacklistés', () => {
     expect(STATUTS_FILTRABLES_DOSSIER.map((s) => s.code)).toContain('blackliste');
     expect(correspondFiltreStatutDossier(rdv('blackliste'), null)).toBe(false);
     expect(correspondFiltreStatutDossier(rdv('test_planifie'), null)).toBe(true);
   });
 
-  test('sous le filtre Blacklisté, seuls les dossiers blacklistés sont retenus', () => {
+  test('sous le filtre Refus définitif, seuls les dossiers blacklistés sont retenus', () => {
     expect(correspondFiltreStatutDossier(rdv('blackliste'), 'blackliste')).toBe(true);
     expect(correspondFiltreStatutDossier(rdv('test_planifie'), 'blackliste')).toBe(false);
     expect(correspondFiltreStatutDossier(rdv('test_planifie'), 'test_planifie')).toBe(true);

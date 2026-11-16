@@ -40,7 +40,7 @@ test('statut inconnu : couleur neutre', () => {
   expect(varianteStatut('statut_inconnu')).toBe('neutre');
 });
 
-// Blacklisté : exclu de « Tous » et des autres filtres, visible par son seul filtre.
+// Refus définitif : exclu de « Tous » et des autres filtres, visible par son seul filtre.
 test('« Tous » exclut les dossiers blacklistés ; seul le filtre dédié les montre', () => {
   const dossiers = [
     { id: 1, statut_code: 'test_planifie' },
@@ -55,7 +55,7 @@ test('« Tous » exclut les dossiers blacklistés ; seul le filtre dédié les m
   expect(dossiers.filter((d) => correspondFiltreStatut(d, 'a_planifier'))).toEqual([]);
 });
 
-test('le filtre « Blacklisté » existe parmi les pastilles de statut, avec la variante rouge', () => {
+test('le filtre « Refus définitif » existe parmi les pastilles de statut, avec la variante rouge', () => {
   expect(CODES_STATUTS_FILTRES_ACCUEIL).toContain('blackliste');
   expect(varianteStatut('blackliste')).toBe('blackliste');
 });

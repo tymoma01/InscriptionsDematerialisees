@@ -28,7 +28,7 @@ const CODE_STATUT_BLACKLISTE = 'blackliste';
 
 // Restreint une requête portant sur `statuts` et `dossiers` au périmètre : statut dans la liste, ou
 // blacklisté depuis un statut de cette liste (un dossier blacklisté reste dans le périmètre de
-// celui qui le suivait, il apparaît sous son filtre « Blacklisté »).
+// celui qui le suivait, il apparaît sous son filtre « Refus définitif »).
 function restreindreAuxStatutsDuPerimetre(requete, bd, perimetre) {
   if (!perimetre.statutsCodes) return requete;
   return requete.where(function statutsDuPerimetre() {

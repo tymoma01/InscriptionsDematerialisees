@@ -10,7 +10,7 @@ import './ModaleForcerStatut.css';
 //
 // `valide`/`rejete` : même cas (ancien circuit recruteur, 0 dossier).
 const STATUTS_EXCLUS_FORCAGE = [
-  'blackliste', // uniquement via « Blacklister » (motif, note et audit)
+  'blackliste', // uniquement via « Refus définitif » (motif, note et audit)
   'en_attente_verification',
   'en_attente_verdict',
   'verdict_positif',

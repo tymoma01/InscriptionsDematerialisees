@@ -456,7 +456,7 @@ function repondreErreurBlacklist(erreur, res, next) {
   return next(erreur);
 }
 
-// GET /api/dossiers/:dossierId/transitions/blacklister/motifs — catégories de la fenêtre « Blacklister »
+// GET /api/dossiers/:dossierId/transitions/blacklister/motifs — catégories de la fenêtre « Refus définitif »
 // (permission blacklister : la route générique de motifs est fermée au Formateur et à l'Inspecteur).
 router.get('/blacklister/motifs', requirePermission('blacklister'), async (req, res, next) => {
   try {

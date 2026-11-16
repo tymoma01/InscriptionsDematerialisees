@@ -178,7 +178,7 @@ export const CODES_STATUTS_FILTRES_ACCUEIL = [
   // ci-dessus — sans cette entrée, les dossiers embauchés restent visibles via "Tous" mais
   // impossibles à isoler par filtre dédié.
   'embauche',
-  // « Blacklisté » : exclu de « Tous » et des autres compteurs, visible par ce seul filtre.
+  // « Refus définitif » : exclu de « Tous » et des autres compteurs, visible par ce seul filtre.
   CODE_STATUT_BLACKLISTE,
 ];
 
