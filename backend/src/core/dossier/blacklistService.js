@@ -46,6 +46,15 @@ function verifierCommentaire(commentaire, message) {
   return valeur;
 }
 
+// Texte unique, sans tiret long, de la note du dossier et du commentaire d'historique.
+function formaterMotifRefus(libelleMotif, commentaire) {
+  return `Refus définitif (${libelleMotif}) : ${commentaire}`;
+}
+
+function formaterMotifLevee(commentaire) {
+  return `Refus définitif levé : ${commentaire}`;
+}
+
 async function messageDejaBlackliste(trx, dossierId) {
   const passage = await dossierRepository.trouverDernierPassageAuStatut(trx, dossierId, CODE_STATUT_BLACKLISTE);
   const date = passage?.date_changement ? FORMAT_DATE.format(new Date(passage.date_changement)) : null;
@@ -88,13 +97,13 @@ async function blacklister(entite, { dossierId, motifCode, commentaire, utilisat
       statutId: statutBlackliste.id,
       utilisateurId,
       motifId: motif.id,
-      commentaire: `${motif.libelle} — ${commentaireNettoye}`,
+      commentaire: formaterMotifRefus(motif.libelle, commentaireNettoye),
     });
     await dossierRepository.memoriserStatutAvantBlacklist(trx, { dossierId, statutId: dossier.statut_id });
     await notesDossierRepository.ajouterNote(trx, {
       dossierId,
       auteurId: utilisateurId,
-      contenu: `Refus définitif — ${motif.libelle} : ${commentaireNettoye}`,
+      contenu: formaterMotifRefus(motif.libelle, commentaireNettoye),
     });
     await journalAudit.enregistrerAction(trx, {
       utilisateurId,
@@ -139,13 +148,13 @@ async function retirerDeLaBlacklist(entite, { dossierId, commentaire, utilisateu
       dossierId,
       statutId: statutAvant.id,
       utilisateurId,
-      commentaire: `Levée du refus définitif — ${commentaireNettoye}`,
+      commentaire: formaterMotifLevee(commentaireNettoye),
     });
     await dossierRepository.memoriserStatutAvantBlacklist(trx, { dossierId, statutId: null });
     await notesDossierRepository.ajouterNote(trx, {
       dossierId,
       auteurId: utilisateurId,
-      contenu: `Levée du refus définitif : ${commentaireNettoye}`,
+      contenu: formaterMotifLevee(commentaireNettoye),
     });
     await journalAudit.enregistrerAction(trx, {
       utilisateurId,
@@ -163,6 +172,8 @@ async function retirerDeLaBlacklist(entite, { dossierId, commentaire, utilisateu
 
 module.exports = {
   ErreurBlacklist,
+  formaterMotifRefus,
+  formaterMotifLevee,
   CODE_STATUT_BLACKLISTE,
   CATEGORIE_MOTIF_BLACKLIST,
   COMMENTAIRE_MIN,

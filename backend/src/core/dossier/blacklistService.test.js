@@ -161,7 +161,7 @@ test("retrait : l'Admin rétablit le statut d'avant, avec note et audit ; la mé
   assert.equal(resultat.statutRetabliCode, 'test_planifie');
   assert.equal(m.changement.mock.calls[0].arguments[1].statutId, 11);
   assert.deepEqual(m.memoire.mock.calls[0].arguments[1], { dossierId: 50, statutId: null });
-  assert.match(m.note.mock.calls[0].arguments[1].contenu, /Levée du refus définitif/);
+  assert.match(m.note.mock.calls[0].arguments[1].contenu, /Refus définitif levé : /);
   assert.equal(m.audit.mock.calls[0].arguments[1].action, 'dossier_blacklist_retrait');
   assert.equal(m.audit.mock.calls[0].arguments[1].donnees.roleCode, ROLES.ADMIN);
 });
