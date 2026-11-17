@@ -278,3 +278,12 @@ test('message 403 : levée du refus définitif par un rôle autre que l’Admin'
     );
   }
 });
+
+test('la catégorie « Insuffisance professionnelle » est acceptée, tracée dans la note et le journal d\'audit', async (t) => {
+  const motif = { id: 8, code: 'insuffisance_professionnelle', libelle: 'Insuffisance professionnelle' };
+  const m = mocker(t, { motif });
+  await blacklistService.blacklister(ENTITE, appel(ROLES.RH, { motifCode: motif.code }));
+  assert.equal(m.changement.mock.calls[0].arguments[1].motifId, motif.id);
+  assert.equal(m.note.mock.calls[0].arguments[1].contenu, `Refus définitif (Insuffisance professionnelle) : ${COMMENTAIRE}`);
+  assert.equal(m.audit.mock.calls[0].arguments[1].donnees.categorie, 'insuffisance_professionnelle');
+});

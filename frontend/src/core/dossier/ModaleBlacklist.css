@@ -148,3 +148,7 @@
   opacity: 0.6;
   cursor: default;
 }
+
+.modale-blacklist .modale-blacklist__categorie span {
+  font-weight: 600;
+}

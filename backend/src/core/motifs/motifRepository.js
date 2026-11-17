@@ -8,7 +8,7 @@ function trouverMotifParCode(bd, entiteId, categorie, code) {
 }
 
 function listerMotifsParCategorie(bd, entiteId, categorie) {
-  return bd('motifs').where({ entite_id: entiteId, categorie, actif: true }).orderBy('id', 'asc');
+  return bd('motifs').where({ entite_id: entiteId, categorie, actif: true }).orderBy([{ column: 'ordre', order: 'asc' }, { column: 'id', order: 'asc' }]);
 }
 
 module.exports = { trouverMotifParCode, listerMotifsParCategorie };

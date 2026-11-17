@@ -6,6 +6,7 @@ import ModaleBlacklist from './ModaleBlacklist';
 afterEach(cleanup);
 
 const CATEGORIES = [
+  { code: 'insuffisance_professionnelle', libelle: 'Insuffisance professionnelle' },
   { code: 'absence_repetee', libelle: 'Absence répétée sans prévenir' },
   { code: 'comportement_inapproprie', libelle: 'Comportement inapproprié' },
   { code: 'fausse_declaration', libelle: 'Fausse déclaration ou faux document' },
@@ -24,9 +25,10 @@ function ouvrir(props = {}) {
 const boutonConfirmer = () => screen.getByRole('button', { name: 'Confirmer le refus définitif' });
 const zoneCommentaire = () => screen.getByRole('textbox');
 
-test('les cinq catégories configurées sont proposées', () => {
+test('les six catégories configurées sont proposées, « Insuffisance professionnelle » en premier', () => {
   ouvrir();
-  expect(screen.getAllByRole('radio')).toHaveLength(5);
+  expect(screen.getAllByRole('radio')).toHaveLength(6);
+  expect(screen.getAllByRole('radio')[0].closest('label').textContent).toBe('Insuffisance professionnelle');
   expect(screen.getByLabelText('Fausse déclaration ou faux document')).toBeTruthy();
 });
 
